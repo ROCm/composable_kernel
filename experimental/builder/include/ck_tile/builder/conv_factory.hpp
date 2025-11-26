@@ -360,17 +360,17 @@ struct ConvTensorTypes<DataType::FP8>
     using EDataType        = ck::f8_t;
 };
 
-template <ElementwiseOperation T>
+template <auto InputOpValue, auto WeightOpValue, auto OutputOpValue>
 struct ElementwiseOps
 {
-    // This will trigger if a specialization for the given DataType is not found.
+    // This will trigger if a specialization for the given ElementwiseOps combination is not found.
     // We should always catch this in an earlier validation check.
-    static_assert(sizeof(UnsupportedEnumValue<T>) == 0,
+    static_assert(sizeof(UnsupportedEnumValue<InputOpValue>) == 0,
                   "Internal error. Unsupported elementwise operation for convolution factory.");
 };
 
 template <>
-struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH>
+struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::PASS_THROUGH>
 {
     using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
     using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
@@ -378,12 +378,41 @@ struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH>
 };
 
 template <>
-struct ElementwiseOps<ElementwiseOperation::SCALE>
+struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::SCALE>
 {
     using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
     using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
     using CDEElementwiseOp = ck::tensor_operation::element_wise::Scale;
 };
+
+template <>
+struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::SCALEADD_SCALEADD_RELU>
+{
+    using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
+    using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
+    using CDEElementwiseOp = ck::tensor_operation::element_wise::ScaleAddScaleAddRelu;
+};
+
+struct PassThroughOp
+{
+    using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
+    using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
+    using CDEElementwiseOp = ck::tensor_operation::element_wise::PassThrough;
+};
+
+template <auto Sig>
+requires (HasElementwiseOp<decltype(Sig)>)
+constexpr auto GetElementwiseOp()
+{
+    return ElementwiseOps<Sig.elementwise_operation.input_op, Sig.elementwise_operation.weight_op, Sig.elementwise_operation.output_op>{};
+}
+
+template <auto Sig>
+requires (!HasElementwiseOp<decltype(Sig)>)
+constexpr auto GetElementwiseOp()
+{
+    return PassThroughOp{};
+}
 
 // The algorithm specializations for the convolution and GEMM.
 template <typename CONV_ENUM>
@@ -639,7 +668,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                                                                                  ConvDirection::FORWARD>());
                                                                 
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    using Ops           = decltype(factory_internal::GetElementwiseOp<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
 
     static_assert(ALGORITHM.transfer.a.lds_transfer.is_direct_load ==
@@ -745,7 +774,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                                                                              ConvDirection::FORWARD>());
 
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    using Ops           = decltype(factory_internal::GetElementwiseOp<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION =
@@ -846,7 +875,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                                                                              ConvDirection::FORWARD>());
 
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    using Ops           = decltype(factory_internal::GetElementwiseOp<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION =
@@ -946,7 +975,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                                                                              ConvDirection::FORWARD>());
 
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    using Ops           = decltype(factory_internal::GetElementwiseOp<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION =
@@ -1073,7 +1102,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                                                                              ConvDirection::FORWARD>());
 
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    using Ops           = decltype(factory_internal::GetElementwiseOp<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
 
     static constexpr auto BASE_ALGORITHM = ALGORITHM.base_algorithm;

@@ -30,6 +30,13 @@ struct ConvLayout : BiasTensorLayouts...
     ConvOutputLayout output_layout;
 };
 
+struct ElementwiseOperations
+{
+    ElementwiseOperation input_op{ElementwiseOperation::PASS_THROUGH};
+    ElementwiseOperation weight_op{ElementwiseOperation::PASS_THROUGH};
+    ElementwiseOperation output_op{ElementwiseOperation::PASS_THROUGH};
+};
+
 template <typename GroupConvLayout>
 struct ConvSignature
 {
@@ -37,7 +44,7 @@ struct ConvSignature
     ConvDirection direction;
     GroupConvLayout layout;
     DataType data_type;
-    ElementwiseOperation elementwise_operation;
+    ElementwiseOperations elementwise_operation;
 };
 
 } // namespace ck_tile::builder::test

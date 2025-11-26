@@ -20,9 +20,10 @@ template <auto Sig>
 concept ProvidesConvolutionDirection = requires { Sig.direction; };
 
 template <auto Sig>
+requires (HasElementwiseOp<decltype(Sig)>)
 constexpr auto get_elementwise_operation()
 {
-    if constexpr(ProvidesElementwiseOperation<Sig>)
+    if constexpr(HasElementwiseOp<decltype(Sig)>)
     {
         return Sig.elementwise_operation;
     }

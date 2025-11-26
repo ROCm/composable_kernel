@@ -28,7 +28,8 @@ TEST(FwdConvInstances,
                                              .layout      = FwdConvLayout,
                                              .data_type   = DataType::BF16,
                                              .elementwise_operation =
-                                                 ElementwiseOperation::SCALEADD_SCALEADD_RELU};
+                                                { .output_op = ElementwiseOperation::SCALEADD_SCALEADD_RELU}
+                                            };
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle{}
@@ -41,6 +42,7 @@ TEST(FwdConvInstances,
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
                        "NHWGC,GKYXC,NHWGK,G_K,NHWGK", // Check layouts
+                       "PassThrough,PassThrough,ScaleAddScaleAddRelu", // Check elementwise ops
                        "64,64,32,32",
                        "MNKPadding",
                        "Default"});

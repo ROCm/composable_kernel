@@ -106,12 +106,19 @@ concept HasConvolutionDirection = requires(T t) {
     { t.direction };
 };
 
+template <typename T>
+concept ElementwiseOperationDescriptor = requires(T t) {
+    { t.input_op } -> std::convertible_to<ElementwiseOperation>;
+    { t.weight_op } -> std::convertible_to<ElementwiseOperation>;
+    { t.output_op } -> std::convertible_to<ElementwiseOperation>;
+};
+
 // Note: it is not required to provide an ElementwiseOp, but if one is provided, check if well
 // defined
 template <typename T>
 concept ElementwiseOpWellDefinedIfProvided = requires(T t) {
     requires !HasElementwiseOp<T> || requires {
-        { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
+        { t.elementwise_operation } -> ElementwiseOperationDescriptor;
     };
 };
 
