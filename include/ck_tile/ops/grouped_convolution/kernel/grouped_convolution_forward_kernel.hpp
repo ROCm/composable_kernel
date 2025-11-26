@@ -39,7 +39,8 @@ struct GroupedConvFwdKernelArgs
     using CDElementwise                 = CDElementwise_;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
-    static_assert(!GroupedConvTraitsType_::ExplicitGemm || GroupedConvTraitsType_::NumGroupsToMerge == 1,
+    static_assert(!GroupedConvTraitsType_::ExplicitGemm ||
+                      GroupedConvTraitsType_::NumGroupsToMerge == 1,
                   "Explicit GEMM does not support merging convolution groups!");
 
     template <
@@ -98,8 +99,8 @@ struct GroupedConvFwdKernelArgs
             transformer_.template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
         NumGroupsToMerge = GroupedConvTraitsType_::NumGroupsToMerge;
-        group_stride_a    = args.C_ * NumGroupsToMerge;
-        group_stride_b    = args.K_ * args.C_ * NumGroupsToMerge *
+        group_stride_a   = args.C_ * NumGroupsToMerge;
+        group_stride_b   = args.K_ * args.C_ * NumGroupsToMerge *
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -198,8 +199,8 @@ struct GroupedConvFwdKernelArgs
             transformer_.template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
         NumGroupsToMerge = GroupedConvTraitsType_::NumGroupsToMerge;
-        group_stride_a    = args.C_ * NumGroupsToMerge;
-        group_stride_b    = args.K_ * args.C_ * NumGroupsToMerge *
+        group_stride_a   = args.C_ * NumGroupsToMerge;
+        group_stride_b   = args.K_ * args.C_ * NumGroupsToMerge *
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -305,8 +306,8 @@ struct GroupedConvFwdKernelArgs
             transformer_.template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
         NumGroupsToMerge = GroupedConvTraitsType_::NumGroupsToMerge;
-        group_stride_a    = args.C_ * NumGroupsToMerge;
-        group_stride_b    = args.K_ * args.C_ * NumGroupsToMerge *
+        group_stride_a   = args.C_ * NumGroupsToMerge;
+        group_stride_b   = args.K_ * args.C_ * NumGroupsToMerge *
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
