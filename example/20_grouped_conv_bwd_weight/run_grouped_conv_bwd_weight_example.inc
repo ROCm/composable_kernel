@@ -151,37 +151,11 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                      wei_device_result.mDesc.GetElementSpaceSize());
         wei_device_ref_buf.SetZero();
 
-        // Extract dimensions (G=1, standard convolution)
-        ck::index_t N_val  = conv_param.N_;
-        ck::index_t K_val  = conv_param.K_; // Per-group output channels
-        ck::index_t C_val  = conv_param.C_; // Per-group input channels
-        ck::index_t Di_val = (NDimSpatial >= 3) ? conv_param.input_spatial_lengths_[0] : 1;
-        ck::index_t Hi_val =
-            (NDimSpatial >= 2) ? conv_param.input_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
-        ck::index_t Wi_val = conv_param.input_spatial_lengths_[NDimSpatial - 1];
-        ck::index_t Z_val  = (NDimSpatial >= 3) ? conv_param.filter_spatial_lengths_[0] : 1;
-        ck::index_t Y_val =
-            (NDimSpatial >= 2) ? conv_param.filter_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
-        ck::index_t X_val  = conv_param.filter_spatial_lengths_[NDimSpatial - 1];
-        ck::index_t Do_val = (NDimSpatial >= 3) ? conv_param.output_spatial_lengths_[0] : 1;
-        ck::index_t Ho_val =
-            (NDimSpatial >= 2) ? conv_param.output_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
-        ck::index_t Wo_val       = conv_param.output_spatial_lengths_[NDimSpatial - 1];
-        ck::index_t stride_z_val = (NDimSpatial >= 3) ? conv_param.conv_filter_strides_[0] : 1;
-        ck::index_t stride_y_val =
-            (NDimSpatial >= 2) ? conv_param.conv_filter_strides_[NDimSpatial >= 3 ? 1 : 0] : 1;
-        ck::index_t stride_x_val   = conv_param.conv_filter_strides_[NDimSpatial - 1];
-        ck::index_t dilation_z_val = (NDimSpatial >= 3) ? conv_param.conv_filter_dilations_[0] : 1;
-        ck::index_t dilation_y_val =
-            (NDimSpatial >= 2) ? conv_param.conv_filter_dilations_[NDimSpatial >= 3 ? 1 : 0] : 1;
-        ck::index_t dilation_x_val = conv_param.conv_filter_dilations_[NDimSpatial - 1];
-        ck::index_t pad_z_val      = (NDimSpatial >= 3) ? conv_param.input_left_pads_[0] : 0;
-        ck::index_t pad_y_val =
-            (NDimSpatial >= 2) ? conv_param.input_left_pads_[NDimSpatial >= 3 ? 1 : 0] : 0;
-        ck::index_t pad_x_val = conv_param.input_left_pads_[NDimSpatial - 1];
+        // Extract dimensions using helper function (G=1, standard convolution)
+        ck::ref::ConvDims dims = ck::utils::conv::extract_conv_dims(conv_param, NDimSpatial, false);
 
         constexpr ck::index_t block_size     = 256;
-        const ck::long_index_t weight_length = K_val * Z_val * Y_val * X_val * C_val;
+        const ck::long_index_t weight_length = dims.K * dims.Z * dims.Y * dims.X * dims.C;
         const ck::index_t grid_size          = (weight_length + block_size - 1) / block_size;
 
         auto gpu_ref_kernel = ck::ref::naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk<InDataType,
@@ -196,27 +170,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
             reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
             reinterpret_cast<WeiDataType*>(wei_device_ref_buf.GetDeviceBuffer()),
             reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            N_val,
-            K_val,
-            C_val,
-            Di_val,
-            Hi_val,
-            Wi_val,
-            Z_val,
-            Y_val,
-            X_val,
-            Do_val,
-            Ho_val,
-            Wo_val,
-            stride_z_val,
-            stride_y_val,
-            stride_x_val,
-            dilation_z_val,
-            dilation_y_val,
-            dilation_x_val,
-            pad_z_val,
-            pad_y_val,
-            pad_x_val);
+            dims);
 
         HIP_CHECK_ERROR(hipDeviceSynchronize());
 
@@ -273,36 +227,11 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                      wei_device_result.mDesc.GetElementSpaceSize());
         wei_device_ref_buf.SetZero();
 
-        ck::index_t N_val  = conv_param.N_;
-        ck::index_t K_val  = conv_param.K_;
-        ck::index_t C_val  = conv_param.C_;
-        ck::index_t Di_val = (NDimSpatial >= 3) ? conv_param.input_spatial_lengths_[0] : 1;
-        ck::index_t Hi_val =
-            (NDimSpatial >= 2) ? conv_param.input_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
-        ck::index_t Wi_val = conv_param.input_spatial_lengths_[NDimSpatial - 1];
-        ck::index_t Z_val  = (NDimSpatial >= 3) ? conv_param.filter_spatial_lengths_[0] : 1;
-        ck::index_t Y_val =
-            (NDimSpatial >= 2) ? conv_param.filter_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
-        ck::index_t X_val  = conv_param.filter_spatial_lengths_[NDimSpatial - 1];
-        ck::index_t Do_val = (NDimSpatial >= 3) ? conv_param.output_spatial_lengths_[0] : 1;
-        ck::index_t Ho_val =
-            (NDimSpatial >= 2) ? conv_param.output_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
-        ck::index_t Wo_val       = conv_param.output_spatial_lengths_[NDimSpatial - 1];
-        ck::index_t stride_z_val = (NDimSpatial >= 3) ? conv_param.conv_filter_strides_[0] : 1;
-        ck::index_t stride_y_val =
-            (NDimSpatial >= 2) ? conv_param.conv_filter_strides_[NDimSpatial >= 3 ? 1 : 0] : 1;
-        ck::index_t stride_x_val   = conv_param.conv_filter_strides_[NDimSpatial - 1];
-        ck::index_t dilation_z_val = (NDimSpatial >= 3) ? conv_param.conv_filter_dilations_[0] : 1;
-        ck::index_t dilation_y_val =
-            (NDimSpatial >= 2) ? conv_param.conv_filter_dilations_[NDimSpatial >= 3 ? 1 : 0] : 1;
-        ck::index_t dilation_x_val = conv_param.conv_filter_dilations_[NDimSpatial - 1];
-        ck::index_t pad_z_val      = (NDimSpatial >= 3) ? conv_param.input_left_pads_[0] : 0;
-        ck::index_t pad_y_val =
-            (NDimSpatial >= 2) ? conv_param.input_left_pads_[NDimSpatial >= 3 ? 1 : 0] : 0;
-        ck::index_t pad_x_val = conv_param.input_left_pads_[NDimSpatial - 1];
+        // Extract dimensions using helper function
+        ck::ref::ConvDims dims = ck::utils::conv::extract_conv_dims(conv_param, NDimSpatial, false);
 
         constexpr ck::index_t block_size     = 256;
-        const ck::long_index_t weight_length = K_val * Z_val * Y_val * X_val * C_val;
+        const ck::long_index_t weight_length = dims.K * dims.Z * dims.Y * dims.X * dims.C;
         const ck::index_t grid_size          = (weight_length + block_size - 1) / block_size;
 
         auto gpu_ref_kernel = ck::ref::naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk<InDataType,
@@ -317,27 +246,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
             reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
             reinterpret_cast<WeiDataType*>(wei_device_ref_buf.GetDeviceBuffer()),
             reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            N_val,
-            K_val,
-            C_val,
-            Di_val,
-            Hi_val,
-            Wi_val,
-            Z_val,
-            Y_val,
-            X_val,
-            Do_val,
-            Ho_val,
-            Wo_val,
-            stride_z_val,
-            stride_y_val,
-            stride_x_val,
-            dilation_z_val,
-            dilation_y_val,
-            dilation_x_val,
-            pad_z_val,
-            pad_y_val,
-            pad_x_val);
+            dims);
 
         HIP_CHECK_ERROR(hipDeviceSynchronize());
 

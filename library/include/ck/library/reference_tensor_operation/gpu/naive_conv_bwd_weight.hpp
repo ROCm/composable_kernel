@@ -5,6 +5,7 @@
 #define NAIVE_CONV_BWD_WEIGHT_HPP
 
 #include "ck/utility/type_convert.hpp"
+#include "ck/library/reference_tensor_operation/gpu/conv_common.hpp"
 
 namespace ck {
 namespace ref {
@@ -34,35 +35,18 @@ template <typename TIn,
 __global__ void naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
                                                         TWei* __restrict__ p_wei_grad,
                                                         const TOut* __restrict__ p_out_grad,
-                                                        index_t N,
-                                                        index_t K,
-                                                        index_t C,
-                                                        index_t Di,
-                                                        index_t Hi,
-                                                        index_t Wi,
-                                                        index_t Z,
-                                                        index_t Y,
-                                                        index_t X,
-                                                        index_t Do,
-                                                        index_t Ho,
-                                                        index_t Wo,
-                                                        index_t stride_z,
-                                                        index_t stride_y,
-                                                        index_t stride_x,
-                                                        index_t dilation_z,
-                                                        index_t dilation_y,
-                                                        index_t dilation_x,
-                                                        index_t pad_z,
-                                                        index_t pad_y,
-                                                        index_t pad_x)
+                                                        const ConvDims dims)
 {
     const index_t tid                = blockIdx.x * blockDim.x + threadIdx.x;
     const index_t num_threads        = blockDim.x * gridDim.x;
-    const long_index_t weight_length = K * Z * Y * X * C;
+    const long_index_t weight_length = dims.K * dims.Z * dims.Y * dims.X * dims.C;
 
-    const index_t in_strides[]  = {Di * Hi * Wi * C, Hi * Wi * C, Wi * C, C};
-    const index_t out_strides[] = {Do * Ho * Wo * K, Ho * Wo * K, Wo * K, K};
-    const index_t wei_strides[] = {Z * Y * X * C, Y * X * C, X * C, C};
+    const index_t in_strides[] = {
+        dims.Di * dims.Hi * dims.Wi * dims.C, dims.Hi * dims.Wi * dims.C, dims.Wi * dims.C, dims.C};
+    const index_t out_strides[] = {
+        dims.Do * dims.Ho * dims.Wo * dims.K, dims.Ho * dims.Wo * dims.K, dims.Wo * dims.K, dims.K};
+    const index_t wei_strides[] = {
+        dims.Z * dims.Y * dims.X * dims.C, dims.Y * dims.X * dims.C, dims.X * dims.C, dims.C};
 
     constexpr auto in_op  = InElementwiseOperation{};
     constexpr auto wei_op = WeiElementwiseOperation{};
@@ -89,35 +73,35 @@ __global__ void naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ 
         float acc_float = 0.0f;
 
         // Loop over batch
-        for(index_t n = 0; n < N; ++n)
+        for(index_t n = 0; n < dims.N; ++n)
         {
             const TIn* in_n   = p_in + static_cast<long_index_t>(n) * in_strides[0];
             const TOut* out_n = p_out_grad + static_cast<long_index_t>(n) * out_strides[0];
 
             // Loop over output spatial dimensions
-            for(index_t d_o = 0; d_o < Do; ++d_o)
+            for(index_t d_o = 0; d_o < dims.Do; ++d_o)
             {
                 // Calculate input position from output position
-                index_t di = d_o * stride_z - pad_z + z * dilation_z;
-                if(di < 0 || di >= Di)
+                index_t di = d_o * dims.stride_z - dims.pad_z + z * dims.dilation_z;
+                if(di < 0 || di >= dims.Di)
                     continue;
 
                 const TIn* in_n_di   = in_n + di * in_strides[1];
                 const TOut* out_n_do = out_n + d_o * out_strides[1];
 
-                for(index_t ho = 0; ho < Ho; ++ho)
+                for(index_t ho = 0; ho < dims.Ho; ++ho)
                 {
-                    index_t hi = ho * stride_y - pad_y + y * dilation_y;
-                    if(hi < 0 || hi >= Hi)
+                    index_t hi = ho * dims.stride_y - dims.pad_y + y * dims.dilation_y;
+                    if(hi < 0 || hi >= dims.Hi)
                         continue;
 
                     const TIn* in_n_di_hi   = in_n_di + hi * in_strides[2];
                     const TOut* out_n_do_ho = out_n_do + ho * out_strides[2];
 
-                    for(index_t wo = 0; wo < Wo; ++wo)
+                    for(index_t wo = 0; wo < dims.Wo; ++wo)
                     {
-                        index_t wi = wo * stride_x - pad_x + x * dilation_x;
-                        if(wi < 0 || wi >= Wi)
+                        index_t wi = wo * dims.stride_x - dims.pad_x + x * dims.dilation_x;
+                        if(wi < 0 || wi >= dims.Wi)
                             continue;
 
                         // Load values from memory (like forward does)

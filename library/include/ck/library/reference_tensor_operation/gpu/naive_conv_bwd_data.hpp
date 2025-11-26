@@ -5,6 +5,7 @@
 #define NAIVE_CONV_BWD_DATA_HPP
 
 #include "ck/utility/type_convert.hpp"
+#include "ck/library/reference_tensor_operation/gpu/conv_common.hpp"
 
 namespace ck {
 namespace ref {
@@ -34,35 +35,18 @@ template <typename TIn,
 __global__ void naive_conv_bwd_data_ndhwc_kzyxc_ndhwk(TIn* __restrict__ p_in_grad,
                                                       const TWei* __restrict__ p_wei,
                                                       const TOut* __restrict__ p_out_grad,
-                                                      index_t N,
-                                                      index_t K,
-                                                      index_t C,
-                                                      index_t Di,
-                                                      index_t Hi,
-                                                      index_t Wi,
-                                                      index_t Z,
-                                                      index_t Y,
-                                                      index_t X,
-                                                      index_t Do,
-                                                      index_t Ho,
-                                                      index_t Wo,
-                                                      index_t stride_z,
-                                                      index_t stride_y,
-                                                      index_t stride_x,
-                                                      index_t dilation_z,
-                                                      index_t dilation_y,
-                                                      index_t dilation_x,
-                                                      index_t pad_z,
-                                                      index_t pad_y,
-                                                      index_t pad_x)
+                                                      const ConvDims dims)
 {
     const index_t tid               = blockIdx.x * blockDim.x + threadIdx.x;
     const index_t num_threads       = blockDim.x * gridDim.x;
-    const long_index_t input_length = N * Di * Hi * Wi * C;
+    const long_index_t input_length = dims.N * dims.Di * dims.Hi * dims.Wi * dims.C;
 
-    const index_t in_strides[]  = {Di * Hi * Wi * C, Hi * Wi * C, Wi * C, C};
-    const index_t out_strides[] = {Do * Ho * Wo * K, Ho * Wo * K, Wo * K, K};
-    const index_t wei_strides[] = {Z * Y * X * C, Y * X * C, X * C, C};
+    const index_t in_strides[] = {
+        dims.Di * dims.Hi * dims.Wi * dims.C, dims.Hi * dims.Wi * dims.C, dims.Wi * dims.C, dims.C};
+    const index_t out_strides[] = {
+        dims.Do * dims.Ho * dims.Wo * dims.K, dims.Ho * dims.Wo * dims.K, dims.Wo * dims.K, dims.K};
+    const index_t wei_strides[] = {
+        dims.Z * dims.Y * dims.X * dims.C, dims.Y * dims.X * dims.C, dims.X * dims.C, dims.C};
 
     constexpr auto in_op  = InElementwiseOperation{};
     constexpr auto wei_op = WeiElementwiseOperation{};
@@ -91,43 +75,43 @@ __global__ void naive_conv_bwd_data_ndhwc_kzyxc_ndhwk(TIn* __restrict__ p_in_gra
         const TOut* out_n = p_out_grad + static_cast<long_index_t>(n) * out_strides[0];
 
         // Loop over output channels
-        for(index_t k = 0; k < K; ++k)
+        for(index_t k = 0; k < dims.K; ++k)
         {
             const TWei* wei_k = p_wei + static_cast<long_index_t>(k) * wei_strides[0];
 
             // Loop over filter dimensions
-            for(index_t z = 0; z < Z; ++z)
+            for(index_t z = 0; z < dims.Z; ++z)
             {
                 // Calculate output position from input position (inverse of forward)
-                index_t d_tmp = di + pad_z - z * dilation_z;
-                if(d_tmp % stride_z != 0)
+                index_t d_tmp = di + dims.pad_z - z * dims.dilation_z;
+                if(d_tmp % dims.stride_z != 0)
                     continue;
-                index_t d_o = d_tmp / stride_z;
-                if(d_o < 0 || d_o >= Do)
+                index_t d_o = d_tmp / dims.stride_z;
+                if(d_o < 0 || d_o >= dims.Do)
                     continue;
 
                 const TOut* out_n_do = out_n + d_o * out_strides[1];
                 const TWei* wei_k_z  = wei_k + z * wei_strides[1];
 
-                for(index_t y = 0; y < Y; ++y)
+                for(index_t y = 0; y < dims.Y; ++y)
                 {
-                    index_t h_tmp = hi + pad_y - y * dilation_y;
-                    if(h_tmp % stride_y != 0)
+                    index_t h_tmp = hi + dims.pad_y - y * dims.dilation_y;
+                    if(h_tmp % dims.stride_y != 0)
                         continue;
-                    index_t ho = h_tmp / stride_y;
-                    if(ho < 0 || ho >= Ho)
+                    index_t ho = h_tmp / dims.stride_y;
+                    if(ho < 0 || ho >= dims.Ho)
                         continue;
 
                     const TOut* out_n_do_ho = out_n_do + ho * out_strides[2];
                     const TWei* wei_k_z_y   = wei_k_z + y * wei_strides[2];
 
-                    for(index_t x = 0; x < X; ++x)
+                    for(index_t x = 0; x < dims.X; ++x)
                     {
-                        index_t w_tmp = wi + pad_x - x * dilation_x;
-                        if(w_tmp % stride_x != 0)
+                        index_t w_tmp = wi + dims.pad_x - x * dims.dilation_x;
+                        if(w_tmp % dims.stride_x != 0)
                             continue;
-                        index_t wo = w_tmp / stride_x;
-                        if(wo < 0 || wo >= Wo)
+                        index_t wo = w_tmp / dims.stride_x;
+                        if(wo < 0 || wo >= dims.Wo)
                             continue;
 
                         const TOut* out_n_do_ho_wo = out_n_do_ho + wo * out_strides[3];
