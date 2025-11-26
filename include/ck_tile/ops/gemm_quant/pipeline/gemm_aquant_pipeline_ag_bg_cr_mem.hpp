@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -256,6 +256,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(!is_aq_col_major, "Aq must be row major (col major not supported yet)");
+            static_assert(!PreshuffleQuant, "Memory pipeline does not support PreshuffleQuant!");
             static_assert(MPerBlock == AQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                               KPerBlockAQ == AQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "Aq block window has incorrect lengths for defined AqLayout!");

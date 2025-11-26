@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) , Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -244,6 +244,24 @@ struct GemmConfigPreshuffleBQuantPrefill : public GemmConfigBQuantPrefill<PrecTy
 
 template <typename PrecType>
 struct GemmConfigBQuantPrefill_Wmma : public GemmConfigBQuantPrefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffleB_BQuant_Prefill_Wmma
+    : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill_Wmma
+    : public GemmConfigPreshuffleB_PreshuffleBQuant_Prefill<PrecType>
 {
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;

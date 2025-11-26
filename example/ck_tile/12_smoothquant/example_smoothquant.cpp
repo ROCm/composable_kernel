@@ -1,3 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include "ck_tile/host.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"

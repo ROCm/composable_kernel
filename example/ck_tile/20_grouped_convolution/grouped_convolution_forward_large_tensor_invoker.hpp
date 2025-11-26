@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include "grouped_convolution_utils.hpp"
 
 struct GroupedConvolutionForwardInvoker
@@ -21,11 +20,6 @@ struct GroupedConvolutionForwardInvoker
     static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs<CDEElementWise>& args,
                                   const ck_tile::stream_config& s)
     {
-        if(s.log_level_ > 0)
-        {
-            std::cout << "[INVOKER] grouped_conv_fwd called, NDimSpatial=" << NDimSpatial << "\n";
-        }
-
         // Implicit GEMM Traits
         using GemmShape = ck_tile::TileGemmShape<
             ck_tile::sequence<ConvConfig::M_Tile, ConvConfig::N_Tile, ConvConfig::K_Tile>,
