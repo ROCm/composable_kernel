@@ -474,6 +474,9 @@ def cmake_build(Map conf=[:]){
         if (params.NINJA_BUILD_TRACE) {
             echo "running ninja build trace"
         }
+        if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+            setup_args = " -D CK_EXPERIMENTAL_BUILDER=ON "  + setup_args
+        }
         setup_cmd = conf.get(
             "setup_cmd",
             """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 " .. """
@@ -520,6 +523,9 @@ def cmake_build(Map conf=[:]){
                     else{
                         sh "ninja check"
                     }
+                    if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+                        sh 'ninja check-builder'
+                    }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
@@ -544,6 +550,9 @@ def cmake_build(Map conf=[:]){
                     }
                     else{
                         sh "ninja check"
+                    }
+                    if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+                        sh 'ninja check-builder'
                     }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
@@ -1107,6 +1116,10 @@ pipeline {
             name: "RUN_INDUCTOR_TESTS",
             defaultValue: true,
             description: "Run inductor codegen tests (default: ON)")
+        booleanParam(
+            name: "RUN_BUILDER_TESTS",
+            defaultValue: true,
+            description: "Run CK_BUILDER tests (default: ON)")
         booleanParam(
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
