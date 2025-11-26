@@ -58,7 +58,7 @@ struct naive_grouped_conv_fwd_kernel
         }
 
         // Calculate strides for output tensor (NDHWGK or NHWGK or NWGK)
-        ck_tile::long_index_t out_strides[10]; // Max: N, D, H, W, G, K (6 dimensions)
+        ck_tile::long_index_t out_strides[NDimSpatial + 3]; // N, spatial dims, G, K
         ck_tile::long_index_t stride = 1;
         out_strides[NDimSpatial + 2] = stride; // K stride
         stride *= K;
@@ -72,7 +72,7 @@ struct naive_grouped_conv_fwd_kernel
         out_strides[0] = stride; // N stride
 
         // Calculate strides for input tensor (NDHWGC or NHWGC or NWGC)
-        ck_tile::long_index_t in_strides[10];
+        ck_tile::long_index_t in_strides[NDimSpatial + 3];
         stride                      = 1;
         in_strides[NDimSpatial + 2] = stride; // C stride
         stride *= C;
@@ -86,7 +86,7 @@ struct naive_grouped_conv_fwd_kernel
         in_strides[0] = stride; // N stride
 
         // Calculate strides for weight tensor (GKZYXC or GKYXC or GKXC)
-        ck_tile::long_index_t wei_strides[10];
+        ck_tile::long_index_t wei_strides[NDimSpatial + 3];
         stride                       = 1;
         wei_strides[NDimSpatial + 2] = stride; // C stride
         stride *= C;
