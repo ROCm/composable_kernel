@@ -74,6 +74,7 @@ template <typename ALayout,
           index_t ActivationOP                        = 0,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
+          bool IsSplitK                               = false,
           bool MulRoutedWeight                        = false,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = CDataType,
@@ -156,6 +157,7 @@ struct DeviceMoeGemmBlockScale
         ActivationOP,
         NSwizzle,
         IsInputGemm,
+        IsSplitK,
         MulRoutedWeight,
         IndexType,
         ComputeTypeA,
@@ -252,7 +254,7 @@ struct DeviceMoeGemmBlockScale
                         if(arg_.KBatch > 1)
                             hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
                                                              0,
-                                                             arg_.M * arg_.N * sizeof(CDataType),
+                                                             arg_.M * arg_.N * sizeof(CDataType) * (IsInputGemm && IsSplitK ? 2 : 1),
                                                              stream_config.stream_id_));
                     };
 
@@ -270,7 +272,7 @@ struct DeviceMoeGemmBlockScale
                     if(arg.KBatch > 1)
                         hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
                                                          0,
-                                                         arg.M * arg.N * sizeof(CDataType),
+                                                         arg.M * arg.N * sizeof(CDataType) * (IsInputGemm && IsSplitK ? 2 : 1),
                                                          stream_config.stream_id_));
 
                     ave_time = launch_and_time_kernel(
@@ -290,7 +292,7 @@ struct DeviceMoeGemmBlockScale
             constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
 
             constexpr auto MemoryDataOp =
-                IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
+                (IsInputGemm && !IsSplitK) ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
 
             if(has_main_k_block_loop)
             {
@@ -416,8 +418,8 @@ struct DeviceMoeGemmBlockScale
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        // only impl kbatch 1 now
-        if(arg.KBatch > 1)
+        // only impl kbatch 1 for fp32
+        if(arg.KBatch > 1 && !std::is_same_v<CDataType, float>)
         {
             return false;
         }

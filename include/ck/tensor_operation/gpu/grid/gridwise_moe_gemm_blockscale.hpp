@@ -167,6 +167,7 @@ template <typename ALayout,
           index_t ActivationOperation                 = 0,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
+          bool IsSplitK                               = false,
           bool MulRoutedWeight                        = true,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = CDataType,
@@ -939,7 +940,7 @@ struct GridwiseMoeGemmBlockScale
                                 MXdlPerWave,
                                 NXdlPerWave,
                                 KPack,
-                                IsInputGemm>())>;
+                                IsInputGemm && !IsSplitK>())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -1190,7 +1191,7 @@ struct GridwiseMoeGemmBlockScale
                                CElementwiseOperation c_element_op)
     {
         ignore                           = b_element_op;
-        index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N);
+        index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N * (IsInputGemm && IsSplitK ? 2 : 1));
         index_t BK0Shuffled              = CalculateBK0Shuffled(problem.K);
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
@@ -1204,7 +1205,7 @@ struct GridwiseMoeGemmBlockScale
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
             IsInputGemm ? problem.NumTokens * problem.TopK : problem.NumTokens,
             problem.MPadded,
-            problem.N,
+            problem.N * (IsInputGemm && IsSplitK ? 2 : 1),
             problem.NPadded,
             problem.StrideC);
 
@@ -1447,7 +1448,7 @@ struct GridwiseMoeGemmBlockScale
         constexpr auto b_scale_thread_slice_copy_step = make_multi_index(0, ScaleSliceSizeK);
 
         constexpr auto NumKBlockPerScale = math::integer_divide_ceil(ScaleBlockK, KPerBlock);
-        if constexpr(IsInputGemm)
+        if constexpr(IsInputGemm && !IsSplitK)
         {
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
             const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1606,7 +1607,7 @@ struct GridwiseMoeGemmBlockScale
                                 blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
                                     make_tuple(m0, n0, n2 * N4 + n4));
                             constexpr auto cidx = Number<c_offset>{};
-                            if constexpr(IsInputGemm) // gu fusion, elementwise
+                            if constexpr(IsInputGemm && !IsSplitK) // gu fusion, elementwise
                             {
                                 if constexpr(ActivationOperation == Activation::silu_and_mul)
                                 {
@@ -1875,7 +1876,7 @@ struct GridwiseMoeGemmBlockScale
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
-                    scatter_offsets(m0) = token_offset * problem.N;
+                    scatter_offsets(m0) = token_offset * problem.N * (IsInputGemm && IsSplitK ? 2 : 1);
                 });
 
                 block_sync_lds();
@@ -1939,7 +1940,7 @@ struct GridwiseMoeGemmBlockScale
                                     CElementwiseOperation c_element_op)
     {
         ignore                           = b_element_op;
-        index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N);
+        index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N * (IsInputGemm && IsSplitK ? 2 : 1));
         index_t BK0Shuffled              = CalculateBK0Shuffled(problem.K);
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
@@ -1953,7 +1954,7 @@ struct GridwiseMoeGemmBlockScale
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
             IsInputGemm ? problem.NumTokens * problem.TopK : problem.NumTokens,
             problem.MPadded,
-            problem.N,
+            problem.N * (IsInputGemm && IsSplitK ? 2 : 1),
             problem.NPadded,
             problem.StrideC);
 
@@ -2202,7 +2203,7 @@ struct GridwiseMoeGemmBlockScale
         constexpr auto b_scale_thread_slice_copy_step = make_multi_index(0, ScaleSliceSizeK);
 
         constexpr auto NumKBlockPerScale = math::integer_divide_ceil(ScaleBlockK, KPerBlock);
-        if constexpr(IsInputGemm)
+        if constexpr(IsInputGemm && !IsSplitK)
         {
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
             const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -2352,7 +2353,7 @@ struct GridwiseMoeGemmBlockScale
                                 blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
                                     make_tuple(m0, n0, n2 * N4 + n4));
                             constexpr auto cidx = Number<c_offset>{};
-                            if constexpr(IsInputGemm) // gu fusion, elementwise
+                            if constexpr(IsInputGemm && !IsSplitK) // gu fusion, elementwise
                             {
                                 if constexpr(ActivationOperation == Activation::silu_and_mul)
                                 {
@@ -2619,7 +2620,7 @@ struct GridwiseMoeGemmBlockScale
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
-                    scatter_offsets(m0) = token_offset * problem.N;
+                    scatter_offsets(m0) = token_offset * problem.N * (IsInputGemm && IsSplitK ? 2 : 1);
                 });
 
                 block_sync_lds();
