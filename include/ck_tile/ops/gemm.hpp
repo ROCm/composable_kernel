@@ -34,6 +34,7 @@
 #include "ck_tile/ops/gemm/kernel/gemm_multi_d_kernel.hpp"
 #include "ck_tile/ops/gemm/kernel/gemm_tile_partitioner.hpp"
 #include "ck_tile/ops/gemm/kernel/grouped_gemm_kernel.hpp"
+#include "ck_tile/ops/gemm/kernel/persistent_async_utils.hpp"
 #include "ck_tile/ops/gemm/kernel/streamk_gemm_kernel.hpp"
 #include "ck_tile/ops/gemm/kernel/streamk_gemm_tile_partitioner.hpp"
 #include "ck_tile/ops/gemm/kernel/streamk_gemm_tile_partitioner_impl.hpp"

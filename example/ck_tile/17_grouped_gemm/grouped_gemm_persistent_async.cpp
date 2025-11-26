@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "persistent_async_scheduler.hpp"
-#include "persistent_async_utils.hpp"
+#include "ck_tile/ops/gemm/kernel/persistent_async_utils.hpp"
 #include "ck_tile/core/utility/gemm_validation.hpp"
 #include <hip/hip_runtime.h>
 #include "grouped_gemm.hpp"

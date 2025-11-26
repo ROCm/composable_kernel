@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck/utility/synchronization.hpp"
 
 namespace ck_tile {
 
@@ -19,9 +20,8 @@ namespace ck_tile {
  */
 CK_TILE_DEVICE static void iteration_boundary_fence()
 {
-    __builtin_amdgcn_s_waitcnt(0);
-    __builtin_amdgcn_s_waitcnt(0);
-    __builtin_amdgcn_s_barrier();
+    // Wait for all global and LDS memory operations, then barrier
+    block_sync_lds_direct_load();
 }
 
 /**
