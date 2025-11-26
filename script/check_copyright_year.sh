@@ -15,27 +15,27 @@ SPDX_LINE="SPDX-License-Identifier: MIT"
 
 check_file() {
     local file=$1
+    local basename="${file##*/}"
     local ext="${file##*.}"
     local comment_char
 
-    # Determine comment character based on file extension
-    case "$ext" in
-        cpp|hpp|inc)
-            comment_char="//"
-            ;;
-        py|sh|cmake)
-            comment_char="#"
-            ;;
-        *)
-            # If the filename is *.cmake or CMakeLists.txt, use #
-            if [[ "$file" == *CMakeLists.txt ]] || [[ "$file" == *.cmake ]]; then
+    # Determine comment character based on filename or extension
+    if [[ "$basename" == "CMakeLists.txt" ]]; then
+        comment_char="#"
+    else
+        case "$ext" in
+            cpp|hpp|inc)
+                comment_char="//"
+                ;;
+            py|sh|cmake)
                 comment_char="#"
-            else
+                ;;
+            *)
                 # Skip files with unsupported extensions
                 return 0
-            fi
-            ;;
-    esac
+                ;;
+        esac
+    fi
 
     # Build expected header patterns
     expected_copyright="$comment_char $COPYRIGHT_LINE"
