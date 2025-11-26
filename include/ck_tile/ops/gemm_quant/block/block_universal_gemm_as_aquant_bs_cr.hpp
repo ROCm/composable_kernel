@@ -5,7 +5,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/elementwise.hpp"
@@ -156,7 +155,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
     using Base = BlockGemmAQuantBase<Problem_>;
 
-    using Loader   = remove_cvref_t<InterleavedPKTypeLoader<ComputeDataType, UnaryOpSize_>>;
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
     static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
@@ -276,7 +274,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
             int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
                 pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
-
             return Base::cvt_scale_to_fp32(gathered_scale_reg);
         }
 
@@ -370,7 +367,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                             static_assert(false, "WarpGemm::kM is not 16 nor 32.");
                         }
                         auto& scale_reg = aq_block_tensor.get_thread_buffer()[mIter];
-
                         return exchange_quant_value_across_lanes(scale_reg, pull_from_lane);
                     }
                     else
@@ -447,26 +443,8 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
                                           const BSmemBlockWindow& b_block_window)
         {
-            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
-            {
-                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                              std::is_same_v<ComputeDataType, bf8_t>);
-                Loader::load_interleaved_pk_type(a_warp_tile_, a_block_window);
-            }
-            else
-            {
-                load_tile(a_warp_tile_, a_block_window);
-            }
-            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-            {
-                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                              std::is_same_v<ComputeDataType, bf8_t>);
-                Loader::load_interleaved_pk_type(b_warp_tile_, b_block_window);
-            }
-            else
-            {
-                load_tile(b_warp_tile_, b_block_window);
-            }
+            load_int4_tile<ADataType, ComputeDataType, UnaryOpSize_>(a_warp_tile_, a_block_window);
+            load_int4_tile<BDataType, ComputeDataType, UnaryOpSize_>(b_warp_tile_, b_block_window);
         }
 
         // C += A * B
@@ -531,6 +509,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                             [&](auto c_row) {
                                 float scale_reg_f = aq_picker.template pick<c_row>();
+
                                 c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
                                     (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
                             });

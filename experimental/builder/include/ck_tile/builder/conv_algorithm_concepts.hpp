@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -95,7 +95,8 @@ concept AccessOrderDescriptor = requires(T t) {
     { t.order } -> std::convertible_to<std::array<size_t, 3>>;
 };
 
-// No requirements yet for a ConvAlgorithm concept.
+// Base requirement for all ConvAlgorithm concepts, i.e., all conv algorithm concepts must meet this
+// concept.
 template <typename T>
 concept ConvAlgorithmDescriptor = std::is_class_v<T>;
 
@@ -124,31 +125,31 @@ concept SpecifiesGridwiseWmmaGemm = requires {
 // Concept to check if a struct specifies convolution input and output block transfer info.
 template <typename T>
 concept SpecifiesBlockTransfer = requires(T t) {
-    { T::block_transfer.block_transfer_a } -> BlockTransferDescriptor;
-    { T::block_transfer.block_transfer_b } -> BlockTransferDescriptor;
-    { T::block_transfer.thread_cluster_dims_c } -> ThreadClusterDescriptor;
+    { T::transfer.a.block_transfer } -> BlockTransferDescriptor;
+    { T::transfer.b.block_transfer } -> BlockTransferDescriptor;
+    { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
 };
 
 // Concept to check if a struct specifies LDS transfer info for tensors A, B, and C.
 template <typename T>
 concept SpecifiesLdsTransfer = requires(T t) {
-    { T::block_transfer.lds_transfer_a } -> LdsTransferDescriptor;
-    { T::block_transfer.lds_transfer_b } -> LdsTransferDescriptor;
-    { T::block_transfer.epilogue_c } -> EpilogueDescriptor;
+    { T::transfer.a.lds_transfer } -> LdsTransferDescriptor;
+    { T::transfer.b.lds_transfer } -> LdsTransferDescriptor;
+    { T::transfer.c.epilogue } -> EpilogueDescriptor;
 };
 
 // Concept to check if a struct specifies thread cluster access order info.
 template <typename T>
 concept SpecifiesThreadClusterAccessOrder = requires(T t) {
-    { T::block_transfer.block_transfer_access_order_a } -> AccessOrderDescriptor;
-    { T::block_transfer.block_transfer_access_order_b } -> AccessOrderDescriptor;
+    { T::transfer.a.block_transfer_access_order } -> AccessOrderDescriptor;
+    { T::transfer.b.block_transfer_access_order } -> AccessOrderDescriptor;
 };
 
 // Concept to check if a struct specifies source access order info.
 template <typename T>
 concept SpecifiesSourceAccessOrder = requires(T t) {
-    { T::block_transfer.src_access_order_a } -> AccessOrderDescriptor;
-    { T::block_transfer.src_access_order_b } -> AccessOrderDescriptor;
+    { T::transfer.a.src_access_order } -> AccessOrderDescriptor;
+    { T::transfer.b.src_access_order } -> AccessOrderDescriptor;
 };
 
 // Concept to check if struct specifies block GEMM.
@@ -183,6 +184,12 @@ concept SpecifiesLoopScheduler = requires {
     { T::loop_scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
+template <typename T>
+concept SpecifiesLargeTensorSupport = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::LARGE_TENSOR;
+};
+
 /******************************************** */
 /* DL-specific descriptors and requirements   */
 /******************************************** */
@@ -204,9 +211,9 @@ concept DlThreadClusterDescriptor = requires(T t) {
     { t.n1_xs } -> std::convertible_to<std::array<size_t, 2>>;
 };
 
-// Concept for DL block transfer K0_M0_M1_K1 format
+// Concept for DL block transfer
 template <typename T>
-concept DlBlockTransferK0M0M1K1Descriptor = requires(T t) {
+concept DlBlockTransferDescriptor = requires(T t) {
     { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, 4>>;
     { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, 4>>;
     { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, 4>>;
@@ -216,21 +223,9 @@ concept DlBlockTransferK0M0M1K1Descriptor = requires(T t) {
     { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
 };
 
-// Concept for DL block transfer K0_N0_N1_K1 format
+// Concept for DL epilogue
 template <typename T>
-concept DlBlockTransferK0N0N1K1Descriptor = requires(T t) {
-    { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.src_access_order } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.src_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
-};
-
-// Concept for DL C thread transfer
-template <typename T>
-concept DlCThreadTransferDescriptor = requires(T t) {
+concept DlEpilogueDescriptor = requires(T t) {
     { t.src_dst_access_order } -> std::convertible_to<std::array<size_t, 6>>;
     { t.src_dst_vector_dim } -> std::convertible_to<size_t>;
     { t.dst_scalar_per_vector } -> std::convertible_to<size_t>;
@@ -239,31 +234,63 @@ concept DlCThreadTransferDescriptor = requires(T t) {
 // Concept to check if algorithm specifies DL thread config
 template <typename T>
 concept SpecifiesDlThreadConfig = requires {
-    { T::dl_thread_config } -> DlThreadConfigDescriptor;
+    { T::thread_config } -> DlThreadConfigDescriptor;
 };
 
 // Concept to check if algorithm specifies DL thread cluster
 template <typename T>
 concept SpecifiesDlThreadCluster = requires {
-    { T::dl_thread_cluster } -> DlThreadClusterDescriptor;
+    { T::thread_cluster } -> DlThreadClusterDescriptor;
 };
 
-// Concept to check if algorithm specifies DL A block transfer
+// Concept to check if algorithm specifies DL block transfer
 template <typename T>
-concept SpecifiesDlBlockTransferA = requires {
-    { T::dl_block_transfer_a } -> DlBlockTransferK0M0M1K1Descriptor;
-};
-
-// Concept to check if algorithm specifies DL B block transfer
-template <typename T>
-concept SpecifiesDlBlockTransferB = requires {
-    { T::dl_block_transfer_b } -> DlBlockTransferK0N0N1K1Descriptor;
+concept SpecifiesDlBlockTransfer = requires {
+    { T::transfer.a.block_transfer } -> DlBlockTransferDescriptor;
+    { T::transfer.b.block_transfer } -> DlBlockTransferDescriptor;
 };
 
 // Concept to check if algorithm specifies DL C thread transfer
 template <typename T>
-concept SpecifiesDlCThreadTransfer = requires {
-    { T::dl_c_thread_transfer } -> DlCThreadTransferDescriptor;
+concept SpecifiesDlEpilogue = requires {
+    { T::transfer.c.epilogue } -> DlEpilogueDescriptor;
 };
+
+/******************************************** */
+/* Concepts for the different device ops */
+/******************************************** */
+
+template <typename T>
+concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T>;
+
+template <typename T>
+concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> &&
+    SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T>;
+
+template <typename T>
+concept DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
+
+template <typename T>
+concept DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesFwdConcSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesDlThreadConfig<T> && SpecifiesDlThreadCluster<T> &&
+    SpecifiesDlBlockTransfer<T> && SpecifiesDlEpilogue<T>;
+
+template <typename T>
+concept DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
+    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<decltype(T::base_algorithm)> &&
+    SpecifiesLargeTensorSupport<T>;
 
 } // namespace ck_tile::builder

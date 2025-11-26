@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -72,52 +72,6 @@ enum class ConvDirection
     FORWARD,
     BACKWARD_DATA,
     BACKWARD_WEIGHT
-};
-
-// Forward convolution device operations.
-enum class FwdGroupConvDeviceOperation
-{
-    DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK,
-    DeviceGroupedConvFwdMultipleD_Wmma_CShuffle,
-    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle,
-    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3,
-    DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
-};
-
-// Backward data convolution device operations.
-enum class BwdDataGroupConvDeviceOperation
-{
-    DeviceGroupedConvBwdDataMultipleD,
-    DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle,
-    DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
-};
-
-// Backward weight convolution device operations.
-enum class BwdWeightGroupConvDeviceOperation
-{
-    DeviceGroupedConvBwdWeight,
-    DeviceGroupedConvBwdWeight_Dl,
-    DeviceGroupedConvBwdWeight_Xdl_CShuffle,
-    DeviceGroupedConvBwdWeight_Xdl_CShuffleV3,
-    DeviceGroupedConvBwdWeight_Wmma_CShuffle,
-    DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle,
-    DeviceGroupedConvBwdWeightMultipleD,
-    DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle,
-};
-
-// Structural type for device operation
-struct GroupConvDeviceOp
-{
-    union
-    {
-        FwdGroupConvDeviceOperation _fwd;
-        BwdDataGroupConvDeviceOperation _bwd_data;
-        BwdWeightGroupConvDeviceOperation _bwd_weight;
-    };
-
-    constexpr GroupConvDeviceOp(FwdGroupConvDeviceOperation op) : _fwd(op) {}
-    constexpr GroupConvDeviceOp(BwdDataGroupConvDeviceOperation op) : _bwd_data(op) {}
-    constexpr GroupConvDeviceOp(BwdWeightGroupConvDeviceOperation op) : _bwd_weight(op) {}
 };
 
 // Fused element-wise operations.
@@ -219,6 +173,11 @@ enum class PipelineScheduler
     INTERWAVE
 };
 
+enum class ConvAlgorithmSpecialization
+{
+    LARGE_TENSOR
+};
+
 // ostream operator overloads for enum classes
 inline std::ostream& operator<<(std::ostream& os, DataType dt)
 {
@@ -282,61 +241,6 @@ inline std::ostream& operator<<(std::ostream& os, GroupConvLayout3D layout)
     case NDHWGC_GKZYXC_NDHWGK: return os << "NDHWGC_GKZYXC_NDHWGK";
     case NGCDHW_GKZYXC_NGKDHW: return os << "NGCDHW_GKZYXC_NGKDHW";
     case NGCDHW_GKCZYX_NGKDHW: return os << "NGCDHW_GKCZYX_NGKDHW";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, FwdGroupConvDeviceOperation op)
-{
-    using enum FwdGroupConvDeviceOperation;
-    switch(op)
-    {
-    case DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK:
-        return os << "DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK";
-    case DeviceGroupedConvFwdMultipleD_Wmma_CShuffle:
-        return os << "DeviceGroupedConvFwdMultipleD_Wmma_CShuffle";
-    case DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle:
-        return os << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle";
-    case DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3:
-        return os << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3";
-    case DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor:
-        return os << "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, BwdDataGroupConvDeviceOperation op)
-{
-    using enum BwdDataGroupConvDeviceOperation;
-    switch(op)
-    {
-    case DeviceGroupedConvBwdDataMultipleD: return os << "DeviceGroupedConvBwdDataMultipleD";
-    case DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle:
-        return os << "DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle";
-    case DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1:
-        return os << "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, BwdWeightGroupConvDeviceOperation op)
-{
-    using enum BwdWeightGroupConvDeviceOperation;
-    switch(op)
-    {
-    case DeviceGroupedConvBwdWeight: return os << "DeviceGroupedConvBwdWeight";
-    case DeviceGroupedConvBwdWeight_Dl: return os << "DeviceGroupedConvBwdWeight_Dl";
-    case DeviceGroupedConvBwdWeight_Xdl_CShuffle:
-        return os << "DeviceGroupedConvBwdWeight_Xdl_CShuffle";
-    case DeviceGroupedConvBwdWeight_Xdl_CShuffleV3:
-        return os << "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3";
-    case DeviceGroupedConvBwdWeight_Wmma_CShuffle:
-        return os << "DeviceGroupedConvBwdWeight_Wmma_CShuffle";
-    case DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle:
-        return os << "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle";
-    case DeviceGroupedConvBwdWeightMultipleD: return os << "DeviceGroupedConvBwdWeightMultipleD";
-    case DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle:
-        return os << "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle";
     default: return os << "Unknown";
     }
 }

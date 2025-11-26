@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -64,6 +64,15 @@ struct GemmTypeConfig<ck_tile::fp8_t>
     using BDataType   = ck_tile::fp8_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmTypeConfig<ck_tile::bf16_t>
+{
+    using ADataType   = ck_tile::bf16_t;
+    using BDataType   = ck_tile::bf16_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::bf16_t;
 };
 
 struct GemmConfigBase
