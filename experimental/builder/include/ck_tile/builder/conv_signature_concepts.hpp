@@ -40,7 +40,7 @@ concept HasInputBiasLayout = requires(T t) {
 
 template <typename T>
 concept ConvertibleToArrayOfConvInputBiasLayout = 
-    std::is_same_v<T, std::array<ConvInputBiasLayout, std::tuple_size_v<T>>>;
+    std::is_same_v<std::remove_cvref_t<T>, std::array<ConvInputBiasLayout, std::tuple_size_v<std::remove_cvref_t<T>>>>;
 
 template <typename T>
 concept InputBiasLayoutWellDefinedIfProvided = requires(T t) {
@@ -56,7 +56,7 @@ concept HasOutputBiasLayout = requires(T t) {
 
 template <typename T>
 concept ConvertibleToArrayOfConvOutputBiasLayout = 
-    std::is_same_v<T, std::array<ConvOutputBiasLayout, std::tuple_size_v<T>>>;
+    std::is_same_v<std::remove_cvref_t<T>, std::array<ConvOutputBiasLayout, std::tuple_size_v<std::remove_cvref_t<T>>>>;
 
 template <typename T>
 concept OutputBiasLayoutWellDefinedIfProvided = requires(T t) {

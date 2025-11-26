@@ -28,7 +28,6 @@ struct ConvLayout : BiasTensorLayouts...
     ConvInputLayout input_layout;
     ConvWeightLayout weight_layout;
     ConvOutputLayout output_layout;
-
 };
 
 template <typename GroupConvLayout>
