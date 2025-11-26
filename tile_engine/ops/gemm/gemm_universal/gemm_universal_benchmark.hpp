@@ -11,7 +11,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "gemm_common.hpp"
+#include "gemm_universal_common.hpp"
 
 // Data types and Layouts are defined by the generated kernel headers
 // No hardcoded type definitions here to avoid conflicts
