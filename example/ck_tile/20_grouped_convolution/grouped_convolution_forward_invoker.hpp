@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // Regular grouped convolution invoker (no split-image)
 // This invoker demonstrates regular convolution without split-image.
@@ -28,10 +28,6 @@ struct GroupedConvolutionForwardInvoker
     static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs<CDElementWise>& args,
                                   const ck_tile::stream_config& s)
     {
-        if(s.log_level_ > 0)
-        {
-            std::cout << "[INVOKER] grouped_conv_fwd called, NDimSpatial=" << NDimSpatial << "\n";
-        }
         // Implicit GEMM Traits
         using GemmShape = ck_tile::TileGemmShape<
             ck_tile::sequence<ConvConfig::M_Tile, ConvConfig::N_Tile, ConvConfig::K_Tile>,

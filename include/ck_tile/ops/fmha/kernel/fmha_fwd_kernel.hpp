@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
 
 #include <string>
@@ -36,6 +37,7 @@ struct FmhaFwdKernel
     using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
     using VDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::VDataType>;
+    using PDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::PDataType>;
     using BiasDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::BiasDataType>;
     using RandValOutputDataType =
         ck_tile::remove_cvref_t<typename FmhaPipeline::RandValOutputDataType>;
@@ -54,9 +56,8 @@ struct FmhaFwdKernel
     static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
-    static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
+    static constexpr auto QScaleEnum        = FmhaPipeline::Problem::QScaleEnum;
     static constexpr bool kSkipMinSeqlenQ   = FmhaPipeline::Problem::kSkipMinSeqlenQ;
-    static constexpr bool kHasSink          = FmhaPipeline::kHasSink;
 
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
@@ -113,7 +114,8 @@ struct FmhaFwdKernel
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) +
             (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) + (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
-            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) + (kSkipMinSeqlenQ ? "_skip" : "_nskip" ) + (kDoFp8StaticQuant ? "_squant" : "_nsquant" ) + (kUseTrLoad ? "_trload" : "_ntrload") + (kHasSink ? "_sink" : "_nsink");
+            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) + (kSkipMinSeqlenQ ? "_skip" : "_nskip" ) +
+            (QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE ? _SS_("_nqscale") : (_SS_("_") + BlockAttentionQuantScaleEnumToStr<QScaleEnum>::name)) + (kUseTrLoad ? "_trload" : "_ntrload");
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -201,14 +203,15 @@ struct FmhaFwdKernel
     struct FmhaFwdMaskKargs
     {
         // ck_tile::index_t window_size_left, window_size_right;
-        ck_tile::index_t window_size_left, window_size_right, sink_size;
+        ck_tile::index_t window_size_left, window_size_right;
         ck_tile::GenericAttentionMaskEnum mask_type;
     };
 
-    struct FmhaFwdFp8StaticQuantKargs
+    struct FmhaFwdCommonQScaleKargs
     {
-        float scale_p;
-        float scale_o;
+        const void* q_descale_ptr = nullptr;
+        const void* k_descale_ptr = nullptr;
+        const void* v_descale_ptr = nullptr;
     };
 
     struct FmhaFwdCommonLSEKargs
@@ -286,7 +289,9 @@ struct FmhaFwdKernel
                                                 FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
-          std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
+          std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
+                             FmhaFwdCommonQScaleKargs,
+                             FmhaFwdEmptyKargs<3>>,
           std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
     {
@@ -310,7 +315,9 @@ struct FmhaFwdKernel
                                                 FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
-          std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
+          std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
+                             FmhaFwdCommonQScaleKargs,
+                             FmhaFwdEmptyKargs<3>>,
           std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>,
           std::conditional_t<kSkipMinSeqlenQ, FmhaFwdSkipMinSeqlenQKargs, FmhaFwdEmptyKargs<6>>
@@ -340,6 +347,9 @@ struct FmhaFwdKernel
                   const void* k_ptr,
                   const void* v_ptr,
                   const void* bias_ptr,
+                  const void* q_descale_ptr,
+                  const void* k_descale_ptr,
+                  const void* v_descale_ptr,
                   void* rand_val_ptr,
                   void* lse_ptr,
                   void* o_ptr,
@@ -350,8 +360,6 @@ struct FmhaFwdKernel
                   ck_tile::index_t num_head_q,
                   ck_tile::index_t nhead_ratio_qk,
                   float scale_s,
-                  float scale_p,
-                  float scale_o,
                   float logits_soft_cap,
                   ck_tile::index_t stride_q,
                   ck_tile::index_t stride_k,
@@ -375,7 +383,6 @@ struct FmhaFwdKernel
                   ck_tile::index_t batch_stride_o,
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
-                  ck_tile::index_t sink_size,
                   ck_tile::index_t mask_type,
                   float p_drop,
                   bool s_randval,
@@ -410,7 +417,7 @@ struct FmhaFwdKernel
                     {},               // placeholder for bias
                     {},               // placeholder for mask
                     {},               // placeholder for lse
-                    {},               // placeholder for fp8_static_quant args
+                    {},               // placeholder for qscale
                     {},               // placeholder for dropout
                     {},               // placeholder for logits_soft_cap
                     batch_stride_q,
@@ -434,7 +441,6 @@ struct FmhaFwdKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
-            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
@@ -443,10 +449,11 @@ struct FmhaFwdKernel
             kargs.nhead_stride_lse = nhead_stride_lse;
             kargs.batch_stride_lse = batch_stride_lse;
         }
-        if constexpr(kDoFp8StaticQuant)
+        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
         {
-            kargs.scale_p = scale_p;
-            kargs.scale_o = scale_o;
+            kargs.q_descale_ptr = q_descale_ptr;
+            kargs.k_descale_ptr = k_descale_ptr;
+            kargs.v_descale_ptr = v_descale_ptr;
         }
         if constexpr(kHasDropout)
         {
@@ -486,6 +493,9 @@ struct FmhaFwdKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* bias_ptr,
+              const void* q_descale_ptr,
+              const void* k_descale_ptr,
+              const void* v_descale_ptr,
               void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
@@ -496,8 +506,6 @@ struct FmhaFwdKernel
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               float scale_s,
-              float scale_p,
-              float scale_o,
               float logits_soft_cap,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
@@ -521,7 +529,6 @@ struct FmhaFwdKernel
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
-              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
@@ -534,6 +541,9 @@ struct FmhaFwdKernel
             k_ptr,
             v_ptr,
             bias_ptr,
+            q_descale_ptr,
+            k_descale_ptr,
+            v_descale_ptr,
             rand_val_ptr,
             lse_ptr,
             o_ptr,
@@ -544,8 +554,6 @@ struct FmhaFwdKernel
             num_head_q,
             nhead_ratio_qk,
             scale_s,
-            scale_p,
-            scale_o,
             logits_soft_cap,
             stride_q,
             stride_k,
@@ -569,7 +577,6 @@ struct FmhaFwdKernel
             batch_stride_o,
             window_size_left,
             window_size_right,
-            sink_size,
             mask_type,
             p_drop,
             s_randval,
@@ -585,6 +592,9 @@ struct FmhaFwdKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* bias_ptr,
+              const void* q_descale_ptr,
+              const void* k_descale_ptr,
+              const void* v_descale_ptr,
               void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
@@ -595,8 +605,6 @@ struct FmhaFwdKernel
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               float scale_s,
-              float scale_p,
-              float scale_o,
               float logits_soft_cap,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
@@ -620,7 +628,6 @@ struct FmhaFwdKernel
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
-              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
@@ -633,6 +640,9 @@ struct FmhaFwdKernel
             k_ptr,
             v_ptr,
             bias_ptr,
+            q_descale_ptr,
+            k_descale_ptr,
+            v_descale_ptr,
             rand_val_ptr,
             lse_ptr,
             o_ptr,
@@ -643,8 +653,6 @@ struct FmhaFwdKernel
             num_head_q,
             nhead_ratio_qk,
             scale_s,
-            scale_p,
-            scale_o,
             logits_soft_cap,
             stride_q,
             stride_k,
@@ -668,7 +676,6 @@ struct FmhaFwdKernel
             batch_stride_o,
             window_size_left,
             window_size_right,
-            sink_size,
             mask_type,
             p_drop,
             s_randval,
@@ -683,6 +690,9 @@ struct FmhaFwdKernel
                   const void* k_ptr,
                   const void* v_ptr,
                   const void* bias_ptr,
+                  const void* q_descale_ptr,
+                  const void* k_descale_ptr,
+                  const void* v_descale_ptr,
                   void* rand_val_ptr,
                   void* lse_ptr,
                   void* o_ptr,
@@ -695,8 +705,6 @@ struct FmhaFwdKernel
                   ck_tile::index_t num_head_q,
                   ck_tile::index_t nhead_ratio_qk,
                   float scale_s,
-                  float scale_p,
-                  float scale_o,
                   float logits_soft_cap,
                   ck_tile::index_t stride_q,
                   ck_tile::index_t stride_k,
@@ -713,7 +721,6 @@ struct FmhaFwdKernel
                   ck_tile::index_t nhead_stride_o,
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
-                  ck_tile::index_t sink_size,
                   ck_tile::index_t mask_type,
                   ck_tile::index_t min_seqlen_q,
                   float p_drop,
@@ -749,7 +756,7 @@ struct FmhaFwdKernel
                     {},               // placeholder for bias
                     {},               // placeholder for mask
                     {},               // placeholder for lse
-                    {},               // placeholder for fp8_static_quant args
+                    {},               // placeholder for qscale
                     {},               // placeholder for dropout
                     {},               // placeholder for logits_soft_cap
                     {},               // placeholder for min_seqlen_q
@@ -773,7 +780,6 @@ struct FmhaFwdKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
-            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
@@ -781,10 +787,11 @@ struct FmhaFwdKernel
             kargs.lse_ptr          = lse_ptr;
             kargs.nhead_stride_lse = nhead_stride_lse;
         }
-        if constexpr(kDoFp8StaticQuant)
+        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
         {
-            kargs.scale_p = scale_p;
-            kargs.scale_o = scale_o;
+            kargs.q_descale_ptr = q_descale_ptr;
+            kargs.k_descale_ptr = k_descale_ptr;
+            kargs.v_descale_ptr = v_descale_ptr;
         }
         if constexpr(kHasDropout)
         {
@@ -827,6 +834,9 @@ struct FmhaFwdKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* bias_ptr,
+              const void* q_descale_ptr,
+              const void* k_descale_ptr,
+              const void* v_descale_ptr,
               void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
@@ -839,8 +849,6 @@ struct FmhaFwdKernel
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               float scale_s,
-              float scale_p,
-              float scale_o,
               float logits_soft_cap,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
@@ -857,7 +865,6 @@ struct FmhaFwdKernel
               ck_tile::index_t nhead_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
-              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               ck_tile::index_t min_seqlen_q,
               float p_drop,
@@ -871,6 +878,9 @@ struct FmhaFwdKernel
             k_ptr,
             v_ptr,
             bias_ptr,
+            q_descale_ptr,
+            k_descale_ptr,
+            v_descale_ptr,
             rand_val_ptr,
             lse_ptr,
             o_ptr,
@@ -883,8 +893,6 @@ struct FmhaFwdKernel
             num_head_q,
             nhead_ratio_qk,
             scale_s,
-            scale_p,
-            scale_o,
             logits_soft_cap,
             stride_q,
             stride_k,
@@ -901,7 +909,6 @@ struct FmhaFwdKernel
             nhead_stride_o,
             window_size_left,
             window_size_right,
-            sink_size,
             mask_type,
             min_seqlen_q,
             p_drop,
@@ -918,6 +925,9 @@ struct FmhaFwdKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* bias_ptr,
+              const void* q_descale_ptr,
+              const void* k_descale_ptr,
+              const void* v_descale_ptr,
               void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
@@ -930,8 +940,6 @@ struct FmhaFwdKernel
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               float scale_s,
-              float scale_p,
-              float scale_o,
               float logits_soft_cap,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
@@ -948,7 +956,6 @@ struct FmhaFwdKernel
               ck_tile::index_t nhead_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
-              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               ck_tile::index_t min_seqlen_q,
               float p_drop,
@@ -962,6 +969,9 @@ struct FmhaFwdKernel
             k_ptr,
             v_ptr,
             bias_ptr,
+            q_descale_ptr,
+            k_descale_ptr,
+            v_descale_ptr,
             rand_val_ptr,
             lse_ptr,
             o_ptr,
@@ -974,8 +984,6 @@ struct FmhaFwdKernel
             num_head_q,
             nhead_ratio_qk,
             scale_s,
-            scale_p,
-            scale_o,
             logits_soft_cap,
             stride_q,
             stride_k,
@@ -992,7 +1000,6 @@ struct FmhaFwdKernel
             nhead_stride_o,
             window_size_left,
             window_size_right,
-            sink_size,
             mask_type,
             min_seqlen_q,
             p_drop,
@@ -1484,7 +1491,6 @@ struct FmhaFwdKernel
                     return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                         kargs.window_size_left,
                         kargs.window_size_right,
-                        kargs.sink_size,
                         kargs.seqlen_q,
                         kargs.seqlen_k,
                         kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
@@ -1541,14 +1547,24 @@ struct FmhaFwdKernel
             BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
 
             auto o_acc_tile = [&]() {
-                if constexpr(kDoFp8StaticQuant)
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
                 {
+                    // TODO - move global load of descale to pipeline
+                    float q_descale = *(reinterpret_cast<const float*>(kargs.q_descale_ptr));
+                    float k_descale = *(reinterpret_cast<const float*>(kargs.k_descale_ptr));
+                    float v_descale = *(reinterpret_cast<const float*>(kargs.v_descale_ptr));
+
+                    float scale_s = kargs.scale_s * q_descale * k_descale;
+                    float scale_p =
+                        ck_tile::type_convert<float>(ck_tile::numeric<PDataType>::max());
+                    float scale_o = v_descale / scale_p;
+
                     auto o_acc_element_func = [&]() {
                         if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
                             return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
-                                                     ck_tile::scales{kargs.scale_o});
+                                                     ck_tile::scales{scale_o});
                         else
-                            return ck_tile::scales{kargs.scale_o};
+                            return ck_tile::scales{scale_o};
                     }();
                     return FmhaPipeline{}(q_dram_window,
                                           identity{}, // q_element_func
@@ -1560,13 +1576,13 @@ struct FmhaFwdKernel
                                           identity{}, // bias_element_func
                                           randval_dram_window,
                                           lse_dram_window,
-                                          identity{},            // lse_element_func
-                                          identity{},            // s_acc_element_func
-                                          scales{kargs.scale_p}, // p_compute_element_func
-                                          o_acc_element_func,    // o_acc_element_func
+                                          identity{},         // lse_element_func
+                                          identity{},         // s_acc_element_func
+                                          scales{scale_p},    // p_compute_element_func
+                                          o_acc_element_func, // o_acc_element_func
                                           mask,
                                           position_encoding,
-                                          kargs.scale_s,
+                                          scale_s,
                                           variant,
                                           variant_params,
                                           block_indices,
@@ -1625,7 +1641,7 @@ struct FmhaFwdKernel
             //     2. use more LDS, as we want better memory latency hiding
             // If SplitKV off, we don't expect Q data reused by different ThreadGroups, bypass the
             // cache
-            constexpr bool PrefillCase = FmhaPipeline::kM0 >= 128;
+            constexpr bool PrefillCase = FmhaPipeline::kM0 > 64;
             // divide problem
             const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
 
@@ -2214,7 +2230,6 @@ struct FmhaFwdKernel
                     return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                         kargs.window_size_left,
                         kargs.window_size_right,
-                        kargs.sink_size,
                         kargs.seqlen_q,
                         kargs.seqlen_k,
                         kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);

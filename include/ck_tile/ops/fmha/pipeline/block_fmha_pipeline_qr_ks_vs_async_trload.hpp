@@ -37,7 +37,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
-    static constexpr bool kKLoadOnce = BlockFmhaShape::kM0 >= 64;
+    static constexpr bool kKLoadOnce = BlockFmhaShape::kM0 > 64;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -69,7 +69,6 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasUnevenSplits  = true;
-    static constexpr bool kHasSink          = Problem::kHasSink;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||

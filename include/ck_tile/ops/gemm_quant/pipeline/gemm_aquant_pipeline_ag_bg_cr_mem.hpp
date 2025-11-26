@@ -256,6 +256,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(!is_aq_col_major, "Aq must be row major (col major not supported yet)");
+            static_assert(!PreshuffleQuant, "Memory pipeline does not support PreshuffleQuant!");
             static_assert(MPerBlock == AQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                               KPerBlockAQ == AQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "Aq block window has incorrect lengths for defined AqLayout!");
@@ -463,11 +464,10 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
-                                   index_t m,
                                    index_t num_loop,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   index_t m = 0) const
     {
-
         return PipelineImpl<GemmPipelineScheduler::Interwave>{}
             .template operator()<HasHotLoop, TailNum>(
                 a_dram_block_window_tmp,

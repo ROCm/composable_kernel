@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
 
 #include <string>
@@ -53,7 +54,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
     static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
-    static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
+    static constexpr auto QScaleEnum        = FmhaPipeline::Problem::QScaleEnum;
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
@@ -99,7 +100,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) +
             (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) + (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
-            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) + (kDoFp8StaticQuant ? "_squant" : "_nsquant" );
+            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) +
+            (QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE ? _SS_("_nqscale") : (_SS_("_") + BlockAttentionQuantScaleEnumToStr<QScaleEnum>::name));
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -198,14 +200,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
     struct FmhaFwdMaskKargs
     {
         // ck_tile::index_t window_size_left, window_size_right;
-        ck_tile::index_t window_size_left, window_size_right, sink_size;
+        ck_tile::index_t window_size_left, window_size_right;
         ck_tile::GenericAttentionMaskEnum mask_type;
-    };
-
-    struct FmhaFwdFp8StaticQuantKargs
-    {
-        float scale_p;
-        float scale_o;
     };
 
     struct FmhaFwdCommonLSEKargs
@@ -278,9 +274,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                                 FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
-          std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
-          std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>,
-          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
+          std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<3>>,
+          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<4>>
     {
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
@@ -297,9 +292,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                                 FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
-          std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
-          std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<4>>,
-          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
+          std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<3>>,
+          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<4>>
     {
         const int32_t* seqstart_q_ptr;
         ck_tile::index_t batch_stride_k;
@@ -337,8 +331,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t page_block_size,
 #endif
               float scale_s,
-              float scale_p,
-              float scale_o,
+              [[maybe_unused]] float scale_p,
+              [[maybe_unused]] float scale_o,
               float logits_soft_cap,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
@@ -362,7 +356,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
-              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
@@ -402,7 +395,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     {},               // placeholder for bias
                     {},               // placeholder for mask
                     {},               // placeholder for lse
-                    {},               // placeholder for fp8_static_quant args
                     {},               // placeholder for dropout
                     {},               // placeholder for logits_soft_cap
                     batch_stride_q,
@@ -426,7 +418,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
-            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
@@ -434,11 +425,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             kargs.lse_ptr          = lse_ptr;
             kargs.nhead_stride_lse = nhead_stride_lse;
             kargs.batch_stride_lse = batch_stride_lse;
-        }
-        if constexpr(kDoFp8StaticQuant)
-        {
-            kargs.scale_p = scale_p;
-            kargs.scale_o = scale_o;
         }
         if constexpr(kHasDropout)
         {
@@ -491,8 +477,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t page_block_size,
 #endif
               float scale_s,
-              float scale_p,
-              float scale_o,
+              [[maybe_unused]] float scale_p,
+              [[maybe_unused]] float scale_o,
               float logits_soft_cap,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
@@ -511,7 +497,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t batch_stride_v,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
-              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
@@ -551,7 +536,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     {},               // placeholder for bias
                     {},               // placeholder for mask
                     {},               // placeholder for lse
-                    {},               // placeholder for fp8_static_quant args
                     {},               // placeholder for dropout
                     {},               // placeholder for logits_soft_cap
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
@@ -573,18 +557,12 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
-            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
         {
             kargs.lse_ptr          = lse_ptr;
             kargs.nhead_stride_lse = nhead_stride_lse;
-        }
-        if constexpr(kDoFp8StaticQuant)
-        {
-            kargs.scale_p = scale_p;
-            kargs.scale_o = scale_o;
         }
         if constexpr(kHasDropout)
         {
@@ -1030,7 +1008,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                     kargs.window_size_left,
                     kargs.window_size_right,
-                    kargs.sink_size,
                     kargs.seqlen_q,
                     kargs.seqlen_k,
                     kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
@@ -1087,55 +1064,23 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
 
         auto o_acc_tile = [&]() {
-            if constexpr(kDoFp8StaticQuant)
-            {
-                return FmhaPipeline{}(
-                    q_dram_window,
-                    identity{}, // q_element_func
-                    k_dram_window,
-                    identity{}, // k_element_func
-                    v_dram_window,
-                    identity{}, // v_element_func
-                    bias_dram_window,
-                    identity{}, // bias_element_func
-                    randval_dram_window,
-                    lse_dram_window,
-                    identity{},                                          // lse_element_func
-                    identity{},                                          // s_acc_element_func
-                    scales{kargs.scale_p},                               // p_compute_element_func
-                    composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
-                    mask,
-                    position_encoding,
-                    kargs.scale_s,
-                    variant,
-                    variant_params,
-                    block_indices,
-                    smem_ptr,
-                    kargs.kv_page_indices,
-                    kargs.stride_k,
-                    kargs.stride_v,
-                    dropout);
-            }
-            else
-            {
-                return FmhaPipeline{}(q_dram_window,
-                                      k_dram_window,
-                                      v_dram_window,
-                                      bias_dram_window,
-                                      randval_dram_window,
-                                      lse_dram_window,
-                                      mask,
-                                      position_encoding,
-                                      kargs.scale_s,
-                                      variant,
-                                      variant_params,
-                                      block_indices,
-                                      smem_ptr,
-                                      kargs.kv_page_indices,
-                                      kargs.stride_k,
-                                      kargs.stride_v,
-                                      dropout);
-            }
+            return FmhaPipeline{}(q_dram_window,
+                                  k_dram_window,
+                                  v_dram_window,
+                                  bias_dram_window,
+                                  randval_dram_window,
+                                  lse_dram_window,
+                                  mask,
+                                  position_encoding,
+                                  kargs.scale_s,
+                                  variant,
+                                  variant_params,
+                                  block_indices,
+                                  smem_ptr,
+                                  kargs.kv_page_indices,
+                                  kargs.stride_k,
+                                  kargs.stride_v,
+                                  dropout);
         }();
 
         // O DRAM and O DRAM window
