@@ -252,13 +252,9 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                 "A/B/BQ Dram block window should have the same data type as appropriate "
                 "([A|B|BQ]DataType) defined in Problem definition!");
 
-            constexpr bool is_a_col_major =
-                std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
-            constexpr bool is_bq_col_major =
-                std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>;
-            constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
-
-            static_assert(is_bq_col_major, "Bq must be col major (row major not supported yet)");
+            constexpr bool is_a_col_major  = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+            constexpr bool is_b_row_major  = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+            constexpr bool is_bq_row_major = std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(is_a_col_major
                               ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
@@ -272,6 +268,12 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                               : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                                  KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "B block window has incorrect lengths for defined BLayout!");
+            static_assert(is_bq_row_major
+                              ? (KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                              : (NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                          "Bq block window has incorrect lengths for defined BqLayout!");
 
             using ADramTileWindowStep  = typename ADramBlockWindowTmp::BottomTensorIndex;
             using BDramTileWindowStep  = typename BDramBlockWindowTmp::BottomTensorIndex;
@@ -318,8 +320,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                 (PreshuffleQuant) ? make_array(ck_tile::integer_least_multiple(n, NPerBlock) /
                                                    BlockGemmShape::WarpTile::at(number<1>{}),
                                                0)
-                : is_bq_col_major ? make_array(KPerBlockBQ, 0)
-                                  : make_array(0, KPerBlockBQ);
+                : is_bq_row_major ? make_array(KPerBlockBQ, 0) : make_array(0, KPerBlockBQ);
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);

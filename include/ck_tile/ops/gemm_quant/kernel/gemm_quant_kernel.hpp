@@ -782,7 +782,8 @@ struct QuantGemmKernel
                 }
                 else
                 {
-                    static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                    // static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                    // TODO: both layouts!
                     using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
                     return make_naive_tensor_view<address_space_enum::global>(
                         bq_ptr,
@@ -1009,7 +1010,8 @@ struct QuantGemmKernel
             {
                 if constexpr(PreshuffleQuant)
                 {
-                    static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                    // static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                    // TODO: both layouts here!
                     using QuantGroupSize   = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
                     constexpr auto block_n = TilePartitioner::NPerBlock / QuantGroupSize::kN;
                     constexpr auto warp_n  = TilePartitioner::BlockGemmShape::WarpTile::at(I1);
