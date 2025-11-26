@@ -1,7 +1,6 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
 #pragma once
-
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 
