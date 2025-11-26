@@ -10,6 +10,28 @@ namespace ck_tile::builder::test {
 
 using namespace ck_tile::builder;
 
+template <ConvInputBiasLayout... InputBiasLayouts>
+struct ConvInputBiasLayouts
+{
+    std::array<ConvInputBiasLayout, sizeof...(InputBiasLayouts)> input_bias_layout{InputBiasLayouts...};
+};
+
+template <ConvOutputBiasLayout... OutputBiasLayouts>
+struct ConvOutputBiasLayouts
+{
+    std::array<ConvOutputBiasLayout, sizeof...(OutputBiasLayouts)> output_bias_layout{OutputBiasLayouts...};
+};
+
+template <typename... BiasTensorLayouts>
+struct ConvLayout : BiasTensorLayouts...
+{
+    ConvInputLayout input_layout;
+    ConvWeightLayout weight_layout;
+    ConvOutputLayout output_layout;
+
+};
+
+template <typename GroupConvLayout>
 struct ConvSignature
 {
     int spatial_dim;
@@ -18,6 +40,5 @@ struct ConvSignature
     DataType data_type;
     ElementwiseOperation elementwise_operation;
 };
-static_assert(ConvSignatureDescriptor<ConvSignature>);
 
 } // namespace ck_tile::builder::test

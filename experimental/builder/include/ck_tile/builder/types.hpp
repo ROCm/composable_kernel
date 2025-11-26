@@ -19,51 +19,136 @@ enum class DataType
     U8
 };
 
-// Memory layouts for 1D convolution tensors.
-// G: Group, N: Batch, K: Output Channel, C: Input Channel, W: Width
-// Enum defines Input, Weight, and Output tensor layouts respectively.
-enum class GroupConvLayout1D
+enum class ConvInputBiasLayout
 {
-    GNWC_GKXC_GNWK,
-    NWGC_GKXC_NWGK,
-    NGCW_GKXC_NGKW,
-    NGCW_GKCX_NGKW
+    GC,
+    G_C_strided
 };
 
-// Memory layouts for 2D convolution tensors.
-// G: Group, N: Batch, K: Output Channel, C: Input Channel, Y: Height, X: Width, H: Height
-// Enum defines Input, Weight, and Output tensor layouts respectively.
-enum class GroupConvLayout2D
+enum class ConvOutputBiasLayout
 {
-    GNHWC_GKYXC_GNHWK,
-    NHWGC_GKYXC_NHWGK,
-    NGCHW_GKYXC_NGKHW,
-    NGCHW_GKCYX_NGKHW
+    GK,
+    G_K_strided
 };
 
-// Memory layouts for 3D convolution tensors.
-// G: Group, N: Batch, K: Output Channel, C: Input Channel, Z: Depth, Y: Height, X: Width, D: Depth,
-// H: Height Enum defines Input, Weight, and Output tensor layouts respectively.
-enum class GroupConvLayout3D
+enum class ConvInputLayout1D
 {
-    GNDHWC_GKZYXC_GNDHWK,
-    NDHWGC_GKZYXC_NDHWGK,
-    NGCDHW_GKZYXC_NGKDHW,
-    NGCDHW_GKCZYX_NGKDHW,
+    GNCW,
+    GNWC,
+    NWGC,
+    NGCW,
+    G_NW_C_strided
 };
 
-struct GroupConvLayout
+enum class ConvInputLayout2D
+{
+    GNCHW,
+    GNHWC,
+    NHWGC,
+    NGCHW,
+    G_NHW_C_strided
+};
+
+enum class ConvInputLayout3D
+{
+    GNCDHW,
+    GNDHWC,
+    NDHWGC,
+    NGCDHW,
+    G_NDHW_C_strided
+};
+
+struct ConvInputLayout
 {
     union
     {
-        GroupConvLayout1D _1d;
-        GroupConvLayout2D _2d;
-        GroupConvLayout3D _3d;
+        ConvInputLayout1D _1d;
+        ConvInputLayout2D _2d;
+        ConvInputLayout3D _3d;
     };
 
-    constexpr GroupConvLayout(GroupConvLayout1D layout) : _1d(layout) {}
-    constexpr GroupConvLayout(GroupConvLayout2D layout) : _2d(layout) {}
-    constexpr GroupConvLayout(GroupConvLayout3D layout) : _3d(layout) {}
+    constexpr ConvInputLayout(ConvInputLayout1D layout) : _1d(layout) {}
+    constexpr ConvInputLayout(ConvInputLayout2D layout) : _2d(layout) {}
+    constexpr ConvInputLayout(ConvInputLayout3D layout) : _3d(layout) {}
+};
+
+enum class ConvWeightLayout1D
+{
+    GKXC,
+    GKCX,
+    KXGC,
+    G_K_X_C_strided
+};
+
+enum class ConvWeightLayout2D
+{
+    GKYXC,
+    GKCYX,
+    KYXGC,
+    G_K_YX_C_strided
+};
+
+enum class ConvWeightLayout3D
+{
+    GKZYXC,
+    GKCZYX,
+    KZYXGC,
+    G_K_ZYX_C_strided
+};
+
+struct ConvWeightLayout
+{
+    union
+    {
+        ConvWeightLayout1D _1d;
+        ConvWeightLayout2D _2d;
+        ConvWeightLayout3D _3d;
+    };
+
+    constexpr ConvWeightLayout(ConvWeightLayout1D layout) : _1d(layout) {}
+    constexpr ConvWeightLayout(ConvWeightLayout2D layout) : _2d(layout) {}
+    constexpr ConvWeightLayout(ConvWeightLayout3D layout) : _3d(layout) {}
+};
+
+enum class ConvOutputLayout1D
+{
+    GNKW,
+    GNWK,
+    NWGK,
+    NGKW,
+    G_NW_K_strided
+};
+
+enum class ConvOutputLayout2D
+{
+    GNKHW,
+    GNHWK,
+    NHWGK,
+    NGKHW,
+    G_NHW_K_strided
+};
+
+enum class ConvOutputLayout3D
+{
+    GNKDHW,
+    GNDHWK,
+    NDHWGK,
+    NGKDHW,
+    G_NDHW_K_strided
+};
+
+struct ConvOutputLayout
+{
+    union
+    {
+        ConvOutputLayout1D _1d;
+        ConvOutputLayout2D _2d;
+        ConvOutputLayout3D _3d;
+    };
+
+    constexpr ConvOutputLayout(ConvOutputLayout1D layout) : _1d(layout) {}
+    constexpr ConvOutputLayout(ConvOutputLayout2D layout) : _2d(layout) {}
+    constexpr ConvOutputLayout(ConvOutputLayout3D layout) : _3d(layout) {}
 };
 
 // Direction of the convolution operation.
@@ -83,7 +168,8 @@ enum class ElementwiseOperation
     BILINEAR,
     CLAMP,
     SCALE,
-    PASS_THROUGH
+    PASS_THROUGH,
+    SCALEADD_SCALEADD_RELU
 };
 
 // Enums for pipeline versions & schedulers
@@ -206,45 +292,6 @@ inline std::ostream& operator<<(std::ostream& os, ConvDirection dir)
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, GroupConvLayout1D layout)
-{
-    using enum GroupConvLayout1D;
-    switch(layout)
-    {
-    case GNWC_GKXC_GNWK: return os << "GNWC_GKXC_GNWK";
-    case NWGC_GKXC_NWGK: return os << "NWGC_GKXC_NWGK";
-    case NGCW_GKXC_NGKW: return os << "NGCW_GKXC_NGKW";
-    case NGCW_GKCX_NGKW: return os << "NGCW_GKCX_NGKW";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, GroupConvLayout2D layout)
-{
-    using enum GroupConvLayout2D;
-    switch(layout)
-    {
-    case GNHWC_GKYXC_GNHWK: return os << "GNHWC_GKYXC_GNHWK";
-    case NHWGC_GKYXC_NHWGK: return os << "NHWGC_GKYXC_NHWGK";
-    case NGCHW_GKYXC_NGKHW: return os << "NGCHW_GKYXC_NGKHW";
-    case NGCHW_GKCYX_NGKHW: return os << "NGCHW_GKCYX_NGKHW";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, GroupConvLayout3D layout)
-{
-    using enum GroupConvLayout3D;
-    switch(layout)
-    {
-    case GNDHWC_GKZYXC_GNDHWK: return os << "GNDHWC_GKZYXC_GNDHWK";
-    case NDHWGC_GKZYXC_NDHWGK: return os << "NDHWGC_GKZYXC_NDHWGK";
-    case NGCDHW_GKZYXC_NGKDHW: return os << "NGCDHW_GKZYXC_NGKDHW";
-    case NGCDHW_GKCZYX_NGKDHW: return os << "NGCDHW_GKCZYX_NGKDHW";
-    default: return os << "Unknown";
-    }
-}
-
 inline std::ostream& operator<<(std::ostream& os, ElementwiseOperation op)
 {
     using enum ElementwiseOperation;
@@ -257,6 +304,7 @@ inline std::ostream& operator<<(std::ostream& os, ElementwiseOperation op)
     case CLAMP: return os << "CLAMP";
     case SCALE: return os << "SCALE";
     case PASS_THROUGH: return os << "PASS_THROUGH";
+    case SCALEADD_SCALEADD_RELU: return os << "SCALEADD_SCALEADD_RELU";
     default: return os << "Unknown";
     }
 }
@@ -375,10 +423,171 @@ inline std::ostream& operator<<(std::ostream& os, PipelineScheduler sched)
     }
 }
 
-// ostream operator overload for std::variant of layout types
-inline std::ostream&
-operator<<(std::ostream& os,
-           const std::variant<GroupConvLayout1D, GroupConvLayout2D, GroupConvLayout3D>& layout)
+inline std::ostream& operator<<(std::ostream& os, ConvInputLayout1D layout)
+{
+    using enum ConvInputLayout1D;
+    switch(layout)
+    {
+    case GNCW: return os << "GNCW";
+    case GNWC: return os << "GNWC";
+    case NWGC: return os << "NWGC";
+    case NGCW: return os << "NGCW";
+    case G_NW_C_strided: return os << "G_NW_C_strided";
+    default: return os << "Unknown";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvInputLayout2D layout)
+{
+    using enum ConvInputLayout2D;
+    switch(layout)
+    {
+    case GNCHW: return os << "GNCHW";
+    case GNHWC: return os << "GNHWC";
+    case NHWGC: return os << "NHWGC";
+    case NGCHW: return os << "NGCHW";
+    case G_NHW_C_strided: return os << "G_NHW_C_strided";
+    default: return os << "Unknown";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvInputLayout3D layout)
+{
+    using enum ConvInputLayout3D;
+    switch(layout)
+    {
+    case GNCDHW: return os << "GNCDHW";
+    case GNDHWC: return os << "GNDHWC";
+    case NDHWGC: return os << "NDHWGC";
+    case NGCDHW: return os << "NGCDHW";
+    case G_NDHW_C_strided: return os << "G_NDHW_C_strided";
+    default: return os << "Unknown";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvWeightLayout1D layout)
+{
+    using enum ConvWeightLayout1D;
+    switch(layout)
+    {
+    case GKXC: return os << "GKXC";
+    case GKCX: return os << "GKCX";
+    case KXGC: return os << "KXGC";
+    case G_K_X_C_strided: return os << "G_K_X_C_strided";
+    default: return os << "Unknown";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvWeightLayout2D layout)
+{
+    using enum ConvWeightLayout2D;
+    switch(layout)
+    {
+    case GKYXC: return os << "GKYXC";
+    case GKCYX: return os << "GKCYX";
+    case KYXGC: return os << "KYXGC";
+    case G_K_YX_C_strided: return os << "G_K_YX_C_strided";
+    default: return os << "Unknown";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvWeightLayout3D layout)
+{
+    using enum ConvWeightLayout3D;
+    switch(layout)
+    {
+    case GKZYXC: return os << "GKZYXC";
+    case GKCZYX: return os << "GKCZYX";
+    case KZYXGC: return os << "KZYXGC";
+    case G_K_ZYX_C_strided: return os << "G_K_ZYX_C_strided";
+    default: return os << "Unknown";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvOutputLayout1D layout)
+{
+    using enum ConvOutputLayout1D;
+    switch(layout)
+    {
+    case GNKW: return os << "GNKW";
+    case GNWK: return os << "GNWK";
+    case NWGK: return os << "NWGK";
+    case NGKW: return os << "NGKW";
+    case G_NW_K_strided: return os << "G_NW_K_strided";
+    default: return os << "Unknown";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvOutputLayout2D layout)
+{
+    using enum ConvOutputLayout2D;
+    switch(layout)
+    {
+    case GNKHW: return os << "GNKHW";
+    case GNHWK: return os << "GNHWK";
+    case NHWGK: return os << "NHWGK";
+    case NGKHW: return os << "NGKHW";
+    case G_NHW_K_strided: return os << "G_NHW_K_strided";
+    default: return os << "Unknown";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvOutputLayout3D layout)
+{
+    using enum ConvOutputLayout3D;
+    switch(layout)
+    {
+    case GNKDHW: return os << "GNKDHW";
+    case GNDHWK: return os << "GNDHWK";
+    case NDHWGK: return os << "NDHWGK";
+    case NGKDHW: return os << "NGKDHW";
+    case G_NDHW_K_strided: return os << "G_NDHW_K_strided";
+    default: return os << "Unknown";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvInputBiasLayout layout)
+{
+    using enum ConvInputBiasLayout;
+    switch(layout)
+    {
+    case GC: return os << "GC";
+    case G_C_strided: return os << "G_C_strided";
+    default: return os << "Unknown";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvOutputBiasLayout layout)
+{
+    using enum ConvOutputBiasLayout;
+    switch(layout)
+    {
+    case GK: return os << "GK";
+    case G_K_strided: return os << "G_K_strided";
+    default: return os << "Unknown";
+    }
+}
+
+
+inline std::ostream& operator<<(std::ostream& os, const std::variant<ConvInputLayout1D,
+                                                   ConvInputLayout2D,
+                                                   ConvInputLayout3D>& layout)
+{
+    std::visit([&os](const auto& l) { os << l; }, layout);
+    return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const std::variant<ConvOutputLayout1D,
+                                                   ConvOutputLayout2D,
+                                                   ConvOutputLayout3D>& layout)
+{
+    std::visit([&os](const auto& l) { os << l; }, layout);
+    return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const std::variant<ConvWeightLayout1D,
+                                                   ConvWeightLayout2D,
+                                                   ConvWeightLayout3D>& layout)
 {
     std::visit([&os](const auto& l) { os << l; }, layout);
     return os;

@@ -28,20 +28,73 @@ namespace ck_tile::builder {
 template <auto N>
 concept ConvSpatialDim = std::is_integral_v<decltype(N)> && (N == 1 || N == 2 || N == 3);
 
-// Constraints for forward convolution layouts.
-template <auto LayoutValue, size_t SpatialDim>
-concept ValidConvLayoutForSpatialDim =
-    (SpatialDim == 1 && std::same_as<decltype(LayoutValue), GroupConvLayout1D>) ||
-    (SpatialDim == 2 && std::same_as<decltype(LayoutValue), GroupConvLayout2D>) ||
-    (SpatialDim == 3 && std::same_as<decltype(LayoutValue), GroupConvLayout3D>);
-
 // Constrains convolution data types to common floating-point types.
 template <DataType T>
 concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
                        (T == DataType::FP8) || (T == DataType::I8) || (T == DataType::U8);
 
 template <typename T>
-concept ConvLayout = std::same_as<std::remove_cvref_t<T>, GroupConvLayout>;
+concept HasInputBiasLayout = requires(T t) {
+    { t.input_bias_layout };
+};
+
+template <typename T>
+concept ConvertibleToArrayOfConvInputBiasLayout = 
+    std::is_same_v<T, std::array<ConvInputBiasLayout, std::tuple_size_v<T>>>;
+
+template <typename T>
+concept InputBiasLayoutWellDefinedIfProvided = requires(T t) {
+    requires !HasInputBiasLayout<T> || requires {
+        { t.input_bias_layout } -> ConvertibleToArrayOfConvInputBiasLayout;
+    };
+};
+
+template <typename T>
+concept HasOutputBiasLayout = requires(T t) {
+    { t.output_bias_layout };
+};
+
+template <typename T>
+concept ConvertibleToArrayOfConvOutputBiasLayout = 
+    std::is_same_v<T, std::array<ConvOutputBiasLayout, std::tuple_size_v<T>>>;
+
+template <typename T>
+concept OutputBiasLayoutWellDefinedIfProvided = requires(T t) {
+    requires !HasOutputBiasLayout<T> || requires {
+        { t.output_bias_layout } -> ConvertibleToArrayOfConvOutputBiasLayout;
+    };
+};
+
+template <typename T>
+concept ConvLayoutDescriptor = requires(T t) {
+    { t.input_layout } -> std::convertible_to<ConvInputLayout>;
+    { t.weight_layout } -> std::convertible_to<ConvWeightLayout>;
+    { t.output_layout } -> std::convertible_to<ConvOutputLayout>;
+    requires InputBiasLayoutWellDefinedIfProvided<T>;
+    requires OutputBiasLayoutWellDefinedIfProvided<T>;
+};
+
+
+// Constraints for forward convolution input layouts.
+template <auto LayoutValue, size_t SpatialDim>
+concept ValidConvInputLayoutForSpatialDim =
+    (SpatialDim == 1 && std::same_as<decltype(LayoutValue._1d), ConvInputLayout1D>) ||
+    (SpatialDim == 2 && std::same_as<decltype(LayoutValue._2d), ConvInputLayout2D>) ||
+    (SpatialDim == 3 && std::same_as<decltype(LayoutValue._3d), ConvInputLayout3D>);
+
+// Constraints for forward convolution output layouts.
+template <auto LayoutValue, size_t SpatialDim>
+concept ValidConvOutputLayoutForSpatialDim =
+    (SpatialDim == 1 && std::same_as<decltype(LayoutValue._1d), ConvOutputLayout1D>) ||
+    (SpatialDim == 2 && std::same_as<decltype(LayoutValue._2d), ConvOutputLayout2D>) ||
+    (SpatialDim == 3 && std::same_as<decltype(LayoutValue._3d), ConvOutputLayout3D>);
+
+// Constraints for forward convolution weight layouts.
+template <auto LayoutValue, size_t SpatialDim>
+concept ValidConvWeightLayoutForSpatialDim =
+    (SpatialDim == 1 && std::same_as<decltype(LayoutValue._1d), ConvWeightLayout1D>) ||
+    (SpatialDim == 2 && std::same_as<decltype(LayoutValue._2d), ConvWeightLayout2D>) ||
+    (SpatialDim == 3 && std::same_as<decltype(LayoutValue._3d), ConvWeightLayout3D>);
 
 template <typename T>
 concept HasElementwiseOp = requires(T t) {
@@ -74,7 +127,7 @@ concept ConvolutionDirectionWellDefinedIfProvided = requires(T t) {
 template <typename T>
 concept ConvSignatureDescriptor = requires(T t) {
     { t.spatial_dim } -> std::convertible_to<unsigned int>;
-    { t.layout } -> ConvLayout;
+    { t.layout } -> ConvLayoutDescriptor;
     { t.data_type } -> std::convertible_to<DataType>;
     requires ElementwiseOpWellDefinedIfProvided<T>;
     requires ConvolutionDirectionWellDefinedIfProvided<T>;

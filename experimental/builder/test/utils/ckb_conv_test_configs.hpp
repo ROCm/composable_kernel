@@ -178,6 +178,9 @@ constexpr GridwiseXdlGemm FwdGemmParams_Xdl_4x4_per_wave{
 constexpr GridwiseXdlGemm FwdGemmParams_Xdl_4x2_per_wave{
     .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 2};
 
+constexpr GridwiseXdlGemm FwdGemmParams_Xdl_2x2_per_wave{
+    .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 2};
+
 constexpr GridwiseXdlGemm FwdGemmParams_Xdl_2x1_per_wave{
     .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 1};
 

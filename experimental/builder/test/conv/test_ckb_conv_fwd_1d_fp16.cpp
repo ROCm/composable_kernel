@@ -12,9 +12,16 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_Instance_1D_FP16_ChannelsFirst_scale)
 {
+    constexpr ConvLayout<> FwdConvLayout 
+        {
+            .input_layout  = ConvInputLayout1D::NWGC,
+            .weight_layout = ConvWeightLayout1D::GKXC,
+            .output_layout = ConvOutputLayout1D::NWGK
+        };
+
     constexpr ConvSignature FwdConvSignature{.spatial_dim = 1,
                                              .direction   = ConvDirection::FORWARD,
-                                             .layout      = GroupConvLayout1D::NWGC_GKXC_NWGK,
+                                             .layout      = FwdConvLayout,
                                              .data_type   = DataType::FP16,
                                              .elementwise_operation =
                                                  ElementwiseOperation::PASS_THROUGH};
