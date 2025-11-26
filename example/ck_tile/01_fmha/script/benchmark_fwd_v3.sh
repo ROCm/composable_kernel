@@ -1,7 +1,7 @@
 #!/bin/sh
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
 
-## Copyright © Advanced Micro Devices, Inc. or its affiliates.
-## SPDX-License-Identifier: MIT
 
 # TODO: run this script from CK root or build directory
 EXE="$(find . -name tile_example_fmha_fwd_v3 -type f | head -n 1)"

@@ -349,6 +349,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                                 scale_reg_dword = static_cast<uint32_t>(scale_reg);
                             }
 
+                            // cross lane ops to get the value of scale_reg.
                             int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
                                 pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
 

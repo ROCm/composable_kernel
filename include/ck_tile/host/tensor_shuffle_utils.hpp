@@ -41,6 +41,7 @@ auto shuffle_bq(const ck_tile::HostTensor<T>* t, int block_bq_k)
         throw std::runtime_error("shuffle_bq needs bqk dimension to be a multiple of block_bq_k.");
     }
 
+    // For TilePermuteN
     if(rank == 5)
     {
         // Handle 5D tensor: [n, nrepeat, nwarp, n_warp_tile, bqk]

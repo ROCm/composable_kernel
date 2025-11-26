@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -50,7 +50,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                              GemmConfig::kPadN,
                                                              GemmConfig::kPadK,
                                                              false, // PreshuffleQuant
-                                                             GemmConfig::PreshuffleB, // PreshuffleB
+                                                             GemmConfig::PreshuffleB,
                                                              ALayout,
                                                              BLayout,
                                                              CLayout,
@@ -76,7 +76,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                AccDataType,
                                                GemmShape,
                                                GemmUniversalTraits,
-                                               QuantGroupSize>, // QuantGroupSize
+                                               QuantGroupSize>,
             ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
                                                           BDataType,
                                                           AccDataType,

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c), Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include <cstring>
@@ -130,6 +130,13 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                    ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
 
+        constexpr bool TiledPermuteN =
+            (QuantGroupSize::kN > 1) ? false : GemmConfig::TiledMMAPermuteN;
+        if(s.log_level_ > 0)
+        {
+            printf(
+                "TiledPermuteN: %d (QuantGroupSize::kN=%d)\n", TiledPermuteN, QuantGroupSize::kN);
+        }
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<typename TypeConfig::ADataType,
                                              typename TypeConfig::BDataType,
@@ -151,7 +158,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                              1,
                                              false,
                                              1,
-                                             GemmConfig::TiledMMAPermuteN>>;
+                                             TiledPermuteN>>;
         using Kernel =
             ck_tile::QuantGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, QuantMode>;
 
@@ -595,8 +602,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
     if constexpr(GemmConfig::PreshuffleB)
     {
-        if constexpr(GemmConfig::TiledMMAPermuteN &&
-                     QuantGroupSize::kN == 1) // temporarily only for non-grouped quant
+        if constexpr(GemmConfig::TiledMMAPermuteN && QuantGroupSize::kN == 1)
         {
             printf("PreshuffleB with TiledMMAPermuteN\n");
             b_k_n_dev = ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
@@ -622,9 +628,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                  QuantMode == ck_tile::QuantType::TensorQuant)
     {
         if constexpr(GemmConfig::PreshuffleB && GemmConfig::TiledMMAPermuteN &&
-                     QuantGroupSize::kN == 1) // temporarily only for non-grouped quant
+                     QuantGroupSize::kN == 1)
         {
-            printf("PreshuffleBQuant with TiledMMAPermuteN\n");
             ck_tile::HostTensor<BQDataType> bq_permuted_host =
                 ck_tile::bq_permuteN<GemmConfig>(*bq_tensor_ptr, QuantGroupSize::kN);
 
@@ -641,14 +646,12 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         }
         else if constexpr(GemmConfig::PreshuffleQuant)
         {
-            printf("PreshuffleBQuant without TiledMMAPermuteN\n");
             ck_tile::HostTensor<BQDataType> bq_shuffle_host =
                 ck_tile::shuffle_bq(bq_tensor_ptr.get(), GemmConfig::K_Tile / QuantGroupSize::kK);
             bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
         }
         else
         {
-            printf("No PreshuffleBQuant\n");
             bq_dev_buf_ptr->ToDevice(bq_tensor_ptr->data());
         }
     }

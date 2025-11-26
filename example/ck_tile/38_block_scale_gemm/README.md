@@ -47,7 +47,7 @@ args:
         -a_layout    A tensor data layout - R for Row or C for Column (default:R)
         -b_layout    B tensor data layout - R for Row or C for Column (default:C)
        -bq_layout    Bq tensor data layout - R for Row or C for Column (default:C)
-        -c_layout    C tensor data layout - R for Row or C for Column   (default:R)
+        -c_layout    C tensor data layout - R for Row or C for Column (default:R)
         -stride_a    Tensor A stride (default:0)
         -stride_q    Tensor AQ stride (default:0)
         -stride_b    Tensor B stride (default:0)
@@ -64,7 +64,7 @@ args:
   -rotating_count    Rotating count (default:1000)
       -quant_mode    Choose aquant, bquant, tensor or rowcol (default:bquant)
      -preshuffleb    Enable preshuffle of tensor B (default:false)
- -preshufflequant   Enable preshuffle of quant tensor (defualt:false)
+ -preshufflequant   Enable preshuffle of quant tensor (default:false)
       -group_size    Quantization group size as MxNxK, e.g., 1x1x128, 1x32x128, 1x64x128 (default:1x1x128)
 ```
 
