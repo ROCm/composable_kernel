@@ -14,7 +14,6 @@ TEST(FwdConvInstances,
 {
     constexpr auto G_K = BiasLayout::G_K_strided;
     constexpr auto NHWGK = ConvOutputLayout2D::NHWGK; 
-
     constexpr auto FwdConvLayout = ConvLayout
             {
                 .input_layout  = ConvInputLayout2D::NHWGC,

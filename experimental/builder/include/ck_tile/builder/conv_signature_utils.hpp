@@ -14,24 +14,7 @@ namespace ck_tile::builder {
  **********************************************/
 
 template <auto Sig>
-concept ProvidesElementwiseOperation = requires { Sig.elementwiseOperation; };
-
-template <auto Sig>
 concept ProvidesConvolutionDirection = requires { Sig.direction; };
-
-template <auto Sig>
-requires (HasElementwiseOp<decltype(Sig)>)
-constexpr auto get_elementwise_operation()
-{
-    if constexpr(HasElementwiseOp<decltype(Sig)>)
-    {
-        return Sig.elementwise_operation;
-    }
-    else
-    {
-        return ElementwiseOperation::PASS_THROUGH;
-    }
-}
 
 template <auto Sig>
 constexpr auto get_conv_direction()
