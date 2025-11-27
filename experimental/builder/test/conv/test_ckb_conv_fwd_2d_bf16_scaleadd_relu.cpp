@@ -14,14 +14,15 @@ TEST(FwdConvInstances,
 {
     constexpr auto G_K = OutputBiasLayout::G_K_strided;
     constexpr auto NHWGK = ConvOutputLayout2D::NHWGK;
-    using FwdOutputBiasLayouts = ConvOutputBiasLayouts<NHWGK, G_K>;
+    constexpr auto FwdOutputBiasLayouts = ConvOutputBiasLayouts{}
+        .with_layout<NHWGK>()
+        .with_layout<G_K>();
 
-    constexpr ConvLayout<FwdOutputBiasLayouts> FwdConvLayout 
-        {
-            .input_layout  = ConvInputLayout2D::NHWGC,
-            .weight_layout = ConvWeightLayout2D::GKYXC,
-            .output_layout = ConvOutputLayout2D::NHWGK
-        };
+    constexpr auto FwdConvLayout = ConvLayout{}
+        .with_input_layout<ConvInputLayout2D::NHWGC>()
+        .with_weight_layout<ConvWeightLayout2D::GKYXC>()  
+        .with_output_layout<ConvOutputLayout2D::NHWGK>()
+        .with_output_bias_layouts(FwdOutputBiasLayouts);
 
     constexpr ConvSignature FwdConvSignature{.spatial_dim = 2,
                                              .direction   = ConvDirection::FORWARD,

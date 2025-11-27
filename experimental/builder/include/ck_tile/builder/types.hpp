@@ -58,6 +58,11 @@ enum class ConvInputLayout3D
     G_NDHW_C_strided
 };
 
+enum class UndefinedLayout
+{
+    None
+};
+
 struct ConvInputLayout
 {
     union
@@ -65,8 +70,10 @@ struct ConvInputLayout
         ConvInputLayout1D _1d;
         ConvInputLayout2D _2d;
         ConvInputLayout3D _3d;
+        UndefinedLayout _undefined;
     };
 
+    constexpr ConvInputLayout() : _undefined(UndefinedLayout::None) {}
     constexpr ConvInputLayout(ConvInputLayout1D layout) : _1d(layout) {}
     constexpr ConvInputLayout(ConvInputLayout2D layout) : _2d(layout) {}
     constexpr ConvInputLayout(ConvInputLayout3D layout) : _3d(layout) {}
@@ -117,8 +124,10 @@ struct ConvWeightLayout
         ConvWeightLayout1D _1d;
         ConvWeightLayout2D _2d;
         ConvWeightLayout3D _3d;
+        UndefinedLayout _undefined;
     };
 
+    constexpr ConvWeightLayout() : _undefined(UndefinedLayout::None) {}
     constexpr ConvWeightLayout(ConvWeightLayout1D layout) : _1d(layout) {}
     constexpr ConvWeightLayout(ConvWeightLayout2D layout) : _2d(layout) {}
     constexpr ConvWeightLayout(ConvWeightLayout3D layout) : _3d(layout) {}
@@ -158,8 +167,10 @@ struct ConvOutputLayout
         ConvOutputLayout1D _1d;
         ConvOutputLayout2D _2d;
         ConvOutputLayout3D _3d;
+        UndefinedLayout _undefined;
     };
 
+    constexpr ConvOutputLayout() : _undefined(UndefinedLayout::None) {}
     constexpr ConvOutputLayout(ConvOutputLayout1D layout) : _1d(layout) {}
     constexpr ConvOutputLayout(ConvOutputLayout2D layout) : _2d(layout) {}
     constexpr ConvOutputLayout(ConvOutputLayout3D layout) : _3d(layout) {}
