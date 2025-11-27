@@ -13,16 +13,15 @@ TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_Instance_2D_BF16_scale_add_relu)
 {
     constexpr auto G_K = OutputBiasLayout::G_K_strided;
-    constexpr auto NHWGK = ConvOutputLayout2D::NHWGK;
-  
+    constexpr auto NHWGK = ConvOutputLayout2D::NHWGK; 
+
     constexpr auto FwdConvLayout = ConvLayout
             {
                 .input_layout  = ConvInputLayout2D::NHWGC,
                 .weight_layout = ConvWeightLayout2D::GKYXC,
                 .output_layout = ConvOutputLayout2D::NHWGK
             }
-        .with_output_bias_layout<NHWGK>()
-        .with_output_bias_layout<G_K>();
+        .with_output_bias_layout<NHWGK, G_K>();
 
     constexpr ConvSignature FwdConvSignature{.spatial_dim = 2,
                                              .direction   = ConvDirection::FORWARD,

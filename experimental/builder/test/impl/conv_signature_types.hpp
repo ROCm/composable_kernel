@@ -10,28 +10,18 @@ namespace ck_tile::builder::test {
 
 using namespace ck_tile::builder;
 
-template <ConvOutputBiasLayout... OutputBiasLayouts>
+template <auto... OutputBiasLayouts>
 struct ConvLayout
 {
     ConvInputLayout input_layout;
     ConvWeightLayout weight_layout;
     ConvOutputLayout output_layout;
-    std::array<ConvOutputBiasLayout, sizeof...(OutputBiasLayouts)> output_bias_layout{OutputBiasLayouts...};
+    std::array<ConvOutputBiasLayout, sizeof...(OutputBiasLayouts)> output_bias_layout{ConvOutputBiasLayout{OutputBiasLayouts}...};
 
-    template<OutputBiasLayout Layout>
+    template<auto... Layouts>
     constexpr auto with_output_bias_layout() const
     {
-        return ConvLayout<OutputBiasLayouts..., ConvOutputBiasLayout{Layout}>{
-            .input_layout = this->input_layout,
-            .weight_layout = this->weight_layout,
-            .output_layout = this->output_layout
-        };
-    }
-    
-    template<ConvOutputLayout Layout>
-    constexpr auto with_output_bias_layout() const
-    {
-        return ConvLayout<OutputBiasLayouts..., ConvOutputBiasLayout{Layout}>{
+        return ConvLayout<OutputBiasLayouts..., ConvOutputBiasLayout{Layouts}...>{
             .input_layout = this->input_layout,
             .weight_layout = this->weight_layout,
             .output_layout = this->output_layout
