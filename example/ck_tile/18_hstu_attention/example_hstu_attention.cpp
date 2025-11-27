@@ -27,11 +27,7 @@
 #include "reference_hstu_attention.hpp"
 
 #include "hstu_attention_util.hpp"
-
-extern void hstu_attention_batched_forward_fp16(HstuAttentionFwdParams& param, hipStream_t stream);
-extern void hstu_attention_batched_forward_bf16(HstuAttentionFwdParams& param, hipStream_t stream);
-extern void hstu_attention_jagged_forward_fp16(HstuAttentionFwdParams& param, hipStream_t stream);
-extern void hstu_attention_jagged_forward_bf16(HstuAttentionFwdParams& param, hipStream_t stream);
+#include "hstu_attention_api.hpp"
 
 template <typename T>
 void dumpBufferToFile(const char* fileName, T* data, size_t dataNumItems)
