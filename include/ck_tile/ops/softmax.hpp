@@ -5,7 +5,7 @@
 #include "ck_tile/ops/softmax/block/block_softmax_2d.hpp"
 #include "ck_tile/ops/softmax/block/block_softmax_2d_problem.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
-#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
+#include "ck_tile/ops/common/load_and_convert_tile.hpp"
 #include "ck_tile/ops/common/streamk_common.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/common/utils.hpp"
