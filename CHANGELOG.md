@@ -5,6 +5,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## Composable Kernel 1.2.0 for ROCm 7.2.0
 
 ### Added
+* Added Col-Row-Col--Col layout support for aquant mode in blockscale GEMM.
 * Added support for mixed precision fp8 x bf8 universal GEMM and weight preshuffle GEMM
 * Added a compute async pipeline in the CK TILE universal GEMM on gfx950
 * Added support for B Tensor type pk_int4_t in the CK TILE weight preshuffle GEMM.
