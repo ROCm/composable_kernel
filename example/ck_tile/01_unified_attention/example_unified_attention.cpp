@@ -436,7 +436,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     std::cout << "[" << problem.data_type << "|";
     std::cout << "] b:" << problem.batch << ", h:" << problem.nhead_q << "/" << problem.nhead_kv
-              << ", d:" << problem.hdim << ", mask:" << problem.mask << std::fixed << ", "
+              << ", d:" << problem.hdim << ", mask:" << "causal mask" << std::fixed << ", "
               << std::setprecision(8) << time << " ms, " << std::setprecision(2) << tflops
               << " TFlops, " << std::setprecision(2)
               << (static_cast<double>(mem) / 1e12 / (time / 1e3)) << " TB/s" << std::endl;
@@ -530,13 +530,11 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     size_t nonzero = 0;
 
-    for (int b = 0; b < problem.batch; ++b) {
-        for (int s = 0; s < eff_query_lens[b]; ++s) {
-            for (int h = 0; h < problem.nhead_q; ++h) {
-                for (int d = 0; d < problem.hdim; ++d) {
-                    if (static_cast<float>(o(b, s, h, d)) != 0.0f) {
+    for (int tok = 0; tok < problem.num_tokens; ++tok) {
+        for (int h = 0; h < problem.nhead_q; ++h) {
+            for (int d = 0; d < problem.hdim; ++d) {
+                if (static_cast<float>(o(tok, h, d)) != 0.0f) {
                         nonzero++;
-                    }
                 }
             }
         }
