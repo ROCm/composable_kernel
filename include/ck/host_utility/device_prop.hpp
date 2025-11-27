@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -62,7 +62,7 @@ inline bool is_gfx11_supported()
     return ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
            ck::get_device_name() == "gfx1102" || ck::get_device_name() == "gfx1103" ||
            ck::get_device_name() == "gfx1150" || ck::get_device_name() == "gfx1151" ||
-           ck::get_device_name() == "gfx1152";
+           ck::get_device_name() == "gfx1152" || ck::get_device_name() == "gfx1153";
 }
 
 inline bool is_xdl_supported()

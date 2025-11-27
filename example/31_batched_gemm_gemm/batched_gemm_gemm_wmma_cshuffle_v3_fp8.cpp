@@ -1,4 +1,4 @@
-// Copyright © Advanced Micro Devices, Inc. or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #include <iostream>
@@ -18,6 +18,10 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 

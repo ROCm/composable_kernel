@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -232,6 +232,10 @@ struct UniversalGemmBasePolicy
                 constexpr auto MLdsLayer =
                     max(1UL, get_n_lds_banks() * get_n_words_per_128b() / KPerBlock / DataTypeSize);
 
+                constexpr index_t NBanks = get_n_lds_banks();
+                static_assert(NBanks == 32 || NBanks == 64, "Unexpected LDS bank count");
+                constexpr index_t RowMul = (NBanks == 64) ? 2 : 1;
+
                 constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
                     make_tuple(number<KPerBlock / KPack * MLdsLayer>{},
                                number<MPerBlock / MLdsLayer>{},
@@ -243,7 +247,7 @@ struct UniversalGemmBasePolicy
                 constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
                     a_lds_block_desc_0,
                     make_tuple(
-                        make_xor_transform(make_tuple(number<MPerBlock / MLdsLayer>{},
+                        make_xor_transform(make_tuple(number<MPerBlock / MLdsLayer * RowMul>{},
                                                       number<KPerBlock / KPack * MLdsLayer>{})),
                         make_pass_through_transform(number<KPack>{})),
                     make_tuple(sequence<1, 0>{}, sequence<2>{}),
@@ -423,6 +427,10 @@ struct UniversalGemmBasePolicy
                 constexpr auto NLdsLayer =
                     max(1UL, get_n_lds_banks() * get_n_words_per_128b() / KPerBlock / DataTypeSize);
 
+                constexpr index_t NBanks = get_n_lds_banks();
+                static_assert(NBanks == 32 || NBanks == 64, "Unexpected LDS bank count");
+                constexpr index_t RowMul = (NBanks == 64) ? 2 : 1;
+
                 constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
                     make_tuple(BK0 * number<NLdsLayer>{},
                                number<NPerBlock / NLdsLayer>{},
@@ -433,9 +441,10 @@ struct UniversalGemmBasePolicy
 
                 constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
                     b_lds_block_desc_0,
-                    make_tuple(make_xor_transform(make_tuple(number<NPerBlock / NLdsLayer>{},
-                                                             BK0 * number<NLdsLayer>{})),
-                               make_pass_through_transform(number<KPack>{})),
+                    make_tuple(
+                        make_xor_transform(make_tuple(number<NPerBlock / NLdsLayer * RowMul>{},
+                                                      BK0 * number<NLdsLayer>{})),
+                        make_pass_through_transform(number<KPack>{})),
                     make_tuple(sequence<1, 0>{}, sequence<2>{}),
                     make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
@@ -768,19 +777,27 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPackA()
     {
+        using A         = remove_cvref_t<typename Problem::ADataType>;
         using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
-        constexpr index_t KPack = BlockGemm::Traits::KPack;
-        return KPack;
+
+        constexpr index_t KPack    = static_cast<index_t>(BlockGemm::Traits::KPack);
+        constexpr index_t VecElems = static_cast<index_t>(Problem::VectorLoadSize / sizeof(A));
+
+        return (KPack < VecElems) ? KPack : VecElems;
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPackB()
     {
+        using B         = remove_cvref_t<typename Problem::BDataType>;
         using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
-        constexpr index_t KPack = BlockGemm::Traits::KPack;
-        return KPack;
+
+        constexpr index_t KPack    = static_cast<index_t>(BlockGemm::Traits::KPack);
+        constexpr index_t VecElems = static_cast<index_t>(Problem::VectorLoadSize / sizeof(B));
+
+        return (KPack < VecElems) ? KPack : VecElems;
     }
 
     template <typename Problem>

@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include "grouped_convolution_utils.hpp"
 
 struct GroupedConvolutionForwardInvoker
@@ -21,11 +20,6 @@ struct GroupedConvolutionForwardInvoker
     static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs<CDEElementWise>& args,
                                   const ck_tile::stream_config& s)
     {
-        if(s.log_level_ > 0)
-        {
-            std::cout << "[INVOKER] grouped_conv_fwd called, NDimSpatial=" << NDimSpatial << "\n";
-        }
-
         // Implicit GEMM Traits
         using GemmShape = ck_tile::TileGemmShape<
             ck_tile::sequence<ConvConfig::M_Tile, ConvConfig::N_Tile, ConvConfig::K_Tile>,
@@ -107,7 +101,6 @@ struct GroupedConvolutionForwardInvoker
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-        float ave_time{0};
 
         using TransformType =
             ck_tile::TransformConvFwdToGemm<NDimSpatial,
@@ -248,13 +241,15 @@ struct GroupedConvolutionForwardInvoker
         // =====================================================================
         // Kernel launch lambda: Uses EnableSplitImage based on layout support
         // =====================================================================
-        const auto Run = [&]<bool EnableSplitImage>(const auto has_hot_loop_,
-                                                    const auto tail_number_,
-                                                    const auto memory_operation_) {
+        const auto Run = [&](const auto has_hot_loop_,
+                             const auto tail_number_,
+                             const auto memory_operation_,
+                             const auto enable_split_image_) {
             constexpr bool has_hot_loop_v   = has_hot_loop_.value;
             constexpr auto tail_number_v    = tail_number_.value;
             constexpr auto scheduler        = ConvConfig::Scheduler;
             constexpr auto memory_operation = memory_operation_.value;
+            constexpr bool EnableSplitImage = enable_split_image_.value;
 
             using GroupedConvTraitsType = std::conditional_t<EnableSplitImage,
                                                              GroupedConvTraitsTypeLargeTensor,
@@ -363,11 +358,9 @@ struct GroupedConvolutionForwardInvoker
                           << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
             }
 
-            ave_time = ck_tile::launch_kernel(
+            return ck_tile::launch_kernel(
                 s,
                 ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-
-            return ave_time;
         };
 
         // =====================================================================
@@ -375,28 +368,33 @@ struct GroupedConvolutionForwardInvoker
         // =====================================================================
         if(use_split_image)
         {
-            // Use split-image kernel (Kernel<true>)
             const auto RunSplitImage = [&](const auto has_hot_loop_, const auto tail_number_) {
                 if(args.k_batch == 1)
-                    Run.template operator()<true>(has_hot_loop_, tail_number_, MemoryOpSet{});
+                    return Run(
+                        has_hot_loop_, tail_number_, MemoryOpSet{}, ck_tile::bool_constant<true>{});
                 else
-                    Run.template operator()<true>(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+                    return Run(has_hot_loop_,
+                               tail_number_,
+                               MemoryOpAtomicAdd{},
+                               ck_tile::bool_constant<true>{});
             };
-            BaseGemmPipeline::TailHandler(RunSplitImage, has_hot_loop, tail_num);
+            return BaseGemmPipeline::TailHandler(RunSplitImage, has_hot_loop, tail_num);
         }
         else
         {
-            // Use regular kernel (Kernel<false>)
             const auto RunRegular = [&](const auto has_hot_loop_, const auto tail_number_) {
                 if(args.k_batch == 1)
-                    Run.template operator()<false>(has_hot_loop_, tail_number_, MemoryOpSet{});
+                    return Run(has_hot_loop_,
+                               tail_number_,
+                               MemoryOpSet{},
+                               ck_tile::bool_constant<false>{});
                 else
-                    Run.template operator()<false>(
-                        has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+                    return Run(has_hot_loop_,
+                               tail_number_,
+                               MemoryOpAtomicAdd{},
+                               ck_tile::bool_constant<false>{});
             };
-            BaseGemmPipeline::TailHandler(RunRegular, has_hot_loop, tail_num);
+            return BaseGemmPipeline::TailHandler(RunRegular, has_hot_loop, tail_num);
         }
-
-        return ave_time;
     }
 };

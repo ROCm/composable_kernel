@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,10 @@
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/transform_conv_bwd_weight_to_gemm.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_backward_weight.hpp"
+#endif
 
 namespace ck_tile {
 
@@ -366,7 +370,7 @@ template <typename GroupedConvTraitsType_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionBackwardWeightKernel
 {
-    static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial_;
+    static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
@@ -407,6 +411,9 @@ struct GroupedConvolutionBackwardWeightKernel
     static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
+    static_assert(GroupedConvTraitsType_::ExplicitGemm == false ||
+                      GroupedConvTraitsType_::NumGroupsToMerge == 1,
+                  "Not supported!");
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -429,6 +436,19 @@ struct GroupedConvolutionBackwardWeightKernel
         }
         // clang-format on
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    CK_TILE_HOST std::string GetInstanceString() const
+    {
+        static_assert(ck_tile::reflect::HasInstanceTraits<GroupedConvolutionBackwardWeightKernel>,
+                      "Specialization of instance_traits not found. Please check that a "
+                      "specialization exists in file "
+                      "ck_tile/builder/reflect/"
+                      "instance_traits_tile_grouped_convolution_backward_weight.hpp "
+                      "for the given template parameters.");
+        return ck_tile::reflect::instance_string<GroupedConvolutionBackwardWeightKernel>();
+    }
+#endif
 
     CK_TILE_HOST static constexpr auto
     GridSize(const GroupedConvBwdWeightKernelArgsSpecialized& kargs)
@@ -464,7 +484,7 @@ struct GroupedConvolutionBackwardWeightKernel
         __device__ SplitKBatchOffset(const GroupedConvBwdWeightKernelArgsSpecialized& kargs,
                                      const std::size_t k_id = blockIdx.z)
         {
-            constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
+            constexpr auto K1   = GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{});
             const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
             const index_t KRead = amd_wave_read_first_lane((kargs.GemmK + K_t - 1) / K_t * K1);
 
@@ -485,22 +505,6 @@ struct GroupedConvolutionBackwardWeightKernel
         index_t b_k_split_offset;
         index_t splitted_k;
     };
-
-    CK_TILE_HOST static auto Preprocess(const GroupedConvBwdWeightKernelArgsSpecialized& kargs,
-                                        const stream_config& s)
-    {
-        return [&]() {
-            if(kargs.k_batch > 1)
-            {
-                // Total number of convolution groups (ConvG) = GemmBatch * NumGroupsPerBatch
-                // since we require that ConvG % NumGroupsPerBatch == 0.
-                const auto wei_size =
-                    kargs.GemmBatch * kargs.GemmM * kargs.GemmN * kargs.NumGroupsPerBatch;
-                hipGetErrorString(
-                    hipMemsetAsync(kargs.wei_ptr, 0, wei_size * sizeof(WeiDataType), s.stream_id_));
-            }
-        };
-    }
 
     CK_TILE_HOST static bool
     IsSupportedArgument(const GroupedConvBwdWeightKernelArgsSpecialized& kargs)
@@ -569,6 +573,14 @@ struct GroupedConvolutionBackwardWeightKernel
                     return false;
                 }
             }
+        }
+
+        if constexpr(GroupedConvTraitsType_::ExplicitGemm &&
+                     ConvSpecialization != ConvolutionSpecialization::Filter1x1Stride1Pad0)
+        {
+            CK_TILE_ERROR(
+                "Explicit Gemm is supported only for Filter1x1Stride1Pad0 specialization!");
+            return false;
         }
 
         namespace ctc = tensor_layout::convolution;
@@ -646,8 +658,8 @@ struct GroupedConvolutionBackwardWeightKernel
                         WeiDataType* c_ptr,
                         const GroupedConvBwdWeightKernelArgsSpecialized& kargs)
     {
-        static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
-        static_assert(!TilePartitioner::BlockGemmShape::PermuteB, "Not implemented!");
+        static_assert(!GemmPipeline::BlockGemmShape::PermuteA, "Not implemented!");
+        static_assert(!GemmPipeline::BlockGemmShape::PermuteB, "Not implemented!");
         const auto& a_tensor_view = [&]() {
             return make_tensor_view<address_space_enum::global>(a_ptr,
                                                                 kargs.a_grid_desc_k_m); // A: out
@@ -869,61 +881,104 @@ struct GroupedConvolutionBackwardWeightKernel
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
-    CK_TILE_DEVICE void operator()(GroupedConvBwdWeightKernelArgsSpecialized kargs) const
+    CK_TILE_DEVICE void CallExplicitGemm(GroupedConvBwdWeightKernelArgsSpecialized& kargs) const
     {
-        const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
-        const auto [iM, iN] =
-            TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(blockIdX);
-        const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
+        static_assert(NumDTensor == 0, "Not supported!");
+        using ExplicitBatchedGemmKernel =
+            BatchedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
+        const auto batched_gemm_kargs = typename ExplicitBatchedGemmKernel::BatchedGemmKernelArgs{
+            {{kargs.out_ptr},
+             {kargs.in_ptr},
+             {},
+             kargs.wei_ptr,
+             kargs.GemmM,
+             kargs.GemmN,
+             kargs.GemmK,
+             {kargs.GemmM * kargs.GemmBatch},
+             {kargs.GemmN * kargs.GemmBatch},
+             {},
+             kargs.GemmN,
+             kargs.k_batch},
+            kargs.GemmM,
+            kargs.GemmN,
+            kargs.GemmM * kargs.GemmN,
+            kargs.GemmBatch};
+        ExplicitBatchedGemmKernel{}(batched_gemm_kargs);
+    }
 
-        const auto blockIdZ    = amd_wave_read_first_lane(blockIdx.z);
-        const index_t num_loop = amd_wave_read_first_lane(
-            ck_tile::integer_divide_ceil(kargs.GemmK, kargs.k_batch * TilePartitioner::KPerBlock));
-        const index_t i_k =
-            amd_wave_read_first_lane(blockIdZ * num_loop * TilePartitioner::KPerBlock);
-
-        const auto blockIdY       = amd_wave_read_first_lane(blockIdx.y);
-        const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);
-        const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
-        const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
-
-        // options
-        // conv_bwd_weight = Out * In = Weight
-        const OutDataType* a_ptr = static_cast<const OutDataType*>(kargs.out_ptr) + group_offset_a;
-        const InDataType* b_ptr  = static_cast<const InDataType*>(kargs.in_ptr) + group_offset_b;
-        WeiDataType* c_ptr       = static_cast<WeiDataType*>(kargs.wei_ptr) + group_offset_c;
-
-        __shared__ char smem_ptr_0[GetSmemSize()];
-
-        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
+    CK_TILE_DEVICE void operator()(GroupedConvBwdWeightKernelArgsSpecialized& kargs) const
+    {
+        if constexpr(GroupedConvTraitsType_::ExplicitGemm)
         {
-            __shared__ char smem_ptr_1[GetSmemSize()];
-            if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
-                           GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                           is_any_of<WeiDataType, fp16_t, bf16_t>::value))
+            CallExplicitGemm(kargs);
+        }
+        else
+        {
+            const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
+            const auto [iM, iN] =
+                TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(blockIdX);
+            const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
+            const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
+
+            const auto blockIdZ    = amd_wave_read_first_lane(blockIdx.z);
+            const index_t num_loop = amd_wave_read_first_lane(ck_tile::integer_divide_ceil(
+                kargs.GemmK, kargs.k_batch * TilePartitioner::KPerBlock));
+            const index_t i_k =
+                amd_wave_read_first_lane(blockIdZ * num_loop * TilePartitioner::KPerBlock);
+
+            const auto blockIdY       = amd_wave_read_first_lane(blockIdx.y);
+            const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);
+            const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
+            const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
+
+            // options
+            // conv_bwd_weight = Out * In = Weight
+            const OutDataType* a_ptr =
+                static_cast<const OutDataType*>(kargs.out_ptr) + group_offset_a;
+            const InDataType* b_ptr = static_cast<const InDataType*>(kargs.in_ptr) + group_offset_b;
+            WeiDataType* c_ptr      = static_cast<WeiDataType*>(kargs.wei_ptr) + group_offset_c;
+
+            __shared__ char smem_ptr_0[GetSmemSize()];
+
+            if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
-                RunGemm2LDS(a_ptr,
+                __shared__ char smem_ptr_1[GetSmemSize()];
+                if constexpr(!(EpiloguePipeline::MemoryOperation ==
+                                   memory_operation_enum::atomic_add &&
+                               GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                               is_any_of<WeiDataType, fp16_t, bf16_t>::value))
+                {
+                    RunGemm2LDS(a_ptr,
+                                b_ptr,
+                                kargs.ds_ptr,
+                                c_ptr,
+                                smem_ptr_0,
+                                smem_ptr_1,
+                                kargs,
+                                num_loop,
+                                i_m,
+                                i_n,
+                                i_k);
+                }
+            }
+            else
+            {
+                if constexpr(!(EpiloguePipeline::MemoryOperation ==
+                                   memory_operation_enum::atomic_add &&
+                               GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                               is_any_of<WeiDataType, fp16_t, bf16_t>::value))
+                {
+                    RunGemm(a_ptr,
                             b_ptr,
                             kargs.ds_ptr,
                             c_ptr,
                             smem_ptr_0,
-                            smem_ptr_1,
                             kargs,
                             num_loop,
                             i_m,
                             i_n,
                             i_k);
-            }
-        }
-        else
-        {
-            if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
-                           GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                           is_any_of<WeiDataType, fp16_t, bf16_t>::value))
-            {
-                RunGemm(
-                    a_ptr, b_ptr, kargs.ds_ptr, c_ptr, smem_ptr_0, kargs, num_loop, i_m, i_n, i_k);
+                }
             }
         }
     }

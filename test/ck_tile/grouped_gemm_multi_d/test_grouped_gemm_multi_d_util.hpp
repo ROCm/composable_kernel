@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include <gtest/gtest.h>
 
 #include "ck_tile/core.hpp"
@@ -125,7 +124,12 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+        using BaseGemmPipeline = std::conditional_t<
+            Config::Pipeline_ == (PipelineType::Memory),
+            ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
+            std::conditional_t<Config::Pipeline_ == (PipelineType::CompV3),
+                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+                               ck_tile::BaseGemmPipelineAgBgCrCompV4<GemmPipelineProblem>>>;
 
         const ck_tile::index_t k_grain = gemm_descs[0].k_batch * Config::K_Tile_;
         const ck_tile::index_t K_split =

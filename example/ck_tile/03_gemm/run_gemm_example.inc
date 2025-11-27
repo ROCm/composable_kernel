@@ -1,5 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
@@ -283,12 +284,12 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             if constexpr(GemmConfig::TiledMMAPermuteN)
             {
                 std::cout << "Run with PermuteN" << std::endl;
-                return shuffle_b_permuteN<GemmConfig>(b_k_n);
+                return ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
             }
             else
             {
                 std::cout << "Run without PermuteN" << std::endl;
-                return shuffle_b<GemmConfig>(b_k_n);
+                return ck_tile::shuffle_b<GemmConfig>(b_k_n);
             }
         }();
         // shuffled buffer B for device implementation

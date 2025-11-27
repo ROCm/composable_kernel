@@ -1,7 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 # generate kernel instances to speed up compilation
-
 FWD_DTYPE_MAP = {
     "fp32": "FmhaFwdFp32",
     "fp16": "FmhaFwdFp16",
@@ -62,6 +61,16 @@ def get_mask_check_map(mask: str):
         assert False
         return None
 
+
+QSCALE_MAP = {
+    "no": "ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE",
+    "pertensor": "ck_tile::BlockAttentionQuantScaleEnum::PERTENSOR",
+}
+
+QSCALE_CHECK_MAP = {
+    "no": "quant_scale_enum::no_scale",
+    "pertensor": "quant_scale_enum::pertensor",
+}
 
 BIAS_MAP = {
     "no": "ck_tile::BlockAttentionBiasEnum::NO_BIAS",

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_AMD_INLINE_ASM_HPP
 #define CK_AMD_INLINE_ASM_HPP
@@ -431,5 +431,6 @@ __device__ void amd_assembly_outer_product_1x4(int8x16_t a,
                                    c3);
 }
 #endif
+
 } // namespace ck
 #endif

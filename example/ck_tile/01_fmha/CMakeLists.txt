@@ -109,6 +109,7 @@ set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
 set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
 
 message(DEBUG "adding instances ${FMHA_FWD_INSTANCES}")
+# to save build time, exclude the target from "all" target of "01_fmha" directory and its ancestors
 add_library(${FMHA_FWD_INSTANCES} OBJECT EXCLUDE_FROM_ALL)
 target_include_directories(${FMHA_FWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_GEN_BLOBS})
