@@ -35,7 +35,10 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         .insert("prec", "bf16", "data type. fp16/bf16")
         // .insert("b", "3", "batch size")
         .insert("h_k", "8", "num head for k/v. num head for q is " + std::to_string(num_queries_per_kv) + " times this")
+        .insert("s", "3328", "max seqlen_q")
+        .insert("s_k", "-1", "max seqlen_k, -1 means equal to s")
         .insert("nb", "1024", "num_blks")
+        .insert("b", "3", "batch")
         .insert("d", "128", "head dim for q & k")
         .insert("scale_s", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
         // TODO scale factors
@@ -50,6 +53,7 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         .insert("operm", "0", "permute output")
         .insert("causal", "0", "0: no mask, 1: causal mask")
         .insert("v", "1", "0:no verify, 1:verify")
+        .insert("varlen", "1", "0: fixed length, 1: variable length")
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
@@ -58,16 +62,59 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         .insert("repeat", "30", "number of iterations to benchmark the kernel")
         // Optional effective seqlen override (exclude PAD) for batch mode
         .insert("query_lens",
-                "1, 5, 129",
+                "",
                 "Batch-mode only: per-batch effective seqlen for Q (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.")
         .insert("kv_lens",
-                "1328, 18, 463",
+                "",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_pair(result, arg_parser);
+}
+
+auto seqlen_preprocess(ck_tile::index_t batch,
+            ck_tile::index_t max_seqlen_q,
+            ck_tile::index_t max_seqlen_kv,
+            const std::vector<int>& query_lens_input,
+            const std::vector<int>& kv_lens_input,
+            bool varlen) -> std::pair<std::vector<int>, std::vector<int>>
+{
+    // If both query_lens and kv_lens are provided, return them directly
+    if(!query_lens_input.empty() && !kv_lens_input.empty())
+    {
+        return std::make_pair(query_lens_input, kv_lens_input);
+    }
+
+    std::vector<int> query_lens;
+    std::vector<int> kv_lens;
+
+    if(!varlen)
+    {
+        // Fixed length mode: fill with max seqlen
+        query_lens.assign(batch, max_seqlen_q);
+        kv_lens.assign(batch, max_seqlen_kv);
+    }
+    else
+    {
+        // Variable length mode: generate random lengths up to max
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> q_dist(1, max_seqlen_q);
+        std::uniform_int_distribution<int> kv_dist(1, max_seqlen_kv);
+
+        query_lens.resize(batch);
+        kv_lens.resize(batch);
+        
+        for(ck_tile::index_t i = 0; i < batch; ++i)
+        {
+            query_lens[i] = q_dist(gen);
+            kv_lens[i] = kv_dist(gen);
+        }
+    }
+
+    return std::make_pair(query_lens, kv_lens);
 }
 
 struct Problem
@@ -82,10 +129,30 @@ struct Problem
         // TODO: support other GQA/MQA cases than just 4x
         nhead_q = nhead_kv * num_queries_per_kv;
 
+        ck_tile::index_t max_seqlen_q  = args.get_int("s");
+        ck_tile::index_t max_seqlen_kv  = args.get_int("s_k");
+
+        if (max_seqlen_kv == -1) {
+            max_seqlen_kv = max_seqlen_q;
+        }
+        
         hdim       = args.get_int("d");
         query_lens = args.get_int_vec("query_lens");
         kv_lens    = args.get_int_vec("kv_lens");
         assert(query_lens.size() == kv_lens.size() && "query_lens and kv_lens must have the same length b");
+        batch    = args.get_int("b");
+
+        bool varlen = args.get_bool("varlen");
+        auto [query_lens_, kv_lens_] = seqlen_preprocess(
+            batch,
+            max_seqlen_q,
+            max_seqlen_kv,
+            query_lens,
+            kv_lens,
+            varlen);
+
+        query_lens = query_lens_;
+        kv_lens = kv_lens_;
         batch      = query_lens.size();
 
         // Calculate scale_s
@@ -436,7 +503,18 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     std::cout << "[" << problem.data_type << "|";
     std::cout << "] b:" << problem.batch << ", h:" << problem.nhead_q << "/" << problem.nhead_kv
-              << ", d:" << problem.hdim << ", mask:" << "causal mask" << std::fixed << ", "
+              << ", d:" << problem.hdim << ", scale_s:" << problem.scale_s
+              << ", query_lens:[";
+    for (size_t i = 0; i < problem.query_lens.size(); ++i) {
+        std::cout << problem.query_lens[i];
+        if (i < problem.query_lens.size() - 1) std::cout << ",";
+    }
+    std::cout << "], kv_lens:[";
+    for (size_t i = 0; i < problem.kv_lens.size(); ++i) {
+        std::cout << problem.kv_lens[i];
+        if (i < problem.kv_lens.size() - 1) std::cout << ",";
+    }
+    std::cout << "], mask:" << "causal mask" << std::fixed << ", "
               << std::setprecision(8) << time << " ms, " << std::setprecision(2) << tflops
               << " TFlops, " << std::setprecision(2)
               << (static_cast<double>(mem) / 1e12 / (time / 1e3)) << " TB/s" << std::endl;
