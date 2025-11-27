@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,68 +20,8 @@ namespace ck_tile {
 // LocalPreFetchStages: 1
 // LocalSharedMemoryBuffer: 1
 
-template <typename Problem>
-struct BaseBQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
-{
-    template <typename RunFunction>
-    CK_TILE_HOST_DEVICE static auto
-    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
-    {
-        if(has_hot_loop)
-        {
-            if(tail_number == ck_tile::TailNumber::Full)
-            {
-                return run_func(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Odd)
-            {
-                return run_func(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Even)
-            {
-                return run_func(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-            }
-            else
-            {
-                throw std::runtime_error("Unsupported tail number for this operation !!!");
-            }
-        }
-        else
-        {
-            if(tail_number == ck_tile::TailNumber::Full)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Odd)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Even)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-            }
-            else
-            {
-                throw std::runtime_error("Unsupported tail number for this operation !!!");
-            }
-        }
-    }
-};
-
 template <typename Problem, typename Policy = GemmBQuantPipelineAgBgCrDefaultPolicy>
-struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV3<Problem>
+struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmBQuantPipelineAgBgCrImplBase<Problem, Policy>;
@@ -318,8 +258,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                 (PreshuffleQuant) ? make_array(ck_tile::integer_least_multiple(n, NPerBlock) /
                                                    BlockGemmShape::WarpTile::at(number<1>{}),
                                                0)
-                : is_bq_col_major ? make_array(KPerBlockBQ, 0)
-                                  : make_array(0, KPerBlockBQ);
+                : is_bq_col_major ? make_array(0, KPerBlockBQ)
+                                  : make_array(KPerBlockBQ, 0);
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);

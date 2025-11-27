@@ -64,6 +64,7 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
 
     # Create the executable
     add_executable(${target_name}
+        # to save build time, exclude the target from "all" target of "gemm" directory and its ancestors
         EXCLUDE_FROM_ALL
         ${GEMM_SOURCE_DIR}/gemm_benchmark_single.cpp
         ${instance_header}

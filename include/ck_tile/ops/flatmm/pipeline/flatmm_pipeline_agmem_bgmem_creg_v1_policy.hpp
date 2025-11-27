@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -229,13 +229,13 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPackA()
     {
-        using A         = remove_cvref_t<typename Problem::ADataType>;
-        using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
+        using A           = remove_cvref_t<typename Problem::ADataType>;
+        using BlockFlatmm = remove_cvref_t<decltype(GetBlockFlatmm<Problem>())>;
 
-        constexpr index_t KPack    = static_cast<index_t>(BlockGemm::Traits::KPack);
-        constexpr index_t VecElems = static_cast<index_t>(Problem::VectorLoadSize / sizeof(A));
+        constexpr index_t KPack    = BlockFlatmm::BlockPolicy::WarpGemm::kKPerThread;
+        constexpr index_t VecElems = Problem::VectorLoadSize / sizeof(A);
 
-        return (KPack < VecElems) ? KPack : VecElems;
+        return min(KPack, VecElems);
     }
 
     template <typename Problem>

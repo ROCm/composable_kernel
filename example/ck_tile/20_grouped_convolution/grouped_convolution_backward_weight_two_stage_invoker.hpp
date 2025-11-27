@@ -133,7 +133,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                 ConvConfig::M_Warp_Tile,
                 ConvConfig::N_Warp_Tile,
                 ConvConfig::K_Warp_Tile,
-                GemmPipelineProblem::TransposeC,
+                GroupedConvTraitsType::FixedGemmParams::TransposeC,
                 memory_operation,
                 ConvConfig::NumWaveGroups,
                 GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,

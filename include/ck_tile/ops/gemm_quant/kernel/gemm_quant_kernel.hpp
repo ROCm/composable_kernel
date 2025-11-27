@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -786,8 +786,8 @@ struct QuantGemmKernel
                     using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
                     return make_naive_tensor_view<address_space_enum::global>(
                         bq_ptr,
-                        make_tuple(kargs.QK_B, integer_divide_ceil(kargs.N, QuantGroupSize::kN)),
-                        make_tuple(1, kargs.stride_BQ),
+                        make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN), kargs.QK_B),
+                        make_tuple(kargs.stride_BQ, 1),
                         number<GemmPipeline::GetVectorSizeBQ()>{},
                         number<1>{});
                 }
@@ -1030,9 +1030,9 @@ struct QuantGemmKernel
                     using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
                     return make_tile_window(
                         bq_pad_view,
-                        make_tuple(number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{},
-                                   number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{}),
-                        {0, i_n / QuantGroupSize::kN});
+                        make_tuple(number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{},
+                                   number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{}),
+                        {i_n / QuantGroupSize::kN, 0});
                 }
             }
             else
