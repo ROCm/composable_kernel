@@ -171,7 +171,7 @@ template <typename BlockGemmShape,
           index_t BlockSize,
           index_t YPerTile,
           index_t XPerTile,
-          index_t XPerQ,
+          index_t YPerQ,
           bool PreshuffleQuant = false>
 struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
 {
@@ -231,39 +231,39 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
         }
         else
         {
-            if constexpr(XPerQ < WarpGemm::kN)
+            if constexpr(YPerQ < WarpGemm::kN)
             {
                 // Case 1: Fine-grained - multiple quantization scales within a single warp
-                constexpr index_t Y  = YPerTile;             // Full Y dimension of tile
-                constexpr index_t YR = 1;                    // No Y replication needed
-                constexpr index_t X0 = NIterPerWarp;         // Iterations per warp in N-dim
-                constexpr index_t X1 = NWarps;               // Number of warps in N-dim
-                constexpr index_t X2 = WarpGemm::kN / XPerQ; // Number of scales per warp
-                constexpr index_t XR = XPerQ;                // Elements per quantization group
+                constexpr index_t X  = XPerTile;             // Full X dimension of tile
+                constexpr index_t XR = 1;                    // No Y replication needed
+                constexpr index_t Y0 = NIterPerWarp;         // Iterations per warp in N-dim
+                constexpr index_t Y1 = NWarps;               // Number of warps in N-dim
+                constexpr index_t Y2 = WarpGemm::kN / YPerQ; // Number of scales per warp
+                constexpr index_t YR = YPerQ;                // Elements per quantization group
 
-                static_assert(X0 * X1 * X2 == XPerTile,
-                              "X0, X1, X2 must cover the blocktile along X.");
+                static_assert(Y0 * Y1 * Y2 == YPerTile,
+                              "Y0, Y1, Y2 must cover the blocktile along Y.");
 
                 return make_static_tile_distribution(
-                    tile_distribution_encoding<sequence<MWarps, YR, XR>,
-                                               tuple<sequence<Y>, sequence<X0, X1, X2>>,
-                                               tuple<sequence<0, 2>, sequence<0, 2, 0>>,
+                    tile_distribution_encoding<sequence<MWarps, XR, YR>,
+                                               tuple<sequence<Y0, Y1, Y2>, sequence<X>>,
+                                               tuple<sequence<0, 1>, sequence<0, 1, 0>>,
                                                tuple<sequence<0, 1>, sequence<1, 2, 2>>,
-                                               sequence<2, 1>,
+                                               sequence<1, 2>,
                                                sequence<0, 0>>{});
             }
-            else if constexpr(XPerQ <= WarpGemm::kN * NWarps)
+            else if constexpr(YPerQ <= WarpGemm::kN * NWarps)
             {
                 // Case 2: Medium-grained - one quantization scale per warp
-                constexpr auto XR = XPerQ / WarpGemm::kN; // Scale replication factor
-                constexpr auto X1 = NWarps / XR;          // Warps per unique scale
-                constexpr auto X0 = XPerTile / X1;        // Iterations to cover X dimension
+                constexpr auto YR = YPerQ / WarpGemm::kN; // Scale replication factor
+                constexpr auto Y1 = NWarps / YR;          // Warps per unique scale
+                constexpr auto Y0 = YPerTile / Y1;        // Iterations to cover X dimension
                 return make_static_tile_distribution(
-                    tile_distribution_encoding<sequence<MWarps, XR, get_warp_size()>,
-                                               tuple<sequence<YPerTile>, sequence<X0, X1>>,
-                                               tuple<sequence<0, 2, 0>, sequence<0>>,
+                    tile_distribution_encoding<sequence<MWarps, YR, get_warp_size()>,
+                                               tuple<sequence<Y0, Y1>, sequence<XPerTile>>,
+                                               tuple<sequence<0, 1, 0>, sequence<0>>,
                                                tuple<sequence<0, 1, 1>, sequence<2>>,
-                                               sequence<2, 1>,
+                                               sequence<1, 2>,
                                                sequence<0, 0>>{});
             }
             else // XPerQ > WarpGemm::kN * NWarps
