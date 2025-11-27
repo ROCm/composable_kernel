@@ -22,7 +22,8 @@ struct BaseGemmPipelineAgBgCrCompV4
 
     CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
-        return num_loop > 3;
+        constexpr index_t HotLoopGlobalReads = 2;
+        return num_loop >= (HotLoopGlobalReads  + PrefetchStages);
     }
 
     CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
