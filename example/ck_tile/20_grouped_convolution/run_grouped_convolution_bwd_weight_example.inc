@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
-#include "ck_tile/ref/naive_grouped_conv_bwd_weight.hpp"
+#include "ck_tile/ref/naive_grouped_conv_bwd_weight_gpu.hpp"
 
 template <ck_tile::index_t NDimSpatial,
           typename ConvConfig,

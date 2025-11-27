@@ -17,7 +17,7 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
-#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data_gpu.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
 
 using ::ck::DeviceMem;
