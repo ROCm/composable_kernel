@@ -421,7 +421,7 @@ struct UniversalGemmKernel
 
         const auto vectorSizeA = is_wave32() ? GemmPipeline::template GetVectorSizeA<true>()
                                              : GemmPipeline::template GetVectorSizeA<false>();
-        bool AsTesnorIsValid   = {true};
+        bool AsTensorIsValid   = {true};
         static_for<0, NumATensor, 1>{}([&](auto index) {
             using AiLayout = remove_cvref_t<std::tuple_element_t<index.value, AsLayout>>;
             if constexpr(std::is_same_v<AiLayout, tensor_layout::gemm::RowMajor>)
@@ -435,15 +435,27 @@ struct UniversalGemmKernel
                             "Can't support K that is not a multiple of k_batch * KPerBlock "
                             "without padding!");
                     }
-                    AsTesnorIsValid = false;
+                    AsTensorIsValid = false;
                 }
                 if(kargs.K % vectorSizeA != 0)
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    const auto remainder = kargs.K % vectorSizeA;
+                    constexpr ck_tile::index_t APackedSize =
+                        ck_tile::numeric_traits<ADataType>::PackedSize;
+                    const auto remainder_in_bytes = remainder * sizeof(ADataType) / APackedSize;
+                    // oob can support to dword level
+                    if(remainder_in_bytes % 4 == 0)
                     {
-                        CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
+                        AsTensorIsValid = true;
                     }
-                    AsTesnorIsValid = false;
+                    else
+                    {
+                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                        {
+                            CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
+                        }
+                        AsTensorIsValid = false;
+                    }
                 }
             }
             else
@@ -455,20 +467,33 @@ struct UniversalGemmKernel
                         CK_TILE_ERROR(
                             "Can't support M that is not a multiple of MPerBlock without padding!");
                     }
-                    AsTesnorIsValid = false;
+                    AsTensorIsValid = false;
                 }
                 if(kargs.M % vectorSizeA != 0)
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    const auto remainder = kargs.M % vectorSizeA;
+                    constexpr ck_tile::index_t APackedSize =
+                        ck_tile::numeric_traits<ADataType>::PackedSize;
+                    const auto remainder_in_bytes = remainder * sizeof(ADataType) / APackedSize;
+                    // oob can support to dword level
+                    if(remainder_in_bytes % 4 == 0)
                     {
-                        CK_TILE_ERROR("M is not a multiple of vector load size for A tensor!");
+
+                        AsTensorIsValid = true;
                     }
-                    AsTesnorIsValid = false;
+                    else
+                    {
+                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                        {
+                            CK_TILE_ERROR("M is not a multiple of vector load size for A tensor!");
+                        }
+                        AsTensorIsValid = false;
+                    }
                 }
             }
         });
 
-        bool BsTesnorIsValid   = {true};
+        bool BsTensorIsValid   = {true};
         const auto vectorSizeB = is_wave32() ? GemmPipeline::template GetVectorSizeB<true>()
                                              : GemmPipeline::template GetVectorSizeB<false>();
         static_for<0, NumBTensor, 1>{}([&](auto index) {
@@ -482,47 +507,72 @@ struct UniversalGemmKernel
                         CK_TILE_ERROR(
                             "Can't support N that is not a multiple of NPerBlock without padding!");
                     }
-                    BsTesnorIsValid = false;
+                    BsTensorIsValid = false;
                 }
                 if(kargs.N % vectorSizeB != 0)
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    const auto remainder = kargs.N % vectorSizeB;
+                    constexpr ck_tile::index_t BPackedSize =
+                        ck_tile::numeric_traits<BDataType>::PackedSize;
+                    const auto remainder_in_bytes = remainder * sizeof(BDataType) / BPackedSize;
+                    // oob can support to dword level
+                    if(remainder_in_bytes % 4 == 0)
                     {
-                        CK_TILE_ERROR("N is not a multiple of vector load size for B tensor!");
+                        BsTensorIsValid = true;
                     }
-                    BsTesnorIsValid = false;
+                    else
+                    {
+                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                        {
+                            CK_TILE_ERROR("N is not a multiple of vector load size for B tensor!");
+                        }
+                        BsTensorIsValid = false;
+                    }
                 }
-            }
-            else
-            {
-                if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
-                   GemmPipeline::kPadK == false)
+                else
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
+                       GemmPipeline::kPadK == false)
                     {
-                        CK_TILE_ERROR(
-                            "Can't support K that is not a multiple of k_batch * KPerBlock "
-                            "without padding!");
+                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                        {
+                            CK_TILE_ERROR(
+                                "Can't support K that is not a multiple of k_batch * KPerBlock "
+                                "without padding!");
+                        }
+                        BsTensorIsValid = false;
                     }
-                    BsTesnorIsValid = false;
-                }
-                if(kargs.K % vectorSizeB != 0)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    if(kargs.K % vectorSizeB != 0)
                     {
-                        CK_TILE_ERROR("K is not a multiple of vector load size for B tensor!");
+                        const auto remainder = kargs.K % vectorSizeB;
+                        constexpr ck_tile::index_t BPackedSize =
+                            ck_tile::numeric_traits<BDataType>::PackedSize;
+                        const auto remainder_in_bytes = remainder * sizeof(BDataType) / BPackedSize;
+                        // oob can support to dword level
+                        if(remainder_in_bytes % 4 == 0)
+                        {
+                            BsTensorIsValid = true;
+                        }
+                        else
+                        {
+                            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                            {
+                                CK_TILE_ERROR(
+                                    "K is not a multiple of vector load size for B tensor!");
+                            }
+                            BsTensorIsValid = false;
+                        }
                     }
-                    BsTesnorIsValid = false;
                 }
             }
         });
 
-        bool DTesnorIsValid = {true};
+        bool DTensorIsValid = {true};
         static_for<0, NumDTensor, 1>{}([&](auto index) {
             using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
             if(std::is_same_v<DiLayout, CLayout> == false)
             {
-                DTesnorIsValid = false;
+                DTensorIsValid = false;
             }
             if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
             {
@@ -533,7 +583,7 @@ struct UniversalGemmKernel
                         CK_TILE_ERROR("Can't support N for tensor D that is not a multiple of "
                                       "NPerBlock without padding!");
                     }
-                    DTesnorIsValid = false;
+                    DTensorIsValid = false;
                 }
                 if(kargs.N % EpiloguePipeline::GetVectorSizeD(index) != 0)
                 {
@@ -541,7 +591,7 @@ struct UniversalGemmKernel
                     {
                         CK_TILE_ERROR("N is not a multiple of vector load size for D tensor!");
                     }
-                    DTesnorIsValid = false;
+                    DTensorIsValid = false;
                 }
             }
             else
@@ -553,7 +603,7 @@ struct UniversalGemmKernel
                         CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
                                       "MPerBlock without padding!");
                     }
-                    DTesnorIsValid = false;
+                    DTensorIsValid = false;
                 }
                 if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
                 {
@@ -561,7 +611,7 @@ struct UniversalGemmKernel
                     {
                         CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
                     }
-                    DTesnorIsValid = false;
+                    DTensorIsValid = false;
                 }
             }
         });
@@ -606,7 +656,7 @@ struct UniversalGemmKernel
                 return false;
             }
         }
-        return AsTesnorIsValid && BsTesnorIsValid && DTesnorIsValid;
+        return AsTensorIsValid && BsTensorIsValid && DTensorIsValid;
     }
 
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>

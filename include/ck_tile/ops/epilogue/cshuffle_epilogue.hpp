@@ -300,19 +300,83 @@ struct CShuffleEpilogue
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
     {
+        constexpr auto DataTypeSize = sizeof(ODataType);
+        constexpr index_t VectorLen = GetVectorSizeC();
+
+        // calculate how many elements to pad to avoid bank conflict
+        constexpr auto PaddingAmount   = VectorLen;
+        constexpr index_t BytesPerBank = 4;
         // N is contiguous dimension
         if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
-            return make_naive_tensor_descriptor(
-                make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                make_tuple(number<NPerIterationShuffle>{}, number<1>{}));
+            constexpr auto MLdsLayer =
+                max(1UL, get_n_lds_banks() * BytesPerBank / NPerIterationShuffle / DataTypeSize);
+
+            constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
+                make_tuple(number<MPerIterationShuffle / MLdsLayer>{},
+                           number<NPerIterationShuffle / VectorLen * MLdsLayer>{},
+                           number<VectorLen>{}),
+                make_tuple(number<NPerIterationShuffle * MLdsLayer + PaddingAmount>{},
+                           number<VectorLen>{},
+                           number<1>{}),
+                number<VectorLen>{},
+                number<1>{});
+
+            constexpr auto lds_block_desc_1 = transform_tensor_descriptor(
+                lds_block_desc_0,
+                make_tuple(make_pass_through_transform(number<MPerIterationShuffle / MLdsLayer>{}),
+                           make_unmerge_transform(make_tuple(
+                               number<MLdsLayer>{}, number<NPerIterationShuffle / VectorLen>{})),
+                           make_pass_through_transform(number<VectorLen>{})),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+            constexpr auto lds_block_desc = transform_tensor_descriptor(
+                lds_block_desc_1,
+                make_tuple(make_merge_transform_v3_division_mod(make_tuple(
+                               number<MPerIterationShuffle / MLdsLayer>{}, number<MLdsLayer>{})),
+                           make_merge_transform_v3_division_mod(make_tuple(
+                               number<NPerIterationShuffle / VectorLen>{}, number<VectorLen>{}))),
+                make_tuple(sequence<0, 1>{}, sequence<2, 3>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+
+            return lds_block_desc;
         }
         // M is contiguous dimension
         else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
         {
-            return make_naive_tensor_descriptor(
-                make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                make_tuple(number<1>{}, number<MPerIterationShuffle>{}));
+            constexpr auto NLdsLayer =
+                max(1UL, get_n_lds_banks() * BytesPerBank / MPerIterationShuffle / DataTypeSize);
+
+            constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
+                make_tuple(number<NPerIterationShuffle / NLdsLayer>{},
+                           number<MPerIterationShuffle / VectorLen * NLdsLayer>{},
+                           number<VectorLen>{}),
+                make_tuple(number<MPerIterationShuffle * NLdsLayer + PaddingAmount>{},
+                           number<VectorLen>{},
+                           number<1>{}),
+                number<VectorLen>{},
+                number<1>{});
+
+            constexpr auto lds_block_desc_1 = transform_tensor_descriptor(
+                lds_block_desc_0,
+                make_tuple(make_pass_through_transform(number<NPerIterationShuffle / NLdsLayer>{}),
+                           make_unmerge_transform(make_tuple(
+                               number<NLdsLayer>{}, number<MPerIterationShuffle / VectorLen>{})),
+                           make_pass_through_transform(number<VectorLen>{})),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+            constexpr auto lds_block_desc = transform_tensor_descriptor(
+                lds_block_desc_1,
+                make_tuple(make_merge_transform_v3_division_mod(make_tuple(
+                               number<NPerIterationShuffle / NLdsLayer>{}, number<NLdsLayer>{})),
+                           make_merge_transform_v3_division_mod(make_tuple(
+                               number<MPerIterationShuffle / VectorLen>{}, number<VectorLen>{}))),
+                make_tuple(sequence<0, 1>{}, sequence<2, 3>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+
+            return lds_block_desc;
         }
         else
         {
@@ -355,7 +419,8 @@ struct CShuffleEpilogue
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
+        constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
+        return lds_block_desc.get_element_space_size() * sizeof(ODataType);
     }
 
     template <index_t iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
@@ -677,7 +742,7 @@ struct CShuffleEpilogue
                                                   MPerIterationShuffle,
                                                   NPerIterationShuffle,
                                                   GetVectorSizeC(),
-                                                  tile_distribution_pattern::thread_raked,
+                                                  tile_distribution_pattern::warp_raked,
                                                   Problem::kNumWaveGroups>;
         constexpr auto dram_tile_distribution =
             TileEncodingPattern::make_2d_static_tile_distribution();
