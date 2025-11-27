@@ -13,8 +13,8 @@
    ``` bash
    #> mkdir build
    #> cd build
-   #> ../script/cmake-ck-dev.sh .. gfx942              ; use #> rocminfo |grep "gfx"   to check your gpu arch
-   #> make -j tile_example_hstu_attention
+   #> ../script/cmake-ck-dev.sh .. gfx942 -G Ninja              ; use #> rocminfo |grep "gfx"   to check your gpu arch
+   #> ninja tile_example_hstu_attention                         ; or using make -j tile_example_hstu_attention                       ; 
    ```
 
 ## test/verify
