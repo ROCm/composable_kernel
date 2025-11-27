@@ -34,34 +34,18 @@ concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == D
                        (T == DataType::FP8) || (T == DataType::I8) || (T == DataType::U8);
 
 template <typename T>
-concept HasInputBiasLayout = requires(T t) {
-    { t.input_bias_layout };
+concept HasBiasLayout = requires(T t) {
+    { t.bias_layout };
 };
 
 template <typename T>
-concept ConvertibleToArrayOfConvInputBiasLayout = 
-    std::is_same_v<std::remove_cvref_t<T>, std::array<ConvInputBiasLayout, std::tuple_size_v<std::remove_cvref_t<T>>>>;
+concept ConvertibleToArrayOfConvBiasLayout = 
+    std::is_same_v<std::remove_cvref_t<T>, std::array<ConvBiasLayout, std::tuple_size_v<std::remove_cvref_t<T>>>>;
 
 template <typename T>
-concept InputBiasLayoutWellDefinedIfProvided = requires(T t) {
-    requires !HasInputBiasLayout<T> || requires {
-        { t.input_bias_layout } -> ConvertibleToArrayOfConvInputBiasLayout;
-    };
-};
-
-template <typename T>
-concept HasOutputBiasLayout = requires(T t) {
-    { t.output_bias_layout };
-};
-
-template <typename T>
-concept ConvertibleToArrayOfConvOutputBiasLayout = 
-    std::is_same_v<std::remove_cvref_t<T>, std::array<ConvOutputBiasLayout, std::tuple_size_v<std::remove_cvref_t<T>>>>;
-
-template <typename T>
-concept OutputBiasLayoutWellDefinedIfProvided = requires(T t) {
-    requires !HasOutputBiasLayout<T> || requires {
-        { t.output_bias_layout } -> ConvertibleToArrayOfConvOutputBiasLayout;
+concept BiasLayoutWellDefinedIfProvided = requires(T t) {
+    requires !HasBiasLayout<T> || requires {
+        { t.bias_layout } -> ConvertibleToArrayOfConvBiasLayout;
     };
 };
 
@@ -70,8 +54,7 @@ concept ConvLayoutDescriptor = requires(T t) {
     { t.input_layout } -> std::convertible_to<ConvInputLayout>;
     { t.weight_layout } -> std::convertible_to<ConvWeightLayout>;
     { t.output_layout } -> std::convertible_to<ConvOutputLayout>;
-    requires InputBiasLayoutWellDefinedIfProvided<T>;
-    requires OutputBiasLayoutWellDefinedIfProvided<T>;
+    requires BiasLayoutWellDefinedIfProvided<T>;
 };
 
 

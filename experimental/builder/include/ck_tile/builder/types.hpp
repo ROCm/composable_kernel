@@ -19,14 +19,10 @@ enum class DataType
     U8
 };
 
-enum class InputBiasLayout
+enum class BiasLayout
 {
     GC,
-    G_C_strided
-};
-
-enum class OutputBiasLayout
-{
+    G_C_strided,
     GK,
     G_K_strided
 };
@@ -77,20 +73,6 @@ struct ConvInputLayout
     constexpr ConvInputLayout(ConvInputLayout1D layout) : _1d(layout) {}
     constexpr ConvInputLayout(ConvInputLayout2D layout) : _2d(layout) {}
     constexpr ConvInputLayout(ConvInputLayout3D layout) : _3d(layout) {}
-};
-
-struct ConvInputBiasLayout
-{
-    union {
-        InputBiasLayout _input_bias_layout;
-        ConvInputLayout _conv_input_layout;
-    };
-
-    constexpr ConvInputBiasLayout(InputBiasLayout layout) : _input_bias_layout(layout) {}
-    constexpr ConvInputBiasLayout(ConvInputLayout layout) : _conv_input_layout(layout) {}
-    constexpr ConvInputBiasLayout(ConvInputLayout1D layout) : _conv_input_layout(layout) {}
-    constexpr ConvInputBiasLayout(ConvInputLayout2D layout) : _conv_input_layout(layout) {}
-    constexpr ConvInputBiasLayout(ConvInputLayout3D layout) : _conv_input_layout(layout) {}
 };
 
 enum class ConvWeightLayout1D
@@ -176,18 +158,18 @@ struct ConvOutputLayout
     constexpr ConvOutputLayout(ConvOutputLayout3D layout) : _3d(layout) {}
 };
 
-struct ConvOutputBiasLayout
+struct ConvBiasLayout
 {
     union {
-        OutputBiasLayout _output_bias_layout;
+        BiasLayout _bias_layout;
         ConvOutputLayout _conv_output_layout;
     };
 
-    constexpr ConvOutputBiasLayout(OutputBiasLayout layout) : _output_bias_layout(layout) {}
-    constexpr ConvOutputBiasLayout(ConvOutputLayout layout) : _conv_output_layout(layout) {}
-    constexpr ConvOutputBiasLayout(ConvOutputLayout1D layout) : _conv_output_layout(layout) {}
-    constexpr ConvOutputBiasLayout(ConvOutputLayout2D layout) : _conv_output_layout(layout) {}
-    constexpr ConvOutputBiasLayout(ConvOutputLayout3D layout) : _conv_output_layout(layout) {}
+    constexpr ConvBiasLayout(BiasLayout layout) : _bias_layout(layout) {}
+    constexpr ConvBiasLayout(ConvOutputLayout layout) : _conv_output_layout(layout) {}
+    constexpr ConvBiasLayout(ConvOutputLayout1D layout) : _conv_output_layout(layout) {}
+    constexpr ConvBiasLayout(ConvOutputLayout2D layout) : _conv_output_layout(layout) {}
+    constexpr ConvBiasLayout(ConvOutputLayout3D layout) : _conv_output_layout(layout) {}
 };
 
 // Direction of the convolution operation.
