@@ -18,73 +18,9 @@ namespace ck_tile {
 //  B Tile Window: global memory
 //  C Distributed tensor: register
 
-// Compute optimized pipeline
-// GlobalPrefetchStages: 2
-// LocalPreFillStages: 1
-// LocalPreFetchStages: 1
-// LocalSharedMemoryBuffer: 1
-template <typename Problem>
-struct BaseMxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
-{
-    template <typename RunFunction>
-    CK_TILE_HOST_DEVICE static auto
-    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
-    {
-        if(has_hot_loop)
-        {
-            if(tail_number == ck_tile::TailNumber::Full)
-            {
-                return run_func(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Odd)
-            {
-                return run_func(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Even)
-            {
-                return run_func(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-            }
-            else
-            {
-                throw std::runtime_error("Unsupported tail number for this operation !!!");
-            }
-        }
-        else
-        {
-            if(tail_number == ck_tile::TailNumber::Full)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Odd)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Even)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-            }
-            else
-            {
-                throw std::runtime_error("Unsupported tail number for this operation !!!");
-            }
-        }
-    }
-};
 
 template <typename Problem, typename Policy = GemmMxFp4PipelineAgBgCrPolicy>
-struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseMxFp4GemmPipelineAgBgCrCompV3<Problem>
+struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmMxFp4PipelineAgBgCrImplBase<Problem, Policy>;
@@ -712,8 +648,10 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseMxFp4GemmPipelineAgBgCrCompV3<
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                    index_t num_loop,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   index_t n = 0) const
     {
+        ck_tile::ignore = n;
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
             [](const ADataType& a) { return a; },

@@ -65,17 +65,12 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     using BaseGemmPipeline = std::conditional_t<
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-        std::conditional_t<std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>,
-            ck_tile::BaseMxFp4GemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
-            ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>>;
         std::conditional_t<
             QuantMode == ck_tile::QuantType::AQuantGrouped && GemmConfig::PreshuffleQuant == true,
-            ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
             std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
-                               ck_tile::BaseAQuantGemmPipelineAgBgCrMem<GemmPipelineProblem>,
-                std::conditional_t<std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>,
-                                   ck_tile::BaseMxFp4GemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
-                                   ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>>>>;
+                               ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
+                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;

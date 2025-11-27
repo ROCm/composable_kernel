@@ -19,13 +19,7 @@ void bquant_quantgrouped_bf16f4_instance_factory(
                                                     ck_tile::pk_fp4_raw_t,
                                                     ck_tile::bf16_t,
                                                     ck_tile::pk_fp4_raw_t>{});
-#ifndef CK_GFX950_SUPPORT
-    lut[hash_multiple_strings({"bf16f4", "bquant", "non-preshuffleb", "1x1x32"})] =
-        [](const ck_tile::ArgParser& arg_parser) {
-            using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 32>>;
-            return RUN_GEMM_EXAMPLE_PREC_TYPE;
-        };
-#endif
+
     lut[hash_multiple_strings({"bf16f4", "bquant", "non-preshuffleb", "1x1x32"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 32>>;

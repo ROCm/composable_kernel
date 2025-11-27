@@ -558,10 +558,8 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
         using BaseGemmPipeline = std::conditional_t<
             PreshuffleB == false,
-            std::conditional_t<std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>,
-                ck_tile::BaseMxFp4GemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
-                ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>,
-            ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>;
+                ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+                ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>;
 
         const ck_tile::index_t K_split  = (args.K + Base::K_Tile - 1) / Base::K_Tile * Base::K_Tile;
         const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);

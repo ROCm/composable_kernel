@@ -1133,11 +1133,7 @@ struct QuantGemmKernel
                     n = kargs.N;
                 }
                 return GemmPipeline{}.template operator()(
-<<<<<<< HEAD
-                        a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0);
-=======
                     a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, n);
->>>>>>> upstream/develop
             }
             else if constexpr(kQuantType == QuantType::RowColQuant ||
                               kQuantType == QuantType::TensorQuant)
