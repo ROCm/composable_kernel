@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+#include "ck_tile/ops/common/utils.hpp"
+
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout)
 {
@@ -271,9 +273,10 @@ int run_gemm_example_with_layouts(int argc,
     std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
               << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
               << " A_Layout=" << ALayout::name << " B_Layout=" << BLayout::name
-              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
-              << " B_Type=" << DataTypeTraits<BDataType>::name
-              << " C_Type=" << DataTypeTraits<CDataType>::name
+              << " C_Layout=" << CLayout::name
+              << " A_Type=" << ck_tile::DataTypeTraits<ADataType>::name
+              << " B_Type=" << ck_tile::DataTypeTraits<BDataType>::name
+              << " C_Type=" << ck_tile::DataTypeTraits<CDataType>::name
               << " reduction_strategy=" << arg_parser.get_str("reduction_strategy") << " "
               << " persistent_dp=" << arg_parser.get_str("persistent_dp") << " " << ave_time
               << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
