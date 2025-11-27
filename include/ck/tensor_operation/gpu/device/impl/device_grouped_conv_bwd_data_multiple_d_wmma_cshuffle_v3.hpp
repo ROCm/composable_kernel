@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 
 #pragma once
 
@@ -175,14 +175,15 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     }
 #endif
 #else
-    ignore = karg;
+    ignore = p_shared;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = e_grid_desc_mblock_mperblock_nblock_nperblock_;
+    ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = compute_ptr_offset_of_batch;
     ignore = compute_ptr_offset_of_n;
-    ignore = KBatch;
+    ignore = karg;
+    ignore = num_k_per_block;
 #endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 }
 
@@ -684,7 +685,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             bool image_covered_strides  = true;
             for(index_t d = 0; d < NDimSpatial; d++)
             {
-                // If dilation and stride is not equal to  the we will have some empty places
+                // If dilation and stride is not equal we will have some empty places
                 image_covered_dilation &=
                     conv_filter_dilations[d] == 1 || conv_filter_strides[d] == 1;
                 // If stride is larger than windows size then we will have some empty places
@@ -945,7 +946,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                     }
                 }
             }
-                      gemm_kernel_args_.resize(
+            gemm_kernel_args_.resize(
                 math::integer_divide_ceil(gemms_count_, MaxGroupedGemmGroupsNum));
             gemms_grid_size_.push_back(grid_size);
 
@@ -1140,8 +1141,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
             const index_t gdy = arg.num_group_;
             const index_t gdz = arg.num_workgroups_per_Conv_N_ * arg.k_batch_;
-
-            // static_assert(!NeedTransposeKernel);
 
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
@@ -1440,8 +1439,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-            std::cout << "This configuration is not suported!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
+                std::cout << "This configuration is not suported!" << " In " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
             }
             return false;
         }
@@ -1451,26 +1450,25 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             if(arg.k_batch_ > 1)
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-            {
-                std::cout << "SplitK tests are not suported!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-            }
+                {
+                    std::cout << "SplitK tests are not suported!" << " In " << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
 
                 return false;
             }
         }
 
-           if(ck::is_gfx11_supported() && arg.k_batch_ > 1)
+        if(ck::is_gfx11_supported() && arg.k_batch_ > 1)
         {
-             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "SplitK tests are not suported!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
+                std::cout << "SplitK tests are not suported!" << " In " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
             }
-            
+
             return false;
         }
-
 
         const index_t ConvG               = arg.b_g_k_c_xs_lengths_[0];
         const index_t ConvK               = arg.b_g_k_c_xs_lengths_[1];
@@ -1492,8 +1490,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 {
                     if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                     {
-                         std::cout << "ConvBwdDataSpecialization is unsupported!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
+                        std::cout << "ConvBwdDataSpecialization is unsupported!" << " In "
+                                  << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                                  << std::endl;
                     }
 
                     return false;
@@ -1510,10 +1509,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             if(!(ABlockTransferSrcVectorDim == 2 && ConvK % ABlockTransferSrcScalarPerVector == 0))
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                       std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-                    }
+                {
+                    std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
+                }
 
                 return false;
             }
@@ -1527,21 +1526,21 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             {
                 if(ABlockTransferSrcVectorDim != 1)
                 {
-                      if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                     {
-                       std::cout << "CTranspose is not supported!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
+                        std::cout << "CTranspose is not supported!" << " In " << __FILE__ << ":"
+                                  << __LINE__ << ", in function: " << __func__ << std::endl;
                     }
 
                     return false;
                 }
                 if(output_spatial_acum % ABlockTransferSrcScalarPerVector != 0)
                 {
-                    
-                     if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                     {
-                       std::cout << "CTranspose is not supported!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
+                        std::cout << "CTranspose is not supported!" << " In " << __FILE__ << ":"
+                                  << __LINE__ << ", in function: " << __func__ << std::endl;
                     }
 
                     return false;
@@ -1552,10 +1551,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         else
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
+            {
                 std::cout << "Unsupported A Layout!" << " In " << __FILE__ << ":" << __LINE__
                           << ", in function: " << __func__ << std::endl;
-                    }
+            }
 
             return false;
         }
@@ -1569,11 +1568,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
             if(!(BBlockTransferSrcVectorDim == 1 && ConvC % BBlockTransferSrcScalarPerVector == 0))
             {
-               if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                       std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-                    }
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
+                }
 
                 return false;
             }
@@ -1581,10 +1580,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         else
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
+            {
                 std::cout << "Unsupported B Layout!" << " In " << __FILE__ << ":" << __LINE__
                           << ", in function: " << __func__ << std::endl;
-                    }
+            }
 
             return false;
         }
@@ -1608,12 +1607,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                     // vector load D matrix from global memory
                     if(!(ConvC % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
                     {
-                        
-                         if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                       std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-                    }
+
+                        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                            std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":"
+                                      << __LINE__ << ", in function: " << __func__ << std::endl;
+                        }
 
                         ds_valid = false;
                     }
@@ -1622,11 +1621,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 {
                     if(input_spatial_acum % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
                     {
-                          if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                       {
-                       std::cout << "nput_spatial_acum / CShuffleBlockTransferScalarPerVector_NPerBlock is wrong!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-                       }
+                        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                            std::cout << "nput_spatial_acum / "
+                                         "CShuffleBlockTransferScalarPerVector_NPerBlock is wrong!"
+                                      << " In " << __FILE__ << ":" << __LINE__
+                                      << ", in function: " << __func__ << std::endl;
+                        }
 
                         ds_valid = false;
                     }
@@ -1635,11 +1636,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             else
             {
 
-                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                        {
-                      std::cout << "ds_valid is false!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-                        }
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "ds_valid is false!" << " In " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
+                }
 
                 ds_valid = false;
             }
@@ -1647,11 +1648,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
         if(!ds_valid)
         {
-             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                       std::cout << "ds_valid is false!" << " In " << __FILE__ << ":" << __LINE__
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "ds_valid is false!" << " In " << __FILE__ << ":" << __LINE__
                           << ", in function: " << __func__ << std::endl;
-                    }
+            }
 
             return false;
         }
@@ -1669,11 +1670,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 // vector store C matrix into global memory
                 if(!(ConvC % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
                 {
-                     if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                     {
-                   
-                      std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
+
+                        std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                                  << ", in function: " << __func__ << std::endl;
                     }
 
                     return false;
@@ -1683,10 +1684,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             {
                 if(input_spatial_acum % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
                 {
-                       if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                     {
-                       std::cout << "input_spatial_acum / ChuffleBlockTransferScalarPerVector_NPerBlock is wrong!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
+                        std::cout << "input_spatial_acum / "
+                                     "ChuffleBlockTransferScalarPerVector_NPerBlock is wrong!"
+                                  << " In " << __FILE__ << ":" << __LINE__
+                                  << ", in function: " << __func__ << std::endl;
                     }
 
                     return false;
@@ -1695,7 +1698,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         }
         else
         {
-             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "Unsupported E Layout!" << " In " << __FILE__ << ":" << __LINE__
                           << ", in function: " << __func__ << std::endl;
@@ -1708,22 +1711,22 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         {
             if((ConvG * ConvC) % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                  {
-                     std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-                  }
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
+                }
 
                 return false;
             }
 
             if((ConvG * ConvK) % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                  {
-                     std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-                  }
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
+                }
 
                 return false;
             }
@@ -1735,22 +1738,26 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
             if(a_spatial_acum % TransposeTransferInScalarPerVectorAligned != 0)
             {
-                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                  {
-                     std::cout << "a_spatial_acum % TransposeTransferInScalarPerVectorAligned is wrong!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-                  }
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout
+                        << "a_spatial_acum % TransposeTransferInScalarPerVectorAligned is wrong!"
+                        << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                        << std::endl;
+                }
 
                 return false;
             }
 
             if(e_spatial_acum % TransposeTransferOutScalarPerVectorAligned != 0)
             {
-                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                  {
-                     std::cout << "e_spatial_acum % TransposeTransferOutScalarPerVectorAligned is wrong!" << " In " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-                  }
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout
+                        << "e_spatial_acum % TransposeTransferOutScalarPerVectorAligned is wrong!"
+                        << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                        << std::endl;
+                }
 
                 return false;
             }
