@@ -59,7 +59,7 @@ struct naive_grouped_conv_bwd_weight_kernel
         }
 
         // Calculate strides for weight tensor (GKZYXC or GKYXC or GKXC)
-        ck_tile::long_index_t wei_strides[NDimSpatial + 3];
+        std::array<ck_tile::long_index_t, NDimSpatial + 3> wei_strides;
         ck_tile::long_index_t stride = 1;
         wei_strides[NDimSpatial + 2] = stride; // C stride
         stride *= C;
@@ -73,7 +73,7 @@ struct naive_grouped_conv_bwd_weight_kernel
         wei_strides[0] = stride; // G stride
 
         // Calculate strides for input tensor (NDHWGC or NHWGC or NWGC)
-        ck_tile::long_index_t in_strides[NDimSpatial + 3];
+        std::array<ck_tile::long_index_t, NDimSpatial + 3> in_strides;
         stride                      = 1;
         in_strides[NDimSpatial + 2] = stride; // C stride
         stride *= C;
@@ -87,7 +87,7 @@ struct naive_grouped_conv_bwd_weight_kernel
         in_strides[0] = stride; // N stride
 
         // Calculate strides for output tensor (NDHWGK or NHWGK or NWGK)
-        ck_tile::long_index_t out_strides[NDimSpatial + 3];
+        std::array<ck_tile::long_index_t, NDimSpatial + 3> out_strides;
         stride                       = 1;
         out_strides[NDimSpatial + 2] = stride; // K stride
         stride *= K;
@@ -146,10 +146,13 @@ struct naive_grouped_conv_bwd_weight_kernel
                         // Bounds check
                         if(wi >= 0 && wi < in_spatial_lengths[0])
                         {
+                            std::array<ck_tile::index_t, 1> in_spatial = {static_cast<index_t>(wi)};
+                            std::array<ck_tile::index_t, 1> out_spatial = {
+                                static_cast<index_t>(wo)};
                             ck_tile::long_index_t in_idx =
-                                n * in_strides[0] + wi * in_strides[1] + g * in_strides[2] + c;
-                            ck_tile::long_index_t out_idx =
-                                n * out_strides[0] + wo * out_strides[1] + g * out_strides[2] + k;
+                                detail::calculate_input_index<1>(n, g, c, in_spatial, in_strides);
+                            ck_tile::long_index_t out_idx = detail::calculate_output_index<1>(
+                                n, g, k, out_spatial, out_strides);
 
                             v_acc += type_convert<float>(p_out_grad[out_idx]) *
                                      type_convert<float>(p_in[in_idx]);
@@ -178,12 +181,14 @@ struct naive_grouped_conv_bwd_weight_kernel
                             if(hi >= 0 && hi < in_spatial_lengths[0] && wi >= 0 &&
                                wi < in_spatial_lengths[1])
                             {
-                                ck_tile::long_index_t in_idx =
-                                    n * in_strides[0] + hi * in_strides[1] + wi * in_strides[2] +
-                                    g * in_strides[3] + c;
-                                ck_tile::long_index_t out_idx =
-                                    n * out_strides[0] + ho * out_strides[1] + wo * out_strides[2] +
-                                    g * out_strides[3] + k;
+                                std::array<ck_tile::index_t, 2> in_spatial = {
+                                    static_cast<index_t>(hi), static_cast<index_t>(wi)};
+                                std::array<ck_tile::index_t, 2> out_spatial = {
+                                    static_cast<index_t>(ho), static_cast<index_t>(wo)};
+                                ck_tile::long_index_t in_idx = detail::calculate_input_index<2>(
+                                    n, g, c, in_spatial, in_strides);
+                                ck_tile::long_index_t out_idx = detail::calculate_output_index<2>(
+                                    n, g, k, out_spatial, out_strides);
 
                                 v_acc += type_convert<float>(p_out_grad[out_idx]) *
                                          type_convert<float>(p_in[in_idx]);
@@ -222,14 +227,19 @@ struct naive_grouped_conv_bwd_weight_kernel
                                    hi < in_spatial_lengths[1] && wi >= 0 &&
                                    wi < in_spatial_lengths[2])
                                 {
-                                    ck_tile::long_index_t in_idx =
-                                        n * in_strides[0] + di * in_strides[1] +
-                                        hi * in_strides[2] + wi * in_strides[3] +
-                                        g * in_strides[4] + c;
+                                    std::array<ck_tile::index_t, 3> in_spatial = {
+                                        static_cast<index_t>(di),
+                                        static_cast<index_t>(hi),
+                                        static_cast<index_t>(wi)};
+                                    std::array<ck_tile::index_t, 3> out_spatial = {
+                                        static_cast<index_t>(do_),
+                                        static_cast<index_t>(ho),
+                                        static_cast<index_t>(wo)};
+                                    ck_tile::long_index_t in_idx = detail::calculate_input_index<3>(
+                                        n, g, c, in_spatial, in_strides);
                                     ck_tile::long_index_t out_idx =
-                                        n * out_strides[0] + do_ * out_strides[1] +
-                                        ho * out_strides[2] + wo * out_strides[3] +
-                                        g * out_strides[4] + k;
+                                        detail::calculate_output_index<3>(
+                                            n, g, k, out_spatial, out_strides);
 
                                     v_acc += type_convert<float>(p_out_grad[out_idx]) *
                                              type_convert<float>(p_in[in_idx]);

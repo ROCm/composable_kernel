@@ -59,7 +59,7 @@ struct naive_grouped_conv_bwd_data_kernel
         }
 
         // Calculate strides for input tensor (NDHWGC or NHWGC or NWGC)
-        ck_tile::long_index_t in_strides[NDimSpatial + 3];
+        std::array<ck_tile::long_index_t, NDimSpatial + 3> in_strides;
         ck_tile::long_index_t stride = 1;
         in_strides[NDimSpatial + 2]  = stride; // C stride
         stride *= C;
@@ -73,7 +73,7 @@ struct naive_grouped_conv_bwd_data_kernel
         in_strides[0] = stride; // N stride
 
         // Calculate strides for output tensor (NDHWGK or NHWGK or NWGK)
-        ck_tile::long_index_t out_strides[NDimSpatial + 3];
+        std::array<ck_tile::long_index_t, NDimSpatial + 3> out_strides;
         stride                       = 1;
         out_strides[NDimSpatial + 2] = stride; // K stride
         stride *= K;
@@ -87,7 +87,7 @@ struct naive_grouped_conv_bwd_data_kernel
         out_strides[0] = stride; // N stride
 
         // Calculate strides for weight tensor (GKZYXC or GKYXC or GKXC)
-        ck_tile::long_index_t wei_strides[NDimSpatial + 3];
+        std::array<ck_tile::long_index_t, NDimSpatial + 3> wei_strides;
         stride                       = 1;
         wei_strides[NDimSpatial + 2] = stride; // C stride
         stride *= C;
@@ -149,12 +149,13 @@ struct naive_grouped_conv_bwd_data_kernel
 
                             if(wo >= 0 && wo < out_spatial_lengths[0])
                             {
-                                ck_tile::long_index_t out_idx = n * out_strides[0] +
-                                                                wo * out_strides[1] +
-                                                                g * out_strides[2] + k;
-                                ck_tile::long_index_t wei_idx =
-                                    g * wei_strides[0] + k * wei_strides[1] + x * wei_strides[2] +
-                                    c * wei_strides[3];
+                                std::array<ck_tile::index_t, 1> out_spatial = {
+                                    static_cast<index_t>(wo)};
+                                std::array<ck_tile::index_t, 1> wei_spatial = {x};
+                                ck_tile::long_index_t out_idx = detail::calculate_output_index<1>(
+                                    n, g, k, out_spatial, out_strides);
+                                ck_tile::long_index_t wei_idx = detail::calculate_weight_index<1>(
+                                    g, k, c, wei_spatial, wei_strides);
 
                                 v_acc += type_convert<float>(p_out_grad[out_idx]) *
                                          type_convert<float>(p_wei[wei_idx]);
@@ -190,13 +191,15 @@ struct naive_grouped_conv_bwd_data_kernel
 
                                         if(wo >= 0 && wo < out_spatial_lengths[1])
                                         {
+                                            std::array<ck_tile::index_t, 2> out_spatial = {
+                                                static_cast<index_t>(ho), static_cast<index_t>(wo)};
+                                            std::array<ck_tile::index_t, 2> wei_spatial = {y, x};
                                             ck_tile::long_index_t out_idx =
-                                                n * out_strides[0] + ho * out_strides[1] +
-                                                wo * out_strides[2] + g * out_strides[3] + k;
+                                                detail::calculate_output_index<2>(
+                                                    n, g, k, out_spatial, out_strides);
                                             ck_tile::long_index_t wei_idx =
-                                                g * wei_strides[0] + k * wei_strides[1] +
-                                                y * wei_strides[2] + x * wei_strides[3] +
-                                                c * wei_strides[4];
+                                                detail::calculate_weight_index<2>(
+                                                    g, k, c, wei_spatial, wei_strides);
 
                                             v_acc += type_convert<float>(p_out_grad[out_idx]) *
                                                      type_convert<float>(p_wei[wei_idx]);
@@ -253,18 +256,19 @@ struct naive_grouped_conv_bwd_data_kernel
 
                                                     if(wo >= 0 && wo < out_spatial_lengths[2])
                                                     {
+                                                        std::array<ck_tile::index_t, 3>
+                                                            out_spatial = {
+                                                                static_cast<index_t>(do_),
+                                                                static_cast<index_t>(ho),
+                                                                static_cast<index_t>(wo)};
+                                                        std::array<ck_tile::index_t, 3>
+                                                            wei_spatial = {z, y, x};
                                                         ck_tile::long_index_t out_idx =
-                                                            n * out_strides[0] +
-                                                            do_ * out_strides[1] +
-                                                            ho * out_strides[2] +
-                                                            wo * out_strides[3] +
-                                                            g * out_strides[4] + k;
+                                                            detail::calculate_output_index<3>(
+                                                                n, g, k, out_spatial, out_strides);
                                                         ck_tile::long_index_t wei_idx =
-                                                            g * wei_strides[0] +
-                                                            k * wei_strides[1] +
-                                                            z * wei_strides[2] +
-                                                            y * wei_strides[3] +
-                                                            x * wei_strides[4] + c * wei_strides[5];
+                                                            detail::calculate_weight_index<3>(
+                                                                g, k, c, wei_spatial, wei_strides);
 
                                                         v_acc +=
                                                             type_convert<float>(

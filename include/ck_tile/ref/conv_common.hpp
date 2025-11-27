@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_TILE_REF_CONV_COMMON_HPP
-#define CK_TILE_REF_CONV_COMMON_HPP
+#pragma once
 
 #include "ck_tile/core.hpp"
 #include <array>
@@ -37,6 +36,60 @@ to_array_with_default(const std::vector<ck_tile::long_index_t>& vec,
     return arr;
 }
 
-} // namespace ck_tile
+// Index calculation helpers for GPU reference kernels
+namespace detail {
 
-#endif
+// Calculate linear input index for grouped convolution
+// Layout: [N, spatial..., G, C]
+template <index_t NDimSpatial>
+inline __device__ long_index_t
+calculate_input_index(index_t n,
+                      index_t g,
+                      index_t c,
+                      const std::array<index_t, NDimSpatial>& spatial_idx,
+                      const std::array<long_index_t, NDimSpatial + 3>& strides)
+{
+    long_index_t idx = n * strides[0];
+    for(index_t i = 0; i < NDimSpatial; ++i)
+        idx += spatial_idx[i] * strides[i + 1];
+    idx += g * strides[NDimSpatial + 1] + c;
+    return idx;
+}
+
+// Calculate linear weight index for grouped convolution
+// Layout: [G, K, spatial..., C]
+template <index_t NDimSpatial>
+inline __device__ long_index_t
+calculate_weight_index(index_t g,
+                       index_t k,
+                       index_t c,
+                       const std::array<index_t, NDimSpatial>& spatial_idx,
+                       const std::array<long_index_t, NDimSpatial + 3>& strides)
+{
+    long_index_t idx = g * strides[0] + k * strides[1];
+    for(index_t i = 0; i < NDimSpatial; ++i)
+        idx += spatial_idx[i] * strides[i + 2];
+    idx += c * strides[NDimSpatial + 2];
+    return idx;
+}
+
+// Calculate linear output index for grouped convolution
+// Layout: [N, spatial..., G, K]
+template <index_t NDimSpatial>
+inline __device__ long_index_t
+calculate_output_index(index_t n,
+                       index_t g,
+                       index_t k,
+                       const std::array<index_t, NDimSpatial>& spatial_idx,
+                       const std::array<long_index_t, NDimSpatial + 3>& strides)
+{
+    long_index_t idx = n * strides[0];
+    for(index_t i = 0; i < NDimSpatial; ++i)
+        idx += spatial_idx[i] * strides[i + 1];
+    idx += g * strides[NDimSpatial + 1] + k;
+    return idx;
+}
+
+} // namespace detail
+
+} // namespace ck_tile
