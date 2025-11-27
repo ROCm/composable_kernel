@@ -208,7 +208,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
         using k_tile_type = decltype(load_tile(k_dram_window));
 
-        constexpr index_t NumPrefetchK = 2;
+        constexpr index_t NumPrefetchK = (k1_loops <= 3) ? 1 : 2;
 
         static_assert(k1_loops >= NumPrefetchK, "Check failed!");
 
