@@ -11,6 +11,7 @@
 #include <tuple>
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/ops/common/utils.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
@@ -321,15 +322,15 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     {
         std::cout << " StrideBQ =" << stride_BQ;
     }
-    std::cout << " A_Type = " << DataTypeTraits<typename TypeConfig::ADataType>::name
-              << " AQ_Type = " << DataTypeTraits<typename TypeConfig::QDataType>::name
-              << " B_Type = " << DataTypeTraits<typename TypeConfig::BDataType>::name;
+    std::cout << " A_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::ADataType>::name
+              << " AQ_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::QDataType>::name
+              << " B_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::BDataType>::name;
     if constexpr(!std::is_same_v<typename TypeConfig::QDataType, void>)
     {
-        std::cout << " BQ_Type = " << DataTypeTraits<typename TypeConfig::QDataType>::name;
+        std::cout << " BQ_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::QDataType>::name;
     }
-    std::cout << " Acc_Type = " << DataTypeTraits<typename TypeConfig::AccDataType>::name
-              << " C_Type = " << DataTypeTraits<typename TypeConfig::CDataType>::name
+    std::cout << " Acc_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::AccDataType>::name
+              << " C_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::CDataType>::name
               << " QuantMode = " << quant_type_to_string(QuantMode)
               << " PreshuffleQuant = " << (GemmConfig::PreshuffleQuant ? "true" : "false") << " : "
               << " PreshuffleB = " << (GemmConfig::PreshuffleB ? "true" : "false") << " : "
