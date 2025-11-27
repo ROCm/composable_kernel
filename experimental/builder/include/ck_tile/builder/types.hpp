@@ -23,7 +23,7 @@ enum class BiasLayout
 {
     GC,
     G_C_strided,
-    GK,
+    //GK,
     G_K_strided
 };
 

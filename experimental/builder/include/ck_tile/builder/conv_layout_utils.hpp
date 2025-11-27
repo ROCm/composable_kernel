@@ -3,8 +3,6 @@
 
 #pragma once
 
-// #include <concepts>
-// #include <type_traits>
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
 
@@ -17,28 +15,75 @@ struct EmptyBiasLayout
     using DsDataTypes = ck::Tuple<>;
 };
 
-// Type mappings from the builder ConvBiasLayout enum classes to the CK tensor data types.
+template <auto Layout>
+consteval bool IsGenericBiasLayoutActive() {
+    return requires { typename std::integral_constant<BiasLayout, Layout._bias_layout>; };
+}
+
+template <auto Layout, size_t SPATIAL_DIM>
+consteval auto GetCKBiasLayoutSingle()
+{
+    if constexpr (IsGenericBiasLayoutActive<Layout>())
+    {
+        constexpr auto val = Layout._bias_layout;
+        if constexpr (val == BiasLayout::G_K_strided)
+            return ck::tensor_layout::convolution::G_K{};
+        else if constexpr (val == BiasLayout::GC)
+            return ck::tensor_layout::convolution::GC{};
+        else if constexpr (val == BiasLayout::G_C_strided)
+            return ck::tensor_layout::convolution::G_C{};
+        else
+            static_assert(false, "Unsupported generic bias layout");
+    }
+    else
+    {
+        constexpr auto out_layout = Layout._conv_output_layout;
+        
+        if constexpr (SPATIAL_DIM == 1)
+        {
+            constexpr auto val = out_layout._1d;
+            if constexpr (val == ConvOutputLayout1D::NWGK) return ck::tensor_layout::convolution::NWGK{};
+            else if constexpr (val == ConvOutputLayout1D::NGKW) return ck::tensor_layout::convolution::NGKW{};
+            else if constexpr (val == ConvOutputLayout1D::GNWK) return ck::tensor_layout::convolution::GNWK{};
+        }
+        else if constexpr (SPATIAL_DIM == 2)
+        {
+            constexpr auto val = out_layout._2d;
+            if constexpr (val == ConvOutputLayout2D::NHWGK) return ck::tensor_layout::convolution::NHWGK{};
+            else if constexpr (val == ConvOutputLayout2D::GNHWK) return ck::tensor_layout::convolution::GNHWK{};
+            else if constexpr (val == ConvOutputLayout2D::NGKHW) return ck::tensor_layout::convolution::NGKHW{};
+        }
+        else if constexpr (SPATIAL_DIM == 3)
+        {
+            constexpr auto val = out_layout._3d;
+            if constexpr (val == ConvOutputLayout3D::NDHWGK) return ck::tensor_layout::convolution::NDHWGK{};
+            else if constexpr (val == ConvOutputLayout3D::GNDHWK) return ck::tensor_layout::convolution::GNDHWK{};
+            else if constexpr (val == ConvOutputLayout3D::NGKDHW) return ck::tensor_layout::convolution::NGKDHW{};
+        }
+    }
+}
+
+template <auto BiasLayoutsArray, size_t SPATIAL_DIM, size_t... Is>
+consteval auto GetCKBiasLayoutTuple(std::index_sequence<Is...>)
+{
+    return ck::Tuple<decltype(GetCKBiasLayoutSingle<BiasLayoutsArray[Is], SPATIAL_DIM>())...>{};
+}
+
+// TODO: Remove hardcoding of bhalf_t
+template <size_t N, size_t... Is>
+consteval auto GetCKBiasTypesTuple(std::index_sequence<Is...>)
+{
+    return ck::Tuple<decltype((void(Is), ck::bhalf_t{}))...>{}; 
+}
+
 template <auto BiasLayoutValue, size_t SPATIAL_DIM, ConvDirection DIR>
     requires(ConvSpatialDim<SPATIAL_DIM>)
 struct ConvBiasTensorLayouts
 {
-    // This will trigger if a specialization for the given layout is not found.
-    // We should always catch this in an earlier validation check.
-    using BiasLayoutType = decltype(BiasLayoutValue);
-    static_assert(sizeof(BiasLayoutType) == 0,
-                  "Internal error. Unsupported layout for convolution factory.");
-};
-
-constexpr std::array<ConvBiasLayout, 2> NHWGK_G_K_STRIDED_LAYOUT = {
-    ConvBiasLayout{ConvOutputLayout2D::NHWGK}, 
-    ConvBiasLayout{BiasLayout::G_K_strided}
-};
-
-template<>
-struct ConvBiasTensorLayouts<NHWGK_G_K_STRIDED_LAYOUT, 2, ConvDirection::FORWARD>
-{
-    using DsLayout = ck::Tuple<ck::tensor_layout::convolution::NHWGK, ck::tensor_layout::convolution::G_K>;
-    using DsDataTypes = ck::Tuple<ck::bhalf_t, ck::bhalf_t>;
+    static constexpr auto Size = BiasLayoutValue.size();
+    
+    using DsLayout = decltype(GetCKBiasLayoutTuple<BiasLayoutValue, SPATIAL_DIM>(std::make_index_sequence<Size>{}));
+    using DsDataTypes = decltype(GetCKBiasTypesTuple<Size>(std::make_index_sequence<Size>{}));
 };
 
 template <auto Layout, size_t SPATIAL_DIM, ConvDirection DIR>
@@ -55,7 +100,105 @@ consteval auto GetBiasTensorLayout()
     return EmptyBiasLayout{};
 }
 
-// Type mappings from the builder ConvLayout enum classes to the CK tensor data types.
+template <auto Layout, size_t SPATIAL_DIM>
+consteval auto GetCKInputLayout()
+{
+    if constexpr(SPATIAL_DIM == 1)
+    {
+        constexpr auto val = Layout._1d;
+        if constexpr(val == ConvInputLayout1D::NWGC)
+            return ck::tensor_layout::convolution::NWGC{};
+        else if constexpr(val == ConvInputLayout1D::NGCW)
+            return ck::tensor_layout::convolution::NGCW{};
+        else if constexpr(val == ConvInputLayout1D::GNWC)
+            return ck::tensor_layout::convolution::GNWC{};
+    }
+    else if constexpr(SPATIAL_DIM == 2)
+    {
+        constexpr auto val = Layout._2d;
+        if constexpr(val == ConvInputLayout2D::NGCHW)
+            return ck::tensor_layout::convolution::NGCHW{};
+        else if constexpr(val == ConvInputLayout2D::NHWGC)
+            return ck::tensor_layout::convolution::NHWGC{};
+        else if constexpr(val == ConvInputLayout2D::GNHWC)
+            return ck::tensor_layout::convolution::GNHWC{};
+    }
+    else if constexpr(SPATIAL_DIM == 3)
+    {
+        constexpr auto val = Layout._3d;
+        if constexpr(val == ConvInputLayout3D::NGCDHW)
+            return ck::tensor_layout::convolution::NGCDHW{};
+        else if constexpr(val == ConvInputLayout3D::NDHWGC)
+            return ck::tensor_layout::convolution::NDHWGC{};
+        else if constexpr(val == ConvInputLayout3D::GNDHWC)
+            return ck::tensor_layout::convolution::GNDHWC{};
+    }
+}
+
+template <auto Layout, size_t SPATIAL_DIM>
+consteval auto GetCKWeightLayout()
+{
+    if constexpr(SPATIAL_DIM == 1)
+    {
+        constexpr auto val = Layout._1d;
+        if constexpr(val == ConvWeightLayout1D::GKXC)
+            return ck::tensor_layout::convolution::GKXC{};
+        else if constexpr(val == ConvWeightLayout1D::GKCX)
+            return ck::tensor_layout::convolution::GKCX{};
+    }
+    else if constexpr(SPATIAL_DIM == 2)
+    {
+        constexpr auto val = Layout._2d;
+        if constexpr(val == ConvWeightLayout2D::GKYXC)
+            return ck::tensor_layout::convolution::GKYXC{};
+        else if constexpr(val == ConvWeightLayout2D::GKCYX)
+            return ck::tensor_layout::convolution::GKCYX{};
+    }
+    else if constexpr(SPATIAL_DIM == 3)
+    {
+        constexpr auto val = Layout._3d;
+        if constexpr(val == ConvWeightLayout3D::GKCZYX)
+            return ck::tensor_layout::convolution::GKCZYX{};
+        else if constexpr(val == ConvWeightLayout3D::GKZYXC)
+            return ck::tensor_layout::convolution::GKZYXC{};
+    }
+}
+
+template <auto Layout, size_t SPATIAL_DIM>
+consteval auto GetCKOutputLayout()
+{
+    if constexpr(SPATIAL_DIM == 1)
+    {
+        constexpr auto val = Layout._1d;
+        if constexpr(val == ConvOutputLayout1D::NWGK)
+            return ck::tensor_layout::convolution::NWGK{};
+        else if constexpr(val == ConvOutputLayout1D::NGKW)
+            return ck::tensor_layout::convolution::NGKW{};
+        else if constexpr(val == ConvOutputLayout1D::GNWK)
+            return ck::tensor_layout::convolution::GNWK{};
+    }
+    else if constexpr(SPATIAL_DIM == 2)
+    {
+        constexpr auto val = Layout._2d;
+        if constexpr(val == ConvOutputLayout2D::NGKHW)
+            return ck::tensor_layout::convolution::NGKHW{};
+        else if constexpr(val == ConvOutputLayout2D::NHWGK)
+            return ck::tensor_layout::convolution::NHWGK{};
+        else if constexpr(val == ConvOutputLayout2D::GNHWK)
+            return ck::tensor_layout::convolution::GNHWK{};
+    }
+    else if constexpr(SPATIAL_DIM == 3)
+    {
+        constexpr auto val = Layout._3d;
+        if constexpr(val == ConvOutputLayout3D::NGKDHW)
+            return ck::tensor_layout::convolution::NGKDHW{};
+        else if constexpr(val == ConvOutputLayout3D::NDHWGK)
+            return ck::tensor_layout::convolution::NDHWGK{};
+        else if constexpr(val == ConvOutputLayout3D::GNDHWK)
+            return ck::tensor_layout::convolution::GNDHWK{};
+    }
+}
+
 template <auto InputLayoutValue, auto WeightLayoutValue, auto OutputLayoutValue, size_t SPATIAL_DIM, ConvDirection DIR>
     requires(ConvSpatialDim<SPATIAL_DIM> 
         && ValidConvInputLayoutForSpatialDim<InputLayoutValue, SPATIAL_DIM>
@@ -63,148 +206,11 @@ template <auto InputLayoutValue, auto WeightLayoutValue, auto OutputLayoutValue,
         && ValidConvOutputLayoutForSpatialDim<OutputLayoutValue, SPATIAL_DIM>)
 struct ConvTensorLayouts
 {
-    // This will trigger if a specialization for the given layout is not found.
-    // We should always catch this in an earlier validation check.
-    using InputLayout = decltype(InputLayoutValue);
-    using WeightLayout = decltype(WeightLayoutValue);
-    using OutputLayout = decltype(OutputLayoutValue);
-    static_assert(sizeof(InputLayout) == 0 && sizeof(WeightLayout) == 0 && sizeof(OutputLayout) == 0,
-                  "Internal error. Unsupported layout for convolution factory.");
+    static_assert(DIR == ConvDirection::FORWARD, "Only Forward convolution is supported.");
+    using ALayout = decltype(GetCKInputLayout<InputLayoutValue, SPATIAL_DIM>());
+    using BLayout = decltype(GetCKWeightLayout<WeightLayoutValue, SPATIAL_DIM>());
+    using ELayout = decltype(GetCKOutputLayout<OutputLayoutValue, SPATIAL_DIM>());
 };
-
-// 1D Forward Convolution Layout Specializations
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout1D::NWGC}, 
-                        ConvWeightLayout{ConvWeightLayout1D::GKXC}, 
-                        ConvOutputLayout{ConvOutputLayout1D::NWGK}, 
-                        1, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::NWGC;
-    using BLayout  = ck::tensor_layout::convolution::GKXC;
-    using ELayout  = ck::tensor_layout::convolution::NWGK;
-};
-
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout1D::NGCW}, 
-                        ConvWeightLayout{ConvWeightLayout1D::GKXC}, 
-                        ConvOutputLayout{ConvOutputLayout1D::NGKW}, 
-                        1, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::NGCW;
-    using BLayout  = ck::tensor_layout::convolution::GKXC;
-    using ELayout  = ck::tensor_layout::convolution::NGKW;
-};
-
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout1D::GNWC}, 
-                        ConvWeightLayout{ConvWeightLayout1D::GKXC}, 
-                        ConvOutputLayout{ConvOutputLayout1D::GNWK}, 
-                        1, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::GNWC;
-    using BLayout  = ck::tensor_layout::convolution::GKXC;
-    using ELayout  = ck::tensor_layout::convolution::GNWK;
-};
-
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout1D::NGCW}, 
-                        ConvWeightLayout{ConvWeightLayout1D::GKCX}, 
-                        ConvOutputLayout{ConvOutputLayout1D::NGKW}, 
-                        1, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::NGCW;
-    using BLayout  = ck::tensor_layout::convolution::GKCX;
-    using ELayout  = ck::tensor_layout::convolution::NGKW;
-};
-
-// 2D Forward Convolution Layout Specializations
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout2D::NGCHW}, 
-                        ConvWeightLayout{ConvWeightLayout2D::GKYXC}, 
-                        ConvOutputLayout{ConvOutputLayout2D::NGKHW}, 
-                        2, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::NGCHW;
-    using BLayout  = ck::tensor_layout::convolution::GKYXC;
-    using ELayout  = ck::tensor_layout::convolution::NGKHW;
-};
-
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout2D::NHWGC}, 
-                        ConvWeightLayout{ConvWeightLayout2D::GKYXC}, 
-                        ConvOutputLayout{ConvOutputLayout2D::NHWGK}, 
-                        2, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::NHWGC;
-    using BLayout  = ck::tensor_layout::convolution::GKYXC;
-    using ELayout  = ck::tensor_layout::convolution::NHWGK;
-};
-
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout2D::GNHWC}, 
-                        ConvWeightLayout{ConvWeightLayout2D::GKYXC}, 
-                        ConvOutputLayout{ConvOutputLayout2D::GNHWK}, 
-                        2, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::GNHWC;
-    using BLayout  = ck::tensor_layout::convolution::GKYXC;
-    using ELayout  = ck::tensor_layout::convolution::GNHWK;
-};
-
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout2D::NGCHW}, 
-                        ConvWeightLayout{ConvWeightLayout2D::GKCYX}, 
-                        ConvOutputLayout{ConvOutputLayout2D::NGKHW}, 
-                        2, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::NGCHW;
-    using BLayout  = ck::tensor_layout::convolution::GKCYX;
-    using ELayout  = ck::tensor_layout::convolution::NGKHW;
-};
-
-// 3D Forward Convolution Layout Specializations
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout3D::NGCDHW}, 
-                        ConvWeightLayout{ConvWeightLayout3D::GKCZYX}, 
-                        ConvOutputLayout{ConvOutputLayout3D::NGKDHW}, 
-                        3, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::NGCDHW;
-    using BLayout  = ck::tensor_layout::convolution::GKCZYX;
-    using ELayout  = ck::tensor_layout::convolution::NGKDHW;
-};
-
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout3D::NDHWGC}, 
-                        ConvWeightLayout{ConvWeightLayout3D::GKZYXC}, 
-                        ConvOutputLayout{ConvOutputLayout3D::NDHWGK}, 
-                        3, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::NDHWGC;
-    using BLayout  = ck::tensor_layout::convolution::GKZYXC;
-    using ELayout  = ck::tensor_layout::convolution::NDHWGK;
-};
-
-template <>
-struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout3D::GNDHWC}, 
-                        ConvWeightLayout{ConvWeightLayout3D::GKZYXC}, 
-                        ConvOutputLayout{ConvOutputLayout3D::GNDHWK}, 
-                        3, ConvDirection::FORWARD>
-{
-    using ALayout  = ck::tensor_layout::convolution::GNDHWC;
-    using BLayout  = ck::tensor_layout::convolution::GKZYXC;
-    using ELayout  = ck::tensor_layout::convolution::GNDHWK;
-};
-
-template <ConvInputLayout INPUT_LAYOUT, 
-          ConvWeightLayout WEIGHT_LAYOUT, 
-          ConvOutputLayout OUTPUT_LAYOUT, 
-          size_t SPATIAL_DIM, 
-          ConvDirection DIR>
-consteval auto GetTensorLayoutInternal()
-{
-    return factory_internal::ConvTensorLayouts<INPUT_LAYOUT, WEIGHT_LAYOUT, OUTPUT_LAYOUT, SPATIAL_DIM, DIR>{};
-}
 
 template <auto Layout, size_t SPATIAL_DIM, ConvDirection DIR>
 consteval auto GetTensorLayout()
@@ -213,7 +219,7 @@ consteval auto GetTensorLayout()
     constexpr auto WEIGHT_LAYOUT = Layout.weight_layout;  
     constexpr auto OUTPUT_LAYOUT = Layout.output_layout;
 
-    return GetTensorLayoutInternal<INPUT_LAYOUT, WEIGHT_LAYOUT, OUTPUT_LAYOUT, SPATIAL_DIM, DIR>();
+    return factory_internal::ConvTensorLayouts<INPUT_LAYOUT, WEIGHT_LAYOUT, OUTPUT_LAYOUT, SPATIAL_DIM, DIR>{};
 }
 
 }
