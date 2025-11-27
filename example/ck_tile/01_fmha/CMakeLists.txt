@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
 # Currently only gfx9 and gfx12 archs are supported by FMHA
 list(FILTER INST_TARGETS INCLUDE REGEX "gfx9|gfx12")
