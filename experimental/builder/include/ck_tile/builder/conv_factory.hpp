@@ -59,6 +59,7 @@
 
 #include "ck_tile/builder/conv_signature_utils.hpp"
 #include "ck_tile/builder/conv_layout_utils.hpp"
+#include "ck_tile/builder/conv_data_type_utils.hpp"
 
 namespace ck_tile::builder::factory_internal {
 
@@ -85,76 +86,6 @@ consteval auto get_output_layout_value(ConvOutputLayout layout) {
     else if constexpr (SPATIAL_DIM == 3) return layout._3d;
     else static_assert(false, "Unsupported spatial dimension");
 }
-
-// Type mappings from builder convolution data type to CK tensor types.
-template <DataType T>
-struct ConvTensorTypes
-{
-    // This will trigger if a specialization for the given DataType is not found.
-    // We should always catch this in an earlier validation check.
-    static_assert(sizeof(UnsupportedEnumValue<T>) == 0,
-                  "Internal error. Unsupported data type for convolution factory.");
-};
-
-template <>
-struct ConvTensorTypes<DataType::FP16>
-{
-    using ADataType        = ck::half_t;
-    using AComputeType     = ck::half_t;
-    using BDataType        = ck::half_t;
-    using BComputeType     = ck::half_t;
-    using CShuffleDataType = ck::half_t;
-    using AccDataType      = float;
-    using EDataType        = ck::half_t;
-};
-
-template <>
-struct ConvTensorTypes<DataType::BF16>
-{
-    using ADataType        = ck::bhalf_t;
-    using AComputeType     = ck::bhalf_t;
-    using BDataType        = ck::bhalf_t;
-    using BComputeType     = ck::bhalf_t;
-    using CShuffleDataType = ck::bhalf_t;
-    using AccDataType      = float;
-    using EDataType        = ck::bhalf_t;
-};
-
-template <>
-struct ConvTensorTypes<DataType::FP32>
-{
-    using ADataType        = float;
-    using AComputeType     = float;
-    using BDataType        = float;
-    using BComputeType     = float;
-    using CShuffleDataType = float;
-    using AccDataType      = float;
-    using EDataType        = float;
-};
-
-template <>
-struct ConvTensorTypes<DataType::I8>
-{
-    using ADataType        = int8_t;
-    using AComputeType     = int8_t;
-    using BDataType        = int8_t;
-    using BComputeType     = int8_t;
-    using CShuffleDataType = int8_t;
-    using AccDataType      = int32_t;
-    using EDataType        = int8_t;
-};
-
-template <>
-struct ConvTensorTypes<DataType::FP8>
-{
-    using ADataType        = ck::f8_t;
-    using AComputeType     = ck::f8_t;
-    using BDataType        = ck::f8_t;
-    using BComputeType     = ck::f8_t;
-    using CShuffleDataType = ck::f8_t;
-    using AccDataType      = float;
-    using EDataType        = ck::f8_t;
-};
 
 template <auto InputOpValue, auto WeightOpValue, auto OutputOpValue>
 struct ElementwiseOps
