@@ -1002,12 +1002,12 @@ struct QuantGemmKernel
         const auto& c_block_tile = [&]() {
             if constexpr(kQuantType == QuantType::AQuantGrouped)
             {
-                if(get_thread_id() == 0 && get_block_id() == 0)
-                {
-                    printf("Successfully entered AQuantGrouped\n");
-                    // return nullptr;
-                }
                 const auto& aq_block_window = gemm_tile_windows.at(I1);
+                // if(get_thread_id() == 0 && get_block_id() == 0)
+                // {
+                //     aq_block_window.template print_tile_window_range<AQDataType>(0, 4, 0, 32,
+                //     "aq_block_window");
+                // }
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, aq_block_window, kargs.M, num_loop, smem_ptr_0);
             }
@@ -1027,36 +1027,36 @@ struct QuantGemmKernel
 
         (void)c_block_tile;
         // Run Epilogue Pipeline
-        // auto& c_block_window = gemm_tile_windows.at(I4);
+        auto& c_block_window = gemm_tile_windows.at(I4);
 
-        // if constexpr(kQuantType == QuantType::AQuantGrouped ||
-        //              kQuantType == QuantType::BQuantGrouped)
-        // {
-        //     EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
-        // }
-        // else if constexpr(kQuantType == QuantType::RowColQuant)
-        // {
-        //     const auto& aq_block_window = gemm_tile_windows.at(I1);
-        //     const auto& bq_block_window = gemm_tile_windows.at(I3);
-        //     EpiloguePipeline{}(c_block_window,
-        //                        c_block_tile,
-        //                        c_block_window,
-        //                        smem_ptr_0,
-        //                        aq_block_window,
-        //                        bq_block_window);
-        // }
-        // else if constexpr(kQuantType == QuantType::TensorQuant)
-        // {
-        //     // TODO: why doesn't readfirstlane work here?
-        //     // const AccDataType aq_scale =
-        //     //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*aq_ptr));
-        //     // const AccDataType bq_scale =
-        //     //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*bq_ptr));
-        //     const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
-        //     const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
-        //     EpiloguePipeline{}(
-        //         c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
-        // }
+        if constexpr(kQuantType == QuantType::AQuantGrouped ||
+                     kQuantType == QuantType::BQuantGrouped)
+        {
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+        }
+        else if constexpr(kQuantType == QuantType::RowColQuant)
+        {
+            const auto& aq_block_window = gemm_tile_windows.at(I1);
+            const auto& bq_block_window = gemm_tile_windows.at(I3);
+            EpiloguePipeline{}(c_block_window,
+                               c_block_tile,
+                               c_block_window,
+                               smem_ptr_0,
+                               aq_block_window,
+                               bq_block_window);
+        }
+        else if constexpr(kQuantType == QuantType::TensorQuant)
+        {
+            // TODO: why doesn't readfirstlane work here?
+            // const AccDataType aq_scale =
+            //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*aq_ptr));
+            // const AccDataType bq_scale =
+            //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*bq_ptr));
+            const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
+            const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
+            EpiloguePipeline{}(
+                c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
+        }
     }
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
@@ -1140,11 +1140,12 @@ struct QuantGemmKernel
         const index_t i_m   = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
         const index_t i_n   = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
-        if(get_thread_id() == 0)
-        {
-            printf(
-                "blockId = %u, iM = %d, iN = %d, i_m = %d, i_n = %d\n", blockId, iM, iN, i_m, i_n);
-        }
+        // if(get_thread_id() == 0)
+        // {
+        //     printf(
+        //         "blockId = %u, iM = %d, iN = %d, i_m = %d, i_n = %d\n", blockId, iM, iN, i_m,
+        //         i_n);
+        // }
 
         const SplitKBatchOffset splitk_batch_offset(kargs);
         // options

@@ -159,7 +159,7 @@ int run_gemm_example_with_layouts(int argc,
     {
         AQK = K / QuantGroupSize; // Group quantization: AQK = K / GroupSize
         BQK = 0;                  // No B quantization
-        std::cout << __func__ << " AQK =" << AQK << std::endl;
+        std::cout << __func__ << " AQK = K / QuantGroupSize =" << AQK << std::endl;
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
@@ -194,6 +194,9 @@ int run_gemm_example_with_layouts(int argc,
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
     stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
+
+    std::cout << __func__ << " stride_A =" << stride_A << " stride_B =" << stride_B
+              << " stride_C =" << stride_C << std::endl;
 
     // Conditional stride calculation based on QuantMode
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
@@ -287,15 +290,17 @@ int run_gemm_example_with_layouts(int argc,
                 ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
             }
             // Fill AQ with unique incrementing values starting from 1.0
-            AQDataType value = 1.0f;
-            for(ck_tile::index_t m = 0; m < M; ++m)
-            {
-                for(ck_tile::index_t k = 0; k < AQK; ++k)
-                {
-                    (*aq_tensor_ptr)(m, k) = static_cast<AQDataType>(value);
-                    value += 1.0f;
-                }
-            }
+            // AQDataType value = 1.0f;
+            // for(ck_tile::index_t m = 0; m < M; ++m)
+            // {
+            //     for(ck_tile::index_t k = 0; k < AQK; ++k)
+            //     {
+            //         (*aq_tensor_ptr)(m, k) = static_cast<AQDataType>(value);
+            //         value += 1.0f;
+            //     }
+            // }
+            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *aq_tensor_ptr);
             ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
         }
         else
@@ -431,17 +436,9 @@ int run_gemm_example_with_layouts(int argc,
     }
 
     // print aq_tensor_ptr and bkn
-    std::cout << __func__ << " aq_tensor_ptr:" << std::endl;
-    std::cout << *aq_tensor_ptr << std::endl;
-    std::cout << std::endl;
-    std::cout << __func__ << " b_k_n:" << std::endl;
-    std::cout << "lengths {";
-    ck_tile::LogRange(std::cout, b_k_n.get_lengths(), ", ");
-    std::cout << "}" << std::endl;
-    std::cout << "strides {";
-    ck_tile::LogRange(std::cout, b_k_n.get_strides(), ", ");
-    std::cout << "}" << std::endl;
-    std::cout << std::endl;
+    // std::cout << __func__ << " aq_tensor_ptr:" << std::endl;
+    // std::cout << *aq_tensor_ptr << std::endl;
+    // std::cout << std::endl;
 
     invoke_gemm<GemmConfig,
                 TypeConfig,

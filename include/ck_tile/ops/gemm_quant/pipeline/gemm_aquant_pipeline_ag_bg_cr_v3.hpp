@@ -350,19 +350,17 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             Base::GlobalPrefetch(
                 aq_block_tile[currIdx], aq_copy_dram_window, aq_dram_tile_window_step);
 
-            if(get_block_id() == 0 && get_thread_id() < 256)
-            {
-                auto tbuffer             = aq_block_tile[currIdx].get_thread_buffer();
-                auto elements_per_thread = tbuffer.size();
+            // if(get_block_id() == 0 && get_thread_id() < 16)
+            // {
+            //     auto tbuffer             = aq_block_tile[currIdx].get_thread_buffer();
+            //     auto elements_per_thread = tbuffer.size();
 
-                for(index_t i = 0; i < elements_per_thread; i++)
-                {
-                    printf("thread id: %d, aq_block_tile[%d] = %d\n",
-                           get_thread_id(),
-                           i,
-                           static_cast<int>(tbuffer[i]));
-                }
-            }
+            //     for(index_t i = 0; i < elements_per_thread; i++)
+            //     {
+            //         printf("thread id: %d, aq_block_tile[%d] = %f\n",
+            //                get_thread_id(), i, static_cast<AQDataType>(tbuffer[i]));
+            //     }
+            // }
 
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
@@ -399,57 +397,55 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
 
             __builtin_amdgcn_sched_barrier(0);
 
-            // if constexpr(HasHotLoop)
-            // {
-            //     index_t i = 0;
-            //     do
-            //     {
-            //         block_sync_lds();
+            if constexpr(HasHotLoop)
+            {
+                index_t i = 0;
+                do
+                {
+                    block_sync_lds();
 
-            //         if constexpr(is_a_col_major)
-            //         {
-            //             auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-            //                 Policy::template MakeShuffledARegTileDistribution<Problem>());
-            //             transpose_tile2d(a_shuffle_tmp, a_block_tile);
-            //             Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-            //         }
-            //         else
-            //         {
-            //             Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
-            //         }
-            //         if constexpr(is_b_row_major)
-            //         {
-            //             auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-            //                 Policy::template MakeShuffledBRegTileDistribution<Problem>());
-            //             transpose_tile2d(b_shuffle_tmp, b_block_tile);
-            //             Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
-            //         }
-            //         else
-            //         {
-            //             Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
-            //         }
+                    if constexpr(is_a_col_major)
+                    {
+                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                            Policy::template MakeShuffledARegTileDistribution<Problem>());
+                        transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                        Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                    }
+                    else
+                    {
+                        Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                    }
+                    if constexpr(is_b_row_major)
+                    {
+                        auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                            Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                        transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                        Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
+                    }
+                    else
+                    {
+                        Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                    }
 
-            //         Base::GlobalPrefetch(a_block_tile, a_copy_dram_window,
-            //         a_dram_tile_window_step); Base::GlobalPrefetch(b_block_tile,
-            //         b_copy_dram_window, b_dram_tile_window_step);
-            //         Base::GlobalPrefetch(aq_block_tile[(currIdx + 1) % 2],
-            //                              aq_copy_dram_window,
-            //                              aq_dram_tile_window_step);
+                    Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+                    Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                    Base::GlobalPrefetch(aq_block_tile[(currIdx + 1) % 2],
+                                         aq_copy_dram_window,
+                                         aq_dram_tile_window_step);
 
-            //         block_gemm(
-            //             c_block_tile, aq_block_tile[currIdx], a_lds_gemm_window,
-            //             b_lds_gemm_window);
+                    block_gemm(
+                        c_block_tile, aq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
 
-            //         currIdx = (currIdx + 1) % 2;
+                    currIdx = (currIdx + 1) % 2;
 
-            //         block_sync_lds();
+                    block_sync_lds();
 
-            //         block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
-            //         __builtin_amdgcn_sched_barrier(0);
+                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                    __builtin_amdgcn_sched_barrier(0);
 
-            //         i += 1;
-            //     } while(i < (num_loop - 1));
-            // }
+                    i += 1;
+                } while(i < (num_loop - 1));
+            }
             // tail
             if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
             {
