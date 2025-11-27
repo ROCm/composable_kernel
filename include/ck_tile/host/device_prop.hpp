@@ -57,7 +57,7 @@ inline bool is_gfx11_supported()
     return get_device_name() == "gfx1100" || get_device_name() == "gfx1101" ||
            get_device_name() == "gfx1102" || get_device_name() == "gfx1103" ||
            get_device_name() == "gfx1150" || get_device_name() == "gfx1151" ||
-           get_device_name() == "gfx1152";
+           get_device_name() == "gfx1152" || get_device_name() == "gfx1153";
 }
 
 inline bool is_gfx12_supported()
