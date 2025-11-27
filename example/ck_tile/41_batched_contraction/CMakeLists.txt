@@ -1,4 +1,4 @@
-add_executable(tile_example_batched_contraction EXCLUDE_FROM_ALL batched_contraction.cpp)
+add_executable(tile_example_batched_contraction batched_contraction.cpp)
 set(EXAMPLE_CONTRACTION_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)
     list(APPEND EXAMPLE_CONTRACTION_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
