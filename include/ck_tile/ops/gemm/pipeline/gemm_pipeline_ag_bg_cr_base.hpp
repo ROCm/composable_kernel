@@ -74,7 +74,8 @@ struct GemmPipelineAgBgCrImplBase
                                        SrcTileWindow& dram_tile_window,
                                        const DramTileWindowStep& dram_tile_window_step) const
     {
-        load_int4_tile<SrcDataType, DstDataType, UnaryOpSize>(dst_block_tile, dram_tile_window);
+        load_and_convert_tile<SrcDataType, DstDataType, UnaryOpSize>(dst_block_tile,
+                                                                     dram_tile_window);
         move_tile_window(dram_tile_window, dram_tile_window_step);
     }
 

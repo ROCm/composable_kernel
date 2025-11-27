@@ -186,7 +186,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             using DestDataType            = typename BBlockTile_::DataType;
             using SrcDataType             = typename BDramWindow::Base::TileWindowBase::DataType;
             constexpr index_t UnaryOpSize = 8;
-            load_int4_tile<SrcDataType, DestDataType, UnaryOpSize>(b_block_tile, b_dram_window);
+            load_and_convert_tile<SrcDataType, DestDataType, UnaryOpSize>(b_block_tile,
+                                                                          b_dram_window);
         }
 
         template <typename BBlockTile_, typename BDramWindow, typename BDramTileWindowStep>
