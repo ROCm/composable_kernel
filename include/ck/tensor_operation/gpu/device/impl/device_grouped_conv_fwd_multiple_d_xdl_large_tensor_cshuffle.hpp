@@ -405,7 +405,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                               is_split_valid);
     }
 
-#define GridwiseGemmTemplateParameters                                                            \
+#define CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_LARGE_TENSOR_TEMPLATE_PARAMETERS                          \
     ADataType, BDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType, EDataType, \
         AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,                    \
         NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerXDL,     \
@@ -422,9 +422,11 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
         AComputeDataType, DoElementwiseBeforeCShuffle
     // Use appropriate gridwise gemm
     template <index_t NXdlPerWave_>
-    using GridwiseGemmBase = GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>;
-    using GridwiseGemm64   = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
-    using GridwiseGemm32   = GridwiseGemmBase<NXdlPerWave32>;
+    using GridwiseGemmBase = GridwiseGemmMultipleD_xdl_cshuffle<
+        CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_LARGE_TENSOR_TEMPLATE_PARAMETERS>;
+#undef CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_LARGE_TENSOR_TEMPLATE_PARAMETERS
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     // desc for blockwise copy
     using AGridDesc_AK0_M_AK1 =

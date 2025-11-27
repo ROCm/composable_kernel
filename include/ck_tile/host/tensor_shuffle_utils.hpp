@@ -1,3 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #pragma once
 #include <stdexcept>
 
@@ -18,6 +21,49 @@ auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
     ck_tile::HostTensor<T> t_view({m_, aqk_ / block_aq_k, block_aq_k});
     std::copy(t->begin(), t->end(), t_view.begin());
     return ck_tile::reference_permute(t_view, {1, 0, 2});
+}
+
+template <typename T>
+auto shuffle_bq(const ck_tile::HostTensor<T>* t, int block_bq_k)
+{
+    const auto& lengths = t->get_lengths();
+    const size_t rank   = lengths.size();
+
+    // Validate block_bq_k divisibility based on rank
+    int bqk_dim = (rank == 5) ? lengths[4] : (rank == 2) ? lengths[0] : -1;
+
+    if(bqk_dim < 0)
+    {
+        throw std::runtime_error("shuffle_bq expects either rank-2 or rank-5 tensor, got rank " +
+                                 std::to_string(rank));
+    }
+
+    if(bqk_dim % block_bq_k != 0)
+    {
+        throw std::runtime_error("shuffle_bq needs bqk dimension to be a multiple of block_bq_k.");
+    }
+
+    // For TilePermuteN
+    if(rank == 5)
+    {
+        // Handle 5D tensor: [n, nrepeat, nwarp, n_warp_tile, bqk]
+        ck_tile::HostTensor<T> t_view({static_cast<int>(lengths[0]),
+                                       static_cast<int>(lengths[1]),
+                                       static_cast<int>(lengths[2]),
+                                       static_cast<int>(lengths[3]),
+                                       bqk_dim / block_bq_k,
+                                       block_bq_k});
+        std::copy(t->begin(), t->end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {4, 0, 1, 2, 3, 5});
+    }
+    else // rank == 2
+    {
+        // Handle 2D tensor: [bqk, n]
+        int n_ = lengths[1];
+        ck_tile::HostTensor<T> t_view({n_, bqk_dim / block_bq_k, block_bq_k});
+        std::copy(t->begin(), t->end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {1, 0, 2});
+    }
 }
 
 template <typename GemmConfig, typename T>
@@ -64,7 +110,7 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
 }
 
 template <typename GemmConfig, typename T>
-auto shuffle_bq_permuteN(const ck_tile::HostTensor<T>& t)
+auto bq_permuteN(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
 
