@@ -316,20 +316,20 @@ int run_batched_contraction_example_with_layouts(
 
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        calculate_reference_flat_indexing<ADataType,
-                                          BDataType,
-                                          DDataType,
-                                          EDataType,
-                                          AccDataType,
-                                          CDEElementWise>(a_full_dims_host,
-                                                          b_full_dims_host,
-                                                          ds_full_dims_host,
-                                                          e_full_dims_host_ref,
-                                                          G_total,
-                                                          M_total,
-                                                          N_total,
-                                                          K_total,
-                                                          CDEElementWise{});
+        ck_tile::calculate_reference_flat_indexing<ADataType,
+                                                   BDataType,
+                                                   DDataType,
+                                                   EDataType,
+                                                   AccDataType,
+                                                   CDEElementWise>(a_full_dims_host,
+                                                                   b_full_dims_host,
+                                                                   ds_full_dims_host,
+                                                                   e_full_dims_host_ref,
+                                                                   G_total,
+                                                                   M_total,
+                                                                   N_total,
+                                                                   K_total,
+                                                                   CDEElementWise{});
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
