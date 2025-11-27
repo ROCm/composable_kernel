@@ -4,6 +4,7 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/batchnorm.hpp"
 #include <cstring>
+#include <iomanip>
 
 // Simple POC for batchnorm forward pass
 // Tests basic functionality with a small tensor
@@ -26,8 +27,10 @@ auto create_args(int argc, char* argv[])
 }
 
 // CPU reference implementation
-template <typename XDataType, typename YDataType, typename ComputeDataType>
+template <typename XDataType, typename YDataType, typename ComputeDataType, typename GammaDataType, typename BetaDataType>
 void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
+                             const ck_tile::HostTensor<GammaDataType>* gamma,
+                             const ck_tile::HostTensor<BetaDataType>* beta,
                              ck_tile::HostTensor<YDataType>& y,
                              ck_tile::index_t N,
                              ck_tile::index_t C,
@@ -73,10 +76,24 @@ void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
         }
         ComputeDataType variance = var_sum / static_cast<ComputeDataType>(per_channel_size);
         
-        // Normalize all values in this channel
+        // Load gamma and beta for this channel
+        ComputeDataType gamma_val = static_cast<ComputeDataType>(1.0);
+        ComputeDataType beta_val = static_cast<ComputeDataType>(0.0);
+        
+        if(gamma != nullptr)
+        {
+            gamma_val = ck_tile::type_convert<ComputeDataType>(gamma->mData[c]);
+        }
+        if(beta != nullptr)
+        {
+            beta_val = ck_tile::type_convert<ComputeDataType>(beta->mData[c]);
+        }
+        
+        // Compute inverse standard deviation
         ComputeDataType inv_std = static_cast<ComputeDataType>(1.0) / 
             ck_tile::sqrt(variance + epsilon);
         
+        // Normalize all values in this channel with scale and bias
         for(ck_tile::index_t n = 0; n < N; ++n)
         {
             for(ck_tile::index_t h = 0; h < H; ++h)
@@ -85,7 +102,7 @@ void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
                 {
                     ck_tile::index_t idx = n * C * H * W + c * H * W + h * W + w;
                     ComputeDataType val = ck_tile::type_convert<ComputeDataType>(x.mData[idx]);
-                    ComputeDataType normalized = (val - mean) * inv_std;
+                    ComputeDataType normalized = gamma_val * ((val - mean) * inv_std) + beta_val;
                     y.mData[idx] = ck_tile::type_convert<YDataType>(normalized);
                 }
             }
@@ -115,17 +132,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // Allocate host tensors
     ck_tile::index_t total_size = N * C * H * W;
     ck_tile::HostTensor<XDataType> x_host({N, C, H, W});
+    ck_tile::HostTensor<ComputeDataType> gamma_host({C});
+    ck_tile::HostTensor<ComputeDataType> beta_host({C});
     ck_tile::HostTensor<YDataType> y_host_ref({N, C, H, W});
     ck_tile::HostTensor<YDataType> y_host_dev({N, C, H, W});
 
     // Fill input with random data
     ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
+    ck_tile::FillUniformDistribution<ComputeDataType>{0.8f, 1.2f}(gamma_host);  // Scale around 1.0
+    ck_tile::FillUniformDistribution<ComputeDataType>{-0.5f, 0.5f}(beta_host);  // Bias around 0.0
 
     // Allocate device memory
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem gamma_buf(gamma_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem beta_buf(beta_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
 
     x_buf.ToDevice(x_host.data());
+    gamma_buf.ToDevice(gamma_host.data());
+    beta_buf.ToDevice(beta_host.data());
 
     // Define kernel configuration
     using BlockWarps = ck_tile::sequence<4, 1>;
@@ -137,33 +162,44 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Problem = ck_tile::BatchnormProblem<XDataType, ComputeDataType, YDataType, Shape>;
     using Kernel = ck_tile::BatchnormFwd<Problem>;
 
-    const ck_tile::index_t kBlockSize = Kernel::BlockSize();
-    const ck_tile::index_t kGridSize = C;  // One block per channel
+    // Prepare host arguments
+    ck_tile::BatchnormFwdHostArgs hargs{
+        x_buf.GetDeviceBuffer(),      // p_x
+        gamma_buf.GetDeviceBuffer(),  // p_gamma
+        beta_buf.GetDeviceBuffer(),   // p_beta
+        y_buf.GetDeviceBuffer(),      // p_y
+        nullptr,                      // p_running_mean
+        nullptr,                      // p_running_var
+        nullptr,                      // p_save_mean
+        nullptr,                      // p_save_inv_std
+        epsilon,                      // epsilon
+        0.1f,                         // momentum (not used yet)
+        N, C, H, W,                   // dimensions
+        false,                        // update_moving_average
+        false                         // save_mean_inv_std
+    };
 
-    std::cout << "Kernel config: BlockSize=" << kBlockSize << ", GridSize=" << kGridSize 
-              << " (one block per channel, reducing over N×H×W=" << N*H*W << " elements)" << std::endl;
-
-    if(!Kernel::IsSupportedArgument(N, C, H, W))
+    // Validate arguments
+    if(!Kernel::IsSupportedArgument(hargs))
     {
         std::cout << "Arguments not supported!" << std::endl;
         return false;
     }
 
+    // Get grid and block size
+    const auto grid_size = Kernel::GridSize(hargs);
+    const auto block_size = Kernel::BlockSize();
+    
+    std::cout << "Kernel config: BlockSize=" << block_size << ", GridSize=" << grid_size.x 
+              << " (one block per channel, reducing over N×H×W=" << N*H*W << " elements)" << std::endl;
+
+    // Make kernel arguments
+    auto kargs = Kernel::MakeKernelArgs(hargs);
+
     // Launch kernel
     float ave_time = ck_tile::launch_kernel(
         ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-        ck_tile::make_kernel<1>(
-            Kernel{},
-            kGridSize,
-            kBlockSize,
-            0,
-            static_cast<const XDataType*>(x_buf.GetDeviceBuffer()),
-            static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
-            N,
-            C,
-            H,
-            W,
-            static_cast<ComputeDataType>(epsilon)));
+        ck_tile::make_kernel<1>(Kernel{}, grid_size, block_size, 0, kargs));
 
     std::size_t num_bytes = sizeof(XDataType) * total_size + sizeof(YDataType) * total_size;
     float gb_per_sec = num_bytes / 1.E6 / ave_time;
@@ -174,12 +210,32 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(do_validation)
     {
-        // Compute reference
-        reference_batchnorm_fwd<XDataType, YDataType, ComputeDataType>(
-            x_host, y_host_ref, N, C, H, W, epsilon);
+        // Compute reference with gamma and beta
+        reference_batchnorm_fwd<XDataType, YDataType, ComputeDataType, ComputeDataType, ComputeDataType>(
+            x_host, &gamma_host, &beta_host, y_host_ref, N, C, H, W, epsilon);
         
         // Get device result
         y_buf.FromDevice(y_host_dev.mData.data());
+        
+        // Print sample outputs for each channel (2 samples per channel)
+        std::cout << "\n=== Sample Outputs (first 2 values per channel) ===" << std::endl;
+        for(ck_tile::index_t c = 0; c < C; ++c)
+        {
+            std::cout << "Channel " << c << ":" << std::endl;
+            
+            // Print 2 sample values from first sample (n=0)
+            for(ck_tile::index_t sample = 0; sample < 2 && sample < H * W; ++sample)
+            {
+                ck_tile::index_t idx = 0 * C * H * W + c * H * W + sample;
+                float ref_val = ck_tile::type_convert<float>(y_host_ref.mData[idx]);
+                float dev_val = ck_tile::type_convert<float>(y_host_dev.mData[idx]);
+                std::cout << "  Sample[" << sample << "]: "
+                          << "Ref=" << std::fixed << std::setprecision(6) << ref_val
+                          << ", Kernel=" << dev_val
+                          << ", Diff=" << std::abs(ref_val - dev_val) << std::endl;
+            }
+        }
+        std::cout << std::endl;
         
         // Check error
         pass = ck_tile::check_err(y_host_dev, y_host_ref, "Error: Incorrect results!", 1e-2, 1e-2);
