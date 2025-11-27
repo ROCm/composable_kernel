@@ -373,8 +373,8 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                     {
                         // Need to multiply aquant with accumulated C
                         //
-                        // The accumulated C tile has the standard distribution. For example
-                        // lane 0 holds elements [0,0], [1,0], [2,0], [3,0], [8,0], [9,0],
+                        // The accumulated C tile has the standard distribution. For example, a
+                        // 32x32 C lane 0 holds elements [0,0], [1,0], [2,0], [3,0], [8,0], [9,0],
                         // [10,0], [11,0], [16,0], [17,0], [18,0], [19,0], [24,0], [25,0],
                         // [26,0], [27,0].
                         //
@@ -388,35 +388,24 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         //
                         // These scales can be obtained using __builtin_amdgcn_ds_bpermute.
 
-                        // MIters per warp
-                        constexpr index_t mIters_per_warp = get_warp_size() / WarpGemm::kM;
-
                         // Reg block offset based on mIter
                         constexpr index_t reg_block_offset =
-                            ((mIter / mIters_per_warp) * Traits::AQPerBlock);
-
-                        constexpr index_t lane_base_offset =
-                            (mIter % mIters_per_warp) * WarpGemm::kM;
+                            ((mIter / WarpGemm::kM) * Traits::AQPerBlock);
 
                         // Scale tensor offset along K
                         constexpr index_t src_reg_offset = reg_block_offset + kQScale;
+
                         // Directly index into thread buffer corresponding to
                         // desired row coefficient
                         auto& scale_reg = aq_block_tensor.get_thread_buffer()[src_reg_offset];
 
-                        constexpr uint32_t kTileRows = (get_warp_size() == 64) ? 4 : 8;
-                        ;
-                        constexpr uint32_t kTiledCMsPerWarp        = WarpGemm::kCMLane * kTileRows;
-                        constexpr uint32_t reg_offset_for_row_data = c_row * WarpGemm::kCMLane;
-                        // Multiply by 4 because output is stored in tiles of 4
-                        // x CNLane
-                        constexpr uint32_t row_base =
-                            ((reg_offset_for_row_data / kTiledCMsPerWarp) * kTiledCMsPerWarp) +
-                            ((reg_offset_for_row_data % kTiledCMsPerWarp) / WarpGemm::kCMLane);
-
-                        // Lane index to source scale from
+                        constexpr index_t lane_base_offset =
+                            (c_row / WarpGemm::Impl::kCM1PerLane) *
+                            (WarpGemm::kCMLane * WarpGemm::Impl::kCM1PerLane);
                         uint32_t src_lane_idx =
-                            lane_base_offset + row_base + (__lane_id() / WarpGemm::kN * kTileRows);
+                            lane_base_offset +
+                            (get_lane_id() / WarpGemm::kN * WarpGemm::Impl::kCM1PerLane) +
+                            (c_row & WarpGemm::Impl::kCM1PerLane);
 
                         return exchange_quant_value_across_lanes(scale_reg, src_lane_idx);
                     }
