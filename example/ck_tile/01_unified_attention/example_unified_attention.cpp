@@ -70,13 +70,6 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
     return std::make_pair(result, arg_parser);
 }
 
-struct FmhaMasks
-{
-    using NoMask      = ck_tile::GenericAttentionMask<false>;
-    using GenericMask = ck_tile::GenericAttentionMask<true, true>;
-    using CausalMask  = ck_tile::GenericAttentionMask<true, false>;
-};
-
 struct Problem
 {
     explicit Problem(const ck_tile::ArgParser& args)
@@ -235,12 +228,13 @@ CK_TILE_HOST void fmha_fwd(const ck_tile::HostTensor<QDataType>& q_bshd,
 
         ck_tile::reference_batched_masking(
             s_host_ref,
-            ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
+            ck_tile::make_generic_attention_mask_from_lr_window<UnifiedAttentionMasks::CausalMask>(
                 -1,
                 0,
                 seqlen_q,
                 seqlen_kv,
-                true));
+                1,
+                false));
         ck_tile::reference_batched_softmax<AccDataType, AccDataType>(
             s_host_ref, p_host_ref, ck_tile::identity{});
         ck_tile::reference_batched_gemm<PDataType, VDataType, AccDataType>(
@@ -557,29 +551,28 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
               << " (" << percent << "%)\n";
 
     // std::cout << "\n=== Complete Output Tensor (o) ===\n";
-    //     for (int tok = 0; tok < problem.num_tokens; ++tok) {
-    //         std::cout << "Token " << tok << ":\n";
-    //         for (int h = 0; h < problem.nhead_q; ++h) {
-    //             std::cout << "  Head " << h << ": ";
-    //             for (int d = 0; d < problem.hdim; ++d) {
-    //                 std::cout << static_cast<float>(o(tok, h, d)) << " ";
-    //             }
-    //             std::cout << "\n";
+    // for (int tok = 0; tok < problem.num_tokens; ++tok) {
+    //     std::cout << "Token " << tok << ":\n";
+    //     for (int h = 0; h < problem.nhead_q; ++h) {
+    //         std::cout << "  Head " << h << ": ";
+    //         for (int d = 0; d < problem.hdim; ++d) {
+    //             std::cout << static_cast<float>(o(tok, h, d)) << " ";
     //         }
+    //         std::cout << "\n";
     //     }
+    // }
 
-    //     std::cout << "\n=== Complete Reference Tensor (o_ref) ===\n";
-    //     for (int tok = 0; tok < problem.num_tokens; ++tok) {
-    //         std::cout << "Token " << tok << ":\n";
-    //         for (int h = 0; h < problem.nhead_q; ++h) {
-    //             std::cout << "  Head " << h << ": ";
-    //             for (int d = 0; d < problem.hdim; ++d) {
-    //                 std::cout << static_cast<float>(o_ref(tok, h, d)) << " ";
-    //             }
-    //             std::cout << "\n";
+    // std::cout << "\n=== Complete Reference Tensor (o_ref) ===\n";
+    // for (int tok = 0; tok < problem.num_tokens; ++tok) {
+    //     std::cout << "Token " << tok << ":\n";
+    //     for (int h = 0; h < problem.nhead_q; ++h) {
+    //         std::cout << "  Head " << h << ": ";
+    //         for (int d = 0; d < problem.hdim; ++d) {
+    //             std::cout << static_cast<float>(o_ref(tok, h, d)) << " ";
     //         }
+    //         std::cout << "\n";
     //     }
-
+    // }
     return  ck_tile::check_err(o, o_ref, std::string("found incorrect results!"), rtol, atol);
 }
 

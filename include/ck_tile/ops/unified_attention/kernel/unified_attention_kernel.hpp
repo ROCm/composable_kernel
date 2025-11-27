@@ -435,8 +435,9 @@ struct UnifiedAttentionKernel
                     0,
                     cur_batch_query_len, // y_total
                     seq_len,           // x_total
-                    num_queries_per_kv // the same sequence index is repeated num_queries_per_kv
+                    num_queries_per_kv, // the same sequence index is repeated num_queries_per_kv
                                        // times along x dim of the tile
+                    false
                 );
             else
                 return FmhaMask{cur_batch_query_len, seq_len};

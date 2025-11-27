@@ -899,7 +899,7 @@ struct UnifiedAttentionPipeline
             {
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
                                                            i_total_loops * BLOCK_SIZE,
-                                                           number<BLOCK_M>{},
+                                                           number<BLOCK_Q>{},
                                                            number<BLOCK_SIZE>{});
                 if(need_perpixel_check)
                 {
