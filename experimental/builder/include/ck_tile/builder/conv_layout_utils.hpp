@@ -21,7 +21,7 @@ consteval bool IsGenericBiasLayoutActive() {
 }
 
 template <auto Layout, size_t SPATIAL_DIM>
-consteval auto GetCKBiasLayoutSingle()
+consteval auto GetBiasLayoutValue()
 {
     if constexpr (IsGenericBiasLayoutActive<Layout>())
     {
@@ -63,15 +63,15 @@ consteval auto GetCKBiasLayoutSingle()
     }
 }
 
-template <auto BiasLayoutsArray, size_t SPATIAL_DIM, size_t... Is>
-consteval auto GetCKBiasLayoutTuple(std::index_sequence<Is...>)
+template <auto BiasLayoutsArray, size_t SPATIAL_DIM, size_t... Indices>
+consteval auto GetBiasLayoutTuple(std::index_sequence<Indices...>)
 {
-    return ck::Tuple<decltype(GetCKBiasLayoutSingle<BiasLayoutsArray[Is], SPATIAL_DIM>())...>{};
+    return ck::Tuple<decltype(GetBiasLayoutValue<BiasLayoutsArray[Indices], SPATIAL_DIM>())...>{};
 }
 
 // TODO: Remove hardcoding of bhalf_t
 template <size_t N, size_t... Is>
-consteval auto GetCKBiasTypesTuple(std::index_sequence<Is...>)
+consteval auto GetBiasTypesTuple(std::index_sequence<Is...>)
 {
     return ck::Tuple<decltype((void(Is), ck::bhalf_t{}))...>{}; 
 }
@@ -82,8 +82,8 @@ struct ConvBiasTensorLayouts
 {
     static constexpr auto Size = BiasLayoutValue.size();
     
-    using DsLayout = decltype(GetCKBiasLayoutTuple<BiasLayoutValue, SPATIAL_DIM>(std::make_index_sequence<Size>{}));
-    using DsDataTypes = decltype(GetCKBiasTypesTuple<Size>(std::make_index_sequence<Size>{}));
+    using DsLayout = decltype(GetBiasLayoutTuple<BiasLayoutValue, SPATIAL_DIM>(std::make_index_sequence<Size>{}));
+    using DsDataTypes = decltype(GetBiasTypesTuple<Size>(std::make_index_sequence<Size>{}));
 };
 
 template <auto Layout, size_t SPATIAL_DIM, ConvDirection DIR>
