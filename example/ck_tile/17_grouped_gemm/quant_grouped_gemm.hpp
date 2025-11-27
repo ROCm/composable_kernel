@@ -83,6 +83,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr bool PreshuffleB               = false;
+    static constexpr bool Persistent                = true;
 };
 
 template <typename PrecType>
@@ -148,7 +149,7 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK")
-        .insert("quant_mode", "bquant", "Choose bquant (default), tensor, or rowcol")
+        .insert("quant_mode", "bquant", "Choose aquant, bquant (default), tensor, or rowcol")
         .insert("init", "0", "0. Random, 2. One(s) (Constant)");
 
     bool result = arg_parser.parse(argc, argv);

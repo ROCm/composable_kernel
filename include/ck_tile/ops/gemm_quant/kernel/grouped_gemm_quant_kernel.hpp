@@ -451,7 +451,24 @@ struct QuantGroupedGemmKernel
         const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
-        if constexpr(kQuantType == QuantType::BQuantGrouped)
+        if constexpr(kQuantType == QuantType::AQuantGrouped)
+        {
+            const auto& aq_block_window = gemm_tile_windows.at(Base::I1);
+            // Run GEMM pipeline
+            const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
+                                                                          b_block_window,
+                                                                          aq_block_window,
+                                                                          num_loop,
+                                                                          has_hot_loop,
+                                                                          tail_num,
+                                                                          smem_ptr_0);
+
+            auto& c_block_window = gemm_tile_windows.at(Base::I4);
+
+            // Run Epilogue Pipeline
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+        }
+        else if constexpr(kQuantType == QuantType::BQuantGrouped)
         {
             const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
             // Run GEMM pipeline
