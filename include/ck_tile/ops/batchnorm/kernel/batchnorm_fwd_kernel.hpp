@@ -29,8 +29,7 @@ struct BatchnormFwdHostArgs
     
     index_t N, C, H, W;
     
-    bool update_moving_average;  // If true, p_running_mean/var must be valid
-    bool save_mean_inv_std;      // If true, p_save_mean/inv_std must be valid
+    // Note: save/update flags are now in Traits (compile-time), not here (runtime)
 };
 
 // BatchnormFwd: Forward pass batch normalization kernel
@@ -62,8 +61,7 @@ struct BatchnormFwd
         
         index_t N, C, H, W;
         
-        bool update_moving_average;
-        bool save_mean_inv_std;
+        // Note: save/update flags now come from Problem::Traits (compile-time)
     };
 
     using Kargs = BatchnormFwdKargs;  // Alias for convenience
@@ -85,9 +83,7 @@ struct BatchnormFwd
                      hargs.N,
                      hargs.C,
                      hargs.H,
-                     hargs.W,
-                     hargs.update_moving_average,
-                     hargs.save_mean_inv_std};
+                     hargs.W};
     }
 
     // Grid size calculation
@@ -183,13 +179,48 @@ struct BatchnormFwd
             const index_t n = idx / spatial_size;
             const index_t hw = idx % spatial_size;
             
-            const index_t offset = n * C * H * W + c * H * W + hw;
+            const index_t offset = (n * C * H * W) + (c * H * W) + hw;
             ComputeDataType val = type_convert<ComputeDataType>(p_x[offset]);
             
             // Apply batch normalization with scale and bias
             ComputeDataType normalized = gamma * ((val - block_mean) * inv_std) + beta;
             
             p_y[offset] = type_convert<YDataType>(normalized);
+        }
+        
+        // Save mean and inverse std for backward pass (compile-time check)
+        if constexpr(Problem::Traits::kSaveMeanInvStd)
+        {
+            if(thread_id == 0)
+            {
+                using MeanVarDataType = typename Problem::MeanVarDataType;
+                MeanVarDataType* p_save_mean = static_cast<MeanVarDataType*>(kargs.p_save_mean);
+                MeanVarDataType* p_save_inv_std = static_cast<MeanVarDataType*>(kargs.p_save_inv_std);
+                
+                p_save_mean[c] = type_convert<MeanVarDataType>(block_mean);
+                p_save_inv_std[c] = type_convert<MeanVarDataType>(inv_std);
+            }
+        }
+        
+        // Update running mean and variance (compile-time check)
+        if constexpr(Problem::Traits::kUpdateMovingAverage)
+        {
+            if(thread_id == 0)
+            {
+                using MeanVarDataType = typename Problem::MeanVarDataType;
+                MeanVarDataType* p_running_mean = static_cast<MeanVarDataType*>(kargs.p_running_mean);
+                MeanVarDataType* p_running_var = static_cast<MeanVarDataType*>(kargs.p_running_var);
+                
+                const ComputeDataType momentum = static_cast<ComputeDataType>(kargs.momentum);
+                const ComputeDataType one_minus_momentum = type_convert<ComputeDataType>(1) - momentum;
+                
+                // Exponential moving average: new = (1-momentum)*old + momentum*current
+                ComputeDataType old_mean = type_convert<ComputeDataType>(p_running_mean[c]);
+                ComputeDataType old_var = type_convert<ComputeDataType>(p_running_var[c]);
+                
+                p_running_mean[c] = type_convert<MeanVarDataType>(one_minus_momentum * old_mean + momentum * block_mean);
+                p_running_var[c] = type_convert<MeanVarDataType>(one_minus_momentum * old_var + momentum * block_var);
+            }
         }
     }
 
@@ -209,8 +240,8 @@ struct BatchnormFwd
             return false;
         }
         
-        // Validate optional pointers based on flags
-        if(hargs.update_moving_average)
+        // Validate optional pointers based on Traits (compile-time)
+        if constexpr(Problem::Traits::kUpdateMovingAverage)
         {
             if(hargs.p_running_mean == nullptr || hargs.p_running_var == nullptr)
             {
@@ -218,7 +249,7 @@ struct BatchnormFwd
             }
         }
         
-        if(hargs.save_mean_inv_std)
+        if constexpr(Problem::Traits::kSaveMeanInvStd)
         {
             if(hargs.p_save_mean == nullptr || hargs.p_save_inv_std == nullptr)
             {

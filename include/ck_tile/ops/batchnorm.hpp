@@ -5,5 +5,6 @@
 
 #include "ck_tile/ops/batchnorm/block/block_welford.hpp"
 #include "ck_tile/ops/batchnorm/kernel/batchnorm_fwd_kernel.hpp"
+#include "ck_tile/ops/batchnorm/pipeline/batchnorm_fwd_traits.hpp"
 #include "ck_tile/ops/batchnorm/pipeline/batchnorm_problem.hpp"
 #include "ck_tile/ops/batchnorm/pipeline/batchnorm_shape.hpp"

@@ -159,24 +159,35 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Vector     = ck_tile::sequence<1, 1>;
 
     using Shape = ck_tile::BatchnormShape<BlockWarps, BlockTile, WarpTile, Vector>;
-    using Problem = ck_tile::BatchnormProblem<XDataType, ComputeDataType, YDataType, Shape>;
+    
+    // Define traits (compile-time configuration)
+    using Traits = ck_tile::BatchnormFwdTraits<false, false>;  // No save, no update
+    
+    // Define problem with all types
+    using Problem = ck_tile::BatchnormProblem<XDataType,       // input type
+                                              ComputeDataType, // gamma type
+                                              ComputeDataType, // beta type
+                                              ComputeDataType, // compute type
+                                              YDataType,       // output type
+                                              ComputeDataType, // mean/var type
+                                              Shape,
+                                              Traits>;
     using Kernel = ck_tile::BatchnormFwd<Problem>;
 
     // Prepare host arguments
+    // Note: save/update behavior is determined by Traits (compile-time), not runtime args
     ck_tile::BatchnormFwdHostArgs hargs{
         x_buf.GetDeviceBuffer(),      // p_x
         gamma_buf.GetDeviceBuffer(),  // p_gamma
         beta_buf.GetDeviceBuffer(),   // p_beta
         y_buf.GetDeviceBuffer(),      // p_y
-        nullptr,                      // p_running_mean
+        nullptr,                      // p_running_mean (not used, Traits::kUpdateMovingAverage=false)
         nullptr,                      // p_running_var
-        nullptr,                      // p_save_mean
+        nullptr,                      // p_save_mean (not used, Traits::kSaveMeanInvStd=false)
         nullptr,                      // p_save_inv_std
         epsilon,                      // epsilon
-        0.1f,                         // momentum (not used yet)
-        N, C, H, W,                   // dimensions
-        false,                        // update_moving_average
-        false                         // save_mean_inv_std
+        0.1f,                         // momentum
+        N, C, H, W                    // dimensions
     };
 
     // Validate arguments
