@@ -1,4 +1,4 @@
-add_executable(tile_example_topk_softmax EXCLUDE_FROM_ALL topk_softmax.cpp topk_softmax_api.cpp)
+add_executable(tile_example_topk_softmax topk_softmax.cpp topk_softmax_api.cpp)
 target_include_directories(tile_example_topk_softmax PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/)
 
 set(EXAMPLE_TOPK_SOFTMAX_COMPILE_OPTIONS)
