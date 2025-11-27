@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -683,7 +683,7 @@ int run_gemm_example_with_layouts_two_stage(ck_tile::ArgParser& arg_parser,
 
     if constexpr(preshuffle)
     {
-        ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n);
+        ck_tile::HostTensor<BDataType> b_shuffle_host = ck_tile::shuffle_b<GemmConfig>(b_k_n);
         // shuffled buffer B for device implementation
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
     }
