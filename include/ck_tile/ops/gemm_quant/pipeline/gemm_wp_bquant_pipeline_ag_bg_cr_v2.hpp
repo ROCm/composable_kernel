@@ -280,7 +280,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         }
         else
         {
-            move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+            move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
         }
         // Prefill A0
         auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
@@ -338,7 +338,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             }
             else
             {
-                move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+                move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
             }
 
             // Prefill A(2i+1)
@@ -390,7 +390,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             }
             else
             {
-                move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+                move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
             }
 
             // Prefill A(2i+2)
