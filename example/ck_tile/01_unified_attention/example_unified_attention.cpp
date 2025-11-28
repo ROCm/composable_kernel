@@ -32,15 +32,13 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
 {
     ck_tile::ArgParser arg_parser;
     arg_parser
-        .insert("prec", "fp16", "data type. fp16/bf16")
+        .insert("prec", "bf16", "data type. fp16/bf16")
         // .insert("b", "3", "batch size")
-        .insert("h_k", "8", "num head for k/v. num head for q is 4 times this")
-        // .insert("h_k",
-        //         "-1",
-        //         "num of head, for k/v, -1 means equal to h\n"
-        //         "if not equal to h, then this is GQA/MQA case")
-
+        .insert("h_k", "8", "num head for k/v. num head for q is " + std::to_string(num_queries_per_kv) + " times this")
+        .insert("s", "3328", "max seqlen_q")
+        .insert("s_k", "-1", "max seqlen_k, -1 means equal to s")
         .insert("nb", "1024", "num_blks")
+        .insert("b", "3", "batch")
         .insert("d", "128", "head dim for q & k")
         .insert("scale_s", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
         // TODO scale factors
@@ -55,6 +53,7 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         .insert("operm", "0", "permute output")
         .insert("causal", "0", "0: no mask, 1: causal mask")
         .insert("v", "1", "0:no verify, 1:verify")
+        .insert("varlen", "1", "0: fixed length, 1: variable length")
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
@@ -63,11 +62,11 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         .insert("repeat", "30", "number of iterations to benchmark the kernel")
         // Optional effective seqlen override (exclude PAD) for batch mode
         .insert("query_lens",
-                "1, 5, 129",
+                "",
                 "Batch-mode only: per-batch effective seqlen for Q (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.")
         .insert("kv_lens",
-                "1328, 18, 463",
+                "",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.");
 
@@ -75,12 +74,48 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
     return std::make_pair(result, arg_parser);
 }
 
-struct FmhaMasks
+auto seqlen_preprocess(ck_tile::index_t batch,
+            ck_tile::index_t max_seqlen_q,
+            ck_tile::index_t max_seqlen_kv,
+            const std::vector<int>& query_lens_input,
+            const std::vector<int>& kv_lens_input,
+            bool varlen) -> std::pair<std::vector<int>, std::vector<int>>
 {
-    using NoMask      = ck_tile::GenericAttentionMask<false>;
-    using GenericMask = ck_tile::GenericAttentionMask<true, true>;
-    using CausalMask  = ck_tile::GenericAttentionMask<true, false>;
-};
+    // If both query_lens and kv_lens are provided, return them directly
+    if(!query_lens_input.empty() && !kv_lens_input.empty())
+    {
+        return std::make_pair(query_lens_input, kv_lens_input);
+    }
+
+    std::vector<int> query_lens;
+    std::vector<int> kv_lens;
+
+    if(!varlen)
+    {
+        // Fixed length mode: fill with max seqlen
+        query_lens.assign(batch, max_seqlen_q);
+        kv_lens.assign(batch, max_seqlen_kv);
+    }
+    else
+    {
+        // Variable length mode: generate random lengths up to max
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> q_dist(1, max_seqlen_q);
+        std::uniform_int_distribution<int> kv_dist(1, max_seqlen_kv);
+
+        query_lens.resize(batch);
+        kv_lens.resize(batch);
+        
+        for(ck_tile::index_t i = 0; i < batch; ++i)
+        {
+            query_lens[i] = q_dist(gen);
+            kv_lens[i] = kv_dist(gen);
+        }
+    }
+
+    return std::make_pair(query_lens, kv_lens);
+}
 
 struct Problem
 {
@@ -94,10 +129,31 @@ struct Problem
         // TODO: support other GQA/MQA cases than just 4x
         nhead_q = nhead_kv * num_queries_per_kv;
 
+        ck_tile::index_t max_seqlen_q  = args.get_int("s");
+        ck_tile::index_t max_seqlen_kv  = args.get_int("s_k");
+
+        if (max_seqlen_kv == -1) {
+            max_seqlen_kv = max_seqlen_q;
+        }
+        
         hdim       = args.get_int("d");
         query_lens = args.get_int_vec("query_lens");
         kv_lens    = args.get_int_vec("kv_lens");
-        batch      = std::max(query_lens.size(), kv_lens.size());
+        assert(query_lens.size() == kv_lens.size() && "query_lens and kv_lens must have the same length b");
+        batch    = args.get_int("b");
+
+        bool varlen = args.get_bool("varlen");
+        auto [query_lens_, kv_lens_] = seqlen_preprocess(
+            batch,
+            max_seqlen_q,
+            max_seqlen_kv,
+            query_lens,
+            kv_lens,
+            varlen);
+
+        query_lens = query_lens_;
+        kv_lens = kv_lens_;
+        batch      = query_lens.size();
 
         // Calculate scale_s
         scale_s = args.get_float("scale_s");
@@ -108,7 +164,7 @@ struct Problem
         scale   = args.get_float("scale");
         scale_k = args.get_float("scale_k");
         scale_v = args.get_float("scale_v");
-
+        num_tokens = 0;
         for(const auto& len : query_lens)
         {
             num_tokens += len;
@@ -198,7 +254,7 @@ template <typename AccDataType,
 CK_TILE_HOST void fmha_fwd(const ck_tile::HostTensor<QDataType>& q_bshd,
                            const ck_tile::HostTensor<KDataType>& k_bshd,
                            const ck_tile::HostTensor<VDataType>& v_bshd,
-                           const mask_info& mask,
+                           // const mask_info& mask,
                            ck_tile::HostTensor<ODataType>& o_bshd,
                            const QElementOp& q_element_op        = {},
                            const KElementOp& k_element_op        = {},
@@ -222,61 +278,35 @@ CK_TILE_HOST void fmha_fwd(const ck_tile::HostTensor<QDataType>& q_bshd,
 
     ck_tile::HostTensor<AccDataType> s_host_ref({nhead_q, seqlen_q, seqlen_kv});
     ck_tile::HostTensor<PDataType> p_host_ref({nhead_q, seqlen_q, seqlen_kv});
-
     // do computation for each batch
     for(int b = 0; b < batch_size; ++b)
     {
         // copy per-batch data from input tensors
         // clang-format off
-    q_host_ref.ForEach([&](auto& self, auto idx) { self(idx) = q_bshd(b, idx[1], idx[0]     ,
-    idx[2]); }); k_host_ref.ForEach([&](auto& self, auto idx) { self(idx) = k_bshd(b, idx[1],
-    idx[0] / nr, idx[2]); }); v_host_ref.ForEach([&](auto& self, auto idx) { self(idx) =
-    v_bshd(b, idx[2], idx[0] / nr, idx[1]); });
+        q_host_ref.ForEach([&](auto& self, auto idx) { self(idx) = q_bshd(b, idx[1], idx[0]     ,
+        idx[2]); }); 
+        k_host_ref.ForEach([&](auto& self, auto idx) { self(idx) = k_bshd(b, idx[1],
+        idx[0] / nr, idx[2]); });
+        v_host_ref.ForEach([&](auto& self, auto idx) { self(idx) =
+        v_bshd(b, idx[2], idx[0] / nr, idx[1]); });
         // clang-format on
         ck_tile::reference_batched_gemm<QDataType, KDataType, AccDataType>(
             q_host_ref, k_host_ref, s_host_ref, q_element_op, k_element_op, s_acc_element_op);
 
-        if(mask.type == mask_enum::no_mask)
-        {
-            ck_tile::reference_batched_masking(s_host_ref, FmhaMasks::NoMask{seqlen_q, seqlen_kv});
-        }
-        else if(mask.type == mask_enum::window_generic)
-        {
-            ck_tile::reference_batched_masking(
-                s_host_ref,
-                ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                    mask.left, mask.right, seqlen_q, seqlen_kv));
-        }
-        else
-        {
-            // if left window size is negative, means causal
-            // else means generic (for current batch)
-            if(mask.left < 0)
-                ck_tile::reference_batched_masking(
-                    s_host_ref,
-                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
-                        mask.left,
-                        mask.right,
-                        seqlen_q,
-                        seqlen_kv,
-                        mask.type == mask_enum::mask_top_left));
-            else
-                ck_tile::reference_batched_masking(
-                    s_host_ref,
-                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                        mask.left,
-                        mask.right,
-                        seqlen_q,
-                        seqlen_kv,
-                        mask.type == mask_enum::mask_top_left));
-        }
-
+        ck_tile::reference_batched_masking(
+            s_host_ref,
+            ck_tile::make_generic_attention_mask_from_lr_window<UnifiedAttentionMasks::CausalMask>(
+                -1,
+                0,
+                seqlen_q,
+                seqlen_kv,
+                1,
+                false));
         ck_tile::reference_batched_softmax<AccDataType, AccDataType>(
             s_host_ref, p_host_ref, ck_tile::identity{});
-
         ck_tile::reference_batched_gemm<PDataType, VDataType, AccDataType>(
             p_host_ref, v_host_ref, o_host_ref, ck_tile::identity{}, v_element_op);
-
+        
         // copy resulting per-batch data to the output tensor
         o_host_ref.ForEach(
             [&](auto& self, auto idx) { o_bshd(b, idx[1], idx[0], idx[2]) = self(idx); });
@@ -303,6 +333,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     ck_tile::unified_attention_args args{};
 
+    args.scale_s            = problem.scale_s;
     args.data_type          = problem.data_type;
     args.num_seqs           = problem.batch;
     args.num_head_q         = problem.nhead_q;
@@ -369,8 +400,8 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     };
     calculate_cumulative(eff_query_lens, cu_query_lens);
 
-    ck_tile::DeviceMem seq_lens_buf(eff_kv_lens.size());
-    ck_tile::DeviceMem query_start_len_buf(cu_query_lens.size());
+    ck_tile::DeviceMem seq_lens_buf(eff_kv_lens.size() * sizeof(ck_tile::index_t));
+    ck_tile::DeviceMem query_start_len_buf(cu_query_lens.size() * sizeof(ck_tile::index_t));
 
     seq_lens_buf.ToDevice(eff_kv_lens.data());
     query_start_len_buf.ToDevice(cu_query_lens.data());
@@ -428,7 +459,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     if(!result)
     {
-        std::cerr << "faild to run fmha_fwd_v3()" << std::endl;
+        std::cerr << "faild to run unified_attention()" << std::endl;
         return false;
     }
 
@@ -471,7 +502,18 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     std::cout << "[" << problem.data_type << "|";
     std::cout << "] b:" << problem.batch << ", h:" << problem.nhead_q << "/" << problem.nhead_kv
-              << ", d:" << problem.hdim << ", mask:" << problem.mask << std::fixed << ", "
+              << ", d:" << problem.hdim << ", scale_s:" << problem.scale_s
+              << ", query_lens:[";
+    for (size_t i = 0; i < problem.query_lens.size(); ++i) {
+        std::cout << problem.query_lens[i];
+        if (i < problem.query_lens.size() - 1) std::cout << ",";
+    }
+    std::cout << "], kv_lens:[";
+    for (size_t i = 0; i < problem.kv_lens.size(); ++i) {
+        std::cout << problem.kv_lens[i];
+        if (i < problem.kv_lens.size() - 1) std::cout << ",";
+    }
+    std::cout << "], mask:" << "causal mask" << std::fixed << ", "
               << std::setprecision(8) << time << " ms, " << std::setprecision(2) << tflops
               << " TFlops, " << std::setprecision(2)
               << (static_cast<double>(mem) / 1e12 / (time / 1e3)) << " TB/s" << std::endl;
@@ -500,11 +542,12 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         ck_tile::HostTensor<DataType> k_b({1, seqlen_kv_eff, problem.nhead_kv, problem.hdim});
         ck_tile::HostTensor<DataType> v_b({1, seqlen_kv_eff, problem.nhead_kv, problem.hdim});
         ck_tile::HostTensor<DataType> o_b({1, seqlen_q_eff, problem.nhead_q, problem.hdim});
+        ck_tile::index_t seq_q_off = cu_query_lens[b];
 
         // Copy effective region
         q_b.ForEach([&](auto& self, auto idx) {
             // idx: [0, s, h, d]
-            self(idx) = q(b, idx[1], idx[2], idx[3]);
+            self(idx) = q(seq_q_off + idx[1], idx[2], idx[3]);
         });
         k_b.ForEach([&](auto& self, auto idx) {
             // kv cache is paged
@@ -527,7 +570,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         host::fmha_fwd<float, DataType>(q_b,
                                         k_b,
                                         v_b,
-                                        problem.mask,
+                                        // problem.mask,
                                         o_b,
                                         ck_tile::identity{},
                                         ck_tile::identity{},
@@ -541,7 +584,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
             {
                 for(int d = 0; d < problem.hdim; ++d)
                 {
-                    o_ref(b, s, h, d) = o_b(0, s, h, d);
+                    o_ref(seq_q_off + s, h, d) = o_b(0, s, h, d);
                 }
             }
         }
@@ -550,13 +593,62 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     ck_tile::HostTensor<DataType> o(problem.get_output_shape());
     o_buf.FromDevice(o.data());
 
+
     const auto [rtol, atol] = [&] {
         if constexpr(std::is_same_v<DataType, ck_tile::fp16_t>)
             return std::make_tuple(1e-3, 1e-3);
         else
             return std::make_tuple(1e-2, 1e-2);
     }();
-    return ck_tile::check_err(o, o_ref, std::string("found incorrect results!"), rtol, atol);
+    
+    size_t total = static_cast<size_t>(problem.num_tokens) *
+                   static_cast<size_t>(problem.nhead_q) *
+                   static_cast<size_t>(problem.hdim);
+
+    size_t nonzero = 0;
+
+    for (int tok = 0; tok < problem.num_tokens; ++tok) {
+        for (int h = 0; h < problem.nhead_q; ++h) {
+            for (int d = 0; d < problem.hdim; ++d) {
+                if (static_cast<float>(o(tok, h, d)) != 0.0f) {
+                        nonzero++;
+                }
+            }
+        }
+    }
+
+    float percent = (total > 0)
+        ? (100.0f * static_cast<float>(nonzero) / static_cast<float>(total))
+        : 0.0f;
+
+    std::cout << "\nNon-zero elements in output tensor o: "
+              << nonzero << " / " << total
+              << " (" << percent << "%)\n";
+
+    // std::cout << "\n=== Complete Output Tensor (o) ===\n";
+    // for (int tok = 0; tok < problem.num_tokens; ++tok) {
+    //     std::cout << "Token " << tok << ":\n";
+    //     for (int h = 0; h < problem.nhead_q; ++h) {
+    //         std::cout << "  Head " << h << ": ";
+    //         for (int d = 0; d < problem.hdim; ++d) {
+    //             std::cout << static_cast<float>(o(tok, h, d)) << " ";
+    //         }
+    //         std::cout << "\n";
+    //     }
+    // }
+
+    // std::cout << "\n=== Complete Reference Tensor (o_ref) ===\n";
+    // for (int tok = 0; tok < problem.num_tokens; ++tok) {
+    //     std::cout << "Token " << tok << ":\n";
+    //     for (int h = 0; h < problem.nhead_q; ++h) {
+    //         std::cout << "  Head " << h << ": ";
+    //         for (int d = 0; d < problem.hdim; ++d) {
+    //             std::cout << static_cast<float>(o_ref(tok, h, d)) << " ";
+    //         }
+    //         std::cout << "\n";
+    //     }
+    // }
+    return  ck_tile::check_err(o, o_ref, std::string("found incorrect results!"), rtol, atol);
 }
 
 int main(int argc, char* argv[])

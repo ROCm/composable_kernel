@@ -8,6 +8,7 @@
 
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/host/stream_config.hpp"
+#include "ck_tile/ops/unified_attention.hpp"
 
 namespace ck_tile {
 
@@ -76,3 +77,10 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
                                          const stream_config& config);
 
 } // namespace ck_tile
+
+struct UnifiedAttentionMasks
+{
+    using NoMask      = ck_tile::GenericAttentionMask<false>;
+    using GenericMask = ck_tile::GenericAttentionMask<true, true>;
+    using CausalMask  = ck_tile::GenericAttentionMask<true, false>;
+};

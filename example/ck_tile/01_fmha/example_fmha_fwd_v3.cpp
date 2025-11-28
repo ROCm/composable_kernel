@@ -463,17 +463,33 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     }
 
     std::size_t flop = [&] {
-        if(problem.mask.type == mask_enum::no_mask)
+        long flop_result = 0;
+
+        for(int b = 0; b < problem.batch; ++b)
         {
-            return 4 * problem.batch * problem.nhead_q * problem.seqlen_q * problem.seqlen_k *
-                   problem.hdim;
+            long query_lens         = has_varlen_q ? eff_q_vec[b] : problem.seqlen_q;
+            long kv_lens            = has_varlen_k ? eff_kv_vec[b] : problem.seqlen_k;
+            long valid_out_elements = 0;
+
+            if(problem.mask.type == mask_enum::no_mask) {
+                valid_out_elements = kv_lens * query_lens;
+            } else {
+                if(query_lens > kv_lens)
+                {
+                    valid_out_elements = (kv_lens * kv_lens + kv_lens) / 2;
+                }
+                else
+                {
+                    valid_out_elements =
+                        query_lens * kv_lens - ((query_lens * query_lens - query_lens) / 2);
+                }
+
+            }
+            // Causal logic for valid output elements
+
+            flop_result += 2 * problem.nhead_q * valid_out_elements * (problem.hdim + problem.hdim);
         }
-        else
-        {
-            /// FIXME: Use a more accurate method; for now, we’re just dividing the flop by 2.
-            return 2 * problem.batch * problem.nhead_q * problem.seqlen_q * problem.seqlen_k *
-                   problem.hdim;
-        }
+        return flop_result;
     }();
     float tflops = static_cast<float>(flop) / 1.e9 / time;
 
