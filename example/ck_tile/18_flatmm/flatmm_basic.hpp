@@ -137,38 +137,6 @@ struct GemmBasicTypeConfig<ck_tile::bf8_t>
 };
 
 template <typename T>
-struct DataTypeTraits;
-
-template <>
-struct DataTypeTraits<ck_tile::fp8_t>
-{
-    static constexpr const char* name = "fp8";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::bf8_t>
-{
-    static constexpr const char* name = "bf8";
-};
-template <>
-struct DataTypeTraits<float>
-{
-    static constexpr const char* name = "fp32";
-};
-
-template <>
-struct DataTypeTraits<double>
-{
-    static constexpr const char* name = "fp64";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::half_t>
-{
-    static constexpr const char* name = "fp16";
-};
-
-template <typename T>
 struct is_8bit_type
     : std::bool_constant<std::is_same_v<T, ck_tile::fp8_t> || std::is_same_v<T, ck_tile::bf8_t>>
 {

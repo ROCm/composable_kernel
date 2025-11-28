@@ -105,13 +105,13 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
         }
 
         auto reset_data_buffers = [&]() {
-            if(ReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic)
+            if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic)
             {
                 // Clear the output C tensor results after each repetition of the kernel
                 hipGetErrorString(hipMemsetAsync(
                     args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
             }
-            else if(ReductionStrategy == ck_tile::StreamKReductionStrategy::Reduction)
+            else if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Reduction)
             {
                 // Reset sk flags to zero before each repetition of the kernel
                 workspace_data.SetZero();
