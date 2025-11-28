@@ -68,7 +68,7 @@ inline __host__ __device__ constexpr double get_atol()
 
 void print_helper_msg()
 {
-    std::cout << "arg1: verification (0=no, 1=CPU, 2=GPU, 3=GPU vs CPU)\n"
+    std::cout << "arg1: verification (0=no, 1=CPU, 2=GPU)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
               << "arg3: time kernel (0=no, 1=yes)\n"
               << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
@@ -172,28 +172,24 @@ int run_conv_bwd_data(int do_verification,
                                  wei_element_op,
                                  out_element_op);
 
-    // Skip optimized kernel for v=3 (direct GPU vs CPU comparison)
-    if(do_verification != 3)
+    // Check if optimized kernel supports these parameters
+    if(!conv.IsSupportedArgument(argument.get()))
     {
-        // Check if optimized kernel supports these parameters
-        if(!conv.IsSupportedArgument(argument.get()))
-        {
-            std::cout << "Not support,please check parameters or device";
-            return 0;
-        }
-
-        // Run optimized kernel
-        float ave_time = invoker.Run(argument.get(), StreamConfig{nullptr, time_kernel});
-
-        std::size_t flop      = conv_param.GetFlops();
-        std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
-
-        float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-        float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s" << std::endl;
+        std::cout << "Not support,please check parameters or device";
+        return 0;
     }
+
+    // Run optimized kernel
+    float ave_time = invoker.Run(argument.get(), StreamConfig{nullptr, time_kernel});
+
+    std::size_t flop      = conv_param.GetFlops();
+    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+              << std::endl;
 
     std::cout << "do_verification = " << do_verification << std::endl;
 
@@ -276,79 +272,6 @@ int run_conv_bwd_data(int do_verification,
         std::cout << "GPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
 
         return pass ? 0 : 1;
-    }
-    else if(do_verification == 3)
-    {
-        // v=3: Compare GPU reference vs CPU reference directly (bypasses optimized kernel)
-        // NOTE: This is temporary verification code to ensure GPU reference correctness.
-        //       Will be removed once GPU reference implementation is fully validated.
-        std::cout << "Comparing GPU reference vs CPU reference (no optimized kernel)..."
-                  << std::endl;
-
-        // Run CPU reference first to get expected result
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
-                                                                         InDataType,
-                                                                         WeiDataType,
-                                                                         OutDataType,
-                                                                         InElementOp,
-                                                                         WeiElementOp,
-                                                                         OutElementOp>();
-
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(in_host,
-                                                  wei,
-                                                  out,
-                                                  conv_param.conv_filter_strides_,
-                                                  conv_param.conv_filter_dilations_,
-                                                  conv_param.input_left_pads_,
-                                                  conv_param.input_right_pads_,
-                                                  in_element_op,
-                                                  wei_element_op,
-                                                  out_element_op);
-
-        ref_invoker.Run(ref_argument);
-
-        // Run GPU reference
-        DeviceMem in_device_ref_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
-        in_device_ref_buf.SetZero();
-
-        // Extract dimensions and launch kernel
-        ck::ref::ConvDims dims = ck::utils::conv::extract_conv_dims(conv_param, NDimSpatial);
-
-        constexpr ck::index_t block_size    = 256;
-        const ck::long_index_t input_length = dims.N * dims.Di * dims.Hi * dims.Wi * dims.C;
-        const ck::index_t grid_size         = (input_length + block_size - 1) / block_size;
-
-        auto gpu_ref_kernel = ck::ref::naive_conv_bwd_data_ndhwc_kzyxc_ndhwk<InDataType,
-                                                                             WeiDataType,
-                                                                             OutDataType,
-                                                                             float,
-                                                                             InElementOp,
-                                                                             WeiElementOp,
-                                                                             OutElementOp>;
-
-        gpu_ref_kernel<<<dim3(grid_size), dim3(block_size), 0, nullptr>>>(
-            reinterpret_cast<InDataType*>(in_device_ref_buf.GetDeviceBuffer()),
-            reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-            reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            dims);
-
-        HIP_CHECK_ERROR(hipDeviceSynchronize());
-
-        // Copy GPU reference result
-        Tensor<InDataType> in_gpu(in_host.mDesc);
-        in_device_ref_buf.FromDevice(in_gpu.mData.data());
-
-        // Compare GPU ref vs CPU ref
-        bool pass_v3 = ck::utils::check_err(in_gpu,
-                                            in_host,
-                                            "Error: GPU ref != CPU ref",
-                                            get_rtol<InDataType, float>(),
-                                            get_atol<InDataType, float>());
-
-        std::cout << "GPU vs CPU result is:" << (pass_v3 ? "correct" : "fail") << std::endl;
-
-        return pass_v3 ? 0 : 1;
     }
 
     return 0;

@@ -230,54 +230,6 @@ int run_grouped_conv_bwd_data_example_with_layouts(
                   << std::endl;
         std::cout << "The GPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
-    else if(arg_parser.get_int("v") == 3)
-    {
-        // v=3: Compare GPU reference vs CPU reference (bypasses optimized kernel)
-        // NOTE: This is temporary verification code to ensure GPU reference correctness.
-        //       Will be removed once GPU reference implementation is fully validated.
-        std::cout << "Comparing GPU reference vs CPU reference (no optimized kernel)..."
-                  << std::endl;
-
-        // Run CPU reference
-        ck_tile::HostTensor<InDataType> input_cpu_ref(in_g_n_c_wis_desc);
-        input_cpu_ref.SetZero();
-
-        ck_tile::reference_grouped_conv_bwd_data<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-            input_cpu_ref,
-            weight,
-            output,
-            conv_param.conv_filter_strides_,
-            conv_param.conv_filter_dilations_,
-            conv_param.input_left_pads_,
-            conv_param.input_right_pads_);
-
-        // Run GPU reference
-        ck_tile::DeviceMem input_gpu_dev_buf(input.get_element_space_size_in_bytes());
-        input_gpu_dev_buf.SetZero();
-
-        ck_tile::naive_grouped_conv_bwd_data<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-            reinterpret_cast<InDataType*>(input_gpu_dev_buf.GetDeviceBuffer()),
-            reinterpret_cast<const WeiDataType*>(weight_dev_buf.GetDeviceBuffer()),
-            reinterpret_cast<const OutDataType*>(output_dev_buf.GetDeviceBuffer()),
-            conv_param.G_,
-            conv_param.N_,
-            conv_param.K_,
-            conv_param.C_,
-            conv_param.input_spatial_lengths_,
-            conv_param.filter_spatial_lengths_,
-            conv_param.output_spatial_lengths_,
-            conv_param.conv_filter_strides_,
-            conv_param.conv_filter_dilations_,
-            conv_param.input_left_pads_);
-
-        // Copy GPU result
-        ck_tile::HostTensor<InDataType> input_gpu_ref(in_g_n_c_wis_desc);
-        input_gpu_dev_buf.FromDevice(input_gpu_ref.data());
-
-        // Compare
-        pass = ck_tile::check_err(input_gpu_ref, input_cpu_ref);
-        std::cout << "GPU vs CPU result is:" << (pass ? "correct" : "fail") << std::endl;
-    }
 
     return pass;
 }
