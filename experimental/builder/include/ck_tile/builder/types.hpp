@@ -11,6 +11,7 @@ namespace ck_tile::builder {
 
 enum class DataType
 {
+    UNDEFINDED = 0,
     FP32,
     FP16,
     BF16,
@@ -19,11 +20,19 @@ enum class DataType
     U8
 };
 
+// TODO: This might be redundant.
+enum class ConvolutionTensorType
+{
+    Input,
+    Weight,
+    Output,
+    Bias
+};
+
 enum class BiasLayout
 {
     GC,
     G_C_strided,
-    //GK,
     G_K_strided
 };
 
@@ -172,6 +181,29 @@ struct ConvBiasLayout
     constexpr ConvBiasLayout(ConvOutputLayout3D layout) : _conv_output_layout(layout) {}
 };
 
+struct ConvLayout
+{
+    union {
+        ConvInputLayout _input_layout;
+        ConvWeightLayout _weight_layout;
+        ConvOutputLayout _output_layout;
+        ConvBiasLayout _bias_layout;
+    };
+
+    constexpr ConvLayout(ConvInputLayout layout) : _input_layout(layout) {}
+    constexpr ConvLayout(ConvWeightLayout layout) : _weight_layout(layout) {}
+    constexpr ConvLayout(ConvOutputLayout layout) : _output_layout(layout) {}
+    constexpr ConvLayout(ConvBiasLayout layout) : _bias_layout(layout) {}
+};
+
+struct TensorConfig
+{
+    ConvLayout layout;
+    // Optional data types, override the type defined in the signature if provided.
+    DataType data_type{DataType::UNDEFINDED};
+    DataType compute_type{DataType::UNDEFINDED};
+};
+
 // Direction of the convolution operation.
 enum class ConvDirection
 {
@@ -183,12 +215,9 @@ enum class ConvDirection
 // Fused element-wise operations.
 enum class ElementwiseOperation
 {
-    BIAS,
-    BIAS_CLAMP,
     BIAS_BNORM_CLAMP,
-    BILINEAR,
-    CLAMP,
     SCALE,
+    CLAMP,
     PASS_THROUGH,
     SCALEADD_SCALEADD_RELU
 };
@@ -297,6 +326,7 @@ inline std::ostream& operator<<(std::ostream& os, DataType dt)
     case FP8: return os << "FP8";
     case I8: return os << "I8";
     case U8: return os << "U8";
+    case UNDEFINDED: return os << "UNDEFINDED";
     default: return os << "Unknown";
     }
 }
@@ -318,13 +348,10 @@ inline std::ostream& operator<<(std::ostream& os, ElementwiseOperation op)
     using enum ElementwiseOperation;
     switch(op)
     {
-    case BIAS: return os << "BIAS";
-    case BIAS_CLAMP: return os << "BIAS_CLAMP";
-    case BIAS_BNORM_CLAMP: return os << "BIAS_BNORM_CLAMP";
-    case BILINEAR: return os << "BILINEAR";
     case CLAMP: return os << "CLAMP";
     case SCALE: return os << "SCALE";
     case PASS_THROUGH: return os << "PASS_THROUGH";
+    case BIAS_BNORM_CLAMP: return os << "BIAS_BNORM_CLAMP";
     case SCALEADD_SCALEADD_RELU: return os << "SCALEADD_SCALEADD_RELU";
     default: return os << "Unknown";
     }

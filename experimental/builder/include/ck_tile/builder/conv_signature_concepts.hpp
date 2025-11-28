@@ -30,33 +30,105 @@ concept ConvSpatialDim = std::is_integral_v<decltype(N)> && (N == 1 || N == 2 ||
 
 // Constrains convolution data types to common floating-point types.
 template <DataType T>
-concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
+concept ValidConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
                        (T == DataType::FP8) || (T == DataType::I8) || (T == DataType::U8);
 
 template <typename T>
-concept HasBiasLayout = requires(T t) {
-    { t.bias_layout };
+concept TensorConfigDescriptor = requires(T t) {
+    { t.layout } -> std::convertible_to<ConvLayout>;
+    // Only require that data type is defined. It might be set to undefined value, in which case the signature's data type is used.
+    { t.data_type } -> std::convertible_to<DataType>;
 };
 
 template <typename T>
-concept ConvertibleToArrayOfConvBiasLayout = 
-    std::is_same_v<std::remove_cvref_t<T>, std::array<ConvBiasLayout, std::tuple_size_v<std::remove_cvref_t<T>>>>;
+concept HasAuxiliaryOperandConfigs = requires(T t) {
+    { t.auxiliary_operand_configs };
+};
 
 template <typename T>
-concept BiasLayoutWellDefinedIfProvided = requires(T t) {
-    requires !HasBiasLayout<T> || requires {
-        { t.bias_layout } -> ConvertibleToArrayOfConvBiasLayout;
+concept ConvertibleToArrayOfTensorConfigs = 
+    std::is_same_v<std::remove_cvref_t<T>, std::array<TensorConfig, std::tuple_size_v<std::remove_cvref_t<T>>>>;
+
+template <typename T>
+concept AuxiliaryOperandConfigsWellDefinedIfProvided = requires(T t) {
+    requires !HasAuxiliaryOperandConfigs<T> || requires {
+        { t.auxiliary_operand_configs } -> ConvertibleToArrayOfTensorConfigs;
     };
 };
 
 template <typename T>
-concept ConvLayoutDescriptor = requires(T t) {
-    { t.input_layout } -> std::convertible_to<ConvInputLayout>;
-    { t.weight_layout } -> std::convertible_to<ConvWeightLayout>;
-    { t.output_layout } -> std::convertible_to<ConvOutputLayout>;
-    requires BiasLayoutWellDefinedIfProvided<T>;
+concept TensorOperatorDescriptor = requires(T t) {
+    { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
+    requires AuxiliaryOperandConfigsWellDefinedIfProvided<T>;
 };
 
+template <typename T>
+concept HasTensorOp = requires(T t) {
+    { t.operation };
+};
+
+template <typename T>
+concept HasConvolutionDirection = requires(T t) {
+    { t.direction };
+};
+
+// Note: it is not required to provide an ElementwiseOp, but if one is provided, check if well
+// defined
+template <typename T>
+concept ElementwiseOpWellDefinedIfProvided = requires { !HasTensorOp<T> || TensorOperatorDescriptor<T>;};
+
+// Note: it is not required to provide a convolution, but if one is provided, check if well defined
+template <typename T>
+concept ConvolutionDirectionWellDefinedIfProvided = requires(T t) {
+    requires !HasConvolutionDirection<T> || requires {
+        { t.direction } -> std::convertible_to<ConvDirection>;
+    };
+};
+
+// Concept for the convolution tensor
+template <typename T>
+concept ConvTensorDescriptor = requires(T t) {
+    { t.type } -> std::convertible_to<ConvolutionTensorType>;
+    { t.config } -> TensorConfigDescriptor;
+    requires ElementwiseOpWellDefinedIfProvided<T>;
+};
+
+template <typename T>
+concept HasElementwiseOpWithAuxiliaryOperands = requires(T t) {
+    requires HasTensorOp<T>;
+    requires HasAuxiliaryOperandConfigs<decltype(t.operation)>;
+};
+
+// Concept for a type that defines a convolution's operational signature.
+template <typename T>
+concept ConvSignatureDescriptor = requires(T t) {
+    { t.spatial_dim } -> std::convertible_to<unsigned int>;
+    { t.data_type } -> std::convertible_to<DataType>;
+    { t.input } -> ConvTensorDescriptor;
+    { t.weight } -> ConvTensorDescriptor;
+    { t.output } -> ConvTensorDescriptor;
+    requires ConvolutionDirectionWellDefinedIfProvided<T>;
+};
+
+// Concept to validate a convolution signature's values.
+template <auto Sig>
+concept ValidConvSignature = requires {
+    requires ConvSpatialDim<Sig.spatial_dim>;
+    requires ValidConvDataType<Sig.data_type>;
+};
+
+// Predicate for forward convolution (default if direction is not included).
+template <auto Sig>
+concept ConvDirectionIsForward =
+    !requires { Sig.direction; } || (Sig.direction == ConvDirection::FORWARD);
+
+// Predicate for backward data convolution.
+template <auto Sig>
+concept ConvDirectionIsBackwardData = (Sig.direction == ConvDirection::BACKWARD_DATA);
+
+// Predicate for backward weight convolution.
+template <auto Sig>
+concept ConvDirectionIsBackwardWeight = (Sig.direction == ConvDirection::BACKWARD_WEIGHT);
 
 // Constraints for forward convolution input layouts.
 template <auto LayoutValue, size_t SpatialDim>
@@ -78,69 +150,5 @@ concept ValidConvWeightLayoutForSpatialDim =
     (SpatialDim == 1 && std::same_as<decltype(LayoutValue._1d), ConvWeightLayout1D>) ||
     (SpatialDim == 2 && std::same_as<decltype(LayoutValue._2d), ConvWeightLayout2D>) ||
     (SpatialDim == 3 && std::same_as<decltype(LayoutValue._3d), ConvWeightLayout3D>);
-
-template <typename T>
-concept HasElementwiseOp = requires(T t) {
-    { t.elementwise_operation };
-};
-
-template <typename T>
-concept HasConvolutionDirection = requires(T t) {
-    { t.direction };
-};
-
-template <typename T>
-concept ElementwiseOperationDescriptor = requires(T t) {
-    { t.input_op } -> std::convertible_to<ElementwiseOperation>;
-    { t.weight_op } -> std::convertible_to<ElementwiseOperation>;
-    { t.output_op } -> std::convertible_to<ElementwiseOperation>;
-};
-
-// Note: it is not required to provide an ElementwiseOp, but if one is provided, check if well
-// defined
-template <typename T>
-concept ElementwiseOpWellDefinedIfProvided = requires(T t) {
-    requires !HasElementwiseOp<T> || requires {
-        { t.elementwise_operation } -> ElementwiseOperationDescriptor;
-    };
-};
-
-// Note: it is not required to provide a convolution, but if one is provided, check if well defined
-template <typename T>
-concept ConvolutionDirectionWellDefinedIfProvided = requires(T t) {
-    requires !HasConvolutionDirection<T> || requires {
-        { t.direction } -> std::convertible_to<ConvDirection>;
-    };
-};
-
-// Concept for a type that defines a convolution's operational signature.
-template <typename T>
-concept ConvSignatureDescriptor = requires(T t) {
-    { t.spatial_dim } -> std::convertible_to<unsigned int>;
-    { t.layout } -> ConvLayoutDescriptor;
-    { t.data_type } -> std::convertible_to<DataType>;
-    requires ElementwiseOpWellDefinedIfProvided<T>;
-    requires ConvolutionDirectionWellDefinedIfProvided<T>;
-};
-
-// Concept to validate a convolution signature's values.
-template <auto Sig>
-concept ValidConvSignature = requires {
-    requires ConvSpatialDim<Sig.spatial_dim>;
-    requires ConvDataType<Sig.data_type>;
-};
-
-// Predicate for forward convolution (default if direction is not included).
-template <auto Sig>
-concept ConvDirectionIsForward =
-    !requires { Sig.direction; } || (Sig.direction == ConvDirection::FORWARD);
-
-// Predicate for backward data convolution.
-template <auto Sig>
-concept ConvDirectionIsBackwardData = (Sig.direction == ConvDirection::BACKWARD_DATA);
-
-// Predicate for backward weight convolution.
-template <auto Sig>
-concept ConvDirectionIsBackwardWeight = (Sig.direction == ConvDirection::BACKWARD_WEIGHT);
 
 } // namespace ck_tile::builder

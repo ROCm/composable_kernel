@@ -60,6 +60,7 @@
 #include "ck_tile/builder/conv_signature_utils.hpp"
 #include "ck_tile/builder/conv_layout_utils.hpp"
 #include "ck_tile/builder/conv_data_type_utils.hpp"
+#include "ck_tile/builder/conv_elementwise_op_utils.hpp"
 
 namespace ck_tile::builder::factory_internal {
 
@@ -85,60 +86,6 @@ consteval auto get_output_layout_value(ConvOutputLayout layout) {
     else if constexpr (SPATIAL_DIM == 2) return layout._2d;
     else if constexpr (SPATIAL_DIM == 3) return layout._3d;
     else static_assert(false, "Unsupported spatial dimension");
-}
-
-template <auto InputOpValue, auto WeightOpValue, auto OutputOpValue>
-struct ElementwiseOps
-{
-    // This will trigger if a specialization for the given ElementwiseOps combination is not found.
-    // We should always catch this in an earlier validation check.
-    static_assert(sizeof(UnsupportedEnumValue<InputOpValue>) == 0,
-                  "Internal error. Unsupported elementwise operation for convolution factory.");
-};
-
-template <>
-struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::PASS_THROUGH>
-{
-    using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
-    using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
-    using CDEElementwiseOp = ck::tensor_operation::element_wise::PassThrough;
-};
-
-template <>
-struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::SCALE>
-{
-    using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
-    using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
-    using CDEElementwiseOp = ck::tensor_operation::element_wise::Scale;
-};
-
-template <>
-struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::PASS_THROUGH, ElementwiseOperation::SCALEADD_SCALEADD_RELU>
-{
-    using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
-    using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
-    using CDEElementwiseOp = ck::tensor_operation::element_wise::ScaleAddScaleAddRelu;
-};
-
-struct PassThroughOp
-{
-    using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
-    using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
-    using CDEElementwiseOp = ck::tensor_operation::element_wise::PassThrough;
-};
-
-template <auto Sig>
-requires (HasElementwiseOp<decltype(Sig)>)
-constexpr auto GetElementwiseOp()
-{
-    return ElementwiseOps<Sig.elementwise_operation.input_op, Sig.elementwise_operation.weight_op, Sig.elementwise_operation.output_op>{};
-}
-
-template <auto Sig>
-requires (!HasElementwiseOp<decltype(Sig)>)
-constexpr auto GetElementwiseOp()
-{
-    return PassThroughOp{};
 }
 
 // The algorithm specializations for the convolution and GEMM.
@@ -387,15 +334,15 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
+    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE,
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
-    using BiasLayouts = decltype(factory_internal::GetBiasTensorLayout<SIGNATURE.layout,
+    using AuxiliaryLayouts = decltype(factory_internal::GetAuxiliaryTensorLayouts<SIGNATURE,
                                                                                  SPATIAL_DIM,
                                                                                  ConvDirection::FORWARD>());
                                                                 
-    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = decltype(factory_internal::GetElementwiseOp<SIGNATURE>());
+    using Types         = factory_internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Ops           = decltype(factory_internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
 
     static_assert(ALGORITHM.transfer.a.lds_transfer.is_direct_load ==
@@ -435,13 +382,13 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         SPATIAL_DIM,
         typename Layouts::ALayout,
         typename Layouts::BLayout,
-        typename BiasLayouts::DsLayout,
+        typename AuxiliaryLayouts::DsLayout,
         typename Layouts::ELayout,
         typename Types::ADataType,
         typename Types::BDataType,
         typename Types::AccDataType,
         typename Types::CShuffleDataType,
-        typename BiasLayouts::DsDataTypes,
+        typename Types::DsDataTypes,
         typename Types::EDataType,
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
@@ -493,15 +440,15 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
+    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE,
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
-    using BiasLayouts = decltype(factory_internal::GetBiasTensorLayout<SIGNATURE.layout,
-                                                                             SPATIAL_DIM,
-                                                                             ConvDirection::FORWARD>());
-
-    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = decltype(factory_internal::GetElementwiseOp<SIGNATURE>());
+    using AuxiliaryLayouts = decltype(factory_internal::GetAuxiliaryTensorLayouts<SIGNATURE,
+                                                                                 SPATIAL_DIM,
+                                                                                 ConvDirection::FORWARD>());
+                                                                
+    using Types         = factory_internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Ops           = decltype(factory_internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION =
@@ -536,13 +483,13 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         SPATIAL_DIM,
         typename Layouts::ALayout,
         typename Layouts::BLayout,
-        typename BiasLayouts::DsLayout,
+        typename AuxiliaryLayouts::DsLayout,
         typename Layouts::ELayout,
         typename Types::ADataType,
         typename Types::BDataType,
         typename Types::AccDataType,
         typename Types::CShuffleDataType,
-        typename BiasLayouts::DsDataTypes,
+        typename Types::DsDataTypes,
         typename Types::EDataType,
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
@@ -594,15 +541,15 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
+    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE,
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
-    using BiasLayouts = decltype(factory_internal::GetBiasTensorLayout<SIGNATURE.layout,
-                                                                             SPATIAL_DIM,
-                                                                             ConvDirection::FORWARD>());
-
-    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = decltype(factory_internal::GetElementwiseOp<SIGNATURE>());
+    using AuxiliaryLayouts = decltype(factory_internal::GetAuxiliaryTensorLayouts<SIGNATURE,
+                                                                                 SPATIAL_DIM,
+                                                                                 ConvDirection::FORWARD>());
+                                                                
+    using Types         = factory_internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Ops           = decltype(factory_internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION =
@@ -639,13 +586,13 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         SPATIAL_DIM,
         typename Layouts::ALayout,
         typename Layouts::BLayout,
-        typename BiasLayouts::DsLayout,
+        typename AuxiliaryLayouts::DsLayout,
         typename Layouts::ELayout,
         typename Types::ADataType,
         typename Types::BDataType,
         typename Types::AccDataType,
         typename Types::CShuffleDataType,
-        typename BiasLayouts::DsDataTypes,
+        typename Types::DsDataTypes,
         typename Types::EDataType,
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
@@ -694,15 +641,15 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
+    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE,
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
-    using BiasLayouts = decltype(factory_internal::GetBiasTensorLayout<SIGNATURE.layout,
-                                                                             SPATIAL_DIM,
-                                                                             ConvDirection::FORWARD>());
-
-    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = decltype(factory_internal::GetElementwiseOp<SIGNATURE>());
+    using AuxiliaryLayouts = decltype(factory_internal::GetAuxiliaryTensorLayouts<SIGNATURE,
+                                                                                 SPATIAL_DIM,
+                                                                                 ConvDirection::FORWARD>());
+                                                                
+    using Types         = factory_internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Ops           = decltype(factory_internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION =
@@ -769,12 +716,12 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         SPATIAL_DIM,
         typename Types::ADataType,
         typename Types::BDataType,
-        typename BiasLayouts::DsDataTypes,
+        typename Types::DsDataTypes,
         typename Types::EDataType,
         typename Types::AccDataType,
         typename Layouts::ALayout,
         typename Layouts::BLayout,
-        typename BiasLayouts::DsLayout,
+        typename AuxiliaryLayouts::DsLayout,
         typename Layouts::ELayout,
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
@@ -821,15 +768,15 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
+    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE,
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
-    using BiasLayouts = decltype(factory_internal::GetBiasTensorLayout<SIGNATURE.layout,
-                                                                             SPATIAL_DIM,
-                                                                             ConvDirection::FORWARD>());
-
-    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = decltype(factory_internal::GetElementwiseOp<SIGNATURE>());
+    using AuxiliaryLayouts = decltype(factory_internal::GetAuxiliaryTensorLayouts<SIGNATURE,
+                                                                                 SPATIAL_DIM,
+                                                                                 ConvDirection::FORWARD>());
+                                                                
+    using Types         = factory_internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Ops           = decltype(factory_internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
 
     static constexpr auto BASE_ALGORITHM = ALGORITHM.base_algorithm;
@@ -866,13 +813,13 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
             SPATIAL_DIM,
             typename Layouts::ALayout,
             typename Layouts::BLayout,
-            typename BiasLayouts::DsLayout,
+            typename AuxiliaryLayouts::DsLayout,
             typename Layouts::ELayout,
             typename Types::ADataType,
             typename Types::BDataType,
             typename Types::AccDataType,
             typename Types::CShuffleDataType,
-            typename BiasLayouts::DsDataTypes,
+            typename Types::DsDataTypes,
             typename Types::EDataType,
             typename Ops::AElementwiseOp,
             typename Ops::BElementwiseOp,

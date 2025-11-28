@@ -10,40 +10,31 @@ namespace ck_tile::builder::test {
 
 using namespace ck_tile::builder;
 
-template <auto... BiasLayouts>
-struct ConvLayout
+template <TensorConfig... Configs>
+struct TensorOperation
 {
-    ConvInputLayout input_layout;
-    ConvWeightLayout weight_layout;
-    ConvOutputLayout output_layout;
-    std::array<ConvBiasLayout, sizeof...(BiasLayouts)> bias_layout{ConvBiasLayout{BiasLayouts}...};
-
-    template<auto... Layouts>
-    constexpr auto with_bias_layout() const
-    {
-        return ConvLayout<BiasLayouts..., ConvBiasLayout{Layouts}...>{
-            .input_layout = this->input_layout,
-            .weight_layout = this->weight_layout,
-            .output_layout = this->output_layout
-        };
-    }
+    ElementwiseOperation elementwise_operation{ElementwiseOperation::PASS_THROUGH};
+    std::array<TensorConfig, sizeof...(Configs)> auxiliary_operand_configs{Configs...};
 };
 
-struct ElementwiseOperations
+template <typename Op>
+struct ConvolutionTensor
 {
-    ElementwiseOperation input_op{ElementwiseOperation::PASS_THROUGH};
-    ElementwiseOperation weight_op{ElementwiseOperation::PASS_THROUGH};
-    ElementwiseOperation output_op{ElementwiseOperation::PASS_THROUGH};
+    ConvolutionTensorType type;
+    TensorConfig config;
+    Op operation;
 };
 
-template <typename GroupConvLayout>
+template <typename InputTensor, typename WeightTensor, typename OutputTensor>
 struct ConvSignature
 {
     int spatial_dim;
     ConvDirection direction;
-    GroupConvLayout layout;
     DataType data_type;
-    ElementwiseOperations elementwise_operation;
+    DataType accumulation_data_type;
+    InputTensor input;
+    WeightTensor weight;
+    OutputTensor output;
 };
 
 } // namespace ck_tile::builder::test

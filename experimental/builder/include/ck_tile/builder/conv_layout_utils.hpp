@@ -9,10 +9,9 @@
 namespace ck_tile::builder::factory_internal
 {
 
-struct EmptyBiasLayout 
+struct EmptyAuxiliaryTensorLayout 
 {
     using DsLayout = ck::Tuple<>;
-    using DsDataTypes = ck::Tuple<>;
 };
 
 template <auto Layout>
@@ -20,9 +19,10 @@ consteval bool IsGenericBiasLayoutActive() {
     return requires { typename std::integral_constant<BiasLayout, Layout._bias_layout>; };
 }
 
-template <auto Layout, size_t SPATIAL_DIM>
-consteval auto GetBiasLayoutValue()
+template <auto Config, size_t SPATIAL_DIM>
+consteval auto GetAuxiliaryTensorLayoutValue()
 {
+    constexpr auto Layout = Config.layout;
     if constexpr (IsGenericBiasLayoutActive<Layout>())
     {
         constexpr auto val = Layout._bias_layout;
@@ -63,45 +63,39 @@ consteval auto GetBiasLayoutValue()
     }
 }
 
-template <auto BiasLayoutsArray, size_t SPATIAL_DIM, size_t... Indices>
-consteval auto GetBiasLayoutTuple(std::index_sequence<Indices...>)
+template <auto AuxiliaryTensorConfigsArray, size_t SPATIAL_DIM, size_t... Indices>
+consteval auto GetAuxiliaryTensorLayoutTuple(std::index_sequence<Indices...>)
 {
-    return ck::Tuple<decltype(GetBiasLayoutValue<BiasLayoutsArray[Indices], SPATIAL_DIM>())...>{};
+    // TODO: Use std::tuple instead of ck::Tuple
+    return ck::Tuple<decltype(GetAuxiliaryTensorLayoutValue<AuxiliaryTensorConfigsArray[Indices], SPATIAL_DIM>())...>{};
 }
 
-// TODO: Remove hardcoding of bhalf_t
-template <size_t N, size_t... Is>
-consteval auto GetBiasTypesTuple(std::index_sequence<Is...>)
-{
-    return ck::Tuple<decltype((void(Is), ck::bhalf_t{}))...>{}; 
-}
-
-template <auto BiasLayoutValue, size_t SPATIAL_DIM, ConvDirection DIR>
+template <auto AuxiliaryTensorConfigsValue, size_t SPATIAL_DIM, ConvDirection DIR>
     requires(ConvSpatialDim<SPATIAL_DIM>)
-struct ConvBiasTensorLayouts
+struct AuxiliaryTensorLayouts
 {
-    static constexpr auto Size = BiasLayoutValue.size();
-    
-    using DsLayout = decltype(GetBiasLayoutTuple<BiasLayoutValue, SPATIAL_DIM>(std::make_index_sequence<Size>{}));
-    using DsDataTypes = decltype(GetBiasTypesTuple<Size>(std::make_index_sequence<Size>{}));
+    static constexpr auto Size = AuxiliaryTensorConfigsValue.size();
+    using DsLayout = decltype(GetAuxiliaryTensorLayoutTuple<AuxiliaryTensorConfigsValue, SPATIAL_DIM>(std::make_index_sequence<Size>{}));
 };
 
-template <auto Layout, size_t SPATIAL_DIM, ConvDirection DIR>
-requires (HasBiasLayout<decltype(Layout)>)
-consteval auto GetBiasTensorLayout()
+// TODO: Currently only the ouput tensor can have auxiliary tensors (e.g., bias).
+template <auto Signature, size_t SPATIAL_DIM, ConvDirection DIR>
+requires (HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
+consteval auto GetAuxiliaryTensorLayouts()
 {
-    return factory_internal::ConvBiasTensorLayouts<Layout.bias_layout, SPATIAL_DIM, DIR>{};
+    return AuxiliaryTensorLayouts<
+        Signature.output.operation.auxiliary_operand_configs, SPATIAL_DIM, DIR>{};
 }
 
-template <auto Layout, size_t SPATIAL_DIM, ConvDirection DIR>
-requires (!HasBiasLayout<decltype(Layout)>)
-consteval auto GetBiasTensorLayout()
+template <auto Signature, size_t SPATIAL_DIM, ConvDirection DIR>
+requires (!HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
+consteval auto GetAuxiliaryTensorLayouts()
 {
-    return EmptyBiasLayout{};
+    return EmptyAuxiliaryTensorLayout{};
 }
 
 template <auto Layout, size_t SPATIAL_DIM>
-consteval auto GetCKInputLayout()
+consteval auto GetInputLayout()
 {
     if constexpr(SPATIAL_DIM == 1)
     {
@@ -136,7 +130,7 @@ consteval auto GetCKInputLayout()
 }
 
 template <auto Layout, size_t SPATIAL_DIM>
-consteval auto GetCKWeightLayout()
+consteval auto GetWeightLayout()
 {
     if constexpr(SPATIAL_DIM == 1)
     {
@@ -165,7 +159,7 @@ consteval auto GetCKWeightLayout()
 }
 
 template <auto Layout, size_t SPATIAL_DIM>
-consteval auto GetCKOutputLayout()
+consteval auto GetOutputLayout()
 {
     if constexpr(SPATIAL_DIM == 1)
     {
@@ -207,17 +201,17 @@ template <auto InputLayoutValue, auto WeightLayoutValue, auto OutputLayoutValue,
 struct ConvTensorLayouts
 {
     static_assert(DIR == ConvDirection::FORWARD, "Only Forward convolution is supported.");
-    using ALayout = decltype(GetCKInputLayout<InputLayoutValue, SPATIAL_DIM>());
-    using BLayout = decltype(GetCKWeightLayout<WeightLayoutValue, SPATIAL_DIM>());
-    using ELayout = decltype(GetCKOutputLayout<OutputLayoutValue, SPATIAL_DIM>());
+    using ALayout = decltype(GetInputLayout<InputLayoutValue, SPATIAL_DIM>());
+    using BLayout = decltype(GetWeightLayout<WeightLayoutValue, SPATIAL_DIM>());
+    using ELayout = decltype(GetOutputLayout<OutputLayoutValue, SPATIAL_DIM>());
 };
 
-template <auto Layout, size_t SPATIAL_DIM, ConvDirection DIR>
+template <auto Signature, size_t SPATIAL_DIM, ConvDirection DIR>
 consteval auto GetTensorLayout()
 {
-    constexpr auto INPUT_LAYOUT = Layout.input_layout;
-    constexpr auto WEIGHT_LAYOUT = Layout.weight_layout;  
-    constexpr auto OUTPUT_LAYOUT = Layout.output_layout;
+    constexpr auto INPUT_LAYOUT = Signature.input.config.layout._input_layout;
+    constexpr auto WEIGHT_LAYOUT = Signature.weight.config.layout._weight_layout;  
+    constexpr auto OUTPUT_LAYOUT = Signature.output.config.layout._output_layout;
 
     return factory_internal::ConvTensorLayouts<INPUT_LAYOUT, WEIGHT_LAYOUT, OUTPUT_LAYOUT, SPATIAL_DIM, DIR>{};
 }
