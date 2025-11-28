@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -18,6 +18,8 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
 #include <gtest/gtest.h>
+
+using ::ck::HostTensorDescriptor;
 
 using DataType = float;
 using ImLayout = ck::tensor_layout::convolution::GNWC;

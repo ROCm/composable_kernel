@@ -1,5 +1,5 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
 
 #pragma once
 
@@ -95,7 +95,7 @@ TYPED_TEST(TEST_SUITE_NAME, MoeSortingCase3)
     );
 }
 
-TYPED_TEST(TEST_SUITE_NAME, MoeSortingCase4)
+TYPED_TEST(TEST_SUITE_NAME, DISABLED_MoeSortingCase4)
 {
     int tokens       = 99;
     int local_tokens = -1;

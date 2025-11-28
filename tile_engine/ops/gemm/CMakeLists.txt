@@ -1,5 +1,5 @@
 set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
-set(GEMM_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
+set(GEMM_LAYOUT "rcr;rrr;crr;ccr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
 set(GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM "Enable ccache for GEMM ops compilation" OFF)
 
@@ -57,13 +57,16 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
                 --kernel_name "gemm_${datatype}_${layout}_${trait}_${tile_config}"
                 --tile_config "${tile_config}"
                 --trait_combo "${trait}"
+                --gpu_target "${GEMM_GPU_TARGETS_INDIVIDUAL}"
         DEPENDS ${GEMM_SOURCE_DIR}/gemm_instance_builder.py ${config_json}
         COMMENT "Generating ${instance_header}"
     )
 
     # Create the executable
     add_executable(${target_name}
-        ${GEMM_SOURCE_DIR}/benchmark_gemm_single.cpp
+        # to save build time, exclude the target from "all" target of "gemm" directory and its ancestors
+        EXCLUDE_FROM_ALL
+        ${GEMM_SOURCE_DIR}/gemm_benchmark_single.cpp
         ${instance_header}
     )
 
@@ -101,9 +104,9 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
     list(GET trait_parts 1 epilogue)
     list(GET trait_parts 2 scheduler)
 
-    add_dependencies(benchmark_gemm_${pipeline} ${target_name})
-    add_dependencies(benchmark_gemm_${epilogue} ${target_name})
-    add_dependencies(benchmark_gemm_${scheduler} ${target_name})
+    add_dependencies(benchmark_gemm_${pipeline}_pipeline ${target_name})
+    add_dependencies(benchmark_gemm_${epilogue}_epilogue ${target_name})
+    add_dependencies(benchmark_gemm_${scheduler}_scheduler ${target_name})
 endfunction()
 
 # Function to build individual GEMM targets
@@ -120,15 +123,15 @@ function(build_individual_gemm_targets datatype layout)
     if(DEFINED ENV{GEMM_CONFIG_FILE} AND NOT "$ENV{GEMM_CONFIG_FILE}" STREQUAL "")
         set(config_filename "$ENV{GEMM_CONFIG_FILE}")
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${config_filename}")
-        message(STATUS "  Using config from environment variable: ${config_filename}")
+        message(VERBOSE "  Using config from environment variable: ${config_filename}")
     elseif(NOT "${GEMM_CONFIG_FILE}" STREQUAL "")
         # Use CMake variable if set
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${GEMM_CONFIG_FILE}")
-        message(STATUS "  Using custom config: ${GEMM_CONFIG_FILE}")
+        message(VERBOSE "  Using custom config: ${GEMM_CONFIG_FILE}")
     else()
         # Use default config for all layouts
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
-        message(STATUS "  Using default config for layout ${layout}")
+        message(VERBOSE "  Using default config for layout ${layout}")
     endif()
 
     # Check if config file exists
@@ -149,31 +152,33 @@ function(build_individual_gemm_targets datatype layout)
     endif()
 
     # Generate individual kernel files using parallel version
-    message(STATUS "Generating individual kernels for ${datatype} ${layout} using ${num_workers} workers...")
-    message(STATUS "  Working path: ${working_path}")
-    message(STATUS "  Config file: ${json_blob}")
-    message(STATUS "  Python executable: ${Python3_EXECUTABLE}")
-    message(STATUS "  Script path: ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py")
+    message(VERBOSE "Generating individual kernels for ${datatype} ${layout} using ${num_workers} workers...")
+    message(VERBOSE "  Working path: ${working_path}")
+    message(VERBOSE "  Config file: ${json_blob}")
+    message(VERBOSE "  Python executable: ${Python3_EXECUTABLE}")
+    message(VERBOSE "  Script path: ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py")
 
     # Create working directory first
     file(MAKE_DIRECTORY ${working_path})
 
-    message(STATUS "COMMAND: ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
+    message(VERBOSE "COMMAND: ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
                 --working_path ${working_path}
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json ${json_blob}
-                --list_kernels")
+                --gpu_target ${GEMM_GPU_TARGETS_INDIVIDUAL}
+                --list_kernels ")
 
     # First, just list the kernels (fast operation)
-    message(STATUS "  Listing kernel configurations...")
+    message(VERBOSE "  Listing kernel configurations...")
     execute_process(
         COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
                 --working_path ${working_path}
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json ${json_blob}
-                --list_kernels
+                --gpu_target ${GEMM_GPU_TARGETS_INDIVIDUAL}
+                --list_kernels  
         WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
         RESULT_VARIABLE ret
         OUTPUT_VARIABLE list_output
@@ -188,7 +193,7 @@ function(build_individual_gemm_targets datatype layout)
     if(EXISTS ${working_path}/gemm_kernel_count.txt)
         file(READ ${working_path}/gemm_kernel_count.txt kernel_count)
         string(STRIP "${kernel_count}" kernel_count)
-        message(STATUS "  Found ${kernel_count} kernel configurations")
+        message(VERBOSE "  Found ${kernel_count} kernel configurations")
     else()
         message(FATAL_ERROR "Kernel count file not found")
     endif()
@@ -212,10 +217,10 @@ function(build_individual_gemm_targets datatype layout)
 endfunction()
 
 # Main build logic - Only individual builds supported
-message(STATUS "=== Starting Tile Engine GEMM Configuration ===")
-message(STATUS "GEMM_DATATYPE: ${GEMM_DATATYPE}")
-message(STATUS "GEMM_LAYOUT: ${GEMM_LAYOUT}")
-message(STATUS "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+message(VERBOSE "=== Starting Tile Engine GEMM Configuration ===")
+message(VERBOSE "GEMM_DATATYPE: ${GEMM_DATATYPE}")
+message(VERBOSE "GEMM_LAYOUT: ${GEMM_LAYOUT}")
+message(VERBOSE "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 
 # Filter GPU targets to only gfx90a, gfx942, gfx950, gfx1201
 set(GEMM_GPU_TARGETS_INDIVIDUAL "")
@@ -224,7 +229,7 @@ set(DESIRED_TARGETS "gfx90a;gfx942;gfx950;gfx1201")
 foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
     if(target IN_LIST DESIRED_TARGETS)
         list(APPEND GEMM_GPU_TARGETS_INDIVIDUAL ${target})
-        message(STATUS "  Adding GPU target: ${target}")
+        message(VERBOSE "  Adding GPU target: ${target}")
     endif()
 endforeach()
 
@@ -232,7 +237,7 @@ endforeach()
 if(NOT GEMM_GPU_TARGETS_INDIVIDUAL)
     message(WARNING "Skipping Tile Engine GEMM build: No supported GPU targets (gfx90a, gfx942, gfx950, gfx1201) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 else()
-    message(STATUS "Building individual GEMM targets for GPU targets: ${GEMM_GPU_TARGETS_INDIVIDUAL}")
+    message(VERBOSE "Building individual GEMM targets for GPU targets: ${GEMM_GPU_TARGETS_INDIVIDUAL}")
 
     # Enable parallel compilation optimizations
     # Set up job pools for better parallel compilation control
@@ -247,12 +252,12 @@ else()
         find_program(CCACHE_PROGRAM ccache)
         if(CCACHE_PROGRAM)
             set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-            message(STATUS "Using ccache for faster compilation")
+            message(VERBOSE "Using ccache for faster compilation")
         else()
             message(WARNING "ccache requested but not found")
         endif()
     else()
-        message(STATUS "ccache disabled for GEMM ops (use -DENABLE_CCACHE_GEMM=ON to enable)")
+        message(VERBOSE "ccache disabled for GEMM ops (use -DENABLE_CCACHE_GEMM=ON to enable)")
     endif()
 
     # Create master collection targets
@@ -282,15 +287,15 @@ else()
     set(GEMM_SCHEDULERS "intrawave;interwave")
 
     foreach(pipeline IN LISTS GEMM_PIPELINES)
-        add_custom_target(benchmark_gemm_${pipeline})
+        add_custom_target(benchmark_gemm_${pipeline}_pipeline)
     endforeach()
 
     foreach(epilogue IN LISTS GEMM_EPILOGUES)
-        add_custom_target(benchmark_gemm_${epilogue})
+        add_custom_target(benchmark_gemm_${epilogue}_epilogue)
     endforeach()
 
     foreach(scheduler IN LISTS GEMM_SCHEDULERS)
-        add_custom_target(benchmark_gemm_${scheduler})
+        add_custom_target(benchmark_gemm_${scheduler}_scheduler)
     endforeach()
 
     # Build individual targets for each datatype/layout combination

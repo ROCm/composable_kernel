@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -161,8 +161,43 @@ struct BatchedGemmKernel
     }
 
     CK_TILE_HOST static auto
-    IsSupportedArgument(const typename UniversalGemmKernel::KernelArgs& kargs) -> bool
+    IsSupportedArgument(const typename BatchedGemmKernel::KernelArgs& kargs) -> bool
     {
+        if(kargs.batch_count < 1)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Conditions not met: batch_count must be at least 1 !");
+            }
+            return false;
+        }
+        if(kargs.batch_stride_A < 0 || kargs.batch_stride_A < kargs.M * kargs.K)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR(
+                    "Conditions not met: batch_stride_A must be non-negative and at least K * M!");
+            }
+            return false;
+        }
+        if(kargs.batch_stride_B < 0 || kargs.batch_stride_B < kargs.K * kargs.N)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR(
+                    "Conditions not met: batch_stride_B must be non-negative and at least K * N!");
+            }
+            return false;
+        }
+        if(kargs.batch_stride_E < 0 || kargs.batch_stride_E < kargs.M * kargs.N)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR(
+                    "Conditions not met: batch_stride_E must be non-negative and at least M * N!");
+            }
+            return false;
+        }
         return UniversalGemmKernel::IsSupportedArgument(kargs);
     }
 
@@ -193,10 +228,34 @@ struct BatchedGemmKernel
         CDataType* c_ptr          = static_cast<CDataType*>(kargs.e_ptr) + batch_offset_C;
 
         // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
+        __shared__ char smem_ptr0[GetSmemSize()];
 
-        UniversalGemmKernel::RunGemm(
-            {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
+        {
+            __shared__ char smem_ptr1[GetSmemSize()];
+            UniversalGemmKernel::RunGemm2LDS({a_ptr},
+                                             {b_ptr},
+                                             {/*ds_ptr*/},
+                                             c_ptr,
+                                             smem_ptr0,
+                                             smem_ptr1,
+                                             kargs,
+                                             splitk_batch_offset,
+                                             i_m,
+                                             i_n);
+        }
+        else
+        {
+            UniversalGemmKernel::RunGemm({a_ptr},
+                                         {b_ptr},
+                                         {/*ds_ptr*/},
+                                         c_ptr,
+                                         smem_ptr0,
+                                         kargs,
+                                         splitk_batch_offset,
+                                         i_m,
+                                         i_n);
+        }
     }
 };
 

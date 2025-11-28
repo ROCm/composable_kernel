@@ -1,6 +1,5 @@
-
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/host/device_batched_gemm_softmax_gemm/problem.hpp"
 #include "ck/host/device_batched_gemm_softmax_gemm/operation.hpp"

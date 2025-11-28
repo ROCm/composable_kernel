@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -117,14 +117,28 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_FP32
                 if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                             is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
-                             is_same_v<ComputeTypeB, F32>)
+                             is_same_v<OutDataType, F32>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(op_ptrs);
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_16_16_instances(
-                        op_ptrs);
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_optimized_loads_instances(
-                        op_ptrs);
+                    static_assert(is_same_v<ComputeTypeA, ComputeTypeB>,
+                                  "Error: this operator requires the same compute type");
+                    if constexpr(is_same_v<ComputeTypeA, TF32>)
+                    {
+                        add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_tf32_instances(
+                            op_ptrs);
+                        add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_tf32_16_16_instances(
+                            op_ptrs);
+                        add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_tf32_optimized_loads_instances(
+                            op_ptrs);
+                    }
+                    else
+                    {
+                        add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(
+                            op_ptrs);
+                        add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_16_16_instances(
+                            op_ptrs);
+                        add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_optimized_loads_instances(
+                            op_ptrs);
+                    }
                 }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -272,15 +286,28 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_FP32
                 if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                             is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
-                             is_same_v<ComputeTypeB, F32>)
+                             is_same_v<OutDataType, F32>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_instances(
-                        op_ptrs);
-                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_16_16_instances(
-                        op_ptrs);
-                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_optimized_loads_instances(
-                        op_ptrs);
+                    static_assert(is_same_v<ComputeTypeA, ComputeTypeB>,
+                                  "Error: this operator requires the same compute type");
+                    if constexpr(is_same_v<ComputeTypeA, F32>)
+                    {
+                        add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_instances(
+                            op_ptrs);
+                        add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_16_16_instances(
+                            op_ptrs);
+                        add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_optimized_loads_instances(
+                            op_ptrs);
+                    }
+                    else if constexpr(is_same_v<ComputeTypeA, TF32>)
+                    {
+                        add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_tf32_instances(
+                            op_ptrs);
+                        add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_tf32_16_16_instances(
+                            op_ptrs);
+                        add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_tf32_optimized_loads_instances(
+                            op_ptrs);
+                    }
                 }
 #endif
 #ifdef CK_ENABLE_BF16

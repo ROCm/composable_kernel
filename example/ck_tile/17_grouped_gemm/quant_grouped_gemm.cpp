@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -28,7 +28,9 @@ template <typename GemmConfig,
           typename BDataType,
           typename BQDataType,
           typename AccDataType,
-          typename CDataType>
+          typename CDataType,
+          typename QuantGroupSize,
+          ck_tile::QuantType QuantMode = ck_tile::QuantType::BQuantGrouped>
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
                             void* kargs_ptr)
@@ -44,19 +46,20 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
     using TilePartitioner = ck_tile::
         GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-    constexpr ck_tile::QuantType QuantMode = ck_tile::QuantType::RowColQuant;
-    using GemmUniversalTraits              = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
-                                                                          GemmConfig::kPadN,
-                                                                          GemmConfig::kPadK,
-                                                                          false,
-                                                                          ALayout,
-                                                                          BLayout,
-                                                                          CLayout,
-                                                                          QuantMode,
-                                                                          AQLayout,
-                                                                          BQLayout,
-                                                                          GemmConfig::DoubleSmemBuffer,
-                                                                          true>;
+    using GemmUniversalTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
+                                                             GemmConfig::kPadN,
+                                                             GemmConfig::kPadK,
+                                                             false, // PreshuffleQuant
+                                                             GemmConfig::PreshuffleB,
+                                                             ALayout,
+                                                             BLayout,
+                                                             CLayout,
+                                                             QuantMode,
+                                                             AQLayout,
+                                                             BQLayout,
+                                                             GemmConfig::TransposeC,
+                                                             GemmConfig::DoubleSmemBuffer,
+                                                             true>; // Persistence
 
     float ave_time{0};
 
@@ -65,18 +68,33 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
         constexpr auto memory_operation = memory_operation_.value;
         constexpr bool transpose_c      = false;
 
-        using QuantGemmProblem = ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
-                                                                               BDataType,
-                                                                               AccDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               transpose_c,
-                                                                               BDataType,
-                                                                               scheduler>;
+        using QuantGemmProblem = typename std::conditional<
+            QuantMode == ck_tile::QuantType::BQuantGrouped,
+            ck_tile::GemmBQuantPipelineProblem<ADataType,
+                                               BDataType,
+                                               BQDataType,
+                                               AccDataType,
+                                               GemmShape,
+                                               GemmUniversalTraits,
+                                               QuantGroupSize>,
+            ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
+                                                          BDataType,
+                                                          AccDataType,
+                                                          AccDataType,
+                                                          GemmShape,
+                                                          GemmUniversalTraits,
+                                                          transpose_c,
+                                                          BDataType,
+                                                          scheduler>>::type;
 
-        using GemmPipeline = typename PipelineTypeTraits<
-            GemmConfig::Pipeline>::template GemmPipeline<QuantGemmProblem>;
+        using GemmPipeline = std::conditional_t<
+            QuantMode == ck_tile::QuantType::RowColQuant ||
+                QuantMode == ck_tile::QuantType::TensorQuant,
+            ck_tile::GemmPipelineAgBgCrCompV3<QuantGemmProblem>,
+            std::conditional_t<GemmConfig::PreshuffleB == true,
+                               ck_tile::WPQuantBPipelineAgBgCrV2<QuantGemmProblem>,
+                               ck_tile::BQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>>>;
+
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -128,5 +146,6 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
 int main(int argc, char* argv[])
 {
-    return !run_grouped_gemm_example<GemmConfigComputeV3_2>(argc, argv);
+    int result1 = !run_grouped_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv);
+    return result1;
 }

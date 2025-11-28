@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -73,6 +73,13 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
         return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                           ck_tile::bf8_t,
                                           ck_tile::bf8_t,
+                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
+    }
+    else if(data_type == "int4")
+    {
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                          ck_tile::fp8_t,
+                                          ck_tile::pk_int4_t,
                                           ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
     else

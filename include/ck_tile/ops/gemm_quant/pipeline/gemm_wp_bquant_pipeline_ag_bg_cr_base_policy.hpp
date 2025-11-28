@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -15,10 +15,11 @@ struct GemmWPQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelin
     {
         using BQDataType              = remove_cvref_t<typename Problem::BQDataType>;
         constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
+        constexpr index_t NPerBlockBQ = NPerBlock / Problem::QuantGroupSize::kN;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockBQ = KPerBlock / Problem::kQuantGroupSize;
+        constexpr index_t KPerBlockBQ = KPerBlock / Problem::QuantGroupSize::kK;
 
-        return GetABQGlobalVectorLoadSize<Problem, BQDataType, NPerBlock, KPerBlockBQ>();
+        return GetABQGlobalVectorLoadSize<Problem, BQDataType, NPerBlockBQ, KPerBlockBQ>();
     }
 
     template <typename Problem>

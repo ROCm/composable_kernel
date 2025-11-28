@@ -1,6 +1,5 @@
-
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -58,7 +57,7 @@ struct TransformConvFwdToGemm
             calculate_element_space_size_impl(c_g_n_k_wos_lengths, c_g_n_k_wos_strides, I1);
         const long_index_t element_space_size = math::max(a_element_space_size * sizeof(ADataType),
                                                           c_element_space_size * sizeof(CDataType));
-        constexpr long_index_t TwoGB          = (long_index_t{1} << 31);
+        constexpr long_index_t TwoGB          = (long_index_t{1} << 31); // 2GB threshold
 
         const IndexType N = a_g_n_c_wis_lengths[I1];
 

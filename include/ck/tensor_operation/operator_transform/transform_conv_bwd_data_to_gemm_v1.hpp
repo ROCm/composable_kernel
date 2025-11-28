@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -814,7 +814,7 @@ struct TransformConvBwdDataToGemm_v1
                                                                 IWTildeSliceBegin,
                                                                 GcdStrideDilationH_,
                                                                 GcdStrideDilationW_,
-                                                                AK0,
+                                                                AK0 * batch_k_,
                                                                 AK1,
                                                                 GemmMPerBlock,
                                                                 GemmKPerBlock)),

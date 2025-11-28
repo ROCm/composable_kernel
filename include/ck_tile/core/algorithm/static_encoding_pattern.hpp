@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
  * @file
@@ -25,7 +25,7 @@
  * (3) number of iterations to cover the entire Y axis.
 
  * The raked here represents how data is partitioned across different processing granularity.
- * It represents howe we are going to access the data in thread, warp, or blocked in contiguous
+ * It represents how we are going to access the data in thread, warp, or blocked in contiguous
  region.
  * From below, the qualifier for 'raked' is the part of warp/thread hierarchy
  * in the split of Y tile dimension where the iteration happens,
@@ -101,7 +101,7 @@ enum struct tile_distribution_pattern
      * @brief Block raked pattern - aka linear.
      *
      */
-    block_raked,
+    block_raked
 };
 
 struct tile_distribution_encoding_pattern
@@ -144,7 +144,6 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
                                              NumWaveGroups>
     : public tile_distribution_encoding_pattern
 {
-
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size  = get_warp_size();

@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #include <random>
-
 #pragma once
 
 struct ProblemSize final
@@ -37,6 +36,7 @@ struct ExecutionConfig final
 bool run_batched_gemm_rowwise(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
     using namespace ck::literals;
+    using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
     auto& [M,
            N,
@@ -65,12 +65,12 @@ bool run_batched_gemm_rowwise(const ProblemSize& problem_size, const ExecutionCo
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
             return HostTensorDescriptor(
-                {batch_count_, row, col}, {batch_stride, stride, 1_uz}, layout);
+                {batch_count_, row, col}, {batch_stride, stride, 1_uz}, Bypass{});
         }
         else
         {
             return HostTensorDescriptor(
-                {batch_count_, row, col}, {batch_stride, 1_uz, stride}, layout);
+                {batch_count_, row, col}, {batch_stride, 1_uz, stride}, Bypass{});
         }
     };
 

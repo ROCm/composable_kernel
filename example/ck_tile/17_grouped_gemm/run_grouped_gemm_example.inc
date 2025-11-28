@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 template <typename Layout>
@@ -70,23 +70,13 @@ float invoke_gemm(int n_warmup,
     }
     else
     {
-        if(GemmConfig::Preshuffle)
-        {
-            // not supported yet
-            throw std::runtime_error(
-                "Persistent grouped gemm with preshuffle is not supported yet");
-        }
-
-        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to haveCollapse
-        // commentComment on line L74tenpercent commented on Sep 5, 2025 tenpercenton Sep 5,
-        // 2025ContributorMore actionsdid you intend to remove the comment?Write a replyResolve
-        // commentCode has comments. Press enter to view. the gemm problems known on the host.
-        // Instead, we can just pass the pointer to the kernel and let the workgroups figure out
-        // which tiles to work on. This is useful when the gemm problems are generated dynamically.
-        // In this example however, we generate the `kargs` using the known gemm_descs,
-        // and copy the gemm descriptions to the device memory.
-        // The contents of the memory pointed to by `kargs_ptr` pointer could be
-        // written by e.g. another kernel from earlier stage.
+        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have the gemm
+        // problems known on the host. Instead, we can just pass the pointer to the kernel and let
+        // the workgroups figure out which tiles to work on. This is useful when the gemm problems
+        // are generated dynamically. In this example however, we generate the `kargs` using the
+        // known gemm_descs, and copy the gemm descriptions to the device memory. The contents of
+        // the memory pointed to by `kargs_ptr` pointer could be written by e.g. another kernel from
+        // earlier stage.
 
         std::vector<ck_tile::GemmTransKernelArg<>> kargs;
         void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
@@ -143,7 +133,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     auto [result, arg_parser] = create_args(argc, argv);
 
     auto valid_input_data = [&](int group_count, const auto&... args) {
-        return !(args.empty() || ...) && group_count == (args.size() == ...);
+        return group_count != 0 && ((args.size() == static_cast<size_t>(group_count)) && ...);
     };
 
     const int group_count = arg_parser.get_int("group_count");
@@ -243,7 +233,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
         // Perform preshuffle for B tensor
         if constexpr(GemmConfig::Preshuffle)
         {
-            ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n_tensors[i]);
+            ck_tile::HostTensor<BDataType> b_shuffle_host =
+                ck_tile::shuffle_b<GemmConfig>(b_k_n_tensors[i]);
             b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_shuffle_host));
         }
         else

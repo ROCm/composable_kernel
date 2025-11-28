@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <gtest/gtest.h>
 #include <vector>
@@ -29,6 +29,14 @@ struct elementwise_op_traits<ck_tile::element_wise::Add>
 };
 template <>
 struct elementwise_op_traits<ck_tile::element_wise::Relu>
+{
+    static constexpr int num_inputs = 1;
+};
+
+using NegRelu =
+    ck_tile::element_wise::Compose<ck_tile::element_wise::Relu, ck_tile::element_wise::Neg>;
+template <>
+struct elementwise_op_traits<NegRelu>
 {
     static constexpr int num_inputs = 1;
 };
@@ -194,7 +202,11 @@ using TestConfig_F16_Add = std::tuple<ck_tile::half_t,
                                       Shape1_BlockTile,
                                       Shape1_WarpTile>;
 
-using TestTypes = ::testing::Types<TestConfig_F32_Add, TestConfig_F32_Relu, TestConfig_F16_Add>;
+using TestConfig_F32_Neg_Relu =
+    std::tuple<float, float, float, NegRelu, Shape1_BlockWarps, Shape1_BlockTile, Shape1_WarpTile>;
+
+using TestTypes = ::testing::
+    Types<TestConfig_F32_Add, TestConfig_F32_Relu, TestConfig_F16_Add, TestConfig_F32_Neg_Relu>;
 
 TYPED_TEST_SUITE(TestCkTileElementwise, TestTypes);
 

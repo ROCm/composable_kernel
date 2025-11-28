@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,7 +9,7 @@
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "benchmark_gemm.hpp"
+#include "gemm_benchmark.hpp"
 
 class GemmProfiler
 {
@@ -96,7 +96,7 @@ class GemmProfiler
             // Permute vector pk_i4x4 data for device implementation
             ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
             // permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
-            permute_vectors_i4x4_b(b_k_n_dev);
+            ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
             b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
         }
         else

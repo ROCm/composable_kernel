@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -41,6 +41,8 @@ using long_number = constant<v>;
 
 template <bool b>
 using bool_constant = constant<b>;
+using true_type     = bool_constant<true>;
+using false_type    = bool_constant<false>;
 
 #define CK_TILE_LEFT_UNARY_OP(OP)                               \
     template <auto x>                                           \

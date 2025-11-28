@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include <sstream>
 #include <gtest/gtest.h>
 
@@ -13,40 +12,9 @@
 #include "ck_tile/ops/gemm/kernel/gemm_multi_abd_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
-struct AddScale
-{
-    template <typename E, typename A0, typename A1>
-    CK_TILE_HOST_DEVICE constexpr void operator()(E& a, const A0& a0, const A1& a1) const
-    {
-        a = scale * (ck_tile::type_convert<float>(a0) + ck_tile::type_convert<float>(a1));
-    }
-
-    float scale = 1.0;
-};
-
-struct MultiplyMultiply
-{
-    template <typename E, typename C, typename D0, typename D1>
-    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
-    {
-        const float x0_f = ck_tile::type_convert<float>(c) * ck_tile::type_convert<float>(d0) *
-                           ck_tile::type_convert<float>(d1);
-
-        e = ck_tile::type_convert<E>(x0_f);
-    }
-};
-
-struct ElementWiseAddAdd
-{
-    template <typename E, typename C, typename D0, typename D1>
-    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
-    {
-        const float x0_f = ck_tile::type_convert<float>(c) + ck_tile::type_convert<float>(d0) +
-                           ck_tile::type_convert<float>(d1);
-
-        e = ck_tile::type_convert<E>(x0_f);
-    }
-};
+using AddScale          = ck_tile::element_wise::AddScale;
+using ElementWiseAddAdd = ck_tile::element_wise::MultiDAdd;
+using MultiplyMultiply  = ck_tile::element_wise::MultiDMultiply;
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
