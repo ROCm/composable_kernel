@@ -16,6 +16,7 @@ enum class DataType
     FP16,
     BF16,
     FP8,
+    INT32,
     I8,
     U8
 };
@@ -316,6 +317,7 @@ inline std::ostream& operator<<(std::ostream& os, DataType dt)
     case FP32: return os << "FP32";
     case BF16: return os << "BF16";
     case FP8: return os << "FP8";
+    case INT32: return os << "INT32";
     case I8: return os << "I8";
     case U8: return os << "U8";
     case UNDEFINDED: return os << "UNDEFINDED";

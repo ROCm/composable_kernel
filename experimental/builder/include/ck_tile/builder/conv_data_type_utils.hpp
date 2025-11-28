@@ -59,6 +59,10 @@ consteval auto ConvertDataTypeToCK()
     {
         return CK_float{};
     }
+    else if constexpr (dt == DataType::INT32)
+    {
+        return CK_int32{};
+    }
     else if constexpr (dt == DataType::I8)
     {
         return CK_int8{};

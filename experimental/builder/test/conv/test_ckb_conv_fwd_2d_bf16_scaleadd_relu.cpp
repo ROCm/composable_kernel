@@ -37,12 +37,15 @@ TEST(FwdConvInstances,
             .with_prefetch_config(1, 1, PipelineScheduler::DEFAULT);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
-                       "NHWGC,GKYXC,Tuple(NHWGK,G_K),NHWGK", // Check layouts
-                       "PassThrough,PassThrough,ScaleAddScaleAddRelu", // Check elementwise ops
-                       "64,64,32,32",
-                       "MNKPadding",
-                       "Default"});
+    run_test<Builder>(
+        {
+            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
+            "NHWGC,GKYXC,Tuple(NHWGK,G_K),NHWGK",
+            "PassThrough,PassThrough,ScaleAddScaleAddRelu",
+            "64,64,32,32",
+            "MNKPadding",
+            "Default"
+        });
 }
 
 } // namespace
