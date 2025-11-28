@@ -1,5 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
@@ -25,6 +26,10 @@ struct BaseGemmPipelineAgBgCrCompAsync
 
     CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
+        if(num_loop == 1)
+        {
+            return TailNumber::One;
+        }
         if(num_loop % PrefetchStages == 1)
         {
             return TailNumber::Three;
@@ -64,6 +69,11 @@ struct BaseGemmPipelineAgBgCrCompAsync
             {
                 return run_func(bool_constant<false>{},
                                 integral_constant<TailNumber, TailNumber::Two>{});
+            }
+            else
+            {
+                return (run_func(bool_constant<false>{},
+                                 integral_constant<TailNumber, TailNumber::One>{}));
             }
         }
         // If execution reaches here, it's an invalid tail_number because it wasn't handled above.
@@ -154,6 +164,13 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
     static constexpr auto is_a_load_tr_v = bool_constant<PipelineImplBase::is_a_load_tr>{};
     static constexpr auto is_b_load_tr_v = bool_constant<PipelineImplBase::is_b_load_tr>{};
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
+    {
+        // clang-format off
+        return "COMPUTE_ASYNC";
+        // clang-format on
+    }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
@@ -472,6 +489,8 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                 }
                 {
+                    // write to LDS window(0) must complete before the local prefetch
+                    block_sync_lds_direct_load();
                     // read A(num_loop), B(num_loop) from LDS window(0) to pipeline registers(0)
                     Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0, is_b_load_tr_v);
@@ -483,7 +502,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                 }
             }
-            else
+            else if(TailNum == TailNumber::Two)
             // 2 block gemms remaining
             {
                 {
@@ -497,6 +516,12 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     // C(num_loop) = A(num_loop) @ B(num_loop)
                     block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                 }
+            }
+            else if(TailNum == TailNumber::One)
+            {
+                block_sync_lds();
+                block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+                __builtin_amdgcn_sched_barrier(0);
             }
             return c_block_tile;
         }

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -19,14 +19,19 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
 using F32 = float;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using ADataType         = F16;
 using BDataType         = F16;
@@ -138,12 +143,12 @@ int main(int argc, char* argv[])
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
             return HostTensorDescriptor(
-                {batch_count, row, col}, {row * stride, stride, 1_uz}, layout);
+                {batch_count, row, col}, {row * stride, stride, 1_uz}, Bypass{});
         }
         else
         {
             return HostTensorDescriptor(
-                {batch_count, row, col}, {col * stride, 1_uz, stride}, layout);
+                {batch_count, row, col}, {col * stride, 1_uz, stride}, Bypass{});
         }
     };
 

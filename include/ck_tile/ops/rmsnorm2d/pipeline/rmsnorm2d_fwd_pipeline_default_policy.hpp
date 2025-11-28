@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -67,15 +67,6 @@ struct Rmsnorm2dFwdPipelineDefaultPolicy
                                         typename Problem::ComputeDataType,
                                         typename Problem::BlockShape>;
         return BlockReduce2dCrossWarpSync<P_>{};
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockReduce2dTreeCrossWarpSync()
-    {
-        using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
-                                        typename Problem::ComputeDataType,
-                                        typename Problem::BlockShape>;
-        return BlockReduce2dTreeCrossWarpSync<P_>{};
     }
 
     template <typename Problem>

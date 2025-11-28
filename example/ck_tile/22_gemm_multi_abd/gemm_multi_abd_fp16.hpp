@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,15 +7,8 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
-
-#define CK_TILE_PIPELINE_COMPUTE_V3 1
-#define CK_TILE_PIPELINE_MEMORY 2
-#define CK_TILE_PIPELINE_COMPUTE_V4 3
-
-#ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
-#endif
 
 using A0DataType = ck_tile::half_t;
 using A1DataType = ck_tile::half_t;
@@ -49,9 +42,9 @@ struct GemmConfigMemory
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 8;
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::MEMORY;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
 struct GemmConfigV3
@@ -69,9 +62,9 @@ struct GemmConfigV3
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
 struct GemmConfigV4
@@ -90,9 +83,9 @@ struct GemmConfigV4
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool DoubleSmemBuffer     = true;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V4;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
 struct GemmConfigV3_Wmma
@@ -110,16 +103,16 @@ struct GemmConfigV3_Wmma
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
-template <ck_tile::index_t PipelineId>
+template <ck_tile::GemmPipeline PipelineId>
 struct PipelineTypeTraits;
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_MEMORY>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::MEMORY>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<PipelineProblem>;
@@ -128,7 +121,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_MEMORY>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::COMPUTE_V3>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>;
@@ -137,7 +130,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::COMPUTE_V4>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV4<PipelineProblem>;

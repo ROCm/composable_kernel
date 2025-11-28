@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -577,6 +577,15 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
             return false;
 
         if(!block_2_ctile_map.CheckValidity(c_m_n_grid_desc))
+        {
+            return false;
+        }
+
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+
+        if(!(a_b_k0_m_k1_grid_desc.GetElementSpaceSize() * sizeof(FloatA) <= TwoGB &&
+             b_b_k0_n_k1_grid_desc.GetElementSpaceSize() * sizeof(FloatB) <= TwoGB &&
+             c_m_n_grid_desc.GetElementSpaceSize() * sizeof(FloatC) <= TwoGB))
         {
             return false;
         }

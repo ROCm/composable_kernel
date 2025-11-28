@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -41,7 +41,8 @@ template <bool kPadM_,
           typename BQLayout_        = BLayout_,
           bool TransposeC_          = false,
           bool DoubleSmemBuffer_    = false,
-          bool UsePersistentKernel_ = false>
+          bool UsePersistentKernel_ = false,
+          int VectorSize_           = 16>
 struct TileGemmQuantTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -50,7 +51,7 @@ struct TileGemmQuantTraits
 
     static constexpr QuantType kQuantType = QuantType_;
 
-    static constexpr int _VectorSize       = 16;
+    static constexpr int _VectorSize       = VectorSize_;
     static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
 
     using ALayout  = ALayout_;

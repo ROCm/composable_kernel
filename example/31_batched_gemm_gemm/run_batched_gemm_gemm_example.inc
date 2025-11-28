@@ -1,7 +1,9 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 bool run_batched_gemm_gemm_example(int argc, char* argv[])
 {
@@ -111,12 +113,12 @@ bool run_batched_gemm_gemm_example(int argc, char* argv[])
         if(std::is_same<decltype(layout), Row>::value)
         {
             return HostTensorDescriptor(
-                {batch_count, row, col}, {batch_stride, stride, 1_uz}, layout);
+                {batch_count, row, col}, {batch_stride, stride, 1_uz}, Bypass{});
         }
         else
         {
             return HostTensorDescriptor(
-                {batch_count, row, col}, {batch_stride, 1_uz, stride}, layout);
+                {batch_count, row, col}, {batch_stride, 1_uz, stride}, Bypass{});
         }
     };
 

@@ -1,4 +1,7 @@
 #!/bin/bash 
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 #
 # in order to run this script you'd need the following python packages:
 

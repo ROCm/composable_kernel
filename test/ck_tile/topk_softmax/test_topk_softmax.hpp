@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cassert>
 #include <cstdlib>
@@ -37,6 +37,26 @@ auto reference_topk_softmax(const ck_tile::HostTensor<InputType>& x,
 
     auto y = reference_softmax<InputType, WeightType, WeightType>(x, dim);
     reference_topk(y, y_values, y_indices, k, dim, largest, sorted);
+}
+
+template <typename InputType, typename WeightType, typename IndexType = ck_tile::index_t>
+auto reference_topk_sigmoid(const ck_tile::HostTensor<InputType>& x,
+                            ck_tile::HostTensor<WeightType>& y_values,
+                            ck_tile::HostTensor<IndexType>& y_indices,
+                            ck_tile::index_t k,
+                            ck_tile::index_t dim = -1,
+                            bool largest         = true,
+                            bool sorted          = true)
+{
+    using namespace ck_tile;
+
+    // topk only - no need to apply the sigmoid first
+    auto x_fp32 = x.template CopyAsType<float>();
+    reference_topk(x_fp32, y_values, y_indices, k, dim, largest, sorted);
+    // apply sigmoid
+    std::transform(y_values.begin(), y_values.end(), y_values.begin(), [](auto value) {
+        return WeightType(1) / (WeightType(1) + exp(-value));
+    });
 }
 
 // different threshold for different dtype
@@ -87,7 +107,8 @@ auto create_args(int argc, char* argv[])
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "when set to 1 it will print kernel name")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel");
+        .insert("repeat", "20", "number of iterations to benchmark the kernel")
+        .insert("activation", "softmax", "activation function to use: softmax or sigmoid");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -108,6 +129,7 @@ bool test_topk_softmax(ck_tile::ArgParser args)
     int kname               = args.get_int("kname");
     int warmup              = args.get_int("warmup");
     int repeat              = args.get_int("repeat");
+    std::string activation  = args.get_str("activation");
 
     if(stride_input < 0)
     {
@@ -158,7 +180,7 @@ bool test_topk_softmax(ck_tile::ArgParser args)
 
     x_dev.ToDevice(x_host.data());
 
-    topk_softmax_trait trait{input_prec, weight_prec, experts};
+    topk_softmax_trait trait{input_prec, weight_prec, experts, activation};
 
     topk_softmax_kargs karg{x_dev.GetDeviceBuffer(),
                             value_dev.GetDeviceBuffer(),
@@ -175,7 +197,7 @@ bool test_topk_softmax(ck_tile::ArgParser args)
                               warmup,
                               repeat};
     auto ms = topk_softmax(trait, karg, sc);
-    printf("[%s|%s]tokens:%d, experts:%d, topk:%d, st_i:%d, st_o:%d, ms:%f, ",
+    printf("[%s|%s]tokens:%d, experts:%d, topk:%d, st_i:%d, st_o:%d, activation:%s, ms:%f, ",
            input_prec.c_str(),
            weight_prec.c_str(),
            tokens,
@@ -183,6 +205,7 @@ bool test_topk_softmax(ck_tile::ArgParser args)
            topk,
            stride_input,
            stride_output,
+           activation.c_str(),
            ms);
     if(ms < 0)
         printf("not supported\n");
@@ -201,8 +224,20 @@ bool test_topk_softmax(ck_tile::ArgParser args)
         ck_tile::HostTensor<WeightType> value_ref({tokens, topk}, {stride_output, 1});
         ck_tile::HostTensor<IndexType> index_ref({tokens, topk}, {stride_output, 1});
 
-        reference_topk_softmax<InputType, WeightType, IndexType>(
-            x_host, value_ref, index_ref, topk);
+        if(activation == "softmax")
+        {
+            reference_topk_softmax<InputType, WeightType, IndexType>(
+                x_host, value_ref, index_ref, topk);
+        }
+        else if(activation == "sigmoid")
+        {
+            reference_topk_sigmoid<InputType, WeightType, IndexType>(
+                x_host, value_ref, index_ref, topk);
+        }
+        else
+        {
+            throw std::runtime_error("unsupported activation type: " + activation);
+        }
 
         auto [rtol, atol] = get_elimit<InputType>("");
         for(int i_t = 0; i_t < tokens; i_t++)
@@ -255,7 +290,10 @@ int run_gemm_combinations(std::string const& data_type)
         {"-t=71", "-e=11", "-k=11", "-st_i=30", "-st_o=12"},
         {"-t=1", "-e=1", "-k=1"},
         {"-t=99", "-e=2", "-k=1", "-st_i=11", "-st_o=5"},
-        {"-t=333", "-e=99", "-k=13", "-st_i=191", "-st_o=17"}};
+        {"-t=333", "-e=99", "-k=13", "-st_i=191", "-st_o=17"},
+        {"-t=20", "-e=5", "-k=2", "-activation=sigmoid"},
+        {"-t=220", "-e=9", "-k=3", "-activation=sigmoid"},
+        {"-t=500", "-e=21", "-k=13", "-activation=sigmoid"}};
 
     bool result      = true;
     std::string pr_i = "-pr_i=" + data_type;

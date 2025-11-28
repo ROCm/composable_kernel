@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include "ck_tile/core.hpp"
@@ -12,6 +12,7 @@ struct topk_softmax_trait
     std::string input_type;
     std::string weight_type; // currently always float
     int experts;
+    std::string activation; // "softmax" or "sigmoid"
 };
 
 struct topk_softmax_kargs : public ck_tile::TopkSoftmaxHostArgs

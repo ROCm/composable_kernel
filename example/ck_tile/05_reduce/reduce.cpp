@@ -1,25 +1,10 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/reduce.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 #include <cstring>
-
-template <typename T>
-struct DataTypeTraits;
-
-template <>
-struct DataTypeTraits<ck_tile::half_t>
-{
-    static constexpr const char* name = "fp16";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::bf16_t>
-{
-    static constexpr const char* name = "bf16";
-};
 
 auto create_args(int argc, char* argv[])
 {
@@ -145,7 +130,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(arg_parser.get_int("json") == 1)
     {
-        dump_reduce_json_results<DataType, DataTypeTraits>(
+        dump_reduce_json_results<DataType, ck_tile::DataTypeTraits>(
             arg_parser.get_str("jsonfile"), N, C, H, W, pass, ave_time, 0, gb_per_sec);
     }
 

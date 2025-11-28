@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,10 +10,6 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/utility/json_dump.hpp"
-
-#define CK_TILE_PIPELINE_COMPUTE_V3 1
-#define CK_TILE_PIPELINE_MEMORY 2
-#define CK_TILE_PIPELINE_COMPUTE_V4 3
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -44,8 +40,8 @@ struct GemmConfigBase
     static constexpr int kBlockPerCu                         = 1;
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
     static constexpr bool Preshuffle = false; // currently preshuffle == true is not supported yet
     static constexpr bool Persistent = false; // currently persistent == true is not supported yet
     static constexpr bool DoubleSmemBuffer =
@@ -67,10 +63,10 @@ struct GemmConfigMemory : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 8;
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr bool Persistent           = true;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr bool Persistent                = true;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::MEMORY;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
 struct GemmConfigV3 : public GemmConfigBase
@@ -88,10 +84,10 @@ struct GemmConfigV3 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool Persistent           = true;
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr bool Persistent                = true;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 struct GemmConfigV4 : public GemmConfigBase
 {
@@ -109,10 +105,10 @@ struct GemmConfigV4 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool Persistent           = true;
-    static constexpr bool DoubleSmemBuffer     = true;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr bool Persistent                = true;
+    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V4;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
 struct GemmConfigV3_Wmma : public GemmConfigBase
@@ -130,16 +126,16 @@ struct GemmConfigV3_Wmma : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
-template <ck_tile::index_t PipelineId>
+template <ck_tile::GemmPipeline PipelineId>
 struct PipelineTypeTraits;
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_MEMORY>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::MEMORY>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<PipelineProblem>;
@@ -148,7 +144,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_MEMORY>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::COMPUTE_V3>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>;
@@ -157,7 +153,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::COMPUTE_V4>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV4<PipelineProblem>;

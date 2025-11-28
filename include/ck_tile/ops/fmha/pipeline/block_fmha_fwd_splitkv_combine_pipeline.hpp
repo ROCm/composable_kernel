@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -273,16 +273,18 @@ struct BlockFmhaFwdSplitKVCombinePipeline
             store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse_logsum));
         }
 
-        auto o_acc_4_dist = Policy::template MakeOacc4DramTileDistribution<Problem>();
-        auto o_acc_4_dram_window =
+        // First each warp processes its own part of splits
+
+        auto o_acc_dist = Policy::template MakeOaccDramTileDistribution<Problem>();
+        auto o_acc_dram_window =
             make_tile_window(o_acc_dram_block_window_tmp.get_bottom_tensor_view(),
                              o_acc_dram_block_window_tmp.get_window_lengths(),
                              o_acc_dram_block_window_tmp.get_window_origin(),
-                             o_acc_4_dist);
+                             o_acc_dist);
 
-        // shape=[4 * KM0, kN1]
-        auto o_acc_4 = make_static_distributed_tensor<OaccDataType>(o_acc_4_dist);
-        clear_tile(o_acc_4);
+        // shape=[kNumWarps * KM0, kN1]
+        auto o_acc = make_static_distributed_tensor<OaccDataType>(o_acc_dist);
+        clear_tile(o_acc);
 
         const index_t padded_num_splits = integer_divide_ceil(num_splits, kNumWarps) * kNumWarps;
 
@@ -291,73 +293,73 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         // each warp handles a [KM0, kN1] tile
         for(index_t split_start = 0; split_start < padded_num_splits; split_start += kNumWarps)
         {
-            auto o_tile             = load_tile(o_acc_4_dram_window);
+            auto o_tile             = load_tile(o_acc_dram_window);
             const index_t i_split   = split_start + get_warp_id();
             const index_t row_start = kM0 * get_warp_id();
-            {
-                constexpr auto spans = decltype(o_acc_4)::get_distributed_spans();
-                sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        const auto x_indices   = get_x_indices_from_distributed_indices(
-                            o_acc_4.get_tile_distribution(), i_j_idx);
-
-                        const auto row = x_indices.at(number<0>{});
-
-                        const LSEDataType lse_scale = lse_acc_lds(row - row_start, i_split);
-                        o_acc_4(i_j_idx) += lse_scale * o_tile(i_j_idx);
-                    });
-                });
-            }
-
-            move_tile_window(o_acc_4_dram_window, {kNumWarps * kM0, 0});
-        }
-
-        // 4 o_acc tiles in LDS. shape=[4 * kM0, kN1]
-        OaccDataType* o_acc_4_lds_ptr = static_cast<OaccDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeLSEacc<Problem>()));
-
-        {
-            auto o_acc_4_lds_window = [&]() {
-                auto desc = Policy::template MakeOacc4LdsBlockDescriptor<Problem>();
-                auto view = make_tensor_view<address_space_enum::lds>(o_acc_4_lds_ptr, desc);
-                return make_tile_window(view, desc.get_lengths(), {0, 0});
-            }();
-            store_tile(o_acc_4_lds_window, o_acc_4);
-        }
-
-        auto o_acc_dist = Policy::template MakeOaccDramTileDistribution<Problem>();
-
-        auto o_acc_4_lds_window = [&]() {
-            auto desc = Policy::template MakeOacc4LdsBlockDescriptor<Problem>();
-            auto view = make_tensor_view<address_space_enum::lds>(o_acc_4_lds_ptr, desc);
-            return make_tile_window(view, desc.get_lengths(), {0, 0}, o_acc_dist);
-        }();
-
-        auto o_acc = make_static_distributed_tensor<OaccDataType>(o_acc_dist);
-        clear_tile(o_acc);
-
-        __builtin_amdgcn_sched_barrier(0);
-        block_sync_lds();
-        static_for<0, kNumWarps, 1>{}([&](auto) {
-            auto o_acc_in = load_tile(o_acc_4_lds_window);
-
             {
                 constexpr auto spans = decltype(o_acc)::get_distributed_spans();
                 sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        o_acc(i_j_idx) += o_acc_in(i_j_idx);
+                        const auto x_indices   = get_x_indices_from_distributed_indices(
+                            o_acc.get_tile_distribution(), i_j_idx);
+
+                        const auto row = x_indices.at(number<0>{});
+
+                        const LSEDataType lse_scale = lse_acc_lds(row - row_start, i_split);
+                        o_acc(i_j_idx) += lse_scale * o_tile(i_j_idx);
                     });
                 });
             }
 
-            move_tile_window(o_acc_4_lds_window, {kM0, 0});
+            move_tile_window(o_acc_dram_window, {kNumWarps * kM0, 0});
+        }
+
+        // Then each warps combines partial o_acc results into one
+
+        // kNumWarps o_acc tiles in LDS. shape=[kNumWarps * kM0, kN1]
+        OaccDataType* o_acc_lds_ptr = static_cast<OaccDataType*>(static_cast<void*>(
+            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeLSEacc<Problem>()));
+
+        {
+            auto o_acc_lds_store_window = [&]() {
+                auto desc = Policy::template MakeOaccLdsBlockDescriptor<Problem>();
+                auto view = make_tensor_view<address_space_enum::lds>(o_acc_lds_ptr, desc);
+                return make_tile_window(view, desc.get_lengths(), {0, 0});
+            }();
+            store_tile(o_acc_lds_store_window, o_acc);
+        }
+
+        auto o_acc_result_dist = Policy::template MakeOaccResultDramTileDistribution<Problem>();
+
+        auto o_acc_lds_load_window = [&]() {
+            auto desc = Policy::template MakeOaccLdsBlockDescriptor<Problem>();
+            auto view = make_tensor_view<address_space_enum::lds>(o_acc_lds_ptr, desc);
+            return make_tile_window(view, desc.get_lengths(), {0, 0}, o_acc_result_dist);
+        }();
+
+        auto o_acc_result = make_static_distributed_tensor<OaccDataType>(o_acc_result_dist);
+        clear_tile(o_acc_result);
+
+        __builtin_amdgcn_sched_barrier(0);
+        block_sync_lds();
+        static_for<0, kNumWarps, 1>{}([&](auto) {
+            auto o_acc_in = load_tile(o_acc_lds_load_window);
+
+            {
+                constexpr auto spans = decltype(o_acc_result)::get_distributed_spans();
+                sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        o_acc_result(i_j_idx) += o_acc_in(i_j_idx);
+                    });
+                });
+            }
+
+            move_tile_window(o_acc_lds_load_window, {kM0, 0});
         });
 
-        o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
-
-        return o_acc;
+        return tile_elementwise_in(o_acc_element_func, o_acc_result);
     }
 
     template <typename LSEaccDramBlockWindow,

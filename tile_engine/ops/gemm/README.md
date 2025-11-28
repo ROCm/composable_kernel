@@ -187,7 +187,7 @@ python gemm_instance_builder.py \
     --datatype fp16 \
     --layout rcr \
     --config_json configs/user_provided_config.json \
-    --gen_individual
+    --gen_all_individual
 ```
 
 #### gemm_instance_builder_parallel.py

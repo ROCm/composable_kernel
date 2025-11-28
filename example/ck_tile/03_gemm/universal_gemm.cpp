@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -58,7 +58,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     else if(data_type == "fp16i4")
     {
         // TODO: Add support for bhalf_t ADataType
-        if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
+        if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == ck_tile::GemmPipeline::COMPUTE_V3)
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>,
                                               Invoker,
@@ -73,7 +73,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     }
     else if(data_type == "fp8i4")
     {
-        if constexpr(GemmConfig<ck_tile::fp8_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
+        if constexpr(GemmConfig<ck_tile::fp8_t>::Pipeline == ck_tile::GemmPipeline::COMPUTE_V3)
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               Invoker,
@@ -88,7 +88,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     }
     else if(data_type == "bf8i4")
     {
-        if constexpr(GemmConfig<ck_tile::bf8_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
+        if constexpr(GemmConfig<ck_tile::bf8_t>::Pipeline == ck_tile::GemmPipeline::COMPUTE_V3)
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               Invoker,
@@ -120,7 +120,7 @@ int main(int argc, char* argv[])
 #if CK_TILE_USE_WMMA
         return !run_gemm_example<GemmConfigComputeV3_WMMA>(arg_parser);
 #else
-        return !run_gemm_example<GemmConfigComputeV3>(arg_parser);
+        return !run_gemm_example<GemmConfigComputeV3_2>(arg_parser);
 #endif
     }
     catch(const std::runtime_error& e)

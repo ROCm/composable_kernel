@@ -23,12 +23,39 @@ This project is a prototype for a more general builder pattern for all of compos
 
 To enable the experimental builder, configure your build with:
 
-```sh
-cmake -DCK_EXPERIMENTAL_BUILDER=ON -DCMAKE_CXX_STANDARD=20 ...
+```bash
+cmake                                                                                             \
+  -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
+  -D CMAKE_BUILD_TYPE=Release                                                                     \
+  -D GPU_TARGETS="gfx942;gfx950"                                                                  \
+  -D CK_EXPERIMENTAL_BUILDER=ON                                                                   \
+  -D CMAKE_CXX_STANDARD=20                                                                        \
+  -G Ninja                                                                                        \
+  ..
 ```
+
 ## Building and testing
 
-During development, build and test from the CK build directory with
+During development, all CK Builder tests can be built with command
+
 ```sh
-ninja test_conv_builder && bin/test_conv_builder
+ninja test_ckb_all
 ```
+
+To execute all tests, run
+
+```sh
+ls bin/test_ckb_* | xargs -n1 sh -c
+```
+
+Some tests involve building old CK convolution factories, which will take a long time.
+Hence, one might want to build only single test targets. For example
+
+```sh
+ninja test_ckb_conv_builder && bin/test_ckb_conv_builder
+```
+
+When adding new tests, please follow the convention where the CMake build target starts with a prefix `test_ckb`.
+This allows us to filter out the CK Builder tests from the set full CK repository tests.
+Also, the `test_ckb_all` target that builds all CK Builder tests relies on having the `test_ckb` prefix on the CMake build targets.

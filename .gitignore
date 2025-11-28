@@ -36,6 +36,9 @@ tags
 # Editors
 .vscode
 
+# Cline
+.cline*
+
 # build-in-source directory (see exceptions below)
 build*
 
@@ -62,6 +65,12 @@ docs/doxygen/xml
 .idea/
 cmake-build*/
 build*/
+
+# LSP configuration
+.clangd
+
+# User-defined CMake presets
+CMakeUserPresets.json
 
 # Python virtualenv
 .venv/

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -789,12 +789,12 @@ struct store_C_col_major<CType, CFragT, 32, 32>
             CScalarFragT chunks[vectorSize(CFragT{}) / VW];
         } fragC{cFrag}; // Initialize with input fragment
 
-        *(reinterpret_cast<CScalarFragT*>(output + startOffset))                = fragC.chunks[0];
-        *(reinterpret_cast<CScalarFragT*>(output + startOffset + kMajorOffset)) = fragC.chunks[1];
-        *(reinterpret_cast<CScalarFragT*>(output + startOffset + 2 * kMajorOffset)) =
-            fragC.chunks[2];
-        *(reinterpret_cast<CScalarFragT*>(output + startOffset + 3 * kMajorOffset)) =
-            fragC.chunks[3];
+        CScalarFragT* fragPtr;
+        for(uint32_t idx = 0; idx < vectorSize(CFragT{}) / VW; ++idx)
+        {
+            fragPtr  = reinterpret_cast<CScalarFragT*>(output + startOffset + idx * kMajorOffset);
+            *fragPtr = fragC.chunks[idx];
+        }
     }
 };
 

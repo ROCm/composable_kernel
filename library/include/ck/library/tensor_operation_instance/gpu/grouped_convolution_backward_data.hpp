@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -286,8 +286,7 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_FP32
                 if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                             is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
-                             is_same_v<ComputeTypeB, F32>)
+                             is_same_v<OutDataType, F32>)
                 {
                     static_assert(is_same_v<ComputeTypeA, ComputeTypeB>,
                                   "Error: this operator requires the same compute type");
