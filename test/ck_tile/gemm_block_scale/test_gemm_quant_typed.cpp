@@ -88,7 +88,15 @@ using BQuantTypes = ::testing::Types<
     std::tuple<RowMajor, ColumnMajor, RowMajor, FP8, FP8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, BF8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, FP8, PkInt4, FP8,   Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, PkInt4, BF8,   Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>
+    std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, PkInt4, BF8,   Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>,
+
+    // some cases with different layouts
+    std::tuple<   RowMajor,    RowMajor, RowMajor, FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
+    std::tuple<ColumnMajor, ColumnMajor, RowMajor, FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
+    std::tuple<ColumnMajor,    RowMajor, RowMajor, FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
+    std::tuple<   RowMajor,    RowMajor, RowMajor, FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>,
+    std::tuple<ColumnMajor, ColumnMajor, RowMajor, FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>,
+    std::tuple<ColumnMajor,    RowMajor, RowMajor, FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>
 >;
 // clang-format on
 
