@@ -21,7 +21,9 @@
 template <typename GemmConfig,
           typename TypeConfig,
           typename ALayout,
+          typename AQLayout,
           typename BLayout,
+          typename BQLayout,
           typename CLayout,
           typename QuantGroupSize,
           ck_tile::QuantType QuantMode,
@@ -42,20 +44,19 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<GemmShape>;
 
-    using GemmTraits =
-        ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
-                                     GemmConfig::kPadN,
-                                     GemmConfig::kPadK,
-                                     GemmConfig::PreshuffleQuant,
-                                     GemmConfig::PreshuffleB,
-                                     ALayout,
-                                     BLayout,
-                                     CLayout,
-                                     QuantMode,
-                                     ck_tile::tensor_layout::gemm::RowMajor,    // for AQLayout
-                                     ck_tile::tensor_layout::gemm::ColumnMajor, // for BQLayout
-                                     false,
-                                     GemmConfig::DoubleSmemBuffer>;
+    using GemmTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
+                                                    GemmConfig::kPadN,
+                                                    GemmConfig::kPadK,
+                                                    GemmConfig::PreshuffleQuant,
+                                                    GemmConfig::PreshuffleB,
+                                                    ALayout,
+                                                    BLayout,
+                                                    CLayout,
+                                                    QuantMode,
+                                                    AQLayout, // for AQLayout
+                                                    BQLayout, // for BQLayout
+                                                    false,
+                                                    GemmConfig::DoubleSmemBuffer>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<typename TypeConfig::ADataType,
                                                                  typename TypeConfig::BDataType,
@@ -290,7 +291,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float ave_time = gemm_calc_quant<GemmConfig,
                                      TypeConfig,
                                      ALayout,
+                                     AQLayout,
                                      BLayout,
+                                     BQLayout,
                                      CLayout,
                                      QuantGroupSize,
                                      QuantMode,
@@ -318,7 +321,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideAQ =" << stride_AQ << " StrideB =" << stride_B
               << " StrideC =" << stride_C << " A_Layout =" << ALayout::name
-              << " B_Layout =" << BLayout::name << " C_Layout =" << CLayout::name;
+              << " B_Layout =" << BLayout::name << " C_Layout =" << CLayout::name
+              << " AQ_Layout =" << AQLayout::name << " BQ_Layout =" << BQLayout::name;
     if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant)
     {
@@ -806,12 +810,19 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
             }
             else if(a_layout == "C" && b_layout == "R")
             {
-
                 return run_gemm_example_with_layouts<GemmConfig,
                                                      TypeConfig,
                                                      QuantGroupSize,
                                                      QuantMode>(
                     arg_parser, Col{}, Row{}, Row{}, Col{}, Row{});
+            }
+            else if(a_layout == "C" && b_layout == "C")
+            {
+                return run_gemm_example_with_layouts<GemmConfig,
+                                                     TypeConfig,
+                                                     QuantGroupSize,
+                                                     QuantMode>(
+                    arg_parser, Col{}, Col{}, Col{}, Col{}, Row{});
             }
             else
             {

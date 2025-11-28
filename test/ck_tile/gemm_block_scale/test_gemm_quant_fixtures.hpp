@@ -128,6 +128,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     using typename Base::AccDataType;
     using typename Base::ADataType;
     using typename Base::ALayout;
+    using typename Base::AQLayout;
     using typename Base::BDataType;
     using typename Base::BLayout;
     using typename Base::CDataType;
@@ -154,16 +155,16 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
         // AQuant uses grouped quantization for A matrix
         const ck_tile::index_t AQK = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
-        // AQ is always RowMajor, regardless of ALayout
+        // AQLayout is parameterized in the test tuple (can be RowMajor or ColumnMajor for AQuant)
         const ck_tile::index_t stride_AQ =
-            ck_tile::get_default_stride(M, AQK, 0, ck_tile::bool_constant<true>{});
+            ck_tile::get_default_stride(M, AQK, 0, this->is_row_major(AQLayout{}));
 
         // Generate test data
         ck_tile::HostTensor<ADataType> a_m_k(
             ck_tile::host_tensor_descriptor(M, K, stride_A, this->is_row_major(ALayout{})));
-        // AQ is always RowMajor
+        // AQLayout is independently specified for each test case
         ck_tile::HostTensor<QDataType> aq_m_aqk(
-            ck_tile::host_tensor_descriptor(M, AQK, stride_AQ, ck_tile::bool_constant<true>{}));
+            ck_tile::host_tensor_descriptor(M, AQK, stride_AQ, this->is_row_major(AQLayout{})));
         ck_tile::HostTensor<BDataType> b_k_n(
             ck_tile::host_tensor_descriptor(K, N, stride_B, this->is_row_major(BLayout{})));
 

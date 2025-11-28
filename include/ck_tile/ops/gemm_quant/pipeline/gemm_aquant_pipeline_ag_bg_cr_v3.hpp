@@ -225,8 +225,6 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                 std::is_same_v<AQLayout, tensor_layout::gemm::ColumnMajor>;
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
-            static_assert(!is_aq_col_major, "Aq must be row major (col major not supported yet)");
-
             static_assert(is_a_col_major
                               ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                                  MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}])
@@ -288,10 +286,11 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
             // only row_major for AQ
             const AQDramTileWindowStep aq_dram_tile_window_step =
-                PreshuffleQuant ? make_array(ck_tile::integer_least_multiple(m, MPerBlock) /
-                                                 BlockGemm::WarpGemm::kM,
-                                             0)
-                                : make_array(0, KPerBlockAQ);
+                PreshuffleQuant
+                    ? make_array(ck_tile::integer_least_multiple(m, MPerBlock) /
+                                     BlockGemm::WarpGemm::kM,
+                                 0)
+                    : (is_aq_col_major ? make_array(KPerBlockAQ, 0) : make_array(0, KPerBlockAQ));
 
             // DRAM prefetch (global read 0)
             LoadAndConvertATile(a_block_tile, a_copy_dram_window);
