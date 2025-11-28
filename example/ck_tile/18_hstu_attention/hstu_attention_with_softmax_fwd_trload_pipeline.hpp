@@ -160,6 +160,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
         constexpr index_t k1_loops = kN0 / kK1;
 
+        static_assert(k1_loops >= 2,
+                      "k1_loops >= 2 required due to pre-storing two v_tiles to Lds");
+
         constexpr auto NumKVLdsBuffers = Policy::template GetNumKVLdsBuffers<Problem>();
 
         // Block GEMM

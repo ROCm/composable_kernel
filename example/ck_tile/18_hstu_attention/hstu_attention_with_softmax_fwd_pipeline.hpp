@@ -161,6 +161,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
 
         constexpr index_t k1_loops = kN0 / kK1;
 
+        static_assert(k1_loops >= 2,
+                      "k1_loops >= 2 required due to pre-storing two v_tiles to Lds");
+
         constexpr auto NumKVLdsBuffers = Policy::template GetNumKVLdsBuffers<Problem>();
 
         // Block GEMM
@@ -585,6 +588,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
 
             auto p = cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, pcomp_tile));
 
+            // k1_loops >= 2 required
             shuffle_tile(v_shuffled_tile, v_tiles[number<1>{}]);
 
             store_tile(
