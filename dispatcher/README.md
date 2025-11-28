@@ -44,14 +44,7 @@ cmake .. \
 # 3. Build
 make -j$(nproc)
 
-# 4. Run example
-./examples/example_01_basic_gemm
-```
-
-**Expected output:**
-```
-Problem 1024x1024x1024: 0.028 ms, 76 TFLOPS
-```
+# 4. Run examples
 
 ---
 

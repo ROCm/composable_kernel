@@ -29,8 +29,11 @@ import ctypes
 import subprocess
 import numpy as np
 from pathlib import Path
-from typing import Optional, Tuple, List
-from dataclasses import dataclass
+from typing import Optional, Tuple, List, Dict, Any
+from dataclasses import dataclass, field
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing
+import time
 
 
 # =============================================================================
@@ -535,12 +538,103 @@ class CodegenResult:
     stdout: str = ""
     stderr: str = ""
     kernel_count: int = 0
+    elapsed_seconds: float = 0.0
+    instance_names: List[str] = field(default_factory=list)
 
     def get_generated_kernels(self) -> List[Path]:
         """Get list of generated kernel headers"""
         if self.output_dir.exists():
             return list(self.output_dir.glob("*.hpp"))
         return []
+
+    def print_instances(self, prefix: str = "    "):
+        """Print all generated instance names."""
+        for name in self.instance_names:
+            print(f"{prefix}{name}")
+
+
+def _run_codegen_subprocess(args: Dict[str, Any]) -> CodegenResult:
+    """
+    Worker function for parallel codegen execution.
+
+    This is a module-level function to allow pickling for ProcessPoolExecutor.
+    """
+    import sys
+    import subprocess
+    from pathlib import Path
+
+    codegen_path = Path(args["codegen_path"])
+    out_dir = Path(args["output_dir"])
+    variant = args["variant"]
+    datatype = args["datatype"]
+    layout = args["layout"]
+    gpu_target = args["gpu_target"]
+    extra_args = args.get("extra_args", [])
+    timeout = args.get("timeout", 300)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    start = time.time()
+
+    # Get existing kernels before generation
+    existing_kernels = set(out_dir.glob("*.hpp")) if out_dir.exists() else set()
+
+    cmd = [
+        sys.executable,
+        str(codegen_path),
+        "--output-dir",
+        str(out_dir),
+        "--datatype",
+        datatype,
+        "--layout",
+        layout,
+        "--gpu-target",
+        gpu_target,
+        "--variants",
+        variant,
+    ]
+
+    if extra_args:
+        cmd.extend(extra_args)
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+        # Get new kernels after generation
+        all_kernels = set(out_dir.glob("*.hpp"))
+        new_kernels = all_kernels - existing_kernels
+        kernel_count = len(all_kernels)
+        elapsed = time.time() - start
+
+        # Build instance names list for verbose output
+        instance_names = sorted([k.stem for k in new_kernels])
+
+        return CodegenResult(
+            success=result.returncode == 0,
+            output_dir=out_dir,
+            variant=variant,
+            stdout=result.stdout,
+            stderr=result.stderr,
+            kernel_count=kernel_count,
+            elapsed_seconds=elapsed,
+            instance_names=instance_names,
+        )
+    except subprocess.TimeoutExpired:
+        return CodegenResult(
+            success=False,
+            output_dir=out_dir,
+            variant=variant,
+            stderr=f"Code generation timed out ({timeout}s)",
+            elapsed_seconds=time.time() - start,
+        )
+    except Exception as e:
+        return CodegenResult(
+            success=False,
+            output_dir=out_dir,
+            variant=variant,
+            stderr=str(e),
+            elapsed_seconds=time.time() - start,
+        )
 
 
 @dataclass
@@ -624,7 +718,7 @@ class KernelConfig:
 
 class CodegenRunner:
     """
-    Runner for the unified GEMM code generator.
+    Runner for the unified GEMM code generator with parallel execution support.
 
     Usage:
         codegen = CodegenRunner()
@@ -638,8 +732,12 @@ class CodegenRunner:
         # Generate multi-D kernels
         result = codegen.generate("multi_d")
 
-        # Generate all variants
-        results = codegen.generate_all()
+        # Generate all variants IN PARALLEL
+        results = codegen.generate_all_parallel()
+
+        # Generate multiple configs IN PARALLEL
+        configs = [KernelConfig(...), KernelConfig(...)]
+        results = codegen.generate_configs_parallel(configs)
 
         # Generate with custom output directory
         result = codegen.generate("standard", output_dir=Path("/custom/path"))
@@ -658,124 +756,377 @@ class CodegenRunner:
         datatype: str = "fp16",
         layout: str = "rcr",
         gpu_target: str = "gfx942",
+        max_workers: Optional[int] = None,
     ):
         self.codegen_path = codegen_path or get_codegen_path()
         self.output_dir = output_dir or get_generated_kernels_dir()
         self.datatype = datatype
         self.layout = layout
         self.gpu_target = gpu_target
+        # Default to CPU count, but cap at reasonable value
+        self.max_workers = max_workers or min(multiprocessing.cpu_count(), 8)
+
+    def _make_args(
+        self,
+        variant: str,
+        output_dir: Optional[Path] = None,
+        extra_args: Optional[List[str]] = None,
+        timeout: int = 300,
+        show_instances: bool = False,
+    ) -> Dict[str, Any]:
+        """Build args dict for parallel worker."""
+        return {
+            "codegen_path": str(self.codegen_path),
+            "output_dir": str(output_dir or self.output_dir),
+            "variant": variant,
+            "datatype": self.datatype,
+            "layout": self.layout,
+            "gpu_target": self.gpu_target,
+            "extra_args": extra_args or [],
+            "timeout": timeout,
+            "show_instances": show_instances,
+        }
 
     def generate(
         self,
         variant: str = "standard",
         output_dir: Optional[Path] = None,
         extra_args: Optional[List[str]] = None,
+        show_instances: bool = False,
     ) -> CodegenResult:
         """
-        Generate kernels for a specific variant.
+        Generate kernels for a specific variant (single-threaded).
 
         Args:
             variant: One of "standard", "preshuffle", "multi_d"
             output_dir: Override output directory
             extra_args: Additional arguments to pass to codegen
+            show_instances: Print "Adding Instance" and "Building Instance" for each kernel
 
         Returns:
             CodegenResult with generation status and info
         """
-        import sys
+        args = self._make_args(
+            variant, output_dir, extra_args, show_instances=show_instances
+        )
+        result = _run_codegen_subprocess(args)
 
-        out_dir = output_dir or self.output_dir
-        out_dir.mkdir(parents=True, exist_ok=True)
+        if show_instances and result.instance_names:
+            for name in result.instance_names:
+                print(f"  Adding Instance: {name}")
+                print(f"  Building Instance: {name}")
 
-        if not self.codegen_path.exists():
-            return CodegenResult(
-                success=False,
-                output_dir=out_dir,
-                variant=variant,
-                stderr=f"Codegen not found at {self.codegen_path}",
-            )
-
-        cmd = [
-            sys.executable,
-            str(self.codegen_path),
-            "--output-dir",
-            str(out_dir),
-            "--datatype",
-            self.datatype,
-            "--layout",
-            self.layout,
-            "--gpu-target",
-            self.gpu_target,
-            "--variants",
-            variant,
-        ]
-
-        if extra_args:
-            cmd.extend(extra_args)
-
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-
-            # Count generated kernels
-            kernel_count = len(list(out_dir.glob("*.hpp")))
-
-            return CodegenResult(
-                success=result.returncode == 0,
-                output_dir=out_dir,
-                variant=variant,
-                stdout=result.stdout,
-                stderr=result.stderr,
-                kernel_count=kernel_count,
-            )
-        except subprocess.TimeoutExpired:
-            return CodegenResult(
-                success=False,
-                output_dir=out_dir,
-                variant=variant,
-                stderr="Code generation timed out (300s)",
-            )
-        except Exception as e:
-            return CodegenResult(
-                success=False,
-                output_dir=out_dir,
-                variant=variant,
-                stderr=str(e),
-            )
+        return result
 
     def generate_all(self, output_dir: Optional[Path] = None) -> List[CodegenResult]:
-        """Generate all variants"""
+        """Generate all variants sequentially (use generate_all_parallel for speed)."""
         results = []
         for variant in self.VARIANTS:
             result = self.generate(variant, output_dir)
             results.append(result)
         return results
 
+    def generate_all_parallel(
+        self,
+        output_dir: Optional[Path] = None,
+        variants: Optional[List[str]] = None,
+        verbose: bool = True,
+        show_instances: bool = False,
+    ) -> List[CodegenResult]:
+        """
+        Generate all variants IN PARALLEL.
+
+        Args:
+            output_dir: Override output directory
+            variants: List of variants to generate (default: all)
+            verbose: Print progress
+            show_instances: Print "Adding Instance" and "Building Instance" for each kernel
+
+        Returns:
+            List of CodegenResult for each variant
+        """
+        variants = variants or self.VARIANTS
+        start_total = time.time()
+
+        if verbose:
+            print(
+                f"Generating {len(variants)} variants in parallel (workers={self.max_workers})..."
+            )
+
+        # Build args for each variant
+        args_list = [self._make_args(v, output_dir) for v in variants]
+        for args in args_list:
+            args["show_instances"] = show_instances
+
+        results = []
+        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {
+                executor.submit(_run_codegen_subprocess, args): args["variant"]
+                for args in args_list
+            }
+
+            for future in as_completed(futures):
+                variant = futures[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                    if verbose:
+                        status = "✓" if result.success else "✗"
+                        print(
+                            f"  {status} {variant}: {result.kernel_count} kernels in {result.elapsed_seconds:.2f}s"
+                        )
+                        if show_instances and result.instance_names:
+                            for name in result.instance_names:
+                                print(f"      Adding Instance: {name}")
+                                print(f"      Building Instance: {name}")
+                except Exception as e:
+                    results.append(
+                        CodegenResult(
+                            success=False,
+                            output_dir=output_dir or self.output_dir,
+                            variant=variant,
+                            stderr=str(e),
+                        )
+                    )
+                    if verbose:
+                        print(f"  ✗ {variant}: FAILED - {e}")
+
+        total_time = time.time() - start_total
+        if verbose:
+            total_kernels = sum(r.kernel_count for r in results)
+            print(f"Total: {total_kernels} kernels in {total_time:.2f}s")
+
+        return results
+
+    def generate_configs_parallel(
+        self,
+        configs: List["KernelConfig"],
+        output_dir: Optional[Path] = None,
+        verbose: bool = True,
+        show_instances: bool = False,
+    ) -> List[CodegenResult]:
+        """
+        Generate kernels from multiple configs IN PARALLEL.
+
+        Each config generates independently, allowing maximum parallelism.
+
+        Args:
+            configs: List of KernelConfig objects
+            output_dir: Override output directory
+            verbose: Print progress
+            show_instances: Print "Adding Instance" and "Building Instance" for each kernel
+
+        Returns:
+            List of CodegenResult for each config
+        """
+        start_total = time.time()
+        out_dir = output_dir or self.output_dir
+
+        if verbose:
+            print(
+                f"Generating {len(configs)} configs in parallel (workers={self.max_workers})..."
+            )
+
+        results = []
+        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {}
+            for config in configs:
+                args = {
+                    "codegen_path": str(self.codegen_path),
+                    "output_dir": str(out_dir),
+                    "variant": "standard",
+                    "datatype": config.dtype_a,
+                    "layout": config.layout,
+                    "gpu_target": config.gfx_arch,
+                    "extra_args": [],
+                    "timeout": 300,
+                    "show_instances": show_instances,
+                }
+                future = executor.submit(_run_codegen_subprocess, args)
+                futures[future] = config.tile_str
+
+            for future in as_completed(futures):
+                tile_str = futures[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                    if verbose:
+                        status = "✓" if result.success else "✗"
+                        print(
+                            f"  {status} {tile_str}: {result.kernel_count} kernels in {result.elapsed_seconds:.2f}s"
+                        )
+                        if show_instances and result.instance_names:
+                            for name in result.instance_names:
+                                print(f"      Adding Instance: {name}")
+                                print(f"      Building Instance: {name}")
+                except Exception as e:
+                    results.append(
+                        CodegenResult(
+                            success=False,
+                            output_dir=out_dir,
+                            variant=f"config:{tile_str}",
+                            stderr=str(e),
+                        )
+                    )
+                    if verbose:
+                        print(f"  ✗ {tile_str}: FAILED - {e}")
+
+        total_time = time.time() - start_total
+        if verbose:
+            total_kernels = sum(r.kernel_count for r in results)
+            print(f"Total: {total_kernels} kernels in {total_time:.2f}s")
+
+        return results
+
+    def generate_batch_parallel(
+        self,
+        batch: List[Dict[str, Any]],
+        verbose: bool = True,
+        show_instances: bool = False,
+    ) -> List[CodegenResult]:
+        """
+        Generate a batch of kernel specs IN PARALLEL.
+
+        This is the most flexible parallel generation method.
+
+        Args:
+            batch: List of dicts with keys: variant, datatype, layout, gpu_target, output_dir
+            verbose: Print progress
+            show_instances: Print "Adding Instance" and "Building Instance" for each kernel
+
+        Returns:
+            List of CodegenResult
+        """
+        start_total = time.time()
+
+        if verbose:
+            print(
+                f"Generating {len(batch)} kernel specs in parallel (workers={self.max_workers})..."
+            )
+
+        # Build args for each spec
+        args_list = []
+        for spec in batch:
+            args = {
+                "codegen_path": str(self.codegen_path),
+                "output_dir": str(spec.get("output_dir", self.output_dir)),
+                "variant": spec.get("variant", "standard"),
+                "datatype": spec.get("datatype", self.datatype),
+                "layout": spec.get("layout", self.layout),
+                "gpu_target": spec.get("gpu_target", self.gpu_target),
+                "extra_args": spec.get("extra_args", []),
+                "timeout": spec.get("timeout", 300),
+                "show_instances": show_instances,
+            }
+            args_list.append(args)
+
+        results = []
+        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {
+                executor.submit(_run_codegen_subprocess, args): args["variant"]
+                for args in args_list
+            }
+
+            for future in as_completed(futures):
+                variant = futures[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                    if verbose:
+                        status = "✓" if result.success else "✗"
+                        print(
+                            f"  {status} {variant}: {result.kernel_count} kernels in {result.elapsed_seconds:.2f}s"
+                        )
+                        if show_instances and result.instance_names:
+                            for name in result.instance_names:
+                                print(f"      Adding Instance: {name}")
+                                print(f"      Building Instance: {name}")
+                except Exception as e:
+                    results.append(
+                        CodegenResult(
+                            success=False,
+                            output_dir=self.output_dir,
+                            variant=variant,
+                            stderr=str(e),
+                        )
+                    )
+                    if verbose:
+                        print(f"  ✗ {variant}: FAILED - {e}")
+
+        total_time = time.time() - start_total
+        if verbose:
+            total_kernels = sum(r.kernel_count for r in results)
+            print(f"Total: {total_kernels} kernels in {total_time:.2f}s")
+
+        return results
+
     def generate_from_config(
-        self, config: KernelConfig, output_dir: Optional[Path] = None
+        self,
+        config: KernelConfig,
+        output_dir: Optional[Path] = None,
+        force: bool = False,
+        show_instances: bool = False,
     ) -> CodegenResult:
         """
         Generate kernel from a specific KernelConfig.
 
+        This method is smart: it checks if the specific kernel already exists
+        and skips generation if so (unless force=True).
+
         Args:
             config: KernelConfig with all kernel parameters
             output_dir: Override output directory
+            force: Force regeneration even if kernel exists
+            show_instances: Print instance names when generating
 
         Returns:
-            CodegenResult
+            CodegenResult with only the EXACT matching kernel counted
         """
         import sys
 
         out_dir = output_dir or self.output_dir
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        # Build PRECISE kernel filename pattern for this specific config
+        # Format: gemm_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}_{pads}_{tile}_{wave}_{warp}
+        tile_str = config.tile_str  # e.g., "128x128x32"
+        wave_str = f"{config.wave_m}x{config.wave_n}x{config.wave_k}"  # e.g., "2x2x1"
+        warp_str = (
+            f"{config.warp_m}x{config.warp_n}x{config.warp_k}"  # e.g., "32x32x16"
+        )
+
+        # Build precise pattern including pipeline and epilogue
+        # Format: gemm_fp16_rcr_compv4_cshuffle_intrawave_*_128x128x32_2x2x1_32x32x16.hpp
+        # Matches standard kernels ending with .hpp (NOT _preshuffle.hpp or _multid_*.hpp)
+        precise_pattern = f"gemm_{config.dtype_a}_{config.layout}_{config.pipeline}_{config.epilogue}_{config.scheduler}_*_{tile_str}_{wave_str}_{warp_str}.hpp"
+
+        # Check if exact kernel already exists - skip expensive generation
+        existing = list(out_dir.glob(precise_pattern))
+        if existing and not force:
+            instance_names = sorted([k.stem for k in existing])
+            if show_instances:
+                for name in instance_names:
+                    print(f"  Kernel exists: {name}")
+            return CodegenResult(
+                success=True,
+                output_dir=out_dir,
+                variant=f"config:{tile_str}",
+                kernel_count=len(existing),
+                instance_names=instance_names,
+                stdout=f"Kernel already exists ({len(existing)} variants), skipped generation",
+            )
+
         if not self.codegen_path.exists():
             return CodegenResult(
                 success=False,
                 output_dir=out_dir,
-                variant=f"config:{config.tile_str}",
+                variant=f"config:{tile_str}",
                 stderr=f"Codegen not found at {self.codegen_path}",
             )
 
+        start = time.time()
+
+        # Generate standard kernels (codegen generates all tile sizes)
         cmd = [
             sys.executable,
             str(self.codegen_path),
@@ -794,24 +1145,32 @@ class CodegenRunner:
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
-            # Find matching kernel for this config
-            pattern = f"*{config.tile_str}*.hpp"
-            matching = list(out_dir.glob(pattern))
+            # Find ONLY the EXACT matching kernel(s) for this specific config
+            matching = list(out_dir.glob(precise_pattern))
             kernel_count = len(matching)
+            elapsed = time.time() - start
+
+            instance_names = sorted([k.stem for k in matching])
+            if show_instances and instance_names:
+                for name in instance_names:
+                    print(f"  Adding Instance: {name}")
+                    print(f"  Building Instance: {name}")
 
             return CodegenResult(
                 success=result.returncode == 0 and kernel_count > 0,
                 output_dir=out_dir,
-                variant=f"config:{config.tile_str}",
+                variant=f"config:{tile_str}",
                 stdout=result.stdout,
                 stderr=result.stderr,
-                kernel_count=kernel_count,
+                kernel_count=kernel_count,  # Only count EXACT matching kernels
+                elapsed_seconds=elapsed,
+                instance_names=instance_names,
             )
         except Exception as e:
             return CodegenResult(
                 success=False,
                 output_dir=out_dir,
-                variant=f"config:{config.tile_str}",
+                variant=f"config:{tile_str}",
                 stderr=str(e),
             )
 
