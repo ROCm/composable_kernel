@@ -8,7 +8,7 @@
 
 namespace ck_tile::builder::factory_internal
 {
-    
+
 struct CK_half
 {
     using type = ck::half_t;
@@ -129,7 +129,7 @@ consteval auto GetAuxiliaryTensorDataTypeValue()
 template <auto AuxiliaryTensorConfigsArray, DataType SignatureDataType, size_t... Indices>
 consteval auto GetAuxiliaryTensorDataTypeTuple(std::index_sequence<Indices...>)
 {
-    return ck::Tuple<decltype(GetAuxiliaryTensorDataTypeValue<AuxiliaryTensorConfigsArray[Indices], SignatureDataType>())...>{};
+    return ck::Tuple<typename decltype(GetAuxiliaryTensorDataTypeValue<AuxiliaryTensorConfigsArray[Indices], SignatureDataType>())::type...>{};
 }
 
 template <auto AuxiliaryTensorConfigsValue, DataType SignatureDataType>

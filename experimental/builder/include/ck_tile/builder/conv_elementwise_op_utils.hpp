@@ -39,32 +39,36 @@ consteval auto GetElementwiseOp()
 {
     if constexpr (HasTensorOp<decltype(TensorDesc)>)
     {
-        if constexpr (TensorDesc.operation.elementwise_operation == ElementwiseOperation::SCALE)
+        constexpr auto op = TensorDesc.operation.elementwise_operation;
+        if constexpr (op == ElementwiseOperation::SCALE)
         {
             return CK_ScaleOp{};
         }
-        else if constexpr (TensorDesc.operation.elementwise_operation == ElementwiseOperation::SCALEADD_SCALEADD_RELU)
+        else if constexpr (op == ElementwiseOperation::SCALEADD_SCALEADD_RELU)
         {
             return CK_ScaleAddScaleAddReluOp{};
         }
-        else if constexpr (TensorDesc.operation.elementwise_operation == ElementwiseOperation::BIAS_BNORM_CLAMP)
+        else if constexpr (op == ElementwiseOperation::BIAS_BNORM_CLAMP)
         {
             return CK_BiasNormalizeInInferClampOp{};
         }
-        else if constexpr (TensorDesc.operation.elementwise_operation == ElementwiseOperation::CLAMP)
+        else if constexpr (op == ElementwiseOperation::CLAMP)
         {
             return CK_ClampOp{};
         }
-        else if constexpr (TensorDesc.operation.elementwise_operation == ElementwiseOperation::PASS_THROUGH)
+        else if constexpr (op == ElementwiseOperation::PASS_THROUGH)
         {
             return CK_PassThroughOp{};
         }
         else 
         {
-            static_assert(false, "Unsupported elementwise operation!");
+            static_assert(sizeof(UnsupportedEnumValue<op>) == 0, "Unsupported elementwise operation!");
         }
     }
-    return CK_PassThroughOp{};
+    else
+    {
+        return CK_PassThroughOp{};
+    }
 }
 
 template <auto InputTensor, auto WeightTensor, auto OutputTensor>
@@ -81,7 +85,7 @@ struct ElementwiseOps
 template <auto Sig>
 constexpr auto GetElementwiseOps()
 {
-    return ElementwiseOps<Sig.input.operation, Sig.weight.operation, Sig.output.operation>{};
+    return ElementwiseOps<Sig.input, Sig.weight, Sig.output>{};
 }
 
 }
