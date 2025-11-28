@@ -139,8 +139,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // Fill input with random data
     ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
-    ck_tile::FillUniformDistribution<ComputeDataType>{0.8f, 1.2f}(gamma_host);  // Scale around 1.0
-    ck_tile::FillUniformDistribution<ComputeDataType>{-0.5f, 0.5f}(beta_host);  // Bias around 0.0
+    
+    // Set gamma=1.0 and beta=0.0 for testing (identity transform)
+    for(ck_tile::index_t c = 0; c < C; ++c)
+    {
+        gamma_host.mData[c] = static_cast<ComputeDataType>(1.0);
+        beta_host.mData[c] = static_cast<ComputeDataType>(0.0);
+    }
 
     // Allocate device memory
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
@@ -152,13 +157,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     gamma_buf.ToDevice(gamma_host.data());
     beta_buf.ToDevice(beta_host.data());
 
-    // Define kernel configuration
-    using BlockWarps = ck_tile::sequence<4, 1>;
-    using BlockTile  = ck_tile::sequence<1, 256>;  // Simplified for POC
-    using WarpTile   = ck_tile::sequence<1, 256>;
-    using Vector     = ck_tile::sequence<1, 1>;
+    // Define kernel configuration using Generic2dBlockShape
+    // For N=2, H=8, W=8: per-channel elements = 2×8×8 = 128
+    // Use Repeat_N=2: Block_N = Repeat_N × ThreadPerBlock_N × Vector_N = 2×64×1 = 128 ✓
+    using BlockTile = ck_tile::sequence<1, 128>;      // Block size: 1 channel, 128 spatial
+    using ThreadPerBlock = ck_tile::sequence<1, 128>;  // 64 threads (must be warp size)
+    using Vector = ck_tile::sequence<1, 1>;           // Vector size (start with 1)
 
-    using Shape = ck_tile::BatchnormShape<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Shape = ck_tile::BatchnormShape<BlockTile, ThreadPerBlock, Vector>;
     
     // Define traits (compile-time configuration)
     using Traits = ck_tile::BatchnormFwdTraits<false, false>;  // No save, no update

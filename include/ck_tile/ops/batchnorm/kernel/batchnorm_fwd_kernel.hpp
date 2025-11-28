@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/batchnorm/block/block_welford.hpp"
+#include "ck_tile/ops/batchnorm/pipeline/batchnorm_fwd_pipeline.hpp"
 #include "ck_tile/ops/batchnorm/pipeline/batchnorm_problem.hpp"
 #include "ck_tile/ops/batchnorm/pipeline/batchnorm_shape.hpp"
 
@@ -38,11 +39,14 @@ struct BatchnormFwd
 {
     using Problem         = remove_cvref_t<Problem_>;
     using XDataType       = typename Problem::XDataType;
+    using GammaDataType   = typename Problem::GammaDataType;
+    using BetaDataType    = typename Problem::BetaDataType;
     using ComputeDataType = typename Problem::ComputeDataType;
     using YDataType       = typename Problem::YDataType;
+    using MeanVarDataType = typename Problem::MeanVarDataType;
     using BlockShape      = typename Problem::BlockShape;
 
-    static constexpr index_t kBlockSize = BlockShape::kBlockSize;
+    static constexpr index_t kBlockSize = BlockShape::BlockSize;
 
     // Kernel arguments
     struct BatchnormFwdKargs
@@ -98,130 +102,110 @@ struct BatchnormFwd
         return kBlockSize;
     }
 
+    // Shared memory size (must be constexpr for __shared__ allocation)
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    {
+        return BatchnormFwdPipeline<Problem>::GetSmemSize();
+    }
+
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        // Cast pointers to typed pointers
-        const XDataType* p_x = static_cast<const XDataType*>(kargs.p_x);
-        YDataType* p_y = static_cast<YDataType*>(kargs.p_y);
+        using Pipeline = BatchnormFwdPipeline<Problem>;
         
         const index_t N = kargs.N;
         const index_t C = kargs.C;
         const index_t H = kargs.H;
         const index_t W = kargs.W;
-        const ComputeDataType epsilon = static_cast<ComputeDataType>(kargs.epsilon);
-
-        const index_t spatial_size = H * W;
-        const index_t per_channel_size = N * spatial_size;  // Reduce over N×H×W
         
-        const index_t thread_id = get_thread_id();
         const index_t block_id = get_block_id();
-        
-        // Each block handles one channel
-        const index_t c = block_id;
+        const index_t c = block_id;  // Channel index
         
         if(c >= C)
             return;
         
-        // Thread-local Welford statistics
-        ComputeDataType thread_mean = type_convert<ComputeDataType>(0);
-        ComputeDataType thread_m2 = type_convert<ComputeDataType>(0);
-        index_t thread_count = 0;
+        const index_t spatial_size = H * W;
+        const index_t per_channel_size = N * spatial_size;
         
-        // Each thread processes elements across ALL samples (N) and spatial positions (H×W)
-        // for this channel
-        for(index_t idx = thread_id; idx < per_channel_size; idx += kBlockSize)
-        {
-            // Calculate which sample (n) and spatial position (hw) this is
-            const index_t n = idx / spatial_size;
-            const index_t hw = idx % spatial_size;
+        // Use block dimensions from BlockShape (like layernorm2d)
+        static constexpr index_t Block_M = BlockShape::Block_M;
+        static constexpr index_t Block_N = BlockShape::Block_N;
+        
+        // Create tensor views WITHOUT distributions (will be applied in pipeline)
+        const auto x_window = [&]() {
+            const XDataType* p_x = static_cast<const XDataType*>(kargs.p_x);
+            const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
+                p_x + c * spatial_size,
+                make_tuple(N, spatial_size),
+                make_tuple(C * spatial_size, 1),
+                number<1>{},
+                number<1>{});
             
-            // Memory layout: [N, C, H, W] with C-major for H×W
-            const index_t offset = n * C * H * W + c * H * W + hw;
-            ComputeDataType val = type_convert<ComputeDataType>(p_x[offset]);
+            const auto tmp2_ = pad_tensor_view(
+                tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<false, false>{});
             
-            // Online Welford update
-            thread_count++;
-            ComputeDataType delta = val - thread_mean;
-            thread_mean += delta / type_convert<ComputeDataType>(thread_count);
-            ComputeDataType delta2 = val - thread_mean;
-            thread_m2 += delta * delta2;
-        }
+            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {0, 0});
+        }();
         
-        // Allocate shared memory for block-level reduction
-        __shared__ char smem[BlockWelford<ComputeDataType>::template GetSmemSize<index_t, kBlockSize>()];
-        
-        // Block-level Welford reduction
-        ComputeDataType block_mean = thread_mean;
-        ComputeDataType block_var = thread_m2;
-        index_t block_count = thread_count;
-        
-        BlockWelford<ComputeDataType>::template Run<index_t, kBlockSize>(
-            block_mean, block_var, block_count, smem);
-        
-        // Load scale (gamma) and bias (beta) for this channel
-        // Following old CK pattern: gamma/beta are ALWAYS provided (no nullptr checks)
-        // All threads load (efficient, no branching)
-        const ComputeDataType* p_gamma = static_cast<const ComputeDataType*>(kargs.p_gamma);
-        const ComputeDataType* p_beta = static_cast<const ComputeDataType*>(kargs.p_beta);
-        
-        const ComputeDataType gamma = p_gamma[c];
-        const ComputeDataType beta = p_beta[c];
-        
-        // Compute inverse standard deviation
-        ComputeDataType inv_std = type_convert<ComputeDataType>(1) / 
-            ck_tile::sqrt(block_var + epsilon);
-        
-        // Normalize and write output with scale and bias
-        // Formula: y = gamma * (x - mean) / std + beta
-        //        = gamma * (x - mean) * inv_std + beta
-        for(index_t idx = thread_id; idx < per_channel_size; idx += kBlockSize)
-        {
-            const index_t n = idx / spatial_size;
-            const index_t hw = idx % spatial_size;
+        const auto gamma_window = [&]() {
+            const GammaDataType* p_gamma = static_cast<const GammaDataType*>(kargs.p_gamma);
+            const auto tmp_ = make_naive_tensor_view_packed<address_space_enum::global>(
+                p_gamma + c,
+                make_tuple(1),
+                number<1>{});
             
-            const index_t offset = (n * C * H * W) + (c * H * W) + hw;
-            ComputeDataType val = type_convert<ComputeDataType>(p_x[offset]);
-            
-            // Apply batch normalization with scale and bias
-            ComputeDataType normalized = gamma * ((val - block_mean) * inv_std) + beta;
-            
-            p_y[offset] = type_convert<YDataType>(normalized);
-        }
+            const auto tmp2_ = pad_tensor_view(tmp_, make_tuple(number<Block_M>{}), sequence<false>{});
+            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}), {0});
+        }();
         
-        // Save mean and inverse std for backward pass (compile-time check)
-        if constexpr(Problem::Traits::kSaveMeanInvStd)
-        {
-            if(thread_id == 0)
-            {
-                using MeanVarDataType = typename Problem::MeanVarDataType;
-                MeanVarDataType* p_save_mean = static_cast<MeanVarDataType*>(kargs.p_save_mean);
-                MeanVarDataType* p_save_inv_std = static_cast<MeanVarDataType*>(kargs.p_save_inv_std);
-                
-                p_save_mean[c] = type_convert<MeanVarDataType>(block_mean);
-                p_save_inv_std[c] = type_convert<MeanVarDataType>(inv_std);
-            }
-        }
+        const auto beta_window = [&]() {
+            const BetaDataType* p_beta = static_cast<const BetaDataType*>(kargs.p_beta);
+            const auto tmp_ = make_naive_tensor_view_packed<address_space_enum::global>(
+                p_beta + c,
+                make_tuple(1),
+                number<1>{});
+            
+            const auto tmp2_ = pad_tensor_view(tmp_, make_tuple(number<Block_M>{}), sequence<false>{});
+            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}), {0});
+        }();
         
-        // Update running mean and variance (compile-time check)
-        if constexpr(Problem::Traits::kUpdateMovingAverage)
-        {
-            if(thread_id == 0)
-            {
-                using MeanVarDataType = typename Problem::MeanVarDataType;
-                MeanVarDataType* p_running_mean = static_cast<MeanVarDataType*>(kargs.p_running_mean);
-                MeanVarDataType* p_running_var = static_cast<MeanVarDataType*>(kargs.p_running_var);
-                
-                const ComputeDataType momentum = static_cast<ComputeDataType>(kargs.momentum);
-                const ComputeDataType one_minus_momentum = type_convert<ComputeDataType>(1) - momentum;
-                
-                // Exponential moving average: new = (1-momentum)*old + momentum*current
-                ComputeDataType old_mean = type_convert<ComputeDataType>(p_running_mean[c]);
-                ComputeDataType old_var = type_convert<ComputeDataType>(p_running_var[c]);
-                
-                p_running_mean[c] = type_convert<MeanVarDataType>(one_minus_momentum * old_mean + momentum * block_mean);
-                p_running_var[c] = type_convert<MeanVarDataType>(one_minus_momentum * old_var + momentum * block_var);
-            }
-        }
+        auto y_window = [&]() {
+            YDataType* p_y = static_cast<YDataType*>(kargs.p_y);
+            const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
+                p_y + c * spatial_size,
+                make_tuple(N, spatial_size),
+                make_tuple(C * spatial_size, 1),
+                number<1>{},
+                number<1>{});
+            
+            const auto tmp2_ = pad_tensor_view(
+                tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<false, false>{});
+            
+            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {0, 0});
+        }();
+        
+        // Allocate shared memory (use kernel's constexpr GetSmemSize)
+        __shared__ char smem[GetSmemSize()];
+        
+        // Cast pointers for optional features
+        MeanVarDataType* p_running_mean = static_cast<MeanVarDataType*>(kargs.p_running_mean);
+        MeanVarDataType* p_running_var = static_cast<MeanVarDataType*>(kargs.p_running_var);
+        MeanVarDataType* p_save_mean = static_cast<MeanVarDataType*>(kargs.p_save_mean);
+        MeanVarDataType* p_save_inv_std = static_cast<MeanVarDataType*>(kargs.p_save_inv_std);
+        
+        // Call pipeline with properly distributed tile windows
+        Pipeline{}(x_window,
+                   gamma_window,
+                   beta_window,
+                   y_window,
+                   p_running_mean,
+                   p_running_var,
+                   p_save_mean,
+                   p_save_inv_std,
+                   static_cast<ComputeDataType>(kargs.epsilon),
+                   static_cast<ComputeDataType>(kargs.momentum),
+                   per_channel_size,
+                   c,
+                   smem);
     }
 
     // Validate arguments
