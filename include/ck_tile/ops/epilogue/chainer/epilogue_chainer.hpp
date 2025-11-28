@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc.
 
 #pragma once
 
@@ -52,19 +52,18 @@ struct EpilogueChainer
     ///     1. Create shared context through scheduler
     ///     2. Generate operation schedule based on arguments
     ///     3. Run scheduled operations in sequence
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename... Args>
-    CK_TILE_DEVICE void operator()(ODramWindow& out_dram_window,
-                                   const OAccTile& o_acc_tile,
-                                   const DsDramWindows& ds_dram_windows,
+    template <typename OutWindow, typename AccTile, typename AuxWindows, typename... Args>
+    CK_TILE_DEVICE void operator()(OutWindow& out_window,
+                                   const AccTile& acc_tile,
+                                   const AuxWindows& aux_windows,
                                    void* p_smem,
                                    Args&&... args) const
     {
         // The context serves as a shared workspace that maintains intermediate results
         // and resources across multiple epilogue operations.
-        auto context =
-            Scheduler::create_context(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
+        auto context  = Scheduler::create_context(out_window, acc_tile, aux_windows, p_smem);
         auto schedule = Scheduler::make_schedule(std::forward<Args>(args)...);
-        schedule(out_dram_window, o_acc_tile, ds_dram_windows, p_smem, context);
+        schedule(out_window, acc_tile, aux_windows, p_smem, context);
     }
 };
 
@@ -86,18 +85,18 @@ struct EpilogueNode
     constexpr EpilogueNode(Args... a) : args(a...) {}
 
     /// @brief Process epilogue without iteration index
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context>
-    CK_TILE_DEVICE void operator()(ODramWindow& out_dram_window,
-                                   const OAccTile& o_acc_tile,
-                                   const DsDramWindows& ds_dram_windows,
+    template <typename OutWindow, typename AccTile, typename AuxWindows, typename Context>
+    CK_TILE_DEVICE void operator()(OutWindow& out_window,
+                                   const AccTile& acc_tile,
+                                   const AuxWindows& aux_windows,
                                    void* p_smem,
                                    Context& context) const
     {
         ck_tile::apply(
             [&](auto&&... epilogue_args) {
-                EpilogueType{}(out_dram_window,
-                               o_acc_tile,
-                               ds_dram_windows,
+                EpilogueType{}(out_window,
+                               acc_tile,
+                               aux_windows,
                                p_smem,
                                context,
                                std::forward<decltype(epilogue_args)>(epilogue_args)...);
@@ -106,23 +105,23 @@ struct EpilogueNode
     }
 
     /// @brief Process epilogue with iteration index
-    template <typename ODramWindow,
-              typename OAccTile,
-              typename DsDramWindows,
+    template <typename OutWindow,
+              typename AccTile,
+              typename AuxWindows,
               typename Context,
               index_t I>
-    CK_TILE_DEVICE void operator()(ODramWindow& out_dram_window,
-                                   const OAccTile& o_acc_tile,
-                                   const DsDramWindows& ds_dram_windows,
+    CK_TILE_DEVICE void operator()(OutWindow& out_window,
+                                   const AccTile& acc_tile,
+                                   const AuxWindows& aux_windows,
                                    void* p_smem,
                                    Context& context,
                                    number<I> iAccess) const
     {
         ck_tile::apply(
             [&](auto&&... epilogue_args) {
-                EpilogueType{}(out_dram_window,
-                               o_acc_tile,
-                               ds_dram_windows,
+                EpilogueType{}(out_window,
+                               acc_tile,
+                               aux_windows,
                                p_smem,
                                iAccess,
                                context,
@@ -141,29 +140,29 @@ struct EpilogueNode<EpilogueType>
 
     constexpr EpilogueNode() = default;
 
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context>
-    CK_TILE_DEVICE void operator()(ODramWindow& out_dram_window,
-                                   const OAccTile& o_acc_tile,
-                                   const DsDramWindows& ds_dram_windows,
+    template <typename OutWindow, typename AccTile, typename AuxWindows, typename Context>
+    CK_TILE_DEVICE void operator()(OutWindow& out_window,
+                                   const AccTile& acc_tile,
+                                   const AuxWindows& aux_windows,
                                    void* p_smem,
                                    Context& context) const
     {
-        EpilogueType{}(out_dram_window, o_acc_tile, ds_dram_windows, p_smem, context);
+        EpilogueType{}(out_window, acc_tile, aux_windows, p_smem, context);
     }
 
-    template <typename ODramWindow,
-              typename OAccTile,
-              typename DsDramWindows,
+    template <typename OutWindow,
+              typename AccTile,
+              typename AuxWindows,
               typename Context,
               index_t I>
-    CK_TILE_DEVICE void operator()(ODramWindow& out_dram_window,
-                                   const OAccTile& o_acc_tile,
-                                   const DsDramWindows& ds_dram_windows,
+    CK_TILE_DEVICE void operator()(OutWindow& out_window,
+                                   const AccTile& acc_tile,
+                                   const AuxWindows& aux_windows,
                                    void* p_smem,
                                    Context& context,
                                    number<I> iAccess) const
     {
-        EpilogueType{}(out_dram_window, o_acc_tile, ds_dram_windows, p_smem, iAccess, context);
+        EpilogueType{}(out_window, acc_tile, aux_windows, p_smem, iAccess, context);
     }
 };
 
@@ -180,10 +179,10 @@ struct EpilogueGraph
     constexpr EpilogueGraph(EpilogueTypes... eps) : epilogues(eps...) {}
 
     /// @brief Process all epilogues for each iteration in sequence
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context>
-    CK_TILE_DEVICE void operator()(ODramWindow& out_dram_window,
-                                   const OAccTile& o_acc_tile,
-                                   const DsDramWindows& ds_dram_windows,
+    template <typename OutWindow, typename AccTile, typename AuxWindows, typename Context>
+    CK_TILE_DEVICE void operator()(OutWindow& out_window,
+                                   const AccTile& acc_tile,
+                                   const AuxWindows& aux_windows,
                                    void* p_smem,
                                    Context& context) const
     {
@@ -191,7 +190,7 @@ struct EpilogueGraph
         static_for<0, Steps, 1>{}([&](auto iAccess) {
             static_for<0, sizeof...(EpilogueTypes), 1>{}([&](auto I) {
                 epilogues.template get<I.value>()(
-                    out_dram_window, o_acc_tile, ds_dram_windows, p_smem, context, iAccess);
+                    out_window, acc_tile, aux_windows, p_smem, context, iAccess);
             });
         });
     }

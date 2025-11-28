@@ -14,8 +14,6 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/epilogue/chainer/epilogue_chainer.hpp"
-#include "ck_tile/ops/epilogue/chainer/cshuffle_epilogue_schedule.hpp"
 #include "gemm_multi_d_fp16.hpp"
 #include "utils.hpp"
 
@@ -108,7 +106,7 @@ auto gemm_multi_d(const gemm_multi_d_kargs& args, const ck_tile::stream_config& 
 
             // Epilogue selection: set to true for chainer-based, false for standard
             // CShuffleEpilogue
-            constexpr bool UseChainerEpilogue = false;
+            constexpr bool UseChainerEpilogue = true;
 
             using GemmEpilogue = std::conditional_t<
                 UseChainerEpilogue,

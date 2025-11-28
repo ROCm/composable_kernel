@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Epilogue Chainer provides a modular epilogue processing framework for GEMM operations through scheduler-defined operation graphs.
+The Epilogue Chainer provides a modular epilogue processing framework through scheduler-defined operation graphs.
 
 ## Architecture
 
@@ -21,22 +21,41 @@ Individual epilogue operations are wrapped in `EpilogueNode` structures that cap
 ### EpilogueGraph  
 The `EpilogueGraph` composes multiple nodes into sequential processing units that iterate over multiple accesses if needed, running all operations in order for each iteration.
 
-### Scheduler System
-`CshuffleEpilogueSchedule` provides tagged schedule selection using schedule tags:
-
-**Schedule Tags:**
-- `DefaultScheduleTag` - Standard epilogue: Slice → Cast → PrepC → ApplyD → Store → Move
-- `RowColQuantScheduleTag` - RowCol quantization: Slice → ScaleWindow → Cast → PrepC → ApplyD → Store → Move
-- `TensorQuantScheduleTag` - Tensor quantization: Slice → ScaleScalar → Cast → PrepC → ApplyD → Store → Move
-
-**Tag-Based Selection:**
-```cpp
-using Scheduler = CshuffleEpilogueSchedule<Problem, DefaultScheduleTag>;
-```
-
 ## Files
 
-- `epilogue_chainer.hpp` - Core chainer processing facilitator and graph composition utilities
-- `cshuffle_epilogue_schedule.hpp` - Tagged scheduler providing pre-built operation graphs
-- `common_epilogue_ops.hpp` - Reusable epilogue operations for graph composition
-- `cshuffle_epilogue_chainer_ops.hpp` - CShuffle-specific problem configuration and base operations 
+### Core Infrastructure
+- `epilogue_chainer.hpp` - General chainer, node, and graph infrastructure
+- `common_epilogue_ops.hpp` - Epilogue operations usable with any epilogue type
+
+### CShuffle Implementation
+- `cshuffle_epilogue_chainer_ops.hpp` - CShuffle-specific problem, context, and slice operations
+- `cshuffle_epilogue_schedule.hpp` - CShuffle scheduler with pre-built schedules
+
+## Usage
+
+### Common Operations (common_epilogue_ops.hpp)
+These operations work with any context that provides the standardized interface:
+- `ScaleScalarOp` - Scale working-tile by scalar values
+- `CastAndStoreToLdsOp<DstType>` - Cast working-tile and store to LDS
+- `LoadFromLdsOp<Pattern>` - Load output tile from LDS with sync
+- `ElementwiseOp<Func, NumAux>` - Apply elementwise operation with auxiliary tensors
+- `StoreOp<MemOp>` - Store output tile to global memory
+- `MoveWindowsOp<SFC, NumAux>` - Advance windows to next position
+
+### CShuffle-Specific Operations (cshuffle_epilogue_chainer_ops.hpp)
+These operations are specific to CShuffle epilogue:
+- `CShuffleSliceOp` - Slice accumulator tile based on distribution
+- `CShuffleScaleWindowOp` - Scale using tensor windows with shuffle distribution
+
+### Context Interface
+Operations communicate through a shared context with standardized members:
+- `working_tile`: Tile for intermediate computations
+- `out_tile`: Output tile
+- `aux_windows`: Tuple of auxiliary tensor windows
+- `lds_write_window`: Window for writing to LDS
+- `lds_read_window`: Window for reading from LDS
+
+### Schedule Tags
+- `DefaultScheduleTag` - Standard: Slice → CastStore → Load → ApplyD → Store → Move
+- `RowColQuantScheduleTag` - With window scaling
+- `TensorQuantScheduleTag` - With scalar scaling 
