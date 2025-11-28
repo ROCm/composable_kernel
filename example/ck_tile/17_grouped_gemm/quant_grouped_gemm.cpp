@@ -67,7 +67,6 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
     const auto Run = [&](const auto memory_operation_) {
         constexpr auto scheduler        = GemmConfig::Scheduler;
         constexpr auto memory_operation = memory_operation_.value;
-        constexpr bool transpose_c      = false;
 
         constexpr bool UseGroupedQuant = QuantMode == ck_tile::QuantType::AQuantGrouped ||
                                          QuantMode == ck_tile::QuantType::BQuantGrouped;
@@ -82,7 +81,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                                   GemmShape,
                                                                   GemmUniversalTraits,
                                                                   QuantGroupSize,
-                                                                  transpose_c>,
+                                                                  GemmConfig::TransposeC>,
                                ck_tile::GemmBQuantPipelineProblem<ADataType,
                                                                   BDataType,
                                                                   BQDataType,
@@ -96,7 +95,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                           AccDataType,
                                                           GemmShape,
                                                           GemmUniversalTraits,
-                                                          transpose_c,
+                                                          GemmConfig::TransposeC,
                                                           BDataType,
                                                           scheduler>>;
 
@@ -161,7 +160,6 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
 int main(int argc, char* argv[])
 {
-    int result1 = run_grouped_gemm_example<GemmConfigComputeV3_2>(argc, argv); /* ||
-                   run_grouped_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv);*/
+    int result1 = run_grouped_gemm_example(argc, argv);
     return result1;
 }

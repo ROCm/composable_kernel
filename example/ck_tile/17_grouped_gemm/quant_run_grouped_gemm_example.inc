@@ -533,12 +533,13 @@ int run_grouped_gemm_example_with_layouts(int argc,
     return pass;
 }
 
-template <typename GemmConfig, typename PrecType, ck_tile::QuantType QuantMode>
+template <typename PrecType, ck_tile::QuantType QuantMode>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
-    using Row   = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using Types = GemmTypeConfig<PrecType>;
+    using Row        = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col        = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using GemmConfig = GemmQuantConfig<QuantMode>::template GemmConfig<PrecType>;
+    using Types      = GemmTypeConfig<PrecType>;
     // Specific type aliases for easy access
     using ADataType      = typename Types::ADataType;
     using BDataType      = typename Types::BDataType;
@@ -567,7 +568,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
 }
 
-template <template <typename PrecType> typename GemmConfig>
 int run_grouped_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -585,30 +585,22 @@ int run_grouped_gemm_example(int argc, char* argv[])
     {
         if(quant_mode == "tensor")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              ck_tile::fp8_t,
-                                              ck_tile::QuantType::TensorQuant>(
+            return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::QuantType::TensorQuant>(
                 a_layout, b_layout, argc, argv);
         }
         else if(quant_mode == "rowcol")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              ck_tile::fp8_t,
-                                              ck_tile::QuantType::RowColQuant>(
+            return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
         }
         else if(quant_mode == "aquant")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              ck_tile::fp8_t,
-                                              ck_tile::QuantType::AQuantGrouped>(
+            return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
         else if(quant_mode == "bquant")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              ck_tile::fp8_t,
-                                              ck_tile::QuantType::BQuantGrouped>(
+            return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::QuantType::BQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
         else
@@ -620,30 +612,22 @@ int run_grouped_gemm_example(int argc, char* argv[])
     {
         if(quant_mode == "tensor")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              ck_tile::bf8_t,
-                                              ck_tile::QuantType::TensorQuant>(
+            return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::QuantType::TensorQuant>(
                 a_layout, b_layout, argc, argv);
         }
         else if(quant_mode == "rowcol")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              ck_tile::bf8_t,
-                                              ck_tile::QuantType::RowColQuant>(
+            return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
         }
         else if(quant_mode == "aquant")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              ck_tile::bf8_t,
-                                              ck_tile::QuantType::AQuantGrouped>(
+            return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
         else if(quant_mode == "bquant")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              ck_tile::bf8_t,
-                                              ck_tile::QuantType::BQuantGrouped>(
+            return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::QuantType::BQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
         else

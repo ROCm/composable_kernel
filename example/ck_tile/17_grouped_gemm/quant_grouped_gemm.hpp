@@ -103,6 +103,24 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
 };
 
 template <typename PrecType>
+struct GemmConfig_Aquant : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 1;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool TransposeC = true;
+};
+
+template <typename PrecType>
 struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
@@ -118,8 +136,40 @@ struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile =
         get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
 
+    static constexpr bool TransposeC       = false;
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;
+};
+
+template <ck_tile::QuantType QuantMode>
+struct GemmQuantConfig;
+
+template <>
+struct GemmQuantConfig<ck_tile::QuantType::TensorQuant>
+{
+    template <typename PrecType>
+    using GemmConfig = GemmConfigComputeV3_2<PrecType>;
+};
+
+template <>
+struct GemmQuantConfig<ck_tile::QuantType::RowColQuant>
+{
+    template <typename PrecType>
+    using GemmConfig = GemmConfigComputeV3_2<PrecType>;
+};
+
+template <>
+struct GemmQuantConfig<ck_tile::QuantType::AQuantGrouped>
+{
+    template <typename PrecType>
+    using GemmConfig = GemmConfig_Aquant<PrecType>;
+};
+
+template <>
+struct GemmQuantConfig<ck_tile::QuantType::BQuantGrouped>
+{
+    template <typename PrecType>
+    using GemmConfig = GemmConfigPreshuffleB_Bquant_prefill<PrecType>;
 };
 
 using grouped_gemm_kargs = ck_tile::QuantGroupedGemmHostArgs;
