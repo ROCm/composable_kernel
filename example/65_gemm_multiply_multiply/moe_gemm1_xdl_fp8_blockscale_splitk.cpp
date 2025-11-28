@@ -185,16 +185,21 @@ int main(int argc, char* argv[])
     // GEMM shape
     ck::index_t N       = 4096;
     ck::index_t K       = 6144;
+    // ck::index_t N       = 128;
+    // ck::index_t K       = 512;
     ck::index_t experts = 8;
     ck::index_t topk    = 2;
     // ck::index_t sorted_tile_num = 515;
     // ck::index_t valid_tile_num  = 512;
-    // ck::index_t tokens          = 8192;
+    // ck::index_t tokens          = 208;
     // ck::index_t sorted_tile_num = 15;
     // ck::index_t valid_tile_num  = 13;
-    ck::index_t sorted_tile_num = 259;
-    ck::index_t valid_tile_num  = 256;
-    ck::index_t tokens          = 4096;
+    // ck::index_t sorted_tile_num = 259;
+    // ck::index_t valid_tile_num  = 256;
+    // ck::index_t tokens          = 4096;
+    ck::index_t sorted_tile_num = 2;
+    ck::index_t valid_tile_num  = 2;
+    ck::index_t tokens          = 32;
 #else
     // deepseek
     ck::index_t N               = 2048;
@@ -256,14 +261,14 @@ int main(int argc, char* argv[])
     }
     ck::index_t StrideA              = K;
     ck::index_t StrideB              = K;
-    ck::index_t StrideE              = N;
+    ck::index_t StrideE              = N * 2;
     constexpr ck::index_t NumDTensor = DsDataType::Size();
     constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{0};
     ck::index_t Scale_Stride_AM      = (K + Scale_Block_K - 1) / Scale_Block_K;
     ck::index_t Scale_Stride_BN      = (K + Scale_Block_K - 1) / Scale_Block_K;
     ck::index_t Scale_Stride_B       = (N + Scale_Block_N - 1) / Scale_Block_N * 2;
 
-    ck::index_t KBatch = 1;
+    ck::index_t KBatch = 6;
 
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
@@ -319,9 +324,9 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-1.0, 1.0});
         a1_t_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0.0, 1.0});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-1.0, 1.0});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         break;
     case 2:

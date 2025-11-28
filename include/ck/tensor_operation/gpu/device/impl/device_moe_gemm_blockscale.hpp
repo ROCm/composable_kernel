@@ -203,12 +203,11 @@ struct DeviceMoeGemmBlockScale
             }
 
             index_t gdx, gdy, gdz;
-            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N);
+            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N * (IsInputGemm && IsSplitK ? 2 : 1), arg.K, arg.KBatch);
 
             float ave_time = 0;
 
-            index_t k_grain = arg.KBatch * KPerBlock;
-            index_t K_split = (arg.K + k_grain - 1) / k_grain * KPerBlock;
+            index_t K_split = arg.KBatch == 1 ? arg.K : arg.KBatch * KPerBlock;
 
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
             const auto RunKernel             = [&](const auto& kernel) {
@@ -441,6 +440,11 @@ struct DeviceMoeGemmBlockScale
         }
         if(arg.N % NPerBlock != 0 || arg.K % KPerBlock != 0)
         {
+            return false;
+        }
+        if (arg.KBatch > 1 && arg.K % (KPerBlock * arg.KBatch) != 0)
+        {
+            // Not support Kpadding with KBatch > 1
             return false;
         }
 
