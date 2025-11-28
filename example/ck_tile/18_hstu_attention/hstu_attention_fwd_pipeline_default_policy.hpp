@@ -736,21 +736,10 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
 
 #ifdef __gfx950__
                 static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
-
-                return WarpGemmDispatcher<
-                    typename Problem::QKVDataType,
-                    typename Problem::QKVDataType,
-                    typename Problem::GemmAccDataType,
-                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<0>{}),
-                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<1>{}),
-                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<2>{}),
-                    true,
-                    false,
-                    false,
-                    WGAttrNumAccessEnum::Single>{};
 #else
-                static_assert((WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32)),
+                static_assert(WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32),
                               "Not supported WarpGemm sizes!");
+#endif
 
                 return WarpGemmDispatcher<
                     typename Problem::QKVDataType,
@@ -763,7 +752,6 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
                     false,
                     false,
                     WGAttrNumAccessEnum::Single>{};
-#endif
             }
             else
             {
@@ -815,8 +803,12 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<2>{});
 
-                static_assert((WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32)),
+#ifdef __gfx950__
+                static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
+#else
+                static_assert(WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32),
                               "Not supported WarpGemm sizes!");
+#endif
 
                 if constexpr(WarpGemmK == 32)
                     return WarpGemmDispatcher<

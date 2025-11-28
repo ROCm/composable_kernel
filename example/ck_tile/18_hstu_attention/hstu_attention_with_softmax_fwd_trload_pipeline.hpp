@@ -212,6 +212,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
         static_assert(k1_loops >= NumPrefetchK, "Check failed!");
 
+        static_assert(k1_loops >= 2,
+                      "k1_loops >= 2 required due to pre-storing two v_tiles to Lds");
+
         // only prefetch two k tiles to save vgprs consumption
         statically_indexed_array<k_tile_type, NumPrefetchK> k_tiles;
 
@@ -556,6 +559,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                 __builtin_amdgcn_s_barrier();
             };
 
+            // k1_loops >= 2 required
             store_tile(v_lds_windows[number<3 % NumKVLdsBuffers>{}],
                        v_tiles[number<1>{}],
                        partition_index);
