@@ -7,6 +7,8 @@
 /// Use this for convenient access to the full dispatcher API
 
 #include "ck_tile/dispatcher/kernel_key.hpp"
+#include "ck_tile/dispatcher/kernel_config.hpp"
+#include "ck_tile/dispatcher/kernel_decl.hpp"
 #include "ck_tile/dispatcher/problem.hpp"
 #include "ck_tile/dispatcher/kernel_instance.hpp"
 #include "ck_tile/dispatcher/registry.hpp"

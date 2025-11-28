@@ -4,7 +4,10 @@
 /**
  * Example 06: JSON Export
  *
- * Export kernel registry to JSON for debugging and analysis.
+ * Demonstrates exporting registry information to JSON format.
+ *
+ * Build:
+ *   python3 scripts/build_with_kernels.py examples/cpp/06_json_export.cpp
  *
  * Complexity: ★★☆☆☆
  */
@@ -14,72 +17,100 @@
 #include <fstream>
 
 #include "ck_tile/dispatcher.hpp"
+#include "ck_tile/dispatcher/kernel_decl.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
 using namespace ck_tile::dispatcher::utils;
 
-namespace kernel_config {
-using ADataType   = ck_tile::fp16_t;
-using BDataType   = ck_tile::fp16_t;
-using CDataType   = ck_tile::fp16_t;
-using AccDataType = float;
-} // namespace kernel_config
+// =============================================================================
+// KERNEL SET
+// =============================================================================
 
-int main(int argc, char** argv)
+DECL_KERNEL_SET(json_export,
+                .add("fp16", "rcr", 64, 64, 32)
+                    .add("fp16", "rcr", 128, 128, 32)
+                    .add("fp16", "rcr", 256, 256, 64));
+
+// =============================================================================
+// MAIN
+// =============================================================================
+
+int main(int argc, char* argv[])
 {
     print_header("Example 06: JSON Export");
 
-    using namespace kernel_config;
+    std::string output_file = "registry.json";
+    if(argc > 1)
+    {
+        output_file = argv[1];
+    }
 
-    std::string output_file = argc > 1 ? argv[1] : "kernels.json";
+    // =========================================================================
+    // Setup Registry
+    // =========================================================================
+    std::cout << "\nSetting up registry...\n";
+    Registry registry;
+    registry.set_name("json_export_registry");
 
-    // Register kernel
-    std::cout << "Step 1: Registering kernel...\n";
-
-    KernelKeyBuilder builder = KernelKeyBuilder::fp16_rcr();
-    builder.tile_m           = SelectedKernel::TileM;
-    builder.tile_n           = SelectedKernel::TileN;
-    builder.tile_k           = SelectedKernel::TileK;
-    builder.wave_m           = SelectedKernel::WarpPerBlock_M;
-    builder.wave_n           = SelectedKernel::WarpPerBlock_N;
-    builder.wave_k           = SelectedKernel::WarpPerBlock_K;
-    builder.warp_m           = SelectedKernel::WarpTileM;
-    builder.warp_n           = SelectedKernel::WarpTileN;
-    builder.warp_k           = SelectedKernel::WarpTileK;
-    builder.block_size       = SelectedKernel::BlockSize;
+    KernelConfig config =
+        KernelConfig::fp16_rcr()
+            .tile(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK)
+            .wave(SelectedKernel::WarpPerBlock_M,
+                  SelectedKernel::WarpPerBlock_N,
+                  SelectedKernel::WarpPerBlock_K)
+            .warp_tile(
+                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
 
     auto kernel =
         create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            builder.build(), KERNEL_NAME);
+            config.build_key(), KERNEL_NAME);
 
-    Registry::instance().clear();
-    Registry::instance().register_kernel(kernel, Registry::Priority::High);
-    std::cout << "  Registered: " << KERNEL_NAME << "\n\n";
+    registry.register_kernel(kernel);
 
-    // Export
-    std::cout << "Step 2: Exporting to JSON...\n";
-    std::string json = Registry::instance().export_json(true);
+    std::cout << "  Registry: " << registry.get_name() << "\n";
+    std::cout << "  Kernels:  " << registry.size() << "\n";
 
+    // =========================================================================
+    // Export to JSON
+    // =========================================================================
+    std::cout << "\nExporting to JSON...\n";
+
+    std::string json = registry.export_json(true);
+
+    std::cout << "\nJSON Preview (first 500 chars):\n";
+    print_separator();
+    std::cout << json.substr(0, std::min(size_t(500), json.size()));
+    if(json.size() > 500)
+        std::cout << "\n...";
+    std::cout << "\n";
+    print_separator();
+
+    // Write to file
     std::ofstream file(output_file);
     if(file.is_open())
     {
         file << json;
         file.close();
-        std::cout << "  Saved to: " << output_file << "\n\n";
+        std::cout << "\nExported to: " << output_file << "\n";
+        std::cout << "File size: " << json.size() << " bytes\n";
+    }
+    else
+    {
+        std::cerr << "Failed to write to: " << output_file << "\n";
+        return 1;
     }
 
-    // Preview
-    std::cout << "Step 3: Preview:\n";
-    print_separator('-', 60);
-    std::cout << json.substr(0, 500);
-    if(json.length() > 500)
-        std::cout << "\n...";
-    std::cout << "\n";
-    print_separator('-', 60);
-
+    // =========================================================================
+    // Also export kernel set declarations
+    // =========================================================================
+    std::cout << "\nKernel Set Declarations:\n";
     print_separator();
-    std::cout << "JSON export complete!\n";
+    const auto& kernel_set = KernelSetRegistry::instance().get("json_export");
+    for(const auto& decl : kernel_set.declarations())
+    {
+        std::cout << "  " << decl.name() << "\n";
+    }
     print_separator();
 
     return 0;

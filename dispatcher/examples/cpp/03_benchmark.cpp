@@ -2,11 +2,14 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 03: Benchmark
+ * Example 03: GEMM Benchmarking
  *
- * Comprehensive performance benchmarking with warmup and statistics.
+ * Runs GEMM multiple times to get accurate timing statistics.
  *
- * Complexity: ★★★☆☆
+ * Build:
+ *   python3 scripts/build_with_kernels.py examples/cpp/03_benchmark.cpp
+ *
+ * Complexity: ★★☆☆☆
  */
 
 #include <hip/hip_runtime.h>
@@ -14,104 +17,140 @@
 #include <iomanip>
 #include <vector>
 #include <algorithm>
+#include <numeric>
 
 #include "ck_tile/dispatcher.hpp"
+#include "ck_tile/dispatcher/kernel_decl.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
 using namespace ck_tile::dispatcher::utils;
 
-int main(int argc, char** argv)
+// =============================================================================
+// KERNEL SET: High-performance kernels for benchmarking
+// =============================================================================
+
+DECL_KERNEL_SET(benchmark, .add("fp16", "rcr", 128, 128, 32).add("fp16", "rcr", 256, 256, 64));
+
+// =============================================================================
+// MAIN
+// =============================================================================
+
+int main(int argc, char* argv[])
 {
-    print_header("Example 03: Benchmark");
+    print_header("Example 03: GEMM Benchmarking");
 
-    int M          = argc > 1 ? std::stoi(argv[1]) : 2048;
-    int N          = argc > 2 ? std::stoi(argv[2]) : 2048;
-    int K          = argc > 3 ? std::stoi(argv[3]) : 2048;
-    int warmup     = 5;
-    int iterations = 20;
+    // Parse args
+    int M = 4096, N = 4096, K = 4096;
+    int warmup = 5, iterations = 100;
 
-    std::cout << "Problem: " << format_size(M, N, K) << "\n";
-    std::cout << "Warmup: " << warmup << ", Iterations: " << iterations << "\n\n";
+    if(argc >= 4)
+    {
+        M = std::atoi(argv[1]);
+        N = std::atoi(argv[2]);
+        K = std::atoi(argv[3]);
+    }
+    if(argc >= 5)
+        iterations = std::atoi(argv[4]);
 
-    // Setup kernel
-    KernelKeyBuilder builder = KernelKeyBuilder::fp16_rcr();
-    builder.tile_m           = SelectedKernel::TileM;
-    builder.tile_n           = SelectedKernel::TileN;
-    builder.tile_k           = SelectedKernel::TileK;
-    builder.wave_m           = SelectedKernel::WarpPerBlock_M;
-    builder.wave_n           = SelectedKernel::WarpPerBlock_N;
-    builder.wave_k           = SelectedKernel::WarpPerBlock_K;
-    builder.warp_m           = SelectedKernel::WarpTileM;
-    builder.warp_n           = SelectedKernel::WarpTileN;
-    builder.warp_k           = SelectedKernel::WarpTileK;
-    builder.block_size       = SelectedKernel::BlockSize;
+    std::cout << "\nConfiguration:\n";
+    std::cout << "  Problem:    " << M << " x " << N << " x " << K << "\n";
+    std::cout << "  Warmup:     " << warmup << " iterations\n";
+    std::cout << "  Benchmark:  " << iterations << " iterations\n";
+
+    // =========================================================================
+    // Setup
+    // =========================================================================
+    Registry registry;
+    KernelConfig config =
+        KernelConfig::fp16_rcr()
+            .tile(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK)
+            .wave(SelectedKernel::WarpPerBlock_M,
+                  SelectedKernel::WarpPerBlock_N,
+                  SelectedKernel::WarpPerBlock_K)
+            .warp_tile(
+                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
 
     auto kernel =
         create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            builder.build(), KERNEL_NAME);
+            config.build_key(), KERNEL_NAME);
 
-    Registry::instance().clear();
-    Registry::instance().register_kernel(kernel);
+    registry.register_kernel(kernel);
+    Dispatcher dispatcher(&registry);
 
-    Dispatcher dispatcher;
-    Problem problem(M, N, K);
+    std::cout << "  Kernel:     " << kernel->get_name() << "\n";
 
     // Allocate
     GpuBuffer<ADataType> a_dev(M * K);
     GpuBuffer<BDataType> b_dev(K * N);
     GpuBuffer<CDataType> c_dev(M * N);
 
-    std::vector<ADataType> a_host(M * K);
-    std::vector<BDataType> b_host(K * N);
-    fill_random(a_host.data(), M * K);
-    fill_random(b_host.data(), K * N);
-
+    std::vector<ADataType> a_host(M * K, ADataType(0.5f));
+    std::vector<BDataType> b_host(K * N, BDataType(0.5f));
     a_dev.copy_from_host(a_host.data());
     b_dev.copy_from_host(b_host.data());
 
+    Problem problem(M, N, K);
+
+    // =========================================================================
     // Warmup
-    std::cout << "Warming up...\n";
+    // =========================================================================
+    std::cout << "\nWarmup...\n";
     for(int i = 0; i < warmup; ++i)
     {
         c_dev.zero();
-        (void)dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
+        dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
     }
 
+    // =========================================================================
     // Benchmark
-    std::cout << "Benchmarking...\n\n";
+    // =========================================================================
+    std::cout << "Benchmarking...\n";
     std::vector<float> times;
+    times.reserve(iterations);
 
     for(int i = 0; i < iterations; ++i)
     {
         c_dev.zero();
-        times.push_back(dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr));
+        float time_ms = dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
+        times.push_back(time_ms);
     }
 
+    // =========================================================================
     // Statistics
+    // =========================================================================
     std::sort(times.begin(), times.end());
-    float min_t    = times.front();
-    float max_t    = times.back();
-    float median_t = times[iterations / 2];
-    float avg_t    = 0;
-    for(float t : times)
-        avg_t += t;
-    avg_t /= iterations;
 
-    double flops = 2.0 * M * N * K;
+    float min_time    = times.front();
+    float max_time    = times.back();
+    float median_time = times[times.size() / 2];
+    float mean_time   = std::accumulate(times.begin(), times.end(), 0.0f) / times.size();
 
-    std::cout << "Results:\n";
-    print_separator('-', 50);
-    std::cout << std::fixed << std::setprecision(4);
-    std::cout << "  Min:    " << min_t << " ms (" << std::setprecision(2)
-              << (flops / (min_t * 1e-3)) / 1e12 << " TFLOPS)\n";
-    std::cout << "  Avg:    " << std::setprecision(4) << avg_t << " ms (" << std::setprecision(2)
-              << (flops / (avg_t * 1e-3)) / 1e12 << " TFLOPS)\n";
-    std::cout << "  Median: " << std::setprecision(4) << median_t << " ms\n";
-    std::cout << "  Max:    " << std::setprecision(4) << max_t << " ms\n";
+    // Remove outliers for stable mean
+    size_t trim = times.size() / 10; // 10% from each end
+    float trimmed_mean =
+        std::accumulate(times.begin() + trim, times.end() - trim, 0.0f) / (times.size() - 2 * trim);
+
+    double flops         = 2.0 * M * N * K;
+    double min_tflops    = (flops / (min_time / 1000.0)) / 1e12;
+    double median_tflops = (flops / (median_time / 1000.0)) / 1e12;
+    double mean_tflops   = (flops / (mean_time / 1000.0)) / 1e12;
 
     print_separator();
-    std::cout << "Benchmark complete!\n";
+    std::cout << "Benchmark Results (" << iterations << " iterations):\n";
+    print_separator();
+    std::cout << std::fixed << std::setprecision(4);
+    std::cout << "  Min time:     " << min_time << " ms (" << std::setprecision(2) << min_tflops
+              << " TFLOPS)\n";
+    std::cout << std::setprecision(4);
+    std::cout << "  Max time:     " << max_time << " ms\n";
+    std::cout << "  Mean time:    " << mean_time << " ms (" << std::setprecision(2) << mean_tflops
+              << " TFLOPS)\n";
+    std::cout << std::setprecision(4);
+    std::cout << "  Median time:  " << median_time << " ms (" << std::setprecision(2)
+              << median_tflops << " TFLOPS)\n";
+    std::cout << std::setprecision(4);
+    std::cout << "  Trimmed mean: " << trimmed_mean << " ms\n";
     print_separator();
 
     return 0;

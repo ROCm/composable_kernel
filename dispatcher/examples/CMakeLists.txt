@@ -3,6 +3,9 @@
 
 cmake_minimum_required(VERSION 3.16)
 
+# Link to dispatcher library
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../build)
+
 # Find generated kernel header for force-include
 file(GLOB KERNEL_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels/gemm_fp16_rcr_compv4*128x128x32*.hpp")
 if(KERNEL_HEADERS)

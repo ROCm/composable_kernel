@@ -2,124 +2,188 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 04: Validation
+ * Example 04: GEMM Validation
  *
- * Validates GPU GEMM results against CPU reference.
- * Note: GPU uses RCR layout (A row-major, B column-major, C row-major)
+ * Validates GEMM output against CPU reference computation.
  *
- * Complexity: ★★★☆☆
+ * Build:
+ *   python3 scripts/build_with_kernels.py examples/cpp/04_validation.cpp
+ *
+ * Complexity: ★★☆☆☆
  */
 
 #include <hip/hip_runtime.h>
 #include <iostream>
 #include <iomanip>
 #include <vector>
+#include <random>
 #include <cmath>
 
 #include "ck_tile/dispatcher.hpp"
+#include "ck_tile/dispatcher/kernel_decl.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
 using namespace ck_tile::dispatcher::utils;
 
-// Reference GEMM for RCR layout (B is column-major = transposed)
-template <typename AType, typename BType, typename CType>
-void compute_reference_gemm_rcr(
-    const AType* A, const BType* B_col_major, CType* C, int64_t M, int64_t N, int64_t K)
+// =============================================================================
+// KERNEL SET
+// =============================================================================
+
+DECL_KERNEL_SET(validation, .add("fp16", "rcr", 128, 128, 32));
+
+// =============================================================================
+// CPU Reference
+// =============================================================================
+
+void gemm_reference_rcr(const std::vector<float>& A,
+                        const std::vector<float>& B,
+                        std::vector<float>& C,
+                        int M,
+                        int N,
+                        int K)
 {
-    // A is row-major: A[m,k] = A[m * K + k]
-    // B is column-major: B[k,n] = B[k + n * K]  (stored transposed)
-    // C is row-major: C[m,n] = C[m * N + n]
-    for(int64_t m = 0; m < M; ++m)
+    // C = A * B^T for RCR layout (B is column-major = B^T is row-major)
+    for(int m = 0; m < M; ++m)
     {
-        for(int64_t n = 0; n < N; ++n)
+        for(int n = 0; n < N; ++n)
         {
-            double acc = 0;
-            for(int64_t k = 0; k < K; ++k)
+            float sum = 0.0f;
+            for(int k = 0; k < K; ++k)
             {
-                // B column-major: B[k,n] = B_col_major[k + n * K]
-                acc +=
-                    static_cast<double>(A[m * K + k]) * static_cast<double>(B_col_major[k + n * K]);
+                // A is row-major: A[m,k] = A[m * K + k]
+                // B is col-major: B[k,n] = B[n * K + k]
+                sum += A[m * K + k] * B[n * K + k];
             }
-            C[m * N + n] = static_cast<CType>(acc);
+            C[m * N + n] = sum;
         }
     }
 }
 
-int main(int argc, char** argv)
+// =============================================================================
+// MAIN
+// =============================================================================
+
+int main()
 {
-    print_header("Example 04: Validation");
+    print_header("Example 04: GEMM Validation");
 
-    int M = argc > 1 ? std::stoi(argv[1]) : 256;
-    int N = argc > 2 ? std::stoi(argv[2]) : 256;
-    int K = argc > 3 ? std::stoi(argv[3]) : 256;
+    const int M = 256, N = 256, K = 128;
+    const float tolerance = 1e-2f;
 
-    std::cout << "Problem: " << format_size(M, N, K) << "\n";
-    std::cout << "Layout: RCR (A row-major, B column-major, C row-major)\n\n";
+    std::cout << "\nConfiguration:\n";
+    std::cout << "  Problem:   " << M << " x " << N << " x " << K << "\n";
+    std::cout << "  Layout:    RCR (A=row, B=col, C=row)\n";
+    std::cout << "  Tolerance: " << tolerance << "\n";
 
-    // Setup kernel
-    KernelKeyBuilder builder = KernelKeyBuilder::fp16_rcr();
-    builder.tile_m           = SelectedKernel::TileM;
-    builder.tile_n           = SelectedKernel::TileN;
-    builder.tile_k           = SelectedKernel::TileK;
-    builder.wave_m           = SelectedKernel::WarpPerBlock_M;
-    builder.wave_n           = SelectedKernel::WarpPerBlock_N;
-    builder.wave_k           = SelectedKernel::WarpPerBlock_K;
-    builder.warp_m           = SelectedKernel::WarpTileM;
-    builder.warp_n           = SelectedKernel::WarpTileN;
-    builder.warp_k           = SelectedKernel::WarpTileK;
-    builder.block_size       = SelectedKernel::BlockSize;
+    // =========================================================================
+    // Setup
+    // =========================================================================
+    Registry registry;
+    KernelConfig config =
+        KernelConfig::fp16_rcr()
+            .tile(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK)
+            .wave(SelectedKernel::WarpPerBlock_M,
+                  SelectedKernel::WarpPerBlock_N,
+                  SelectedKernel::WarpPerBlock_K)
+            .warp_tile(
+                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
 
     auto kernel =
         create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            builder.build(), KERNEL_NAME);
+            config.build_key(), KERNEL_NAME);
 
-    Registry::instance().clear();
-    Registry::instance().register_kernel(kernel);
+    registry.register_kernel(kernel);
+    Dispatcher dispatcher(&registry);
 
-    Dispatcher dispatcher;
-    Problem problem(M, N, K);
+    // =========================================================================
+    // Initialize with random data
+    // =========================================================================
+    std::cout << "\nGenerating random test data...\n";
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
 
-    // Allocate and initialize
-    std::vector<ADataType> a_host(M * K);      // Row-major
-    std::vector<BDataType> b_col_major(K * N); // Column-major (transposed)
-    std::vector<CDataType> c_gpu(M * N);
-    std::vector<CDataType> c_ref(M * N);
+    std::vector<float> a_fp32(M * K), b_fp32(K * N), c_ref(M * N);
+    std::vector<ADataType> a_fp16(M * K);
+    std::vector<BDataType> b_fp16(K * N);
 
-    // Fill with small random values
-    fill_random(a_host.data(), M * K, ADataType(-0.1f), ADataType(0.1f));
-    fill_random(b_col_major.data(), K * N, BDataType(-0.1f), BDataType(0.1f));
+    for(int i = 0; i < M * K; ++i)
+    {
+        a_fp32[i] = dist(rng);
+        a_fp16[i] = ADataType(a_fp32[i]);
+    }
+    for(int i = 0; i < K * N; ++i)
+    {
+        b_fp32[i] = dist(rng);
+        b_fp16[i] = BDataType(b_fp32[i]);
+    }
 
-    // GPU execution
+    // =========================================================================
+    // Compute reference
+    // =========================================================================
+    std::cout << "Computing CPU reference...\n";
+    gemm_reference_rcr(a_fp32, b_fp32, c_ref, M, N, K);
+
+    // =========================================================================
+    // Run GPU kernel
+    // =========================================================================
     std::cout << "Running GPU kernel...\n";
+
     GpuBuffer<ADataType> a_dev(M * K);
     GpuBuffer<BDataType> b_dev(K * N);
     GpuBuffer<CDataType> c_dev(M * N);
 
-    a_dev.copy_from_host(a_host.data());
-    b_dev.copy_from_host(b_col_major.data());
+    a_dev.copy_from_host(a_fp16.data());
+    b_dev.copy_from_host(b_fp16.data());
     c_dev.zero();
 
+    Problem problem(M, N, K);
     float time_ms = dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
+
+    std::vector<CDataType> c_gpu(M * N);
     c_dev.copy_to_host(c_gpu.data());
 
-    double tflops = calculate_tflops(M, N, K, time_ms);
-    std::cout << "  Time: " << std::fixed << std::setprecision(4) << time_ms << " ms";
-    std::cout << " (" << std::setprecision(2) << tflops << " TFLOPS)\n\n";
+    std::cout << "  Time: " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
 
-    // CPU reference with RCR layout
-    std::cout << "Computing CPU reference (RCR layout)...\n";
-    compute_reference_gemm_rcr(a_host.data(), b_col_major.data(), c_ref.data(), M, N, K);
+    // =========================================================================
+    // Validate
+    // =========================================================================
+    std::cout << "\nValidating...\n";
 
-    // Validate with relaxed tolerance for FP16
-    std::cout << "Validating...\n";
-    // rtol=0.01 (1%), atol=0.1 - relaxed for FP16
-    auto result = validate_result(c_gpu.data(), c_ref.data(), M * N, 0.01, 0.1);
-    result.print();
+    int errors         = 0;
+    float max_diff     = 0.0f;
+    float max_rel_diff = 0.0f;
+
+    for(int i = 0; i < M * N; ++i)
+    {
+        float gpu_val  = static_cast<float>(c_gpu[i]);
+        float ref_val  = c_ref[i];
+        float diff     = std::abs(gpu_val - ref_val);
+        float rel_diff = (ref_val != 0.0f) ? diff / std::abs(ref_val) : diff;
+
+        max_diff     = std::max(max_diff, diff);
+        max_rel_diff = std::max(max_rel_diff, rel_diff);
+
+        if(rel_diff > tolerance)
+        {
+            if(errors < 5)
+            {
+                int m = i / N, n = i % N;
+                std::cout << "  Mismatch at [" << m << "," << n << "]: " << "GPU=" << gpu_val
+                          << " REF=" << ref_val << " diff=" << diff << "\n";
+            }
+            errors++;
+        }
+    }
 
     print_separator();
-    std::cout << (result.correct ? "[PASS]" : "[FAIL]") << " Validation complete!\n";
+    std::cout << "Validation Results:\n";
+    print_separator();
+    std::cout << "  Max absolute diff: " << max_diff << "\n";
+    std::cout << "  Max relative diff: " << max_rel_diff << "\n";
+    std::cout << "  Errors: " << errors << " / " << (M * N) << "\n";
+    std::cout << "  Status: " << (errors == 0 ? "PASS" : "FAIL") << "\n";
     print_separator();
 
-    return result.correct ? 0 : 1;
+    return errors == 0 ? 0 : 1;
 }

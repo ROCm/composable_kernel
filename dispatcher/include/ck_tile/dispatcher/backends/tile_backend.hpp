@@ -104,22 +104,22 @@ class TileKernelInstance : public KernelInstance
 
         // Time kernel execution
         hipEvent_t start, stop;
-        hipEventCreate(&start);
-        hipEventCreate(&stop);
+        (void)hipEventCreate(&start);
+        (void)hipEventCreate(&stop);
 
-        hipEventRecord(start, hip_stream);
+        (void)hipEventRecord(start, hip_stream);
 
         // Launch kernel
         ck_tile::launch_kernel(SelectedKernel::Kernel, grids, blocks, lds_bytes, hip_stream, kargs);
 
-        hipEventRecord(stop, hip_stream);
-        hipEventSynchronize(stop);
+        (void)hipEventRecord(stop, hip_stream);
+        (void)hipEventSynchronize(stop);
 
         float elapsed_ms = 0.0f;
-        hipEventElapsedTime(&elapsed_ms, start, stop);
+        (void)hipEventElapsedTime(&elapsed_ms, start, stop);
 
-        hipEventDestroy(start);
-        hipEventDestroy(stop);
+        (void)hipEventDestroy(start);
+        (void)hipEventDestroy(stop);
 
         return elapsed_ms;
     }
