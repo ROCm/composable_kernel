@@ -67,6 +67,10 @@ template <typename WarpGemmAttributeWmmaImpl_, bool kTransC = false>
 struct WarpGemmAttributeWmma
 {
     using Impl = remove_cvref_t<WarpGemmAttributeWmmaImpl_>;
+    // AttrNumAccessV is required for compatibility with the block GEMM, and is currently ignored
+    // within WarpGemmAttributeWmma
+    static constexpr auto AttrNumAccess  = WGAttrNumAccessEnum::Single;
+    static constexpr auto AttrNumAccessV = static_cast<index_t>(AttrNumAccess);
 
     // When kTransC is true and A/B types differ, we need an impl with swapped types
     using TransposedImpl =
@@ -99,8 +103,22 @@ struct WarpGemmAttributeWmma
 
     // 16 bit input, kAMLane = 16, kABK0PerLane = 4, kABKLane = 2, kABK1PerLane = 2
     // 8  bit input, kAMLane = 16, kABK0PerLane = 2, kABKLane = 2, kABK1PerLane = 4
-    using AWarpDstrEncoding = typename AWarpDstrEncodingTrait<Impl>::type;
-    using BWarpDstrEncoding = typename BWarpDstrEncodingTrait<Impl>::type;
+    template <index_t NumAccess = AttrNumAccessV>
+    static constexpr auto get_awarp_dstr_encoding()
+    {
+        return typename AWarpDstrEncodingTrait<Impl>::type{};
+    }
+
+    template <index_t NumAccess = AttrNumAccessV>
+    static constexpr auto get_bwarp_dstr_encoding()
+    {
+        return typename BWarpDstrEncodingTrait<Impl>::type{};
+    }
+
+    template <index_t NumAccess = 1>
+    using AWarpDstrEncoding = decltype(get_awarp_dstr_encoding<NumAccess>());
+    template <index_t NumAccess = 1>
+    using BWarpDstrEncoding = decltype(get_bwarp_dstr_encoding<NumAccess>());
 
     // kCM0PerLane = 1, kCMLane = 2, kCM1PerLane = 2, kCNLane = 16
     using CWarpDstrEncoding =

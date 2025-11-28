@@ -25,8 +25,8 @@ struct WarpGemmImpl
     using BDataType = typename WarpGemmAttribute::BDataType;
     using CDataType = typename WarpGemmAttribute::CDataType;
 
-    using AWarpDstrEncoding = typename WarpGemmAttribute::AWarpDstrEncoding;
-    using BWarpDstrEncoding = typename WarpGemmAttribute::BWarpDstrEncoding;
+    using AWarpDstrEncoding = typename WarpGemmAttribute::template AWarpDstrEncoding<>;
+    using BWarpDstrEncoding = typename WarpGemmAttribute::template BWarpDstrEncoding<>;
     using CWarpDstrEncoding = typename WarpGemmAttribute::CWarpDstrEncoding;
 
     using AWarpDstr = remove_cvref_t<decltype(make_static_tile_distribution(AWarpDstrEncoding{}))>;

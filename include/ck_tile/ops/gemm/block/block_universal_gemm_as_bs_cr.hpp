@@ -139,6 +139,7 @@ struct BlockUniversalGemmAsBsCr
     using I0 = number<0>;
     using I1 = number<1>;
 
+    template <bool convert = false>
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
         constexpr index_t KPerThread     = Traits::KPerThread;
@@ -158,12 +159,18 @@ struct BlockUniversalGemmAsBsCr
                                        tuple<sequence<1, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
+        using Attr = typename WarpGemm::WarpGemmAttribute;
+        constexpr auto NumAccessA =
+            convert ? Attr::AttrNumAccessV * sizeof(ADataType) / sizeof(ComputeDataType)
+                    : Attr::AttrNumAccessV;
         constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
+            a_block_outer_dstr_encoding,
+            WarpGemm::WarpGemmAttribute::template get_awarp_dstr_encoding<NumAccessA>());
 
         return a_block_dstr_encode;
     }
 
+    template <bool convert = false>
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
         constexpr index_t KPerThread     = Traits::KPerThread;
@@ -183,8 +190,13 @@ struct BlockUniversalGemmAsBsCr
                                        tuple<sequence<0, 1>>,
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
+        using Attr = typename WarpGemm::WarpGemmAttribute;
+        constexpr auto NumAccessB =
+            convert ? Attr::AttrNumAccessV * sizeof(BDataType) / sizeof(ComputeDataType)
+                    : Attr::AttrNumAccessV;
         constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
+            b_block_outer_dstr_encoding,
+            WarpGemm::WarpGemmAttribute::template get_bwarp_dstr_encoding<NumAccessB>());
 
         return b_block_dstr_encode;
     }
