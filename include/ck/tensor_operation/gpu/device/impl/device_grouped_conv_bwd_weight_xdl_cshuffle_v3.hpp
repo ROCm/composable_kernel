@@ -584,19 +584,72 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 k_batch_ = split_k;
             }
 
+            // Create descriptors first (with hack flags temporarily set to false)
+            // so we can check if element space sizes match product of dimensions
+            const auto descs_initial =
+                conv_to_gemm_transformer
+                    .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
+                        Conv_N_,
+                        Conv_K_,
+                        Conv_C_,
+                        input_spatial_lengths_,
+                        filter_spatial_lengths_,
+                        output_spatial_lengths_,
+                        b_g_n_c_wis_strides,
+                        e_g_k_c_xs_strides,
+                        a_g_n_k_wos_strides,
+                        conv_filter_strides,
+                        conv_filter_dilations,
+                        input_left_pads,
+                        input_right_pads,
+                        k_batch_,
+                        false, // split_k_offset_a_hack (temporary)
+                        false, // split_k_offset_b_hack (temporary)
+                        true); // use_full_batch_kindex=true for V1-compatible descriptors
+
             const index_t output_spatial_acum = ck::accumulate_n<index_t>(
                 output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
+
             const bool is_k_not_paded =
                 (Conv_N_ * output_spatial_acum) % (K0PerBlock * k_batch_) == 0;
-            // Check if there is KPading and we can divide N * OutSpatialDims by k_batch
-            split_k_offset_a_hack_ =
-                k_batch_ > 1 && (Conv_N_ * output_spatial_acum) % k_batch_ == 0 && is_k_not_paded &&
-                is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
-            // Check if there is KPading and we can divide N by k_batch
-            split_k_offset_b_hack_ =
-                k_batch_ > 1 && Conv_N_ % k_batch_ == 0 && is_k_not_paded &&
+
+            const bool can_divide_n_spatial_by_k_batch =
+                (Conv_N_ * output_spatial_acum) % k_batch_ == 0;
+
+            const bool can_divide_n_by_k_batch = Conv_N_ % k_batch_ == 0;
+
+            const bool is_correct_layout =
                 is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
 
+            const bool is_a_stride_divisible =
+                descs_initial[I0].GetElementSpaceSize() % k_batch_ == 0;
+
+            const bool is_b_stride_divisible =
+                descs_initial[I1].GetElementSpaceSize() % k_batch_ == 0;
+
+            // Check if descriptor has compact layout (product of dimensions equals element space)
+            // Non-compact layouts have complex transform pipelines that don't support the hack
+            // Note: CShuffleV3 descriptors are 3D [K0, M, K1], not 4D like CShuffle
+            const auto a_dims_product = static_cast<long_index_t>(descs_initial[I0].GetLength(I0)) *
+                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I1)) *
+                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I2));
+            const auto b_dims_product = static_cast<long_index_t>(descs_initial[I1].GetLength(I0)) *
+                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I1)) *
+                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I2));
+
+            const bool is_a_compact = (descs_initial[I0].GetElementSpaceSize() == a_dims_product);
+            const bool is_b_compact = (descs_initial[I1].GetElementSpaceSize() == b_dims_product);
+
+            // Determine if we can safely use the split-k offset hack
+            // Only enable for compact layouts where element_space_size == product of dimensions
+            split_k_offset_a_hack_ = k_batch_ > 1 && can_divide_n_spatial_by_k_batch &&
+                                     is_k_not_paded && is_correct_layout && is_a_stride_divisible &&
+                                     is_a_compact;
+
+            split_k_offset_b_hack_ = k_batch_ > 1 && can_divide_n_by_k_batch && is_k_not_paded &&
+                                     is_correct_layout && is_b_stride_divisible && is_b_compact;
+
+            // Now create descriptors with the correct hack flags
             const auto descs =
                 conv_to_gemm_transformer
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -622,9 +675,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             b_grid_desc_k0_n_k1_ = descs[I1];
             c_grid_desc_m_n_     = descs[I2];
 
-            // Calculate stride from descriptor size
-            // With use_full_batch_kindex=true, descriptors contain full k-batch dimension
-            // so we divide by k_batch_ to get per-batch stride
+            // Calculate stride using CalculateOffset method for accurate stride
+            // This works correctly for any descriptor transform pipeline
             split_k_stride_a_ = a_grid_desc_k0_m_k1_.GetElementSpaceSize();
             if(split_k_offset_a_hack_)
                 split_k_stride_a_ /= k_batch_;

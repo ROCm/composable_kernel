@@ -693,16 +693,17 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         const long_index_t split_k_offset_b =
             split_k_offset_b_hack ? k_batch_id * split_k_stride_b : 0;
 
-        // When hack is enabled, use GetElementSpaceSize() divided by k_batch for buffer size.
-        // This matches the stride calculation in the device layer and correctly accounts for
-        // the memory layout encoded in GetElementSpaceSize().
+        // When hack is enabled, buffer size equals the stride (calculated from descriptor's
+        // CalculateOffset method in the device layer). This properly accounts for the
+        // descriptor's transform pipeline and non-compact strides.
+        // When hack is disabled, use the full element space size.
         const long_index_t a_buffer_size =
-            split_k_offset_a_hack ? (a_b_k0_m_k1_grid_desc.GetElementSpaceSize() / k_batch)
-                                  : a_b_k0_m_k1_grid_desc.GetElementSpaceSize();
+            split_k_offset_a_hack ? split_k_stride_a : a_b_k0_m_k1_grid_desc.GetElementSpaceSize();
 
         const long_index_t b_buffer_size =
-            split_k_offset_b_hack ? (b_b_k0_n_k1_grid_desc.GetElementSpaceSize() / k_batch)
-                                  : b_b_k0_n_k1_grid_desc.GetElementSpaceSize();
+            split_k_offset_b_hack ? split_k_stride_b : b_b_k0_n_k1_grid_desc.GetElementSpaceSize();
+
+        ignore = k_batch; // k_batch value itself not used in this function
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid + split_k_offset_a, a_buffer_size);

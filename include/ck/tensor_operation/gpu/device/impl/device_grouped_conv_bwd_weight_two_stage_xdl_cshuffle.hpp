@@ -716,7 +716,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 k_batch_ = split_k;
             }
 
-            const auto descs =
+            // Step 1: Create initial descriptors with hack=false to check compactness
+            const auto descs_initial =
                 conv_to_gemm_transformer_v2
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
                         Conv_N_,
@@ -733,13 +734,20 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         input_left_pads,
                         input_right_pads,
                         k_batch_,
-                        false, // Don't modify KBatch dimension
-                        false, // Don't modify KBatch dimension
-                        true); // use_full_batch_kindex: keep full KBatch*K0 dimension
+                        false, // hack=false for initial check
+                        false, // hack=false for initial check
+                        true); // use_full_batch_kindex
 
-            a_grid_desc_k0_m_k1_ = descs[I0];
-            b_grid_desc_k0_n_k1_ = descs[I1];
-            ce_grid_desc_m_n_    = descs[I2];
+            // Step 2: Check if descriptors are compact (element_space == product of dimensions)
+            const auto a_dims_product = static_cast<long_index_t>(descs_initial[I0].GetLength(I0)) *
+                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I1)) *
+                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I2));
+            const auto b_dims_product = static_cast<long_index_t>(descs_initial[I1].GetLength(I0)) *
+                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I1)) *
+                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I2));
+
+            const bool is_a_compact = (descs_initial[I0].GetElementSpaceSize() == a_dims_product);
+            const bool is_b_compact = (descs_initial[I1].GetElementSpaceSize() == b_dims_product);
 
             ce_elementwise_grid_desc_m_n_ =
                 conv_to_gemm_transformer_v1
@@ -774,43 +782,53 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
 
             const bool is_a_stride_divisible =
-                a_grid_desc_k0_m_k1_.GetElementSpaceSize() % k_batch_ == 0;
+                descs_initial[I0].GetElementSpaceSize() % k_batch_ == 0;
 
             const bool is_b_stride_divisible =
-                b_grid_desc_k0_n_k1_.GetElementSpaceSize() % k_batch_ == 0;
+                descs_initial[I1].GetElementSpaceSize() % k_batch_ == 0;
 
-            // Check if descriptor is contiguous (no padding in layout)
-            // For a contiguous (K0, M, K1) descriptor, ElementSpaceSize should equal K0*M*K1
-            const long_index_t expected_size_a = static_cast<long_index_t>(
-                a_grid_desc_k0_m_k1_.GetLength(I0) * a_grid_desc_k0_m_k1_.GetLength(I1) *
-                a_grid_desc_k0_m_k1_.GetLength(I2));
-            const bool is_a_contiguous =
-                a_grid_desc_k0_m_k1_.GetElementSpaceSize() == expected_size_a;
-
-            const long_index_t expected_size_b = static_cast<long_index_t>(
-                b_grid_desc_k0_n_k1_.GetLength(I0) * b_grid_desc_k0_n_k1_.GetLength(I1) *
-                b_grid_desc_k0_n_k1_.GetLength(I2));
-            const bool is_b_contiguous =
-                b_grid_desc_k0_n_k1_.GetElementSpaceSize() == expected_size_b;
-
-            // Determine if we can safely use the split-k offset hack
-            // The hack requires contiguous descriptor layout for correct stride calculation
+            // Step 3: Determine if hack can be enabled (only for compact layouts)
             split_k_offset_a_hack_ = k_batch_ > 1 && can_divide_n_spatial_by_k_batch &&
                                      is_k_not_paded && is_correct_layout && is_a_stride_divisible &&
-                                     is_a_contiguous;
+                                     is_a_compact;
 
             split_k_offset_b_hack_ = k_batch_ > 1 && can_divide_n_by_k_batch && is_k_not_paded &&
-                                     is_correct_layout && is_b_stride_divisible && is_b_contiguous;
+                                     is_correct_layout && is_b_stride_divisible && is_b_compact;
 
-            // Calculate stride for split-k offset hack
-            // The descriptor has shape (K0_full, M, K1) where K0_full = k_batch_ * K0_per_batch
-            // To advance from k_idx=0 to k_idx=1, we need to skip K0_per_batch slices
-            // Each K0 slice occupies M*K1 elements, so stride = (K0_full/k_batch_) * M * K1
+            // Step 4: Create final descriptors with correct hack flags
+            const auto descs =
+                conv_to_gemm_transformer_v2
+                    .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
+                        Conv_N_,
+                        Conv_K_,
+                        Conv_C_,
+                        input_spatial_lengths_,
+                        filter_spatial_lengths_,
+                        output_spatial_lengths_,
+                        b_g_n_c_wis_strides_transposed,
+                        e_g_k_c_xs_strides_transposed,
+                        a_g_n_k_wos_strides_transposed,
+                        conv_filter_strides,
+                        conv_filter_dilations,
+                        input_left_pads,
+                        input_right_pads,
+                        k_batch_,
+                        split_k_offset_a_hack_, // Use determined hack flag
+                        split_k_offset_b_hack_, // Use determined hack flag
+                        true);                  // use_full_batch_kindex
+
+            a_grid_desc_k0_m_k1_ = descs[I0];
+            b_grid_desc_k0_n_k1_ = descs[I1];
+            ce_grid_desc_m_n_    = descs[I2];
+
+            // Step 5: Calculate stride using CalculateOffset on FINAL descriptors
             if(split_k_offset_a_hack_)
             {
                 const index_t k0_per_batch = a_grid_desc_k0_m_k1_.GetLength(I0) / k_batch_;
-                split_k_stride_a_          = k0_per_batch * a_grid_desc_k0_m_k1_.GetLength(I1) *
-                                    a_grid_desc_k0_m_k1_.GetLength(I2);
+                const auto idx_start       = make_multi_index(0, 0, 0);
+                const auto idx_next        = make_multi_index(k0_per_batch, 0, 0);
+                split_k_stride_a_          = a_grid_desc_k0_m_k1_.CalculateOffset(idx_next) -
+                                    a_grid_desc_k0_m_k1_.CalculateOffset(idx_start);
             }
             else
             {
@@ -820,8 +838,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             if(split_k_offset_b_hack_)
             {
                 const index_t k0_per_batch = b_grid_desc_k0_n_k1_.GetLength(I0) / k_batch_;
-                split_k_stride_b_          = k0_per_batch * b_grid_desc_k0_n_k1_.GetLength(I1) *
-                                    b_grid_desc_k0_n_k1_.GetLength(I2);
+                const auto idx_start       = make_multi_index(0, 0, 0);
+                const auto idx_next        = make_multi_index(k0_per_batch, 0, 0);
+                split_k_stride_b_          = b_grid_desc_k0_n_k1_.CalculateOffset(idx_next) -
+                                    b_grid_desc_k0_n_k1_.CalculateOffset(idx_start);
             }
             else
             {

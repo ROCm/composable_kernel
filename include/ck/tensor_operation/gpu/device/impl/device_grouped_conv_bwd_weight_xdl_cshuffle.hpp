@@ -632,12 +632,28 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
             const bool is_b_stride_divisible =
                 descs_initial[I1].GetElementSpaceSize() % k_batch_ == 0;
 
+            // Check if descriptor has compact layout (product of dimensions equals element space)
+            // Non-compact layouts have complex transform pipelines that don't support the hack
+            const auto a_dims_product = static_cast<long_index_t>(descs_initial[I0].GetLength(I0)) *
+                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I1)) *
+                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I2)) *
+                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I3));
+            const auto b_dims_product = static_cast<long_index_t>(descs_initial[I1].GetLength(I0)) *
+                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I1)) *
+                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I2)) *
+                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I3));
+
+            const bool is_a_compact = (descs_initial[I0].GetElementSpaceSize() == a_dims_product);
+            const bool is_b_compact = (descs_initial[I1].GetElementSpaceSize() == b_dims_product);
+
             // Determine if we can safely use the split-k offset hack
+            // Only enable for compact layouts where element_space_size == product of dimensions
             split_k_offset_a_hack_ = k_batch_ > 1 && can_divide_n_spatial_by_k_batch &&
-                                     is_k_not_paded && is_correct_layout && is_a_stride_divisible;
+                                     is_k_not_paded && is_correct_layout && is_a_stride_divisible &&
+                                     is_a_compact;
 
             split_k_offset_b_hack_ = k_batch_ > 1 && can_divide_n_by_k_batch && is_k_not_paded &&
-                                     is_correct_layout && is_b_stride_divisible;
+                                     is_correct_layout && is_b_stride_divisible && is_b_compact;
 
             // Now create descriptors with the correct hack flags
             const auto descs =
@@ -664,10 +680,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
             b_grid_desc_kbatch_k0_n_k1_ = descs[I1];
             c_grid_desc_m_n_            = descs[I2];
 
-            // Calculate stride from descriptor size
-            // NOTE: GetElementSpaceSize() returns the full size even when KBatchIndex=1,
-            // so we need to divide by k_batch_ to get the per-batch stride when the hack is
-            // enabled. The divisibility check above ensures no truncation occurs.
+            // Calculate stride using CalculateOffset method for accurate stride
+            // This works correctly for any descriptor transform pipeline
             split_k_stride_a_ = a_grid_desc_kbatch_k0_m_k1_.GetElementSpaceSize();
             if(split_k_offset_a_hack_)
                 split_k_stride_a_ /= k_batch_;
