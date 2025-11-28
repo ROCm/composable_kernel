@@ -45,7 +45,7 @@ using BPreshuffleBQuantTypes = ::testing::Types<
 TYPED_TEST_SUITE(TestCkTileGemmPreshuffleBBQuant, BPreshuffleBQuantTypes);
 
 // BQuant PreshuffleB tests
-TYPED_TEST(TestCkTileGemmPreshuffleBBQuant, BQuantGroupedTest)
+TYPED_TEST(TestCkTileGemmPreshuffleBBQuant, BQuantPreshuffleTest)
 {
     this->run_test_with_validation(1024, 1024, 1024);
 }

@@ -10,7 +10,7 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     
     # AQuant tests
     add_gtest_executable(test_tile_gemm_quant_aquant 
-        test_gemm_quant_typed.cpp
+        test_gemm_quant_aquant.cpp
     )
     target_compile_options(test_tile_gemm_quant_aquant PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
