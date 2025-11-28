@@ -187,7 +187,8 @@ python gemm_instance_builder.py \
     --datatype fp16 \
     --layout rcr \
     --config_json configs/user_provided_config.json \
-    --gen_all_individual
+    --gen_all_individual \
+    --gpu_target gfx942
 ```
 
 #### gemm_instance_builder_parallel.py
