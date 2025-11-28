@@ -190,7 +190,7 @@ struct HstuAttentionNoSoftmaxFwdBlockTile;
 template <>
 struct HstuAttentionNoSoftmaxFwdBlockTile<32>
 {
-    using type        = ck_tile::sequence<64, 64, 32, 16, 32>;
+    using type        = ck_tile::sequence<64, 64, 32, 32, 32>;
     using gemm0_warps = ck_tile::sequence<2, 1, 1>;
     using gemm1_warps = ck_tile::sequence<2, 1, 1>;
 };
@@ -214,7 +214,7 @@ struct HstuAttentionNoSoftmaxFwdBlockTile<128>
 template <>
 struct HstuAttentionNoSoftmaxFwdBlockTile<256>
 {
-    using type        = ck_tile::sequence<128, 32, 256, 16, 256>;
+    using type        = ck_tile::sequence<128, 32, 256, 32, 256>;
     using gemm0_warps = ck_tile::sequence<4, 1, 1>;
     using gemm1_warps = ck_tile::sequence<4, 1, 1>;
 };
@@ -227,7 +227,7 @@ struct HstuAttentionWithSoftmaxFwdBlockTile;
 template <>
 struct HstuAttentionWithSoftmaxFwdBlockTile<32>
 {
-    using type        = ck_tile::sequence<64, 64, 32, 16, 32>;
+    using type        = ck_tile::sequence<64, 64, 32, 32, 32>;
     using gemm0_warps = ck_tile::sequence<2, 1, 1>;
     using gemm1_warps = ck_tile::sequence<2, 1, 1>;
 };
@@ -251,7 +251,7 @@ struct HstuAttentionWithSoftmaxFwdBlockTile<128>
 template <>
 struct HstuAttentionWithSoftmaxFwdBlockTile<256>
 {
-    using type        = ck_tile::sequence<128, 32, 256, 16, 256>;
+    using type        = ck_tile::sequence<128, 64, 256, 32, 256>;
     using gemm0_warps = ck_tile::sequence<4, 1, 1>;
     using gemm1_warps = ck_tile::sequence<4, 1, 1>;
 };
@@ -267,7 +267,7 @@ struct HstuAttentionNoSoftmaxFwdTileSetting<32>
         typename HstuAttentionNoSoftmaxFwdBlockTile<32>::gemm0_warps,
         HstuAttentionFwdWarpTile2,
         typename HstuAttentionNoSoftmaxFwdBlockTile<32>::gemm1_warps,
-        HstuAttentionFwdWarpTile1>;
+        HstuAttentionFwdWarpTile2>;
 };
 
 template <>
@@ -278,7 +278,7 @@ struct HstuAttentionNoSoftmaxFwdTileSetting<64>
         typename HstuAttentionNoSoftmaxFwdBlockTile<64>::gemm0_warps,
         HstuAttentionFwdWarpTile2,
         typename HstuAttentionNoSoftmaxFwdBlockTile<64>::gemm1_warps,
-        HstuAttentionFwdWarpTile1>;
+        HstuAttentionFwdWarpTile2>;
 };
 
 template <>
@@ -300,7 +300,7 @@ struct HstuAttentionNoSoftmaxFwdTileSetting<256>
         typename HstuAttentionNoSoftmaxFwdBlockTile<256>::gemm0_warps,
         HstuAttentionFwdWarpTile2,
         typename HstuAttentionNoSoftmaxFwdBlockTile<256>::gemm1_warps,
-        HstuAttentionFwdWarpTile1>;
+        HstuAttentionFwdWarpTile2>;
 };
 
 template <ck_tile::index_t MaxK>
@@ -314,7 +314,7 @@ struct HstuAttentionWithSoftmaxFwdTileSetting<32>
         typename HstuAttentionWithSoftmaxFwdBlockTile<32>::gemm0_warps,
         HstuAttentionFwdWarpTile2,
         typename HstuAttentionWithSoftmaxFwdBlockTile<32>::gemm1_warps,
-        HstuAttentionFwdWarpTile1>;
+        HstuAttentionFwdWarpTile2>;
 };
 
 template <>
@@ -325,7 +325,7 @@ struct HstuAttentionWithSoftmaxFwdTileSetting<64>
         typename HstuAttentionWithSoftmaxFwdBlockTile<64>::gemm0_warps,
         HstuAttentionFwdWarpTile2,
         typename HstuAttentionWithSoftmaxFwdBlockTile<64>::gemm1_warps,
-        HstuAttentionFwdWarpTile1>;
+        HstuAttentionFwdWarpTile2>;
 };
 
 template <>
@@ -347,6 +347,6 @@ struct HstuAttentionWithSoftmaxFwdTileSetting<256>
         typename HstuAttentionWithSoftmaxFwdBlockTile<256>::gemm0_warps,
         HstuAttentionFwdWarpTile2,
         typename HstuAttentionWithSoftmaxFwdBlockTile<256>::gemm1_warps,
-        HstuAttentionFwdWarpTile1>;
+        HstuAttentionFwdWarpTile2>;
 };
 #endif
