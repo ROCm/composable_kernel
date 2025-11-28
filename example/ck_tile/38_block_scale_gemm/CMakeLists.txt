@@ -7,7 +7,7 @@ list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -mllvm -enable-noalias-to-md-conversion
 
 if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     set(EXE_NAME tile_example_gemm_quant)
-    add_executable(${EXE_NAME} EXCLUDE_FROM_ALL 
+    add_executable(${EXE_NAME}
         gemm_quant.cpp
         gemm_aquant_quantgrouped.cpp
         gemm_aquant_quantgrouped_preshufflequant.cpp
