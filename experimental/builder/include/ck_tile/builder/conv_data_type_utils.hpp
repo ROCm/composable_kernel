@@ -74,7 +74,7 @@ consteval auto ConvertDataTypeToCK()
     }
 }
 
-template <TensorConfig Config, DataType SignatureDataType>
+template <auto Config, DataType SignatureDataType>
 consteval auto GetTensorDataAndComputeTypes()
 {
     constexpr auto data_type = Config.data_type;

@@ -10,6 +10,14 @@ namespace ck_tile::builder::test {
 
 using namespace ck_tile::builder;
 
+struct TensorConfig
+{
+    ConvLayout layout;
+    // Optional data types, override the type defined in the signature if provided.
+    DataType data_type{DataType::UNDEFINDED};
+    DataType compute_type{DataType::UNDEFINDED};
+};
+
 template <TensorConfig... Configs>
 struct TensorOperation
 {

@@ -19,7 +19,7 @@ TEST(FwdConvInstances,
             .data_type   = DataType::BF16,
             .accumulation_data_type = DataType::FP32,
             .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout2D::NHWGC } },
-            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout2D::GKYXC } },
+            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout2D::GKYXC, .data_type = DataType::BF16 } }, // For demo purposes
             .output   = ConvolutionTensor
                             {
                                 .config = { .layout = ConvOutputLayout2D::NHWGK },

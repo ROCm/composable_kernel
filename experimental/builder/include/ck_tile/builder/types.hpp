@@ -196,15 +196,6 @@ struct ConvLayout
     constexpr ConvLayout(BiasLayout layout) : _aux_tensor_layout(layout) {}
 };
 
-// TODO: Move to conv_signature_types.hpp
-struct TensorConfig
-{
-    ConvLayout layout;
-    // Optional data types, override the type defined in the signature if provided.
-    DataType data_type{DataType::UNDEFINDED};
-    DataType compute_type{DataType::UNDEFINDED};
-};
-
 // Direction of the convolution operation.
 enum class ConvDirection
 {

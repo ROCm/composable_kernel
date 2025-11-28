@@ -45,9 +45,18 @@ concept HasAuxiliaryOperandConfigs = requires(T t) {
     { t.auxiliary_operand_configs };
 };
 
+namespace detail {
+    template <typename T>
+    struct IsArrayOfTensorConfigDescriptors : std::false_type {};
+
+    template <typename T, std::size_t N>
+        requires TensorConfigDescriptor<T>
+    struct IsArrayOfTensorConfigDescriptors<std::array<T, N>> : std::true_type {};
+}
+
 template <typename T>
 concept ConvertibleToArrayOfTensorConfigs = 
-    std::is_same_v<std::remove_cvref_t<T>, std::array<TensorConfig, std::tuple_size_v<std::remove_cvref_t<T>>>>;
+    detail::IsArrayOfTensorConfigDescriptors<std::remove_cvref_t<T>>::value;
 
 template <typename T>
 concept AuxiliaryOperandConfigsWellDefinedIfProvided = requires(T t) {
