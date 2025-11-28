@@ -125,7 +125,7 @@ struct tile_scatter_gather
 
         static constexpr auto get_space_filling_curve()
         {
-            constexpr auto tile_dstr = TileDstr{};
+            [[maybe_unused]] constexpr auto tile_dstr = TileDstr{};
 
             constexpr auto thread_tensor_lengths_ys =
                 to_sequence(tile_dstr.get_ys_to_d_descriptor().get_lengths());
@@ -309,7 +309,7 @@ struct tile_scatter_gather
     CK_TILE_DEVICE auto load(number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
-        constexpr auto tile_dstr = TileDstr{};
+        [[maybe_unused]] constexpr auto tile_dstr = TileDstr{};
         auto dst_tensor          = make_static_distributed_tensor<DataType>(tile_dstr);
         load(dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
         return dst_tensor;
@@ -326,7 +326,7 @@ struct tile_scatter_gather
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
-        constexpr auto tile_dstr = TileDstr{};
+        [[maybe_unused]] constexpr auto tile_dstr = TileDstr{};
 
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
@@ -418,7 +418,7 @@ struct tile_scatter_gather
         using vector_t      = typename Traits::vector_t;
         using SFC_Ys        = typename Traits::SFC_Ys;
 
-        constexpr auto tile_dstr = TileDstr{};
+        [[maybe_unused]] constexpr auto tile_dstr = TileDstr{};
 
         // Precompute invariant values outside loops
         const auto window_origin       = lds_tile.get_window_origin();
@@ -614,7 +614,7 @@ struct tile_scatter_gather
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
-        constexpr auto tile_dstr = TileDstr{};
+        [[maybe_unused]] constexpr auto tile_dstr = TileDstr{};
 
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
@@ -696,7 +696,7 @@ struct tile_scatter_gather
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
-        constexpr auto tile_dstr = TileDstr{};
+        [[maybe_unused]] constexpr auto tile_dstr = TileDstr{};
         // printf("off %d\n", page_idx_[I0]);
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {

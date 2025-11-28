@@ -444,7 +444,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
               typename BFlatBlockWindowTmp,
               typename DequantBFlatWindow>
     CK_TILE_HOST_DEVICE auto operator()(ADramBlockWindowTmp a_copy_dram_window_,
-                                        const AElementFunction& a_element_func,
+                                        [[maybe_unused]] const AElementFunction& a_element_func,
                                         const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                         const DequantBFlatWindow& scale_b_flat_window,
                                         const index_t num_loop,
@@ -606,7 +606,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             scale_b_warp_tensor_pong;
 
         using ABlockTile = decltype(load_tile(a_copy_dram_window));
-        ABlockTile a_block_tile;
+        [[maybe_unused]] ABlockTile a_block_tile;
 
         enum
         {
@@ -621,7 +621,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                 if constexpr(prefill_location & PrefillAfterGemm)
                     async_load_tile(lds_tile_a, dram_tile_a);
             };
-        auto prefill_lds_a_stage2 = [&](auto lds_tile_a) {
+        auto prefill_lds_a_stage2 = [&]([[maybe_unused]] auto lds_tile_a) {
             // async_load_fence();
             // __builtin_amdgcn_s_waitcnt(0x03fc);
             // data has been stored in lds, no need more operation.
