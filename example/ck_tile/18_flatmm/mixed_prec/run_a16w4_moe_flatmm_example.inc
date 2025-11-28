@@ -36,7 +36,7 @@ float invoke_a16w4_moe_gemm(int n_warmup, int n_repeat, const MoeHostArgs& args)
 
     std::size_t flop     = std::size_t(2) * args.M * args.N * args.K;
     std::size_t num_byte = sizeof(ADataType) * args.M * args.K +
-                           sizeof(BDataType) * args.N * args.K * std::min(args.experts, args.NumTokens * args.TopK) / PackedSize +
+                           sizeof(BDataType) * args.N * args.K * std::min(args.NumExperts, args.NumTokens * args.TopK) / PackedSize +
                            sizeof(CDataType) * args.M * args.N;
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
@@ -188,7 +188,7 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
         int tile_off = i % MPerBlock;
         if(tile_off < token_per_tile && tokenid < num_tokens * topk)
         {
-            sorted_token_ids.mData[i] = (tokenid % num_tokens) | ((tokenid / num_tokens) << 24);
+            sorted_token_ids.mData[i] = (tokenid / experts) | ((tokenid % experts) << 24);
             tokenid++;
         }
         else

@@ -14,11 +14,11 @@
 struct A16W4_FlatmmConfig16
 {
 #if defined(__gfx950__)
-    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t M_Tile = 16;
 #else
     static constexpr ck_tile::index_t M_Tile = 64;
 #endif
-    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 256;
 
     static constexpr ck_tile::index_t M_Warp = 1;
