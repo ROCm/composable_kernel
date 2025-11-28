@@ -319,6 +319,8 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
             if constexpr(HasHotLoop)
             {
+                constexpr index_t tail_count =
+                    ((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd)) ? 1 : 2;
                 index_t i = 0;
                 do
                 {
@@ -366,7 +368,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                     __builtin_amdgcn_sched_barrier(0);
 
                     i += 1;
-                } while(i < (num_loop - 1));
+                } while(i < (num_loop - tail_count));
             }
             // tail
             if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
