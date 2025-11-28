@@ -20,15 +20,6 @@ enum class DataType
     U8
 };
 
-// TODO: This might be redundant.
-enum class ConvolutionTensorType
-{
-    Input,
-    Weight,
-    Output,
-    Bias
-};
-
 enum class BiasLayout
 {
     GC,
@@ -167,18 +158,18 @@ struct ConvOutputLayout
     constexpr ConvOutputLayout(ConvOutputLayout3D layout) : _3d(layout) {}
 };
 
-struct ConvBiasLayout
+struct ConvAuxiliaryTensorLayout
 {
     union {
         BiasLayout _bias_layout;
         ConvOutputLayout _conv_output_layout;
     };
 
-    constexpr ConvBiasLayout(BiasLayout layout) : _bias_layout(layout) {}
-    constexpr ConvBiasLayout(ConvOutputLayout layout) : _conv_output_layout(layout) {}
-    constexpr ConvBiasLayout(ConvOutputLayout1D layout) : _conv_output_layout(layout) {}
-    constexpr ConvBiasLayout(ConvOutputLayout2D layout) : _conv_output_layout(layout) {}
-    constexpr ConvBiasLayout(ConvOutputLayout3D layout) : _conv_output_layout(layout) {}
+    constexpr ConvAuxiliaryTensorLayout(BiasLayout layout) : _bias_layout(layout) {}
+    constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout layout) : _conv_output_layout(layout) {}
+    constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout1D layout) : _conv_output_layout(layout) {}
+    constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout2D layout) : _conv_output_layout(layout) {}
+    constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout3D layout) : _conv_output_layout(layout) {}
 };
 
 struct ConvLayout
@@ -187,15 +178,25 @@ struct ConvLayout
         ConvInputLayout _input_layout;
         ConvWeightLayout _weight_layout;
         ConvOutputLayout _output_layout;
-        ConvBiasLayout _bias_layout;
+        ConvAuxiliaryTensorLayout _aux_tensor_layout;
     };
 
     constexpr ConvLayout(ConvInputLayout layout) : _input_layout(layout) {}
+    constexpr ConvLayout(ConvInputLayout1D layout) : _input_layout(layout) {}
+    constexpr ConvLayout(ConvInputLayout2D layout) : _input_layout(layout) {}
+    constexpr ConvLayout(ConvInputLayout3D layout) : _input_layout(layout) {}
     constexpr ConvLayout(ConvWeightLayout layout) : _weight_layout(layout) {}
+    constexpr ConvLayout(ConvWeightLayout1D layout) : _weight_layout(layout) {}
+    constexpr ConvLayout(ConvWeightLayout2D layout) : _weight_layout(layout) {}
+    constexpr ConvLayout(ConvWeightLayout3D layout) : _weight_layout(layout) {}
     constexpr ConvLayout(ConvOutputLayout layout) : _output_layout(layout) {}
-    constexpr ConvLayout(ConvBiasLayout layout) : _bias_layout(layout) {}
+    constexpr ConvLayout(ConvOutputLayout1D layout) : _output_layout(layout) {}
+    constexpr ConvLayout(ConvOutputLayout2D layout) : _output_layout(layout) {}
+    constexpr ConvLayout(ConvOutputLayout3D layout) : _output_layout(layout) {}
+    constexpr ConvLayout(BiasLayout layout) : _aux_tensor_layout(layout) {}
 };
 
+// TODO: Move to conv_signature_types.hpp
 struct TensorConfig
 {
     ConvLayout layout;

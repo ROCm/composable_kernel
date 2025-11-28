@@ -8,82 +8,7 @@
 
 namespace ck_tile::builder::factory_internal
 {
-
-// // Type mappings from builder convolution data type to CK tensor types.
-// template <DataType T>
-// struct ConvTensorTypes
-// {
-//     // This will trigger if a specialization for the given DataType is not found.
-//     // We should always catch this in an earlier validation check.
-//     static_assert(sizeof(UnsupportedEnumValue<T>) == 0,
-//                   "Internal error. Unsupported data type for convolution factory.");
-// };
-
-// template <>
-// struct ConvTensorTypes<DataType::FP16>
-// {
-//     using ADataType        = ck::half_t;
-//     using AComputeType     = ck::half_t;
-//     using BDataType        = ck::half_t;
-//     using BComputeType     = ck::half_t;
-//     using CShuffleDataType = ck::half_t;
-//     using DsDataType       = ck::Tuple<>;
-//     using AccDataType      = float;
-//     using EDataType        = ck::half_t;
-// };
-
-// template <>
-// struct ConvTensorTypes<DataType::BF16>
-// {
-//     using ADataType        = ck::bhalf_t;
-//     using AComputeType     = ck::bhalf_t;
-//     using BDataType        = ck::bhalf_t;
-//     using BComputeType     = ck::bhalf_t;
-//     using CShuffleDataType = ck::bhalf_t;
-//     using DsDataType       = ck::Tuple<>;
-//     using AccDataType      = float;
-//     using EDataType        = ck::bhalf_t;
-// };
-
-// template <>
-// struct ConvTensorTypes<DataType::FP32>
-// {
-//     using ADataType        = float;
-//     using AComputeType     = float;
-//     using BDataType        = float;
-//     using BComputeType     = float;
-//     using CShuffleDataType = float;
-//     using DsDataType       = ck::Tuple<>;
-//     using AccDataType      = float;
-//     using EDataType        = float;
-// };
-
-// template <>
-// struct ConvTensorTypes<DataType::I8>
-// {
-//     using ADataType        = int8_t;
-//     using AComputeType     = int8_t;
-//     using BDataType        = int8_t;
-//     using BComputeType     = int8_t;
-//     using CShuffleDataType = int8_t;
-//     using DsDataType       = ck::Tuple<>;
-//     using AccDataType      = int32_t;
-//     using EDataType        = int8_t;
-// };
-
-// template <>
-// struct ConvTensorTypes<DataType::FP8>
-// {
-//     using ADataType        = ck::f8_t;
-//     using AComputeType     = ck::f8_t;
-//     using BDataType        = ck::f8_t;
-//     using BComputeType     = ck::f8_t;
-//     using CShuffleDataType = ck::f8_t;
-//     using DsDataType       = ck::Tuple<>;
-//     using AccDataType      = float;
-//     using EDataType        = ck::f8_t;
-// };
-
+    
 struct CK_half
 {
     using type = ck::half_t;
@@ -167,8 +92,10 @@ consteval auto GetTensorDataAndComputeTypes()
     {
         return std::make_pair(ConvertDataTypeToCK<data_type>(), ConvertDataTypeToCK<SignatureDataType>());
     }
-
-    return std::make_pair(ConvertDataTypeToCK<data_type>(), ConvertDataTypeToCK<compute_type>());
+    else 
+    {
+        return std::make_pair(ConvertDataTypeToCK<data_type>(), ConvertDataTypeToCK<compute_type>());
+    }
 }
 
 template <DataType SignatureAccDataType, DataType SignatureDataType>
@@ -179,7 +106,10 @@ consteval auto GetTensorAccumulationType()
     {
         return ConvertDataTypeToCK<SignatureDataType>();
     }
-    return ConvertDataTypeToCK<data_type>();
+    else 
+    {
+        return ConvertDataTypeToCK<data_type>();
+    }
 }
 
 template <auto Config, DataType SignatureDataType>
@@ -190,7 +120,10 @@ consteval auto GetAuxiliaryTensorDataTypeValue()
     {
         return ConvertDataTypeToCK<SignatureDataType>();
     }
-    return ConvertDataTypeToCK<data_type>();
+    else
+    {
+        return ConvertDataTypeToCK<data_type>();
+    }
 }
 
 template <auto AuxiliaryTensorConfigsArray, DataType SignatureDataType, size_t... Indices>
@@ -225,11 +158,11 @@ template <auto Signature>
 struct FwdConvTensorDataTypes
 {
     static constexpr auto input_types =
-        GetTensorDataAndComputeTypes<Signature.input, Signature.data_type>();
+        GetTensorDataAndComputeTypes<Signature.input.config, Signature.data_type>();
     static constexpr auto weight_types =
-        GetTensorDataAndComputeTypes<Signature.weight, Signature.data_type>();
+        GetTensorDataAndComputeTypes<Signature.weight.config, Signature.data_type>();
     static constexpr auto output_types =
-        GetTensorDataAndComputeTypes<Signature.output, Signature.data_type>();
+        GetTensorDataAndComputeTypes<Signature.output.config, Signature.data_type>();
 
     using ADataType    = typename decltype(input_types.first)::type;
     using AComputeType = typename decltype(input_types.second)::type;

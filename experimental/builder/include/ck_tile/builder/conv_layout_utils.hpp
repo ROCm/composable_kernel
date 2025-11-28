@@ -16,7 +16,7 @@ struct EmptyAuxiliaryTensorLayout
 
 template <auto Layout>
 consteval bool IsGenericBiasLayoutActive() {
-    return requires { typename std::integral_constant<BiasLayout, Layout._bias_layout>; };
+    return requires { typename std::integral_constant<BiasLayout, Layout._aux_tensor_layout._bias_layout>; };
 }
 
 template <auto Config, size_t SPATIAL_DIM>
@@ -25,7 +25,7 @@ consteval auto GetAuxiliaryTensorLayoutValue()
     constexpr auto Layout = Config.layout;
     if constexpr (IsGenericBiasLayoutActive<Layout>())
     {
-        constexpr auto val = Layout._bias_layout;
+        constexpr auto val = Layout._aux_tensor_layout._bias_layout;
         if constexpr (val == BiasLayout::G_K_strided)
             return ck::tensor_layout::convolution::G_K{};
         else if constexpr (val == BiasLayout::GC)
@@ -37,7 +37,7 @@ consteval auto GetAuxiliaryTensorLayoutValue()
     }
     else
     {
-        constexpr auto out_layout = Layout._conv_output_layout;
+        constexpr auto out_layout = Layout._output_layout;
         
         if constexpr (SPATIAL_DIM == 1)
         {

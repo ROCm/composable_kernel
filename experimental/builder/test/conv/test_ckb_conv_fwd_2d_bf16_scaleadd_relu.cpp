@@ -14,20 +14,45 @@ TEST(FwdConvInstances,
 {
     constexpr auto G_K = BiasLayout::G_K_strided;
     constexpr auto NHWGK = ConvOutputLayout2D::NHWGK; 
-    constexpr auto FwdConvLayout = ConvLayout
-            {
-                .input_layout  = ConvInputLayout2D::NHWGC,
-                .weight_layout = ConvWeightLayout2D::GKYXC,
-                .output_layout = ConvOutputLayout2D::NHWGK
-            }
-        .with_bias_layout<NHWGK, G_K>();
+
+    // Input
+    constexpr auto inputConfig = TensorConfig{
+        .layout             = ConvInputLayout2D::NHWGC
+    };
+    constexpr auto inputTensor = ConvolutionTensor{
+        .config      = inputConfig
+    };
+
+    // Weight
+    constexpr auto weight = TensorConfig{
+        .layout             = ConvWeightLayout2D::GKYXC
+    };
+    constexpr auto weightTensor = ConvolutionTensor{
+        .config      = weight
+    };
+
+    // Output with elementwise ops
+    constexpr auto output = TensorConfig{
+        .layout             = ConvOutputLayout2D::NHWGK
+    };
+    constexpr auto output_op = TensorOperation<> 
+        {
+            .elementwise_operation = ElementwiseOperation::SCALEADD_SCALEADD_RELU
+        }
+    .with_auxiliary_operand_configs<NHWGK, G_K>();
+
+    constexpr auto outputTensor = ConvolutionTensor{
+        .config      = output,
+        .operation   = output_op
+    };
 
     constexpr ConvSignature FwdConvSignature{.spatial_dim = 2,
                                              .direction   = ConvDirection::FORWARD,
-                                             .layout      = FwdConvLayout,
                                              .data_type   = DataType::BF16,
-                                             .elementwise_operation =
-                                                { .output_op = ElementwiseOperation::SCALEADD_SCALEADD_RELU}
+                                             .accumulation_data_type = DataType::FP32,
+                                             .input    = inputTensor,
+                                             .weight   = weightTensor,
+                                             .output   = outputTensor
                                             };
 
     constexpr auto FwdConvAlgorithm =

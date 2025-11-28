@@ -15,14 +15,22 @@ struct TensorOperation
 {
     ElementwiseOperation elementwise_operation{ElementwiseOperation::PASS_THROUGH};
     std::array<TensorConfig, sizeof...(Configs)> auxiliary_operand_configs{Configs...};
+
+    // Add builder to add auxiliary tensor configs
+    template<auto... AuxiliaryConfigs>
+    constexpr auto with_auxiliary_operand_configs() const
+    {
+        return TensorOperation<Configs..., TensorConfig{AuxiliaryConfigs}...>{
+            .elementwise_operation = this->elementwise_operation
+        };
+    }
 };
 
-template <typename Op>
+template <typename Op = TensorOperation<>>
 struct ConvolutionTensor
 {
-    ConvolutionTensorType type;
     TensorConfig config;
-    Op operation;
+    Op operation{};
 };
 
 template <typename InputTensor, typename WeightTensor, typename OutputTensor>

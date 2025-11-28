@@ -88,7 +88,6 @@ concept ConvolutionDirectionWellDefinedIfProvided = requires(T t) {
 // Concept for the convolution tensor
 template <typename T>
 concept ConvTensorDescriptor = requires(T t) {
-    { t.type } -> std::convertible_to<ConvolutionTensorType>;
     { t.config } -> TensorConfigDescriptor;
     requires ElementwiseOpWellDefinedIfProvided<T>;
 };

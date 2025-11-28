@@ -70,9 +70,9 @@ consteval auto GetElementwiseOp()
 template <auto InputTensor, auto WeightTensor, auto OutputTensor>
 struct ElementwiseOps
 {
-    static const auto input_op = GetElementwiseOp<InputTensor>();
-    static const auto weight_op = GetElementwiseOp<WeightTensor>();
-    static const auto output_op = GetElementwiseOp<OutputTensor>();
+    static constexpr auto input_op = GetElementwiseOp<InputTensor>();
+    static constexpr auto weight_op = GetElementwiseOp<WeightTensor>();
+    static constexpr auto output_op = GetElementwiseOp<OutputTensor>();
     using AElementwiseOp   = typename decltype(input_op)::Op;
     using BElementwiseOp   = typename decltype(weight_op)::Op;
     using CDEElementwiseOp = typename decltype(output_op)::Op;
@@ -81,7 +81,7 @@ struct ElementwiseOps
 template <auto Sig>
 constexpr auto GetElementwiseOps()
 {
-    return ElementwiseOps<Sig.elementwise_operation.input_op, Sig.elementwise_operation.weight_op, Sig.elementwise_operation.output_op>{};
+    return ElementwiseOps<Sig.input.operation, Sig.weight.operation, Sig.output.operation>{};
 }
 
 }
