@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # ONLY XDL_AND_WMMA_KERNELS
 set(GEMM_B_SCALE_INSTANCES)
 
