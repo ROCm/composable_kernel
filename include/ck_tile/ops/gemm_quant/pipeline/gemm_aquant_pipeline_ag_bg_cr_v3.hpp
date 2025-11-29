@@ -168,29 +168,10 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
         CK_TILE_DEVICE static void LoadAndConvertATile(ABlockTile_& a_block_tile,
                                                        const ADramWindow& a_dram_window)
         {
-            const auto a_loaded = load_tile(a_dram_window);
-            using SrcDataType   = typename decltype(a_loaded)::DataType;
-
-            if constexpr(std::is_same_v<SrcDataType, pk_int4_t>)
-            {
-                const element_wise::PassThroughPack8 elementwise_op{};
-                constexpr index_t UnaryOpSize = 8;
-                static_assert(ABlockTile_::get_thread_buffer_size() % UnaryOpSize == 0);
-                constexpr index_t thread_buffer_size =
-                    ABlockTile_::get_thread_buffer_size() / UnaryOpSize;
-
-                using DstVectorType = BDataType __attribute__((ext_vector_type(UnaryOpSize)));
-
-                static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-                    elementwise_op(
-                        a_block_tile.get_thread_buffer().template get_as<DstVectorType>()(i),
-                        a_loaded.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
-                });
-            }
-            else
-            {
-                load_tile(a_block_tile, a_dram_window);
-            }
+            using DestDataType            = typename ABlockTile_::DataType;
+            using SrcDataType             = typename ADramWindow::Base::TileWindowBase::DataType;
+            constexpr index_t UnaryOpSize = 8;
+            load_int4_tile<SrcDataType, DestDataType, UnaryOpSize>(a_block_tile, a_dram_window);
         }
 
         template <bool HasHotLoop,

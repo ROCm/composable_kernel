@@ -65,6 +65,8 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         {
             if constexpr(Problem::TransposeC)
             {
+                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>,
+                              "TransposeC currently only supports RowMajor layout");
                 using TileEncodingPatternTransposeC =
                     tile_distribution_encoding_pattern_aq_transposed_c<BlockGemmShape,
                                                                        WarpGemm,
@@ -74,31 +76,36 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                                        VecLoadSize>;
                 return TileEncodingPatternTransposeC::make_2d_static_tile_distribution();
             }
-            else if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
-            {
-                using TileEncodingPattern = tile_distribution_encoding_pattern_aq<BlockGemmShape,
-                                                                                  WarpGemm,
-                                                                                  BlockSize,
-                                                                                  MPerBlock,
-                                                                                  KPerBlockAQ,
-                                                                                  KPerBlockAQ,
-                                                                                  VecLoadSize,
-                                                                                  PreshuffleQuant>;
-
-                return TileEncodingPattern::make_2d_static_tile_distribution();
-            }
             else
             {
-                using TileEncodingPattern =
-                    tile_distribution_encoding_pattern_aq<BlockGemmShape,
-                                                          WarpGemm,
-                                                          BlockSize,
-                                                          KPerBlockAQ, // YPerTile
-                                                          MPerBlock,   // XPerTile
-                                                          KPerBlockAQ,
-                                                          VecLoadSize,
-                                                          PreshuffleQuant>;
-                return TileEncodingPattern::make_2d_static_tile_distribution_transposed();
+                // !Problem::TransposeC
+                if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    using TileEncodingPattern =
+                        tile_distribution_encoding_pattern_aq<BlockGemmShape,
+                                                              WarpGemm,
+                                                              BlockSize,
+                                                              MPerBlock,
+                                                              KPerBlockAQ,
+                                                              KPerBlockAQ,
+                                                              VecLoadSize,
+                                                              PreshuffleQuant>;
+
+                    return TileEncodingPattern::make_2d_static_tile_distribution();
+                }
+                else
+                {
+                    using TileEncodingPattern =
+                        tile_distribution_encoding_pattern_aq<BlockGemmShape,
+                                                              WarpGemm,
+                                                              BlockSize,
+                                                              KPerBlockAQ, // YPerTile
+                                                              MPerBlock,   // XPerTile
+                                                              KPerBlockAQ,
+                                                              VecLoadSize,
+                                                              PreshuffleQuant>;
+                    return TileEncodingPattern::make_2d_static_tile_distribution_transposed();
+                }
             }
         }
     }
