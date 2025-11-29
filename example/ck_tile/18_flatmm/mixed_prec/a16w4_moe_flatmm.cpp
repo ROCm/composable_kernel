@@ -515,6 +515,18 @@ int main(int argc, char* argv[])
         {
             return !run_a16w4_moe_flatmm_example<A16W4_FlatmmConfig16>(argc, argv);
         }
+        else if (warp_tile == 1) {
+            return !run_a16w4_moe_flatmm_example<A16W4_FlatmmConfig16_M16>(argc, argv);
+        }
+        else if (warp_tile == 2) {
+            return !run_a16w4_moe_flatmm_example<A16W4_FlatmmConfig16_M32>(argc, argv);
+        }
+        else if (warp_tile == 3) {
+            return !run_a16w4_moe_flatmm_example<A16W4_FlatmmConfig16_M64>(argc, argv);
+        }
+        else if (warp_tile == 4) {
+            return !run_a16w4_moe_flatmm_example<A16W4_FlatmmConfig16_M128>(argc, argv);
+        }
         // else if(warp_tile == 1)
         // {
         //     return !run_a16w4_moe_flatmm_example<A16W4_FlatmmConfig16_950>(argc, argv);

@@ -13,11 +13,7 @@
 // GEMM config with 16x16 warp tile
 struct A16W4_FlatmmConfig16
 {
-#if defined(__gfx950__)
-    static constexpr ck_tile::index_t M_Tile = 16;
-#else
     static constexpr ck_tile::index_t M_Tile = 64;
-#endif
     static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 256;
 
@@ -45,6 +41,33 @@ struct A16W4_FlatmmConfig16
 
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = false;
+};
+
+struct A16W4_FlatmmConfig16_M16 : public A16W4_FlatmmConfig16
+{
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t kBlockPerCu = 2;
+};
+
+struct A16W4_FlatmmConfig16_M32 : public A16W4_FlatmmConfig16
+{
+    static constexpr ck_tile::index_t M_Tile = 32;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr ck_tile::index_t kBlockPerCu = 2;
+};
+
+struct A16W4_FlatmmConfig16_M64 : public A16W4_FlatmmConfig16
+{
+    static constexpr ck_tile::index_t M_Tile = 64;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr ck_tile::index_t kBlockPerCu = 2;
+};
+
+struct A16W4_FlatmmConfig16_M128 : public A16W4_FlatmmConfig16
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
 };
 
 struct A16W4_FlatmmConfig16_950 : public A16W4_FlatmmConfig16
