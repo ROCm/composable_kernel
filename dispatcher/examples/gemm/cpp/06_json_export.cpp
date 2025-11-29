@@ -7,7 +7,7 @@
  * Demonstrates exporting registry information to JSON format.
  *
  * Build:
- *   python3 scripts/build_with_kernels.py examples/cpp/06_json_export.cpp
+ *   python3 scripts/compile_gemm_examples.py examples/cpp/06_json_export.cpp
  *
  * Complexity: ★★☆☆☆
  */

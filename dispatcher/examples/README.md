@@ -1,122 +1,204 @@
 # CK Tile Dispatcher Examples
 
-Practical examples demonstrating CK Tile Dispatcher usage.
+Comprehensive examples for GEMM and Convolution operations with GPU execution.
 
-> **See also:** [Main Dispatcher README](../README.md) for installation, build, and core concepts.
+---
 
 ## Quick Start
 
-```bash
-cd /workspace/workspace/composable_kernel/dispatcher
+### Step 1: Build
 
-# Build examples
+```bash
+cd /path/to/composable_kernel/dispatcher
 mkdir -p build && cd build
+
 cmake .. \
+  -DCMAKE_PREFIX_PATH=/opt/rocm \
   -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
-  -DBUILD_DISPATCHER_EXAMPLES=ON \
-  -DGPU_TARGETS=gfx942
+  -DCMAKE_BUILD_TYPE=Release \
+  -DGPU_TARGETS="gfx942" \
+  -DBUILD_DISPATCHER_EXAMPLES=ON
+
+# Build everything (C++ examples + Python libraries)
 make -j$(nproc)
 
-# Run C++ example
-./examples/example_01_basic_gemm
-
-# Run Python example
-cd ../examples/python
-python3 01_basic_gemm.py
+# Or build ONLY Python libraries (faster)
+make python_libs -j$(nproc)
 ```
 
-## C++ Examples (`cpp/`)
-
-| Example | Description | Complexity |
-|---------|-------------|------------|
-| `01_basic_gemm.cpp` | Complete explicit workflow: KernelConfig → Registry → Dispatcher | ★☆☆☆☆ |
-| `02_multi_size.cpp` | Multiple problem sizes | ★★☆☆☆ |
-| `03_benchmark.cpp` | Performance testing with warmup | ★★★☆☆ |
-| `04_validation.cpp` | Correctness vs CPU reference | ★★★☆☆ |
-| `05_heuristics.cpp` | Kernel selection strategies | ★★★★☆ |
-| `06_json_export.cpp` | Export registry to JSON | ★★☆☆☆ |
-| `07_preshuffle.cpp` | PreShuffle pipeline | ★★★★☆ |
-| `08_multi_d.cpp` | Multi-D GEMM with fusion | ★★★★★ |
-| `09_multi_registry.cpp` | Multiple registries with different kernels | ★★★★★ |
-
-### Running C++ Examples
+### Step 2: Run C++ Examples
 
 ```bash
 cd build/examples
 
-./example_01_basic_gemm              # Basic workflow
-./example_03_benchmark 2048 2048 2048  # Benchmark specific size
-./example_09_multi_registry          # Multiple registries
+# GEMM
+./gemm_01_basic
+./gemm_04_validation
+
+# Conv
+./conv_01_basic
+./conv_10_bwd_data --verify
+./conv_11_bwd_weight --verify
 ```
 
-## Python Examples (`python/`)
-
-| Example | Description | Complexity |
-|---------|-------------|------------|
-| `01_basic_gemm.py` | Complete workflow: KernelConfig → Registry → Dispatcher | ★☆☆☆☆ |
-| `02_batch_gemm.py` | Multiple sizes via dispatcher | ★★☆☆☆ |
-| `03_benchmark.py` | Performance testing | ★★★☆☆ |
-| `04_validation.py` | Correctness vs NumPy | ★★★☆☆ |
-| `05_numpy_integration.py` | GPUMatmul class | ★★☆☆☆ |
-| `06_json_export.py` | Export registry to JSON | ★★☆☆☆ |
-| `07_preshuffle.py` | PreShuffle kernel generation | ★★★★☆ |
-| `08_multi_d.py` | Multi-D GEMM | ★★★★★ |
-| `09_multi_registry.py` | Multiple registries with smart selection | ★★★★★ |
-
-### Running Python Examples
+### Step 3: Run Python Examples
 
 ```bash
-cd examples/python
+cd /path/to/composable_kernel/dispatcher
 
-python3 01_basic_gemm.py     # Basic workflow
-python3 04_validation.py     # Validate correctness
-python3 09_multi_registry.py # Multiple registries
+# GEMM
+python3 examples/gemm/python/01_basic_gemm.py
+python3 examples/gemm/python/04_validation.py
+
+# Conv
+python3 examples/conv/python/01_basic_conv.py
+python3 examples/conv/python/04_conv2d_bwd_data.py --verify
 ```
-
-## Core Pattern
-
-All examples follow the explicit data flow pattern:
-
-```python
-# Python
-config = KernelConfig(tile_m=128, ...)  # 1. Define config
-codegen.generate_from_config(config)     # 2. Generate kernel
-registry = Registry(name="my_reg")       # 3. Create registry
-registry.register_kernel(config)         # 4. Register config
-dispatcher = Dispatcher(registry, lib)   # 5. Create dispatcher
-result = dispatcher.run(A, B, M, N, K)   # 6. Run GEMM
-```
-
-```cpp
-// C++
-KernelKeyBuilder builder;                // 1. Build key
-builder.tile_m = 128; ...
-Registry::instance().register_kernel(k); // 2. Register kernel
-Dispatcher dispatcher;                   // 3. Create dispatcher
-dispatcher.run(a, b, c, problem);        // 4. Run GEMM
-```
-
-## Learning Path
-
-1. **Start:** `01_basic_gemm` - Understand the complete workflow
-2. **Scale:** `02_multi_size` / `02_batch_gemm` - Try different sizes
-3. **Measure:** `03_benchmark` - Performance testing
-4. **Verify:** `04_validation` - Correctness testing
-5. **Integrate:** `05_numpy_integration` - Real-world usage
-6. **Debug:** `06_json_export` - Export for analysis
-7. **Optimize:** `07_preshuffle` - Advanced pipeline
-8. **Fuse:** `08_multi_d` - Fused operations
-9. **Scale:** `09_multi_registry` - Multiple registries for workloads
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| "Generated kernels not found" | Build with `-DBUILD_DISPATCHER_EXAMPLES=ON` |
-| "HIP error" | Check GPU: `rocm-smi` |
-| Low performance | Use larger sizes (4096+), Release build |
-| Python import error | Set `PYTHONPATH` to include `dispatcher/python` |
 
 ---
 
-> **More info:** See [../README.md](../README.md) for full documentation.
+## Directory Structure
+
+```
+examples/
+├── gemm/
+│   ├── cpp/           # 9 C++ GEMM examples
+│   └── python/        # 9 Python GEMM examples
+│
+└── conv/
+    ├── cpp/           # 11 C++ Conv examples
+    └── python/        # 12 Python Conv examples
+```
+
+---
+
+## GEMM Examples
+
+### C++ Examples
+
+| # | Example | Description |
+|---|---------|-------------|
+| 01 | `gemm_01_basic` | Basic GEMM with declarative API |
+| 02 | `gemm_02_multi_size` | Multiple problem sizes |
+| 03 | `gemm_03_benchmark` | Performance benchmarking |
+| 04 | `gemm_04_validation` | CPU reference validation |
+| 05 | `gemm_05_heuristics` | Heuristic kernel selection |
+| 06 | `gemm_06_json_export` | Registry JSON export |
+| 07 | `gemm_07_preshuffle` | Layout optimization |
+| 08 | `gemm_08_multi_d` | Multi-D tensor ops |
+| 09 | `gemm_09_multi_registry` | Multiple registries |
+
+**Details:** [gemm/cpp/README.md](gemm/cpp/README.md)
+
+---
+
+### Python Examples
+
+| # | Example | Description |
+|---|---------|-------------|
+| 01 | `01_basic_gemm.py` | Basic GEMM with GPU execution |
+| 02 | `02_batch_gemm.py` | Batched GEMM operations |
+| 03 | `03_benchmark.py` | Performance benchmarking |
+| 04 | `04_validation.py` | CPU reference validation |
+| 05 | `05_numpy_integration.py` | NumPy array integration |
+| 06 | `06_json_export.py` | Registry JSON export |
+| 07 | `07_preshuffle.py` | Preshuffle optimization |
+| 08 | `08_multi_d.py` | Multi-D tensor ops |
+| 09 | `09_multi_registry.py` | Multiple registries |
+
+**Details:** [gemm/python/README.md](gemm/python/README.md)
+
+---
+
+## Convolution Examples
+
+### C++ Examples
+
+| # | Example | Description |
+|---|---------|-------------|
+| 01 | `conv_01_basic` | Basic 2D forward convolution |
+| 02 | `conv_02_forward` | Detailed 2D forward |
+| 03 | `conv_03_validation` | CPU reference validation |
+| 04 | `conv_04_multi_size` | Multiple problem sizes |
+| 05 | `conv_05_benchmark` | Performance benchmarking |
+| 06 | `conv_06_heuristics` | Heuristic kernel selection |
+| 07 | `conv_07_json_export` | Registry JSON export |
+| 08 | `conv_08_multi_registry` | Multiple registries |
+| 09 | `conv_09_conv3d_forward` | 3D volumetric convolution |
+| 10 | `conv_10_bwd_data` | Backward data gradient |
+| 11 | `conv_11_bwd_weight` | Backward weight gradient |
+
+**Details:** [conv/cpp/README.md](conv/cpp/README.md)
+
+---
+
+### Python Examples
+
+| # | Example | Description |
+|---|---------|-------------|
+| 01 | `01_basic_conv.py` | Basic 2D forward |
+| 02 | `02_conv2d_fwd.py` | 2D forward patterns |
+| 03 | `03_conv3d_fwd.py` | 3D forward patterns |
+| 04 | `04_conv2d_bwd_data.py` | Backward data with validation |
+| 05 | `05_conv2d_bwd_weight.py` | Backward weight with validation |
+| 06 | `06_benchmark.py` | Performance benchmarking |
+| 07 | `07_validation.py` | CPU vs GPU validation |
+| 08 | `08_json_export.py` | Registry JSON export |
+| 09 | `09_multi_registry.py` | Multiple registries |
+| 10 | `10_conv3d_forward.py` | 3D conv with GPU |
+| 11 | `11_bwd_data.py` | Backward data API |
+| 12 | `12_bwd_weight.py` | Backward weight API |
+
+**Details:** [conv/python/README.md](conv/python/README.md)
+
+---
+
+## Validation Examples
+
+### C++ Validation
+
+```bash
+./conv_03_validation              # Forward conv validation
+./conv_10_bwd_data --verify       # Backward data with CPU reference
+./conv_11_bwd_weight --verify     # Backward weight with CPU reference
+./gemm_04_validation              # GEMM validation
+```
+
+### Python Validation
+
+```bash
+python3 examples/conv/python/04_conv2d_bwd_data.py --verify
+python3 examples/conv/python/07_validation.py
+python3 examples/gemm/python/04_validation.py
+```
+
+---
+
+## Troubleshooting
+
+### Python: Library not found
+
+```bash
+# Run from dispatcher directory
+cd /path/to/composable_kernel/dispatcher
+python3 examples/gemm/python/01_basic_gemm.py
+```
+
+### C++: Executables not found
+
+```bash
+# Build with examples enabled
+cmake .. -DBUILD_DISPATCHER_EXAMPLES=ON
+make -j$(nproc)
+
+# Run from build/examples
+cd build/examples
+./gemm_01_basic
+```
+
+### GPU not detected
+
+```bash
+rocminfo | grep "Name:"
+# Should show: gfx942, gfx90a, etc.
+```

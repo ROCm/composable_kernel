@@ -7,7 +7,7 @@
  * Demonstrates custom kernel selection heuristics for different workloads.
  *
  * Build:
- *   python3 scripts/build_with_kernels.py examples/cpp/05_heuristics.cpp
+ *   python3 scripts/compile_gemm_examples.py examples/cpp/05_heuristics.cpp
  *
  * Complexity: ★★★☆☆
  */
@@ -16,6 +16,7 @@
 #include <iostream>
 #include <iomanip>
 #include <vector>
+#include <algorithm>
 
 #include "ck_tile/dispatcher.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
@@ -35,36 +36,33 @@ DECL_KERNEL_SET(heuristics,
 );
 
 // =============================================================================
-// Custom Heuristic Functions
+// Custom Heuristic: Returns kernel names ranked by expected performance
 // =============================================================================
 
-// Heuristic: Prefer small tiles for small problems, large tiles for large
-float size_based_heuristic(const Problem& problem, const KernelInstancePtr& kernel)
+// Heuristic: Size-based selection - returns kernels ranked for problem size
+std::vector<std::string> size_based_heuristic(const Problem& problem)
 {
+    std::vector<std::string> ranked_kernels;
     int64_t total_elements = problem.M * problem.N;
-    const auto& key        = kernel->get_key();
-    int tile_m             = key.algorithm.tile_shape[0];
-    int tile_n             = key.algorithm.tile_shape[1];
-    int tile_size          = tile_m * tile_n;
 
-    // Score based on how well tile size matches problem size
-    float ideal_tile = std::sqrt(static_cast<float>(total_elements) / 64.0f);
-    float tile_score = 1.0f / (1.0f + std::abs(tile_size - ideal_tile) / ideal_tile);
+    // Classify problem size and return appropriate kernels
+    if(total_elements < 10000)
+    {
+        // Small problems: prefer small tiles for low latency
+        ranked_kernels = {"gemm_64x64", "gemm_128x128", "gemm_256x256"};
+    }
+    else if(total_elements < 1000000)
+    {
+        // Medium problems: balanced approach
+        ranked_kernels = {"gemm_128x128", "gemm_64x64", "gemm_256x256"};
+    }
+    else
+    {
+        // Large problems: prefer large tiles for throughput
+        ranked_kernels = {"gemm_256x256", "gemm_128x128", "gemm_64x64"};
+    }
 
-    return tile_score;
-}
-
-// Heuristic: Prefer tiles that evenly divide the problem
-float divisibility_heuristic(const Problem& problem, const KernelInstancePtr& kernel)
-{
-    const auto& key = kernel->get_key();
-    int tile_m      = key.algorithm.tile_shape[0];
-    int tile_n      = key.algorithm.tile_shape[1];
-
-    bool divides_m = (problem.M % tile_m) == 0;
-    bool divides_n = (problem.N % tile_n) == 0;
-
-    return (divides_m && divides_n) ? 1.0f : 0.5f;
+    return ranked_kernels;
 }
 
 // =============================================================================
@@ -96,7 +94,7 @@ int main()
 
     // Create dispatcher with heuristic selection
     Dispatcher dispatcher(&registry);
-    dispatcher.set_strategy(SelectionStrategy::Heuristic);
+    dispatcher.set_strategy(Dispatcher::SelectionStrategy::Heuristic);
     dispatcher.set_heuristic(size_based_heuristic);
 
     std::cout << "\nSetup:\n";
@@ -124,8 +122,8 @@ int main()
         if(selected)
         {
             const auto& key = selected->get_key();
-            std::cout << "  Selected tile: " << key.algorithm.tile_shape[0] << "x"
-                      << key.algorithm.tile_shape[1] << "\n";
+            std::cout << "  Selected tile: " << key.algorithm.tile_shape.m << "x"
+                      << key.algorithm.tile_shape.n << "x" << key.algorithm.tile_shape.k << "\n";
         }
 
         // Actually run it
@@ -142,14 +140,27 @@ int main()
         float time_ms = dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
         std::cout << "  Time: " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
         std::cout << "  TFLOPS: " << std::setprecision(2) << calculate_tflops(M, N, K, time_ms)
-                  << "\n\n";
+                  << "\n";
+        print_separator();
     }
 
+    // =========================================================================
+    // Demonstrate manual heuristic logic
+    // =========================================================================
+    std::cout << "\nHeuristic Decision Logic:\n";
     print_separator();
-    std::cout << "Heuristic functions available:\n";
-    std::cout << "  - size_based_heuristic: Matches tile to problem size\n";
-    std::cout << "  - divisibility_heuristic: Prefers evenly-dividing tiles\n";
+
+    std::cout << "Problem Size Classification:\n";
+    std::cout << "  Small  (<10K elements):  Prefer 64x64   tiles for low latency\n";
+    std::cout << "  Medium (<1M elements):   Prefer 128x128 tiles for balance\n";
+    std::cout << "  Large  (>1M elements):   Prefer 256x256 tiles for throughput\n";
+
     print_separator();
+    std::cout << "Heuristics enable adaptive kernel selection based on:\n";
+    std::cout << "  - Problem size and shape\n";
+    std::cout << "  - Hardware characteristics\n";
+    std::cout << "  - Memory bandwidth requirements\n";
+    std::cout << "  - Compute vs memory bound workloads\n";
 
     return 0;
 }

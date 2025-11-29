@@ -2,12 +2,12 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Python GPU Helper - C++ executable for GPU GEMM execution
+ * GPU Helper - C++ executable for GPU GEMM execution
  *
- * This helper allows Python to execute GPU GEMM through a simple CLI:
- *   python_gpu_helper <M> <N> <K> [--validate]
+ * A CLI tool for Python to execute GPU GEMM with generated kernels.
+ * Usage: gpu_helper <M> <N> <K> [--validate]
  *
- * Includes generated kernel via -include flag (tile_engine style)
+ * Kernel header included via -include flag at compile time.
  */
 
 #include <iostream>

@@ -377,12 +377,14 @@ class ArchFilter
 /**
  * Create a filter function for use with Registry::filter()
  *
+ * @tparam KernelT Kernel instance type with get_key() method
  * @param arch Target GPU architecture
  * @return Predicate function that returns true for valid kernels
  */
+template <typename KernelT>
 inline auto make_arch_filter_predicate(const std::string& arch)
 {
-    return [filter = ArchFilter(arch)](const KernelInstance& kernel) {
+    return [filter = ArchFilter(arch)](const KernelT& kernel) {
         return filter.is_valid(kernel.get_key());
     };
 }

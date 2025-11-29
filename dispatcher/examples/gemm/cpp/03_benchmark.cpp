@@ -7,7 +7,7 @@
  * Runs GEMM multiple times to get accurate timing statistics.
  *
  * Build:
- *   python3 scripts/build_with_kernels.py examples/cpp/03_benchmark.cpp
+ *   python3 scripts/compile_gemm_examples.py examples/cpp/03_benchmark.cpp
  *
  * Complexity: ★★☆☆☆
  */

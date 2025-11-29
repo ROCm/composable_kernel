@@ -80,6 +80,12 @@ if(BUILD_DISPATCHER_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
+# Optional: Build ctypes bindings
+option(BUILD_DISPATCHER_BINDINGS "Build language bindings for dispatcher" OFF)
+if(BUILD_DISPATCHER_BINDINGS)
+    add_subdirectory(bindings/ctypes)
+endif()
+
 # If codegen is enabled, add generated include directory
 if(DISPATCHER_AUTO_GENERATE_WRAPPERS AND DISPATCHER_GENERATED_INCLUDE_DIR)
     target_include_directories(ck_tile_dispatcher

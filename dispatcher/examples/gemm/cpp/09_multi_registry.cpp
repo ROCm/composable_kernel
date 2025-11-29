@@ -8,7 +8,7 @@
  * each with its own optimized kernel set.
  *
  * Build:
- *   python3 scripts/build_with_kernels.py examples/cpp/09_multi_registry.cpp
+ *   python3 scripts/compile_gemm_examples.py examples/cpp/09_multi_registry.cpp
  *
  * Complexity: ★★★★☆
  */

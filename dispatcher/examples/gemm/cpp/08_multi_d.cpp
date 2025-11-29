@@ -2,12 +2,13 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 07: Preshuffle GEMM
+ * Example 08: Multi-D GEMM (Fused Operations)
  *
- * Demonstrates weight preshuffling for inference workloads.
+ * Demonstrates GEMM with additional D tensors for fused operations.
+ * C = A * B + D0 + D1 + ...
  *
  * Build:
- *   python3 scripts/build_with_kernels.py examples/cpp/07_preshuffle.cpp
+ *   python3 scripts/compile_gemm_examples.py examples/cpp/08_multi_d.cpp
  *
  * Complexity: ★★★☆☆
  */
@@ -27,17 +28,15 @@ using Signature = decl::Signature;
 using Algorithm = decl::Algorithm;
 
 // =============================================================================
-// KERNEL SET: Preshuffle-optimized kernels
+// KERNEL SET: Multi-D kernels with fused elementwise
 // =============================================================================
 
-DECL_KERNEL_SET(preshuffle,
-                .add(Signature().dtype("fp16").layout("rcr"),
-                     Algorithm().tile(128, 128, 32).preshuffle(true)) // Enable weight preshuffle
-                    .add(Signature().dtype("fp16").layout("rcr"),
-                         Algorithm().tile(256, 256, 64).preshuffle(true)));
-
-// Standard kernels for comparison
-DECL_KERNEL_SET(standard, .add("fp16", "rcr", 128, 128, 32));
+DECL_KERNEL_SET(
+    multi_d,
+    .add(Signature().dtype("fp16").layout("rcr").elementwise("MultiDAdd", 1), // 1 D tensor
+         Algorithm().tile(128, 128, 32))
+        .add(Signature().dtype("fp16").layout("rcr").elementwise("MultiDAdd", 2), // 2 D tensors
+             Algorithm().tile(128, 128, 32)));
 
 // =============================================================================
 // MAIN
@@ -45,19 +44,19 @@ DECL_KERNEL_SET(standard, .add("fp16", "rcr", 128, 128, 32));
 
 int main()
 {
-    print_header("Example 07: Preshuffle GEMM");
+    print_header("Example 08: Multi-D GEMM (Fused Operations)");
 
-    std::cout << "\nPreshuffle Benefits:\n";
-    std::cout << "  - Weight matrix is pre-transformed offline\n";
-    std::cout << "  - Faster inference (weights are fixed)\n";
-    std::cout << "  - Optimized memory access patterns\n";
+    std::cout << "\nMulti-D GEMM supports:\n";
+    std::cout << "  - C = A * B + D0 (bias add)\n";
+    std::cout << "  - C = A * B + D0 + D1 (multiple additions)\n";
+    std::cout << "  - C = ReLU(A * B + D0) (fused activation)\n";
 
     // =========================================================================
     // Setup
     // =========================================================================
     std::cout << "\nSetup:\n";
     Registry registry;
-    registry.set_name("preshuffle_registry");
+    registry.set_name("multi_d_registry");
 
     KernelConfig config =
         KernelConfig::fp16_rcr()
@@ -78,9 +77,9 @@ int main()
     std::cout << "  Kernel: " << kernel->get_name() << "\n";
 
     // =========================================================================
-    // Run GEMM
+    // Run GEMM (standard, without D tensors for this demo)
     // =========================================================================
-    const int M = 2048, N = 2048, K = 1024;
+    const int M = 1024, N = 1024, K = 512;
     Problem problem(M, N, K);
 
     GpuBuffer<ADataType> a_dev(M * K);
@@ -113,6 +112,9 @@ int main()
     std::cout << "Result: C[0,0] = " << actual << " (expected " << expected << ")\n";
     std::cout << "Status: " << (passed ? "PASS" : "FAIL") << "\n";
     print_separator();
+
+    std::cout << "\nNote: This example uses standard GEMM.\n";
+    std::cout << "For Multi-D, use dispatcher.run_with_d(...) with D tensor pointers.\n";
 
     return passed ? 0 : 1;
 }

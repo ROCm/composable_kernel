@@ -7,7 +7,7 @@
  * Validates GEMM output against CPU reference computation.
  *
  * Build:
- *   python3 scripts/build_with_kernels.py examples/cpp/04_validation.cpp
+ *   python3 scripts/compile_gemm_examples.py examples/cpp/04_validation.cpp
  *
  * Complexity: ★★☆☆☆
  */
@@ -69,12 +69,13 @@ int main()
     print_header("Example 04: GEMM Validation");
 
     const int M = 256, N = 256, K = 128;
-    const float tolerance = 1e-2f;
+    const float rtol = 1e-2f; // Relative tolerance
+    const float atol = 1e-2f; // Absolute tolerance for FP16
 
     std::cout << "\nConfiguration:\n";
     std::cout << "  Problem:   " << M << " x " << N << " x " << K << "\n";
     std::cout << "  Layout:    RCR (A=row, B=col, C=row)\n";
-    std::cout << "  Tolerance: " << tolerance << "\n";
+    std::cout << "  Tolerance: rtol=" << rtol << ", atol=" << atol << "\n";
 
     // =========================================================================
     // Setup
@@ -164,7 +165,10 @@ int main()
         max_diff     = std::max(max_diff, diff);
         max_rel_diff = std::max(max_rel_diff, rel_diff);
 
-        if(rel_diff > tolerance)
+        // Use combined tolerance: |gpu - ref| <= atol + rtol * |ref|
+        // This handles both small values (atol dominates) and large values (rtol dominates)
+        float threshold = atol + rtol * std::abs(ref_val);
+        if(diff > threshold)
         {
             if(errors < 5)
             {

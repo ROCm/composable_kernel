@@ -8,7 +8,7 @@
  * optimized for various workloads.
  *
  * Build:
- *   python3 scripts/build_with_kernels.py examples/cpp/02_multi_size.cpp
+ *   python3 scripts/compile_gemm_examples.py examples/cpp/02_multi_size.cpp
  *
  * Complexity: ★★☆☆☆
  */

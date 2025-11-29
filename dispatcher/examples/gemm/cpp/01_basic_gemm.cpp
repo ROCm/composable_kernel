@@ -8,7 +8,7 @@
  * Signature/Algorithm structs. All kernel key-values are visible.
  *
  * Build:
- *   python3 scripts/build_with_kernels.py examples/cpp/01_basic_gemm.cpp
+ *   python3 scripts/compile_gemm_examples.py examples/cpp/01_basic_gemm.cpp
  *
  * Complexity: ★☆☆☆☆
  */

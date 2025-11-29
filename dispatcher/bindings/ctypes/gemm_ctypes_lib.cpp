@@ -2,12 +2,15 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Dispatcher Dynamic Library - For Python ctypes loading
+ * GEMM Dispatcher ctypes Library
  *
- * This creates a .so that Python can load via ctypes.
- * Exposes simple C ABI for passing NumPy array pointers.
- *
+ * Provides C API for Python ctypes integration.
  * Kernel header included via -include at compile time.
+ *
+ * Usage from Python:
+ *   lib = ctypes.CDLL("libdispatcher_gemm.so")
+ *   lib.dispatcher_init()
+ *   lib.dispatcher_run_gemm(...)
  */
 
 #include <hip/hip_runtime.h>

@@ -75,6 +75,10 @@ endforeach()
 # Standalone integration tests (with their own main())
 set(STANDALONE_TESTS
     test_minimal.cpp
+    test_conv_config.cpp
+    test_conv_problem.cpp
+    test_conv_kernel_decl.cpp
+    test_conv_registry.cpp
 )
 
 foreach(test_source ${STANDALONE_TESTS})
