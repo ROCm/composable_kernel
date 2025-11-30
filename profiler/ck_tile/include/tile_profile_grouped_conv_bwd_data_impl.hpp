@@ -123,7 +123,8 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     float best_gb_per_sec = 0;
     std::string best_split_k("1");
 
-    std::vector<ck_tile::index_t> split_k_list = {1, 2, 4, 6, 8, 10, 12, 16, 19, 32, 38, 64, 76, 128, 152, 256, 304};
+    // std::vector<ck_tile::index_t> split_k_list = {1, 2, 4, 6, 8, 10, 12, 16, 19, 32, 38, 64, 76, 128, 152, 256, 304};
+    std::vector<ck_tile::index_t> split_k_list = {1, 2, 3, 4, 6, 8, 12, 16};
     if(split_k != "all")
     {
         try

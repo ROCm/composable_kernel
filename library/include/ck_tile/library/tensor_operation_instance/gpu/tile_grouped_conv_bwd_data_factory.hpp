@@ -56,6 +56,13 @@ using DeviceOp2DF32 = GroupedConvolutionBackwardDataBaseInvoker<2,
 // Forward declarations for instance factory functions
 // void add_grouped_conv2d_bwd_weight_f16_instances(std::vector<std::unique_ptr<DeviceOp2DF16>>& instances);
 void add_grouped_conv2d_bwd_data_bf16_instances(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
+void add_grouped_conv2d_bwd_data_bf16_instances_2(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
+void add_grouped_conv2d_bwd_data_bf16_instances_3(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
+void add_grouped_conv2d_bwd_data_bf16_instances_4(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
+void add_grouped_conv2d_bwd_data_bf16_instances_5(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
+void add_grouped_conv2d_bwd_data_bf16_instances_6(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
+void add_grouped_conv2d_bwd_data_bf16_instances_7(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
+
 // void add_grouped_conv2d_bwd_weight_bf16_instances_opt(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
 
 template <ck_tile::index_t NumDimSpatial,
@@ -118,6 +125,12 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionBackwardDataBaseInvoker<
                              std::is_same_v<ComputeTypeB, ck_tile::bfloat16_t>)
                 {
                     add_grouped_conv2d_bwd_data_bf16_instances(op_ptrs);
+                    add_grouped_conv2d_bwd_data_bf16_instances_2(op_ptrs);
+                    add_grouped_conv2d_bwd_data_bf16_instances_3(op_ptrs);
+                    add_grouped_conv2d_bwd_data_bf16_instances_4(op_ptrs);
+                    add_grouped_conv2d_bwd_data_bf16_instances_5(op_ptrs);
+                    add_grouped_conv2d_bwd_data_bf16_instances_6(op_ptrs);
+                    add_grouped_conv2d_bwd_data_bf16_instances_7(op_ptrs);
                     // add_grouped_conv2d_bwd_weight_bf16_instances_opt(op_ptrs);
                 }
             }

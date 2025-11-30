@@ -155,8 +155,12 @@ def run_analysis(results_file):
   worksheet.set_column(4, 4, 11)
   worksheet.write(offset, 5, "CK best kernel", header_format)
   worksheet.set_column(5, 5, 25)
-  worksheet.write(offset, 6, "CK tile best kernel", header_format)
-  worksheet.set_column(6, 6, 25)
+  worksheet.write(offset, 6, "CK splitk", header_format)
+  worksheet.set_column(6, 6, 15)
+  worksheet.write(offset, 7, "CK tile best kernel", header_format)
+  worksheet.set_column(7, 7, 25)
+  worksheet.write(offset, 8, "CK tile splitk", header_format)
+  worksheet.set_column(8, 8, 15)
 
   offset += 1
 
@@ -184,7 +188,9 @@ def run_analysis(results_file):
       format2.set_bg_color('green' if all_pass == "true" else 'red')
       worksheet.write(i + offset, 4, all_pass, format2)
       worksheet.write(i + offset, 5, case['ck_name'])
-      worksheet.write(i + offset, 6, case['ck_tile_name'])
+      worksheet.write(i + offset, 6, case['ck_splitk'])
+      worksheet.write(i + offset, 7, case['ck_tile_name'])
+      worksheet.write(i + offset, 8, case['ck_tile_splitk'])
 
       ck_time = case['ck_time']
       ck_tile_time = case['ck_tile_time']

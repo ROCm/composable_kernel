@@ -228,6 +228,9 @@ struct GroupedConvBwdDataKernelArgs
                 b_grid_descs_n_k[gemm_count] = grid_descs.at(number<1>{});
                 c_grid_descs_m_n[gemm_count] = grid_descs.at(number<2>{});
 
+                // printf("tilde: (%d, %d) gemm_k: %d\n", i_ytilde, i_xtilde,
+                //      a_grid_descs_m_k[gemm_count].get_length(I1));
+
                 const index_t grid_size_grp =
                     TilePartitioner::GridSize(c_grid_descs_m_n[gemm_count].get_length(I0),
                                               c_grid_descs_m_n[gemm_count].get_length(I1));
@@ -343,6 +346,8 @@ struct GroupedConvBwdDataKernelArgs
 
                     tildes = {i_ztilde, i_ytilde, i_xtilde};
 
+                    // printf("tilde: (%d, %d, %d)\n");
+
                     ConvToGemmTransformer conv_to_gemm_transformer{in_g_n_c_wis_lengths,
                                                                    wei_g_k_c_xs_lengths,
                                                                    out_g_n_k_wos_lengths,
@@ -409,6 +414,7 @@ struct GroupedConvBwdDataKernelArgs
     index_t GemmBatch;
     index_t grid_size_ = 0;
     index_t gemm_count = 0;
+    index_t gemm_k;
 
     const void* out_ptr;
     void* in_ptr;
@@ -864,6 +870,9 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple, kargs.k_batch);
 
         const index_t num_loop = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));        
+        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
+        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
+        
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, splitk_batch_offset.block_idx_k);
 
         // Run GEMM cooperatively by whole workgroup.
@@ -872,7 +881,7 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& d_block_window = gemm_tile_windows.at(I2);
 
         const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, num_loop, smem_ptr_0);
+            a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0);
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
@@ -915,6 +924,8 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple, kargs.k_batch);
 
         const index_t num_loop = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));        
+        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
+        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, splitk_batch_offset.block_idx_k);
 
         // Run GEMM cooperatively by whole workgroup.
@@ -923,7 +934,7 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& d_block_window = gemm_tile_windows.at(I2);
 
         const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
+            a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0, smem_ptr_1);
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
@@ -972,6 +983,11 @@ struct GroupedConvolutionBackwardDataKernel
 
         const index_t gemm_k = kargs.a_grid_descs_m_k[group_id].get_length(I1);
         const SplitKBatchOffset splitk_batch_offset(kargs, gemm_k);
+
+        // if(threadIdx.x == 0) {
+        //     const index_t num_loop = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));     
+        //     printf("gemm_k: %d, block_idx_k: %d, splited_k: %d num_loop: %d\n", gemm_k, splitk_batch_offset.block_idx_k, splitk_batch_offset.splitted_k, num_loop);
+        // }
 
         const auto blockIdY       = amd_wave_read_first_lane(blockIdx.y);
         const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);

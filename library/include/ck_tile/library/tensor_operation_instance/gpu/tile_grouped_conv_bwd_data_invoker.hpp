@@ -200,12 +200,25 @@ struct GroupedConvolutionBackwardDataInvoker :
 
     float Run(const ck_tile::GroupedConvBwdDataHostArgs& args, bool time_kernel, int n_warmup=5, int n_repeat=50) const override
     {
-        ck_tile::index_t  KGroups = 1;
+        [[maybe_unused]] ck_tile::index_t  KGroups = 1;
         for(int i=0; i<args.num_dim_spatial_;i++) {
-            KGroups *= args.filter_spatial_lengths_[i];
+            KGroups *= args.filter_spatial_lengths_[i];//std::min(args.filter_spatial_lengths_[i], args.conv_filter_strides_[i]); 
         }
 
-        const ck_tile::index_t gemm_k = args.K_ * KGroups;
+        const index_t ConvStrideH     = args.conv_filter_strides_[0];
+        const index_t ConvStrideW     = args.conv_filter_strides_[1];
+        const index_t ConvDilationH   = args.conv_filter_dilations_[0];
+        const index_t ConvDilationW   = args.conv_filter_dilations_[1];
+        const auto GcdStrideDilationH = gcd(ConvStrideH, ConvDilationH);
+        const auto GcdStrideDilationW = gcd(ConvStrideW, ConvDilationW);
+        const auto YTilde             = ConvStrideH / GcdStrideDilationH;
+        const auto XTilde             = ConvStrideW / GcdStrideDilationW;
+        const auto Y = args.filter_spatial_lengths_[0];
+        const auto X = args.filter_spatial_lengths_[1];
+        [[maybe_unused]] const auto YDot               = integer_divide_ceil(Y, YTilde);
+        [[maybe_unused]] const auto XDot               = integer_divide_ceil(X, XTilde);
+
+        const ck_tile::index_t gemm_k = args.K_ * XDot * YDot;
 
         const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
         const ck_tile::index_t K_split     = (gemm_k + k_grain - 1) / k_grain * K_Tile;
@@ -213,6 +226,8 @@ struct GroupedConvolutionBackwardDataInvoker :
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
         float ave_time{0};
+
+        printf("gemm_k: %d num_loop: %d, Xdot: %ld YDot: %ld\n", gemm_k, num_loop, XDot, YDot);
 
         const auto Run = [&](const auto has_hot_loop_,
                              const auto tail_number_,
@@ -227,6 +242,8 @@ struct GroupedConvolutionBackwardDataInvoker :
             auto kargs   = Kernel::MakeKernelArgs(args);
             const dim3 grids  = Kernel::GridSize(args);
             const dim3 blocks = Kernel::BlockSize();
+
+            printf("grid: (%u, %u, %u)\n", grids.x, grids.y, grids.z);
                    
             ck_tile::stream_config s {nullptr, time_kernel, 1, n_warmup, n_repeat};
 
