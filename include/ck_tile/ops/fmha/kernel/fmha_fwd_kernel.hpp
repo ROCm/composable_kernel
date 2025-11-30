@@ -1279,6 +1279,9 @@ struct FmhaFwdKernel
             long_index_t batch_offset_randval = 0;
             long_index_t batch_offset_lse     = 0;
             long_index_t batch_offset_o       = 0;
+            long_index_t batch_offset_q_descale = 0;
+            long_index_t batch_offset_k_descale = 0;
+            long_index_t batch_offset_v_descale = 0;
 
             if constexpr(kIsGroupMode)
             {
@@ -1309,6 +1312,14 @@ struct FmhaFwdKernel
                 if constexpr(kHasDropout)
                 {
                     batch_offset_randval = query_start * kargs.stride_randval;
+                }
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+                    const long_index_t bquery_start = kargs.bseqstart_q_ptr[i_batch];
+                    const long_index_t bkey_start   = kargs.bseqstart_k_ptr[i_batch];
+                    batch_offset_q_descale          = bquery_start;
+                    batch_offset_k_descale          = bkey_start;
+                    batch_offset_v_descale          = bkey_start;
                 }
                 batch_offset_o = query_start * kargs.stride_o;
 
@@ -1376,6 +1387,15 @@ struct FmhaFwdKernel
                 {
                     batch_offset_randval =
                         static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
+                }
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+                    batch_offset_q_descale =
+                        static_cast<long_index_t>(i_batch) * kargs.batch_stride_q_descale;
+                    batch_offset_k_descale =
+                        static_cast<long_index_t>(i_batch) * kargs.batch_stride_k_descale;
+                    batch_offset_v_descale =
+                        static_cast<long_index_t>(i_batch) * kargs.batch_stride_v_descale;
                 }
                 batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
 
@@ -1724,7 +1744,65 @@ struct FmhaFwdKernel
                                           variant_params,
                                           block_indices,
                                           smem_ptr,
-                                          dropout);
+                                          dropout,
+                                          nullptr,
+                                          nullptr,
+                                          1);
+                }
+                else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+                    const float* q_descale_ptr =
+                        reinterpret_cast<const float*>(kargs.q_descale_ptr) +
+                        static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q_descale +
+                        batch_offset_q_descale;
+                    const float* k_descale_ptr =
+                        reinterpret_cast<const float*>(kargs.k_descale_ptr) +
+                        static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                            kargs.nhead_stride_k_descale +
+                        batch_offset_k_descale;
+                    const float* v_descale_ptr =
+                        reinterpret_cast<const float*>(kargs.v_descale_ptr) +
+                        static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                            kargs.nhead_stride_v_descale +
+                        batch_offset_v_descale;
+
+                    size_t idx      = i_m0 / kargs.block_scale_m;
+                    float q_descale = q_descale_ptr[idx];
+
+                    float scale_o = 1.0;
+
+                    auto o_acc_element_func = [&]() {
+                        if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
+                            return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
+                                                     ck_tile::scales{scale_o});
+                        else
+                            return ck_tile::scales{scale_o};
+                    }();
+                    return FmhaPipeline{}(q_dram_window,
+                                          identity{}, // q_element_func
+                                          k_dram_window,
+                                          identity{}, // k_element_func
+                                          v_dram_window,
+                                          identity{}, // v_element_func
+                                          bias_dram_window,
+                                          identity{}, // bias_element_func
+                                          randval_dram_window,
+                                          lse_dram_window,
+                                          identity{},         // lse_element_func
+                                          identity{},         // s_acc_element_func
+                                          scales{1.0f},       // p_compute_element_func
+                                          o_acc_element_func, // o_acc_element_func
+                                          mask,
+                                          position_encoding,
+                                          kargs.scale_s * q_descale,
+                                          variant,
+                                          variant_params,
+                                          block_indices,
+                                          smem_ptr,
+                                          dropout,
+                                          k_descale_ptr,
+                                          v_descale_ptr,
+                                          kargs.block_scale_n);
                 }
                 else
                 {
