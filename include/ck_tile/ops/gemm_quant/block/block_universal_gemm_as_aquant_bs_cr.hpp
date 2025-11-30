@@ -94,9 +94,9 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
         static_assert(WarpGemm::kN == BlockGemmShape::WarpTile::at(I1{}),
                       "Error! WarpGemm's N is not consistent with BlockGemmShape!");
 
-        static constexpr index_t MIterPerWarp = max(1, MPerBlock / (MWarp * WarpGemm::kM));
-        static constexpr index_t NIterPerWarp = max(1, NPerBlock / (NWarp * WarpGemm::kN));
-        static constexpr index_t KIterPerWarp = max(1, KPerBlock / WarpGemm::kK);
+        static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
+        static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
+        static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
 
         static constexpr index_t QScalesPerBlockRow =
             integer_divide_ceil(KPerBlock, QuantGroupSize::kK);
@@ -389,23 +389,30 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         // These scales can be obtained using __builtin_amdgcn_ds_bpermute.
 
                         // Reg block offset based on mIter
+                        // Each thread stores AQPerBlock scale values per M iteration.
                         constexpr index_t reg_block_offset = mIter * Traits::AQPerBlock;
-
-                        // Scale tensor offset along K
-                        constexpr index_t src_reg_offset = reg_block_offset + kQScale;
-
-                        // Directly index into thread buffer corresponding to
-                        // desired row coefficient
+                        constexpr index_t src_reg_offset   = reg_block_offset + kQScale;
                         auto& scale_reg = aq_block_tensor.get_thread_buffer()[src_reg_offset];
 
-                        constexpr index_t lane_base_offset =
+                        // Divide M dimension of C Warp tile into groups of
+                        // (WarpGemm::kCMLane * WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane)
+                        // m_base_offset_of_c_row indicates which group the current c_row belongs
+                        // to.
+                        constexpr index_t m_base_offset_of_c_row =
                             (c_row / WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane) *
                             (WarpGemm::kCMLane * WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane);
-                        uint32_t src_lane_idx =
-                            lane_base_offset +
+
+                        // M offset of each thread within its group (see comment above)
+                        index_t m_base_offset_of_lane =
                             (get_lane_id() / WarpGemm::kN *
-                             WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane) +
-                            (c_row & (WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane - 1));
+                             WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane);
+
+                        // M offset wrt. c_row in the subgroup of kCM1PerLane
+                        constexpr index_t m_offset_of_c_row =
+                            c_row & (WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane - 1);
+
+                        uint32_t src_lane_idx =
+                            m_base_offset_of_c_row + m_base_offset_of_lane + m_offset_of_c_row;
 
                         return exchange_quant_value_across_lanes(scale_reg, src_lane_idx);
                     }
