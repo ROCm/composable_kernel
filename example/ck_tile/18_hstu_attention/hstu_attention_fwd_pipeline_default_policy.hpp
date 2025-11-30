@@ -738,18 +738,6 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
-
-                return WarpGemmDispatcher<
-                    typename Problem::QKVDataType,
-                    typename Problem::QKVDataType,
-                    typename Problem::GemmAccDataType,
-                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<0>{}),
-                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<1>{}),
-                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<2>{}),
-                    true,
-                    false,
-                    false,
-                    WGAttrNumAccessEnum::Single>{};
 #else
                 static_assert((WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32)) ||
                                   (WarpGemmM == 32 && (WarpGemmK == 8 || WarpGemmK == 16)),
