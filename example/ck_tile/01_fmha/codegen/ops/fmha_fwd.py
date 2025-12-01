@@ -829,7 +829,10 @@ class KernelComponentFactoryGfx12:
         elif dtype in ["fp8", "fp8bf16", "fp8fp32"]:
             # no need lse/dropout kernels
             for logits, qscale, mask, bias in itertools.product(
-                ["f"], ["no", "pertensor", "blockscale"], get_mask_map(mask_impl).keys(), ["no"]
+                ["f"],
+                ["no", "pertensor", "blockscale"],
+                get_mask_map(mask_impl).keys(),
+                ["no"],
             ):
                 pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
