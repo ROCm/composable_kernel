@@ -22,8 +22,12 @@ struct ConvSignatureInfo
 {
     int spatial_dim;
     builder::ConvDirection direction;
-    std::variant<builder::GroupConvLayout1D, builder::GroupConvLayout2D, builder::GroupConvLayout3D>
-        layout;
+    std::variant<builder::ConvInputLayout1D, builder::ConvInputLayout2D, builder::ConvInputLayout3D>
+        input_layout;
+    std::variant<builder::ConvWeightLayout1D, builder::ConvWeightLayout2D, builder::ConvWeightLayout3D>
+        weight_layout;
+    std::variant<builder::ConvOutputLayout1D, builder::ConvOutputLayout2D, builder::ConvOutputLayout3D>
+        output_layout;
     builder::DataType data_type;
     builder::ElementwiseOperation input_element_op;
     builder::ElementwiseOperation weight_element_op;
@@ -69,7 +73,9 @@ struct ConvDescription
         f.writeLine(0, signature.spatial_dim, "D ", signature.direction, " Convolution Kernel");
         f.writeLine(1, "Signature");
         f.writeLine(2, "Tensor Type: ", signature.data_type);
-        f.writeLine(2, "Memory Layout: ", signature.layout);
+        f.writeLine(2, "Input Layout: ", signature.input_layout);
+        f.writeLine(2, "Weight Layout: ", signature.weight_layout);
+        f.writeLine(2, "Output Layout: ", signature.output_layout);
         f.writeLine(2, "Input elementwise operation: ", signature.input_element_op);
         f.writeLine(2, "Weights elementwise operation: ", signature.weight_element_op);
         f.writeLast(2, "Output elementwise operation: ", signature.output_element_op);
@@ -235,10 +241,40 @@ ConvDescription Describe()
 {
     using Traits = ConvTraits<Instance>;
 
+    // TODO: This is a temporary fix. We should refactor also the traits and descriptors to better reflect the conv signature.
+    auto get_input_layout = []() -> decltype(ConvSignatureInfo::input_layout) {
+        if constexpr(Traits::spatial_dim == 1)
+            return Traits::layout[0]._input_layout._1d;
+        else if constexpr(Traits::spatial_dim == 2)
+            return Traits::layout[0]._input_layout._2d;
+        else
+            return Traits::layout[0]._input_layout._3d;
+    };
+
+    auto get_weight_layout = []() -> decltype(ConvSignatureInfo::weight_layout) {
+        if constexpr(Traits::spatial_dim == 1)
+            return Traits::layout[1]._weight_layout._1d;
+        else if constexpr(Traits::spatial_dim == 2)
+            return Traits::layout[1]._weight_layout._2d;
+        else
+            return Traits::layout[1]._weight_layout._3d;
+    };
+
+    auto get_output_layout = []() -> decltype(ConvSignatureInfo::output_layout) {
+        if constexpr(Traits::spatial_dim == 1)
+            return Traits::layout[2]._output_layout._1d;
+        else if constexpr(Traits::spatial_dim == 2)
+            return Traits::layout[2]._output_layout._2d;
+        else
+            return Traits::layout[2]._output_layout._3d;
+    };
+
     return ConvDescription{
         .signature = ConvSignatureInfo{.spatial_dim       = Traits::spatial_dim,
                                        .direction         = Traits::direction,
-                                       .layout            = Traits::layout,
+                                       .input_layout      = get_input_layout(),
+                                       .weight_layout     = get_weight_layout(),
+                                       .output_layout     = get_output_layout(),
                                        .data_type         = Traits::data_type,
                                        .input_element_op  = Traits::input_element_op,
                                        .weight_element_op = Traits::weight_element_op,

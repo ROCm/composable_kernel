@@ -84,7 +84,9 @@ concept HasConvolutionDirection = requires(T t) {
 // Note: it is not required to provide an ElementwiseOp, but if one is provided, check if well
 // defined
 template <typename T>
-concept ElementwiseOpWellDefinedIfProvided = requires { !HasTensorOp<T> || TensorOperatorDescriptor<T>;};
+concept ElementwiseOpWellDefinedIfProvided = !HasTensorOp<T> || requires(T t) {
+    requires TensorOperatorDescriptor<decltype(t.operation)>;
+};
 
 // Note: it is not required to provide a convolution, but if one is provided, check if well defined
 template <typename T>

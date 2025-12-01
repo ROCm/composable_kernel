@@ -314,22 +314,34 @@ constexpr auto conv_layout()
         if constexpr(std::is_same_v<ALayout, ctc::GNWC> && std::is_same_v<BLayout, ctc::GKXC> &&
                      std::is_same_v<ELayout, ctc::GNWK>)
         {
-            return builder::GroupConvLayout1D::GNWC_GKXC_GNWK;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout1D::GNWC,
+                    builder::ConvWeightLayout1D::GKXC,
+                    builder::ConvOutputLayout1D::GNWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NWGC> &&
                           std::is_same_v<BLayout, ctc::GKXC> && std::is_same_v<ELayout, ctc::NWGK>)
         {
-            return builder::GroupConvLayout1D::NWGC_GKXC_NWGK;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout1D::NWGC,
+                    builder::ConvWeightLayout1D::GKXC,
+                    builder::ConvOutputLayout1D::NWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCW> &&
                           std::is_same_v<BLayout, ctc::GKXC> && std::is_same_v<ELayout, ctc::NGKW>)
         {
-            return builder::GroupConvLayout1D::NGCW_GKXC_NGKW;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout1D::NGCW,
+                    builder::ConvWeightLayout1D::GKXC,
+                    builder::ConvOutputLayout1D::NGKW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCW> &&
                           std::is_same_v<BLayout, ctc::GKCX> && std::is_same_v<ELayout, ctc::NGKW>)
         {
-            return builder::GroupConvLayout1D::NGCW_GKCX_NGKW;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout1D::NGCW,
+                    builder::ConvWeightLayout1D::GKCX,
+                    builder::ConvOutputLayout1D::NGKW};
         }
     }
     else if constexpr(InstTraits::kSpatialDim == 2)
@@ -337,25 +349,37 @@ constexpr auto conv_layout()
         if constexpr(std::is_same_v<ALayout, ctc::GNHWC> && std::is_same_v<BLayout, ctc::GKYXC> &&
                      std::is_same_v<ELayout, ctc::GNHWK>)
         {
-            return builder::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout2D::GNHWC,
+                    builder::ConvWeightLayout2D::GKYXC,
+                    builder::ConvOutputLayout2D::GNHWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NHWGC> &&
                           std::is_same_v<BLayout, ctc::GKYXC> &&
                           std::is_same_v<ELayout, ctc::NHWGK>)
         {
-            return builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout2D::NHWGC,
+                    builder::ConvWeightLayout2D::GKYXC,
+                    builder::ConvOutputLayout2D::NHWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCHW> &&
                           std::is_same_v<BLayout, ctc::GKYXC> &&
                           std::is_same_v<ELayout, ctc::NGKHW>)
         {
-            return builder::GroupConvLayout2D::NGCHW_GKYXC_NGKHW;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout2D::NGCHW,
+                    builder::ConvWeightLayout2D::GKYXC,
+                    builder::ConvOutputLayout2D::NGKHW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCHW> &&
                           std::is_same_v<BLayout, ctc::GKCYX> &&
                           std::is_same_v<ELayout, ctc::NGKHW>)
         {
-            return builder::GroupConvLayout2D::NGCHW_GKCYX_NGKHW;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout2D::NGCHW,
+                    builder::ConvWeightLayout2D::GKCYX,
+                    builder::ConvOutputLayout2D::NGKHW};
         }
     }
     else if constexpr(InstTraits::kSpatialDim == 3)
@@ -363,25 +387,37 @@ constexpr auto conv_layout()
         if constexpr(std::is_same_v<ALayout, ctc::GNDHWC> && std::is_same_v<BLayout, ctc::GKZYXC> &&
                      std::is_same_v<ELayout, ctc::GNDHWK>)
         {
-            return builder::GroupConvLayout3D::GNDHWC_GKZYXC_GNDHWK;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout3D::GNDHWC,
+                    builder::ConvWeightLayout3D::GKZYXC,
+                    builder::ConvOutputLayout3D::GNDHWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NDHWGC> &&
                           std::is_same_v<BLayout, ctc::GKZYXC> &&
                           std::is_same_v<ELayout, ctc::NDHWGK>)
         {
-            return builder::GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout3D::NDHWGC,
+                    builder::ConvWeightLayout3D::GKZYXC,
+                    builder::ConvOutputLayout3D::NDHWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCDHW> &&
                           std::is_same_v<BLayout, ctc::GKZYXC> &&
                           std::is_same_v<ELayout, ctc::NGKDHW>)
         {
-            return builder::GroupConvLayout3D::NGCDHW_GKZYXC_NGKDHW;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout3D::NGCDHW,
+                    builder::ConvWeightLayout3D::GKZYXC,
+                    builder::ConvOutputLayout3D::NGKDHW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCDHW> &&
                           std::is_same_v<BLayout, ctc::GKCZYX> &&
                           std::is_same_v<ELayout, ctc::NGKDHW>)
         {
-            return builder::GroupConvLayout3D::NGCDHW_GKCZYX_NGKDHW;
+            return std::array<builder::ConvLayout, 3>{
+                    builder::ConvInputLayout3D::NGCDHW,
+                    builder::ConvWeightLayout3D::GKCZYX,
+                    builder::ConvOutputLayout3D::NGKDHW};
         }
     }
 }
@@ -433,21 +469,9 @@ template <typename ElementwiseOp>
 constexpr builder::ElementwiseOperation elementwise_op()
 {
     constexpr std::string_view name = detail::elementwise_op_name<ElementwiseOp>();
-    if constexpr(detail::case_insensitive_equal(name, "Bias"))
-    {
-        return builder::ElementwiseOperation::BIAS;
-    }
-    else if constexpr(detail::case_insensitive_equal(name, "BiasClamp"))
-    {
-        return builder::ElementwiseOperation::BIAS_CLAMP;
-    }
-    else if constexpr(detail::case_insensitive_equal(name, "BiasBnormClamp"))
+    if constexpr(detail::case_insensitive_equal(name, "BiasBnormClamp"))
     {
         return builder::ElementwiseOperation::BIAS_BNORM_CLAMP;
-    }
-    else if constexpr(detail::case_insensitive_equal(name, "Bilinear"))
-    {
-        return builder::ElementwiseOperation::BILINEAR;
     }
     else if constexpr(detail::case_insensitive_equal(name, "Clamp"))
     {
@@ -460,6 +484,10 @@ constexpr builder::ElementwiseOperation elementwise_op()
     else if constexpr(detail::case_insensitive_equal(name, "PassThrough"))
     {
         return builder::ElementwiseOperation::PASS_THROUGH;
+    }
+    else if constexpr(detail::case_insensitive_equal(name, "ScaleAddScaleAddRelu"))
+    {
+        return builder::ElementwiseOperation::SCALEADD_SCALEADD_RELU;
     }
 }
 

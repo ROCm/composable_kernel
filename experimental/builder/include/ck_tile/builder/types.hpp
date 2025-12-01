@@ -6,6 +6,8 @@
 #include <ostream>
 #include <string_view>
 #include <variant>
+#include <bit>
+#include <array>
 
 namespace ck_tile::builder {
 
@@ -74,6 +76,12 @@ struct ConvInputLayout
     constexpr ConvInputLayout(ConvInputLayout1D layout) : _1d(layout) {}
     constexpr ConvInputLayout(ConvInputLayout2D layout) : _2d(layout) {}
     constexpr ConvInputLayout(ConvInputLayout3D layout) : _3d(layout) {}
+
+    friend constexpr bool operator==(const ConvInputLayout& lhs, const ConvInputLayout& rhs)
+    {
+        return std::bit_cast<std::array<unsigned char, sizeof(ConvInputLayout)>>(lhs) ==
+               std::bit_cast<std::array<unsigned char, sizeof(ConvInputLayout)>>(rhs);
+    }
 };
 
 enum class ConvWeightLayout1D
@@ -114,6 +122,12 @@ struct ConvWeightLayout
     constexpr ConvWeightLayout(ConvWeightLayout1D layout) : _1d(layout) {}
     constexpr ConvWeightLayout(ConvWeightLayout2D layout) : _2d(layout) {}
     constexpr ConvWeightLayout(ConvWeightLayout3D layout) : _3d(layout) {}
+
+    friend constexpr bool operator==(const ConvWeightLayout& lhs, const ConvWeightLayout& rhs)
+    {
+        return std::bit_cast<std::array<unsigned char, sizeof(ConvWeightLayout)>>(lhs) ==
+               std::bit_cast<std::array<unsigned char, sizeof(ConvWeightLayout)>>(rhs);
+    }
 };
 
 enum class ConvOutputLayout1D
@@ -157,6 +171,12 @@ struct ConvOutputLayout
     constexpr ConvOutputLayout(ConvOutputLayout1D layout) : _1d(layout) {}
     constexpr ConvOutputLayout(ConvOutputLayout2D layout) : _2d(layout) {}
     constexpr ConvOutputLayout(ConvOutputLayout3D layout) : _3d(layout) {}
+
+    friend constexpr bool operator==(const ConvOutputLayout& lhs, const ConvOutputLayout& rhs)
+    {
+        return std::bit_cast<std::array<unsigned char, sizeof(ConvOutputLayout)>>(lhs) ==
+               std::bit_cast<std::array<unsigned char, sizeof(ConvOutputLayout)>>(rhs);
+    }
 };
 
 struct ConvAuxiliaryTensorLayout
@@ -171,6 +191,13 @@ struct ConvAuxiliaryTensorLayout
     constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout1D layout) : _conv_output_layout(layout) {}
     constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout2D layout) : _conv_output_layout(layout) {}
     constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout3D layout) : _conv_output_layout(layout) {}
+
+    friend constexpr bool operator==(const ConvAuxiliaryTensorLayout& lhs,
+                                     const ConvAuxiliaryTensorLayout& rhs)
+    {
+        return std::bit_cast<std::array<unsigned char, sizeof(ConvAuxiliaryTensorLayout)>>(lhs) ==
+               std::bit_cast<std::array<unsigned char, sizeof(ConvAuxiliaryTensorLayout)>>(rhs);
+    }
 };
 
 struct ConvLayout
@@ -195,6 +222,12 @@ struct ConvLayout
     constexpr ConvLayout(ConvOutputLayout2D layout) : _output_layout(layout) {}
     constexpr ConvLayout(ConvOutputLayout3D layout) : _output_layout(layout) {}
     constexpr ConvLayout(BiasLayout layout) : _aux_tensor_layout(layout) {}
+
+    friend constexpr bool operator==(const ConvLayout& lhs, const ConvLayout& rhs)
+    {
+        return std::bit_cast<std::array<unsigned char, sizeof(ConvLayout)>>(lhs) ==
+               std::bit_cast<std::array<unsigned char, sizeof(ConvLayout)>>(rhs);
+    }
 };
 
 // Direction of the convolution operation.
@@ -588,28 +621,17 @@ inline std::ostream& operator<<(std::ostream& os, ConvOutputLayout3D layout)
     }
 }
 
-// inline std::ostream& operator<<(std::ostream& os, ConvInputBiasLayout layout)
-// {
-//     using enum ConvInputBiasLayout;
-//     switch(layout)
-//     {
-//     case GC: return os << "GC";
-//     case G_C_strided: return os << "G_C_strided";
-//     default: return os << "Unknown";
-//     }
-// }
-
-// inline std::ostream& operator<<(std::ostream& os, ConvOutputBiasLayout layout)
-// {
-//     using enum ConvOutputBiasLayout;
-//     switch(layout)
-//     {
-//     case GK: return os << "GK";
-//     case G_K_strided: return os << "G_K_strided";
-//     default: return os << "Unknown";
-//     }
-// }
-
+inline std::ostream& operator<<(std::ostream& os, BiasLayout layout)
+{
+    using enum BiasLayout;
+    switch(layout)
+    {
+    case GC: return os << "GC";
+    case G_C_strided: return os << "G_C_strided";
+    case G_K_strided: return os << "G_K_strided";
+    default: return os << "Unknown";
+    }
+}
 
 inline std::ostream& operator<<(std::ostream& os, const std::variant<ConvInputLayout1D,
                                                    ConvInputLayout2D,
