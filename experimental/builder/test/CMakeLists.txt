@@ -1,6 +1,48 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+################################################################################
+# CK Builder Test Suite
+################################################################################
+#
+# This file defines the test suite for the Composable Kernel (CK) Builder,
+# which is responsible for generating optimized GPU kernels for convolution
+# operations.
+#
+# TESTING PHILOSOPHY:
+# -------------------
+# Tests are organized into two main categories:
+#
+# 1. SMOKE TESTS (fast, < 1 second total)
+#    - Unit tests that verify the builder's internal logic
+#    - Do NOT compile GPU kernels (fast compilation)
+#    - Run these frequently during development for quick feedback
+#    - Target: `ninja smoke-builder`
+#
+# 2. REGRESSION TESTS (slower, may take minutes)
+#    - Integration tests that compile and verify actual GPU kernels
+#    - Ensure the builder generates valid, compilable code
+#    - Include expensive "factory tests" that build all MIOpen kernels
+#    - Run these before submitting changes
+#    - Target: `ninja regression-builder`
+#
+# QUICK START:
+# ------------
+# - During development:     ninja smoke-builder
+# - Before submitting:      ninja regression-builder
+# - Run everything:         ninja check-builder
+# - Build specific test:    ninja test_ckb_conv_builder && bin/test_ckb_conv_builder
+#
+################################################################################
+
 include(gtest)
 
+################################################################################
+# Helper Functions
+################################################################################
+
 # Helper function to create a gtest executable with common properties
+# All builder tests share the same compilation settings and dependencies
 function(add_ck_builder_test test_name)
     add_executable(${test_name} ${ARGN} testing_utils.cpp)
     target_compile_features(${test_name} PRIVATE cxx_std_20)
@@ -16,17 +58,51 @@ function(add_ck_builder_test test_name)
     target_link_libraries(${test_name} PRIVATE GTest::gtest_main GTest::gmock)
 endfunction()
 
-# The test_ckb_conv_builder target has all the unit tests (each test should run < 10 ms)
+# Factory tests attempt to build all the kernels needed by MIOpen.
+# These are only for regression testing and development; the builds are too
+# expensive for regular use in CI.
+function(add_ck_factory_test test_name)
+    add_ck_builder_test(${test_name} ${ARGN})
+    target_link_libraries(${test_name} PRIVATE composablekernels::device_conv_operations)
+endfunction()
+
+################################################################################
+# SMOKE TESTS - Fast Unit Tests (No Kernel Compilation)
+################################################################################
+# These tests verify the builder's internal logic without compiling GPU kernels.
+# They should complete in under 10ms each and are suitable for frequent execution
+# during development.
 add_ck_builder_test(test_ckb_conv_builder
     test_conv_builder.cpp
     test_fwd_instance_traits.cpp
     test_bwd_weight_instance_traits.cpp
     test_bwd_data_instance_traits.cpp
-    test_instance_traits_util.cpp)
+    test_instance_traits_util.cpp
+)
+    
+    # Tests the inline diff utility used for comparing strings in tests assertions
+    add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
 
-add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
+    # Tests convolution trait selection and configuration
+    add_ck_builder_test(test_ckb_conv_traits
+        conv/test_conv_traits.cpp)
+    
+    # Tests convolution problem description and parameter handling
+    add_ck_builder_test(test_ckb_conv_description
+        test_conv_description.cpp)
+    
+################################################################################
+# REGRESSION TESTS - Integration Tests (With Kernel Compilation)
+################################################################################
+# These tests compile actual GPU kernels to verify the builder generates valid,
+# compilable code. They are more expensive but catch real-world issues.
 
-# Testing the virtual GetInstanceString methods requires kernel compilation.
+
+# Verifies that GetInstanceString() methods produce valid kernel code.
+# Tests various convolution types:
+#   - Group convolution (v3, standard, large tensor, WMMA, DL variants)
+#   - Backward weight group convolution (XDL)
+# Requires kernel compilation to validate the generated strings.
 add_ck_builder_test(test_ckb_get_instance_string
     test_get_instance_string_fwd_grp_conv_v3.cpp
     test_get_instance_string_fwd_grp_conv.cpp
@@ -35,8 +111,8 @@ add_ck_builder_test(test_ckb_get_instance_string
     test_get_instance_string_fwd_grp_conv_dl.cpp
     test_get_instance_string_bwd_weight_grp_conv_xdl.cpp)
 
-# Testing the fwd convolution builder requires kernel compilation.
-# To enable parallel compilation, the individual tests are split into separate files.
+# Tests the forward convolution builder across multiple data types and dimensions.
+# Individual tests are split into separate files to enable parallel compilation.
 add_ck_builder_test(test_ckb_build_fwd_instances
     conv/test_ckb_conv_fwd_1d_fp16.cpp
     conv/test_ckb_conv_fwd_1d_bf16.cpp
@@ -52,15 +128,21 @@ add_ck_builder_test(test_ckb_build_fwd_instances
     conv/test_ckb_conv_fwd_3d_fp32.cpp
     )
 
-# Factory tests attempt to build all the kernels need by MIOpen.
-# This is only for regression testing and development, the builds are too expensive for regular use in CI.
-function(add_ck_factory_test test_name)
-    add_ck_builder_test(${test_name} ${ARGN})
-    target_link_libraries(${test_name} PRIVATE composablekernels::device_conv_operations)
-endfunction()
 
-# TODO: add these tests back in once we have CI working across all GPU architectures.
+################################################################################
+# FACTORY TESTS - Expensive Regression Tests (Full MIOpen Kernel Set)
+################################################################################
+# These tests attempt to build ALL kernels needed by MIOpen for various
+# convolution operations. They are extremely expensive (minutes to compile)
+# and are intended for deep regression testing and development only.
+# NOT suitable for regular CI runs.
+#
+# Many tests are commented out pending CI support across all GPU architectures.
+
+# Tests the testing utilities themselves
 add_ck_factory_test(test_ckb_testing_utils test_testing_utils.cpp)
+
+# TODO: Re-enable these tests once we have CI working across all GPU architectures.
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward test_ck_factory_grouped_convolution_forward.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_clamp test_ck_factory_grouped_convolution_forward_clamp.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_convscale test_ck_factory_grouped_convolution_forward_convscale.cpp)
@@ -72,22 +154,30 @@ add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_ab tes
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
 
-add_ck_builder_test(test_ckb_conv_traits
-    conv/test_conv_traits.cpp)
+################################################################################
+# CTest Integration - Register Tests and Assign Labels
+################################################################################
+# Tests are registered with CTest and labeled for selective execution:
+#   - BUILDER_SMOKE: Fast unit tests for frequent development cycles
+#   - BUILDER_REGRESSION: Slower integration tests for pre-submission validation
 
-add_ck_builder_test(test_ckb_conv_description
-    test_conv_description.cpp)
-
-# Register tests with CTest and assign labels
 include(CTest)
 
-# Smoke test: fast-compiling unit test
-add_test(NAME test_ckb_conv_builder COMMAND test_ckb_conv_builder)
-set_tests_properties(test_ckb_conv_builder PROPERTIES LABELS "BUILDER_SMOKE")
-
-# Regression tests: all other tests that require kernel compilation
-set(CKB_REGRESSION_TESTS
+# Register all smoke tests (fast unit tests, no kernel compilation)
+set(CKB_SMOKE_TESTS
+    test_ckb_conv_builder
     test_ckb_inline_diff
+    test_ckb_conv_traits
+    test_ckb_conv_description
+)
+
+foreach(test_target ${CKB_SMOKE_TESTS})
+    add_test(NAME ${test_target} COMMAND ${test_target})
+    set_tests_properties(${test_target} PROPERTIES LABELS "BUILDER_SMOKE")
+endforeach()
+
+# Register all regression tests (integration tests with kernel compilation)
+set(CKB_REGRESSION_TESTS
     test_ckb_get_instance_string
     test_ckb_build_fwd_instances
     test_ckb_testing_utils
@@ -95,8 +185,6 @@ set(CKB_REGRESSION_TESTS
     test_ckb_factory_grouped_convolution_forward_scaleadd_ab
     test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu
     test_ckb_factory_grouped_convolution_forward_dynamic_op
-    test_ckb_conv_traits
-    test_ckb_conv_description
 )
 
 foreach(test_target ${CKB_REGRESSION_TESTS})
@@ -104,18 +192,31 @@ foreach(test_target ${CKB_REGRESSION_TESTS})
     set_tests_properties(${test_target} PROPERTIES LABELS "BUILDER_REGRESSION")
 endforeach()
 
-# Helper target to build all regression tests
+################################################################################
+# Custom Build Targets - Convenient Test Execution
+################################################################################
+# These targets provide convenient ways to build and run different test suites:
+#   - smoke-builder:      Quick sanity check during development
+#   - regression-builder: Thorough validation before submitting changes
+#   - check-builder:      Complete test suite execution
+
+# Helper target to build all smoke tests (without running them)
+add_custom_target(build-smoke-builder DEPENDS ${CKB_SMOKE_TESTS})
+
+# Helper target to build all regression tests (without running them)
 add_custom_target(build-regression-builder DEPENDS ${CKB_REGRESSION_TESTS})
 
-# Target to run only smoke tests (builds only test_ckb_conv_builder)
+# Target to run only smoke tests (builds and runs all smoke test executables)
+# Use this for quick feedback during active development
 add_custom_target(smoke-builder
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "BUILDER_SMOKE"
-    DEPENDS test_ckb_conv_builder
+    DEPENDS build-smoke-builder
     USES_TERMINAL
     COMMENT "Running experimental builder smoke tests..."
 )
 
-# Target to run only regression tests (builds all regression test executables)
+# Target to run only regression tests (builds and runs all regression test executables)
+# Use this before submitting changes to catch integration issues
 add_custom_target(regression-builder
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "BUILDER_REGRESSION"
     DEPENDS build-regression-builder
@@ -123,15 +224,20 @@ add_custom_target(regression-builder
     COMMENT "Running experimental builder regression tests..."
 )
 
-# Target to run all builder tests (builds all test executables)
+# Target to run all builder tests (builds and runs all test executables)
+# Use this for comprehensive validation
 add_custom_target(check-builder
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -R "^test_ckb"
-    DEPENDS test_ckb_conv_builder build-regression-builder
+    DEPENDS build-smoke-builder build-regression-builder
     USES_TERMINAL
     COMMENT "Running all experimental builder tests..."
 )
 
-# Print summary of test organization
+################################################################################
+# Build Summary
+################################################################################
+
+# Print summary of test organization for developer reference
 message(STATUS "CK Builder test organization:")
-message(STATUS "  Smoke test: test_ckb_conv_builder")
+message(STATUS "  Smoke tests: ${CKB_SMOKE_TESTS}")
 message(STATUS "  Regression tests: ${CKB_REGRESSION_TESTS}")

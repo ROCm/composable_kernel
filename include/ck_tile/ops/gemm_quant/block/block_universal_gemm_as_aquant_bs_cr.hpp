@@ -373,8 +373,8 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                     {
                         // Need to multiply aquant with accumulated C
                         //
-                        // The accumulated C tile has the standard distribution. For example
-                        // lane 0 holds elements [0,0], [1,0], [2,0], [3,0], [8,0], [9,0],
+                        // The accumulated C tile has the standard distribution. For example, a
+                        // 32x32 C lane 0 holds elements [0,0], [1,0], [2,0], [3,0], [8,0], [9,0],
                         // [10,0], [11,0], [16,0], [17,0], [18,0], [19,0], [24,0], [25,0],
                         // [26,0], [27,0].
                         //
@@ -388,35 +388,31 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         //
                         // These scales can be obtained using __builtin_amdgcn_ds_bpermute.
 
-                        // MIters per warp
-                        constexpr index_t mIters_per_warp = get_warp_size() / WarpGemm::kM;
-
                         // Reg block offset based on mIter
-                        constexpr index_t reg_block_offset =
-                            ((mIter / mIters_per_warp) * Traits::AQPerBlock);
-
-                        constexpr index_t lane_base_offset =
-                            (mIter % mIters_per_warp) * WarpGemm::kM;
-
-                        // Scale tensor offset along K
-                        constexpr index_t src_reg_offset = reg_block_offset + kQScale;
-                        // Directly index into thread buffer corresponding to
-                        // desired row coefficient
+                        // Each thread stores AQPerBlock scale values per M iteration.
+                        constexpr index_t reg_block_offset = mIter * Traits::AQPerBlock;
+                        constexpr index_t src_reg_offset   = reg_block_offset + kQScale;
                         auto& scale_reg = aq_block_tensor.get_thread_buffer()[src_reg_offset];
 
-                        constexpr uint32_t kTileRows = (get_warp_size() == 64) ? 4 : 8;
-                        ;
-                        constexpr uint32_t kTiledCMsPerWarp        = WarpGemm::kCMLane * kTileRows;
-                        constexpr uint32_t reg_offset_for_row_data = c_row * WarpGemm::kCMLane;
-                        // Multiply by 4 because output is stored in tiles of 4
-                        // x CNLane
-                        constexpr uint32_t row_base =
-                            ((reg_offset_for_row_data / kTiledCMsPerWarp) * kTiledCMsPerWarp) +
-                            ((reg_offset_for_row_data % kTiledCMsPerWarp) / WarpGemm::kCMLane);
+                        // Divide M dimension of C Warp tile into groups of
+                        // (WarpGemm::kCMLane * WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane)
+                        // m_base_offset_of_c_row indicates which group the current c_row belongs
+                        // to.
+                        constexpr index_t m_base_offset_of_c_row =
+                            (c_row / WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane) *
+                            (WarpGemm::kCMLane * WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane);
 
-                        // Lane index to source scale from
+                        // M offset of each thread within its group (see comment above)
+                        index_t m_base_offset_of_lane =
+                            (get_lane_id() / WarpGemm::kN *
+                             WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane);
+
+                        // M offset wrt. c_row in the subgroup of kCM1PerLane
+                        constexpr index_t m_offset_of_c_row =
+                            c_row & (WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane - 1);
+
                         uint32_t src_lane_idx =
-                            lane_base_offset + row_base + (__lane_id() / WarpGemm::kN * kTileRows);
+                            m_base_offset_of_c_row + m_base_offset_of_lane + m_offset_of_c_row;
 
                         return exchange_quant_value_across_lanes(scale_reg, src_lane_idx);
                     }
