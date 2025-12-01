@@ -4,7 +4,7 @@
 #include "run_gemm_quant_example.inc"
 
 template <typename T>
-using GemmConfig = GemmConfigBQuantPrefill<T>;
+using GemmConfig = GemmConfigQuantPrefill<T>;
 
 #define RUN_GEMM_EXAMPLE_PREC_TYPE                         \
     run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, \
