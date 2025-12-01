@@ -28,6 +28,7 @@ struct ScaleScalarOp
     template <typename OutWindow,
               typename AccTile,
               typename AuxWindows,
+              typename IAccess,
               typename Context,
               typename ScaleA,
               typename ScaleB>
@@ -35,7 +36,7 @@ struct ScaleScalarOp
                                    [[maybe_unused]] const AccTile& acc_tile,
                                    [[maybe_unused]] const AuxWindows& aux_windows,
                                    [[maybe_unused]] void* p_smem,
-                                   [[maybe_unused]] auto iAccess,
+                                   [[maybe_unused]] IAccess iAccess,
                                    Context& context,
                                    const ScaleA& scale_a,
                                    const ScaleB& scale_b)
@@ -55,12 +56,16 @@ struct ScaleScalarOp
 template <typename DataType>
 struct CastAndStoreToLdsOp
 {
-    template <typename OutWindow, typename AccTile, typename AuxWindows, typename Context>
+    template <typename OutWindow,
+              typename AccTile,
+              typename AuxWindows,
+              typename IAccess,
+              typename Context>
     CK_TILE_DEVICE void operator()([[maybe_unused]] OutWindow& out_window,
                                    [[maybe_unused]] const AccTile& acc_tile,
                                    [[maybe_unused]] const AuxWindows& aux_windows,
                                    [[maybe_unused]] void* p_smem,
-                                   [[maybe_unused]] auto iAccess,
+                                   [[maybe_unused]] IAccess iAccess,
                                    Context& context)
     {
         const auto casted_tile = cast_tile<DataType>(context.working_tile);
@@ -78,12 +83,16 @@ struct CastAndStoreToLdsOp
 template <typename TileEncodingPattern>
 struct LoadFromLdsOp
 {
-    template <typename OutWindow, typename AccTile, typename AuxWindows, typename Context>
+    template <typename OutWindow,
+              typename AccTile,
+              typename AuxWindows,
+              typename IAccess,
+              typename Context>
     CK_TILE_DEVICE void operator()([[maybe_unused]] OutWindow& out_window,
                                    [[maybe_unused]] const AccTile& acc_tile,
                                    [[maybe_unused]] const AuxWindows& aux_windows,
                                    [[maybe_unused]] void* p_smem,
-                                   [[maybe_unused]] auto iAccess,
+                                   [[maybe_unused]] IAccess iAccess,
                                    Context& context)
     {
         constexpr auto tile_distribution = TileEncodingPattern::make_2d_static_tile_distribution();
@@ -103,12 +112,16 @@ struct LoadFromLdsOp
 template <typename Elementwise, index_t NumAux>
 struct ElementwiseOp
 {
-    template <typename OutWindow, typename AccTile, typename AuxWindows, typename Context>
+    template <typename OutWindow,
+              typename AccTile,
+              typename AuxWindows,
+              typename IAccess,
+              typename Context>
     CK_TILE_DEVICE void operator()([[maybe_unused]] OutWindow& out_window,
                                    [[maybe_unused]] const AccTile& acc_tile,
                                    [[maybe_unused]] const AuxWindows& aux_windows,
                                    [[maybe_unused]] void* p_smem,
-                                   [[maybe_unused]] auto iAccess,
+                                   [[maybe_unused]] IAccess iAccess,
                                    Context& context)
     {
         const auto aux_tiles = generate_tuple(
@@ -132,12 +145,16 @@ struct ElementwiseOp
 template <memory_operation_enum MemOp>
 struct StoreOp
 {
-    template <typename OutWindow, typename AccTile, typename AuxWindows, typename Context>
+    template <typename OutWindow,
+              typename AccTile,
+              typename AuxWindows,
+              typename IAccess,
+              typename Context>
     CK_TILE_DEVICE void operator()(OutWindow& out_window,
                                    [[maybe_unused]] const AccTile& acc_tile,
                                    [[maybe_unused]] const AuxWindows& aux_windows,
                                    [[maybe_unused]] void* p_smem,
-                                   [[maybe_unused]] auto iAccess,
+                                   [[maybe_unused]] IAccess iAccess,
                                    Context& context)
     {
         if constexpr(MemOp == memory_operation_enum::set)
@@ -161,12 +178,16 @@ struct StoreOp
 template <typename SFC, index_t NumAux>
 struct MoveWindowsOp
 {
-    template <typename OutWindow, typename AccTile, typename AuxWindows, typename Context>
+    template <typename OutWindow,
+              typename AccTile,
+              typename AuxWindows,
+              typename IAccess,
+              typename Context>
     CK_TILE_DEVICE void operator()(OutWindow& out_window,
                                    [[maybe_unused]] const AccTile& acc_tile,
                                    [[maybe_unused]] const AuxWindows& aux_windows,
                                    [[maybe_unused]] void* p_smem,
-                                   auto iAccess,
+                                   IAccess iAccess,
                                    Context& context)
     {
         constexpr index_t num_access = SFC::get_num_of_access();

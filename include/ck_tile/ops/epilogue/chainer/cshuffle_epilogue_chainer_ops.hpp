@@ -37,12 +37,16 @@ template <typename SFC,
           index_t NPerIterShuffle>
 struct CShuffleSliceOp
 {
-    template <typename OutWindow, typename AccTile, typename AuxWindows, typename Context>
+    template <typename OutWindow,
+              typename AccTile,
+              typename AuxWindows,
+              typename IAccess,
+              typename Context>
     CK_TILE_DEVICE void operator()([[maybe_unused]] OutWindow& out_window,
                                    const AccTile& acc_tile,
                                    [[maybe_unused]] const AuxWindows& aux_windows,
                                    [[maybe_unused]] void* p_smem,
-                                   auto iAccess,
+                                   IAccess iAccess,
                                    Context& context)
     {
         constexpr auto idx_start = SFC::get_index(iAccess);
@@ -76,6 +80,7 @@ struct CShuffleScaleWindowOp
     template <typename OutWindow,
               typename AccTile,
               typename AuxWindows,
+              typename IAccess,
               typename Context,
               typename ScaleRowTensor,
               typename ScaleColTensor>
@@ -83,7 +88,7 @@ struct CShuffleScaleWindowOp
                                    [[maybe_unused]] const AccTile& acc_tile,
                                    [[maybe_unused]] const AuxWindows& aux_windows,
                                    [[maybe_unused]] void* p_smem,
-                                   auto iAccess,
+                                   IAccess iAccess,
                                    Context& context,
                                    const ScaleRowTensor& scale_row_tensor,
                                    const ScaleColTensor& scale_col_tensor)
