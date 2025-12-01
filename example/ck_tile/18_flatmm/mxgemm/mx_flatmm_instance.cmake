@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 function(mx_flatmm_instance_generate FILE_LIST)
     set(C_DATA_TYPE FP16)
     set(A_LAYOUT ROW)

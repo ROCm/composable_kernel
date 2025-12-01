@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(SUPPORTED_GPUS gfx908 gfx90a gfx942 gfx950)
 
 set(has_supported_gpu FALSE)
@@ -9,18 +12,6 @@ foreach(gpu IN LISTS GPU_TARGETS)
 endforeach()
 
 if(has_supported_gpu)
-    add_executable(tile_example_flatmm_basic EXCLUDE_FROM_ALL flatmm_basic.cpp)
-    add_executable(tile_example_mixed_prec_flatmm EXCLUDE_FROM_ALL mixed_prec/mixed_prec_flatmm.cpp)
-    add_executable(tile_example_moe_flatmm EXCLUDE_FROM_ALL moe_flatmm.cpp)
-    add_executable(tile_example_a16w4_moe_flatmm EXCLUDE_FROM_ALL mixed_prec/a16w4_moe_flatmm.cpp)
-    add_executable(tile_example_grouped_flatmm EXCLUDE_FROM_ALL grouped_flatmm.cpp)
-
-    include(mxgemm/mx_flatmm_instance.cmake)
-    mx_flatmm_instance_generate(EXAMPLE_MX_FLATMM_FILES)
-    message(STATUS "Generated MX FlatMM kernel files: ${EXAMPLE_MX_FLATMM_FILES}")
-    add_executable(tile_example_mx_flatmm EXCLUDE_FROM_ALL mxgemm/mx_flatmm.cpp ${EXAMPLE_MX_FLATMM_FILES})
-    target_include_directories(tile_example_mx_flatmm PRIVATE mxgemm)
-
     # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
     #       ... because they are auto-generated
     set(EXAMPLE_FLATMM_COMPILE_OPTIONS -Wno-undefined-func-template)
@@ -30,11 +21,28 @@ if(has_supported_gpu)
         list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
     endif()
 
+    add_executable(tile_example_flatmm_basic flatmm_basic.cpp)
     target_compile_options(tile_example_flatmm_basic PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
-    target_compile_options(tile_example_mixed_prec_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
-    target_compile_options(tile_example_moe_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
-    target_compile_options(tile_example_a16w4_moe_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
-    target_compile_options(tile_example_grouped_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
-    target_compile_options(tile_example_mx_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS}) # TODO: 950 only
-endif()
 
+    add_executable(tile_example_moe_flatmm moe_flatmm.cpp)
+    target_compile_options(tile_example_moe_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
+
+    add_executable(tile_example_grouped_flatmm grouped_flatmm.cpp)
+    target_compile_options(tile_example_grouped_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
+
+    if (GPU_TARGETS MATCHES "gfx95")
+        add_executable(tile_example_mixed_prec_flatmm mixed_prec/mixed_prec_flatmm.cpp)
+        target_compile_options(tile_example_mixed_prec_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
+
+        add_executable(tile_example_a16w4_moe_flatmm mixed_prec/a16w4_moe_flatmm.cpp)
+        target_compile_options(tile_example_a16w4_moe_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
+
+        include(mxgemm/mx_flatmm_instance.cmake)
+        mx_flatmm_instance_generate(EXAMPLE_MX_FLATMM_FILES)
+        message(STATUS "Generated MX FlatMM kernel files: ${EXAMPLE_MX_FLATMM_FILES}")
+
+        add_executable(tile_example_mx_flatmm mxgemm/mx_flatmm.cpp ${EXAMPLE_MX_FLATMM_FILES})
+        target_include_directories(tile_example_mx_flatmm PRIVATE mxgemm)
+        target_compile_options(tile_example_mx_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
+    endif()
+endif()

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,10 @@
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/transform_conv_bwd_data_to_gemm.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_backward_data.hpp"
+#endif
 
 namespace ck_tile {
 
@@ -507,7 +511,7 @@ template <typename GroupedConvTraitsType_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionBackwardDataKernel
 {
-    static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial_;
+    static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
@@ -552,6 +556,7 @@ struct GroupedConvolutionBackwardDataKernel
     static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>,
                   "Not supported C GEMM layout!");
+    static_assert(GroupedConvTraitsType_::ExplicitGemm == false, "Not supported yet!");
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -564,6 +569,19 @@ struct GroupedConvolutionBackwardDataKernel
             EpiloguePipeline::GetName());
         // clang-format on
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    CK_TILE_HOST std::string GetInstanceString() const
+    {
+        static_assert(ck_tile::reflect::HasInstanceTraits<GroupedConvolutionBackwardDataKernel>,
+                      "Specialization of instance_traits not found. Please check that a "
+                      "specialization exists in file "
+                      "ck_tile/builder/reflect/"
+                      "instance_traits_tile_grouped_convolution_backward_data.hpp "
+                      "for the given template parameters.");
+        return ck_tile::reflect::instance_string<GroupedConvolutionBackwardDataKernel>();
+    }
+#endif
 
     CK_TILE_HOST static auto GridSize(const GroupedConvBwdDataKernelArgsSpecialized& kargs)
     {
@@ -966,7 +984,7 @@ struct GroupedConvolutionBackwardDataKernel
         return group_id;
     }
 
-    CK_TILE_DEVICE void operator()(GroupedConvBwdDataKernelArgsSpecialized kargs) const
+    CK_TILE_DEVICE void operator()(GroupedConvBwdDataKernelArgsSpecialized& kargs) const
     {
         const auto blockIdX    = amd_wave_read_first_lane(blockIdx.x);
         const index_t group_id = FindGroupId(kargs, blockIdX);
