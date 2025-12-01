@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # ONLY XDL_KERNELS
 set(GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP)
 include(ShardInstantiation)
