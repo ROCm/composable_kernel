@@ -9,9 +9,6 @@ This directory contains the builder framework for Composable Kernel, which provi
   - [Architecture](#architecture)
   - [Core Components](#core-components)
   - [Concepts and Validation](#concepts-and-validation)
-  - [Examples](#examples)
-  - [Design Rationale](#design-rationale)
-
 ---
 
 ## Convolution Signature Design
