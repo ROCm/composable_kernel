@@ -102,6 +102,25 @@ float invoke_batched_contraction_kernel(
     return ave_time;
 }
 
+// C++17-compatible helper function to create array of HostTensors
+namespace {
+template <typename DDataType, std::size_t NumDTensor, std::size_t... Is>
+std::array<ck_tile::HostTensor<DDataType>, NumDTensor>
+make_ds_host_tensors_impl(const std::array<ck_tile::HostTensorDescriptor, NumDTensor>& descs,
+                          std::index_sequence<Is...>)
+{
+    return {ck_tile::HostTensor<DDataType>(descs[Is])...};
+}
+
+template <typename DDataType, std::size_t NumDTensor>
+std::array<ck_tile::HostTensor<DDataType>, NumDTensor>
+make_ds_host_tensors(const std::array<ck_tile::HostTensorDescriptor, NumDTensor>& descs)
+{
+    return make_ds_host_tensors_impl<DDataType, NumDTensor>(descs,
+                                                            std::make_index_sequence<NumDTensor>{});
+}
+} // anonymous namespace
+
 template <typename ALayout,
           typename BLayout,
           typename DLayout,
@@ -293,14 +312,8 @@ int run_batched_contraction_example_with_layouts(
     ck_tile::HostTensor<::BDataType> b_full_dims_host(b_desc);
     ck_tile::HostTensor<::EDataType> e_full_dims_host(e_desc);
 
-    // Helper to construct array of HostTensors using index_sequence
-    auto make_ds_host_tensors = []<std::size_t... Is>(const auto& descs,
-                                                      std::index_sequence<Is...>) {
-        return std::array<ck_tile::HostTensor<::DDataType>, sizeof...(Is)>{
-            ck_tile::HostTensor<::DDataType>(descs[Is])...};
-    };
-
-    auto ds_full_dims_host = make_ds_host_tensors(ds_descs, std::make_index_sequence<NumDTensor>{});
+    // Construct array of HostTensors - C++17 compatible
+    auto ds_full_dims_host = make_ds_host_tensors<::DDataType, NumDTensor>(ds_descs);
 
     ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f, std::nullopt}(a_full_dims_host);
     ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f, std::nullopt}(b_full_dims_host);
@@ -411,25 +424,25 @@ int run_batched_contraction_example_with_layouts(
 
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        compute_reference_batched_contraction<ADataType,
-                                              BDataType,
-                                              DDataType,
-                                              EDataType,
-                                              AccDataType,
-                                              CDEElementWise,
-                                              NumDTensor>(a_full_dims_host,
-                                                          b_full_dims_host,
-                                                          ds_full_dims_host,
-                                                          e_full_dims_host_ref,
-                                                          G_total,
-                                                          M_total,
-                                                          N_total,
-                                                          K_total,
-                                                          CDEElementWise{},
-                                                          G_dims,
-                                                          M_dims,
-                                                          N_dims,
-                                                          K_dims);
+        ck_tile::compute_reference_batched_contraction<ADataType,
+                                                       BDataType,
+                                                       DDataType,
+                                                       EDataType,
+                                                       AccDataType,
+                                                       CDEElementWise,
+                                                       NumDTensor>(a_full_dims_host,
+                                                                   b_full_dims_host,
+                                                                   ds_full_dims_host,
+                                                                   e_full_dims_host_ref,
+                                                                   G_total,
+                                                                   M_total,
+                                                                   N_total,
+                                                                   K_total,
+                                                                   CDEElementWise{},
+                                                                   G_dims,
+                                                                   M_dims,
+                                                                   N_dims,
+                                                                   K_dims);
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
