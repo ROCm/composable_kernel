@@ -2,7 +2,7 @@
 
 This directory contains the experimental builder feature for composable_kernel.
 
-* Status: In development (October - November 2025)
+* Status: In development (October - December 2025)
 
 ## Overview
 
@@ -14,6 +14,10 @@ This project is a prototype for a more general builder pattern for all of compos
 
 - `include/ck_tile/builder/`  
   Core builder headers and public API.
+- `include/ck_tile/builder/reflect`
+  Reflection mechanism.
+- `include/ck_tile/builder/factory`
+  Compile-time dispatch from builder descriptors to our exisitng specialized convolution kernel implementations.
 - `test/`  
   Unit tests and example usage of the builder pattern.
 - `CMakeLists.txt`  
@@ -28,7 +32,7 @@ cmake                                                                           
   -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
   -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
   -D CMAKE_BUILD_TYPE=Release                                                                     \
-  -D GPU_TARGETS="gfx942;gfx950"                                                                  \
+  -D GPU_TARGETS="gfx942"                                                                         \
   -D CK_EXPERIMENTAL_BUILDER=ON                                                                   \
   -D CMAKE_CXX_STANDARD=20                                                                        \
   -G Ninja                                                                                        \

@@ -74,6 +74,11 @@ namespace ck_tile::builder::factory {
 // We should probably add explicit tags to the algorithm descriptors, at least
 // for the initial implemenation.
 //
+// To avoid changing behavior too much during refactoring, we leave the explicit
+// dispatch logic here for now, just changing it from SFINAE to consteval + if constexpr.
+// There may be some subtle behavior changes, but build failure messages will be more
+// clear.
+//
 // TODO: Make this dispatch logic much more robust and clear for users.
 
 // XDL-based kernel with V3 pipeline structure (newer block GEMM pipeline)
