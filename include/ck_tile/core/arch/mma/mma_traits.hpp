@@ -1,7 +1,6 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
 #pragma once
-
 #include "amdgcn_mma.hpp"
 #include "mfma/mfma_traits.hpp"
 #include "wmma/wmma_traits.hpp"

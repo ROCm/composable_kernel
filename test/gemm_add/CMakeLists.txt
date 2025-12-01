@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # Implements test instances for MultipleD with xdl and wmma support.
 
 add_gtest_executable(test_gemm_add_xdl test_gemm_add_xdl.cpp)

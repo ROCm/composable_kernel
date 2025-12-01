@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,6 +9,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_v2.hpp"
 #include "ck_tile/ops/gemm_quant/pipeline/gemm_bquant_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/host/concat.hpp"
 
@@ -280,7 +281,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         }
         else
         {
-            move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+            move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
         }
         // Prefill A0
         auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
@@ -338,7 +339,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             }
             else
             {
-                move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+                move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
             }
 
             // Prefill A(2i+1)
@@ -390,7 +391,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             }
             else
             {
-                move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+                move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
             }
 
             // Prefill A(2i+2)

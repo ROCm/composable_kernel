@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
 set(GEMM_LAYOUT "rcr;rrr;crr;ccr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
 set(GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
@@ -64,6 +67,7 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
 
     # Create the executable
     add_executable(${target_name}
+        # to save build time, exclude the target from "all" target of "gemm" directory and its ancestors
         EXCLUDE_FROM_ALL
         ${GEMM_SOURCE_DIR}/gemm_benchmark_single.cpp
         ${instance_header}

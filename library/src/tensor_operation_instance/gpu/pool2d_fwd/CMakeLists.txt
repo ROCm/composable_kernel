@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(DEVICE_POOL2D_FWD_INSTANCES)
 list(APPEND DEVICE_POOL2D_FWD_INSTANCES device_avg_pool2d_fwd_nhwc_f16_instance.cpp
                                         device_max_pool2d_fwd_nhwc_f16_instance.cpp

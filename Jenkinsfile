@@ -72,6 +72,129 @@ def sendFailureNotifications() {
     }
 }
 
+def generateAndArchiveBuildTraceVisualization() {
+    try {
+        def buildTraceFileName = "ck_build_trace.json";
+
+        // Attempt to download the build trace file to check if it exists
+        def traceFileExists = false
+        try {
+            copyArtifacts(
+                projectName: env.JOB_NAME,
+                selector: specific(env.BUILD_NUMBER),
+                filter: buildTraceFileName
+            )
+            traceFileExists = fileExists(buildTraceFileName)
+        } catch (Exception e) {
+            echo "Could not copy artifacts: ${e.getMessage()}"
+            traceFileExists = false
+        }
+        
+        sh """
+            echo "post download:"
+            ls -la
+        """
+
+        if (traceFileExists) {
+            // Move the build trace file to a temporary location to preserve it during checkout
+            sh """
+                mkdir -p /tmp/jenkins_artifacts
+                cp ${buildTraceFileName} /tmp/jenkins_artifacts/${buildTraceFileName}
+                ls -la /tmp/jenkins_artifacts/
+            """
+        } else {
+            echo "Build trace archive not found"
+            return
+        }
+
+        // Checkout source code to get required files
+        checkout scm
+        
+        // Restore the build trace file after checkout
+        sh """
+            ls -la
+            cp /tmp/jenkins_artifacts/${buildTraceFileName} ${buildTraceFileName}
+            ls -la ${buildTraceFileName}
+        """
+        
+        // Pull image
+        def image = "ghcr.io/puppeteer/puppeteer:24.30.0"
+        echo "Pulling image: ${image}"
+        def retimage = docker.image("${image}")
+        retimage.pull()
+
+        // Create a temporary workspace
+        sh """#!/bin/bash
+            ls -la
+            mkdir -p workspace
+            cp ./script/infra_helper/capture_build_trace.js ./workspace
+            cp ${buildTraceFileName} ./workspace/${buildTraceFileName}
+            chmod 777 ./workspace
+            ls -la ./workspace
+        """
+
+        // Run container to get snapshot
+        def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
+        // Create unique image name by sanitizing job name
+        def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_')
+        def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}.png"
+        sh """
+            docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
+            mv ./workspace/perfetto_snapshot_build.png ./workspace/${imageName}
+        """
+        
+        // Archive the snapshot
+        sh """
+            mv ./workspace/${imageName} ${imageName}
+        """
+        archiveArtifacts "${imageName}"
+
+        // Notify the channel
+        withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
+        sh '''
+            # Create build trace filename with build number based on the original filename
+            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + sanitizedJobName + '''_''' + env.BUILD_NUMBER + '''.json/')
+            
+            # Convert image to base64
+            echo "Converting image to base64..."
+            IMAGE_BASE64=$(base64 -w 0 ''' + imageName + ''')
+            echo "Image base64 length: ${#IMAGE_BASE64}"
+            
+            # Convert build trace to base64
+            echo "Converting build trace to base64..."
+            BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceFileName + ''')
+            echo "Build trace base64 length: ${#BUILD_TRACE_BASE64}"
+            
+            # Create JSON payload with base64 data
+            echo "Creating JSON payload..."
+            {
+                printf '{\n'
+                printf '    "jobName": "%s",\n' "''' + env.JOB_NAME + '''"
+                printf '    "buildNumber": "%s",\n' "''' + env.BUILD_NUMBER + '''"
+                printf '    "jobUrl": "%s",\n' "''' + env.RUN_DISPLAY_URL + '''"
+                printf '    "imageName": "%s",\n' "''' + imageName + '''"
+                printf '    "imageData": "%s",\n' "$IMAGE_BASE64"
+                printf '    "buildTraceName": "%s",\n' "$BUILD_TRACE_WITH_NUMBER"
+                printf '    "buildTraceData": "%s"\n' "$BUILD_TRACE_BASE64"
+                printf '}\n'
+            } > webhook_payload.json
+            
+            echo "JSON payload created, size: $(wc -c < webhook_payload.json) bytes"
+            
+            curl -X POST "${WEBHOOK_URL}" \
+            -H "Content-Type: application/json" \
+            -d @webhook_payload.json
+            
+            # Clean up temporary file
+            rm -f webhook_payload.json
+        '''
+        }
+    } catch (Exception e) {
+        echo "Throwing error exception while generating build trace visualization"
+        echo 'Exception occurred: ' + e.toString()
+    }
+}
+
 class Version {
     int major, minor, patch
     @Override
@@ -1492,11 +1615,13 @@ pipeline {
                                             -D GPU_TARGETS="gfx90a" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
+                                            -D GEMM_STREAMK_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
-                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
+                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
@@ -1521,11 +1646,13 @@ pipeline {
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
+                                            -D GEMM_STREAMK_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
-                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
+                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
@@ -1750,6 +1877,15 @@ pipeline {
                 }
             }
             post {
+                always {
+                    node(rocmnode("nogpu")) {
+                        script {
+                            // Simulate capture
+                            generateAndArchiveBuildTraceVisualization()
+                        }
+                        cleanWs()
+                    }
+                }
                 success {
                     script {
                         // Report the parent stage build ck and run tests status
