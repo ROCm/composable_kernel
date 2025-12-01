@@ -47,7 +47,7 @@ ninja smoke-builder
 ```
 
 ### Regression Tests (Integration Tests)
-Integration tests that compile actual GPU kernels to verify the builder generates valid, compilable code. These are more expensive (may take minutes) but catch real-world issues.
+Integration tests that compile actual GPU kernels to verify that the builder generates valid, compilable code. These are more expensive than smoke tests (can take minutes to run) but catch real-world issues.
 
 ```sh
 ninja regression-builder
