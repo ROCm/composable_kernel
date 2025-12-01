@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(EXAMPLE_REDUCE "tile_example_reduce")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"

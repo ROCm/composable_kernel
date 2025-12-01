@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(SUPPORTED_GPUS gfx908 gfx90a gfx942 gfx950)
 
 set(has_supported_gpu FALSE)
