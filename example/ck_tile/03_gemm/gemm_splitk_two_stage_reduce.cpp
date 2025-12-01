@@ -321,7 +321,6 @@ template <typename CDataType,
           typename ELayout         = ck_tile::tensor_layout::gemm::RowMajor>
 float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config& s)
 {
-    const ck_tile::index_t reduce_dim_size = args.k_batch; // Number of partial results to reduce
     // Calculate output size based on the final output tensor dimensions
     const ck_tile::index_t output_size = args.M * args.N;
 
@@ -379,9 +378,7 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
                                    static_cast<const CDataType*>(args.e_ptr), // workspace input
                                    static_cast<CDataType*>(args.final_output_ptr), // final output
                                    workspace_shape,
-                                   workspace_strides,
-                                   kept_dim,
-                                   reduce_dims));
+                                   workspace_strides));
 
     return ave_time;
 }
