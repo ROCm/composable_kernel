@@ -63,8 +63,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     kernel_grouped_conv_fwd_wmma_cshuffle_v3(
         typename GridwiseGemm::Argument karg,
-        const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-        const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+        const AGridDesc_AK0_M_AK1 a_grid_desc_m_k,
+        const BGridDesc_BK0_N_BK1 b_grid_desc_n_k,
         const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock,
         const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
@@ -82,13 +82,26 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<e_data_type, ck::bhalf_t>)))
     {
 #endif
-        __shared__ char p_shared[GridwiseGemm::template GetSharedMemoryNumberOfByte<
-            typename GridwiseGemm::EpilogueCShuffle>()];
+        using EpilogueType =
+            typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
+                                          GridwiseGemm::UseDirectStore,
+                                      typename GridwiseGemm::EpilogueDirectStore,
+                                      typename GridwiseGemm::EpilogueCShuffle>::type;
 
-        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+        constexpr index_t LDS_size =
+            GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
+        __shared__ char p_shared[LDS_size];
 
-        GridwiseGemm::template Run<AGridDesc_AK0_M_AK1,
-                                   BGridDesc_BK0_N_BK1,
+        auto epilogue_args = EpilogueType{};
+
+        const auto a_grid_desc_ak0_m_ak1 =
+            GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k);
+
+        const auto b_grid_desc_bk0_n_bk1 =
+            GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
+
+        GridwiseGemm::template Run<decltype(a_grid_desc_ak0_m_ak1),
+                                   decltype(b_grid_desc_bk0_n_bk1),
                                    DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                                    EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                                    ComputePtrOffset,
@@ -110,8 +123,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
 #else
     ignore = karg;
-    ignore = a_grid_desc_ak0_m_ak1;
-    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = a_grid_desc_m_k;
+    ignore = b_grid_desc_n_k;
     ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = compute_ptr_offset_of_batch;
@@ -307,16 +320,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
 
-        const auto M = in_gemmm_gemmk_desc.GetLength(I0);
-        const auto K = in_gemmm_gemmk_desc.GetLength(I1);
-
-        const auto AK0 = K / AK1;
-
-        return transform_tensor_descriptor(in_gemmm_gemmk_desc,
-                                           make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                      make_pass_through_transform(M)),
-                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        return in_gemmm_gemmk_desc;
     }
 
     template <typename BLay>
@@ -337,16 +341,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         const auto wei_gemmn_gemmk_desc =
             matrix_padder.PadBDescriptor_N_K(wei_gemmnraw_gemmkraw_desc);
 
-        const auto N = wei_gemmn_gemmk_desc.GetLength(I0);
-        const auto K = wei_gemmn_gemmk_desc.GetLength(I1);
-
-        const auto BK0 = K / BK1;
-
-        return transform_tensor_descriptor(wei_gemmn_gemmk_desc,
-                                           make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                      make_pass_through_transform(N)),
-                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        return wei_gemmn_gemmk_desc;
     }
 
     template <typename ELay>
@@ -452,10 +447,10 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         BlkGemmPipelineVer,
         AComputeDataType,
         BComputeDataType,
-        false, // PermuteA
-        false, // PermuteB
-        false, // IsBPreShuffled
-        true>; // ForceThreadTileTransfer
+        false,  // PermuteA
+        false,  // PermuteB
+        false,  // IsBPreShuffled
+        false>; // ForceThreadTileTransfer
 
     // TODO: Previously available template param DoElementwiseBeforeCShuffle!
 
@@ -798,8 +793,8 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             }
 
             {
-                const index_t GemmM = a_grid_desc_ak0_m_ak1_.GetLength(I1);
-                const index_t GemmN = b_grid_desc_bk0_n_bk1_.GetLength(I1);
+                const index_t GemmM = a_grid_desc_ak0_m_ak1_.GetLength(I0);
+                const index_t GemmN = b_grid_desc_bk0_n_bk1_.GetLength(I0);
                 const auto MBlock   = CTranspose ? GridwiseGemmCTranspose::CalculateMBlock(GemmN)
                                                  : GridwiseGemmCTranspose::CalculateMBlock(GemmM);
                 const auto NBlock   = CTranspose ? GridwiseGemmCTranspose::CalculateNBlock(GemmM)
@@ -1048,10 +1043,9 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             constexpr index_t minimum_occupancy =
                 BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
 
-            const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
-            const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_.GetLength(I1);
-            const index_t GemmK =
-                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
+            const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0);
+            const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_.GetLength(I0);
+            const index_t GemmK = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
 
             const index_t num_workgroups_per_Conv_N =
                 arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
@@ -1985,10 +1979,9 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         }
 
         // check Gridwise GEMM
-        const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
-        const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_.GetLength(I1);
-        const index_t GemmK =
-            arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
+        const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0);
+        const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_.GetLength(I0);
+        const index_t GemmK = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
 
         if constexpr(CTranspose)
         {

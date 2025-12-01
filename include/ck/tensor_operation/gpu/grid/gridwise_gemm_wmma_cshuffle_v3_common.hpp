@@ -250,16 +250,22 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 #ifdef __gfx12__
     static constexpr bool IsAWaveTransferApplicable =
         !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
-        GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
+        ((GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
+          !is_same_v<ALayout, tensor_layout::gemm::RowMajor>) ||
+         is_same_v<ALayout, tensor_layout::gemm::RowMajor>) &&
         BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8 && !IsBPreShuffled;
 
     static constexpr bool IsBWaveTransferApplicable =
         !ForceThreadTileTransfer && NumBTensor == 1 && BPackedSize == 1 &&
-        GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
+        ((GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
+          !is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>) ||
+         is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>) &&
         BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
 
-    static constexpr bool UseDirectStore =
-        NRepeat == 8 && sizeof(ComputeTypeB) == 2 && sizeof(EDataType) == 2 && NumDTensor == 0;
+    // We need to investigate if it makes sense to remove cshuffle for smaller types
+    static constexpr bool UseDirectStore = is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
+                                           sizeof(ComputeTypeB) == 2 && sizeof(EDataType) == 2 &&
+                                           NumDTensor == 0;
 #else
     static constexpr bool IsAWaveTransferApplicable = false;
     static constexpr bool IsBWaveTransferApplicable = false;
@@ -515,6 +521,19 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             Number<NumATensor>{});
     }
 
+    template <typename GridDescBase>
+    __device__ static auto MakeAGridDescriptor_AK0_M_AK1(const GridDescBase& base_desc)
+    {
+        const auto M = base_desc.GetLength(I0);
+        const auto K = base_desc.GetLength(I1);
+
+        const auto AK0 = K / AK1Value;
+
+        constexpr bool padM = false;
+        constexpr bool padK = false;
+        return ATransfer::template MakeGridDescriptor<padM, padK>(base_desc, M, 0, K, 0, 0, AK0);
+    }
+
     __host__ __device__ static auto
     MakeBsGridDescriptor_BK0_N_BK1(const index_t K,
                                    const index_t KPad,
@@ -539,6 +558,19 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                     base_desc, N, NPad, K, KPad, StrideBs[i], BK0);
             },
             Number<NumBTensor>{});
+    }
+
+    template <typename GridDescBase>
+    __device__ static auto MakeBGridDescriptor_BK0_N_BK1(const GridDescBase& base_desc)
+    {
+        const auto N = base_desc.GetLength(I0);
+        const auto K = base_desc.GetLength(I1);
+
+        const auto BK0 = K / BK1Value;
+
+        constexpr bool padN = false;
+        constexpr bool padK = false;
+        return BTransfer::template MakeGridDescriptor<padN, padK>(base_desc, N, 0, K, 0, 0, BK0);
     }
 
     __host__ __device__ static constexpr auto MakeAWmmaTileDescriptor()
