@@ -87,11 +87,11 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
 
     constexpr bool MXFP4_Pipeline = std::is_same_v<BDataType, ck_tile::pk_fp4_t>;
 
-    if constexpr(!MXFP4_Pipeline && moe_kind == ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up)
+    constexpr int NRepeat = FlatmmConfig::N_Tile / FlatmmConfig::N_Warp / FlatmmConfig::N_Warp_Tile;
+    static_assert(NRepeat == 1 || NRepeat % 2 == 0);
+    if constexpr(moe_kind == ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up)
     {
-        static_assert(
-            FlatmmConfig::N_Tile % (FlatmmConfig::N_Warp * FlatmmConfig::N_Warp_Tile * 2) == 0,
-            "requires NRepeat is multiple of 2 for FFN_gemm1_gate_up");
+        static_assert(NRepeat % 2 == 0, "requires NRepeat is multiple of 2 for FFN_gemm1_gate_up");
     }
 
     using ComputeDataType = ADataType;
@@ -139,8 +139,8 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
                                                               scheduler,
                                                               has_hot_loop_v,
                                                               tail_number_v>>;
-
-        constexpr int BlockedXDLN_PerWarp = 2; // determined by scale shuffle pattern
+        constexpr int BlockedXDLN_PerWarp =
+            NRepeat == 1 ? 1 : 2; // determined by scale shuffle pattern
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ComputeDataType,
@@ -370,7 +370,6 @@ auto shuffle_mxfp4_scale(const ck_tile::HostTensor<T>& scale, int experts_cnt)
     constexpr int K_Lane = 64 / FlatmmConfig::N_Warp_Tile; // 4
 
     static_assert(FlatmmConfig::N_Warp_Tile == 16, "only support XDL_N == 16");
-    static_assert(FlatmmConfig::N_Repeat % N_Pack == 0);
     static_assert(FlatmmConfig::K_Tile % (K_Pack * K_Lane * GranularityK) == 0);
 
     if constexpr(moe_kind == ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up)

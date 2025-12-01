@@ -140,11 +140,10 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
     static constexpr int XDL_PerScaleN  = ContinuousScaleNPerThread;                  // 2
     static_assert(XDL_PerScaleK % XDL_PerWeightK == 0);
     static_assert(KIterPerWarp % XDL_PerScaleK == 0);
-    static_assert(NIterPerWarp % XDL_PerScaleN == 0);
 
     static constexpr int MXFP4KPerWarp = KIterPerWarp / XDL_PerWeightK;
     static constexpr int ScaleKPerWarp = KIterPerWarp / XDL_PerScaleK;
-    static constexpr int ScaleNPerWarp = NIterPerWarp / XDL_PerScaleN;
+    static constexpr int ScaleNPerWarp = max(1, NIterPerWarp / XDL_PerScaleN);
 
     static constexpr int MXFP4K_PerScaleK = MXFP4KPerWarp / ScaleKPerWarp;
 
@@ -168,8 +167,9 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
     static constexpr index_t Bload_num_perK = kNPerBlock * WG::kK / NWarp / BK1 / WaveSize;
     static constexpr index_t ScaleBload_K1  = ContinuousScaleNPerThread * ContinuousScaleKPerThread;
     static constexpr index_t ScaleBload_num =
-        kNPerBlock * kKPerBlock / NWarp / 32 / ScaleBload_K1 /
-        WaveSize; // BlockN * BlockK / NWarp / ScalePerK / ScaleB_K1 / wavesize
+        max(1,
+            kNPerBlock* kKPerBlock / NWarp / 32 / ScaleBload_K1 /
+                WaveSize); // BlockN * BlockK / NWarp / ScalePerK / ScaleB_K1 / wavesize
     static constexpr index_t Bload_total_num =
         Bload_num_perK * KIterPerWarp + ScaleBload_num + 0X3f0;
     static constexpr index_t KPerScaleLoad = KIterPerWarp / ScaleBload_num;
@@ -559,16 +559,30 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
         auto scale_b_flat_distribution =
             PipelinePolicy::template MakeFp4ScaleBFlatDramTileDistribution<Problem>();
 
+        auto b_flat_dram_coord  = b_flat_dram_block_window_tmp.get_window_origin();
+        auto scale_b_dram_coord = scale_b_flat_window.get_window_origin();
+        int global_packed_n_idx = 0;
+
+        if constexpr(NIterPerWarp == 1)
+        {
+            // Continuous warps compute the values spaced ContinuousScaleNPerThread XDLs
+            int group_scale_idx = b_flat_dram_coord[I0] / (ContinuousScaleNPerThread * NWarp);
+            global_packed_n_idx = (b_flat_dram_coord[I0] / NWarp) % ContinuousScaleNPerThread;
+            b_flat_dram_coord[I0] =
+                group_scale_idx * (ContinuousScaleNPerThread * NWarp) + global_packed_n_idx;
+            scale_b_dram_coord[I0] = group_scale_idx * NWarp;
+        }
+
         auto b_flat_dram_window = make_tile_window(
             b_flat_dram_block_window_tmp.get_bottom_tensor_view(), // from kernel gemm_pad_views
             make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
-            b_flat_dram_block_window_tmp.get_window_origin(),
+            b_flat_dram_coord,
             b_flat_distribution);
 
         auto scale_b_flat_dram_window = make_tile_window(
             scale_b_flat_window.get_bottom_tensor_view(), // from kernel gemm_pad_views
             make_tuple(number<flatNPerWarp>{}, number<ScaleKFlatPerWarp>{}),
-            scale_b_flat_window.get_window_origin(),
+            scale_b_dram_coord,
             scale_b_flat_distribution);
 
         using MXFP4_Buffer = decltype(load_tile(b_flat_dram_window));
@@ -718,11 +732,30 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                                  auto xdl_kIter) {
             auto quant_idx_k = xdl_kIter % number<XDL_PerWeightK>{};
 
-            auto scale_idx_n  = xdl_nIter % number<XDL_PerScaleN>{};
-            auto scale_idx_k  = (xdl_kIter % number<XDL_PerScaleK>{}) / number<XDL_PerWeightK>{};
-            auto scale_offset = scale_idx_n + scale_idx_k * number<XDL_PerScaleN>{};
+            auto scale_idx_n = xdl_nIter % number<XDL_PerScaleN>{};
+            auto scale_idx_k = (xdl_kIter % number<XDL_PerScaleK>{}) / number<XDL_PerWeightK>{};
 
-            auto scale = scale_tensor.get_thread_buffer()[scale_offset];
+            auto scale = [&] {
+                if constexpr(NIterPerWarp == 1)
+                {
+                    if(global_packed_n_idx == 0)
+                    {
+                        auto scale_offset = scale_idx_n + scale_idx_k * number<XDL_PerScaleN>{};
+                        return scale_tensor.get_thread_buffer()[scale_offset];
+                    }
+                    else
+                    {
+                        auto scale_offset =
+                            scale_idx_n + scale_idx_k * number<XDL_PerScaleN>{} + I1;
+                        return scale_tensor.get_thread_buffer()[scale_offset];
+                    }
+                }
+                else
+                {
+                    auto scale_offset = scale_idx_n + scale_idx_k * number<XDL_PerScaleN>{};
+                    return scale_tensor.get_thread_buffer()[scale_offset];
+                }
+            }();
 
             constexpr int ScalarCnt      = WG::BWarpTensor::get_thread_buffer_size();
             constexpr int PackedCnt      = ScalarCnt / MXFP4PackedSize;

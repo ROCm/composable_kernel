@@ -873,6 +873,17 @@ struct MoeFlatmmKernel
 
         auto& c_block_window = gemm_tile_windows.at(number<2>{});
 
+        if constexpr(MXFP4_Pipeline && kNRepeat == 1)
+        {
+            // Continuous warps compute the values spaced N_Pack XDLs
+            auto c_window_coord = c_block_window.get_window_origin();
+            int group_128_idx   = c_window_coord[I1] / (N_Pack * NWave * NPerXdl);
+            int raked_idx       = (c_window_coord[I1] / (NWave * NPerXdl)) % N_Pack;
+            c_window_coord[I1]  = group_128_idx * (N_Pack * NWave * NPerXdl) + raked_idx * NPerXdl;
+
+            c_block_window.set_window_origin(c_window_coord);
+        }
+
         // Run EpiloguePipeline
         {
             using EpiProblem = typename EpiloguePipeline::Problem;
@@ -1002,12 +1013,12 @@ struct MoeFlatmmKernel
                     kargs.scale_n.ptr + expert_id * kargs.N,
                     make_tuple(1, kargs.N),
                     make_tuple(0, scale_stride_n),
-                    number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
+                    number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
                     number<1>{}), // MXF4_Pipeline does't use scale_n, so there is no need to
                                   // permute as n_pack
                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number < IsGateUp ? TilePartitioner::NPerBlock / 2
-                                             : TilePartitioner::NPerBlock > {}),
+                           number<IsGateUp ? TilePartitioner::NPerBlock / 2
+                                           : TilePartitioner::NPerBlock>{}),
                 {0, IsGateUp ? coord_n / 2 : coord_n},
                 output_acc_tile_distr);
 
@@ -1016,7 +1027,7 @@ struct MoeFlatmmKernel
                     kargs.scale_n.ptr + expert_id * kargs.N + kargs.N / 2,
                     make_tuple(1, kargs.N),
                     make_tuple(0, scale_stride_n),
-                    number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
+                    number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
                     number<1>{}),
                 make_tuple(number<TilePartitioner::MPerBlock>{},
                            number<TilePartitioner::NPerBlock / 2>{}),
@@ -1033,8 +1044,8 @@ struct MoeFlatmmKernel
             auto exp_bias_window = make_tile_window(
                 permute_tensor_view(exp_bias_view, number<(MXFP4_Pipeline && !IsInputGemm)>{}),
                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number < IsGateUp ? TilePartitioner::NPerBlock / 2
-                                             : TilePartitioner::NPerBlock > {}),
+                           number<IsGateUp ? TilePartitioner::NPerBlock / 2
+                                           : TilePartitioner::NPerBlock>{}),
                 {0, IsGateUp ? coord_n / 2 : coord_n},
                 output_acc_tile_distr);
 
@@ -1110,16 +1121,46 @@ struct MoeFlatmmKernel
                           "Currently, the CShuffle EpiloguePipeline only supports the Row Major "
                           "Output layout");
 
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<
-                kBlockSize,
-                MPerIterationShuffle,
-                LDS_NPerIterationShuffle,
-                kind == MoeFlatmmKind::kFFN_gemm2 ? 2 : EpiloguePipeline::GetVectorSizeC(),
-                tile_distribution_pattern::thread_raked,
-                EpiProblem::kNumWaveGroups>;
+            constexpr int OutputVectorSize =
+                kind == MoeFlatmmKind::kFFN_gemm2 ? 2 : EpiloguePipeline::GetVectorSizeC();
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<kBlockSize,
+                                                      MPerIterationShuffle,
+                                                      LDS_NPerIterationShuffle,
+                                                      OutputVectorSize,
+                                                      tile_distribution_pattern::thread_raked,
+                                                      EpiProblem::kNumWaveGroups>;
 
             constexpr auto dram_tile_distribution =
                 TileEncodingPattern::make_2d_static_tile_distribution();
+
+            constexpr auto c_dram_distribution = [&] {
+                if constexpr(MXFP4_Pipeline && kNRepeat == 1)
+                {
+                    // Continuous warps compute the values spaced N_Pack XDLs, the remaining part
+                    // keeps the same as dram_tile_distribution.
+                    return make_static_tile_distribution(
+                        tile_distribution_encoding<
+                            sequence<>,
+                            tuple<sequence<NWave,
+                                           get_warp_size() / (kNPerBlock / OutputVectorSize),
+                                           // M2 = M / M0 / M1
+                                           kMPerBlock / (NWave * get_warp_size() /
+                                                         (kNPerBlock / OutputVectorSize))>,
+                                  sequence<kNPerBlock / NPerXdl,
+                                           N_Pack,
+                                           NPerXdl / OutputVectorSize,
+                                           OutputVectorSize>>,
+                            tuple<sequence<1>, sequence<1, 2, 2>>,
+                            tuple<sequence<0>, sequence<1, 0, 2>>,
+                            sequence<1, 2>,
+                            sequence<2, 3>>{});
+                }
+                else
+                {
+                    return dram_tile_distribution;
+                }
+            }();
 
             constexpr auto LdsTileDistr = [&] {
                 if constexpr(IsGateUp)
@@ -1304,22 +1345,24 @@ struct MoeFlatmmKernel
                     make_tile_scatter_gather(c_block_window.get_bottom_tensor_view(),
                                              c_block_window.get_window_lengths(),
                                              c_block_window.get_window_origin(),
-                                             dram_tile_distribution,
+                                             c_dram_distribution,
                                              c_scatter_offsets[mIter],
                                              c_scatter_valids[mIter]);
 
+                auto redistributed_c_out_tensor = make_static_distributed_tensor<EDataType>(
+                    c_dram_distribution, c_out_tensor.get_thread_buffer());
                 if constexpr(!IsInputGemm ||
                              EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add)
-                    c_scatter_tile_window.update(c_out_tensor);
+                    c_scatter_tile_window.update(redistributed_c_out_tensor);
                 else
-                    c_scatter_tile_window.store(c_out_tensor);
+                    c_scatter_tile_window.store(redistributed_c_out_tensor);
 
                 if constexpr(iAccess != num_access - 1)
                 {
                     constexpr auto step = SFC::get_forward_step(iAccess);
                     // row_offset of out windows has been included in scatter offset
                     move_tile_window(c_block_window,
-                                     {0, step.at(number<1>{}) / number < IsGateUp ? 2 : 1 > {}});
+                                     {0, step.at(number<1>{}) / number<IsGateUp ? 2 : 1>{}});
                 }
             });
         }
