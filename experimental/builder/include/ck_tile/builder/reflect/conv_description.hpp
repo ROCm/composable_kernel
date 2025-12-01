@@ -1,6 +1,22 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+/**
+ * @file
+ * @brief Provides utilities to reflect on convolution kernel instances and generate
+ * human-readable descriptions of their configuration.
+ *
+ * This file contains the necessary components to transform a convolution kernel's
+ * compile-time properties into a structured, descriptive format. This is primarily
+ * used for debugging, logging, and generating documentation.
+ *
+ * Key components:
+ * - ck_tile::reflect::conv::ConvDescription: A struct that holds the extracted
+ *   properties and provides methods to format them into strings.
+ * - ck_tile::reflect::conv::Describe(): A factory function that creates a
+ *   ConvDescription from a given kernel instance type.
+ */
+
 #pragma once
 
 #include <concepts>
@@ -13,11 +29,13 @@
 #include <ck_tile/builder/reflect/conv_traits.hpp>
 #include <ck_tile/builder/reflect/tree_formatter.hpp>
 
-/// @file conv_description.hpp
-/// @brief Provides human-readable descriptions of ConvBuilder configurations
+/// @brief Provides human-readable descriptions of convolution kernel instances
 
 namespace ck_tile::reflect::conv {
 
+/// @brief Signature information for a convolution operation
+/// Contains high-level properties that define the convolution's interface,
+/// including dimensionality, data layout, data types, and elementwise operations.
 struct ConvSignatureInfo
 {
     int spatial_dim;
@@ -30,7 +48,9 @@ struct ConvSignatureInfo
     builder::ElementwiseOperation output_element_op;
 };
 
-// Algorithm information - groups all algorithm-related configuration
+/// @brief Algorithm configuration for a convolution kernel
+/// Contains low-level implementation details including thread block configuration,
+/// tile dimensions, memory access patterns, and pipeline settings.
 struct GemmAlgorithmInfo
 {
     int thread_block_size;
@@ -48,13 +68,16 @@ struct GemmAlgorithmInfo
     builder::GemmPadding padding;
 };
 
-// Provides human-readable descriptions of ConvBuilder configurations.
+/// @brief Provides human-readable descriptions of convolution kernel instances
+/// Generates formatted text descriptions at various levels of detail for
+/// understanding and documenting convolution kernel configurations.
 struct ConvDescription
 {
     ConvSignatureInfo signature;
     GemmAlgorithmInfo algorithm;
 
-    // Brief one-line summary
+    /// @brief Generate a brief one-line summary of the convolution
+    /// @return A concise description (e.g., "2D Forward convolution")
     std::string brief() const
     {
         std::ostringstream oss;
@@ -62,7 +85,8 @@ struct ConvDescription
         return oss.str();
     }
 
-    // Detailed hierarchical description
+    /// @brief Generate a detailed hierarchical description of the convolution
+    /// @return A multi-line tree-formatted description covering signature and algorithm details
     std::string detailed() const
     {
         TreeFormatter f;
@@ -200,7 +224,9 @@ struct ConvDescription
         return f.getString();
     }
 
-    // Educational explanation of optimization choices
+    /// @brief Generate an educational explanation of optimization choices
+    /// @return Educational content explaining why certain algorithm choices were made
+    /// @note Currently unimplemented - reserved for future enhancement
     std::string explain() const
     {
         std::ostringstream oss;
@@ -208,7 +234,9 @@ struct ConvDescription
         return oss.str();
     }
 
-    // Performance characteristics and use case guidance
+    /// @brief Generate performance characteristics and use case guidance
+    /// @return Guidance on when this configuration is optimal and expected performance
+    /// @note Currently unimplemented - reserved for future enhancement
     std::string suggest() const
     {
         std::ostringstream oss;
@@ -217,18 +245,13 @@ struct ConvDescription
     }
 };
 
-// Helper concept to detect if a type has InstanceTraits specialization
+/// @brief Helper concept to detect if a type has InstanceTraits specialization
 template <typename T>
 concept HasInstanceTraits = requires { typename InstanceTraits<T>; };
 
-// Helper concept to detect ConvBuilder types
-template <typename T>
-concept IsConvBuilder = requires {
-    typename T::Factory;
-    typename T::Instance;
-};
-
-// Primary factory function: Create ConvDescription from Instance type directly
+/// @brief Factory function to create ConvDescription from a convolution instance type
+/// @tparam Instance The convolution instance type (must have InstanceTraits specialization)
+/// @return A ConvDescription object populated with the instance's configuration details
 template <typename Instance>
     requires HasInstanceTraits<Instance>
 ConvDescription Describe()
@@ -253,16 +276,6 @@ ConvDescription Describe()
                                        .pipeline_scheduler  = Traits::pipeline_scheduler,
                                        .conv_specialization = Traits::conv_specialization,
                                        .padding             = Traits::gemm_padding}};
-}
-
-// Backward compatibility: Create ConvDescription from Builder type
-template <typename Builder>
-    requires IsConvBuilder<Builder> && (!HasInstanceTraits<Builder>)
-ConvDescription Describe()
-{
-    // Delegate to Instance-based version
-    using Instance = typename Builder::Instance;
-    return Describe<Instance>();
 }
 
 } // namespace ck_tile::reflect::conv
