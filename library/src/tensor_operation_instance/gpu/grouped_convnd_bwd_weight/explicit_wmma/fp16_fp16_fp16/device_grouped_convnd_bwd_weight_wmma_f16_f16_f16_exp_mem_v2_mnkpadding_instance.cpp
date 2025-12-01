@@ -10,7 +10,7 @@ namespace device {
 namespace instance {
 
 void add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v2_mnkpadding_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+    [[maybe_unused]]std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
                                                            GKYXC,
                                                            NHWGK,
@@ -21,23 +21,23 @@ void add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v2_mnkpadding
                                                            PassThrough,
                                                            PassThrough>>>& instances)
 {
-    add_explicit_gemm_device_operation_instances<
-        2,
-        NHWGC,
-        GKYXC,
-        NHWGK,
-        F16,
-        F16,
-        F16,
-        PassThrough,
-        PassThrough,
-        PassThrough,
-        device_gemm_wmma_universal_km_kn_mn_mem_instances<F16, Interwave, GemmMNKPadding>>(
-        instances);
+    // add_explicit_gemm_device_operation_instances<
+    //     2,
+    //     NHWGC,
+    //     GKYXC,
+    //     NHWGK,
+    //     F16,
+    //     F16,
+    //     F16,
+    //     PassThrough,
+    //     PassThrough,
+    //     PassThrough,
+    //     device_gemm_wmma_universal_km_kn_mn_mem_instances<F16, Interwave, GemmMNKPadding>>(
+    //     instances);
 }
 
 void add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v2_mnkpadding_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+    [[maybe_unused]]std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
                                                            GKZYXC,
                                                            NDHWGK,
@@ -48,19 +48,19 @@ void add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_mem_v2_mnkpadding
                                                            PassThrough,
                                                            PassThrough>>>& instances)
 {
-    add_explicit_gemm_device_operation_instances<
-        3,
-        NDHWGC,
-        GKZYXC,
-        NDHWGK,
-        F16,
-        F16,
-        F16,
-        PassThrough,
-        PassThrough,
-        PassThrough,
-        device_gemm_wmma_universal_km_kn_mn_mem_instances<F16, Interwave, GemmMNKPadding>>(
-        instances);
+    // add_explicit_gemm_device_operation_instances<
+    //     3,
+    //     NDHWGC,
+    //     GKZYXC,
+    //     NDHWGK,
+    //     F16,
+    //     F16,
+    //     F16,
+    //     PassThrough,
+    //     PassThrough,
+    //     PassThrough,
+    //     device_gemm_wmma_universal_km_kn_mn_mem_instances<F16, Interwave, GemmMNKPadding>>(
+    //     instances);
 }
 
 } // namespace instance
