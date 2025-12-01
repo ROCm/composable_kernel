@@ -11,8 +11,8 @@ using AccDataType      = float;
 using CShuffleDataType = ck::half_t;
 using CDataType        = ck::half_t;
 
-using ALayout = Col;
-using BLayout = Row;
+using ALayout = Row;
+using BLayout = Col;
 using CLayout = Row;
 
 using AElementOp = PassThrough;
@@ -31,10 +31,10 @@ using DeviceGemmV2Instance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuf
     8, 8,
     16, 16,
     2, 8,
-    S<8, 32, 1>, S<0, 2, 1>, S<0, 2, 1>,
-    1, 1, 8, 1,
-    S<8, 32, 1>, S<0, 2, 1>, S<0, 2, 1>,
-    1, 1, 8, 1,
+    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>,
+    2, 8, 8, 1,
+    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>,
+    2, 8, 8, 1,
     1, 1,
     S<1, 64, 1, 4>, 8,
     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1>;
