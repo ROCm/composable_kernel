@@ -81,12 +81,11 @@ invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                   K,
                                   stride_A,
                                   stride_B,
-                                  stride_C,
-                                  reduction_strategy};
+                                  stride_C};
 
     std::tuple<float, ck_tile::index_t> ave_time_and_batch;
 
-    if(args.reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic)
+    if(reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic)
     {
         ave_time_and_batch = gemm<GemmConfig,
                                   ADataType,
