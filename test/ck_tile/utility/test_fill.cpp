@@ -46,7 +46,7 @@ TYPED_TEST(FillUniformDistributionTest, ConsistencyWithSameSeed)
     const auto cpu_cores = max(32U, get_available_cpu_cores());
     for(auto num_threads_diff : {-3, -1})
     {
-        cpu_core_guard cg(min(max(cpu_cores + num_threads_diff, 1), get_available_cpu_cores()));
+        cpu_core_guard cg(min(max(cpu_cores + num_threads_diff, 1U), get_available_cpu_cores()));
         std::vector<T> vec2(size);
         FillUniformDistribution<T>{a, b, seed}(vec2.begin(), vec2.end());
         EXPECT_EQ(0, std::memcmp(vec1.data(), vec2.data(), size * sizeof(T)))
