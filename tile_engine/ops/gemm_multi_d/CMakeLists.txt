@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(GEMM_MULTI_D_DATATYPE "fp16" CACHE STRING "List of datatypes for GEMM Multi D (semicolon-separated)")
 set(GEMM_MULTI_D_LAYOUT "rcrr;rrrr;crrr;ccrr" CACHE STRING "List of layout for GEMM Multi D (semicolon-separated)")
 set(GEMM_MULTI_D_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
@@ -67,6 +70,7 @@ function(create_individual_gemm_multi_d_target datatype layout trait tile_config
 
     # Create the executable
     add_executable(${target_name}
+        # to save build time, exclude the target from "all" target of "gemm_multi_d" directory and its ancestors
         EXCLUDE_FROM_ALL
         ${GEMM_MULTI_D_SOURCE_DIR}/gemm_multi_d_benchmark_single.cpp
         ${instance_header}

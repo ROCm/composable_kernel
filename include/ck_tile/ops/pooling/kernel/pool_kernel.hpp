@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -436,12 +436,14 @@ struct PoolKernel
             // Main reduction loop - with index tracking
             for(int k_tile = amd_wave_read_first_lane(0); k_tile < num_k_tiles; ++k_tile)
             {
-                const auto x_tile     = load_tile(x_window);
+                const auto x_tile = load_tile(x_window);
+                const auto& in_tensor_padded_ref =
+                    in_tensor_padded; // structured bindings cannot be captured prior to cpp20
                 auto index_calculator = [&](const auto& x_indices) {
                     // Get global coordinates in the 2D matrix space (M, N)
                     const auto global_M = x_indices.at(number<0>{}) + iM;
                     const auto global_N = (k_tile * S::Block_N) + x_indices.at(number<1>{});
-                    return in_tensor_padded.get_tensor_descriptor().calculate_offset(
+                    return in_tensor_padded_ref.get_tensor_descriptor().calculate_offset(
                         make_tuple(global_M, global_N));
                 };
 

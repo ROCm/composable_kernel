@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -360,10 +360,12 @@ CK_TILE_DEVICE auto cast_tile(const SrcTensor& src_tensor)
                       (SrcTensor::get_thread_buffer_size() % 2 == 0))
         return impl::cast_tile_pkrtz_fp16_fp32<DstType, SrcTensor>(src_tensor);
 #endif
+#if 0 // currently it causes extra spills in qr_async_vr pipeline of fmha_fwd
     else if constexpr((std::is_same_v<DstType, fp16_t> || std::is_same_v<DstType, bf16_t>) &&
                       std::is_same_v<typename SrcTensor::DataType, float> &&
                       (SrcTensor::get_thread_buffer_size() % 2 == 0))
         return impl::cast_tile_pk_fp16bf16_fp32<DstType, SrcTensor>(src_tensor);
+#endif
 #if CK_TILE_USE_SUBDWORD_TILE_CAST
     else if constexpr(sizeof(DstType) < 4 || sizeof(typename SrcTensor::DataType) < 4)
         return impl::cast_tile_opt_subdword<DstType, SrcTensor>(src_tensor);

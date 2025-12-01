@@ -250,6 +250,24 @@ struct GemmConfigBQuantPrefill_Wmma : public GemmConfigBQuantPrefill<PrecType>
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 };
 
+template <typename PrecType>
+struct GemmConfigPreshuffleB_BQuant_Prefill_Wmma
+    : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill_Wmma
+    : public GemmConfigPreshuffleB_PreshuffleBQuant_Prefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
 template <typename ADataType_,
           typename BDataType_ = ADataType_,
           typename CDataType_ = ADataType_,
@@ -261,61 +279,4 @@ struct GemmQuantTypeConfig
     using BDataType   = BDataType_;
     using AccDataType = float;
     using CDataType   = CDataType_;
-};
-
-template <typename T>
-struct DataTypeTraits;
-
-template <>
-struct DataTypeTraits<float>
-{
-    static constexpr const char* name = "fp32";
-};
-
-template <>
-struct DataTypeTraits<double>
-{
-    static constexpr const char* name = "fp64";
-};
-
-template <>
-struct DataTypeTraits<int32_t>
-{
-    static constexpr const char* name = "int32";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::half_t>
-{
-    static constexpr const char* name = "fp16";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::bf16_t>
-{
-    static constexpr const char* name = "bf16";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::fp8_t>
-{
-    static constexpr const char* name = "fp8";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::bf8_t>
-{
-    static constexpr const char* name = "bf8";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::pk_int4_t>
-{
-    static constexpr const char* name = "pk_int4_t";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::int8_t>
-{
-    static constexpr const char* name = "int8";
 };

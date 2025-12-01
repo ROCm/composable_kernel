@@ -250,8 +250,7 @@ class TestCkTileStreamK : public ::testing::Test
                                       K,
                                       stride_A,
                                       stride_B,
-                                      stride_C,
-                                      reduction_strategy};
+                                      stride_C};
 
         ck_tile::index_t num_accumulations_per_tile =
             invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(

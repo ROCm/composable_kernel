@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # ONLY XDL_KERNELS
 set(GROUPED_CONVND_EXP_BWD_WEIGHT
     # Explicit instances are common for 2d and 3d
