@@ -714,15 +714,13 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
 
         void ShowInfo(const Argument& arg)
         {
-            std::cout << "arg.a_grid_desc_kbatch_k0_m_k1_{"
-                      << arg.a_grid_desc_k0_m_k1_.GetLength(I0) << ", "
-                      << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
+            std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
+                      << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
                       << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << ", "
                       << arg.a_grid_desc_k0_m_k1_.GetLength(I3) << "}" << std::endl;
 
-            std::cout << "arg.b_grid_desc_kbatch_k0_n_k1_{"
-                      << arg.b_grid_desc_k0_n_k1_.GetLength(I0) << ", "
-                      << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
+            std::cout << "arg.b_grid_desc_k0_n_k1_{" << arg.b_grid_desc_k0_n_k1_.GetLength(I0)
+                      << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
                       << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << ", "
                       << arg.b_grid_desc_k0_n_k1_.GetLength(I3) << "}" << std::endl;
 
