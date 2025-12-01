@@ -1272,13 +1272,13 @@ struct FmhaFwdKernel
             const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * FmhaPipeline::kM0);
             const index_t i_n1 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN1);
 
-            long_index_t batch_offset_q       = 0;
-            long_index_t batch_offset_k       = 0;
-            long_index_t batch_offset_v       = 0;
-            long_index_t batch_offset_bias    = 0;
-            long_index_t batch_offset_randval = 0;
-            long_index_t batch_offset_lse     = 0;
-            long_index_t batch_offset_o       = 0;
+            long_index_t batch_offset_q         = 0;
+            long_index_t batch_offset_k         = 0;
+            long_index_t batch_offset_v         = 0;
+            long_index_t batch_offset_bias      = 0;
+            long_index_t batch_offset_randval   = 0;
+            long_index_t batch_offset_lse       = 0;
+            long_index_t batch_offset_o         = 0;
             long_index_t batch_offset_q_descale = 0;
             long_index_t batch_offset_k_descale = 0;
             long_index_t batch_offset_v_descale = 0;

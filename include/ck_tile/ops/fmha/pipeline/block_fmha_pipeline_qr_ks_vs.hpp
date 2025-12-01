@@ -404,8 +404,7 @@ struct BlockFmhaPipelineQRKSVS
             // dequant
             if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
             {
-                tile_elementwise_inout(
-                    [k_descale](auto& x) { x = x * k_descale; }, s_acc);
+                tile_elementwise_inout([k_descale](auto& x) { x = x * k_descale; }, s_acc);
             }
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -638,8 +637,7 @@ struct BlockFmhaPipelineQRKSVS
             // STAGE 3, KV gemm
             auto o_acc0 = decltype(o_acc){};
             clear_tile(o_acc0);
-        
-            // C= C0*a + C =a*(C0 + C/a)
+
             auto& o_acc_ = [&o_acc0, &o_acc]() -> auto& {
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
                 {
@@ -690,7 +688,7 @@ struct BlockFmhaPipelineQRKSVS
             if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
             {
                 tile_elementwise_inout(
-                        [&v_descale](auto& o, auto& o0) { o += o0 * v_descale; }, o_acc, o_acc0);
+                    [&v_descale](auto& o, auto& o0) { o += o0 * v_descale; }, o_acc, o_acc0);
             }
         } while(++i_total_loops < num_total_loop);
 
