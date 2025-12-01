@@ -21,6 +21,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_descriptor_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -612,48 +613,14 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                         false,  // split_k_offset_a_hack (temporary)
                         false); // split_k_offset_b_hack (temporary)
 
-            const index_t output_spatial_acum = ck::accumulate_n<index_t>(
-                output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
-
-            const bool is_k_not_paded =
-                (Conv_N_ * output_spatial_acum) % (K0PerBlock * K1 * k_batch_) == 0;
-
-            const bool can_divide_n_spatial_by_k_batch =
-                (Conv_N_ * output_spatial_acum) % k_batch_ == 0;
-
-            const bool can_divide_n_by_k_batch = Conv_N_ % k_batch_ == 0;
-
-            const bool is_correct_layout =
-                is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
-
-            const bool is_a_stride_divisible =
-                descs_initial[I0].GetElementSpaceSize() % k_batch_ == 0;
-
-            const bool is_b_stride_divisible =
-                descs_initial[I1].GetElementSpaceSize() % k_batch_ == 0;
-
-            // Check if descriptor has compact layout (product of dimensions equals element space)
-            // Non-compact layouts have complex transform pipelines that don't support the hack
-            const auto a_dims_product = static_cast<long_index_t>(descs_initial[I0].GetLength(I0)) *
-                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I1)) *
-                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I2)) *
-                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I3));
-            const auto b_dims_product = static_cast<long_index_t>(descs_initial[I1].GetLength(I0)) *
-                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I1)) *
-                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I2)) *
-                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I3));
-
-            const bool is_a_compact = (descs_initial[I0].GetElementSpaceSize() == a_dims_product);
-            const bool is_b_compact = (descs_initial[I1].GetElementSpaceSize() == b_dims_product);
-
-            // Determine if we can safely use the split-k offset hack
-            // Only enable for compact layouts where element_space_size == product of dimensions
-            split_k_offset_a_hack_ = k_batch_ > 1 && can_divide_n_spatial_by_k_batch &&
-                                     is_k_not_paded && is_correct_layout && is_a_stride_divisible &&
-                                     is_a_compact;
-
-            split_k_offset_b_hack_ = k_batch_ > 1 && can_divide_n_by_k_batch && is_k_not_paded &&
-                                     is_correct_layout && is_b_stride_divisible && is_b_compact;
+            std::tie(split_k_offset_a_hack_, split_k_offset_b_hack_) =
+                SplitKHackEligibility<NDimSpatial, InLayout, WeiLayout, OutLayout>::Check(
+                    descs_initial[I0],
+                    descs_initial[I1],
+                    k_batch_,
+                    Conv_N_,
+                    output_spatial_lengths_,
+                    K0PerBlock * K1);
 
             // Now create descriptors with the correct hack flags
             const auto descs =

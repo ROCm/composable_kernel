@@ -24,6 +24,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_descriptor_utils.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/host_utility/device_prop.hpp"
@@ -716,7 +717,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 k_batch_ = split_k;
             }
 
-            // Step 1: Create initial descriptors with hack=false to check compactness
+            // Create initial descriptors with hack=false to check compactness
             const auto descs_initial =
                 conv_to_gemm_transformer_v2
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -738,17 +739,6 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         false, // hack=false for initial check
                         true); // use_full_batch_kindex
 
-            // Step 2: Check if descriptors are compact (element_space == product of dimensions)
-            const auto a_dims_product = static_cast<long_index_t>(descs_initial[I0].GetLength(I0)) *
-                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I1)) *
-                                        static_cast<long_index_t>(descs_initial[I0].GetLength(I2));
-            const auto b_dims_product = static_cast<long_index_t>(descs_initial[I1].GetLength(I0)) *
-                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I1)) *
-                                        static_cast<long_index_t>(descs_initial[I1].GetLength(I2));
-
-            const bool is_a_compact = (descs_initial[I0].GetElementSpaceSize() == a_dims_product);
-            const bool is_b_compact = (descs_initial[I1].GetElementSpaceSize() == b_dims_product);
-
             ce_elementwise_grid_desc_m_n_ =
                 conv_to_gemm_transformer_v1
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -767,35 +757,16 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         input_right_pads,
                         k_batch_)[I2];
 
-            const index_t output_spatial_acum = ck::accumulate_n<index_t>(
-                output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
+            std::tie(split_k_offset_a_hack_, split_k_offset_b_hack_) =
+                SplitKHackEligibility<NDimSpatial, InLayout, WeiLayout, OutLayout>::Check(
+                    descs_initial[I0],
+                    descs_initial[I1],
+                    k_batch_,
+                    Conv_N_,
+                    output_spatial_lengths_,
+                    KPerBlock);
 
-            const bool is_k_not_paded =
-                (Conv_N_ * output_spatial_acum) % (KPerBlock * k_batch_) == 0;
-
-            const bool can_divide_n_spatial_by_k_batch =
-                (Conv_N_ * output_spatial_acum) % k_batch_ == 0;
-
-            const bool can_divide_n_by_k_batch = Conv_N_ % k_batch_ == 0;
-
-            const bool is_correct_layout =
-                is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
-
-            const bool is_a_stride_divisible =
-                descs_initial[I0].GetElementSpaceSize() % k_batch_ == 0;
-
-            const bool is_b_stride_divisible =
-                descs_initial[I1].GetElementSpaceSize() % k_batch_ == 0;
-
-            // Step 3: Determine if hack can be enabled (only for compact layouts)
-            split_k_offset_a_hack_ = k_batch_ > 1 && can_divide_n_spatial_by_k_batch &&
-                                     is_k_not_paded && is_correct_layout && is_a_stride_divisible &&
-                                     is_a_compact;
-
-            split_k_offset_b_hack_ = k_batch_ > 1 && can_divide_n_by_k_batch && is_k_not_paded &&
-                                     is_correct_layout && is_b_stride_divisible && is_b_compact;
-
-            // Step 4: Create final descriptors with correct hack flags
+            // Create final descriptors with correct hack flags
             const auto descs =
                 conv_to_gemm_transformer_v2
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
