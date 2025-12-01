@@ -288,7 +288,8 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             uint32_t uscale = uint32_t(scale.data) << float_mantissa;
             */
 
-            float scale_f32 = type_convert<float>(scale.data);
+            // float scale_f32 = type_convert<float>(scale.data);
+            float scale_f32 = type_convert<float>(scale);
 
             using ComputeV2Type =
                 std::conditional_t<std::is_same_v<ComputeType, half_t>, fp16x2_t, bf16x2_t>;
@@ -303,6 +304,9 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                     return pk_int4_t_to_bfloat16x2_t(pk_int4, fscale);
                 }
                 else
+
+
+
                 {
                     static_assert(sizeof(pk_int4) == 0, "unsupported compute type");
                 }
