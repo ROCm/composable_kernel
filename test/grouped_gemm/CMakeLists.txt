@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_custom_target(test_grouped_gemm)
 
 add_gtest_executable(test_grouped_gemm_splitk test_grouped_gemm_splitk_xdl.cpp)
