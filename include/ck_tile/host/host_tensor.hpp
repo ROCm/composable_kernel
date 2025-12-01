@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -408,7 +408,6 @@ struct HostTensor
         return sizeof(T) * get_element_space_size();
     }
 
-    // void SetZero() { ck_tile::ranges::fill<T>(mData, 0); }
     void SetZero()
     {
         if constexpr(std::is_same_v<T, e8m0_t>)

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -115,7 +115,7 @@ struct WarpGemmAttributeMfma
                                        const BVecType& b_vec,
                                        const int32_t& b_scale) const
     {
-        auto c_vec = Impl{}.template operator()<opselA, opselB>(a_vec, a_scale, b_vec, b_scale);
+        return Impl{}.template operator()<opselA, opselB>(a_vec, a_scale, b_vec, b_scale);
     }
 };
 
