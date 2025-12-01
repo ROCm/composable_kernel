@@ -5,7 +5,7 @@
 
 #include <concepts>
 #include <ck_tile/builder/conv_builder.hpp>
-#include <ck_tile/builder/conv_factory.hpp>
+#include <ck_tile/builder/factory/conv_factory.hpp>
 #include <ck_tile/builder/conv_signature_concepts.hpp>
 #include <ck_tile/builder/reflect/instance_traits.hpp>
 #include <ck_tile/builder/types.hpp>
