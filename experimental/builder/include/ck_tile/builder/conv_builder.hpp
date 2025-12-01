@@ -6,7 +6,7 @@
 #include <concepts>
 #include <type_traits>
 
-#include "ck_tile/builder/conv_factory.hpp"
+#include "ck_tile/builder/factory/conv_factory.hpp"
 #include "ck_tile/builder/versions.hpp"
 
 namespace ck_tile::builder {

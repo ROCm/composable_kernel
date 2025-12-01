@@ -57,10 +57,9 @@
 #include "ck_tile/builder/types.hpp"
 #include "ck_tile/builder/versions.hpp"
 
-#include "ck_tile/builder/conv_signature_utils.hpp"
-#include "ck_tile/builder/conv_layout_utils.hpp"
-#include "ck_tile/builder/conv_data_type_utils.hpp"
-#include "ck_tile/builder/conv_elementwise_op_utils.hpp"
+#include "ck_tile/builder/factory/helpers/conv_layout_utils.hpp"
+#include "ck_tile/builder/factory/helpers/conv_data_type_utils.hpp"
+#include "ck_tile/builder/factory/helpers/conv_elementwise_op_utils.hpp"
 
 namespace ck_tile::builder::factory_internal {
 
