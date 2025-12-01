@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # Currently ck_tile is only built on gfx90a, gfx942, gfx950, gfx11 and gfx12
 if(GPU_TARGETS MATCHES "gfx942|gfx950|gfx90a|gfx11|gfx12")
 

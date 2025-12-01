@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #include "utils/ckb_conv_test_configs.hpp"
@@ -23,7 +23,7 @@ TEST(FwdConvInstances,
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle{}
             .with_thread_block(FwdThreadBlock_256_256x128x32)
             .with_gemm_config(FwdGemmParams_Xdl_4x2_per_wave)
-            .with_block_transfer(FwdBlockTransfer_4x64x1_fp8)
+            .with_transfer(FwdTransfer_4x64x1_fp8)
             .with_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
             .with_prefetch_config(1, 1, PipelineScheduler::DEFAULT);
 

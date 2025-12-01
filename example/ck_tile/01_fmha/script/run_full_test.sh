@@ -1,4 +1,7 @@
 #!/bin/bash 
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 #
 # in order to run this script you'd first need to build the tile_example_fmha_fwd and tile_eaxmple_fmha_bwd executables in ../build/bin/
 #
@@ -36,7 +39,6 @@ function print_log_header(){
 #run verification tests
 time example/ck_tile/01_fmha/script/smoke_test_fwd.sh
 time example/ck_tile/01_fmha/script/smoke_test_bwd.sh
-time example/ck_tile/01_fmha/script/smoke_test_fwd_sink.sh
 
 #run performance benchmarks
 export fmha_fwd_log="perf_fmha_fwd_$GPU_arch.log"

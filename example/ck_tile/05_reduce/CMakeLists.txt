@@ -1,9 +1,12 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(EXAMPLE_REDUCE "tile_example_reduce")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
 message(DEBUG "adding example ${EXAMPLE_REDUCE}")
 
-add_executable(${EXAMPLE_REDUCE} EXCLUDE_FROM_ALL reduce.cpp)
+add_executable(${EXAMPLE_REDUCE} reduce.cpp)
 target_include_directories(${EXAMPLE_REDUCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 set(EXAMPLE_REDUCE_COMPILE_OPTIONS)
 

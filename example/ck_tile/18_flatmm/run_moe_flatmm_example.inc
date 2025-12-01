@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 template <typename FlatmmConfig,
           typename ADataType,
@@ -302,10 +302,6 @@ int run_moe_gemm_example_with_layouts(int argc,
             static_cast<float*>(per_token_scale_dev_buf.GetDeviceBuffer()),
             static_cast<float*>(per_channel_scale_dev_buf.GetDeviceBuffer()));
 
-        const float max_accumulated_value =
-            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-            K, 1 /*kbatch*/, max_accumulated_value);
         c_m_n_ref_buf->FromDevice(c_m_n_host_ref.data());
 
         const float rtol = std::is_same_v<ADataType, ck_tile::half_t> && IsInputGemm ? 1e-3 : 1e-2;

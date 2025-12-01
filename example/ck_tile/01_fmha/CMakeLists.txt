@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
 # Currently only gfx9 and gfx12 archs are supported by FMHA
 list(FILTER INST_TARGETS INCLUDE REGEX "gfx9|gfx12")
@@ -62,7 +65,7 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
 # there is no corresponding instance for parameters).
 if(BUILD_TESTING)
   # Filters are in the order of FMHA_FWD_KNOWN_APIS: fwd,fwd_splitkv_combine@fwd_splitkv,fwd_appendkv,pagedkv_prefill
-  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*_nsink*,*@*_nlogits*_nbias*_nsink*,*,*_nlogits*_nskip*_pagedkv*)
+  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*_nlogits*_nbias*,*,*_nlogits*_nskip*_pagedkv)
 endif()
 
 # generate a list of kernels, but not actually emit files at config sta
@@ -109,6 +112,7 @@ set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
 set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
 
 message(DEBUG "adding instances ${FMHA_FWD_INSTANCES}")
+# to save build time, exclude the target from "all" target of "01_fmha" directory and its ancestors
 add_library(${FMHA_FWD_INSTANCES} OBJECT EXCLUDE_FROM_ALL)
 target_include_directories(${FMHA_FWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_GEN_BLOBS})

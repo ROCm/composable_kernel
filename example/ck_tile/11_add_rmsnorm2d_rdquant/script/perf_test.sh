@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 EXE="$(find . -name tile_add_rmsnorm2d_rdquant_fwd -type f | head -n 1)"
 
 $EXE -m=1 -n=1 -e=1e-12 -v=1 -prec=bf16 -repeat=1000

@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # ckProfiler
 set(CK_PROFILER_OP_FILTER "" CACHE STRING "Filter for the operators to be profiled. Default is to include all")
 set(CK_PROFILER_INSTANCE_FILTER "" CACHE STRING "Filter for the kernels instances to be profiled. Default is to be the same as the operator filter")
@@ -264,11 +267,16 @@ endif()
 set(PROFILER_LIBS utility getopt::getopt)
 foreach(LIB ${DEVICE_INSTANCES})
   string(REGEX REPLACE "device_(.+)_instance" "\\1" INSTANCE_NAME ${LIB})
-  if (INSTANCE_NAME STREQUAL "") 
+  if (INSTANCE_NAME STREQUAL "")
     message(FATAL_ERROR "Unexpected kernel instance name: ${LIB}")
   endif()
   if("${INSTANCE_NAME}" MATCHES "${CK_PROFILER_INSTANCE_FILTER}")
-    list(APPEND PROFILER_LIBS ${LIB})
+    # Only link if the target was actually created
+    if(TARGET ${LIB})
+      list(APPEND PROFILER_LIBS ${LIB})
+    else()
+      message(VERBOSE "Skipping ${LIB} - no instances built for current GPU targets")
+    endif()
   endif()
 endforeach()
 message(VERBOSE "ckProfiler libs: ${PROFILER_LIBS}")

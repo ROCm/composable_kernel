@@ -72,6 +72,129 @@ def sendFailureNotifications() {
     }
 }
 
+def generateAndArchiveBuildTraceVisualization() {
+    try {
+        def buildTraceFileName = "ck_build_trace.json";
+
+        // Attempt to download the build trace file to check if it exists
+        def traceFileExists = false
+        try {
+            copyArtifacts(
+                projectName: env.JOB_NAME,
+                selector: specific(env.BUILD_NUMBER),
+                filter: buildTraceFileName
+            )
+            traceFileExists = fileExists(buildTraceFileName)
+        } catch (Exception e) {
+            echo "Could not copy artifacts: ${e.getMessage()}"
+            traceFileExists = false
+        }
+        
+        sh """
+            echo "post download:"
+            ls -la
+        """
+
+        if (traceFileExists) {
+            // Move the build trace file to a temporary location to preserve it during checkout
+            sh """
+                mkdir -p /tmp/jenkins_artifacts
+                cp ${buildTraceFileName} /tmp/jenkins_artifacts/${buildTraceFileName}
+                ls -la /tmp/jenkins_artifacts/
+            """
+        } else {
+            echo "Build trace archive not found"
+            return
+        }
+
+        // Checkout source code to get required files
+        checkout scm
+        
+        // Restore the build trace file after checkout
+        sh """
+            ls -la
+            cp /tmp/jenkins_artifacts/${buildTraceFileName} ${buildTraceFileName}
+            ls -la ${buildTraceFileName}
+        """
+        
+        // Pull image
+        def image = "ghcr.io/puppeteer/puppeteer:24.30.0"
+        echo "Pulling image: ${image}"
+        def retimage = docker.image("${image}")
+        retimage.pull()
+
+        // Create a temporary workspace
+        sh """#!/bin/bash
+            ls -la
+            mkdir -p workspace
+            cp ./script/infra_helper/capture_build_trace.js ./workspace
+            cp ${buildTraceFileName} ./workspace/${buildTraceFileName}
+            chmod 777 ./workspace
+            ls -la ./workspace
+        """
+
+        // Run container to get snapshot
+        def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
+        // Create unique image name by sanitizing job name
+        def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_')
+        def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}.png"
+        sh """
+            docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
+            mv ./workspace/perfetto_snapshot_build.png ./workspace/${imageName}
+        """
+        
+        // Archive the snapshot
+        sh """
+            mv ./workspace/${imageName} ${imageName}
+        """
+        archiveArtifacts "${imageName}"
+
+        // Notify the channel
+        withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
+        sh '''
+            # Create build trace filename with build number based on the original filename
+            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + sanitizedJobName + '''_''' + env.BUILD_NUMBER + '''.json/')
+            
+            # Convert image to base64
+            echo "Converting image to base64..."
+            IMAGE_BASE64=$(base64 -w 0 ''' + imageName + ''')
+            echo "Image base64 length: ${#IMAGE_BASE64}"
+            
+            # Convert build trace to base64
+            echo "Converting build trace to base64..."
+            BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceFileName + ''')
+            echo "Build trace base64 length: ${#BUILD_TRACE_BASE64}"
+            
+            # Create JSON payload with base64 data
+            echo "Creating JSON payload..."
+            {
+                printf '{\n'
+                printf '    "jobName": "%s",\n' "''' + env.JOB_NAME + '''"
+                printf '    "buildNumber": "%s",\n' "''' + env.BUILD_NUMBER + '''"
+                printf '    "jobUrl": "%s",\n' "''' + env.RUN_DISPLAY_URL + '''"
+                printf '    "imageName": "%s",\n' "''' + imageName + '''"
+                printf '    "imageData": "%s",\n' "$IMAGE_BASE64"
+                printf '    "buildTraceName": "%s",\n' "$BUILD_TRACE_WITH_NUMBER"
+                printf '    "buildTraceData": "%s"\n' "$BUILD_TRACE_BASE64"
+                printf '}\n'
+            } > webhook_payload.json
+            
+            echo "JSON payload created, size: $(wc -c < webhook_payload.json) bytes"
+            
+            curl -X POST "${WEBHOOK_URL}" \
+            -H "Content-Type: application/json" \
+            -d @webhook_payload.json
+            
+            # Clean up temporary file
+            rm -f webhook_payload.json
+        '''
+        }
+    } catch (Exception e) {
+        echo "Throwing error exception while generating build trace visualization"
+        echo 'Exception occurred: ' + e.toString()
+    }
+}
+
 class Version {
     int major, minor, patch
     @Override
@@ -222,8 +345,11 @@ def check_arch_name(){
     else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
         arch_name = "gfx942"
     }
-    else if ( runShell('grep -n "gfx10" rocminfo.log') ) {
-        arch_name = "gfx10"
+    else if ( runShell('grep -n "gfx101" rocminfo.log') ) {
+        arch_name = "gfx101"
+    }
+    else if ( runShell('grep -n "gfx103" rocminfo.log') ) {
+        arch_name = "gfx103"
     }
     else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
         arch_name = "gfx11"
@@ -402,8 +528,11 @@ def cmake_build(Map conf=[:]){
     if (setup_args.contains("gfx11")){
         invocation_tag="gfx11"
     }
-    if (setup_args.contains("gfx10")){
-        invocation_tag="gfx10"
+    if (setup_args.contains("gfx101")){
+        invocation_tag="gfx101"
+    }
+    if (setup_args.contains("gfx103")){
+        invocation_tag="gfx103"
     }
     if (setup_args.contains("gfx908")){
         invocation_tag="gfx908"
@@ -468,6 +597,9 @@ def cmake_build(Map conf=[:]){
         if (params.NINJA_BUILD_TRACE) {
             echo "running ninja build trace"
         }
+        if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+            setup_args = " -D CK_EXPERIMENTAL_BUILDER=ON "  + setup_args
+        }
         setup_cmd = conf.get(
             "setup_cmd",
             """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 " .. """
@@ -514,6 +646,9 @@ def cmake_build(Map conf=[:]){
                     else{
                         sh "ninja check"
                     }
+                    if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+                        sh 'ninja check-builder'
+                    }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
@@ -538,6 +673,9 @@ def cmake_build(Map conf=[:]){
                     }
                     else{
                         sh "ninja check"
+                    }
+                    if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+                        sh 'ninja check-builder'
                     }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
@@ -957,12 +1095,12 @@ def run_pytorch_tests(Map conf=[:]){
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
                                               0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX101=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
                                               0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
-                                              0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX10=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
+                                              0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
 
 pipeline {
     agent none
@@ -1070,9 +1208,13 @@ pipeline {
             defaultValue: true,
             description: "Build CK and run tests on gfx950 (default: ON)")
         booleanParam(
-            name: "BUILD_GFX10",
+            name: "BUILD_GFX101",
+            defaultValue: false,
+            description: "Build CK and run tests on gfx101 (default: OFF)")
+        booleanParam(
+            name: "BUILD_GFX103",
             defaultValue: true,
-            description: "Build CK and run tests on gfx10 (default: ON)")
+            description: "Build CK and run tests on gfx103 (default: ON)")
         booleanParam(
             name: "BUILD_GFX11",
             defaultValue: true,
@@ -1097,6 +1239,10 @@ pipeline {
             name: "RUN_INDUCTOR_TESTS",
             defaultValue: true,
             description: "Run inductor codegen tests (default: ON)")
+        booleanParam(
+            name: "RUN_BUILDER_TESTS",
+            defaultValue: true,
+            description: "Run CK_BUILDER tests (default: ON)")
         booleanParam(
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
@@ -1469,11 +1615,13 @@ pipeline {
                                             -D GPU_TARGETS="gfx90a" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
+                                            -D GEMM_STREAMK_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
-                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
+                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
@@ -1498,11 +1646,13 @@ pipeline {
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
+                                            -D GEMM_STREAMK_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
-                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
+                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
@@ -1661,11 +1811,27 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage("Build CK and run Tests on gfx1010")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_GFX101.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx1010") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx10-1-generic" """
+                        execute_args = build_client_examples("gfx10-1-generic")
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
+                    }
+                }
                 stage("Build CK and run Tests on gfx1030")
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX10.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX103.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1030") }
                     environment{
@@ -1711,6 +1877,15 @@ pipeline {
                 }
             }
             post {
+                always {
+                    node(rocmnode("nogpu")) {
+                        script {
+                            // Simulate capture
+                            generateAndArchiveBuildTraceVisualization()
+                        }
+                        cleanWs()
+                    }
+                }
                 success {
                     script {
                         // Report the parent stage build ck and run tests status

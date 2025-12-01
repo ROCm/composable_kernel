@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c), Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include <cstring>
@@ -11,9 +11,11 @@
 #include <tuple>
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/ops/common/utils.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
+#include "ck_tile/ops/gemm_quant.hpp"
 #include "gemm_utils.hpp"
 
 template <typename GemmConfig,
@@ -61,12 +63,16 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                                  GemmTraits,
                                                                  ComputeDataType>;
 
-    // This example only supports BQuant (no AQuant)
-    // For non-preshuffled BQuant, use BaseBQuantGemmPipelineAgBgCrCompV3
+    // Base pipeline selection based on quant mode and preshuffle settings
     using BaseGemmPipeline = std::conditional_t<
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-        ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+        std::conditional_t<
+            QuantMode == ck_tile::QuantType::AQuantGrouped && GemmConfig::PreshuffleQuant == true,
+            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+            std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
+                               ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
+                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -125,7 +131,9 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
             std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
-                ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                std::conditional_t<GemmConfig::PreshuffleQuant == true,
+                                   ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                                   ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>>,
                 std::conditional_t<GemmConfig::PreshuffleB == true,
                                    ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
@@ -315,15 +323,15 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     {
         std::cout << " StrideBQ =" << stride_BQ;
     }
-    std::cout << " A_Type = " << DataTypeTraits<typename TypeConfig::ADataType>::name
-              << " AQ_Type = " << DataTypeTraits<typename TypeConfig::QDataType>::name
-              << " B_Type = " << DataTypeTraits<typename TypeConfig::BDataType>::name;
+    std::cout << " A_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::ADataType>::name
+              << " AQ_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::QDataType>::name
+              << " B_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::BDataType>::name;
     if constexpr(!std::is_same_v<typename TypeConfig::QDataType, void>)
     {
-        std::cout << " BQ_Type = " << DataTypeTraits<typename TypeConfig::QDataType>::name;
+        std::cout << " BQ_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::QDataType>::name;
     }
-    std::cout << " Acc_Type = " << DataTypeTraits<typename TypeConfig::AccDataType>::name
-              << " C_Type = " << DataTypeTraits<typename TypeConfig::CDataType>::name
+    std::cout << " Acc_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::AccDataType>::name
+              << " C_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::CDataType>::name
               << " QuantMode = " << quant_type_to_string(QuantMode)
               << " PreshuffleQuant = " << (GemmConfig::PreshuffleQuant ? "true" : "false") << " : "
               << " PreshuffleB = " << (GemmConfig::PreshuffleB ? "true" : "false") << " : "
@@ -557,7 +565,6 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         aq_dev_buf_ptr =
             std::make_unique<ck_tile::DeviceMem>(aq_tensor_ptr->get_element_space_size_in_bytes());
     }
-
     std::unique_ptr<ck_tile::DeviceMem> bq_dev_buf_ptr = nullptr;
     if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant ||
@@ -626,8 +633,24 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         if constexpr(GemmConfig::PreshuffleB && GemmConfig::TiledMMAPermuteN)
         {
             printf("Preshuffle BQ with TiledMMAPermuteN \n");
+            ck_tile::HostTensor<BQDataType> bq_permuted_host =
+                ck_tile::bq_permuteN<GemmConfig>(*bq_tensor_ptr);
+
+            if constexpr(GemmConfig::PreshuffleQuant)
+            {
+                ck_tile::HostTensor<BQDataType> bq_shuffle_host =
+                    ck_tile::shuffle_bq(&bq_permuted_host, GemmConfig::K_Tile / QuantGroupSize::kK);
+                bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
+            }
+            else
+            {
+                bq_dev_buf_ptr->ToDevice(bq_permuted_host.data());
+            }
+        }
+        else if constexpr(GemmConfig::PreshuffleQuant)
+        {
             ck_tile::HostTensor<BQDataType> bq_shuffle_host =
-                ck_tile::shuffle_bq_permuteN<GemmConfig>(*bq_tensor_ptr);
+                ck_tile::shuffle_bq(bq_tensor_ptr.get(), GemmConfig::K_Tile / QuantGroupSize::kK);
             bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
         }
         else
