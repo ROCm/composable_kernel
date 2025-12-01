@@ -1,5 +1,5 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
 
 #include "gemm_utils.hpp"
 #include "ck_tile/ops/common.hpp"
@@ -16,7 +16,7 @@ template <typename GemmConfig,
           typename ELayout,
           typename CDEElementWise,
           ck_tile::StreamKReductionStrategy ReductionStrategy>
-std::tuple<float, ck_tile::index_t> gemm(const ck_tile::reboot::StreamKHostArgs& args,
+std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
                                          const ck_tile::stream_config& s)
 {
     using GemmShape = ck_tile::TileGemmShape<
@@ -28,7 +28,7 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::reboot::StreamKHostArgs&
         GemmConfig::PermuteB>;
 
     using TilePartitioner =
-        ck_tile::StreamKTilePartitioner_v2<GemmShape, ReductionStrategy, GemmConfig::Persistent>;
+        ck_tile::StreamKTilePartitioner<GemmShape, ReductionStrategy, GemmConfig::Persistent>;
 
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                                                  GemmConfig::kPadN,
@@ -77,7 +77,7 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::reboot::StreamKHostArgs&
                                              memory_operation.value,
                                              GemmConfig::NumWaveGroups>>;
 
-        using Kernel = ck_tile::reboot::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
         auto kargs                = Kernel::MakeKernelArgs(args);
         const auto workspace_size = Kernel::GetWorkSpaceSize(kargs);
@@ -105,13 +105,13 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::reboot::StreamKHostArgs&
         }
 
         auto reset_data_buffers = [&]() {
-            if(ReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic)
+            if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic)
             {
                 // Clear the output C tensor results after each repetition of the kernel
                 hipGetErrorString(hipMemsetAsync(
                     args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
             }
-            else if(ReductionStrategy == ck_tile::StreamKReductionStrategy::Reduction)
+            else if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Reduction)
             {
                 // Reset sk flags to zero before each repetition of the kernel
                 workspace_data.SetZero();

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -213,6 +213,17 @@ CK_TILE_HOST_DEVICE static void print(const sequence<Is...>&)
     }
     printf(">");
 }
+
+template <typename T>
+struct is_sequence : std::false_type
+{
+};
+template <index_t... Is>
+struct is_sequence<sequence<Is...>> : std::true_type
+{
+};
+template <typename T>
+inline constexpr bool is_sequence_v = is_sequence<T>::value;
 
 namespace impl {
 template <typename T, T... Ints>

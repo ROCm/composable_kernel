@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -381,6 +381,8 @@ CK_TILE_HOST_DEVICE constexpr auto InputTileDistributionEncoding()
  * the last is SFINAE to ensure the tile distribution encoding is valid.
  *
  * @param tile_window             The tile window with static distribution to load and transpose.
+ * @param offset                  The offset (in elements) added to the base address before
+ * indexing.
  *
  * @return A statically distributed tensor containing the transposed tile data.
  *
@@ -399,18 +401,19 @@ template <
                                                                  typename BottomTensorView_::DataType,
                                                                  Policy>::distr_encoding_valid,
                                        Policy>>
-CK_TILE_DEVICE auto
-load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_,
-                                                               WindowLengths_,
-                                                               TileDistribution_,
-                                                               NumCoord>& tile_window)
+CK_TILE_DEVICE auto load_tile_transpose_with_offset(
+    const tile_window_with_static_distribution<BottomTensorView_,
+                                               WindowLengths_,
+                                               TileDistribution_,
+                                               NumCoord>& __restrict__ tile_window,
+    index_t offset)
 {
     using OutTileDstrEncode = typename OutputTileDistributionTraits<
         typename TileDistribution_::DstrEncode,
         typename BottomTensorView_::DataType>::TransposedDstrEncode;
     auto out_tensor = make_static_distributed_tensor<typename BottomTensorView_::DataType>(
         make_static_tile_distribution(OutTileDstrEncode{}));
-    auto trans_tensor           = tile_window.template load_transpose<Policy>();
+    auto trans_tensor           = tile_window.template load_transpose_with_offset<Policy>(offset);
     constexpr auto input_distr  = TileDistribution_{};
     constexpr auto output_distr = make_static_tile_distribution(OutTileDstrEncode{});
 
@@ -441,6 +444,51 @@ load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_
     });
 
     return out_tensor;
+}
+
+/**
+ * @brief transpose loads tile from a tensor and returns the resulting tensor with a new
+ * (transposed) tile distribution. use SFINAE to ensure the tile distribution encoding is valid.
+ *
+ * This function is intended for use with statically distributed tensor tiles, where the input
+ * and output tile distributions differ due to the transpose operation. It ensures that the
+ * element space size and vector length remain consistent between the input and output
+ * distributions.
+ *
+ * @tparam BottomTensorView_      The type of the bottom tensor view.
+ * @tparam WindowLengths_         The type representing the window lengths.
+ * @tparam TileDistribution_      The type representing the tile distribution.
+ * @tparam NumCoord               The number of coordinates (dimensions).
+ * @tparam Policy                 The transpose policy to use (defaults to DefaultTranspose).
+ * the last is SFINAE to ensure the tile distribution encoding is valid.
+ *
+ * @param tile_window             The tile window with static distribution to load and transpose.
+ * indexing.
+ *
+ * @return A statically distributed tensor containing the transposed tile data.
+ *
+ * @note
+ * - The function uses compile-time checks to ensure the input and output tile distributions
+ *   are compatible in terms of element space size and vector length.
+ * - The transpose operation is performed according to the specified Policy.
+ */
+template <
+    typename BottomTensorView_,
+    typename WindowLengths_,
+    typename TileDistribution_,
+    index_t NumCoord,
+    typename Policy = DefaultTranspose<typename BottomTensorView_::DataType>,
+    typename        = std::enable_if_t<TransposeTileDistrChecker<TileDistribution_,
+                                                                 typename BottomTensorView_::DataType,
+                                                                 Policy>::distr_encoding_valid,
+                                       Policy>>
+CK_TILE_DEVICE auto
+load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_,
+                                                               WindowLengths_,
+                                                               TileDistribution_,
+                                                               NumCoord>& __restrict__ tile_window)
+{
+    return load_tile_transpose_with_offset(tile_window, 0);
 }
 
 } // namespace ck_tile

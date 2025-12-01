@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/numeric/math.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_mem.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/ops/gemm_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_policy.hpp"
@@ -15,68 +16,9 @@
 
 namespace ck_tile {
 
-template <typename Problem>
-struct BaseAQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
-{
-    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
-    {
-        if(num_loop % BaseGemmPipelineAgBgCrCompV3<Problem>::PrefetchStages == 0)
-        {
-            return TailNumber::Even;
-        }
-        else
-        {
-            return TailNumber::Odd;
-        }
-    }
-    template <typename RunFunction>
-    CK_TILE_HOST_DEVICE static auto
-    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
-    {
-        if(has_hot_loop)
-        {
-            if(tail_number == ck_tile::TailNumber::Odd)
-            {
-                return run_func(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Even)
-            {
-                return run_func(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-            }
-            else
-            {
-                throw std::runtime_error("Unsupported tail number for this operation !!!");
-            }
-        }
-        else
-        {
-
-            if(tail_number == ck_tile::TailNumber::Odd)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Even)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-            }
-            else
-            {
-                throw std::runtime_error("Unsupported tail number for this operation !!!");
-            }
-        }
-    }
-};
-
+// ToDo: Change the Pipeline to actual memory pipeline.
 template <typename Problem, typename Policy = GemmAQuantPipelineAgBgCrDefaultPolicy>
-struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Problem>
+struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrMem<Problem>;
     using PipelineImplBase = GemmAQuantPipelineAgBgCrImplBase<Problem, Policy>;
@@ -256,6 +198,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(!is_aq_col_major, "Aq must be row major (col major not supported yet)");
+            static_assert(!PreshuffleQuant, "Memory pipeline does not support PreshuffleQuant!");
             static_assert(MPerBlock == AQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                               KPerBlockAQ == AQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "Aq block window has incorrect lengths for defined AqLayout!");
@@ -463,11 +406,10 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
-                                   index_t m,
                                    index_t num_loop,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   index_t m = 0) const
     {
-
         return PipelineImpl<GemmPipelineScheduler::Interwave>{}
             .template operator()<HasHotLoop, TailNum>(
                 a_dram_block_window_tmp,

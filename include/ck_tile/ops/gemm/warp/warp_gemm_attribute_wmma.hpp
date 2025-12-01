@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -79,6 +79,7 @@ struct WarpGemmAttributeWmma
     static constexpr index_t kM          = Impl::kM;
     static constexpr index_t kN          = Impl::kN;
     static constexpr index_t kK          = Impl::kK;
+    static constexpr index_t kCMLane     = Impl::kCMLane;
     static constexpr index_t kKPerThread = Impl::kABK0PerLane * Impl::kABK1PerLane;
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return 1; }

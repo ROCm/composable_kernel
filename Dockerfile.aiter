@@ -17,4 +17,6 @@ RUN pip install pandas zmq einops ninja && \
     useradd -u 1001 -g 1001 -m -s /bin/bash jenkins && \
     chown -R jenkins:jenkins /home/jenkins && \
     chmod -R a+rwx /home/jenkins && \
+    chown -R jenkins:jenkins /tmp && \
+    chmod -R a+rwx /tmp && \
     sudo usermod -aG irc jenkins

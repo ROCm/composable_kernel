@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <functional>
@@ -11,12 +11,12 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
+#include "ck_tile/ops/common/utils.hpp"
 #include "gemm_preshuffle_profiler.hpp"
 #include "gemm_preshuffle_common.hpp"
 
 // The kernel header is included via the compile command line with -include flag
 // It defines SelectedKernel struct and KERNEL_NAME
-// DataTypeTraits are now defined in gemm_common.hpp
 
 // Create argument parser
 inline auto create_args(int argc, char* argv[])
@@ -77,12 +77,12 @@ inline auto create_args(int argc, char* argv[])
 
 void benchmark_single(const ck_tile::ArgParser& arg_parser)
 {
-    // Use DataTypeTraits to get the actual type names from the generated header
+    // Use ck_tile::DataTypeTraits to get the actual type names from the generated header
     // The generated header defines ADataType, BDataType, AccDataType, CDataType
-    std::string dtype_a   = DataTypeTraits<ADataType>::name;
-    std::string dtype_b   = DataTypeTraits<BDataType>::name;
-    std::string dtype_acc = DataTypeTraits<AccDataType>::name;
-    std::string dtype_c   = DataTypeTraits<CDataType>::name;
+    std::string dtype_a   = ck_tile::DataTypeTraits<ADataType>::name;
+    std::string dtype_b   = ck_tile::DataTypeTraits<BDataType>::name;
+    std::string dtype_acc = ck_tile::DataTypeTraits<AccDataType>::name;
+    std::string dtype_c   = ck_tile::DataTypeTraits<CDataType>::name;
 
     // Layout names from the layout types
     std::string layout_a = ALayout::name;

@@ -1,6 +1,5 @@
-
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -189,8 +188,7 @@ struct tile_scatter_gather
         // need investigation
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_distribution.get_ps_ys_to_xs_adaptor(),
-            container_concat(detail::get_partition_index(tile_distribution),
-                             array<index_t, NDimY>{0}));
+            container_concat(get_partition_index(tile_distribution), array<index_t, NDimY>{0}));
 #endif
 
         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
@@ -836,7 +834,7 @@ struct tile_scatter_gather
         // need investigation
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_dstr_.get_ps_ys_to_xs_adaptor(),
-            container_concat(detail::get_partition_index(tile_dstr_), array<index_t, NDimY>{0}));
+            container_concat(get_partition_index(tile_dstr_), array<index_t, NDimY>{0}));
 #endif
 
         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =

@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 
 current_year=$(date +%Y)
 exit_code=0
