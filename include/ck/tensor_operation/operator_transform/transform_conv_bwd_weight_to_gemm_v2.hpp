@@ -753,8 +753,8 @@ struct TransformConvBwdWeightToGemmV2
             (split_k_offset_a_hack && !use_full_batch_kindex) ? 1 : GemmKBatch;
         const index_t KBatchDimB =
             (split_k_offset_b_hack && !use_full_batch_kindex) ? 1 : GemmKBatch;
-        const index_t GemmKPadA = KBatchIndexA * GemmK0 * GemmK1Number;
-        const index_t GemmKPadB = KBatchIndexB * GemmK0 * GemmK1Number;
+        const index_t GemmKPadA = KBatchDimA * GemmK0 * GemmK1Number;
+        const index_t GemmKPadB = KBatchDimB * GemmK0 * GemmK1Number;
 
         const auto out_grid_desc = make_out_grid_desc<NDim>(N, Do, Ho, Wo, K, output_strides);
         const auto in_grid_desc  = make_in_grid_desc<NDim>(N, Di, Hi, Wi, C, input_strides);
