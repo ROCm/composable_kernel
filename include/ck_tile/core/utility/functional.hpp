@@ -93,8 +93,8 @@ struct identity
 
 struct idx_identity
 {
-    template <typename T>
-    CK_TILE_HOST_DEVICE constexpr T&& operator()(auto, T&& arg) const noexcept
+    template <typename I, typename T>
+    CK_TILE_HOST_DEVICE constexpr T&& operator()(I&&, T&& arg) const noexcept
     {
         return std::forward<T>(arg);
     }
