@@ -1503,9 +1503,17 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         }
 
         constexpr long_index_t TwoGB = (long_index_t{1} << 31);
-        if(!(arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
-             arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB &&
-             arg.c_grid_desc_m_n_.GetElementSpaceSize() * sizeof(CDataType) <= TwoGB))
+        const bool a_small_enough    = arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize() /
+                                        (arg.split_k_offset_a_hack_ ? arg.k_batch_ : 1) *
+                                        sizeof(ADataType) <=
+                                    TwoGB;
+        const bool b_small_enough = arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize() /
+                                        (arg.split_k_offset_b_hack_ ? arg.k_batch_ : 1) *
+                                        sizeof(BDataType) <=
+                                    TwoGB;
+        const bool c_small_enough =
+            arg.c_grid_desc_m_n_.GetElementSpaceSize() * sizeof(CDataType) <= TwoGB;
+        if(!(a_small_enough && b_small_enough && c_small_enough))
         {
             return false;
         }
