@@ -1,6 +1,8 @@
-# Convolution Factory Directory
+# Convolution Builder Factory Directory
 
 This directory implements compile-time dispatch from high-level signature algorithm descriptors to our exisitng specialized convolution kernel implementations.
+
+See the [main builder documentation](../README.md) for an overview.
 
 ## Design Overview
 
