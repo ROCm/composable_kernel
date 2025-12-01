@@ -110,15 +110,14 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
         // Launch configuration
         const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = 1;
-        ck_tile::index_t block_group_size;
-        int num_block_tile_iterations;
+
         auto elementwise_ops =
             make_elementwise_ops_tuple(total_reduce_elements, ElementwiseOpsType{});
         auto accumulator_ops =
             make_elementwise_ops_tuple(total_reduce_elements, AccumulatorOpsType{});
 
-        Kernel::CalculateBlockGroupParams(
-            total_reduce_elements, num_block_tile_iterations, block_group_size);
+        auto [num_block_tile_iterations, block_group_size] =
+            typename Kernel::TilePartitioner{total_reduce_elements}.GetBlockGroupParams();
 
         std::cout << "Block group size: " << block_group_size
                   << ", Num block tile iterations: " << num_block_tile_iterations
