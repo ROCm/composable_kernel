@@ -59,23 +59,23 @@ float invoke_gemm(int n_warmup,
 
     if constexpr(!GemmConfig::Persistent)
     {
-        ave_time = grouped_gemm_tileloop<GemmConfig,
-                                         ALayout,
-                                         AQLayout,
-                                         BLayout,
-                                         BQLayout,
-                                         CLayout,
-                                         ADataType,
-                                         AQDataType,
-                                         BDataType,
-                                         BQDataType,
-                                         AccDataType,
-                                         CDataType,
-                                         QuantGroupSize,
-                                         QuantMode>(
-            args,
-            ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
-            gemm_workspace.GetDeviceBuffer());
+        ave_time =
+            grouped_gemm<GemmConfig,
+                         ALayout,
+                         AQLayout,
+                         BLayout,
+                         BQLayout,
+                         CLayout,
+                         ADataType,
+                         AQDataType,
+                         BDataType,
+                         BQDataType,
+                         AccDataType,
+                         CDataType,
+                         QuantGroupSize,
+                         QuantMode>(args,
+                                    ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
+                                    gemm_workspace.GetDeviceBuffer());
     }
     else
     {
