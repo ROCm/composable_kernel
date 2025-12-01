@@ -33,7 +33,7 @@ namespace ck_tile {
  * @example
  *
  *     // Direct usage without creating a separate variable:
- *     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_host_tensor);
+ *     ck_tile::FillUniformDistribution<>{-1.f, 1.f}(a_host_tensor);
  */
 template <typename T = void>
 struct FillUniformDistribution
@@ -56,7 +56,7 @@ struct FillUniformDistribution
 
         // max 80 threads; at least 2MB per thread
         const size_t available_cpu_cores = get_available_cpu_cores();
-        const int num_thread =
+        const size_t num_thread =
             min(80UL, available_cpu_cores, integer_divide_ceil(total_bytes, 0x200000UL));
         constexpr size_t BLOCK_BYTES   = 64;
         constexpr size_t BLOCK_SIZE    = BLOCK_BYTES / sizeof(T_iter);

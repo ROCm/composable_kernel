@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <gtest/gtest.h>
-#include <vector>
-#include <cstring>
 #include "ck_tile/host/fill.hpp"
 #include "ck_tile/host/joinable_thread.hpp"
+#include <chrono>
+#include <cstring>
+#include <gtest/gtest.h>
+#include <vector>
 
 using namespace ck_tile;
 
@@ -42,10 +43,10 @@ TYPED_TEST(FillUniformDistributionTest, ConsistencyWithSameSeed)
     std::cout << "Taking " << sec << " sec to fill 1GB of data of type " << typeid(T).name()
               << std::endl;
 
-    const int cpu_cores = max(32U, get_available_cpu_cores());
+    const auto cpu_cores = max(32U, get_available_cpu_cores());
     for(auto num_threads_diff : {-3, -1})
     {
-        cpu_core_guard cg(max(cpu_cores + num_threads_diff, 1));
+        cpu_core_guard cg(min(max(cpu_cores + num_threads_diff, 1), get_available_cpu_cores()));
         std::vector<T> vec2(size);
         FillUniformDistribution<T>{a, b, seed}(vec2.begin(), vec2.end());
         EXPECT_EQ(0, std::memcmp(vec1.data(), vec2.data(), size * sizeof(T)))
