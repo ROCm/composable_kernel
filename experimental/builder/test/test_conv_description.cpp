@@ -109,16 +109,16 @@ TEST(ConvDescriptionTest, DefaultInstanceHasBriefDescription)
 {
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
-    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-    EXPECT_THAT(ckr::Describe<Builder>().brief(), ckt::StringEqWithDiff("2D Forward convolution"));
+    using Instance = ckb::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
+    EXPECT_THAT(ckr::Describe<Instance>().brief(), ckt::StringEqWithDiff("2D Forward convolution"));
 }
 
 TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
 {
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
-    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-    EXPECT_THAT(ckr::Describe<Builder>().detailed(),
+    using Instance = ckb::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
+    EXPECT_THAT(ckr::Describe<Instance>().detailed(),
                 ckt::StringEqWithDiff( //
                     "2D Forward Convolution Kernel\n"
                     "├─ Signature\n"

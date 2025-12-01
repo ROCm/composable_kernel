@@ -623,7 +623,7 @@ struct MoeFlatmmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
-                    make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumToken,
+                    make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumTokens,
                                IsGateUp ? kargs.N / 2 : kargs.N),
                     make_tuple(1, kargs.stride_C),
                     number<1>{},
@@ -1255,6 +1255,8 @@ struct MoeFlatmmKernel
             constexpr int MPerThread  = TileEncodingPattern::Y2;
             statically_indexed_array<statically_indexed_array<index_t, MPerThread>, NumMEpiTile>
                 c_scatter_offsets;
+            statically_indexed_array<statically_indexed_array<bool, MPerThread>, NumMEpiTile>
+                c_scatter_valids;
             auto c_coord = dram_tile_distribution.calculate_index();
             static_for<0, NumMEpiTile, 1>{}([&](auto mIter) {
                 static_for<0, MPerThread, 1>{}([&](auto m0) {
@@ -1267,6 +1269,7 @@ struct MoeFlatmmKernel
                         scatter_token_id =
                             scatter_token_id * kargs.TopK + (fused_token >> token_id_offset);
                     c_scatter_offsets[mIter][m0] = scatter_token_id * kargs.stride_C;
+                    c_scatter_valids[mIter][m0]  = (scatter_token_id < kargs.NumTokens);
                 });
             });
 
@@ -1307,7 +1310,8 @@ struct MoeFlatmmKernel
                                              c_block_window.get_window_lengths(),
                                              c_block_window.get_window_origin(),
                                              dram_tile_distribution,
-                                             c_scatter_offsets[mIter]);
+                                             c_scatter_offsets[mIter],
+                                             c_scatter_valids[mIter]);
 
                 if constexpr(!IsInputGemm ||
                              EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add)
