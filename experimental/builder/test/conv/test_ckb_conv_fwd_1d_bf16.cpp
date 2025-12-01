@@ -14,18 +14,18 @@ TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_1D_BF16_ChannelsFirst_scale)
 {
     constexpr ConvSignature FwdConvSignature{
-        .spatial_dim          = 1,
-        .direction            = ConvDirection::FORWARD,
-        .data_type            = DataType::BF16,
+        .spatial_dim            = 1,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::BF16,
         .accumulation_data_type = DataType::FP32,
-        .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout1D::NGCW } },
-        .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout1D::GKXC,} },
-        .output   = ConvolutionTensor
-                        {
-                            .config = { .layout = ConvOutputLayout1D::NGKW },
-                            .operation = TensorOperation<> { .elementwise_operation = ElementwiseOperation::SCALE }
-                        }
-    };
+        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout1D::NGCW}},
+        .weight                 = ConvolutionTensor{.config =
+                                                        {
+                                                            .layout = ConvWeightLayout1D::GKXC,
+                                        }},
+        .output                 = ConvolutionTensor{
+                            .config    = {.layout = ConvOutputLayout1D::NGKW},
+                            .operation = TensorOperation<>{.elementwise_operation = ElementwiseOperation::SCALE}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}

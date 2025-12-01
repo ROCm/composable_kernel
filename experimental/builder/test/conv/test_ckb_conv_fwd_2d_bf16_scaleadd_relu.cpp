@@ -12,21 +12,20 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_Instance_2D_BF16_scale_add_relu)
 {
-    constexpr ConvSignature FwdConvSignature
-        { 
-            .spatial_dim = 2,
-            .direction   = ConvDirection::FORWARD,
-            .data_type   = DataType::BF16,
-            .accumulation_data_type = DataType::FP32,
-            .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout2D::NHWGC } },
-            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout2D::GKYXC, .data_type = DataType::BF16 } }, // For demo purposes
-            .output   = ConvolutionTensor
-                            {
-                                .config = { .layout = ConvOutputLayout2D::NHWGK },
-                                .operation = TensorOperation<> { .elementwise_operation = ElementwiseOperation::SCALEADD_SCALEADD_RELU }
-                                                .with_auxiliary_operand_configs<ConvOutputLayout2D::NHWGK, BiasLayout::G_K_strided>()
-                            }
-        };
+    constexpr ConvSignature FwdConvSignature{
+        .spatial_dim            = 2,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::BF16,
+        .accumulation_data_type = DataType::FP32,
+        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout2D::NHWGC}},
+        .weight                 = ConvolutionTensor{.config = {.layout    = ConvWeightLayout2D::GKYXC,
+                                                               .data_type = DataType::BF16}}, // For demo purposes
+        .output                 = ConvolutionTensor{
+                            .config    = {.layout = ConvOutputLayout2D::NHWGK},
+                            .operation = TensorOperation<>{.elementwise_operation =
+                                                               ElementwiseOperation::SCALEADD_SCALEADD_RELU}
+                             .with_auxiliary_operand_configs<ConvOutputLayout2D::NHWGK,
+                                                                             BiasLayout::G_K_strided>()}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle{}
@@ -37,15 +36,12 @@ TEST(FwdConvInstances,
             .with_prefetch_config(1, 1, PipelineScheduler::DEFAULT);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>(
-        {
-            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
-            "NHWGC,GKYXC,Tuple(NHWGK,G_K),NHWGK",
-            "PassThrough,PassThrough,ScaleAddScaleAddRelu",
-            "64,64,32,32",
-            "MNKPadding",
-            "Default"
-        });
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
+                       "NHWGC,GKYXC,Tuple(NHWGK,G_K),NHWGK",
+                       "PassThrough,PassThrough,ScaleAddScaleAddRelu",
+                       "64,64,32,32",
+                       "MNKPadding",
+                       "Default"});
 }
 
 } // namespace

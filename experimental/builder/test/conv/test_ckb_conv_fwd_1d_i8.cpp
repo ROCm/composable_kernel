@@ -14,16 +14,14 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Instance_1D_FP32_ChannelsFirst_scale)
 {
-    constexpr ConvSignature FwdConvSignature
-        { 
-            .spatial_dim = 1,
-            .direction   = ConvDirection::FORWARD,
-            .data_type   = DataType::I8,
-            .accumulation_data_type = DataType::INT32,
-            .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout1D::GNWC } },
-            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout1D::GKXC } },
-            .output   = ConvolutionTensor { .config = { .layout = ConvOutputLayout1D::GNWK } }
-        };
+    constexpr ConvSignature FwdConvSignature{
+        .spatial_dim            = 1,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::I8,
+        .accumulation_data_type = DataType::INT32,
+        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout1D::GNWC}},
+        .weight                 = ConvolutionTensor{.config = {.layout = ConvWeightLayout1D::GKXC}},
+        .output = ConvolutionTensor{.config = {.layout = ConvOutputLayout1D::GNWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}
@@ -34,13 +32,11 @@ TEST(FwdConvInstances,
             .with_prefetch_config(1, 0, PipelineScheduler::DEFAULT);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>(
-        {
-            "DeviceGroupedConvFwdMultipleD_Wmma_CShuffle", 
-            "128,64,64,64",
-            "GNWC,GKXC,EmptyTuple,GNWK",
-            "PassThrough,PassThrough,PassThrough", 
-            "Default"});
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleD_Wmma_CShuffle",
+                       "128,64,64,64",
+                       "GNWC,GKXC,EmptyTuple,GNWK",
+                       "PassThrough,PassThrough,PassThrough",
+                       "Default"});
 }
 #endif
 

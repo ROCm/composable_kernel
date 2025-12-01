@@ -181,7 +181,8 @@ struct ConvOutputLayout
 
 struct ConvAuxiliaryTensorLayout
 {
-    union {
+    union
+    {
         BiasLayout _bias_layout;
         ConvOutputLayout _conv_output_layout;
     };
@@ -202,7 +203,8 @@ struct ConvAuxiliaryTensorLayout
 
 struct ConvLayout
 {
-    union {
+    union
+    {
         ConvInputLayout _input_layout;
         ConvWeightLayout _weight_layout;
         ConvOutputLayout _output_layout;
@@ -633,25 +635,25 @@ inline std::ostream& operator<<(std::ostream& os, BiasLayout layout)
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, const std::variant<ConvInputLayout1D,
-                                                   ConvInputLayout2D,
-                                                   ConvInputLayout3D>& layout)
+inline std::ostream&
+operator<<(std::ostream& os,
+           const std::variant<ConvInputLayout1D, ConvInputLayout2D, ConvInputLayout3D>& layout)
 {
     std::visit([&os](const auto& l) { os << l; }, layout);
     return os;
 }
 
-inline std::ostream& operator<<(std::ostream& os, const std::variant<ConvOutputLayout1D,
-                                                   ConvOutputLayout2D,
-                                                   ConvOutputLayout3D>& layout)
+inline std::ostream&
+operator<<(std::ostream& os,
+           const std::variant<ConvOutputLayout1D, ConvOutputLayout2D, ConvOutputLayout3D>& layout)
 {
     std::visit([&os](const auto& l) { os << l; }, layout);
     return os;
 }
 
-inline std::ostream& operator<<(std::ostream& os, const std::variant<ConvWeightLayout1D,
-                                                   ConvWeightLayout2D,
-                                                   ConvWeightLayout3D>& layout)
+inline std::ostream&
+operator<<(std::ostream& os,
+           const std::variant<ConvWeightLayout1D, ConvWeightLayout2D, ConvWeightLayout3D>& layout)
 {
     std::visit([&os](const auto& l) { os << l; }, layout);
     return os;

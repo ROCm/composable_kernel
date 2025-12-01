@@ -34,16 +34,19 @@ struct TensorConfig
     ckb::DataType compute_type{ckb::DataType::UNDEFINDED};
 };
 
-struct ConvTensorSimple {
+struct ConvTensorSimple
+{
     TensorConfig config;
 };
 
-struct ConvTensorWithOp {
+struct ConvTensorWithOp
+{
     TensorConfig config;
     TensorOp operation{};
 };
 
-struct ConvTensorWithInvalidOp {
+struct ConvTensorWithInvalidOp
+{
     TensorConfig config;
     InvalidTensorOp operation{};
 };
@@ -52,46 +55,39 @@ struct ConvTensorWithInvalidOp {
 // This includes dimensionality, direction, data layout, and data type.
 struct ConvSignature
 {
-    int spatial_dim = 2;
-    ckb::DataType data_type = ckb::DataType::FP16;
+    int spatial_dim                      = 2;
+    ckb::DataType data_type              = ckb::DataType::FP16;
     ckb::DataType accumulation_data_type = ckb::DataType::FP32;
-    ConvTensorSimple input  = {.config = {ckb::ConvInputLayout2D::GNHWC}};
-    ConvTensorSimple weight = {.config = {ckb::ConvWeightLayout2D::GKYXC}};
-    ConvTensorSimple output = {.config = {ckb::ConvOutputLayout2D::GNHWK}};
+    ConvTensorSimple input               = {.config = {ckb::ConvInputLayout2D::GNHWC}};
+    ConvTensorSimple weight              = {.config = {ckb::ConvWeightLayout2D::GKYXC}};
+    ConvTensorSimple output              = {.config = {ckb::ConvOutputLayout2D::GNHWK}};
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 
 // Compile time tests for concepts
 struct ConvSignatureWithOptionalParams
 {
-    int spatial_dim                                 = 2;
-    ckb::DataType data_type                         = ckb::DataType::FP16;
-    ckb::DataType accumulation_data_type            = ckb::DataType::FP32;
-    ckb::ConvDirection direction                    = ckb::ConvDirection::FORWARD;
-    ConvTensorWithOp input =  
-        {
-            .config = {ckb::ConvInputLayout2D::GNHWC, ckb::DataType::FP16},
-        };
-    ConvTensorWithOp weight = 
-        {
-            .config = {ckb::ConvWeightLayout2D::GKYXC, ckb::DataType::FP16}
-        };
-    ConvTensorWithOp output = 
-        {
-            .config = {ckb::ConvOutputLayout2D::GNHWK, ckb::DataType::FP16},
-            .operation = {ckb::ElementwiseOperation::SCALE}
-        };
+    int spatial_dim                      = 2;
+    ckb::DataType data_type              = ckb::DataType::FP16;
+    ckb::DataType accumulation_data_type = ckb::DataType::FP32;
+    ckb::ConvDirection direction         = ckb::ConvDirection::FORWARD;
+    ConvTensorWithOp input               = {
+                      .config = {ckb::ConvInputLayout2D::GNHWC, ckb::DataType::FP16},
+    };
+    ConvTensorWithOp weight = {.config = {ckb::ConvWeightLayout2D::GKYXC, ckb::DataType::FP16}};
+    ConvTensorWithOp output = {.config    = {ckb::ConvOutputLayout2D::GNHWK, ckb::DataType::FP16},
+                               .operation = {ckb::ElementwiseOperation::SCALE}};
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignatureWithOptionalParams>);
 
 struct ConvSignatureWithInvalidOptionalParams
 {
-    int spatial_dim              = 2;
-    ckb::DataType data_type = ckb::DataType::FP16;
+    int spatial_dim                      = 2;
+    ckb::DataType data_type              = ckb::DataType::FP16;
     ckb::DataType accumulation_data_type = ckb::DataType::FP32;
-    ConvTensorWithInvalidOp input  = {.config = {ckb::ConvInputLayout2D::GNHWC}};
-    ConvTensorWithInvalidOp weight = {.config = {ckb::ConvWeightLayout2D::GKYXC}};
-    ConvTensorWithInvalidOp output = {.config = {ckb::ConvOutputLayout2D::GNHWK}};
+    ConvTensorWithInvalidOp input        = {.config = {ckb::ConvInputLayout2D::GNHWC}};
+    ConvTensorWithInvalidOp weight       = {.config = {ckb::ConvWeightLayout2D::GKYXC}};
+    ConvTensorWithInvalidOp output       = {.config = {ckb::ConvOutputLayout2D::GNHWK}};
 };
 static_assert(!ckb::ConvSignatureDescriptor<ConvSignatureWithInvalidOptionalParams>);
 

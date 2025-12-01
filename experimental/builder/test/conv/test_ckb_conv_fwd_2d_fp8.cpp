@@ -12,16 +12,14 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_Instance_2D_FP8_ChannelsLast)
 {
-    constexpr ConvSignature FwdConvSignature
-        { 
-            .spatial_dim = 2,
-            .direction   = ConvDirection::FORWARD,
-            .data_type   = DataType::FP8,
-            .accumulation_data_type = DataType::FP32,
-            .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout2D::NHWGC } },
-            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout2D::GKYXC } },
-            .output   = ConvolutionTensor { .config = { .layout = ConvOutputLayout2D::NHWGK } }
-        };
+    constexpr ConvSignature FwdConvSignature{
+        .spatial_dim            = 2,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::FP8,
+        .accumulation_data_type = DataType::FP32,
+        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout2D::NHWGC}},
+        .weight = ConvolutionTensor{.config = {.layout = ConvWeightLayout2D::GKYXC}},
+        .output = ConvolutionTensor{.config = {.layout = ConvOutputLayout2D::NHWGK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle{}
@@ -32,15 +30,12 @@ TEST(FwdConvInstances,
             .with_prefetch_config(1, 1, PipelineScheduler::DEFAULT);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>(
-        {
-            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle", 
-            "256,256,128,32", 
-            "Default",
-            "NHWGC,GKYXC,EmptyTuple,NHWGK",
-            "PassThrough,PassThrough,PassThrough",
-            "MNKPadding"
-        });
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
+                       "256,256,128,32",
+                       "Default",
+                       "NHWGC,GKYXC,EmptyTuple,NHWGK",
+                       "PassThrough,PassThrough,PassThrough",
+                       "MNKPadding"});
 }
 
 } // namespace

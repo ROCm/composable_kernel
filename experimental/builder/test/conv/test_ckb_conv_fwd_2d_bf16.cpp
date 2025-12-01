@@ -12,16 +12,14 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_ChannelsLast)
 {
-    constexpr ConvSignature FwdConvSignature
-        { 
-            .spatial_dim = 2,
-            .direction   = ConvDirection::FORWARD,
-            .data_type   = DataType::BF16,
-            .accumulation_data_type = DataType::FP32,
-            .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout2D::NHWGC } },
-            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout2D::GKYXC } },
-            .output   = ConvolutionTensor { .config = { .layout = ConvOutputLayout2D::NHWGK } }
-        };
+    constexpr ConvSignature FwdConvSignature{
+        .spatial_dim            = 2,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::BF16,
+        .accumulation_data_type = DataType::FP32,
+        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout2D::NHWGC}},
+        .weight = ConvolutionTensor{.config = {.layout = ConvWeightLayout2D::GKYXC}},
+        .output = ConvolutionTensor{.config = {.layout = ConvOutputLayout2D::NHWGK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
@@ -46,16 +44,14 @@ TEST(FwdConvInstances,
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_NHWGC_Filter3x3)
 {
-    constexpr ConvSignature FwdConvSignature
-        { 
-            .spatial_dim = 2,
-            .direction   = ConvDirection::FORWARD,
-            .data_type   = DataType::BF16,
-            .accumulation_data_type = DataType::FP32,
-            .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout2D::NHWGC } },
-            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout2D::GKYXC } },
-            .output   = ConvolutionTensor { .config = { .layout = ConvOutputLayout2D::NHWGK } }
-        };
+    constexpr ConvSignature FwdConvSignature{
+        .spatial_dim            = 2,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::BF16,
+        .accumulation_data_type = DataType::FP32,
+        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout2D::NHWGC}},
+        .weight = ConvolutionTensor{.config = {.layout = ConvWeightLayout2D::GKYXC}},
+        .output = ConvolutionTensor{.config = {.layout = ConvOutputLayout2D::NHWGK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
@@ -66,15 +62,12 @@ TEST(FwdConvInstances,
             .with_block_gemm(BlockGemmDesc_v5_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>(
-    {
-            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-            "Filter3x3",
-            "NHWGC,GKYXC,EmptyTuple,NHWGK",
-            "PassThrough,PassThrough,PassThrough",
-            "MNKPadding",
-            "v5"
-        });
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
+                       "Filter3x3",
+                       "NHWGC,GKYXC,EmptyTuple,NHWGK",
+                       "PassThrough,PassThrough,PassThrough",
+                       "MNKPadding",
+                       "v5"});
 }
 
 } // namespace

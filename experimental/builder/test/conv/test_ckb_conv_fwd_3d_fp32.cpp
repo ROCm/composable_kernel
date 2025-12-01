@@ -12,16 +12,14 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP32_ChannelsFirst)
 {
-    constexpr ConvSignature FwdConvSignature
-        { 
-            .spatial_dim = 3,
-            .direction   = ConvDirection::FORWARD,
-            .data_type   = DataType::FP32,
-            .accumulation_data_type = DataType::FP32,
-            .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout3D::NGCDHW } },
-            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout3D::GKCZYX } },
-            .output   = ConvolutionTensor { .config = { .layout = ConvOutputLayout3D::NGKDHW } }
-        };
+    constexpr ConvSignature FwdConvSignature{
+        .spatial_dim            = 3,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::FP32,
+        .accumulation_data_type = DataType::FP32,
+        .input  = ConvolutionTensor{.config = {.layout = ConvInputLayout3D::NGCDHW}},
+        .weight = ConvolutionTensor{.config = {.layout = ConvWeightLayout3D::GKCZYX}},
+        .output = ConvolutionTensor{.config = {.layout = ConvOutputLayout3D::NGKDHW}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
@@ -33,17 +31,14 @@ TEST(FwdConvInstances,
             .with_block_gemm(BlockGemmDesc_v1_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>(
-        {
-            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-            "256,256,256,32",
-            "Filter1x1Pad0",
-            "Intrawave",
-            "v1",
-            "NGCDHW,GKCZYX,EmptyTuple,NGKDHW",
-            "PassThrough,PassThrough,PassThrough",
-            "MNKPadding"
-        });
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
+                       "256,256,256,32",
+                       "Filter1x1Pad0",
+                       "Intrawave",
+                       "v1",
+                       "NGCDHW,GKCZYX,EmptyTuple,NGKDHW",
+                       "PassThrough,PassThrough,PassThrough",
+                       "MNKPadding"});
 }
 
 } // namespace

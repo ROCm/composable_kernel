@@ -42,9 +42,13 @@ struct ConvSignatureInfo
     builder::ConvDirection direction;
     std::variant<builder::ConvInputLayout1D, builder::ConvInputLayout2D, builder::ConvInputLayout3D>
         input_layout;
-    std::variant<builder::ConvWeightLayout1D, builder::ConvWeightLayout2D, builder::ConvWeightLayout3D>
+    std::variant<builder::ConvWeightLayout1D,
+                 builder::ConvWeightLayout2D,
+                 builder::ConvWeightLayout3D>
         weight_layout;
-    std::variant<builder::ConvOutputLayout1D, builder::ConvOutputLayout2D, builder::ConvOutputLayout3D>
+    std::variant<builder::ConvOutputLayout1D,
+                 builder::ConvOutputLayout2D,
+                 builder::ConvOutputLayout3D>
         output_layout;
     builder::DataType data_type;
     builder::ElementwiseOperation input_element_op;
@@ -264,7 +268,8 @@ ConvDescription Describe()
 {
     using Traits = ConvTraits<Instance>;
 
-    // TODO: This is a temporary fix. We should refactor also the traits and descriptors to better reflect the conv signature.
+    // TODO: This is a temporary fix. We should refactor also the traits and descriptors to better
+    // reflect the conv signature.
     auto get_input_layout = []() -> decltype(ConvSignatureInfo::input_layout) {
         if constexpr(Traits::spatial_dim == 1)
             return Traits::layout[0]._input_layout._1d;

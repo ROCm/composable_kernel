@@ -11,16 +11,14 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor_Instance_2D_FP16_GNHWC)
 {
-    constexpr ConvSignature FwdConvSignature
-        { 
-            .spatial_dim = 2,
-            .direction   = ConvDirection::FORWARD,
-            .data_type   = DataType::FP16,
-            .accumulation_data_type = DataType::FP32,
-            .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout2D::GNHWC } },
-            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout2D::GKYXC } },
-            .output   = ConvolutionTensor { .config = { .layout = ConvOutputLayout2D::GNHWK } }
-        };
+    constexpr ConvSignature FwdConvSignature{
+        .spatial_dim            = 2,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::FP16,
+        .accumulation_data_type = DataType::FP32,
+        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout2D::GNHWC}},
+        .weight = ConvolutionTensor{.config = {.layout = ConvWeightLayout2D::GKYXC}},
+        .output = ConvolutionTensor{.config = {.layout = ConvOutputLayout2D::GNHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor{
@@ -33,31 +31,26 @@ TEST(FwdConvInstances,
                                   .with_prefetch_config(1, 1, PipelineScheduler::DEFAULT)};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>(
-        {
-            "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor",
-            "256,256,128,32",
-            "Default",
-            "GNHWC,GKYXC,EmptyTuple,GNHWK",
-            "PassThrough,PassThrough,PassThrough",
-            "MNKPadding"
-        });
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor",
+                       "256,256,128,32",
+                       "Default",
+                       "GNHWC,GKYXC,EmptyTuple,GNHWK",
+                       "PassThrough,PassThrough,PassThrough",
+                       "MNKPadding"});
 }
 
 TEST(
     FwdConvInstances,
     Create_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor_Instance_2D_FP16_GNHWC_Filter1x1Pad0)
 {
-    constexpr ConvSignature FwdConvSignature
-        { 
-            .spatial_dim = 2,
-            .direction   = ConvDirection::FORWARD,
-            .data_type   = DataType::FP16,
-            .accumulation_data_type = DataType::FP32,
-            .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout2D::GNHWC } },
-            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout2D::GKYXC } },
-            .output   = ConvolutionTensor { .config = { .layout = ConvOutputLayout2D::GNHWK } }
-        };
+    constexpr ConvSignature FwdConvSignature{
+        .spatial_dim            = 2,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::FP16,
+        .accumulation_data_type = DataType::FP32,
+        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout2D::GNHWC}},
+        .weight = ConvolutionTensor{.config = {.layout = ConvWeightLayout2D::GKYXC}},
+        .output = ConvolutionTensor{.config = {.layout = ConvOutputLayout2D::GNHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor{
@@ -70,15 +63,12 @@ TEST(
                                   .with_prefetch_config(1, 1, PipelineScheduler::DEFAULT)};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>(
-        {
-            "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor",
-            "128,128,128,32",
-            "Filter1x1Pad0",
-            "GNHWC,GKYXC,EmptyTuple,GNHWK",
-            "PassThrough,PassThrough,PassThrough",
-            "MNKPadding"
-        });
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor",
+                       "128,128,128,32",
+                       "Filter1x1Pad0",
+                       "GNHWC,GKYXC,EmptyTuple,GNHWK",
+                       "PassThrough,PassThrough,PassThrough",
+                       "MNKPadding"});
 }
 
 } // namespace

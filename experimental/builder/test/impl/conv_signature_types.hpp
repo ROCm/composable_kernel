@@ -25,12 +25,11 @@ struct TensorOperation
     std::array<TensorConfig, sizeof...(Configs)> auxiliary_operand_configs{Configs...};
 
     // Add builder to add auxiliary tensor configs
-    template<auto... AuxiliaryConfigs>
+    template <auto... AuxiliaryConfigs>
     constexpr auto with_auxiliary_operand_configs() const
     {
         return TensorOperation<Configs..., TensorConfig{AuxiliaryConfigs}...>{
-            .elementwise_operation = this->elementwise_operation
-        };
+            .elementwise_operation = this->elementwise_operation};
     }
 };
 

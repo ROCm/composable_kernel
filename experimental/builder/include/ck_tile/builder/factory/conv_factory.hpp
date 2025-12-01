@@ -63,28 +63,43 @@
 
 namespace ck_tile::builder::factory_internal {
 
-template<size_t SPATIAL_DIM>
-consteval auto get_input_layout_value(ConvInputLayout layout) {
-    if constexpr (SPATIAL_DIM == 1) return layout._1d;
-    else if constexpr (SPATIAL_DIM == 2) return layout._2d;
-    else if constexpr (SPATIAL_DIM == 3) return layout._3d;
-    else static_assert(false, "Unsupported spatial dimension");
+template <size_t SPATIAL_DIM>
+consteval auto get_input_layout_value(ConvInputLayout layout)
+{
+    if constexpr(SPATIAL_DIM == 1)
+        return layout._1d;
+    else if constexpr(SPATIAL_DIM == 2)
+        return layout._2d;
+    else if constexpr(SPATIAL_DIM == 3)
+        return layout._3d;
+    else
+        static_assert(false, "Unsupported spatial dimension");
 }
 
-template<size_t SPATIAL_DIM>
-consteval auto get_weight_layout_value(ConvWeightLayout layout) {
-    if constexpr (SPATIAL_DIM == 1) return layout._1d;
-    else if constexpr (SPATIAL_DIM == 2) return layout._2d;
-    else if constexpr (SPATIAL_DIM == 3) return layout._3d;
-    else static_assert(false, "Unsupported spatial dimension");
+template <size_t SPATIAL_DIM>
+consteval auto get_weight_layout_value(ConvWeightLayout layout)
+{
+    if constexpr(SPATIAL_DIM == 1)
+        return layout._1d;
+    else if constexpr(SPATIAL_DIM == 2)
+        return layout._2d;
+    else if constexpr(SPATIAL_DIM == 3)
+        return layout._3d;
+    else
+        static_assert(false, "Unsupported spatial dimension");
 }
 
-template<size_t SPATIAL_DIM>
-consteval auto get_output_layout_value(ConvOutputLayout layout) {
-    if constexpr (SPATIAL_DIM == 1) return layout._1d;
-    else if constexpr (SPATIAL_DIM == 2) return layout._2d;
-    else if constexpr (SPATIAL_DIM == 3) return layout._3d;
-    else static_assert(false, "Unsupported spatial dimension");
+template <size_t SPATIAL_DIM>
+consteval auto get_output_layout_value(ConvOutputLayout layout)
+{
+    if constexpr(SPATIAL_DIM == 1)
+        return layout._1d;
+    else if constexpr(SPATIAL_DIM == 2)
+        return layout._2d;
+    else if constexpr(SPATIAL_DIM == 3)
+        return layout._3d;
+    else
+        static_assert(false, "Unsupported spatial dimension");
 }
 
 // The algorithm specializations for the convolution and GEMM.
@@ -333,13 +348,12 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE,
-                                                                     SPATIAL_DIM,
-                                                                     ConvDirection::FORWARD>());
-    using AuxiliaryLayouts = decltype(factory_internal::GetAuxiliaryTensorLayouts<SIGNATURE,
-                                                                                 SPATIAL_DIM,
-                                                                                 ConvDirection::FORWARD>());
-                                                                
+    using Layouts                       = decltype(factory_internal::
+                                 GetTensorLayout<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
+    using AuxiliaryLayouts =
+        decltype(factory_internal::
+                     GetAuxiliaryTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
+
     using Types         = factory_internal::FwdConvTensorDataTypes<SIGNATURE>;
     using Ops           = decltype(factory_internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
@@ -439,13 +453,12 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE,
-                                                                     SPATIAL_DIM,
-                                                                     ConvDirection::FORWARD>());
-    using AuxiliaryLayouts = decltype(factory_internal::GetAuxiliaryTensorLayouts<SIGNATURE,
-                                                                                 SPATIAL_DIM,
-                                                                                 ConvDirection::FORWARD>());
-                                                                
+    using Layouts                       = decltype(factory_internal::
+                                 GetTensorLayout<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
+    using AuxiliaryLayouts =
+        decltype(factory_internal::
+                     GetAuxiliaryTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
+
     using Types         = factory_internal::FwdConvTensorDataTypes<SIGNATURE>;
     using Ops           = decltype(factory_internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
@@ -540,13 +553,12 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE,
-                                                                     SPATIAL_DIM,
-                                                                     ConvDirection::FORWARD>());
-    using AuxiliaryLayouts = decltype(factory_internal::GetAuxiliaryTensorLayouts<SIGNATURE,
-                                                                                 SPATIAL_DIM,
-                                                                                 ConvDirection::FORWARD>());
-                                                                
+    using Layouts                       = decltype(factory_internal::
+                                 GetTensorLayout<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
+    using AuxiliaryLayouts =
+        decltype(factory_internal::
+                     GetAuxiliaryTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
+
     using Types         = factory_internal::FwdConvTensorDataTypes<SIGNATURE>;
     using Ops           = decltype(factory_internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
@@ -640,13 +652,12 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE,
-                                                                     SPATIAL_DIM,
-                                                                     ConvDirection::FORWARD>());
-    using AuxiliaryLayouts = decltype(factory_internal::GetAuxiliaryTensorLayouts<SIGNATURE,
-                                                                                 SPATIAL_DIM,
-                                                                                 ConvDirection::FORWARD>());
-                                                                
+    using Layouts                       = decltype(factory_internal::
+                                 GetTensorLayout<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
+    using AuxiliaryLayouts =
+        decltype(factory_internal::
+                     GetAuxiliaryTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
+
     using Types         = factory_internal::FwdConvTensorDataTypes<SIGNATURE>;
     using Ops           = decltype(factory_internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
@@ -767,13 +778,12 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE,
-                                                                     SPATIAL_DIM,
-                                                                     ConvDirection::FORWARD>());
-    using AuxiliaryLayouts = decltype(factory_internal::GetAuxiliaryTensorLayouts<SIGNATURE,
-                                                                                 SPATIAL_DIM,
-                                                                                 ConvDirection::FORWARD>());
-                                                                
+    using Layouts                       = decltype(factory_internal::
+                                 GetTensorLayout<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
+    using AuxiliaryLayouts =
+        decltype(factory_internal::
+                     GetAuxiliaryTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
+
     using Types         = factory_internal::FwdConvTensorDataTypes<SIGNATURE>;
     using Ops           = decltype(factory_internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);

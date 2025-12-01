@@ -12,16 +12,14 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_Instance_1D_FP16_ChannelsFirst)
 {
-    constexpr ConvSignature FwdConvSignature
-        { 
-            .spatial_dim = 1,
-            .direction   = ConvDirection::FORWARD,
-            .data_type   = DataType::FP16,
-            .accumulation_data_type = DataType::FP32,
-            .input    = ConvolutionTensor { .config = { .layout = ConvInputLayout1D::NWGC } },
-            .weight   = ConvolutionTensor { .config = { .layout = ConvWeightLayout1D::GKXC } },
-            .output   = ConvolutionTensor { .config = { .layout = ConvOutputLayout1D::NWGK } }
-        };
+    constexpr ConvSignature FwdConvSignature{
+        .spatial_dim            = 1,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::FP16,
+        .accumulation_data_type = DataType::FP32,
+        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout1D::NWGC}},
+        .weight                 = ConvolutionTensor{.config = {.layout = ConvWeightLayout1D::GKXC}},
+        .output = ConvolutionTensor{.config = {.layout = ConvOutputLayout1D::NWGK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle{}
@@ -32,15 +30,12 @@ TEST(FwdConvInstances,
             .with_prefetch_config(1, 2, PipelineScheduler::DEFAULT);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>(
-        {
-            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle", 
-            "NWGC,GKXC,EmptyTuple,NWGK",
-            "PassThrough,PassThrough,PassThrough",
-            "MNKPadding",
-            "64,64,32,32", 
-            "Default"
-        });
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
+                       "NWGC,GKXC,EmptyTuple,NWGK",
+                       "PassThrough,PassThrough,PassThrough",
+                       "MNKPadding",
+                       "64,64,32,32",
+                       "Default"});
 }
 
 } // namespace

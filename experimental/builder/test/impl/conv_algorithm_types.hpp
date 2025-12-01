@@ -343,7 +343,7 @@ struct ConvAlgorithmTemplate : Components...
     template <typename OP>
     constexpr auto with_elementwise_operation(const OP& op) const
     {
-        auto result        = *this;
+        auto result       = *this;
         result.element_op = op;
         return result;
     }

@@ -6,8 +6,7 @@
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
 
-namespace ck_tile::builder::factory_internal
-{
+namespace ck_tile::builder::factory_internal {
 
 struct CK_half
 {
@@ -47,27 +46,27 @@ struct CK_empty_tuple
 template <DataType dt>
 consteval auto ConvertDataTypeToCK()
 {
-    if constexpr (dt == DataType::FP16)
+    if constexpr(dt == DataType::FP16)
     {
         return CK_half{};
     }
-    else if constexpr (dt == DataType::BF16)
+    else if constexpr(dt == DataType::BF16)
     {
         return CK_bhalf{};
     }
-    else if constexpr (dt == DataType::FP32)
+    else if constexpr(dt == DataType::FP32)
     {
         return CK_float{};
     }
-    else if constexpr (dt == DataType::INT32)
+    else if constexpr(dt == DataType::INT32)
     {
         return CK_int32{};
     }
-    else if constexpr (dt == DataType::I8)
+    else if constexpr(dt == DataType::I8)
     {
         return CK_int8{};
     }
-    else if constexpr (dt == DataType::FP8)
+    else if constexpr(dt == DataType::FP8)
     {
         return CK_f8{};
     }
@@ -81,24 +80,28 @@ consteval auto ConvertDataTypeToCK()
 template <auto Config, DataType SignatureDataType>
 consteval auto GetTensorDataAndComputeTypes()
 {
-    constexpr auto data_type = Config.data_type;
+    constexpr auto data_type    = Config.data_type;
     constexpr auto compute_type = Config.compute_type;
 
-    if constexpr (data_type == DataType::UNDEFINDED && compute_type == DataType::UNDEFINDED)
+    if constexpr(data_type == DataType::UNDEFINDED && compute_type == DataType::UNDEFINDED)
     {
-        return std::make_pair(ConvertDataTypeToCK<SignatureDataType>(), ConvertDataTypeToCK<SignatureDataType>());
+        return std::make_pair(ConvertDataTypeToCK<SignatureDataType>(),
+                              ConvertDataTypeToCK<SignatureDataType>());
     }
-    else if constexpr (data_type == DataType::UNDEFINDED)
+    else if constexpr(data_type == DataType::UNDEFINDED)
     {
-        return std::make_pair(ConvertDataTypeToCK<SignatureDataType>(), ConvertDataTypeToCK<compute_type>());
+        return std::make_pair(ConvertDataTypeToCK<SignatureDataType>(),
+                              ConvertDataTypeToCK<compute_type>());
     }
-    else if constexpr (compute_type == DataType::UNDEFINDED)
+    else if constexpr(compute_type == DataType::UNDEFINDED)
     {
-        return std::make_pair(ConvertDataTypeToCK<data_type>(), ConvertDataTypeToCK<SignatureDataType>());
+        return std::make_pair(ConvertDataTypeToCK<data_type>(),
+                              ConvertDataTypeToCK<SignatureDataType>());
     }
-    else 
+    else
     {
-        return std::make_pair(ConvertDataTypeToCK<data_type>(), ConvertDataTypeToCK<compute_type>());
+        return std::make_pair(ConvertDataTypeToCK<data_type>(),
+                              ConvertDataTypeToCK<compute_type>());
     }
 }
 
@@ -106,11 +109,11 @@ template <DataType SignatureAccDataType, DataType SignatureDataType>
 consteval auto GetTensorAccumulationType()
 {
     constexpr auto data_type = SignatureAccDataType;
-    if constexpr (data_type == DataType::UNDEFINDED)
+    if constexpr(data_type == DataType::UNDEFINDED)
     {
         return ConvertDataTypeToCK<SignatureDataType>();
     }
-    else 
+    else
     {
         return ConvertDataTypeToCK<data_type>();
     }
@@ -120,7 +123,7 @@ template <auto Config, DataType SignatureDataType>
 consteval auto GetAuxiliaryTensorDataTypeValue()
 {
     constexpr auto data_type = Config.data_type;
-    if constexpr (data_type == DataType::UNDEFINDED)
+    if constexpr(data_type == DataType::UNDEFINDED)
     {
         return ConvertDataTypeToCK<SignatureDataType>();
     }
@@ -133,26 +136,31 @@ consteval auto GetAuxiliaryTensorDataTypeValue()
 template <auto AuxiliaryTensorConfigsArray, DataType SignatureDataType, size_t... Indices>
 consteval auto GetAuxiliaryTensorDataTypeTuple(std::index_sequence<Indices...>)
 {
-    return ck::Tuple<typename decltype(GetAuxiliaryTensorDataTypeValue<AuxiliaryTensorConfigsArray[Indices], SignatureDataType>())::type...>{};
+    return ck::Tuple<
+        typename decltype(GetAuxiliaryTensorDataTypeValue<AuxiliaryTensorConfigsArray[Indices],
+                                                          SignatureDataType>())::type...>{};
 }
 
 template <auto AuxiliaryTensorConfigsValue, DataType SignatureDataType>
 struct AuxiliaryTensorDataTypes
 {
     static constexpr auto Size = AuxiliaryTensorConfigsValue.size();
-    using type = decltype(GetAuxiliaryTensorDataTypeTuple<AuxiliaryTensorConfigsValue, SignatureDataType>(std::make_index_sequence<Size>{}));
+    using type =
+        decltype(GetAuxiliaryTensorDataTypeTuple<AuxiliaryTensorConfigsValue, SignatureDataType>(
+            std::make_index_sequence<Size>{}));
 };
 
 // TODO: Currently only the ouput tensor can have auxiliary tensors (e.g., bias).
 template <auto Signature>
-requires (HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
+    requires(HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
 consteval auto GetAuxiliaryTensorDataTypes()
 {
-    return AuxiliaryTensorDataTypes<Signature.output.operation.auxiliary_operand_configs, Signature.data_type>{};
+    return AuxiliaryTensorDataTypes<Signature.output.operation.auxiliary_operand_configs,
+                                    Signature.data_type>{};
 }
 
 template <auto Signature>
-requires (!HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
+    requires(!HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
 consteval auto GetAuxiliaryTensorDataTypes()
 {
     return CK_empty_tuple{};
@@ -172,15 +180,16 @@ struct FwdConvTensorDataTypes
     using AComputeType = typename decltype(input_types.second)::type;
     using BDataType    = typename decltype(weight_types.first)::type;
     using BComputeType = typename decltype(weight_types.second)::type;
-    using AccDataType  = typename decltype(
-        GetTensorAccumulationType<Signature.accumulation_data_type, Signature.data_type>())::type;
-    using EDataType    = typename decltype(output_types.first)::type;
+    using AccDataType =
+        typename decltype(GetTensorAccumulationType<Signature.accumulation_data_type,
+                                                    Signature.data_type>())::type;
+    using EDataType = typename decltype(output_types.first)::type;
 
     // This is the "compute" type for output.
-    using CShuffleDataType    = typename decltype(output_types.second)::type;
+    using CShuffleDataType = typename decltype(output_types.second)::type;
 
     // Data types for the auxiliary tensors (e.g., bias).
     using DsDataType = typename decltype(GetAuxiliaryTensorDataTypes<Signature>())::type;
 };
 
-}
+} // namespace ck_tile::builder::factory_internal
