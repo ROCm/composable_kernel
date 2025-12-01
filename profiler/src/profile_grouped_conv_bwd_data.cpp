@@ -84,7 +84,9 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
     using F32  = float;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
+#if defined(__gfx9__)
     using TF32 = ck::tf32_t;
+#endif
 
     using namespace ck::tensor_layout::convolution;
 
@@ -141,7 +143,9 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
+#if defined(__gfx9__)
                 return profile(I2, GNHWK{}, GKYXC{}, GNHWC{}, F32{}, F32{}, F32{}, TF32{});
+#endif
             }
         }
         else if(layout == ConvLayout::NHWGC_GKYXC_NHWGK)
@@ -160,7 +164,9 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
+#if defined(__gfx9__)
                 return profile(I2, NHWGK{}, GKYXC{}, NHWGC{}, F32{}, F32{}, F32{}, TF32{});
+#endif
             }
         }
         else if(layout == ConvLayout::NGCHW_GKYXC_NGKHW)
@@ -179,7 +185,9 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
+#if defined(__gfx9__)
                 return profile(I2, NGKHW{}, GKYXC{}, NGCHW{}, F32{}, F32{}, F32{}, TF32{});
+#endif
             }
         }
         else if(layout == ConvLayout::NGCHW_GKCYX_NGKHW)
@@ -198,7 +206,9 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
+#if defined(__gfx9__)
                 return profile(I2, NGKHW{}, GKCYX{}, NGCHW{}, F32{}, F32{}, F32{}, TF32{});
+#endif
             }
         }
     }
@@ -220,7 +230,9 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
+#if defined(__gfx9__)
                 return profile(I3, GNDHWK{}, GKZYXC{}, GNDHWC{}, F32{}, F32{}, F32{}, TF32{});
+#endif
             }
         }
         else if(layout == ConvLayout::NHWGC_GKYXC_NHWGK)
@@ -239,7 +251,9 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
+#if defined(__gfx9__)
                 return profile(I3, NDHWGK{}, GKZYXC{}, NDHWGC{}, F32{}, F32{}, F32{}, TF32{});
+#endif
             }
         }
         else if(layout == ConvLayout::NGCHW_GKYXC_NGKHW)
@@ -258,7 +272,9 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
+#if defined(__gfx9__)
                 return profile(I3, NGKDHW{}, GKZYXC{}, NGCDHW{}, F32{}, F32{}, F32{}, TF32{});
+#endif
             }
         }
         else if(layout == ConvLayout::NGCHW_GKYXC_NGKHW)
@@ -277,7 +293,9 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
+#if defined(__gfx9__)
                 return profile(I3, NGKDHW{}, GKCZYX{}, NGCDHW{}, F32{}, F32{}, F32{}, TF32{});
+#endif
             }
         }
     }
