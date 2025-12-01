@@ -67,7 +67,7 @@ struct FillUniformDistribution
         std::minstd_rand gen(seed_.has_value() ? *seed_ : std::random_device{}());
         std::uniform_real_distribution<float> dis(a_, b_);
 
-        std::vector<joinable_thread> threads(num_thread);
+        std::vector<joinable_thread> threads;
         threads.reserve(num_thread - 1); // last job run in the main thread
         for(int it = num_thread - 1; it >= 0; --it)
         {
