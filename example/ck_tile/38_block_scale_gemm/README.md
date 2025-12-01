@@ -74,7 +74,7 @@ User need to select correct mapping of config for each quant mode:
 |:--------|:-----:|:-----:|-------|
 | For selecting AQuant  | aquant  | gemm_aquant_quantgrouped.cpp|  GemmConfigQuantDecode    |
 | For selecting AQuant with Preshuffle quant    | aquant  | gemm_aquant_quantgrouped_preshufflequant.cpp |  GemmConfigPreshuffleQuantDecode    |
-| For selecting BQuant  | bquant  | gemm_bquant_quantgrouped_<prec_type>.cpp| GemmConfigQuantDecode (or) GemmConfigBQuantPrefill     |
+| For selecting BQuant  | bquant  | gemm_bquant_quantgrouped_<prec_type>.cpp| GemmConfigQuantDecode (or) GemmConfigQuantPrefill     |
 | For selecting BQuant with Preshuffle quant | bquant  | gemm_bquant_quantgrouped_preshufflequant.cpp|  GemmConfigPreshuffleQuantDecode  (or) GemmConfigPreshuffleBQuantPrefill     |
 | For selecting PreShuffle B with BQuant | bquant | gemm_bquant_quantgrouped_preshuffleb.cpp| GemmConfigPreshuffleB_BQuant_Decode (or) GemmConfigPreshuffleB_BQuant_Prefill
 | For selecting PreShuffle B with preshuffle BQuant | bquant | gemm_bquant_quantgrouped_preshuffleb_preshufflequant.cpp |GemmConfigPreshuffleB_PreshuffleBQuant_Decode (or) GemmConfigPreshuffleB_PreshuffleBQuant_Prefill
