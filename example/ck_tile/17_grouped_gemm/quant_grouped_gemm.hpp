@@ -83,7 +83,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr bool PreshuffleB               = false;
-    static constexpr bool Persistent                = true;
+    static constexpr bool Persistent                = false;
 };
 
 template <typename PrecType>
@@ -149,6 +149,12 @@ struct GemmQuantConfig<ck_tile::QuantType::TensorQuant>
 {
     template <typename PrecType>
     using GemmConfig = GemmConfigComputeV3_2<PrecType>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<GemmProblem>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmProblem>;
 };
 
 template <>
@@ -156,6 +162,12 @@ struct GemmQuantConfig<ck_tile::QuantType::RowColQuant>
 {
     template <typename PrecType>
     using GemmConfig = GemmConfigComputeV3_2<PrecType>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<GemmProblem>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmProblem>;
 };
 
 template <>
@@ -163,6 +175,12 @@ struct GemmQuantConfig<ck_tile::QuantType::AQuantGrouped>
 {
     template <typename PrecType>
     using GemmConfig = GemmConfig_Aquant<PrecType>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using GemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<GemmProblem>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using BaseGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmProblem>;
 };
 
 template <>
@@ -170,6 +188,17 @@ struct GemmQuantConfig<ck_tile::QuantType::BQuantGrouped>
 {
     template <typename PrecType>
     using GemmConfig = GemmConfigPreshuffleB_Bquant_prefill<PrecType>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using GemmPipeline = std::conditional_t<PreshuffleB == true,
+                                            ck_tile::WPQuantBPipelineAgBgCrV2<GemmProblem>,
+                                            ck_tile::BQuantGemmPipelineAgBgCrCompV3<GemmProblem>>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using BaseGemmPipeline =
+        std::conditional_t<PreshuffleB == true,
+                           ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmProblem>,
+                           ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<GemmProblem>>;
 };
 
 using grouped_gemm_kargs = ck_tile::QuantGroupedGemmHostArgs;
