@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 if(GPU_TARGETS MATCHES "gfx94|gfx95")
   set(TILE_EXAMPLE_FUSED_MOE "tile_example_fused_moe")
   message(DEBUG "adding ${TILE_EXAMPLE_FUSED_MOE}")
