@@ -48,6 +48,7 @@ ninja smoke-builder
 
 ### Regression Tests (Integration Tests)
 Integration tests that compile actual GPU kernels to verify that the builder generates valid, compilable code. These are more expensive than smoke tests (can take minutes to compile) but cover more fuctionality.
+)
 
 ```sh
 ninja regression-builder
