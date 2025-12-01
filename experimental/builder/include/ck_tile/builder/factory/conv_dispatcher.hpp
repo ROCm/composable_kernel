@@ -30,8 +30,8 @@
 // - **WMMA**: Wavefront Matrix-Matrix Accumulate variant optimized for WMMA-capable hardware.
 //   Requires similar configuration to XDL.
 //
-// - **DL**: Specialized Direct Load kernel optimized for specific data layouts (NHWC/KYXC/NHWK).
-//   Uses DL-specific configuration for thread mapping and epilogue.
+// - **DL**: Specialized vectorized dot-product kernel optimized for specific data layouts
+//   (NHWC/KYXC/NHWK). The "DL" label just indicates this does not use XDLops instructions.
 //
 // - **Large Tensor**: XDL-based kernel with extended tensor support. Wraps a base XDL algorithm
 //   and adds large tensor capabilities.
@@ -44,7 +44,7 @@
 // ## Usage Example
 //
 // ```
-// auto kernel = make_conv_instance<my_signature, my_algorithm_descriptor, "v1">();
+// auto kernel = make_conv_instance<SIGNATURE, ALGORITHM>();
 // ```
 
 #pragma once

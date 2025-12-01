@@ -84,7 +84,7 @@ concept LdsTransferDescriptor = requires(T t) {
 // LDS).
 template <typename T>
 concept EpilogueDescriptor = requires(T t) {
-    { t.m_per_wave_per_shuffle } -> std::convertible_to<size_t>;
+    { t.m_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
     { t.n_per_wave_per_shuffle } -> std::convertible_to<size_t>;
     { t.scalar_per_vector } -> std::convertible_to<size_t>;
 };

@@ -8,7 +8,6 @@
 
 namespace {
 
-// namespace ckb = ::ck_tile::builder;
 using ::ck_tile::builder::factory::internal::ElementwiseOps;
 using enum ::ck_tile::builder::ElementwiseOperation;
 
