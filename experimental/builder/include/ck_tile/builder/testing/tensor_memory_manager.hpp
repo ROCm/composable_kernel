@@ -9,7 +9,6 @@
 #include <concepts>
 #include <hip/hip_runtime.h>
 #include "ck_tile/builder/conv_signature_concepts.hpp"
-#include "ck_tile/builder/conv_factory.hpp"
 #include "ck_tile/builder/testing/type_traits.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 

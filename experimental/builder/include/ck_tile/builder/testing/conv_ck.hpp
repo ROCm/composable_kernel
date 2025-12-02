@@ -33,9 +33,8 @@ template <auto SIGNATURE, typename Conv>
              IsCkConvInstance<SIGNATURE, Conv>
 void run(Conv& conv,
          const ConvArgs<SIGNATURE>& args,
-         const void* input,
-         const void* weight,
-         void* output)
+         const ConvInputs<SIGNATURE>& inputs,
+         const ConvOutputs<SIGNATURE>& outputs)
 {
     constexpr auto spatial_dim = SIGNATURE.spatial_dim;
 
@@ -61,10 +60,10 @@ void run(Conv& conv,
     const auto weight_desc = args.make_weight_descriptor();
     const auto output_desc = args.make_output_descriptor();
 
-    auto ck_args = conv.MakeArgument(input,
-                                     weight,
+    auto ck_args = conv.MakeArgument(inputs.input,
+                                     inputs.weight,
                                      {},
-                                     output,
+                                     outputs.output,
                                      to_ck_lengths(input_desc.get_lengths()),
                                      to_ck_lengths(input_desc.get_strides()),
                                      to_ck_lengths(weight_desc.get_lengths()),

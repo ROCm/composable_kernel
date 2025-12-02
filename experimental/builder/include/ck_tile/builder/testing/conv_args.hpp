@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/builder/conv_signature_utils.hpp"
-#include "ck_tile/builder/conv_factory.hpp"
+#include "ck_tile/builder/factory/helpers/conv_tensor_layout.hpp"
 #include "ck_tile/builder/testing/tensor_memory_manager.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
@@ -81,7 +81,7 @@ struct ConvArgs
     constexpr static auto WEIGHT_TYPE = SIGNATURE.data_type;
     constexpr static auto OUTPUT_TYPE = SIGNATURE.data_type;
 
-    using Ops = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    using Ops = factory::internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
 
     ConvTensorLengths<SPATIAL_DIM> lengths;
     // TODO(Robin): Tensor strides. This needs a new structure as well as some reworking
@@ -98,9 +98,9 @@ struct ConvArgs
     Ops::CDEElementwiseOp cde_elementwise_op;
 
     // TODO(Robin): We shouldn't need to call into an internal namespace here.
-    using Layouts =
-        decltype(ck_tile::builder::factory_internal::
-                     GetTensorLayout<SIGNATURE.layout, SPATIAL_DIM, ConvDirection::FORWARD>());
+    using Layouts = decltype(factory::internal::GetTensorLayout<SIGNATURE.layout,
+                                                                SPATIAL_DIM,
+                                                                ConvDirection::FORWARD>());
 
     /// This function returns the `TensorDescriptor` corresponding to the input-tensor of
     /// the convolution problem. This can then be used to, for example, allocate memory.
@@ -168,28 +168,62 @@ struct ConvArgs
     }
 };
 
-/// This function can be used to directly allocate an input buffer that is compatible
-/// with the `args` structure.
 template <auto SIGNATURE>
-DeviceBuffer alloc_input_buffer(const ConvArgs<SIGNATURE>& args)
+struct ConvInputs
 {
-    return alloc_tensor_buffer(args.make_input_descriptor());
+    const void* input;
+    const void* weight;
+};
+
+template <auto SIGNATURE>
+struct ConvOutputs
+{
+    void* output;
+};
+
+template <auto SIGNATURE>
+struct UniqueConvInputs
+{
+    DeviceBuffer input_buf;
+    DeviceBuffer weight_buf;
+
+    ConvInputs<SIGNATURE> get()
+    {
+        return {
+            .input  = input_buf.get(),
+            .weight = weight_buf.get(),
+        };
+    }
+};
+
+template <auto SIGNATURE>
+struct UniqueConvOutputs
+{
+    DeviceBuffer output_buf;
+
+    ConvOutputs<SIGNATURE> get()
+    {
+        return {
+            .output = output_buf.get(),
+        };
+    }
+};
+
+template <auto SIGNATURE>
+UniqueConvInputs<SIGNATURE> alloc_inputs(const ConvArgs<SIGNATURE>& args)
+{
+    return {
+        .input_buf  = alloc_tensor_buffer(args.make_input_descriptor()),
+        .weight_buf = alloc_tensor_buffer(args.make_weight_descriptor()),
+    };
 }
 
-/// This function can be used to directly allocate a weight buffer that is compatible
-/// with the `args` structure.
 template <auto SIGNATURE>
-DeviceBuffer alloc_weight_buffer(const ConvArgs<SIGNATURE>& args)
+UniqueConvOutputs<SIGNATURE> alloc_outputs(const ConvArgs<SIGNATURE>& args)
 {
-    return alloc_tensor_buffer(args.make_weight_descriptor());
-}
-
-/// This function can be used to directly allocate an output buffer that is compatible
-/// with the `args` structure.
-template <auto SIGNATURE>
-DeviceBuffer alloc_output_buffer(const ConvArgs<SIGNATURE>& args)
-{
-    return alloc_tensor_buffer(args.make_output_descriptor());
+    return {
+        .output_buf = alloc_tensor_buffer(args.make_output_descriptor()),
+    };
 }
 
 } // namespace ck_tile::builder::test
