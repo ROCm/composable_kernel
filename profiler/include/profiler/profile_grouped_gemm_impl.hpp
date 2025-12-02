@@ -13,6 +13,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_gemm.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_fastgelu.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
@@ -25,13 +26,18 @@
 namespace ck {
 namespace profiler {
 
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
           typename AccDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename CLayout,
+          typename AElementOp = PassThrough,
+          typename BElementOp = PassThrough,
+          typename CElementOp = PassThrough>
 bool profile_grouped_gemm_impl(int do_verification,
                                int init_method,
                                bool do_log,
@@ -43,8 +49,8 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& StrideBs,
                                const std::vector<int>& StrideCs,
                                const std::vector<int>& kbatches   = {},
-                               int n_warmup                       = 1,
-                               int n_iter                         = 10,
+                               int n_warmup                       = -1,
+                               int n_iter                         = -1,
                                int instance_index                 = -1,
                                bool fail_if_no_supported_instance = false)
 {
@@ -93,7 +99,7 @@ bool profile_grouped_gemm_impl(int do_verification,
 
         c_m_n_host_results.push_back(
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
-        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        if(do_log)
         {
             std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n["
                       << i << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
@@ -103,20 +109,16 @@ bool profile_grouped_gemm_impl(int do_verification,
         {
         case 0: break;
         case 1:
-            ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k[i]);
-            ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n[i]);
-            max_abs_in_val = 2.f;
+            ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k[i]);
+            ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n[i]);
+            max_abs_in_val = 5.f;
             break;
         default:
-            ck::utils::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k[i]);
+            ck::utils::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_m_k[i]);
             ck::utils::FillUniformDistribution<BDataType>{-0.5f, 0.5f}(b_k_n[i]);
-            max_abs_in_val = 0.5f;
+            max_abs_in_val = 1.0f;
         }
     }
-
-    using AElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
@@ -200,6 +202,17 @@ bool profile_grouped_gemm_impl(int do_verification,
     int num_kernel        = 0;
     auto p_ds             = std::vector<std::array<const void*, 0>>{};
 
+    StreamConfig stream_config{nullptr, false};
+    if(n_warmup >= 0)
+    {
+        stream_config.cold_niters_ = n_warmup;
+    }
+
+    if(n_iter >= 0)
+    {
+        stream_config.nrepeat_ = n_iter;
+    }
+
     if(do_verification)
     {
         for(std::size_t i = 0; i < gemm_descs.size(); i++)
@@ -226,18 +239,18 @@ bool profile_grouped_gemm_impl(int do_verification,
         }
     }
     // profile device GEMM instances
-    int instances_supporting_all_batch_sizes = 0;
+    int instances_supporting_splitk = 0;
     for(auto& gemm_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            gemm_ptr->MakeArgumentPointer(p_a,
-                                          p_b,
-                                          p_ds,
-                                          p_c,
-                                          gemm_descs,
-                                          ck::tensor_operation::element_wise::PassThrough{},
-                                          ck::tensor_operation::element_wise::PassThrough{},
-                                          ck::tensor_operation::element_wise::PassThrough{});
+        ++num_kernel;
+        if((instance_index != -1) && (instance_index + 1 != num_kernel))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+
+        auto argument_ptr = gemm_ptr->MakeArgumentPointer(
+            p_a, p_b, p_ds, p_c, gemm_descs, a_element_op, b_element_op, c_element_op);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
@@ -270,7 +283,9 @@ bool profile_grouped_gemm_impl(int do_verification,
             kbatch_list = kbatches;
         }
 
-        bool all_batch_sizes_supported = true;
+        // If we will test for more than 1 KBatch value, we need at least one to be supported
+        // If there's only one value this check is disabled
+        bool found_supported_kbatch_size = kbatch_list.size() == 1;
         for(std::size_t j = 0; j < kbatch_list.size(); j++)
         {
             auto kbatch_curr = kbatch_list[j];
@@ -283,18 +298,17 @@ bool profile_grouped_gemm_impl(int do_verification,
 
             if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                ++num_kernel;
-                if((instance_index != -1) && (instance_index + 1 != num_kernel))
+                std::cout << "Starting to run instances for KBatch: " << kbatch_curr << std::endl;
+
+                if(kbatch_curr > 1)
                 {
-                    // skip test if instance_index is specified
-                    continue;
+                    found_supported_kbatch_size = true;
                 }
 
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     c_device_buf[i]->SetZero();
 
-                invoker_ptr->Run(argument_ptr.get(),
-                                 StreamConfig{nullptr, false, 0, n_warmup, n_iter});
+                invoker_ptr->Run(argument_ptr.get(), stream_config);
 
                 if(do_verification)
                 {
@@ -337,9 +351,8 @@ bool profile_grouped_gemm_impl(int do_verification,
 
                 if(time_kernel)
                 {
-                    float ave_time =
-                        invoker_ptr->Run(argument_ptr.get(),
-                                         StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
+                    stream_config.time_kernel_ = true;
+                    float ave_time = invoker_ptr->Run(argument_ptr.get(), stream_config);
 
                     std::size_t flop = 0, num_btype = 0;
                     for(std::size_t i = 0; i < gemm_descs.size(); i++)
@@ -370,24 +383,23 @@ bool profile_grouped_gemm_impl(int do_verification,
             }
             else
             {
-                all_batch_sizes_supported = false;
                 std::cout << "Instance: " << gemm_name << ", does not support this GEMM problem"
                           << std::endl;
             }
         }
 
-        // If all batch sizes were supported by this instance, the instance can be marked as
+        // If all kbatch sizes were supported by this instance, the instance can be marked as
         // 'supported' for this problem
-        if(all_batch_sizes_supported)
+        if(found_supported_kbatch_size)
         {
-            ++instances_supporting_all_batch_sizes;
+            ++instances_supporting_splitk;
         }
     }
 
     // Warn if not a single instance was supported
-    if(instances_supporting_all_batch_sizes == 0)
+    if(instances_supporting_splitk == 0)
     {
-        std::cout << "Warning! No instance found that supported all of the batch sizes."
+        std::cout << "Warning! No instance found that supported any of the kbatch sizes."
                   << std::endl;
 
         if(fail_if_no_supported_instance)

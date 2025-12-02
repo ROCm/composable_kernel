@@ -11,21 +11,21 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_gemm_wmma_universal_bf16_bf16_bf16_km_nk_mn_instances(
+void add_device_grouped_gemm_fastgelu_wmma_f16_f16_f16_km_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Col,
                                                   Col,
                                                   DsLayout,
-                                                  ELayout,
-                                                  BF16,
-                                                  BF16,
+                                                  Row,
+                                                  F16,
+                                                  F16,
                                                   DsDataType,
-                                                  BF16,
+                                                  F16,
                                                   PassThrough,
                                                   PassThrough,
-                                                  PassThrough>>>& instances)
+                                                  FastGelu>>>& instances)
 {
     add_device_grouped_gemm_wmma_universal_instances<
-        BF16,
+        F16,
         Col,
         Col,
         device_grouped_gemm_wmma_universal_km_nk_mn_instances>(instances);
