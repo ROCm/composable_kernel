@@ -298,7 +298,10 @@ constexpr auto conv_spec()
 
 /// @brief Derives the grouped convolution layout from a device kernel `Instance` type.
 /// @tparam Instance The device kernel instance type.
-/// @return A `builder::GroupConvLayout{1D|2D|3D}` enum value corresponding to the tensor layouts.
+/// @return An std::array corresponding to the tensor layouts: 
+///             index 0 -> Input layout
+///             index 1 -> Weight layout
+///             index 2 -> Output layout 
 template <typename Instance>
 constexpr auto conv_layout()
 {
@@ -314,30 +317,30 @@ constexpr auto conv_layout()
         if constexpr(std::is_same_v<ALayout, ctc::GNWC> && std::is_same_v<BLayout, ctc::GKXC> &&
                      std::is_same_v<ELayout, ctc::GNWK>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout1D::GNWC,
-                                                      builder::ConvWeightLayout1D::GKXC,
-                                                      builder::ConvOutputLayout1D::GNWK};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::GNWC,
+                                                      builder::TensorLayout::GKXC,
+                                                      builder::TensorLayout::GNWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NWGC> &&
                           std::is_same_v<BLayout, ctc::GKXC> && std::is_same_v<ELayout, ctc::NWGK>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout1D::NWGC,
-                                                      builder::ConvWeightLayout1D::GKXC,
-                                                      builder::ConvOutputLayout1D::NWGK};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NWGC,
+                                                      builder::TensorLayout::GKXC,
+                                                      builder::TensorLayout::NWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCW> &&
                           std::is_same_v<BLayout, ctc::GKXC> && std::is_same_v<ELayout, ctc::NGKW>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout1D::NGCW,
-                                                      builder::ConvWeightLayout1D::GKXC,
-                                                      builder::ConvOutputLayout1D::NGKW};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCW,
+                                                      builder::TensorLayout::GKXC,
+                                                      builder::TensorLayout::NGKW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCW> &&
                           std::is_same_v<BLayout, ctc::GKCX> && std::is_same_v<ELayout, ctc::NGKW>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout1D::NGCW,
-                                                      builder::ConvWeightLayout1D::GKCX,
-                                                      builder::ConvOutputLayout1D::NGKW};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCW,
+                                                      builder::TensorLayout::GKCX,
+                                                      builder::TensorLayout::NGKW};
         }
     }
     else if constexpr(InstTraits::kSpatialDim == 2)
@@ -345,33 +348,33 @@ constexpr auto conv_layout()
         if constexpr(std::is_same_v<ALayout, ctc::GNHWC> && std::is_same_v<BLayout, ctc::GKYXC> &&
                      std::is_same_v<ELayout, ctc::GNHWK>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout2D::GNHWC,
-                                                      builder::ConvWeightLayout2D::GKYXC,
-                                                      builder::ConvOutputLayout2D::GNHWK};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::GNHWC,
+                                                      builder::TensorLayout::GKYXC,
+                                                      builder::TensorLayout::GNHWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NHWGC> &&
                           std::is_same_v<BLayout, ctc::GKYXC> &&
                           std::is_same_v<ELayout, ctc::NHWGK>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout2D::NHWGC,
-                                                      builder::ConvWeightLayout2D::GKYXC,
-                                                      builder::ConvOutputLayout2D::NHWGK};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NHWGC,
+                                                      builder::TensorLayout::GKYXC,
+                                                      builder::TensorLayout::NHWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCHW> &&
                           std::is_same_v<BLayout, ctc::GKYXC> &&
                           std::is_same_v<ELayout, ctc::NGKHW>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout2D::NGCHW,
-                                                      builder::ConvWeightLayout2D::GKYXC,
-                                                      builder::ConvOutputLayout2D::NGKHW};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCHW,
+                                                      builder::TensorLayout::GKYXC,
+                                                      builder::TensorLayout::NGKHW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCHW> &&
                           std::is_same_v<BLayout, ctc::GKCYX> &&
                           std::is_same_v<ELayout, ctc::NGKHW>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout2D::NGCHW,
-                                                      builder::ConvWeightLayout2D::GKCYX,
-                                                      builder::ConvOutputLayout2D::NGKHW};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCHW,
+                                                      builder::TensorLayout::GKCYX,
+                                                      builder::TensorLayout::NGKHW};
         }
     }
     else if constexpr(InstTraits::kSpatialDim == 3)
@@ -379,33 +382,33 @@ constexpr auto conv_layout()
         if constexpr(std::is_same_v<ALayout, ctc::GNDHWC> && std::is_same_v<BLayout, ctc::GKZYXC> &&
                      std::is_same_v<ELayout, ctc::GNDHWK>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout3D::GNDHWC,
-                                                      builder::ConvWeightLayout3D::GKZYXC,
-                                                      builder::ConvOutputLayout3D::GNDHWK};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::GNDHWC,
+                                                      builder::TensorLayout::GKZYXC,
+                                                      builder::TensorLayout::GNDHWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NDHWGC> &&
                           std::is_same_v<BLayout, ctc::GKZYXC> &&
                           std::is_same_v<ELayout, ctc::NDHWGK>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout3D::NDHWGC,
-                                                      builder::ConvWeightLayout3D::GKZYXC,
-                                                      builder::ConvOutputLayout3D::NDHWGK};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NDHWGC,
+                                                      builder::TensorLayout::GKZYXC,
+                                                      builder::TensorLayout::NDHWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCDHW> &&
                           std::is_same_v<BLayout, ctc::GKZYXC> &&
                           std::is_same_v<ELayout, ctc::NGKDHW>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout3D::NGCDHW,
-                                                      builder::ConvWeightLayout3D::GKZYXC,
-                                                      builder::ConvOutputLayout3D::NGKDHW};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCDHW,
+                                                      builder::TensorLayout::GKZYXC,
+                                                      builder::TensorLayout::NGKDHW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCDHW> &&
                           std::is_same_v<BLayout, ctc::GKCZYX> &&
                           std::is_same_v<ELayout, ctc::NGKDHW>)
         {
-            return std::array<builder::ConvLayout, 3>{builder::ConvInputLayout3D::NGCDHW,
-                                                      builder::ConvWeightLayout3D::GKCZYX,
-                                                      builder::ConvOutputLayout3D::NGKDHW};
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCDHW,
+                                                      builder::TensorLayout::GKCZYX,
+                                                      builder::TensorLayout::NGKDHW};
         }
     }
 }

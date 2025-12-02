@@ -16,9 +16,9 @@ TEST(FwdConvInstances,
         .direction              = ConvDirection::FORWARD,
         .data_type              = DataType::FP32,
         .accumulation_data_type = DataType::FP32,
-        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout2D::NGCHW}},
-        .weight = ConvolutionTensor{.config = {.layout = ConvWeightLayout2D::GKCYX}},
-        .output = ConvolutionTensor{.config = {.layout = ConvOutputLayout2D::NGKHW}}};
+        .input                  = ConvolutionTensor{.config = {.layout = TensorLayout::NGCHW}},
+        .weight = ConvolutionTensor{.config = {.layout = TensorLayout::GKCYX}},
+        .output = ConvolutionTensor{.config = {.layout = TensorLayout::NGKHW}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}

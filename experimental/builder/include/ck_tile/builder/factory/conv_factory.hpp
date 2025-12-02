@@ -63,45 +63,6 @@
 
 namespace ck_tile::builder::factory_internal {
 
-template <size_t SPATIAL_DIM>
-consteval auto get_input_layout_value(ConvInputLayout layout)
-{
-    if constexpr(SPATIAL_DIM == 1)
-        return layout._1d;
-    else if constexpr(SPATIAL_DIM == 2)
-        return layout._2d;
-    else if constexpr(SPATIAL_DIM == 3)
-        return layout._3d;
-    else
-        static_assert(false, "Unsupported spatial dimension");
-}
-
-template <size_t SPATIAL_DIM>
-consteval auto get_weight_layout_value(ConvWeightLayout layout)
-{
-    if constexpr(SPATIAL_DIM == 1)
-        return layout._1d;
-    else if constexpr(SPATIAL_DIM == 2)
-        return layout._2d;
-    else if constexpr(SPATIAL_DIM == 3)
-        return layout._3d;
-    else
-        static_assert(false, "Unsupported spatial dimension");
-}
-
-template <size_t SPATIAL_DIM>
-consteval auto get_output_layout_value(ConvOutputLayout layout)
-{
-    if constexpr(SPATIAL_DIM == 1)
-        return layout._1d;
-    else if constexpr(SPATIAL_DIM == 2)
-        return layout._2d;
-    else if constexpr(SPATIAL_DIM == 3)
-        return layout._3d;
-    else
-        static_assert(false, "Unsupported spatial dimension");
-}
-
 // The algorithm specializations for the convolution and GEMM.
 template <typename CONV_ENUM>
     requires(

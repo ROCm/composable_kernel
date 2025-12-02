@@ -12,7 +12,7 @@ using namespace ck_tile::builder;
 
 struct TensorConfig
 {
-    ConvLayout layout;
+    TensorLayout layout;
     // Optional data types, override the type defined in the signature if provided.
     DataType data_type{DataType::UNDEFINDED};
     DataType compute_type{DataType::UNDEFINDED};

@@ -23,133 +23,69 @@ enum class DataType
     U8
 };
 
-enum class BiasLayout
+enum class TensorLayout
 {
+    UNDEFINED,
+
+    // Bias tensors
     GC,
     G_C_strided,
-    G_K_strided
-};
+    G_K_strided,
 
-enum class ConvInputLayout1D
-{
+    // 1D conv input tensor 
     GNCW,
     GNWC,
     NWGC,
     NGCW,
-    G_NW_C_strided
-};
+    G_NW_C_strided,
 
-enum class ConvInputLayout2D
-{
+    // 2D conv input tensor
     GNCHW,
     GNHWC,
     NHWGC,
     NGCHW,
-    G_NHW_C_strided
-};
+    G_NHW_C_strided,
 
-enum class ConvInputLayout3D
-{
+    // 3D conv input tensor
     GNCDHW,
     GNDHWC,
     NDHWGC,
     NGCDHW,
-    G_NDHW_C_strided
-};
+    G_NDHW_C_strided,
 
-enum class UndefinedLayout
-{
-    None
-};
-
-struct ConvInputLayout
-{
-    union
-    {
-        ConvInputLayout1D _1d;
-        ConvInputLayout2D _2d;
-        ConvInputLayout3D _3d;
-        UndefinedLayout _undefined;
-    };
-
-    constexpr ConvInputLayout() : _undefined(UndefinedLayout::None) {}
-    constexpr ConvInputLayout(ConvInputLayout1D layout) : _1d(layout) {}
-    constexpr ConvInputLayout(ConvInputLayout2D layout) : _2d(layout) {}
-    constexpr ConvInputLayout(ConvInputLayout3D layout) : _3d(layout) {}
-
-    friend constexpr bool operator==(const ConvInputLayout& lhs, const ConvInputLayout& rhs)
-    {
-        return std::bit_cast<std::array<unsigned char, sizeof(ConvInputLayout)>>(lhs) ==
-               std::bit_cast<std::array<unsigned char, sizeof(ConvInputLayout)>>(rhs);
-    }
-};
-
-enum class ConvWeightLayout1D
-{
+    // 1D conv weight tensor
     GKXC,
     GKCX,
     KXGC,
-    G_K_X_C_strided
-};
+    G_K_X_C_strided,
 
-enum class ConvWeightLayout2D
-{
+    // 2D conv weight tensor
     GKYXC,
     GKCYX,
     KYXGC,
-    G_K_YX_C_strided
-};
+    G_K_YX_C_strided,
 
-enum class ConvWeightLayout3D
-{
+    // 3D conv weight tensor
     GKZYXC,
     GKCZYX,
     KZYXGC,
-    G_K_ZYX_C_strided
-};
+    G_K_ZYX_C_strided,
 
-struct ConvWeightLayout
-{
-    union
-    {
-        ConvWeightLayout1D _1d;
-        ConvWeightLayout2D _2d;
-        ConvWeightLayout3D _3d;
-        UndefinedLayout _undefined;
-    };
-
-    constexpr ConvWeightLayout() : _undefined(UndefinedLayout::None) {}
-    constexpr ConvWeightLayout(ConvWeightLayout1D layout) : _1d(layout) {}
-    constexpr ConvWeightLayout(ConvWeightLayout2D layout) : _2d(layout) {}
-    constexpr ConvWeightLayout(ConvWeightLayout3D layout) : _3d(layout) {}
-
-    friend constexpr bool operator==(const ConvWeightLayout& lhs, const ConvWeightLayout& rhs)
-    {
-        return std::bit_cast<std::array<unsigned char, sizeof(ConvWeightLayout)>>(lhs) ==
-               std::bit_cast<std::array<unsigned char, sizeof(ConvWeightLayout)>>(rhs);
-    }
-};
-
-enum class ConvOutputLayout1D
-{
+    // 1D conv output tensor
     GNKW,
     GNWK,
     NWGK,
     NGKW,
-    G_NW_K_strided
-};
+    G_NW_K_strided,
 
-enum class ConvOutputLayout2D
-{
+    // 2D conv output tensor
     GNKHW,
     GNHWK,
     NHWGK,
     NGKHW,
-    G_NHW_K_strided
-};
+    G_NHW_K_strided,
 
-enum class ConvOutputLayout3D
-{
+    // 3D conv output tensor
     GNKDHW,
     GNDHWK,
     NDHWGK,
@@ -157,80 +93,6 @@ enum class ConvOutputLayout3D
     G_NDHW_K_strided
 };
 
-struct ConvOutputLayout
-{
-    union
-    {
-        ConvOutputLayout1D _1d;
-        ConvOutputLayout2D _2d;
-        ConvOutputLayout3D _3d;
-        UndefinedLayout _undefined;
-    };
-
-    constexpr ConvOutputLayout() : _undefined(UndefinedLayout::None) {}
-    constexpr ConvOutputLayout(ConvOutputLayout1D layout) : _1d(layout) {}
-    constexpr ConvOutputLayout(ConvOutputLayout2D layout) : _2d(layout) {}
-    constexpr ConvOutputLayout(ConvOutputLayout3D layout) : _3d(layout) {}
-
-    friend constexpr bool operator==(const ConvOutputLayout& lhs, const ConvOutputLayout& rhs)
-    {
-        return std::bit_cast<std::array<unsigned char, sizeof(ConvOutputLayout)>>(lhs) ==
-               std::bit_cast<std::array<unsigned char, sizeof(ConvOutputLayout)>>(rhs);
-    }
-};
-
-struct ConvAuxiliaryTensorLayout
-{
-    union
-    {
-        BiasLayout _bias_layout;
-        ConvOutputLayout _conv_output_layout;
-    };
-
-    constexpr ConvAuxiliaryTensorLayout(BiasLayout layout) : _bias_layout(layout) {}
-    constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout layout) : _conv_output_layout(layout) {}
-    constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout1D layout) : _conv_output_layout(layout) {}
-    constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout2D layout) : _conv_output_layout(layout) {}
-    constexpr ConvAuxiliaryTensorLayout(ConvOutputLayout3D layout) : _conv_output_layout(layout) {}
-
-    friend constexpr bool operator==(const ConvAuxiliaryTensorLayout& lhs,
-                                     const ConvAuxiliaryTensorLayout& rhs)
-    {
-        return std::bit_cast<std::array<unsigned char, sizeof(ConvAuxiliaryTensorLayout)>>(lhs) ==
-               std::bit_cast<std::array<unsigned char, sizeof(ConvAuxiliaryTensorLayout)>>(rhs);
-    }
-};
-
-struct ConvLayout
-{
-    union
-    {
-        ConvInputLayout _input_layout;
-        ConvWeightLayout _weight_layout;
-        ConvOutputLayout _output_layout;
-        ConvAuxiliaryTensorLayout _aux_tensor_layout;
-    };
-
-    constexpr ConvLayout(ConvInputLayout layout) : _input_layout(layout) {}
-    constexpr ConvLayout(ConvInputLayout1D layout) : _input_layout(layout) {}
-    constexpr ConvLayout(ConvInputLayout2D layout) : _input_layout(layout) {}
-    constexpr ConvLayout(ConvInputLayout3D layout) : _input_layout(layout) {}
-    constexpr ConvLayout(ConvWeightLayout layout) : _weight_layout(layout) {}
-    constexpr ConvLayout(ConvWeightLayout1D layout) : _weight_layout(layout) {}
-    constexpr ConvLayout(ConvWeightLayout2D layout) : _weight_layout(layout) {}
-    constexpr ConvLayout(ConvWeightLayout3D layout) : _weight_layout(layout) {}
-    constexpr ConvLayout(ConvOutputLayout layout) : _output_layout(layout) {}
-    constexpr ConvLayout(ConvOutputLayout1D layout) : _output_layout(layout) {}
-    constexpr ConvLayout(ConvOutputLayout2D layout) : _output_layout(layout) {}
-    constexpr ConvLayout(ConvOutputLayout3D layout) : _output_layout(layout) {}
-    constexpr ConvLayout(BiasLayout layout) : _aux_tensor_layout(layout) {}
-
-    friend constexpr bool operator==(const ConvLayout& lhs, const ConvLayout& rhs)
-    {
-        return std::bit_cast<std::array<unsigned char, sizeof(ConvLayout)>>(lhs) ==
-               std::bit_cast<std::array<unsigned char, sizeof(ConvLayout)>>(rhs);
-    }
-};
 
 // Direction of the convolution operation.
 enum class ConvDirection
@@ -500,9 +362,9 @@ inline std::ostream& operator<<(std::ostream& os, PipelineScheduler sched)
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, ConvInputLayout1D layout)
+inline std::ostream& operator<<(std::ostream& os, TensorLayout layout)
 {
-    using enum ConvInputLayout1D;
+    using enum TensorLayout;
     switch(layout)
     {
     case GNCW: return os << "GNCW";
@@ -510,153 +372,49 @@ inline std::ostream& operator<<(std::ostream& os, ConvInputLayout1D layout)
     case NWGC: return os << "NWGC";
     case NGCW: return os << "NGCW";
     case G_NW_C_strided: return os << "G_NW_C_strided";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, ConvInputLayout2D layout)
-{
-    using enum ConvInputLayout2D;
-    switch(layout)
-    {
     case GNCHW: return os << "GNCHW";
     case GNHWC: return os << "GNHWC";
     case NHWGC: return os << "NHWGC";
     case NGCHW: return os << "NGCHW";
     case G_NHW_C_strided: return os << "G_NHW_C_strided";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, ConvInputLayout3D layout)
-{
-    using enum ConvInputLayout3D;
-    switch(layout)
-    {
     case GNCDHW: return os << "GNCDHW";
     case GNDHWC: return os << "GNDHWC";
     case NDHWGC: return os << "NDHWGC";
     case NGCDHW: return os << "NGCDHW";
     case G_NDHW_C_strided: return os << "G_NDHW_C_strided";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, ConvWeightLayout1D layout)
-{
-    using enum ConvWeightLayout1D;
-    switch(layout)
-    {
     case GKXC: return os << "GKXC";
     case GKCX: return os << "GKCX";
     case KXGC: return os << "KXGC";
     case G_K_X_C_strided: return os << "G_K_X_C_strided";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, ConvWeightLayout2D layout)
-{
-    using enum ConvWeightLayout2D;
-    switch(layout)
-    {
     case GKYXC: return os << "GKYXC";
     case GKCYX: return os << "GKCYX";
     case KYXGC: return os << "KYXGC";
     case G_K_YX_C_strided: return os << "G_K_YX_C_strided";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, ConvWeightLayout3D layout)
-{
-    using enum ConvWeightLayout3D;
-    switch(layout)
-    {
     case GKZYXC: return os << "GKZYXC";
     case GKCZYX: return os << "GKCZYX";
     case KZYXGC: return os << "KZYXGC";
     case G_K_ZYX_C_strided: return os << "G_K_ZYX_C_strided";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, ConvOutputLayout1D layout)
-{
-    using enum ConvOutputLayout1D;
-    switch(layout)
-    {
     case GNKW: return os << "GNKW";
     case GNWK: return os << "GNWK";
     case NWGK: return os << "NWGK";
     case NGKW: return os << "NGKW";
     case G_NW_K_strided: return os << "G_NW_K_strided";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, ConvOutputLayout2D layout)
-{
-    using enum ConvOutputLayout2D;
-    switch(layout)
-    {
     case GNKHW: return os << "GNKHW";
     case GNHWK: return os << "GNHWK";
     case NHWGK: return os << "NHWGK";
     case NGKHW: return os << "NGKHW";
     case G_NHW_K_strided: return os << "G_NHW_K_strided";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, ConvOutputLayout3D layout)
-{
-    using enum ConvOutputLayout3D;
-    switch(layout)
-    {
     case GNKDHW: return os << "GNKDHW";
     case GNDHWK: return os << "GNDHWK";
     case NDHWGK: return os << "NDHWGK";
     case NGKDHW: return os << "NGKDHW";
     case G_NDHW_K_strided: return os << "G_NDHW_K_strided";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, BiasLayout layout)
-{
-    using enum BiasLayout;
-    switch(layout)
-    {
     case GC: return os << "GC";
     case G_C_strided: return os << "G_C_strided";
     case G_K_strided: return os << "G_K_strided";
+    case UNDEFINED: return os << "UNDEFINED";
     default: return os << "Unknown";
     }
-}
-
-inline std::ostream&
-operator<<(std::ostream& os,
-           const std::variant<ConvInputLayout1D, ConvInputLayout2D, ConvInputLayout3D>& layout)
-{
-    std::visit([&os](const auto& l) { os << l; }, layout);
-    return os;
-}
-
-inline std::ostream&
-operator<<(std::ostream& os,
-           const std::variant<ConvOutputLayout1D, ConvOutputLayout2D, ConvOutputLayout3D>& layout)
-{
-    std::visit([&os](const auto& l) { os << l; }, layout);
-    return os;
-}
-
-inline std::ostream&
-operator<<(std::ostream& os,
-           const std::variant<ConvWeightLayout1D, ConvWeightLayout2D, ConvWeightLayout3D>& layout)
-{
-    std::visit([&os](const auto& l) { os << l; }, layout);
-    return os;
 }
 
 // ostream operator overload for std::variant of convolution specializations

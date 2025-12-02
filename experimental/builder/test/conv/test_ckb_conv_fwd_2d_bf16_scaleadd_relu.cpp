@@ -17,15 +17,15 @@ TEST(FwdConvInstances,
         .direction              = ConvDirection::FORWARD,
         .data_type              = DataType::BF16,
         .accumulation_data_type = DataType::FP32,
-        .input                  = ConvolutionTensor{.config = {.layout = ConvInputLayout2D::NHWGC}},
-        .weight                 = ConvolutionTensor{.config = {.layout    = ConvWeightLayout2D::GKYXC,
+        .input                  = ConvolutionTensor{.config = {.layout = TensorLayout::NHWGC}},
+        .weight                 = ConvolutionTensor{.config = {.layout    = TensorLayout::GKYXC,
                                                                .data_type = DataType::BF16}}, // For demo purposes
         .output                 = ConvolutionTensor{
-                            .config    = {.layout = ConvOutputLayout2D::NHWGK},
+                            .config    = {.layout = TensorLayout::NHWGK},
                             .operation = TensorOperation<>{.elementwise_operation =
                                                                ElementwiseOperation::SCALEADD_SCALEADD_RELU}
-                             .with_auxiliary_operand_configs<ConvOutputLayout2D::NHWGK,
-                                                                             BiasLayout::G_K_strided>()}};
+                             .with_auxiliary_operand_configs<TensorLayout::NHWGK,
+                                                                             TensorLayout::G_K_strided>()}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle{}
