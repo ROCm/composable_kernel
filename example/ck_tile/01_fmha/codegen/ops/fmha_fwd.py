@@ -29,7 +29,7 @@ from codegen.cpp_symbol_map import (
 from codegen.utils import check_duplicates_and_paddings, if_, indent, update_file
 
 
-DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "fp8bf16": 8, "bf8": 8}
+DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "fp8bf16": 8, "fp8fp32": 8, "bf8": 8}
 
 K0_MAX_SUBMAX_MAP = {32: 32, 48: 48, 64: 64, 96: 128, 128: 128, 192: 192, 256: 256}
 
