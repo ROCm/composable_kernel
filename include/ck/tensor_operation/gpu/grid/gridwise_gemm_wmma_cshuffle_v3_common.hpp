@@ -966,6 +966,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
               typename BGridDesc_BK0_N_K1,
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
               typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename AScaleStruct,
               typename BScaleStruct,
               typename EpilogueArgument,
               bool HasMainKBlockLoop,
@@ -988,6 +989,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                const index_t& block_m_id,
                                const index_t& block_n_id,
                                const index_t& num_k_block_per_scale,
+                               AScaleStruct& a_scale_struct,
                                BScaleStruct& b_scale_struct,
                                EpilogueArgument& epilogue_args,
                                const index_t k_id = 0)
@@ -1072,6 +1074,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             b_block_buf,
             b_block_slice_copy_step,
             c_thread_buf,
+            a_scale_struct,
             b_scale_struct,
             num_k_block_main_loop,
             num_k_block_per_scale);

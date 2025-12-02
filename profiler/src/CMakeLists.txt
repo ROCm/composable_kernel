@@ -188,8 +188,7 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[1
     list(APPEND DEVICE_INSTANCES device_gemm_multiply_multiply_wp_instance)
     list(APPEND DEVICE_INSTANCES device_gemm_universal_preshuffle_instance)
   endif()
-    if(SUPPORTED_GPU_TARGETS MATCHES "gfx9[45]" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
-    list(APPEND DEVICE_INSTANCES device_gemm_ab_scale_instance)
+  if(SUPPORTED_GPU_TARGETS MATCHES "gfx9[45]" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
     list(APPEND DEVICE_INSTANCES device_gemm_blockscale_wp_instance)
   endif()
   if(SUPPORTED_GPU_TARGETS MATCHES "gfx95")
@@ -251,6 +250,10 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[1
     list(APPEND DEVICE_INSTANCES device_gemm_add_add_fastgelu_instance)
   endif()
   list(APPEND DEVICE_INSTANCES device_batched_gemm_gemm_instance)
+endif()
+
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx9[45]" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
+  list(APPEND DEVICE_INSTANCES device_gemm_ab_scale_instance)
 endif()
 
 if(DL_KERNELS)
