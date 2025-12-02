@@ -73,12 +73,17 @@ endfunction()
 # They should complete in under 10ms each and are suitable for frequent execution
 # during development.
 add_ck_builder_test(test_ckb_conv_builder
+    test_bwd_weight_instance_traits.cpp
     test_conv_builder.cpp
     test_fwd_instance_traits.cpp
-    test_bwd_weight_instance_traits.cpp
     test_bwd_data_instance_traits.cpp
     test_instance_traits_util.cpp
-)
+
+    unit_conv_elementwise_op.cpp
+    unit_conv_tensor_layout.cpp
+    unit_conv_tensor_type.cpp
+    unit_conv_thread_block.cpp
+    unit_conv_tuning_params.cpp)
     
     # Tests the inline diff utility used for comparing strings in tests assertions
     add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
