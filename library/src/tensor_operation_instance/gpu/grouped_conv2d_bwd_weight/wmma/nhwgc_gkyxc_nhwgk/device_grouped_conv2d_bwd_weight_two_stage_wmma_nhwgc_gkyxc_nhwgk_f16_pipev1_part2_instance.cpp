@@ -11,7 +11,7 @@ namespace instance {
 
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
 void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_pipev1_part2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+    [[maybe_unused]]std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
                                                            GKYXC,
                                                            NHWGK,
@@ -23,16 +23,16 @@ void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_p
                                                            PassThrough>>>& instances)
 {
     // 1. Default
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_f16_part2_instances<
-            2,
-            NHWGC,
-            GKYXC,
-            NHWGK,
-            ConvBwdWeightDefault,
-            BlockGemmPipelineScheduler::Intrawave,
-            BlockGemmPipelineVersion::v1>{});
+    // add_device_operation_instances(
+    //     instances,
+    //     device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_f16_part2_instances<
+    //         2,
+    //         NHWGC,
+    //         GKYXC,
+    //         NHWGK,
+    //         ConvBwdWeightDefault,
+    //         BlockGemmPipelineScheduler::Intrawave,
+    //         BlockGemmPipelineVersion::v1>{});
 }
 
 } // namespace instance
