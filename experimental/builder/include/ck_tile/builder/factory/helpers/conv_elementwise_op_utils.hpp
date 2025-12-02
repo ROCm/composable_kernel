@@ -15,27 +15,32 @@ struct ElementwiseOpToCK
                   "Unsupported elementwise operation conversion to CK.");
 };
 
-template <> struct ElementwiseOpToCK<ElementwiseOperation::PASS_THROUGH>
+template <>
+struct ElementwiseOpToCK<ElementwiseOperation::PASS_THROUGH>
 {
     using Op = ck::tensor_operation::element_wise::PassThrough;
 };
 
-template <> struct ElementwiseOpToCK<ElementwiseOperation::SCALE>
+template <>
+struct ElementwiseOpToCK<ElementwiseOperation::SCALE>
 {
     using Op = ck::tensor_operation::element_wise::Scale;
 };
 
-template <> struct ElementwiseOpToCK<ElementwiseOperation::CLAMP>
+template <>
+struct ElementwiseOpToCK<ElementwiseOperation::CLAMP>
 {
     using Op = ck::tensor_operation::element_wise::Clamp;
 };
 
-template <> struct ElementwiseOpToCK<ElementwiseOperation::SCALEADD_SCALEADD_RELU>
+template <>
+struct ElementwiseOpToCK<ElementwiseOperation::SCALEADD_SCALEADD_RELU>
 {
     using Op = ck::tensor_operation::element_wise::ScaleAddScaleAddRelu;
 };
 
-template <> struct ElementwiseOpToCK<ElementwiseOperation::BIAS_BNORM_CLAMP>
+template <>
+struct ElementwiseOpToCK<ElementwiseOperation::BIAS_BNORM_CLAMP>
 {
     using Op = ck::tensor_operation::element_wise::BiasNormalizeInInferClamp;
 };

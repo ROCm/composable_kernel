@@ -34,25 +34,24 @@ concept ValidConvDataType =
     (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
     (T == DataType::FP8) || (T == DataType::I8) || (T == DataType::U8);
 
+template <TensorLayout L>
+concept BiasTensorLayout =
+    (L == TensorLayout::GC) || (L == TensorLayout::G_C_strided) || (L == TensorLayout::G_K_strided);
 
 template <TensorLayout L>
-concept BiasTensorLayout = (L == TensorLayout::GC) || (L == TensorLayout::G_C_strided) || 
-                           (L == TensorLayout::G_K_strided);
+concept ConvInputLayout1D =
+    (L == TensorLayout::GNCW) || (L == TensorLayout::GNWC) || (L == TensorLayout::NWGC) ||
+    (L == TensorLayout::NGCW) || (L == TensorLayout::G_NW_C_strided);
 
 template <TensorLayout L>
-concept ConvInputLayout1D = (L == TensorLayout::GNCW) || (L == TensorLayout::GNWC) ||
-                            (L == TensorLayout::NWGC) || (L == TensorLayout::NGCW) ||
-                            (L == TensorLayout::G_NW_C_strided);
+concept ConvInputLayout2D =
+    (L == TensorLayout::GNCHW) || (L == TensorLayout::GNHWC) || (L == TensorLayout::NHWGC) ||
+    (L == TensorLayout::NGCHW) || (L == TensorLayout::G_NHW_C_strided);
 
 template <TensorLayout L>
-concept ConvInputLayout2D = (L == TensorLayout::GNCHW) || (L == TensorLayout::GNHWC) ||
-                            (L == TensorLayout::NHWGC) || (L == TensorLayout::NGCHW) ||
-                            (L == TensorLayout::G_NHW_C_strided);
-
-template <TensorLayout L>
-concept ConvInputLayout3D = (L == TensorLayout::GNCDHW) || (L == TensorLayout::GNDHWC) ||
-                            (L == TensorLayout::NDHWGC) || (L == TensorLayout::NGCDHW) ||
-                            (L == TensorLayout::G_NDHW_C_strided);
+concept ConvInputLayout3D =
+    (L == TensorLayout::GNCDHW) || (L == TensorLayout::GNDHWC) || (L == TensorLayout::NDHWGC) ||
+    (L == TensorLayout::NGCDHW) || (L == TensorLayout::G_NDHW_C_strided);
 
 template <TensorLayout L>
 concept ConvWeightLayout1D = (L == TensorLayout::GKXC) || (L == TensorLayout::GKCX) ||
@@ -67,19 +66,19 @@ concept ConvWeightLayout3D = (L == TensorLayout::GKZYXC) || (L == TensorLayout::
                              (L == TensorLayout::KZYXGC) || (L == TensorLayout::G_K_ZYX_C_strided);
 
 template <TensorLayout L>
-concept ConvOutputLayout1D = (L == TensorLayout::GNKW) || (L == TensorLayout::GNWK) ||
-                             (L == TensorLayout::NWGK) || (L == TensorLayout::NGKW) ||
-                             (L == TensorLayout::G_NW_K_strided);
+concept ConvOutputLayout1D =
+    (L == TensorLayout::GNKW) || (L == TensorLayout::GNWK) || (L == TensorLayout::NWGK) ||
+    (L == TensorLayout::NGKW) || (L == TensorLayout::G_NW_K_strided);
 
 template <TensorLayout L>
-concept ConvOutputLayout2D = (L == TensorLayout::GNKHW) || (L == TensorLayout::GNHWK) ||
-                             (L == TensorLayout::NHWGK) || (L == TensorLayout::NGKHW) ||
-                             (L == TensorLayout::G_NHW_K_strided);
+concept ConvOutputLayout2D =
+    (L == TensorLayout::GNKHW) || (L == TensorLayout::GNHWK) || (L == TensorLayout::NHWGK) ||
+    (L == TensorLayout::NGKHW) || (L == TensorLayout::G_NHW_K_strided);
 
 template <TensorLayout L>
-concept ConvOutputLayout3D = (L == TensorLayout::GNKDHW) || (L == TensorLayout::GNDHWK) ||
-                             (L == TensorLayout::NDHWGK) || (L == TensorLayout::NGKDHW) ||
-                             (L == TensorLayout::G_NDHW_K_strided);
+concept ConvOutputLayout3D =
+    (L == TensorLayout::GNKDHW) || (L == TensorLayout::GNDHWK) || (L == TensorLayout::NDHWGK) ||
+    (L == TensorLayout::NGKDHW) || (L == TensorLayout::G_NDHW_K_strided);
 
 template <typename T>
 concept TensorConfigDescriptor = requires(T t) {
@@ -195,22 +194,19 @@ concept ConvDirectionIsBackwardWeight = (Sig.direction == ConvDirection::BACKWAR
 // Constraints for forward convolution input layouts.
 template <TensorLayout L, size_t SpatialDim>
 concept ValidConvInputLayoutForSpatialDim =
-    (SpatialDim == 1 && ConvInputLayout1D<L>) ||
-    (SpatialDim == 2 && ConvInputLayout2D<L>) ||
+    (SpatialDim == 1 && ConvInputLayout1D<L>) || (SpatialDim == 2 && ConvInputLayout2D<L>) ||
     (SpatialDim == 3 && ConvInputLayout3D<L>);
 
 // Constraints for forward convolution output layouts.
 template <TensorLayout L, size_t SpatialDim>
 concept ValidConvOutputLayoutForSpatialDim =
-    (SpatialDim == 1 && ConvOutputLayout1D<L>) ||
-    (SpatialDim == 2 && ConvOutputLayout2D<L>) ||
+    (SpatialDim == 1 && ConvOutputLayout1D<L>) || (SpatialDim == 2 && ConvOutputLayout2D<L>) ||
     (SpatialDim == 3 && ConvOutputLayout3D<L>);
 
 // Constraints for forward convolution weight layouts.
 template <TensorLayout L, size_t SpatialDim>
 concept ValidConvWeightLayoutForSpatialDim =
-    (SpatialDim == 1 && ConvWeightLayout1D<L>) ||
-    (SpatialDim == 2 && ConvWeightLayout2D<L>) ||
+    (SpatialDim == 1 && ConvWeightLayout1D<L>) || (SpatialDim == 2 && ConvWeightLayout2D<L>) ||
     (SpatialDim == 3 && ConvWeightLayout3D<L>);
 
 } // namespace ck_tile::builder

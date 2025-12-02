@@ -12,17 +12,39 @@ template <DataType DT>
 struct DataTypeToCK
 {
     // Catch unsupported data types at compile time
-    static_assert(sizeof(UnsupportedEnumValue<DT>) == 0,
-                  "Unsupported data type conversion to CK.");
+    static_assert(sizeof(UnsupportedEnumValue<DT>) == 0, "Unsupported data type conversion to CK.");
 };
 
-template <> struct DataTypeToCK<DataType::FP16>  { using type = ck::half_t; };
-template <> struct DataTypeToCK<DataType::BF16>  { using type = ck::bhalf_t; };
-template <> struct DataTypeToCK<DataType::FP32>  { using type = float; };
-template <> struct DataTypeToCK<DataType::INT32> { using type = int32_t; };
-template <> struct DataTypeToCK<DataType::I8>    { using type = int8_t; };
-template <> struct DataTypeToCK<DataType::FP8>   { using type = ck::f8_t; };
-
+template <>
+struct DataTypeToCK<DataType::FP16>
+{
+    using type = ck::half_t;
+};
+template <>
+struct DataTypeToCK<DataType::BF16>
+{
+    using type = ck::bhalf_t;
+};
+template <>
+struct DataTypeToCK<DataType::FP32>
+{
+    using type = float;
+};
+template <>
+struct DataTypeToCK<DataType::INT32>
+{
+    using type = int32_t;
+};
+template <>
+struct DataTypeToCK<DataType::I8>
+{
+    using type = int8_t;
+};
+template <>
+struct DataTypeToCK<DataType::FP8>
+{
+    using type = ck::f8_t;
+};
 
 struct CK_empty_tuple
 {

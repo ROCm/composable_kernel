@@ -32,7 +32,7 @@ enum class TensorLayout
     G_C_strided,
     G_K_strided,
 
-    // 1D conv input tensor 
+    // 1D conv input tensor
     GNCW,
     GNWC,
     NWGC,
@@ -92,7 +92,6 @@ enum class TensorLayout
     NGKDHW,
     G_NDHW_K_strided
 };
-
 
 // Direction of the convolution operation.
 enum class ConvDirection

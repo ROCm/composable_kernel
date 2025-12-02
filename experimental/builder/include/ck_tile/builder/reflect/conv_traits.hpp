@@ -298,10 +298,10 @@ constexpr auto conv_spec()
 
 /// @brief Derives the grouped convolution layout from a device kernel `Instance` type.
 /// @tparam Instance The device kernel instance type.
-/// @return An std::array corresponding to the tensor layouts: 
+/// @return An std::array corresponding to the tensor layouts:
 ///             index 0 -> Input layout
 ///             index 1 -> Weight layout
-///             index 2 -> Output layout 
+///             index 2 -> Output layout
 template <typename Instance>
 constexpr auto conv_layout()
 {
@@ -318,29 +318,29 @@ constexpr auto conv_layout()
                      std::is_same_v<ELayout, ctc::GNWK>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::GNWC,
-                                                      builder::TensorLayout::GKXC,
-                                                      builder::TensorLayout::GNWK};
+                                                        builder::TensorLayout::GKXC,
+                                                        builder::TensorLayout::GNWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NWGC> &&
                           std::is_same_v<BLayout, ctc::GKXC> && std::is_same_v<ELayout, ctc::NWGK>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NWGC,
-                                                      builder::TensorLayout::GKXC,
-                                                      builder::TensorLayout::NWGK};
+                                                        builder::TensorLayout::GKXC,
+                                                        builder::TensorLayout::NWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCW> &&
                           std::is_same_v<BLayout, ctc::GKXC> && std::is_same_v<ELayout, ctc::NGKW>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCW,
-                                                      builder::TensorLayout::GKXC,
-                                                      builder::TensorLayout::NGKW};
+                                                        builder::TensorLayout::GKXC,
+                                                        builder::TensorLayout::NGKW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCW> &&
                           std::is_same_v<BLayout, ctc::GKCX> && std::is_same_v<ELayout, ctc::NGKW>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCW,
-                                                      builder::TensorLayout::GKCX,
-                                                      builder::TensorLayout::NGKW};
+                                                        builder::TensorLayout::GKCX,
+                                                        builder::TensorLayout::NGKW};
         }
     }
     else if constexpr(InstTraits::kSpatialDim == 2)
@@ -349,32 +349,32 @@ constexpr auto conv_layout()
                      std::is_same_v<ELayout, ctc::GNHWK>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::GNHWC,
-                                                      builder::TensorLayout::GKYXC,
-                                                      builder::TensorLayout::GNHWK};
+                                                        builder::TensorLayout::GKYXC,
+                                                        builder::TensorLayout::GNHWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NHWGC> &&
                           std::is_same_v<BLayout, ctc::GKYXC> &&
                           std::is_same_v<ELayout, ctc::NHWGK>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NHWGC,
-                                                      builder::TensorLayout::GKYXC,
-                                                      builder::TensorLayout::NHWGK};
+                                                        builder::TensorLayout::GKYXC,
+                                                        builder::TensorLayout::NHWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCHW> &&
                           std::is_same_v<BLayout, ctc::GKYXC> &&
                           std::is_same_v<ELayout, ctc::NGKHW>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCHW,
-                                                      builder::TensorLayout::GKYXC,
-                                                      builder::TensorLayout::NGKHW};
+                                                        builder::TensorLayout::GKYXC,
+                                                        builder::TensorLayout::NGKHW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCHW> &&
                           std::is_same_v<BLayout, ctc::GKCYX> &&
                           std::is_same_v<ELayout, ctc::NGKHW>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCHW,
-                                                      builder::TensorLayout::GKCYX,
-                                                      builder::TensorLayout::NGKHW};
+                                                        builder::TensorLayout::GKCYX,
+                                                        builder::TensorLayout::NGKHW};
         }
     }
     else if constexpr(InstTraits::kSpatialDim == 3)
@@ -383,32 +383,32 @@ constexpr auto conv_layout()
                      std::is_same_v<ELayout, ctc::GNDHWK>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::GNDHWC,
-                                                      builder::TensorLayout::GKZYXC,
-                                                      builder::TensorLayout::GNDHWK};
+                                                        builder::TensorLayout::GKZYXC,
+                                                        builder::TensorLayout::GNDHWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NDHWGC> &&
                           std::is_same_v<BLayout, ctc::GKZYXC> &&
                           std::is_same_v<ELayout, ctc::NDHWGK>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NDHWGC,
-                                                      builder::TensorLayout::GKZYXC,
-                                                      builder::TensorLayout::NDHWGK};
+                                                        builder::TensorLayout::GKZYXC,
+                                                        builder::TensorLayout::NDHWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCDHW> &&
                           std::is_same_v<BLayout, ctc::GKZYXC> &&
                           std::is_same_v<ELayout, ctc::NGKDHW>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCDHW,
-                                                      builder::TensorLayout::GKZYXC,
-                                                      builder::TensorLayout::NGKDHW};
+                                                        builder::TensorLayout::GKZYXC,
+                                                        builder::TensorLayout::NGKDHW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCDHW> &&
                           std::is_same_v<BLayout, ctc::GKCZYX> &&
                           std::is_same_v<ELayout, ctc::NGKDHW>)
         {
             return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCDHW,
-                                                      builder::TensorLayout::GKCZYX,
-                                                      builder::TensorLayout::NGKDHW};
+                                                        builder::TensorLayout::GKCZYX,
+                                                        builder::TensorLayout::NGKDHW};
         }
     }
 }
