@@ -105,20 +105,6 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instan
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_16x16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                                NHWGC,
-                                                                GKYXC,
-                                                                Empty_Tuple,
-                                                                NHWGK,
-                                                                BF16,
-                                                                BF16,
-                                                                Empty_Tuple,
-                                                                BF16,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP16
@@ -261,20 +247,6 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_instan
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_16x16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                                NGCHW,
-                                                                GKCYX,
-                                                                Empty_Tuple,
-                                                                NGKHW,
-                                                                BF16,
-                                                                BF16,
-                                                                Empty_Tuple,
-                                                                BF16,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_BF16
@@ -330,20 +302,6 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_gndhwc_gkzyxc_gndhwk_int8_ins
 #ifdef CK_ENABLE_BF16
 // grouped conv3d forward, NDHWGC/GKZYXC/NDHWGK
 void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-                                                                NDHWGC,
-                                                                GKZYXC,
-                                                                Empty_Tuple,
-                                                                NDHWGK,
-                                                                BF16,
-                                                                BF16,
-                                                                Empty_Tuple,
-                                                                BF16,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_16x16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
@@ -522,19 +480,6 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_f16_16x1
 
 #ifdef CK_ENABLE_BF16
 void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-                                                                NGCDHW,
-                                                                GKCZYX,
-                                                                Empty_Tuple,
-                                                                NGKDHW,
-                                                                BF16,
-                                                                BF16,
-                                                                Empty_Tuple,
-                                                                BF16,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                PassThrough>>>& instances);
-void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_16x16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NGCDHW,
                                                                 GKCZYX,

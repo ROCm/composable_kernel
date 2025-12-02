@@ -8,7 +8,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_16x16_instances(
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NGCDHW,
                                                                 GKCZYX,
@@ -24,7 +24,7 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_16x
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_16x16_instances<3,
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<3,
                                                                      NGCDHW,
                                                                      GKCZYX,
                                                                      Empty_Tuple,
@@ -33,7 +33,7 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_16x
 
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_16x16_instances<3,
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<3,
                                                                      NGCDHW,
                                                                      GKCZYX,
                                                                      Empty_Tuple,
@@ -41,12 +41,20 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_16x
                                                                      ConvFwd1x1P0>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_16x16_instances<3,
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<3,
                                                                      NGCDHW,
                                                                      GKCZYX,
                                                                      Empty_Tuple,
                                                                      NGKDHW,
                                                                      ConvFwd1x1S1P0>{});
+    add_device_operation_instances(
+        instances,
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<3,
+                                                                     NGCDHW,
+                                                                     GKCZYX,
+                                                                     Empty_Tuple,
+                                                                     NGKDHW,
+                                                                     ConvFwdOddC>{});
 }
 
 } // namespace instance

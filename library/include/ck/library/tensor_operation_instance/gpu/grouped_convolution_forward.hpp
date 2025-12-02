@@ -870,17 +870,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             {
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances(
                     op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_16x16_instances(
-                    op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
                 //     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_comp_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instances(
                     op_ptrs);
             }
 #endif
@@ -938,14 +930,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_ngchw_gkcyx_ngkhw_bf16_instances(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_16x16_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_mem_inter_instances(
                     op_ptrs);
             }
 #endif
@@ -1094,17 +1078,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             {
                 add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
                     op_ptrs);
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_16x16_instances(
-                    op_ptrs);
                 // add_device_grouped_conv3d_fwd_wmma_cshufflev3_large_tensor_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
                 //     op_ptrs);
                 add_device_grouped_conv3d_fwd_wmma_cshufflev3_merged_groups_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_comp_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_mem_inter_instances(
                     op_ptrs);
             }
 #endif
@@ -1152,14 +1128,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv3d_fwd_wmma_cshufflev3_merged_groups_ngcdhw_gkczyx_ngkdhw_bf16_instances(
                     op_ptrs);
                 add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_16x16_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_comp_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_mem_inter_instances(
                     op_ptrs);
             }
 #endif

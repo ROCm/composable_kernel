@@ -26,7 +26,7 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_ins
 {
     add_device_operation_instances(
         instances,
-        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances<3,
+        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<3,
                                                                                   NGCDHW,
                                                                                   GKCZYX,
                                                                                   Empty_Tuple,
@@ -37,7 +37,7 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_ins
 
     add_device_operation_instances(
         instances,
-        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances<3,
+        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<3,
                                                                                   NGCDHW,
                                                                                   GKCZYX,
                                                                                   Empty_Tuple,
@@ -48,7 +48,7 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_ins
 
     add_device_operation_instances(
         instances,
-        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances<3,
+        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<3,
                                                                                   NGCDHW,
                                                                                   GKCZYX,
                                                                                   Empty_Tuple,
