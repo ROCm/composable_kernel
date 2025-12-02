@@ -6,8 +6,7 @@
 #include <span>
 #include <cstddef>
 
-#include "ck_tile/builder/conv_signature_concepts.hpp"
-#include "ck_tile/builder/testing/conv_args.hpp"
+#include "ck_tile/builder/testing/conv_fwd.hpp"
 
 /// This file contains the implementation details for invoking/testing
 /// grouped convolution operations in old CK. The main item is the
@@ -32,9 +31,9 @@ template <auto SIGNATURE, typename Conv>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE> &&
              IsCkConvInstance<SIGNATURE, Conv>
 void run(Conv& conv,
-         const ConvArgs<SIGNATURE>& args,
-         const ConvInputs<SIGNATURE>& inputs,
-         const ConvOutputs<SIGNATURE>& outputs)
+         const Args<SIGNATURE>& args,
+         const Inputs<SIGNATURE>& inputs,
+         const Outputs<SIGNATURE>& outputs)
 {
     constexpr auto spatial_dim = SIGNATURE.spatial_dim;
 

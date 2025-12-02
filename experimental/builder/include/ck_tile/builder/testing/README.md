@@ -8,9 +8,9 @@ Testing GPU kernels typically involves significant boilerplate: allocating devic
 
 The core components are:
 
-- **`Args`**: A struct template that holds runtime parameters for a specific test case
-- **`TensorMemoryManager`**: A helper class that manages GPU memory allocation and initialization
-- **`Validator`**: A utility that performs on-GPU validation and integrates with GoogleTest/GoogleMock
+- **`Args`**: A struct template that holds runtime parameters for a specific test case.
+- **`Input`** and **`Output`**: Helper classes that groups operation inputs and outputs.
+- **`Validator`**: A utility that performs on-GPU validation and integrates with GoogleTest/GoogleMock.
 
 Together, these components enable a structured approach to kernel testing that mirrors the Given-When-Then pattern commonly used in behavior-driven development.
 
@@ -42,62 +42,67 @@ The signature is enforced at compile time using C++20 concepts, ensuring type sa
 
 ```cpp
 struct ConvSignature {
-    static constexpr int spatial_dim = 2;
-    static constexpr ck_tile::builder::ConvDirection direction = 
+    int spatial_dim = 2;
+    ck_tile::builder::ConvDirection direction =
         ck_tile::builder::ConvDirection::FORWARD;
-    static constexpr ck_tile::builder::GroupConvLayout2D layout = 
+    ck_tile::builder::GroupConvLayout2D layout =
         ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK;
-    static constexpr ck_tile::builder::DataType data_type = 
+    ck_tile::builder::DataType data_type =
         ck_tile::builder::DataType::FP16;
-    static constexpr ck_tile::builder::ElementwiseOperation elementwise_operation = 
+    ck_tile::builder::ElementwiseOperation elementwise_operation =
         ck_tile::builder::ElementwiseOperation::NONE;
-    static constexpr ck_tile::builder::GroupConvDeviceOp device_operation = 
-        ck_tile::builder::GroupConvDeviceOp::IMPLICIT_GEMM;
 };
 static_assert(ck_tile::builder::ConvSignatureDescriptor<ConvSignature>);
-```
-
-#### `Args<ConvSignature>`
-
-The `Args` struct template provides the **runtime parameters** for your test case. It is parameterized by the `ConvSignature` and contains fields for tensor dimensions, strides, dilations, and other dynamic properties.
-
-```cpp
-ck_tile::testing::Args<ConvSignature> args = {
-    .batch_size = 128,
-    .num_groups = 1,
-    .input_channels = 64,
-    .output_channels = 128,
-    .input_height = 56,
-    .input_width = 56,
-    .filter_height = 3,
-    .filter_width = 3,
-    .stride_height = 1,
-    .stride_width = 1,
-    .dilation_height = 1,
-    .dilation_width = 1,
-    .pad_height = 1,
-    .pad_width = 1,
+constexpr auto SIGNATURE = ConvSignature{
+    .spatial_dim = 2,
+    .direction = ck_tile::builder::ConvDirection::FORWARD,
+    .layout = ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
+    .data_type = ck_tile::builder::DataType::FP16,
+    .elementwise_operation = ck_tile::builder::ElementwiseOperation::NONE,
 };
 ```
 
-#### `TensorMemoryManager<ConvSignature>`
+#### Run-time Arguments
 
-The `TensorMemoryManager` is the primary tool for the "Given" phase. It takes the `Args` and handles all GPU memory management:
-
-- **Allocation**: Automatically allocates device memory for all input and output tensors based on the signature and runtime dimensions
-- **Initialization**: Provides methods to initialize tensor data directly on the GPU, avoiding costly host-to-device transfers
-- **Access**: Exposes tensor pointers and metadata needed for kernel execution and validation
+The `Args` struct template provides the **runtime parameters** for your test case. It is parameterized by the `SIGNATURE` and contains fields for tensor dimensions, strides, dilations, and other dynamic properties. Note that the exact parameters required for each `Args` depends on the `SIGNATURE`: For example, a `SIGNATURE` that represents a forward convolution requires specifying the number of batches, groups, input- and output-channels, filter dimensions, filter strides, and so on. A `SIGNATURE` that represents a simple GEMM operation may instead require only the dimensions of the A-, B- and C-matrices.
 
 ```cpp
-ck_tile::testing::TensorMemoryManager<ConvSignature> dev_mem(args);
-dev_mem.initialize();  // Initialize tensors on GPU with default pattern
+ck_tile::testing::Args<SIGNATURE> args = {
+    .lengths = {
+        .batch_size      = 128,
+        .groups          = 1,
+        .input_channels  = 64,
+        .output_channels = 128,
+        .image           = {.height = 56, .width = 56},
+        .filter          = {.height = 3,  .width = 3},
+    },
+    .filter_strides  = {.height = 1, .width  = 1},
+    .filter_dilation = {.height = 1, .width  = 1},
+    .input_left_pad  = {.width  = 1, .height = 1},
+    .input_right_pad = {.width  = 1, .height = 1},
+};
 ```
 
-The `TensorMemoryManager` can initialize data with various patterns (e.g., random values, sequential values, constant values) to suit different testing needs.
+#### Tensor Memory Management
+
+Tensor memory is passed around using the `Inputs<SIGNATURE>` and `Outputs<SIGNATURE>` structures. These group all inputs and outputs for an operation. Note that these structures do not "own" the memory inside: They only logically group the inputs so that they can be passed around as a common type. The amount of inputs and outputs may differ depending on the `SIGNATURE`, and this avoids having to pass around additional values and accept additional parameters in those situations.
+
+The `Inputs` and `Outputs` structures can be constructed manually from external data, however, the `UniqueInputs<SIGNATURE>` and `UniqueOutputs<SIGNATURE>` structures can be used to manage memory using RAII. The `alloc_inputs` and `alloc_outputs` functions are used to initialize these types: They take an `Args` structure and allocate the appropriate amounts of memory.
+
+```cpp
+auto inputs = allocate_inputs(args);
+auto outputs = allocate_outputs(args);
+```
+
+Note that these functions merely _allocate_ memory: After allocation, the memory is yet uninitialized.
+
+#### Tensor Initialization
+
+
 
 ### When: Executing the Kernel
 
-The "When" phase is where you execute the kernel being tested. This involves selecting an algorithm and using the `Builder` to generate the kernel.
+The "When" phase is where the kernel to be tested is actually executed. This involves selecting an algorithm and using the `Builder` to generate the kernel.
 
 #### `ConvAlgorithm`
 
@@ -111,18 +116,19 @@ The `ConvAlgorithm` defines the **implementation strategy** for the kernel. It s
 ```cpp
 struct ConvAlgorithm {
     // Thread block configuration
-    static constexpr auto thread_block = /* ... */;
-    
+    ThreadBlock thread_block = /* ... */;
+
     // Gridwise GEMM configuration
-    static constexpr auto gridwise_gemm = /* ... */;
-    
+    GridwiseXdlGemm gridwise_gemm = /* ... */;
+
     // Block transfer configuration
-    static constexpr auto block_transfer = /* ... */;
-    
+    Transfer transfer = /* ... */;
+
     // Additional tuning parameters
     // ...
 };
 static_assert(ck_tile::builder::ConvAlgorithmDescriptor<ConvAlgorithm>);
+constexpr auto ALGORITHM = ConvAlgorithm{};
 ```
 
 #### Building and Running the Kernel
@@ -181,15 +187,15 @@ Here's a complete test that demonstrates the Given-When-Then pattern:
 // Define the convolution signature
 struct ConvSignature {
     static constexpr int spatial_dim = 2;
-    static constexpr ck_tile::builder::ConvDirection direction = 
+    static constexpr ck_tile::builder::ConvDirection direction =
         ck_tile::builder::ConvDirection::FORWARD;
-    static constexpr ck_tile::builder::GroupConvLayout2D layout = 
+    static constexpr ck_tile::builder::GroupConvLayout2D layout =
         ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK;
-    static constexpr ck_tile::builder::DataType data_type = 
+    static constexpr ck_tile::builder::DataType data_type =
         ck_tile::builder::DataType::FP16;
-    static constexpr ck_tile::builder::ElementwiseOperation elementwise_operation = 
+    static constexpr ck_tile::builder::ElementwiseOperation elementwise_operation =
         ck_tile::builder::ElementwiseOperation::NONE;
-    static constexpr ck_tile::builder::GroupConvDeviceOp device_operation = 
+    static constexpr ck_tile::builder::GroupConvDeviceOp device_operation =
         ck_tile::builder::GroupConvDeviceOp::IMPLICIT_GEMM;
 };
 static_assert(ck_tile::builder::ConvSignatureDescriptor<ConvSignature>);
@@ -203,7 +209,7 @@ static_assert(ck_tile::builder::ConvAlgorithmDescriptor<ConvAlgorithm>);
 
 TEST(ConvolutionTest, Forward2D_FP16) {
     // ===== GIVEN: Set up the test case =====
-    
+
     // Define runtime parameters
     ck_tile::testing::Args<ConvSignature> args = {
         .batch_size = 128,
@@ -221,24 +227,24 @@ TEST(ConvolutionTest, Forward2D_FP16) {
         .pad_height = 1,
         .pad_width = 1,
     };
-    
+
     // Allocate and initialize GPU memory
     ck_tile::testing::TensorMemoryManager<ConvSignature> dev_mem(args);
     dev_mem.initialize();
-    
+
     // ===== WHEN: Execute the kernel =====
-    
+
     using ConvOp = ck_tile::builder::Builder<ConvSignature, ConvAlgorithm>::op;
-    
+
     ConvOp::Run(
         dev_mem.input_ptr(),
         dev_mem.weight_ptr(),
         dev_mem.output_ptr(),
         args
     );
-    
+
     // ===== THEN: Verify the results =====
-    
+
     ck_tile::testing::Validator<ConvSignature> validator(args, dev_mem);
     EXPECT_THAT(validator.result(), validator.is_ok());
 }

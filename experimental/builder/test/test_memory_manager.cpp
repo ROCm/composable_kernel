@@ -3,7 +3,7 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "ck_tile/builder/testing/tensor_memory_manager.hpp"
+#include "ck_tile/builder/testing/tensor_buffer.hpp"
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
 

@@ -3,9 +3,11 @@
 
 #pragma once
 
+#include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_signature_utils.hpp"
 #include "ck_tile/builder/factory/helpers/conv_tensor_layout.hpp"
-#include "ck_tile/builder/testing/tensor_memory_manager.hpp"
+#include "ck_tile/builder/testing/testing.hpp"
+#include "ck_tile/builder/testing/tensor_buffer.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
@@ -22,36 +24,6 @@
 
 namespace ck_tile::builder::test {
 
-/// This structure describes a 1-, 2-, or 3-D extent. Its used to
-/// communicate 1-, 2- or 3-D sizes and strides of tensors.
-template <int SPATIAL_DIM>
-struct ConvExtent;
-
-template <>
-struct ConvExtent<1>
-{
-    size_t width = 1;
-};
-
-template <>
-struct ConvExtent<2>
-{
-    size_t width  = 1;
-    size_t height = 1;
-};
-
-template <>
-struct ConvExtent<3>
-{
-    size_t width  = 1;
-    size_t height = 1;
-    size_t depth  = 1;
-};
-
-using ConvExtent1D = ConvExtent<1>;
-using ConvExtent2D = ConvExtent<2>;
-using ConvExtent3D = ConvExtent<3>;
-
 /// This structure is used to describe lengths of a convolution problem. In fact, this
 /// structure is a complete description of ALL inputs and outputs lengths of a convolution
 /// problem, as this structure contains all of the combined parameters. Note that we can't
@@ -61,20 +33,20 @@ using ConvExtent3D = ConvExtent<3>;
 template <int SPATIAL_DIM>
 struct ConvTensorLengths
 {
-    size_t batch_size              = 1;  // N
-    size_t groups                  = 1;  // G
-    size_t input_channels          = 1;  // C
-    size_t output_channels         = 1;  // K
-    ConvExtent<SPATIAL_DIM> image  = {}; // W, H, D
-    ConvExtent<SPATIAL_DIM> filter = {}; // X, Y, Z
+    size_t batch_size          = 1;  // N
+    size_t groups              = 1;  // G
+    size_t input_channels      = 1;  // C
+    size_t output_channels     = 1;  // K
+    Extent<SPATIAL_DIM> image  = {}; // W, H, D
+    Extent<SPATIAL_DIM> filter = {}; // X, Y, Z
 };
 
 /// The ConvArgs structure is the runtime counterpart of the `ConvSignature`: it contains the
 /// runtime values for a convolution operation, and forms a complete description of such an
 /// operation together with the signature.
 template <auto SIGNATURE>
-    requires ValidConvSignature<SIGNATURE>
-struct ConvArgs
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+struct Args<SIGNATURE>
 {
     constexpr static auto SPATIAL_DIM = SIGNATURE.spatial_dim;
     constexpr static auto INPUT_TYPE  = SIGNATURE.data_type;
@@ -88,10 +60,10 @@ struct ConvArgs
     // of the TensorDescriptor, as the current implementation (based on ConvParam in old CK/
     // CK Tile) does not support strides at all.
 
-    ConvExtent<SPATIAL_DIM> filter_strides;
-    ConvExtent<SPATIAL_DIM> filter_dilation;
-    ConvExtent<SPATIAL_DIM> input_left_pad;
-    ConvExtent<SPATIAL_DIM> input_right_pad;
+    Extent<SPATIAL_DIM> filter_strides;
+    Extent<SPATIAL_DIM> filter_dilation;
+    Extent<SPATIAL_DIM> input_left_pad;
+    Extent<SPATIAL_DIM> input_right_pad;
 
     Ops::AElementwiseOp a_elementwise_op;
     Ops::BElementwiseOp b_elementwise_op;
@@ -169,25 +141,28 @@ struct ConvArgs
 };
 
 template <auto SIGNATURE>
-struct ConvInputs
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+struct Inputs<SIGNATURE>
 {
     const void* input;
     const void* weight;
 };
 
 template <auto SIGNATURE>
-struct ConvOutputs
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+struct Outputs<SIGNATURE>
 {
     void* output;
 };
 
 template <auto SIGNATURE>
-struct UniqueConvInputs
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+struct UniqueInputs<SIGNATURE>
 {
     DeviceBuffer input_buf;
     DeviceBuffer weight_buf;
 
-    ConvInputs<SIGNATURE> get()
+    Inputs<SIGNATURE> get()
     {
         return {
             .input  = input_buf.get(),
@@ -197,11 +172,12 @@ struct UniqueConvInputs
 };
 
 template <auto SIGNATURE>
-struct UniqueConvOutputs
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+struct UniqueOutputs<SIGNATURE>
 {
     DeviceBuffer output_buf;
 
-    ConvOutputs<SIGNATURE> get()
+    Outputs<SIGNATURE> get()
     {
         return {
             .output = output_buf.get(),
@@ -210,7 +186,8 @@ struct UniqueConvOutputs
 };
 
 template <auto SIGNATURE>
-UniqueConvInputs<SIGNATURE> alloc_inputs(const ConvArgs<SIGNATURE>& args)
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args)
 {
     return {
         .input_buf  = alloc_tensor_buffer(args.make_input_descriptor()),
@@ -219,7 +196,8 @@ UniqueConvInputs<SIGNATURE> alloc_inputs(const ConvArgs<SIGNATURE>& args)
 }
 
 template <auto SIGNATURE>
-UniqueConvOutputs<SIGNATURE> alloc_outputs(const ConvArgs<SIGNATURE>& args)
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+UniqueOutputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args)
 {
     return {
         .output_buf = alloc_tensor_buffer(args.make_output_descriptor()),
