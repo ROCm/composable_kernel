@@ -8,35 +8,21 @@
 
 namespace ck_tile::builder::factory_internal {
 
-struct CK_half
+template <DataType DT>
+struct DataTypeToCK
 {
-    using type = ck::half_t;
+    // Catch unsupported data types at compile time
+    static_assert(sizeof(UnsupportedEnumValue<DT>) == 0,
+                  "Unsupported data type conversion to CK.");
 };
 
-struct CK_bhalf
-{
-    using type = ck::bhalf_t;
-};
+template <> struct DataTypeToCK<DataType::FP16>  { using type = ck::half_t; };
+template <> struct DataTypeToCK<DataType::BF16>  { using type = ck::bhalf_t; };
+template <> struct DataTypeToCK<DataType::FP32>  { using type = float; };
+template <> struct DataTypeToCK<DataType::INT32> { using type = int32_t; };
+template <> struct DataTypeToCK<DataType::I8>    { using type = int8_t; };
+template <> struct DataTypeToCK<DataType::FP8>   { using type = ck::f8_t; };
 
-struct CK_float
-{
-    using type = float;
-};
-
-struct CK_int8
-{
-    using type = int8_t;
-};
-
-struct CK_f8
-{
-    using type = ck::f8_t;
-};
-
-struct CK_int32
-{
-    using type = int32_t;
-};
 
 struct CK_empty_tuple
 {
@@ -46,35 +32,7 @@ struct CK_empty_tuple
 template <DataType dt>
 consteval auto ConvertDataTypeToCK()
 {
-    if constexpr(dt == DataType::FP16)
-    {
-        return CK_half{};
-    }
-    else if constexpr(dt == DataType::BF16)
-    {
-        return CK_bhalf{};
-    }
-    else if constexpr(dt == DataType::FP32)
-    {
-        return CK_float{};
-    }
-    else if constexpr(dt == DataType::INT32)
-    {
-        return CK_int32{};
-    }
-    else if constexpr(dt == DataType::I8)
-    {
-        return CK_int8{};
-    }
-    else if constexpr(dt == DataType::FP8)
-    {
-        return CK_f8{};
-    }
-    else
-    {
-        static_assert(sizeof(UnsupportedEnumValue<dt>) == 0,
-                      "Internal error. Unsupported data type conversion to CK.");
-    }
+    return DataTypeToCK<dt>{};
 }
 
 template <auto Config, DataType SignatureDataType>

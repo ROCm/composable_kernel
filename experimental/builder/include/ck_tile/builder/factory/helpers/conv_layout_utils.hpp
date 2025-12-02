@@ -8,6 +8,60 @@
 
 namespace ck_tile::builder::factory_internal {
 
+template <auto Layout>
+struct LayoutToCK
+{
+    static_assert(sizeof(UnsupportedEnumValue<Layout>) == 0,
+                  "Unsupported layout conversion to CK.");
+};
+
+// BiasLayout
+template <> struct LayoutToCK<BiasLayout::G_K_strided> { using type = ck::tensor_layout::convolution::G_K; };
+template <> struct LayoutToCK<BiasLayout::GC>          { using type = ck::tensor_layout::convolution::GC; };
+template <> struct LayoutToCK<BiasLayout::G_C_strided> { using type = ck::tensor_layout::convolution::G_C; };
+
+// Input 1D
+template <> struct LayoutToCK<ConvInputLayout1D::NWGC> { using type = ck::tensor_layout::convolution::NWGC; };
+template <> struct LayoutToCK<ConvInputLayout1D::NGCW> { using type = ck::tensor_layout::convolution::NGCW; };
+template <> struct LayoutToCK<ConvInputLayout1D::GNWC> { using type = ck::tensor_layout::convolution::GNWC; };
+
+// Input 2D
+template <> struct LayoutToCK<ConvInputLayout2D::NGCHW> { using type = ck::tensor_layout::convolution::NGCHW; };
+template <> struct LayoutToCK<ConvInputLayout2D::NHWGC> { using type = ck::tensor_layout::convolution::NHWGC; };
+template <> struct LayoutToCK<ConvInputLayout2D::GNHWC> { using type = ck::tensor_layout::convolution::GNHWC; };
+
+// Input 3D
+template <> struct LayoutToCK<ConvInputLayout3D::NGCDHW> { using type = ck::tensor_layout::convolution::NGCDHW; };
+template <> struct LayoutToCK<ConvInputLayout3D::NDHWGC> { using type = ck::tensor_layout::convolution::NDHWGC; };
+template <> struct LayoutToCK<ConvInputLayout3D::GNDHWC> { using type = ck::tensor_layout::convolution::GNDHWC; };
+
+// Weight 1D
+template <> struct LayoutToCK<ConvWeightLayout1D::GKXC> { using type = ck::tensor_layout::convolution::GKXC; };
+template <> struct LayoutToCK<ConvWeightLayout1D::GKCX> { using type = ck::tensor_layout::convolution::GKCX; };
+
+// Weight 2D
+template <> struct LayoutToCK<ConvWeightLayout2D::GKYXC> { using type = ck::tensor_layout::convolution::GKYXC; };
+template <> struct LayoutToCK<ConvWeightLayout2D::GKCYX> { using type = ck::tensor_layout::convolution::GKCYX; };
+
+// Weight 3D
+template <> struct LayoutToCK<ConvWeightLayout3D::GKCZYX> { using type = ck::tensor_layout::convolution::GKCZYX; };
+template <> struct LayoutToCK<ConvWeightLayout3D::GKZYXC> { using type = ck::tensor_layout::convolution::GKZYXC; };
+
+// Output 1D
+template <> struct LayoutToCK<ConvOutputLayout1D::NWGK> { using type = ck::tensor_layout::convolution::NWGK; };
+template <> struct LayoutToCK<ConvOutputLayout1D::NGKW> { using type = ck::tensor_layout::convolution::NGKW; };
+template <> struct LayoutToCK<ConvOutputLayout1D::GNWK> { using type = ck::tensor_layout::convolution::GNWK; };
+
+// Output 2D
+template <> struct LayoutToCK<ConvOutputLayout2D::NGKHW> { using type = ck::tensor_layout::convolution::NGKHW; };
+template <> struct LayoutToCK<ConvOutputLayout2D::NHWGK> { using type = ck::tensor_layout::convolution::NHWGK; };
+template <> struct LayoutToCK<ConvOutputLayout2D::GNHWK> { using type = ck::tensor_layout::convolution::GNHWK; };
+
+// Output 3D
+template <> struct LayoutToCK<ConvOutputLayout3D::NGKDHW> { using type = ck::tensor_layout::convolution::NGKDHW; };
+template <> struct LayoutToCK<ConvOutputLayout3D::NDHWGK> { using type = ck::tensor_layout::convolution::NDHWGK; };
+template <> struct LayoutToCK<ConvOutputLayout3D::GNDHWK> { using type = ck::tensor_layout::convolution::GNDHWK; };
+
 struct EmptyAuxiliaryTensorLayout
 {
     using DsLayout = ck::Tuple<>;
@@ -27,57 +81,23 @@ consteval auto GetAuxiliaryTensorLayoutValue()
     constexpr auto Layout = Config.layout;
     if constexpr(IsGenericBiasLayoutActive<Layout>())
     {
-        constexpr auto val = Layout._aux_tensor_layout._bias_layout;
-        if constexpr(val == BiasLayout::G_K_strided)
-            return ck::tensor_layout::convolution::G_K{};
-        else if constexpr(val == BiasLayout::GC)
-            return ck::tensor_layout::convolution::GC{};
-        else if constexpr(val == BiasLayout::G_C_strided)
-            return ck::tensor_layout::convolution::G_C{};
-        else
-            static_assert(false, "Unsupported generic bias layout");
+        return typename LayoutToCK<Layout._aux_tensor_layout._bias_layout>::type{};
     }
     else
     {
         constexpr auto out_layout = Layout._output_layout;
-
         if constexpr(SPATIAL_DIM == 1)
-        {
-            constexpr auto val = out_layout._1d;
-            if constexpr(val == ConvOutputLayout1D::NWGK)
-                return ck::tensor_layout::convolution::NWGK{};
-            else if constexpr(val == ConvOutputLayout1D::NGKW)
-                return ck::tensor_layout::convolution::NGKW{};
-            else if constexpr(val == ConvOutputLayout1D::GNWK)
-                return ck::tensor_layout::convolution::GNWK{};
-        }
+            return typename LayoutToCK<out_layout._1d>::type{};
         else if constexpr(SPATIAL_DIM == 2)
-        {
-            constexpr auto val = out_layout._2d;
-            if constexpr(val == ConvOutputLayout2D::NHWGK)
-                return ck::tensor_layout::convolution::NHWGK{};
-            else if constexpr(val == ConvOutputLayout2D::GNHWK)
-                return ck::tensor_layout::convolution::GNHWK{};
-            else if constexpr(val == ConvOutputLayout2D::NGKHW)
-                return ck::tensor_layout::convolution::NGKHW{};
-        }
+            return typename LayoutToCK<out_layout._2d>::type{};
         else if constexpr(SPATIAL_DIM == 3)
-        {
-            constexpr auto val = out_layout._3d;
-            if constexpr(val == ConvOutputLayout3D::NDHWGK)
-                return ck::tensor_layout::convolution::NDHWGK{};
-            else if constexpr(val == ConvOutputLayout3D::GNDHWK)
-                return ck::tensor_layout::convolution::GNDHWK{};
-            else if constexpr(val == ConvOutputLayout3D::NGKDHW)
-                return ck::tensor_layout::convolution::NGKDHW{};
-        }
+            return typename LayoutToCK<out_layout._3d>::type{};
     }
 }
 
 template <auto AuxiliaryTensorConfigsArray, size_t SPATIAL_DIM, size_t... Indices>
 consteval auto GetAuxiliaryTensorLayoutTuple(std::index_sequence<Indices...>)
 {
-    // TODO: Use std::tuple instead of ck::Tuple
     return ck::Tuple<decltype(GetAuxiliaryTensorLayoutValue<AuxiliaryTensorConfigsArray[Indices],
                                                             SPATIAL_DIM>())...>{};
 }
@@ -113,99 +133,33 @@ template <auto Layout, size_t SPATIAL_DIM>
 consteval auto GetInputLayout()
 {
     if constexpr(SPATIAL_DIM == 1)
-    {
-        constexpr auto val = Layout._1d;
-        if constexpr(val == ConvInputLayout1D::NWGC)
-            return ck::tensor_layout::convolution::NWGC{};
-        else if constexpr(val == ConvInputLayout1D::NGCW)
-            return ck::tensor_layout::convolution::NGCW{};
-        else if constexpr(val == ConvInputLayout1D::GNWC)
-            return ck::tensor_layout::convolution::GNWC{};
-    }
+        return typename LayoutToCK<Layout._1d>::type{};
     else if constexpr(SPATIAL_DIM == 2)
-    {
-        constexpr auto val = Layout._2d;
-        if constexpr(val == ConvInputLayout2D::NGCHW)
-            return ck::tensor_layout::convolution::NGCHW{};
-        else if constexpr(val == ConvInputLayout2D::NHWGC)
-            return ck::tensor_layout::convolution::NHWGC{};
-        else if constexpr(val == ConvInputLayout2D::GNHWC)
-            return ck::tensor_layout::convolution::GNHWC{};
-    }
+        return typename LayoutToCK<Layout._2d>::type{};
     else if constexpr(SPATIAL_DIM == 3)
-    {
-        constexpr auto val = Layout._3d;
-        if constexpr(val == ConvInputLayout3D::NGCDHW)
-            return ck::tensor_layout::convolution::NGCDHW{};
-        else if constexpr(val == ConvInputLayout3D::NDHWGC)
-            return ck::tensor_layout::convolution::NDHWGC{};
-        else if constexpr(val == ConvInputLayout3D::GNDHWC)
-            return ck::tensor_layout::convolution::GNDHWC{};
-    }
+        return typename LayoutToCK<Layout._3d>::type{};
 }
 
 template <auto Layout, size_t SPATIAL_DIM>
 consteval auto GetWeightLayout()
 {
     if constexpr(SPATIAL_DIM == 1)
-    {
-        constexpr auto val = Layout._1d;
-        if constexpr(val == ConvWeightLayout1D::GKXC)
-            return ck::tensor_layout::convolution::GKXC{};
-        else if constexpr(val == ConvWeightLayout1D::GKCX)
-            return ck::tensor_layout::convolution::GKCX{};
-    }
+        return typename LayoutToCK<Layout._1d>::type{};
     else if constexpr(SPATIAL_DIM == 2)
-    {
-        constexpr auto val = Layout._2d;
-        if constexpr(val == ConvWeightLayout2D::GKYXC)
-            return ck::tensor_layout::convolution::GKYXC{};
-        else if constexpr(val == ConvWeightLayout2D::GKCYX)
-            return ck::tensor_layout::convolution::GKCYX{};
-    }
+        return typename LayoutToCK<Layout._2d>::type{};
     else if constexpr(SPATIAL_DIM == 3)
-    {
-        constexpr auto val = Layout._3d;
-        if constexpr(val == ConvWeightLayout3D::GKCZYX)
-            return ck::tensor_layout::convolution::GKCZYX{};
-        else if constexpr(val == ConvWeightLayout3D::GKZYXC)
-            return ck::tensor_layout::convolution::GKZYXC{};
-    }
+        return typename LayoutToCK<Layout._3d>::type{};
 }
 
 template <auto Layout, size_t SPATIAL_DIM>
 consteval auto GetOutputLayout()
 {
     if constexpr(SPATIAL_DIM == 1)
-    {
-        constexpr auto val = Layout._1d;
-        if constexpr(val == ConvOutputLayout1D::NWGK)
-            return ck::tensor_layout::convolution::NWGK{};
-        else if constexpr(val == ConvOutputLayout1D::NGKW)
-            return ck::tensor_layout::convolution::NGKW{};
-        else if constexpr(val == ConvOutputLayout1D::GNWK)
-            return ck::tensor_layout::convolution::GNWK{};
-    }
+        return typename LayoutToCK<Layout._1d>::type{};
     else if constexpr(SPATIAL_DIM == 2)
-    {
-        constexpr auto val = Layout._2d;
-        if constexpr(val == ConvOutputLayout2D::NGKHW)
-            return ck::tensor_layout::convolution::NGKHW{};
-        else if constexpr(val == ConvOutputLayout2D::NHWGK)
-            return ck::tensor_layout::convolution::NHWGK{};
-        else if constexpr(val == ConvOutputLayout2D::GNHWK)
-            return ck::tensor_layout::convolution::GNHWK{};
-    }
+        return typename LayoutToCK<Layout._2d>::type{};
     else if constexpr(SPATIAL_DIM == 3)
-    {
-        constexpr auto val = Layout._3d;
-        if constexpr(val == ConvOutputLayout3D::NGKDHW)
-            return ck::tensor_layout::convolution::NGKDHW{};
-        else if constexpr(val == ConvOutputLayout3D::NDHWGK)
-            return ck::tensor_layout::convolution::NDHWGK{};
-        else if constexpr(val == ConvOutputLayout3D::GNDHWK)
-            return ck::tensor_layout::convolution::GNDHWK{};
-    }
+        return typename LayoutToCK<Layout._3d>::type{};
 }
 
 template <auto InputLayoutValue,

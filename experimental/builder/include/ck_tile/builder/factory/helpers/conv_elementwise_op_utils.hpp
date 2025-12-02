@@ -7,27 +7,35 @@
 #include "ck_tile/builder/types.hpp"
 
 namespace ck_tile::builder::factory_internal {
-struct CK_PassThroughOp
+
+template <ElementwiseOperation Op>
+struct ElementwiseOpToCK
+{
+    static_assert(sizeof(UnsupportedEnumValue<Op>) == 0,
+                  "Unsupported elementwise operation conversion to CK.");
+};
+
+template <> struct ElementwiseOpToCK<ElementwiseOperation::PASS_THROUGH>
 {
     using Op = ck::tensor_operation::element_wise::PassThrough;
 };
 
-struct CK_ScaleOp
+template <> struct ElementwiseOpToCK<ElementwiseOperation::SCALE>
 {
     using Op = ck::tensor_operation::element_wise::Scale;
 };
 
-struct CK_ClampOp
+template <> struct ElementwiseOpToCK<ElementwiseOperation::CLAMP>
 {
     using Op = ck::tensor_operation::element_wise::Clamp;
 };
 
-struct CK_ScaleAddScaleAddReluOp
+template <> struct ElementwiseOpToCK<ElementwiseOperation::SCALEADD_SCALEADD_RELU>
 {
     using Op = ck::tensor_operation::element_wise::ScaleAddScaleAddRelu;
 };
 
-struct CK_BiasNormalizeInInferClampOp
+template <> struct ElementwiseOpToCK<ElementwiseOperation::BIAS_BNORM_CLAMP>
 {
     using Op = ck::tensor_operation::element_wise::BiasNormalizeInInferClamp;
 };
@@ -38,35 +46,11 @@ consteval auto GetElementwiseOp()
     if constexpr(HasTensorOp<decltype(TensorDesc)>)
     {
         constexpr auto op = TensorDesc.operation.elementwise_operation;
-        if constexpr(op == ElementwiseOperation::SCALE)
-        {
-            return CK_ScaleOp{};
-        }
-        else if constexpr(op == ElementwiseOperation::SCALEADD_SCALEADD_RELU)
-        {
-            return CK_ScaleAddScaleAddReluOp{};
-        }
-        else if constexpr(op == ElementwiseOperation::BIAS_BNORM_CLAMP)
-        {
-            return CK_BiasNormalizeInInferClampOp{};
-        }
-        else if constexpr(op == ElementwiseOperation::CLAMP)
-        {
-            return CK_ClampOp{};
-        }
-        else if constexpr(op == ElementwiseOperation::PASS_THROUGH)
-        {
-            return CK_PassThroughOp{};
-        }
-        else
-        {
-            static_assert(sizeof(UnsupportedEnumValue<op>) == 0,
-                          "Unsupported elementwise operation!");
-        }
+        return ElementwiseOpToCK<op>{};
     }
     else
     {
-        return CK_PassThroughOp{};
+        return ElementwiseOpToCK<ElementwiseOperation::PASS_THROUGH>{};
     }
 }
 
