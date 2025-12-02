@@ -575,7 +575,10 @@ struct MoeFlatmmKernel
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
-                return make_naive_tensor_view<address_space_enum::global>(
+                return make_naive_tensor_view<address_space_enum::global,
+                                              memory_operation_enum::set
+                                              // ,amd_buffer_coherence_enum::SYSTEM_NT1
+                                              >(
                     a_ptr,
                     make_tuple(IsInputGemm ? kargs.NumTokens : kargs.NumTokens * kargs.TopK,
                                splitk_batch_offset.splitted_k),
@@ -585,7 +588,10 @@ struct MoeFlatmmKernel
             }
             else
             {
-                return make_naive_tensor_view<address_space_enum::global>(
+                return make_naive_tensor_view<address_space_enum::global,
+                                              memory_operation_enum::set
+                                              // ,amd_buffer_coherence_enum::SYSTEM_NT1
+                                              >(
                     a_ptr,
                     make_tuple(splitk_batch_offset.splitted_k,
                                IsInputGemm ? kargs.NumTokens : kargs.NumTokens * kargs.TopK),
@@ -594,7 +600,8 @@ struct MoeFlatmmKernel
                     number<1>{});
             }
         }();
-
+ 
+#if 0
         index_t kFlatK = kargs.K * BlockGemmShape::WarpTile::at(I1); // TODO (support splitK)
         index_t kFlatN = kargs.N * kargs.K / kFlatK;
 
@@ -606,12 +613,71 @@ struct MoeFlatmmKernel
                 number<FlatmmPipeline::GetVectorSizeB()>{},
                 number<1>{});
         }();
+#else	
+
+        index_t kFlatK = 32 * 64; // TODO (support splitK) // Warp Tile [1] = 16 = warp_tile_n
+        index_t kFlatN0 = (kargs.N >> 4); // N / 16
+        index_t kFlatK0 = (kargs.K >> 7); // K / 32 / 4
+
+        const auto& b_flat_tensor_view = [&]() {
+            auto b_flat_tensor_view_naive = make_naive_tensor_view<address_space_enum::global>(
+                b_flat_ptr,
+                make_tuple(kFlatK0, kFlatN0, kFlatK),
+                make_tuple(kFlatK * kFlatN0, kFlatK, 1),
+                // make_tuple(kFlatN - kargs.n_padded_zeros / NPerXdl, kFlatK),
+                // make_tuple(kFlatK, 1),
+                number<FlatmmPipeline::GetVectorSizeB()>{},
+                number<1>{});
+            return transform_tensor_view(
+                b_flat_tensor_view_naive,
+                make_tuple(make_pass_through_transform(kFlatN0),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(kFlatK0,
+                                          kFlatK))),
+                make_tuple(sequence<1>{}, sequence<0, 2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+        }();
+#endif
+
+
+	// // printf("N %d, K %d\n", kargs.N, kargs.K);
+	// index_t block = 7;
+        // index_t kFlatN2 = kargs.N / 256;
+        // index_t kFlatN1 = 256 / 16;
+        // index_t kFlatN0 = 16;
+        // index_t kFlatK1 = kargs.K >> block;
+        // index_t kFlatK0 = kFlatN0 << block;
+
+        // const auto& b_flat_tensor_view = [&]() {
+        //     auto b_flat_tensor_view_naive = make_naive_tensor_view<address_space_enum::global>(
+        //         b_flat_ptr,
+        //         make_tuple(kFlatN2, kFlatK1, kFlatN1 - kargs.n_padded_zeros / NPerXdl, kFlatK0),
+        //         make_tuple(kFlatK0 * kFlatN1 * kFlatK1,kFlatK0 * kFlatN1, kFlatK0, 1),
+        //         // make_tuple(kFlatN - kargs.n_padded_zeros / NPerXdl, kFlatK),
+        //         // make_tuple(kFlatK, 1),
+        //         number<FlatmmPipeline::GetVectorSizeB()>{},
+        //         number<1>{});
+        //     return transform_tensor_view(
+        //         b_flat_tensor_view_naive,
+        //         make_tuple(make_merge_transform_v3_division_mod(
+        //                        make_tuple(kFlatN2,
+        //                                   kFlatN1)),
+        //                    make_merge_transform_v3_division_mod(
+        //                        make_tuple(kFlatK1,
+        //                                   kFlatK0))),
+        //         make_tuple(sequence<0,2>{}, sequence<1, 3>{}),
+        //         make_tuple(sequence<0>{}, sequence<1>{}));
+        // }();
+
 
         // TODO: enable vector write for C in ColMajor
         const auto& c_tensor_view = [&]() {
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
-                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
+                return make_naive_tensor_view<address_space_enum::global,
+                                              DstInMemOp
+                                              ,amd_buffer_coherence_enum::DEVICE_NT1
+                                              >(
                     e_ptr,
                     make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumTokens,
                                IsGateUp ? kargs.N / 2 : kargs.N),
@@ -621,7 +687,10 @@ struct MoeFlatmmKernel
             }
             else
             {
-                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
+                return make_naive_tensor_view<address_space_enum::global,
+                                              DstInMemOp
+                                              ,amd_buffer_coherence_enum::DEVICE_NT1
+                                              >(
                     e_ptr,
                     make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumToken,
                                IsGateUp ? kargs.N / 2 : kargs.N),
