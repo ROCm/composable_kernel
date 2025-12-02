@@ -144,22 +144,22 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
                     "      │  ├─ Spatial thread distribution over the data tile: 0×1×2\n"
                     "      │  ├─ The order of accessing data tile axes: 0×1×2\n"
                     "      │  ├─ Vectorized memory access axis index (with contiguous memory): 2\n"
-                    "      │  ├─ Vector access (GMEM read) instruction size: 8\n"
-                    "      │  ├─ Vector access (LDS write) instruction size: 8\n"
-                    "      │  └─ LDS data layout padding (to prevent bank conflicts): 8\n"
+                    "      │  ├─ Vector access (GMEM read) instruction size: 2\n"
+                    "      │  ├─ Vector access (LDS write) instruction size: 2\n"
+                    "      │  └─ LDS data layout padding (to prevent bank conflicts): 2\n"
                     "      ├─ B Tile transfer: \n"
                     "      │  ├─ Tile dimensions: 4×256×8×\n"
                     "      │  ├─ The innermost K subdimension size: 8\n"
                     "      │  ├─ Spatial thread distribution over the data tile: 0×1×2\n"
                     "      │  ├─ The order of accessing data tile axes: 0×1×2\n"
                     "      │  ├─ Vectorized memory access axis index (with contiguous memory): 2\n"
-                    "      │  ├─ Vector access (GMEM read) instruction size: 8\n"
-                    "      │  ├─ Vector access (LDS write) instruction size: 8\n"
-                    "      │  └─ LDS data layout padding (to prevent bank conflicts): 8\n"
+                    "      │  ├─ Vector access (GMEM read) instruction size: 2\n"
+                    "      │  ├─ Vector access (LDS write) instruction size: 2\n"
+                    "      │  └─ LDS data layout padding (to prevent bank conflicts): 2\n"
                     "      └─ C Tile transfer: \n"
                     "         ├─ Data shuffle (number of gemm instructions per iteration): 1×1\n"
                     "         ├─ Spatial thread distribution used to store data: 1×32×1×8\n"
-                    "         └─ Vector access (GMEM write) instruction size: 8"));
+                    "         └─ Vector access (GMEM write) instruction size: 2"));
 }
 
 // NOTE: BackwardDataInstanceHasDetailedDescription test is disabled because ConvFactory

@@ -46,7 +46,7 @@ constexpr BlockTransfer SetFwdConvBlockTransfer()
 struct CBlockTransfer
 {
     size_t m_xdl_per_wave_per_shuffle        = 0;
-    size_t n_per_wave_per_shuffle            = 0;
+    size_t n_xdl_per_wave_per_shuffle        = 0;
     ck::Array<size_t, 4> thread_cluster_dims = {0, 0, 0, 0};
     size_t scalar_per_vector                 = 0;
 };
@@ -58,7 +58,7 @@ constexpr CBlockTransfer SetCBlockTransfer()
     auto& epilogue_config     = ALGORITHM.transfer.c.epilogue;
     return CBlockTransfer{
         .m_xdl_per_wave_per_shuffle = epilogue_config.m_xdl_per_wave_per_shuffle,
-        .n_per_wave_per_shuffle     = epilogue_config.n_per_wave_per_shuffle,
+        .n_xdl_per_wave_per_shuffle = epilogue_config.n_per_wave_per_shuffle,
         .thread_cluster_dims =
             {
                 thread_cluster_dims.m_block,
