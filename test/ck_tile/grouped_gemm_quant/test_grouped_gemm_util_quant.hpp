@@ -183,11 +183,11 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             UseGroupedQuant,
             std::conditional_t<
                 QuantType == ck_tile::QuantType::AQuantGrouped,
-                ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+                ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
                 std::conditional_t<
                     PreshuffleB == true,
                     ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-                    ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>>,
+                    ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>>,
             ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
 
         const ck_tile::index_t k_grain = gemm_descs[0].k_batch * GroupedGemKernelParam::K_Tile;

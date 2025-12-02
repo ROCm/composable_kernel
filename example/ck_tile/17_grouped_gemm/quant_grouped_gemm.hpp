@@ -180,7 +180,7 @@ struct GemmQuantConfig<ck_tile::QuantType::AQuantGrouped>
     using GemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<GemmProblem>;
 
     template <typename GemmProblem, bool PreshuffleB = false>
-    using BaseGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmProblem>;
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmProblem>;
 };
 
 template <>
@@ -198,7 +198,7 @@ struct GemmQuantConfig<ck_tile::QuantType::BQuantGrouped>
     using BaseGemmPipeline =
         std::conditional_t<PreshuffleB == true,
                            ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmProblem>,
-                           ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<GemmProblem>>;
+                           ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmProblem>>;
 };
 
 using grouped_gemm_kargs = ck_tile::QuantGroupedGemmHostArgs;
