@@ -44,6 +44,24 @@ struct BatchnormFwdPipelineDefaultPolicy
                 sequence<0, 3>>{});
     }
 
+    // Simple 1D tile distribution for transformed [N×H×W] windows
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto Make1DBlockTileDistribution()
+    {
+        // For merged 1D data, use simple pass-through distribution
+        // All threads collaborate on the Block_N elements
+        using S = typename Problem::BlockShape;
+        
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
+                tuple<sequence<0>>,
+                tuple<sequence<0>>,
+                sequence<1>,
+                sequence<0>>{});
+    }
+
     // Calculate shared memory size
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()

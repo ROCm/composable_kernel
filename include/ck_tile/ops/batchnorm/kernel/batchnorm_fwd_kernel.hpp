@@ -14,11 +14,11 @@ namespace ck_tile {
 // Host-side arguments for batchnorm forward pass
 struct BatchnormFwdHostArgs
 {
-    const void* p_x;     // [N, C, H, W] input tensor (required)
+    const void* p_x;     // [N, H, W, C] input tensor (required, NHWC layout)
     const void* p_gamma; // [C] scale parameter (required, use all 1.0 if not needed)
     const void* p_beta;  // [C] bias parameter (required, use all 0.0 if not needed)
     
-    void* p_y;           // [N, C, H, W] output tensor (required)
+    void* p_y;           // [N, H, W, C] output tensor (required, NHWC layout)
     
     void* p_running_mean;     // [C] running mean (nullptr if not used)
     void* p_running_var;      // [C] running variance (nullptr if not used)
@@ -130,18 +130,20 @@ struct BatchnormFwd
         static constexpr index_t Block_M = BlockShape::Block_M;
         static constexpr index_t Block_N = BlockShape::Block_N;
         
-        // Create tensor views WITHOUT distributions (will be applied in pipeline)
+        // NHWC layout: channels are contiguous!
         const auto x_window = [&]() {
             const XDataType* p_x = static_cast<const XDataType*>(kargs.p_x);
-            const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                p_x + c * spatial_size,
-                make_tuple(N, spatial_size),
-                make_tuple(C * spatial_size, 1),
+            const XDataType* p_x_channel = p_x + c;  // Offset by c (channel stride = 1!)
+            
+            const auto x_view = make_naive_tensor_view<address_space_enum::global>(
+                p_x_channel,
+                make_tuple(N, spatial_size),  // [N, H×W]
+                make_tuple(spatial_size*C, C),  // NHWC strides: [H×W×C, C]
                 number<1>{},
                 number<1>{});
             
             const auto tmp2_ = pad_tensor_view(
-                tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<false, false>{});
+                x_view, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<false, false>{});
             
             return make_tile_window(tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {0, 0});
         }();
@@ -170,15 +172,17 @@ struct BatchnormFwd
         
         auto y_window = [&]() {
             YDataType* p_y = static_cast<YDataType*>(kargs.p_y);
-            const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                p_y + c * spatial_size,
-                make_tuple(N, spatial_size),
-                make_tuple(C * spatial_size, 1),
+            YDataType* p_y_channel = p_y + c;  // Offset by c (NHWC)
+            
+            const auto y_view = make_naive_tensor_view<address_space_enum::global>(
+                p_y_channel,
+                make_tuple(N, spatial_size),  // [N, H×W]
+                make_tuple(spatial_size*C, C),  // NHWC strides
                 number<1>{},
                 number<1>{});
             
             const auto tmp2_ = pad_tensor_view(
-                tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<false, false>{});
+                y_view, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<false, false>{});
             
             return make_tile_window(tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {0, 0});
         }();

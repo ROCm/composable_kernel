@@ -6,8 +6,8 @@
 #include <cstring>
 #include <iomanip>
 
-// Simple POC for batchnorm forward pass
-// Tests basic functionality with a small tensor
+// Batch normalization forward pass - NHWC layout
+// NOTE: Using NHWC (not NCHW) for contiguous channel access
 
 auto create_args(int argc, char* argv[])
 {
@@ -52,12 +52,13 @@ void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
             {
                 for(ck_tile::index_t w = 0; w < W; ++w)
                 {
-                    ck_tile::index_t idx = n * C * H * W + c * H * W + h * W + w;
+                    ck_tile::index_t idx = n*H*W*C + h*W*C + w*C + c;  // NHWC indexing
                     sum += ck_tile::type_convert<ComputeDataType>(x.mData[idx]);
                 }
             }
         }
         ComputeDataType mean = sum / static_cast<ComputeDataType>(per_channel_size);
+        
         
         // Compute variance across all N samples and H×W positions for this channel
         ComputeDataType var_sum = 0;
@@ -67,7 +68,7 @@ void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
             {
                 for(ck_tile::index_t w = 0; w < W; ++w)
                 {
-                    ck_tile::index_t idx = n * C * H * W + c * H * W + h * W + w;
+                    ck_tile::index_t idx = n*H*W*C + h*W*C + w*C + c;  // NHWC
                     ComputeDataType val = ck_tile::type_convert<ComputeDataType>(x.mData[idx]);
                     ComputeDataType diff = val - mean;
                     var_sum += diff * diff;
@@ -75,6 +76,13 @@ void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
             }
         }
         ComputeDataType variance = var_sum / static_cast<ComputeDataType>(per_channel_size);
+        
+        // DEBUG: Print reference variance
+        if(c < 4)
+        {
+            ComputeDataType inv_std = static_cast<ComputeDataType>(1.0) / std::sqrt(variance + epsilon);
+            std::cout << ", var=" << variance << ", inv_std=" << inv_std << std::endl;
+        }
         
         // Load gamma and beta for this channel
         ComputeDataType gamma_val = static_cast<ComputeDataType>(1.0);
@@ -100,7 +108,7 @@ void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
             {
                 for(ck_tile::index_t w = 0; w < W; ++w)
                 {
-                    ck_tile::index_t idx = n * C * H * W + c * H * W + h * W + w;
+                    ck_tile::index_t idx = n*H*W*C + h*W*C + w*C + c;  // NHWC
                     ComputeDataType val = ck_tile::type_convert<ComputeDataType>(x.mData[idx]);
                     ComputeDataType normalized = gamma_val * ((val - mean) * inv_std) + beta_val;
                     y.mData[idx] = ck_tile::type_convert<YDataType>(normalized);
@@ -129,13 +137,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "Batchnorm POC: N=" << N << ", C=" << C << ", H=" << H << ", W=" << W 
               << ", epsilon=" << epsilon << std::endl;
 
-    // Allocate host tensors
+    // Allocate host tensors in NHWC layout
     ck_tile::index_t total_size = N * C * H * W;
-    ck_tile::HostTensor<XDataType> x_host({N, C, H, W});
+    ck_tile::HostTensor<XDataType> x_host({N, H, W, C});  // NHWC!
     ck_tile::HostTensor<ComputeDataType> gamma_host({C});
     ck_tile::HostTensor<ComputeDataType> beta_host({C});
-    ck_tile::HostTensor<YDataType> y_host_ref({N, C, H, W});
-    ck_tile::HostTensor<YDataType> y_host_dev({N, C, H, W});
+    ck_tile::HostTensor<YDataType> y_host_ref({N, H, W, C});  // NHWC!
+    ck_tile::HostTensor<YDataType> y_host_dev({N, H, W, C});  // NHWC!
 
     // Fill input with random data
     ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
@@ -240,13 +248,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             std::cout << "Channel " << c << ":" << std::endl;
             
-            // Print 2 sample values from first sample (n=0)
-            for(ck_tile::index_t sample = 0; sample < 2 && sample < H * W; ++sample)
+            // Print 2 sample values from first sample (n=0, h=0, w=0,1)
+            for(ck_tile::index_t w = 0; w < 2; ++w)
             {
-                ck_tile::index_t idx = 0 * C * H * W + c * H * W + sample;
+                ck_tile::index_t idx = 0*H*W*C + 0*W*C + w*C + c;  // NHWC
                 float ref_val = ck_tile::type_convert<float>(y_host_ref.mData[idx]);
                 float dev_val = ck_tile::type_convert<float>(y_host_dev.mData[idx]);
-                std::cout << "  Sample[" << sample << "]: "
+                std::cout << "  Sample[" << w << "]: "
                           << "Ref=" << std::fixed << std::setprecision(6) << ref_val
                           << ", Kernel=" << dev_val
                           << ", Diff=" << std::abs(ref_val - dev_val) << std::endl;
