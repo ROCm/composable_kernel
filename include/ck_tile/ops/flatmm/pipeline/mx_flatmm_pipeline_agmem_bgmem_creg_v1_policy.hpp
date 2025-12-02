@@ -312,8 +312,8 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr auto flatKPerWarp = Problem::BlockGemmShape::flatKPerWarp;
 
         static_assert(std::decay_t<decltype(window_tmp)>::get_num_of_dimension() == 2);
-        auto&& tensro_view_tmp          = window_tmp.get_bottom_tensor_view();
-        const auto [flat_n, flat_k]     = tensro_view_tmp.get_tensor_descriptor().get_lengths();
+        auto&& tensor_view_tmp          = window_tmp.get_bottom_tensor_view();
+        const auto [flat_n, flat_k]     = tensor_view_tmp.get_tensor_descriptor().get_lengths();
         constexpr auto flat_k_per_block = kKPerBlock * M_Warp_Tile;
         auto&& byte_tensor_desc         = transform_tensor_descriptor(
             make_naive_tensor_descriptor_packed(make_tuple(
@@ -323,7 +323,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                            flat_k / flat_k_per_block, number<flat_k_per_block / BPackedSize>{}))),
             make_tuple(sequence<0>{}, sequence<1, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
-        auto&& byte_ptr = reinterpret_cast<const uint8_t*>(&(tensro_view_tmp.get_buffer_view()(0)));
+        auto&& byte_ptr = reinterpret_cast<const uint8_t*>(&(tensor_view_tmp.get_buffer_view()(0)));
         auto&& byte_tensor_view =
             make_tensor_view<address_space_enum::global>(byte_ptr, byte_tensor_desc);
         auto&& origin_tmp = window_tmp.get_window_origin();
