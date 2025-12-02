@@ -18,14 +18,10 @@ TEST(FwdConvInstances,
         .direction              = ConvDirection::FORWARD,
         .data_type              = DataType::BF16,
         .accumulation_data_type = DataType::FP32,
-        .input                  = ConvolutionTensor{.config = {.layout = TensorLayout::NGCW}},
-        .weight                 = ConvolutionTensor{.config =
-                                                        {
-                                                            .layout = TensorLayout::GKXC,
-                                        }},
-        .output                 = ConvolutionTensor{
-                            .config    = {.layout = TensorLayout::NGKW},
-                            .operation = TensorOperation<>{.elementwise_operation = ElementwiseOperation::SCALE}}};
+        .input                  = {.config = {.layout = TensorLayout::NGCW}},
+        .weight                 = {.config = {.layout = TensorLayout::GKXC}},
+        .output                 = {.config    = {.layout = TensorLayout::NGKW},
+                                   .operation = {.elementwise_operation = ElementwiseOperation::SCALE}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}

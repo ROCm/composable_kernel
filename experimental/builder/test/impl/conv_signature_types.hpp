@@ -40,7 +40,9 @@ struct ConvolutionTensor
     Op operation{};
 };
 
-template <typename InputTensor, typename WeightTensor, typename OutputTensor>
+template <typename InputTensor  = ConvolutionTensor<>,
+          typename WeightTensor = ConvolutionTensor<>,
+          typename OutputTensor = ConvolutionTensor<>>
 struct ConvSignature
 {
     int spatial_dim;

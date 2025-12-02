@@ -14,14 +14,13 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Instance_1D_FP32_ChannelsFirst_scale)
 {
-    constexpr ConvSignature FwdConvSignature{
-        .spatial_dim            = 1,
-        .direction              = ConvDirection::FORWARD,
-        .data_type              = DataType::I8,
-        .accumulation_data_type = DataType::INT32,
-        .input                  = ConvolutionTensor{.config = {.layout = TensorLayout::GNWC}},
-        .weight                 = ConvolutionTensor{.config = {.layout = TensorLayout::GKXC}},
-        .output                 = ConvolutionTensor{.config = {.layout = TensorLayout::GNWK}}};
+    constexpr ConvSignature FwdConvSignature{.spatial_dim            = 1,
+                                             .direction              = ConvDirection::FORWARD,
+                                             .data_type              = DataType::I8,
+                                             .accumulation_data_type = DataType::INT32,
+                                             .input  = {.config = {.layout = TensorLayout::GNWC}},
+                                             .weight = {.config = {.layout = TensorLayout::GKXC}},
+                                             .output = {.config = {.layout = TensorLayout::GNWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}
