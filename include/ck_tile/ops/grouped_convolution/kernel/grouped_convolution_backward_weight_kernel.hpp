@@ -643,8 +643,6 @@ struct GroupedConvolutionBackwardWeightKernel
                 CK_TILE_ERROR("ConvG must be a multiple of NumGroupsToMerge!");
                 return false;
             }
-
-            // TODO: Should we also check that GemmM <= MPerBlock and GemmN <= NPerBlock?
         }
 
         return true;
