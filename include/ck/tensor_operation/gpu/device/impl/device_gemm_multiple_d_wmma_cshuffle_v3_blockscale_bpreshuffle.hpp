@@ -1,5 +1,5 @@
-// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,9 +10,9 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_ab_scale.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3_ab_scale.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
@@ -25,18 +25,23 @@ namespace device {
 template <typename ALayout,
           typename BLayout,
           typename DsLayout,
-          typename ELayout,
+          typename CLayout,
           typename ADataType,
+          typename AScaleDataType,
           typename BDataType,
+          typename BScaleDataType,
           typename DsDataType,
-          typename EDataType,
+          typename CDataType,
           typename AccDataType,
           typename CShuffleDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CDEElementwiseOperation,
+          typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
           index_t BlockSize,
+          index_t ScaleBlockM, // scale block for M
+          index_t ScaleBlockN, // scale block for N
+          index_t ScaleBlockK, // scale block for K
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -62,43 +67,59 @@ template <typename ALayout,
           bool BBlockLdsExtraN,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
-          typename CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename CDEShuffleBlockTransferScalarPerVectors,
+          typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename CShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
-          typename ComputeTypeA                       = EDataType,
-          typename ComputeTypeB                       = ComputeTypeA>
-struct DeviceGemmMultiD_Wmma_CShuffle_V3_BPreshuffle
-    : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
-                                                  BLayout,
-                                                  DsLayout,
-                                                  ELayout,
-                                                  ADataType,
-                                                  BDataType,
-                                                  DsDataType,
-                                                  EDataType,
-                                                  AElementwiseOperation,
-                                                  BElementwiseOperation,
-                                                  CDEElementwiseOperation>
+          typename ComputeTypeA                       = CDataType,
+          typename ComputeTypeB                       = ComputeTypeA,
+          bool PermuteA                               = false,
+          bool PermuteB                               = false>
+struct DeviceGemmMultiD_BlockScale_Wmma_CShuffle_V3_BPreshuffle
+    : public DeviceGemmMultipleD_BlockScale_BPreshuffleSplitK<ALayout,
+                                                              BLayout,
+                                                              DsLayout,
+                                                              CLayout,
+                                                              ADataType,
+                                                              AScaleDataType,
+                                                              BDataType,
+                                                              BScaleDataType,
+                                                              DsDataType,
+                                                              CDataType,
+                                                              ScaleBlockM,
+                                                              ScaleBlockN,
+                                                              ScaleBlockK,
+                                                              AElementwiseOperation,
+                                                              BElementwiseOperation,
+                                                              CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
+    using AScaleLayout = tensor_layout::gemm::ColumnMajor;
+    using BScaleLayout = BLayout;
+
+    // GridwiseGemm
+    using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3_ab_scale<
         ALayout,
         BLayout,
         DsLayout,
-        ELayout,
+        CLayout,
         Tuple<ADataType>,
+        AScaleDataType,
         Tuple<BDataType>,
+        BScaleDataType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
-        EDataType,
+        CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
-        CDEElementwiseOperation,
+        CElementwiseOperation,
         GemmSpec,
         BlockSize,
+        ScaleBlockM,
+        ScaleBlockN,
+        ScaleBlockK,
         MPerBlock,
         NPerBlock,
         KPerBlock,
@@ -126,15 +147,17 @@ struct DeviceGemmMultiD_Wmma_CShuffle_V3_BPreshuffle
         BBlockLdsExtraN,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
-        CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CDEShuffleBlockTransferScalarPerVectors,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CShuffleBlockTransferScalarPerVectors,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
-        false,
-        false,
-        true>;
+        PermuteA,
+        PermuteB,
+        true,
+        AScaleLayout,
+        BScaleLayout>;
 
     using Argument = typename GridwiseGemm::Argument;
     int GetPreShuffleParameters() override { return NPerWmma; }
@@ -144,7 +167,7 @@ struct DeviceGemmMultiD_Wmma_CShuffle_V3_BPreshuffle
                                           Tuple<ADataType>,
                                           Tuple<BDataType>,
                                           DsDataType,
-                                          EDataType,
+                                          CDataType,
                                           MPerBlock,
                                           NPerBlock,
                                           KPerBlock,
@@ -152,7 +175,7 @@ struct DeviceGemmMultiD_Wmma_CShuffle_V3_BPreshuffle
                                           AK1,
                                           BK1,
                                           GemmSpec,
-                                          CDEShuffleBlockTransferScalarPerVectors,
+                                          CShuffleBlockTransferScalarPerVectors,
                                           BlkGemmPipeSched,
                                           BlkGemmPipelineVer,
                                           ComputeTypeA,
@@ -164,6 +187,13 @@ struct DeviceGemmMultiD_Wmma_CShuffle_V3_BPreshuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        // with splitk the implementation doesn't work
+        // when KRead % ScaleBlockK != 0, independently of K padding
+        if(arg.KBatch > 1 && arg.KRead % ScaleBlockK != 0)
+        {
+            return false;
+        }
+
         return DeviceGemmCommon::IsSupportedArgument(arg);
     }
 
@@ -182,24 +212,38 @@ struct DeviceGemmMultiD_Wmma_CShuffle_V3_BPreshuffle
                              index_t K,
                              index_t StrideA,
                              index_t StrideB,
-                             std::array<index_t, NumDTensor> StrideDs,
-                             index_t StrideE,
-                             index_t KBatch,
+                             const std::array<index_t, NumDTensor> StrideDs,
+                             index_t StrideC,
+                             const void* p_a_scale,
+                             const void* p_b_scale,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CDEElementwiseOperation cde_element_op)
+                             CElementwiseOperation cde_element_op,
+                             index_t KBatch)
     {
+        index_t StrideScaleA = ck::is_same_v<AScaleLayout, tensor_layout::gemm::RowMajor>
+                                   ? math::integer_divide_ceil(K, ScaleBlockK)
+                                   : math::integer_divide_ceil(M, ScaleBlockM);
+
+        index_t StrideScaleB = ck::is_same_v<BScaleLayout, ck::tensor_layout::gemm::ColumnMajor>
+                                   ? math::integer_divide_ceil(K, ScaleBlockK)
+                                   : math::integer_divide_ceil(N, ScaleBlockN);
+
         return Argument{std::array<const void*, 1>{p_a},
                         std::array<const void*, 1>{p_b},
                         p_ds,
-                        static_cast<EDataType*>(p_e),
+                        static_cast<CDataType*>(p_e),
                         M,
                         N,
                         K,
                         std::array<index_t, 1>{StrideA},
                         std::array<index_t, 1>{StrideB},
                         StrideDs,
-                        StrideE,
+                        StrideC,
+                        StrideScaleA,
+                        StrideScaleB,
+                        static_cast<const AScaleDataType*>(p_a_scale),
+                        static_cast<const BScaleDataType*>(p_b_scale),
                         KBatch,
                         a_element_op,
                         b_element_op,
@@ -219,28 +263,42 @@ struct DeviceGemmMultiD_Wmma_CShuffle_V3_BPreshuffle
                         index_t K,
                         index_t StrideA,
                         index_t StrideB,
-                        std::array<ck::index_t, NumDTensor> StrideDs,
-                        index_t StrideE,
-                        index_t KBatch,
+                        const std::array<ck::index_t, NumDTensor> StrideDs,
+                        index_t StrideC,
+                        const void* p_a_scale,
+                        const void* p_b_scale,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CDEElementwiseOperation cde_element_op) override
+                        CElementwiseOperation c_element_op,
+                        index_t KBatch) override
     {
+        index_t StrideScaleA = ck::is_same_v<AScaleLayout, tensor_layout::gemm::RowMajor>
+                                   ? math::integer_divide_ceil(K, ScaleBlockK)
+                                   : math::integer_divide_ceil(M, ScaleBlockM);
+
+        index_t StrideScaleB = ck::is_same_v<BScaleLayout, ck::tensor_layout::gemm::ColumnMajor>
+                                   ? math::integer_divide_ceil(K, ScaleBlockK)
+                                   : math::integer_divide_ceil(N, ScaleBlockN);
+
         return std::make_unique<Argument>(std::array<const void*, 1>{p_a},
                                           std::array<const void*, 1>{p_b},
                                           p_ds,
-                                          static_cast<EDataType*>(p_e),
+                                          static_cast<CDataType*>(p_e),
                                           M,
                                           N,
                                           K,
                                           std::array<index_t, 1>{StrideA},
                                           std::array<index_t, 1>{StrideB},
                                           StrideDs,
-                                          StrideE,
+                                          StrideC,
+                                          StrideScaleA,
+                                          StrideScaleB,
+                                          static_cast<const AScaleDataType*>(p_a_scale),
+                                          static_cast<const BScaleDataType*>(p_b_scale),
                                           KBatch,
                                           a_element_op,
                                           b_element_op,
-                                          cde_element_op);
+                                          c_element_op);
     }
 
     // polymorphic
@@ -266,28 +324,23 @@ struct DeviceGemmMultiD_Wmma_CShuffle_V3_BPreshuffle
             {BlockGemmPipelineVersion::v5, "v5"}};
 
         // clang-format off
-        str << "DeviceGemmMultipleD_BPreshuffle_Wmma_CShuffleV3"
+        str << "DeviceGemmMultiD_BlockScale_Wmma_CShuffle_V3_BPreshuffle"
             << "<"
             << getGemmSpecializationString(GemmSpec) << ", "
             << std::string(ALayout::name)[0]
-            << std::string(BLayout::name)[0];
-        static_for<0, NumDTensor, 1>{}([&](auto i) {
-            using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-
-            str << std::string(DLayout::name)[0];
-        });
-        str << std::string(ELayout::name)[0]
+            << std::string(BLayout::name)[0]
+            << std::string(CLayout::name)[0]
             << ">"
             << " BlkSize: "
             << BlockSize << ", "
             << "BlkTile: "
-            << MPerBlock << "x" << NPerBlock << "x" << KPerBlock << ", "
+            << MPerBlock<<"x"<<NPerBlock<<"x"<<KPerBlock << ", "
             << "WaveTile: "
-            << MPerWmma << "x"<<NPerWmma << ", "
+            << MPerWmma<<"x"<<NPerWmma << ", "
             << "WaveMap: "
-            << MRepeat << "x" << NRepeat << ", "
+            << MRepeat<<"x" << NRepeat<<", "
             << "VmemReadVec: "
-            << ABlockTransferSrcScalarPerVector << "x" << BBlockTransferSrcScalarPerVector << ", "
+            << ABlockTransferSrcScalarPerVector<<"x"<<BBlockTransferSrcScalarPerVector<<", "
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "

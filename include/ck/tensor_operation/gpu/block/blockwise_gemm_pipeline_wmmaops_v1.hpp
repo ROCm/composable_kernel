@@ -1191,7 +1191,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
               typename BBlockTransferStep,
               typename CThreadBuffer,
               typename AScaleStruct,
-              typename BScaleStruct>
+              typename BScaleStruct,
+              typename enable_if<ck::is_same_v<AScaleStruct, Empty>, bool>::type = false>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
                         ABlockTransfer& a_blockwise_copy,
@@ -1525,6 +1526,248 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
+        }
+    }
+
+    template <bool HasMainLoop,
+              TailNumber TailNum,
+              typename AGridDesc,
+              typename ABlockDesc,
+              typename ABlockTransfer,
+              typename AGridBuffer,
+              typename ABlockBuffer,
+              typename ABlockTransferStep,
+              typename BGridDesc,
+              typename BBlockDesc,
+              typename BBlockTransfer,
+              typename BGridBuffer,
+              typename BBlockBuffer,
+              typename BBlockTransferStep,
+              typename CThreadBuffer,
+              typename AScaleStruct,
+              typename BScaleStruct,
+              typename enable_if<!ck::is_same_v<AScaleStruct, Empty> &&
+                                     !ck::is_same_v<BScaleStruct, Empty>,
+                                 bool>::type = false>
+    __device__ void Run(const AGridDesc& a_grid_desc,
+                        const ABlockDesc& a_block_desc,
+                        ABlockTransfer& a_blockwise_copy,
+                        const AGridBuffer& a_grid_buf,
+                        ABlockBuffer& a_block_buf,
+                        const ABlockTransferStep& a_block_copy_step,
+                        const BGridDesc& b_grid_desc,
+                        const BBlockDesc&,
+                        BBlockTransfer& b_blockwise_copy,
+                        const BGridBuffer& b_grid_buf,
+                        BBlockBuffer&,
+                        const BBlockTransferStep& b_block_copy_step,
+                        CThreadBuffer& c_thread_buf,
+                        AScaleStruct& a_scale_struct,
+                        BScaleStruct& b_scale_struct,
+                        index_t num_loop,
+                        index_t num_loop_per_scale) const
+    {
+        __builtin_amdgcn_sched_barrier(0);
+        constexpr index_t KPerWaveBlock = wmma_gemm.GetKPerWaveBlk();
+        static constexpr auto NumScaleKBlock =
+            Number<ck::math::max(AScaleStruct::num_slice_k, BScaleStruct::num_slice_k)>{};
+
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
+            a_thread_desc_.GetElementSpaceSize());
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeB>(
+            b_thread_desc_.GetElementSpaceSize());
+
+        StaticallyIndexedArray<decltype(b_thread_buf), Number<2>{}> b_thread_bufs;
+        constexpr auto b_block_origin_idx = make_tuple(I0, I0, I0, I0, I0, I0, I0);
+
+        using CScaleStruct  = typename Base::template CScale<AScaleStruct, BScaleStruct>;
+        auto c_scale_struct = CScaleStruct{};
+
+        auto gemm_core_func = [&](auto reg_buf) {
+            static_for<0, MRepeat, 1>{}([&](auto m0) {
+                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NumScaleKBlock, 1>{}([&](auto kscale0) {
+                        c_scale_struct.Clear();
+                        static_for<0, KRepeat / NumScaleKBlock, 1>{}([&](auto k0) {
+                            vector_type<ComputeTypeA, KPack / A_KRow / KInner> a_thread_vec;
+                            vector_type<ComputeTypeB, KPack / B_KRow / KInner> b_thread_vec;
+                            static_for<0, KInner, 1>{}([&](auto k_inner) {
+                                static_for<0, KPack / A_KRow / KInner, 1>{}([&](auto ik) {
+                                    constexpr index_t kk = ik + k_inner * KPerWaveBlock;
+                                    constexpr index_t k_index =
+                                        kscale0 * (KRepeat / NumScaleKBlock) + k0;
+                                    a_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                                        a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                            make_tuple(Number<kk / A_K1>{},
+                                                       m0,
+                                                       k_index,
+                                                       I0,
+                                                       I0,
+                                                       I0,
+                                                       Number<kk % A_K1>{}))>{}];
+                                });
+                                static_for<0, KPack / B_KRow / KInner, 1>{}([&](auto ik) {
+                                    constexpr index_t kk = ik + k_inner * KPerWaveBlock;
+                                    constexpr index_t k_index =
+                                        kscale0 * (KRepeat / NumScaleKBlock) + k0;
+                                    b_thread_vec.template AsType<ComputeTypeB>()(ik) =
+                                        b_thread_bufs[reg_buf]
+                                                     [Number<b_thread_desc_.CalculateOffset(
+                                                         make_tuple(Number<kk / B_K1>{},
+                                                                    I0,
+                                                                    I0,
+                                                                    n0,
+                                                                    I0,
+                                                                    k_index,
+                                                                    Number<kk % B_K1>{}))>{}];
+                                });
+                                using wmma_input_type_a =
+                                    typename vector_type<ComputeTypeA, WmmaK / A_KRow>::type;
+                                using wmma_input_type_b =
+                                    typename vector_type<ComputeTypeB, WmmaK / B_KRow>::type;
+                                wmma_gemm.Run(
+                                    a_thread_vec.template AsType<wmma_input_type_a>(),
+                                    b_thread_vec.template AsType<wmma_input_type_b>(),
+                                    c_scale_struct.c_thread_buf_per_scale.GetVectorTypeReference(
+                                        Number<0>{}));
+                            });
+                        });
+                        c_scale_struct.template UpdateCThreadBuf<kscale0, m0, n0>(c_thread_buf);
+                    });
+                });
+            });
+        };
+
+        auto a_local_prefetch_func = [&]() {
+            static_for<0, MRepeat, 1>{}([&](auto m0) {
+                static_for<0, KRepeat, 1>{}([&](auto k0) {
+                    a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
+                                       make_tuple(I0, m0, k0, I0, I0, I0, I0),
+                                       a_block_buf,
+                                       a_thread_desc_,
+                                       make_tuple(I0, m0, k0, I0, I0, I0, I0),
+                                       a_thread_buf);
+                });
+            });
+        };
+
+        // Global prefetch A1 B1
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+        b_blockwise_copy.Run(b_grid_desc,
+                             b_grid_buf,
+                             b_block_desc_k0_n0_n1_n2_k1,
+                             b_block_origin_idx,
+                             b_thread_bufs(I0));
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+        // Scales global load
+        a_scale_struct.template GlobalLoad<0>(num_loop_per_scale == 1);
+        b_scale_struct.template GlobalLoad<0>(num_loop_per_scale == 1);
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        c_scale_struct.Load(a_scale_struct, b_scale_struct);
+
+        // Local prefill A1
+        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
+
+        // Global prefetch A2
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+
+        // Local prefetch A1
+        block_sync_lds();
+        a_local_prefetch_func();
+
+        // Initialize C
+        c_thread_buf.Clear();
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        // main body
+        if constexpr(HasMainLoop)
+        {
+            index_t i = 0;
+            do
+            {
+                auto LoopFunc = [&](auto wmma_reg_buf, auto local_read_buf) {
+                    b_blockwise_copy.Run(b_grid_desc,
+                                         b_grid_buf,
+                                         b_block_desc_k0_n0_n1_n2_k1,
+                                         b_block_origin_idx,
+                                         b_thread_bufs(local_read_buf));
+
+                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+                    block_sync_lds();
+
+                    a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, wmma_reg_buf);
+
+                    a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, local_read_buf);
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+
+                    a_scale_struct.template GlobalLoad<0>(
+                        (i + 2 + wmma_reg_buf) % num_loop_per_scale == 0);
+                    b_scale_struct.template GlobalLoad<0>(
+                        (i + 2 + wmma_reg_buf) % num_loop_per_scale == 0);
+
+                    gemm_core_func(wmma_reg_buf);
+
+                    block_sync_lds();
+
+                    // loop prefetch copy
+                    a_local_prefetch_func();
+
+                    c_scale_struct.Load(a_scale_struct, b_scale_struct);
+
+                    // HotLoopScheduler();
+                    __builtin_amdgcn_sched_barrier(0);
+                };
+
+                LoopFunc(I0, I1);
+                LoopFunc(I1, I0);
+
+                i += 2;
+            } while(i < (num_loop - 2));
+        }
+
+        // tail
+        if constexpr(TailNum == TailNumber::Even)
+        {
+            b_blockwise_copy.Run(b_grid_desc,
+                                 b_grid_buf,
+                                 b_block_desc_k0_n0_n1_n2_k1,
+                                 b_block_origin_idx,
+                                 b_thread_bufs(I1));
+
+            block_sync_lds();
+
+            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
+
+            a_scale_struct.template GlobalLoad<0>(num_loop % num_loop_per_scale == 0);
+            b_scale_struct.template GlobalLoad<0>(num_loop % num_loop_per_scale == 0);
+
+            gemm_core_func(I0);
+
+            block_sync_lds();
+
+            // tail Local Prefetch A1
+            a_local_prefetch_func();
+
+            c_scale_struct.Load(a_scale_struct, b_scale_struct);
+
+            __builtin_amdgcn_sched_barrier(0);
+
+            gemm_core_func(I1);
+            // Let's leak last WMMA block to epilogue region, cover the potential lds-shuffle
+            // latency
+            // __builtin_amdgcn_sched_barrier(0);
+        }
+        else if constexpr(TailNum == TailNumber::Odd)
+        {
+            gemm_core_func(I0);
         }
     }
 
