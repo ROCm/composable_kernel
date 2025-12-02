@@ -8,6 +8,7 @@
 #include <ck_tile/builder/conv_factory.hpp>
 #include <ck_tile/builder/conv_signature_concepts.hpp>
 #include <ck_tile/builder/reflect/instance_traits.hpp>
+#include <ck_tile/builder/reflect/instance_traits_util.hpp>
 #include <ck_tile/builder/types.hpp>
 #include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
 #include <ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp>
