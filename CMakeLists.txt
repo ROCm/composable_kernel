@@ -47,7 +47,7 @@ option(FORCE_DISABLE_WMMA "Skip compiling WMMA specific instances (even if suppo
 
 if(CK_EXPERIMENTAL_BUILDER)
     add_definitions(-DCK_EXPERIMENTAL_BUILDER)
-    include_directories(${PROJECT_SOURCE_DIR}/experimental/builder/include)  
+    include_directories(${PROJECT_SOURCE_DIR}/experimental/builder/include)
 endif()
 
 # Usage: for customized Python location cmake -DCK_USE_ALTERNATIVE_PYTHON="/opt/Python-3.8.13/bin/python3.8"
@@ -743,6 +743,13 @@ rocm_install(FILES
     ${PROJECT_BINARY_DIR}/include/ck/config.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck/
 )
+
+if(CK_EXPERIMENTAL_BUILDER)
+    rocm_install(DIRECTORY
+        ${PROJECT_SOURCE_DIR}/experimental/builder/include/ck_tile/builder
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile
+    )
+endif()
 
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_RPM_PACKAGE_LICENSE "MIT")
