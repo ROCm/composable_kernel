@@ -14,14 +14,38 @@
 #include "ck_tile/ops/grouped_convolution/utils/transform_conv_bwd_weight_to_gemm.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
 
+#include "ck_tile/ops/grouped_convolution/utils/split_k_utils.hpp"
+
 #ifdef CK_EXPERIMENTAL_BUILDER
 #include "ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_backward_weight.hpp"
 #endif
 
 namespace ck_tile {
 
+template <
+    typename GroupedConvTraitsType_, 
+    typename TilePartitioner_, 
+    typename GemmPipeline_,
+    typename EpiloguePipeline_>
+struct ActiveWorkgroupsPerCU
+{
+    CK_TILE_HOST ActiveWorkgroupsPerCU()
+    {
+        using Kernel = GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType_,
+                                                              TilePartitioner_,
+                                                              GemmPipeline_,
+                                                              EpiloguePipeline_>;
+
+        using KernelArgs = GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_, TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+
+        max_occupancy_ = get_max_active_workgroups_per_cu<Kernel, KernelArgs, GemmPipeline_::BlockSize>();
+    }
+
+    index_t max_occupancy_{1};
+};
+
 /// @brief The Grouped Convolution kernel device arguments.
-template <typename GroupedConvTraitsType_>
+template <typename GroupedConvTraitsType_, typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GroupedConvBwdWeightKernelArgs
 {
 
@@ -33,6 +57,36 @@ struct GroupedConvBwdWeightKernelArgs
                                      GroupedConvTraitsType_::VectorSizeC,
                                      GroupedConvTraitsType_::NumGroupsToMerge>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
+
+    CK_TILE_HOST index_t TryGetOptimalKBatch(index_t k_batch_value, index_t gemmM, index_t gemmN, index_t gemm_batch) const
+    {
+        static ActiveWorkgroupsPerCU<GroupedConvTraitsType_, TilePartitioner_, GemmPipeline_, EpiloguePipeline_> active_workgroups_per_cu;
+
+        index_t optimal_k_batch = k_batch_value;
+        if (optimal_k_batch < 0)
+        {
+            const auto grid_size = TilePartitioner_::GridSize(gemmM, gemmN) * gemm_batch;
+            optimal_k_batch = get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_,
+                                                        grid_size);
+
+            // TODO: Upper limit for the k_batch value?
+
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << optimal_k_batch
+                            << std::endl;
+            }
+        }
+        else 
+        {
+            if (ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                std::cout << "Using user defined k_batch: " << optimal_k_batch << std::endl;
+            }
+        }
+
+        return optimal_k_batch;
+    }
 
     template <
         typename InLay                      = typename GroupedConvTraitsType_::InLayout,
@@ -61,8 +115,6 @@ struct GroupedConvBwdWeightKernelArgs
         conv_filter_dilations = {static_cast<index_t>(args.conv_filter_dilations_[0])};
         input_left_pads       = {static_cast<index_t>(args.input_left_pads_[0])};
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0])};
-
-        k_batch = args.k_batch;
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -110,6 +162,8 @@ struct GroupedConvBwdWeightKernelArgs
                       << ", GemmBatch: " << GemmBatch
                       << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
         }
+
+        k_batch = TryGetOptimalKBatch(args.k_batch, GemmM, GemmN, GemmBatch);
     }
 
     template <
@@ -146,8 +200,6 @@ struct GroupedConvBwdWeightKernelArgs
                                  static_cast<index_t>(args.input_left_pads_[1])};
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0]),
                                  static_cast<index_t>(args.input_right_pads_[1])};
-
-        k_batch = args.k_batch;
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -195,6 +247,8 @@ struct GroupedConvBwdWeightKernelArgs
                       << ", GemmBatch: " << GemmBatch
                       << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
         }
+
+        k_batch = TryGetOptimalKBatch(args.k_batch, GemmM, GemmN, GemmBatch);
     }
 
     template <
@@ -238,8 +292,6 @@ struct GroupedConvBwdWeightKernelArgs
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0]),
                                  static_cast<index_t>(args.input_right_pads_[1]),
                                  static_cast<index_t>(args.input_right_pads_[2])};
-
-        k_batch = args.k_batch;
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -287,6 +339,8 @@ struct GroupedConvBwdWeightKernelArgs
                       << ", GemmBatch: " << GemmBatch
                       << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
         }
+
+        k_batch = TryGetOptimalKBatch(args.k_batch, GemmM, GemmN, GemmBatch);
     }
 
     using ABCGridDescs = remove_cvref_t<
@@ -396,9 +450,8 @@ struct GroupedConvolutionBackwardWeightKernel
     using WeiDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     using GroupedConvBwdWeightKernelArgsSpecialized =
-        GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_>;
+        GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_, TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
 
-    // TODO: Enable this
     static constexpr bool IsSplitKSupported = true;
 
     static constexpr auto I0 = number<0>();
@@ -510,14 +563,13 @@ struct GroupedConvolutionBackwardWeightKernel
     IsSupportedArgument(const GroupedConvBwdWeightKernelArgsSpecialized& kargs)
     {
         if constexpr((GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                      is_any_of<WeiDataType, fp16_t, bf16_t>::value) ||
-                     !IsSplitKSupported)
+                      is_any_of<WeiDataType, fp16_t, bf16_t>::value))
         {
             if(kargs.k_batch != 1)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    CK_TILE_ERROR("Conditions not met for Kbatch >1 !");
+                    CK_TILE_ERROR("Conditions not met for K_batch > 1!");
                 }
                 return false;
             }

@@ -81,7 +81,9 @@ struct GroupedConvolutionBackwardWeightInvoker
                                       1,
                                       std::multiplies<ck_tile::index_t>());
 
-        const ck_tile::index_t k_grain     = args.k_batch * ConvConfig::K_Tile;
+        // TODO: What is the best way to calculate K_split for split-K autodeduction?
+        const ck_tile::index_t k_batch_eff = args.k_batch > 0 ? args.k_batch : 1;
+        const ck_tile::index_t k_grain     = k_batch_eff * ConvConfig::K_Tile;
         const ck_tile::index_t K_split     = (gemm_k + k_grain - 1) / k_grain * ConvConfig::K_Tile;
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
