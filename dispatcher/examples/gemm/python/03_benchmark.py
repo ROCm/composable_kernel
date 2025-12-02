@@ -5,8 +5,7 @@
 """
 Example 03: Benchmark
 
-Performance benchmarking with explicit Registry and Dispatcher.
-Shows compute-optimized kernel configuration.
+Performance benchmarking with compute-optimized kernel configuration.
 
 Complexity: ★★★☆☆
 
@@ -17,19 +16,20 @@ Usage:
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
 import numpy as np
 
 from ctypes_utils import (
     KernelConfig,
-    CodegenRunner,
-    DispatcherLib,
-    Registry,
-    Dispatcher,
+    setup_gemm_dispatcher,
+    cleanup_gemm,
+    reset_for_example,
 )
 
 
 def main():
+    reset_for_example()
+
     print("=" * 60)
     print("Example 03: Benchmark")
     print("=" * 60)
@@ -40,50 +40,30 @@ def main():
     K = int(sys.argv[3]) if len(sys.argv) > 3 else 0
 
     # =========================================================================
-    # Step 1: Define compute-optimized kernel config
+    # Step 1: Setup dispatcher with compute-optimized config
     # =========================================================================
-    print("\nStep 1: Define KernelConfig (compute-optimized)")
+    print("\nStep 1: Setup Dispatcher")
 
     config = KernelConfig(
+        dtype_a="bf16",
         tile_m=128,
         tile_n=128,
         tile_k=32,
-        wave_m=2,
-        wave_n=2,
-        wave_k=1,
-        block_size=256,
         pipeline="compv4",
         scheduler="intrawave",
-        pad_m=True,
-        pad_n=True,
-        pad_k=True,
     )
-    print(f"  Tile: {config.tile_str}")
-    print(f"  Pipeline: {config.pipeline}/{config.scheduler}")
 
-    # =========================================================================
-    # Step 2: Setup registry and dispatcher
-    # =========================================================================
-    print("\nStep 2: Setup")
-
-    codegen = CodegenRunner()
-    codegen.generate_from_config(config)
-
-    lib = DispatcherLib.auto()
-    if lib is None:
-        print("  ERROR: Could not load library")
+    setup = setup_gemm_dispatcher(config, registry_name="benchmark", verbose=True)
+    if not setup.success:
+        print(f"  ERROR: {setup.error}")
         return 1
 
-    registry = Registry(name="benchmark", lib=lib)
-    registry.register_kernel(config)
-
-    dispatcher = Dispatcher(registry=registry, lib=lib)
-    print(f"  {dispatcher}")
+    dispatcher = setup.dispatcher
 
     # =========================================================================
-    # Step 3: Define benchmark sizes
+    # Step 2: Benchmark
     # =========================================================================
-    print("\nStep 3: Benchmark")
+    print("\nStep 2: Benchmark")
 
     if M > 0 and N > 0 and K > 0:
         sizes = [(M, N, K)]
@@ -129,14 +109,14 @@ def main():
             avg_time = sum(times) / len(times)
             tflops = (2.0 * M * N * K / (avg_time * 1e-3)) / 1e12
             all_tflops.append(tflops)
-
             print(
                 f"  {M:>4}x{N:>4}x{K:<4} | {min_time:>10.4f} | {avg_time:>10.4f} | {tflops:>10.2f}"
             )
 
-    # =========================================================================
+    # Cleanup
+    cleanup_gemm()
+
     # Summary
-    # =========================================================================
     print("\n" + "=" * 60)
     print("Summary")
     print("=" * 60)

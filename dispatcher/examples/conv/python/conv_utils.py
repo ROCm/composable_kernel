@@ -82,6 +82,217 @@ def get_codegen_dir() -> Path:
 
 
 # =============================================================================
+# ARCH FILTER AND VALIDATION
+# =============================================================================
+
+
+def get_arch_filter_data() -> Dict[str, Any]:
+    """Load arch filter data from arch_specs_generated if available."""
+    codegen_dir = get_dispatcher_root() / "codegen"
+    import sys
+
+    sys.path.insert(0, str(codegen_dir))
+
+    try:
+        from arch_specs_generated import (
+            TRAIT_UNSUPPORTED_COMBINATIONS,
+            WARP_SUPPORTED_COMBINATIONS,
+            WARP_TILE_SUPPORTED_COMBINATIONS,
+            get_supported_archs,
+        )
+
+        return {
+            "trait_unsupported": TRAIT_UNSUPPORTED_COMBINATIONS,
+            "warp_combos": WARP_SUPPORTED_COMBINATIONS,
+            "warp_tile_combos": WARP_TILE_SUPPORTED_COMBINATIONS,
+            "supported_archs": get_supported_archs(),
+        }
+    except ImportError:
+        # Fallback defaults
+        return {
+            "trait_unsupported": {
+                ("compv3", "cshuffle", "interwave"),
+                ("compv3", "default", "interwave"),
+                ("compv4", "cshuffle", "interwave"),
+                ("compv4", "default", "interwave"),
+            },
+            "warp_combos": {
+                "gfx942": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
+            },
+            "warp_tile_combos": {
+                "gfx942": {"fp16_fp16_fp16": [[16, 16, 16], [32, 32, 16]]},
+            },
+            "supported_archs": ["gfx90a", "gfx942", "gfx950"],
+        }
+
+
+@dataclass
+class ConvValidationResult:
+    """Result of conv kernel config validation."""
+
+    is_valid: bool
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    suggested_fixes: Dict[str, Any] = field(default_factory=dict)
+
+    def print_result(self, indent: str = "  "):
+        """Print validation result."""
+        if self.is_valid:
+            print(f"{indent}✓ Conv configuration valid")
+        else:
+            print(f"{indent}⚠ Conv configuration has issues:")
+            for err in self.errors:
+                print(f"{indent}  - {err}")
+
+        if self.warnings:
+            for warn in self.warnings:
+                print(f"{indent}  Warning: {warn}")
+
+        if self.suggested_fixes:
+            print(f"{indent}  Suggested fixes:")
+            for key, val in self.suggested_fixes.items():
+                print(f"{indent}    {key}: {val}")
+
+
+def validate_conv_config(
+    pipeline: str = "compv3",
+    scheduler: str = "intrawave",
+    epilogue: str = "cshuffle",
+    wave_m: int = 2,
+    wave_n: int = 2,
+    wave_k: int = 1,
+    warp_m: int = 32,
+    warp_n: int = 32,
+    warp_k: int = 16,
+    dtype: str = "fp16",
+    arch: str = "gfx942",
+) -> ConvValidationResult:
+    """
+    Validate a conv kernel configuration against arch filter rules.
+
+    Returns ConvValidationResult with is_valid, errors, and suggested fixes.
+    """
+    arch_data = get_arch_filter_data()
+
+    errors = []
+    warnings = []
+    suggested_fixes = {}
+
+    # Check trait combination (pipeline, epilogue, scheduler)
+    combo = (pipeline, epilogue, scheduler)
+    if combo in arch_data["trait_unsupported"]:
+        errors.append(
+            f"Unsupported trait combination: pipeline={pipeline}, epilogue={epilogue}, scheduler={scheduler}"
+        )
+        suggested_fixes["scheduler"] = "intrawave"
+
+    # Check wave configuration for this arch
+    warp_combos = arch_data["warp_combos"].get(arch, [[2, 2, 1]])
+    wave_cfg = [wave_m, wave_n, wave_k]
+    if wave_cfg not in warp_combos:
+        valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_combos)
+        errors.append(
+            f"Unsupported wave configuration [{wave_m},{wave_n},{wave_k}] for {arch}. Valid: {valid_str}"
+        )
+        if warp_combos:
+            suggested_fixes["wave_m"] = warp_combos[0][0]
+            suggested_fixes["wave_n"] = warp_combos[0][1]
+            suggested_fixes["wave_k"] = warp_combos[0][2]
+
+    # Check warp tile configuration for this arch and dtype
+    dtype_key = f"{dtype}_{dtype}_{dtype}"
+    warp_tile_combos = (
+        arch_data["warp_tile_combos"]
+        .get(arch, {})
+        .get(dtype_key, [[32, 32, 16], [16, 16, 16]])
+    )
+    warp_cfg = [warp_m, warp_n, warp_k]
+    if warp_cfg not in warp_tile_combos:
+        valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_tile_combos[:5])
+        errors.append(
+            f"Unsupported warp tile [{warp_m},{warp_n},{warp_k}] for {arch}/{dtype}. Valid: {valid_str}"
+        )
+        if warp_tile_combos:
+            suggested_fixes["warp_m"] = warp_tile_combos[0][0]
+            suggested_fixes["warp_n"] = warp_tile_combos[0][1]
+            suggested_fixes["warp_k"] = warp_tile_combos[0][2]
+
+    # Check arch is supported
+    if arch not in arch_data["supported_archs"]:
+        errors.append(
+            f"Unsupported architecture: {arch}. Supported: {', '.join(arch_data['supported_archs'])}"
+        )
+
+    return ConvValidationResult(
+        is_valid=len(errors) == 0,
+        errors=errors,
+        warnings=warnings,
+        suggested_fixes=suggested_fixes,
+    )
+
+
+def find_matching_conv_kernel_header(
+    dtype: str = "fp16",
+    conv_type: str = "forward",
+    ndim: int = 2,
+    pipeline: str = "compv3",
+    scheduler: str = "intrawave",
+    tile_k: int = 128,
+    tile_c: int = 128,
+    wave_m: int = 2,
+    wave_n: int = 2,
+    wave_k: int = 1,
+) -> Optional[Path]:
+    """
+    Find a conv kernel header that matches the config.
+
+    Uses flexible matching strategies.
+    """
+    kernel_dir = get_generated_kernels_dir()
+
+    # Map conv_type to prefix
+    if conv_type == "forward":
+        type_prefix = "fwd"
+    elif conv_type == "bwd_data":
+        type_prefix = "bwdd"
+    elif conv_type == "bwd_weight":
+        type_prefix = "bwdw"
+    else:
+        type_prefix = conv_type
+
+    tile_str = f"{tile_k}x{tile_c}"
+    wave_str = f"{wave_m}x{wave_n}x{wave_k}"
+
+    # Strategy 1: Exact match
+    pattern = f"conv_{type_prefix}_{dtype}_{ndim}d_{pipeline}_*_{scheduler}_*{tile_str}*_{wave_str}.hpp"
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        return matches[0]
+
+    # Strategy 2: Match with just tile
+    pattern = (
+        f"conv_{type_prefix}_{dtype}_{ndim}d_{pipeline}_*_{scheduler}_*{tile_str}*.hpp"
+    )
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        return matches[0]
+
+    # Strategy 3: Match with intrawave
+    pattern = f"conv_{type_prefix}_{dtype}_{ndim}d_*_intrawave_*{tile_str}*.hpp"
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        return matches[0]
+
+    # Strategy 4: Any kernel with matching type/dtype/ndim
+    pattern = f"conv_{type_prefix}_{dtype}_{ndim}d_*.hpp"
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        return matches[0]
+
+    return None
+
+
+# =============================================================================
 # ENUMS (matching conv_config.hpp)
 # =============================================================================
 
@@ -1404,7 +1615,7 @@ class GpuConvRunner:
                         problem.N * problem.Ho * problem.Wo * problem.G * problem.K
                     )
 
-            output_size = output_elements * 2  # fp16
+            output_size = output_elements * input_np.dtype.itemsize
 
             # Allocate GPU memory
             input_dev = ctypes.c_void_p()
@@ -1913,7 +2124,7 @@ class GpuConvBwdWeightRunner:
             grad_weight_elements = (
                 problem.G * problem.K * problem.Y * problem.X * problem.C
             )
-            grad_weight_size = grad_weight_elements * 2  # fp16
+            grad_weight_size = grad_weight_elements * input_np.dtype.itemsize
 
             # Allocate GPU memory
             input_dev = ctypes.c_void_p()
@@ -1969,3 +2180,101 @@ class GpuConvBwdWeightRunner:
                 self._lib.cleanup()
             except Exception:
                 pass
+
+
+# =============================================================================
+# HIGH-LEVEL HELPER FUNCTIONS
+# =============================================================================
+
+
+@dataclass
+class ConvSetupResult:
+    """Result of setup_conv_dispatcher"""
+
+    success: bool
+    dispatcher: Optional[ConvDispatcher] = None
+    lib: Optional[ConvDispatcherLib] = None
+    config: Optional[ConvKernelConfig] = None
+    error: str = ""
+
+
+def setup_conv_dispatcher(
+    direction: str = "forward",
+    dtype: str = "fp16",
+    dims: int = 2,
+    tile_n: int = 1,
+    tile_k: int = 128,
+    tile_c: int = 128,
+    verbose: bool = True,
+) -> ConvSetupResult:
+    """
+    High-level helper to setup a Conv dispatcher.
+
+    Args:
+        direction: "forward", "bwd_data", or "bwd_weight"
+        dtype: Data type ("fp16", "bf16", "fp32")
+        dims: Spatial dimensions (2 or 3)
+        tile_n, tile_k, tile_c: Tile sizes
+        verbose: Print progress messages
+
+    Returns:
+        ConvSetupResult with dispatcher, lib, etc.
+    """
+    result = ConvSetupResult(success=False)
+
+    def log(msg):
+        if verbose:
+            print(msg)
+
+    # Create config
+    log("  Creating config...")
+    sig = ConvSignature().dtype(dtype).layout("nhwgc").conv_type(direction).dims(dims)
+    algo = (
+        ConvAlgorithm()
+        .tile(tile_n, tile_k, tile_c)
+        .wave(2, 2, 1)
+        .warp(32, 32, 16)
+        .pipeline("compv3")
+    )
+    arch = ArchInfo(name="gfx942")
+
+    config = ConvKernelConfig(signature=sig, algorithm=algo, arch=arch)
+    result.config = config
+
+    # Load library
+    log("  Loading library...")
+    lib = ConvDispatcherLib.find()
+    if lib is None:
+        result.error = (
+            "Could not find dispatcher library. Build with: make dispatcher_conv_lib"
+        )
+        return result
+    result.lib = lib
+
+    # Create dispatcher
+    log("  Creating dispatcher...")
+    dispatcher = ConvDispatcher(lib=lib)
+    result.dispatcher = dispatcher
+
+    log(f"  ✓ Ready: {direction} {dims}D {dtype}")
+
+    result.success = True
+    return result
+
+
+def cleanup_conv():
+    """
+    Cleanup function to call after running Conv examples.
+    """
+    import gc
+
+    gc.collect()
+
+
+def reset_for_conv_example(verbose: bool = False):
+    """
+    Reset state for a fresh Conv example run.
+    """
+    cleanup_conv()
+    if verbose:
+        print("  State reset for Conv example")

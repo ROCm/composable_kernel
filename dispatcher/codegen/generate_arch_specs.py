@@ -77,6 +77,14 @@ def generate_python_module(specs: Dict[str, Any], output_path: Path):
         k: v for k, v in pipeline_limits.items() if not k.startswith("_")
     }
 
+    # Build dtype combinations dict
+    dtype_combos = specs.get("dtype_combinations", {})
+    dtype_combos_str = "{\n"
+    for key, info in dtype_combos.items():
+        if not key.startswith("_"):
+            dtype_combos_str += f'    "{key}": {{"acc": "{info["acc"]}", "notes": "{info["notes"]}"}},\n'
+    dtype_combos_str += "}"
+
     content = f'''# SPDX-License-Identifier: MIT
 # Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -117,6 +125,9 @@ LDS_CAPACITY_LIMITS: Dict[str, int] = {pipeline_limits_clean}
 # Unsupported trait combinations: (pipeline, epilogue, scheduler)
 TRAIT_UNSUPPORTED_COMBINATIONS: Set[Tuple[str, str, str]] = {unsupported_str}
 
+# Valid dtype combinations: (A_dtype, B_dtype) -> acc_dtype and notes
+DTYPE_COMBINATIONS: Dict[str, Dict[str, str]] = {dtype_combos_str}
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -155,6 +166,23 @@ def get_lds_limit(pipeline: str) -> int:
 def is_trait_combo_unsupported(pipeline: str, epilogue: str, scheduler: str) -> bool:
     """Check if a trait combination is unsupported."""
     return (pipeline.lower(), epilogue.lower(), scheduler.lower()) in TRAIT_UNSUPPORTED_COMBINATIONS
+
+
+def get_dtype_info(dtype_a: str, dtype_b: str) -> Dict[str, str]:
+    """Get accumulator type and notes for a dtype combination."""
+    key = f"{{dtype_a.lower()}}_{{dtype_b.lower()}}"
+    return DTYPE_COMBINATIONS.get(key, {{"acc": "fp32", "notes": "unknown"}})
+
+
+def is_dtype_combo_valid(dtype_a: str, dtype_b: str) -> bool:
+    """Check if a dtype combination is valid."""
+    key = f"{{dtype_a.lower()}}_{{dtype_b.lower()}}"
+    return key in DTYPE_COMBINATIONS
+
+
+def get_valid_dtype_combos() -> List[str]:
+    """Get list of all valid dtype combinations."""
+    return list(DTYPE_COMBINATIONS.keys())
 '''
 
     output_path.write_text(content)

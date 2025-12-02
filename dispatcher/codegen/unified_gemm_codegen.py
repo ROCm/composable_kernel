@@ -602,6 +602,7 @@ class UnifiedGemmCodegen:
         variants: List[GemmVariant] = None,
         use_preselected: Optional[str] = None,
         enable_arch_filter: bool = True,
+        kernel_set_name: Optional[str] = None,
     ):
         self.output_dir = Path(output_dir)
         self.datatype = datatype
@@ -609,10 +610,15 @@ class UnifiedGemmCodegen:
         self.gpu_target = gpu_target
         self.variants = variants or [GemmVariant.STANDARD]
         self.use_preselected = use_preselected
+        self.kernel_set_name = kernel_set_name
 
-        # Create directories
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.wrapper_dir = self.output_dir / "dispatcher_wrappers"
+        # Create directories - optionally with kernel set subdirectory
+        if kernel_set_name:
+            self.kernel_dir = self.output_dir / kernel_set_name
+        else:
+            self.kernel_dir = self.output_dir
+        self.kernel_dir.mkdir(parents=True, exist_ok=True)
+        self.wrapper_dir = self.kernel_dir / "dispatcher_wrappers"
         self.wrapper_dir.mkdir(parents=True, exist_ok=True)
 
         # Load configuration
@@ -899,11 +905,11 @@ class UnifiedGemmCodegen:
 
         # Generate CK Tile kernel
         kernel_code = self.ck_gen.generate(config)
-        kernel_path = self.output_dir / f"{kernel_name}.hpp"
+        kernel_path = self.kernel_dir / f"{kernel_name}.hpp"
         kernel_path.write_text(kernel_code)
 
         # Generate dispatcher wrapper
-        wrapper_code = self.disp_gen.generate(config, kernel_path, self.output_dir)
+        wrapper_code = self.disp_gen.generate(config, kernel_path, self.kernel_dir)
         wrapper_path = self.wrapper_dir / f"dispatcher_wrapper_{kernel_name}.hpp"
         wrapper_path.write_text(wrapper_code)
 
@@ -1037,8 +1043,8 @@ def main():
         "--datatype",
         type=str,
         default="fp16",
-        choices=["fp16", "bf16", "fp32", "fp8", "bf8", "int8"],
-        help="Data type",
+        choices=["fp16", "bf16", "fp32", "fp8", "bf8", "int8", "pk_fp4"],
+        help="Data type (fp16, bf16, fp32, fp8, bf8, int8, pk_fp4)",
     )
     parser.add_argument(
         "--layout", type=str, default="rcr", help="Layout (e.g., rcr for row-col-row)"
@@ -1078,6 +1084,11 @@ def main():
         action="store_true",
         help="Show supported configurations for target GPU and exit",
     )
+    parser.add_argument(
+        "--kernel-set",
+        type=str,
+        help="Kernel set name (creates subdirectory for organization)",
+    )
 
     args = parser.parse_args()
 
@@ -1097,6 +1108,7 @@ def main():
         variants=variants,
         use_preselected=args.preselected,
         enable_arch_filter=not args.no_arch_filter,
+        kernel_set_name=args.kernel_set,
     )
 
     results = codegen.generate_all(parallel=not args.no_parallel)

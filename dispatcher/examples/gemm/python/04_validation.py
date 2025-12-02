@@ -5,7 +5,7 @@
 """
 Example 04: Validation
 
-Validates GPU GEMM against NumPy reference using explicit API.
+Validates GPU GEMM against NumPy reference.
 
 Complexity: ★★★☆☆
 
@@ -16,62 +16,48 @@ Usage:
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
 import numpy as np
 
 from ctypes_utils import (
     KernelConfig,
-    CodegenRunner,
-    DispatcherLib,
-    Registry,
-    Dispatcher,
     Validator,
+    setup_gemm_dispatcher,
+    cleanup_gemm,
+    reset_for_example,
 )
 
 
 def main():
+    reset_for_example()
+
     print("=" * 60)
     print("Example 04: Validation")
     print("=" * 60)
 
     # =========================================================================
-    # Step 1: Define kernel config
+    # Step 1: Setup dispatcher
     # =========================================================================
-    print("\nStep 1: Define KernelConfig")
+    print("\nStep 1: Setup Dispatcher")
 
     config = KernelConfig(
+        dtype_a="fp16",
         tile_m=128,
         tile_n=128,
         tile_k=32,
-        pad_m=True,
-        pad_n=True,
-        pad_k=True,
     )
-    print(f"  Tile: {config.tile_str}")
 
-    # =========================================================================
-    # Step 2: Setup registry and dispatcher
-    # =========================================================================
-    print("\nStep 2: Setup")
-
-    codegen = CodegenRunner()
-    codegen.generate_from_config(config)
-
-    lib = DispatcherLib.auto()
-    if lib is None:
-        print("  ERROR: Could not load library")
+    setup = setup_gemm_dispatcher(config, registry_name="validation", verbose=True)
+    if not setup.success:
+        print(f"  ERROR: {setup.error}")
         return 1
 
-    registry = Registry(name="validation", lib=lib)
-    registry.register_kernel(config)
-
-    dispatcher = Dispatcher(registry=registry, lib=lib)
-    print(f"  {dispatcher}")
+    dispatcher = setup.dispatcher
 
     # =========================================================================
-    # Step 3: Run validation tests
+    # Step 2: Run validation tests
     # =========================================================================
-    print("\nStep 3: Validation Tests")
+    print("\nStep 2: Validation Tests")
 
     validator = Validator(rtol=1e-3, atol=1e-2)
 
@@ -94,7 +80,6 @@ def main():
             print(f"  {name:<15} | {M}x{N}x{K:<5} | {'N/A':>10} | Skipped")
             continue
 
-        # Create inputs
         np.random.seed(42)
         if pattern == "identity":
             A = np.eye(M, K, dtype=np.float16)
@@ -103,17 +88,13 @@ def main():
             A = (np.random.randn(M, K) * 0.1).astype(np.float16)
             B = (np.random.randn(K, N) * 0.1).astype(np.float16)
 
-        # Run GPU
         result = dispatcher.run(A, B, M, N, K)
         if not result.success:
             print(f"  {name:<15} | {M}x{N}x{K:<5} | {'GPU Err':>10} | FAILED")
             failed += 1
             continue
 
-        # Compute reference
         C_ref = np.matmul(A.astype(np.float32), B.astype(np.float32)).astype(np.float16)
-
-        # Validate
         is_valid, max_err, _ = validator.check(result.output, C_ref)
 
         if is_valid:
@@ -123,9 +104,10 @@ def main():
             print(f"  {name:<15} | {M}x{N}x{K:<5} | {max_err:>10.2e} | FAILED")
             failed += 1
 
-    # =========================================================================
+    # Cleanup
+    cleanup_gemm()
+
     # Summary
-    # =========================================================================
     print("\n" + "=" * 60)
     total = passed + failed
     print(f"Results: {passed}/{total} passed")

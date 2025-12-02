@@ -5,7 +5,7 @@
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
 
 Generated from: arch_specs.json
-Generated at: 2025-11-25T23:24:22.593010
+Generated at: 2025-12-02T05:37:56.664185
 
 To update this file:
 1. Edit arch_specs.json
@@ -38,6 +38,7 @@ ELEMENT_SIZE_MAP: Dict[str, float] = {
     "bf8": 1,
     "int8": 1,
     "int4": 0.5,
+    "pk_fp4": 0.5,
     "int32": 4,
 }
 
@@ -52,7 +53,8 @@ WARP_SUPPORTED_COMBINATIONS: Dict[str, List[List[int]]] = {
 # Supported warp tile combinations: arch -> dtype_key -> [[warp_tile_m, n, k], ...]
 WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
     "gfx90a": {
-        "fp16_fp16_fp16": [
+        "fp32_fp32_fp32": [[16, 16, 4], [16, 16, 16]],
+        "fp16_fp16_fp32": [
             [32, 32, 8],
             [16, 16, 16],
             [32, 32, 16],
@@ -60,7 +62,7 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
             [4, 64, 16],
             [64, 4, 16],
         ],
-        "bf16_bf16_bf16": [
+        "bf16_bf16_fp32": [
             [32, 32, 8],
             [16, 16, 16],
             [32, 32, 16],
@@ -68,11 +70,13 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
             [4, 64, 16],
             [64, 4, 16],
         ],
-        "fp8_fp8_fp16": [[32, 32, 16], [32, 32, 32]],
-        "bf8_bf8_fp16": [[32, 32, 16], [32, 32, 32]],
+        "fp8_fp8_fp32": [[32, 32, 16], [32, 32, 32]],
+        "bf8_bf8_fp32": [[32, 32, 16], [32, 32, 32]],
+        "int8_int8_int32": [[32, 32, 16], [16, 16, 32]],
     },
     "gfx942": {
-        "fp16_fp16_fp16": [
+        "fp32_fp32_fp32": [[16, 16, 4], [16, 16, 16]],
+        "fp16_fp16_fp32": [
             [32, 32, 8],
             [16, 16, 16],
             [32, 32, 16],
@@ -80,7 +84,7 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
             [4, 64, 16],
             [64, 4, 16],
         ],
-        "bf16_bf16_bf16": [
+        "bf16_bf16_fp32": [
             [32, 32, 8],
             [16, 16, 16],
             [32, 32, 16],
@@ -88,12 +92,15 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
             [4, 64, 16],
             [64, 4, 16],
         ],
-        "fp8_fp8_fp16": [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64]],
-        "bf8_bf8_fp16": [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32]],
-        "int8_int8_int32": [[16, 16, 32], [32, 32, 16]],
+        "fp8_fp8_fp32": [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64]],
+        "fp8_bf8_fp32": [[32, 32, 16], [16, 16, 32], [32, 32, 32]],
+        "bf8_fp8_fp32": [[32, 32, 16]],
+        "bf8_bf8_fp32": [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64]],
+        "int8_int8_int32": [[32, 32, 16], [16, 16, 32], [16, 16, 16]],
     },
     "gfx950": {
-        "fp16_fp16_fp16": [
+        "fp32_fp32_fp32": [[16, 16, 4], [16, 16, 16]],
+        "fp16_fp16_fp32": [
             [32, 32, 8],
             [16, 16, 16],
             [32, 32, 16],
@@ -101,7 +108,7 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
             [4, 64, 16],
             [64, 4, 16],
         ],
-        "bf16_bf16_bf16": [
+        "bf16_bf16_fp32": [
             [32, 32, 8],
             [16, 16, 16],
             [32, 32, 16],
@@ -109,7 +116,7 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
             [4, 64, 16],
             [64, 4, 16],
         ],
-        "fp8_fp8_fp16": [
+        "fp8_fp8_fp32": [
             [32, 32, 16],
             [32, 32, 32],
             [16, 16, 32],
@@ -117,17 +124,33 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
             [16, 16, 128],
             [32, 32, 64],
         ],
-        "bf8_bf8_fp16": [
+        "fp8_bf8_fp32": [
             [32, 32, 16],
             [32, 32, 32],
-            [16, 16, 64],
             [16, 16, 32],
             [16, 16, 128],
             [32, 32, 64],
         ],
+        "bf8_fp8_fp32": [[32, 32, 16], [16, 16, 128], [32, 32, 64]],
+        "bf8_bf8_fp32": [
+            [32, 32, 16],
+            [32, 32, 32],
+            [16, 16, 32],
+            [16, 16, 64],
+            [16, 16, 128],
+            [32, 32, 64],
+        ],
+        "int8_int8_int32": [[32, 32, 16], [16, 16, 32], [16, 16, 16]],
+        "pk_fp4_pk_fp4_fp32": [[16, 16, 128]],
     },
     "gfx1201": {
-        "fp16_fp16_fp16": [[16, 16, 16]],
+        "fp16_fp16_fp32": [[16, 16, 16]],
+        "bf16_bf16_fp32": [[16, 16, 16]],
+        "fp8_fp8_fp32": [[16, 16, 16]],
+        "bf8_bf8_fp32": [[16, 16, 16]],
+        "fp8_bf8_fp32": [[16, 16, 16]],
+        "bf8_fp8_fp32": [[16, 16, 16]],
+        "int8_int8_int32": [[16, 16, 16]],
     },
 }
 
@@ -150,6 +173,19 @@ TRAIT_UNSUPPORTED_COMBINATIONS: Set[Tuple[str, str, str]] = {
     ("compv3", "default", "interwave"),
     ("compv4", "cshuffle", "interwave"),
     ("compv4", "default", "interwave"),
+}
+
+# Valid dtype combinations: (A_dtype, B_dtype) -> acc_dtype and notes
+DTYPE_COMBINATIONS: Dict[str, Dict[str, str]] = {
+    "fp32_fp32": {"acc": "fp32", "notes": "Full precision"},
+    "fp16_fp16": {"acc": "fp32", "notes": "Standard half precision"},
+    "bf16_bf16": {"acc": "fp32", "notes": "Brain float 16"},
+    "fp8_fp8": {"acc": "fp32", "notes": "FP8 E4M3"},
+    "fp8_bf8": {"acc": "fp32", "notes": "Mixed FP8/BF8"},
+    "bf8_fp8": {"acc": "fp32", "notes": "Mixed BF8/FP8"},
+    "bf8_bf8": {"acc": "fp32", "notes": "BF8 E5M2"},
+    "int8_int8": {"acc": "int32", "notes": "Integer GEMM"},
+    "pk_fp4_pk_fp4": {"acc": "fp32", "notes": "Packed 4-bit float"},
 }
 
 # =============================================================================
@@ -195,3 +231,20 @@ def is_trait_combo_unsupported(pipeline: str, epilogue: str, scheduler: str) -> 
         epilogue.lower(),
         scheduler.lower(),
     ) in TRAIT_UNSUPPORTED_COMBINATIONS
+
+
+def get_dtype_info(dtype_a: str, dtype_b: str) -> Dict[str, str]:
+    """Get accumulator type and notes for a dtype combination."""
+    key = f"{dtype_a.lower()}_{dtype_b.lower()}"
+    return DTYPE_COMBINATIONS.get(key, {"acc": "fp32", "notes": "unknown"})
+
+
+def is_dtype_combo_valid(dtype_a: str, dtype_b: str) -> bool:
+    """Check if a dtype combination is valid."""
+    key = f"{dtype_a.lower()}_{dtype_b.lower()}"
+    return key in DTYPE_COMBINATIONS
+
+
+def get_valid_dtype_combos() -> List[str]:
+    """Get list of all valid dtype combinations."""
+    return list(DTYPE_COMBINATIONS.keys())

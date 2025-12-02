@@ -7,8 +7,16 @@
  * Demonstrates the declarative kernel specification with explicit
  * Signature/Algorithm structs. All kernel key-values are visible.
  *
- * Build:
- *   python3 scripts/compile_gemm_examples.py examples/cpp/01_basic_gemm.cpp
+ * IMPORTANT: The kernel configuration in DECL_KERNEL_SET must match
+ * the kernel header included at compile time (via -include flag).
+ * The included header defines: SelectedKernel, ADataType, BDataType,
+ * CDataType, AccDataType, KERNEL_NAME
+ *
+ * Build (using CMake):
+ *   cd dispatcher/build && cmake .. && make gemm_01_basic
+ *
+ * Build (using compile script - matches kernel from source):
+ *   python3 scripts/compile_gemm_examples.py examples/gemm/cpp/01_basic_gemm.cpp
  *
  * Complexity: ★☆☆☆☆
  */
@@ -33,42 +41,22 @@ using Algorithm = decl::Algorithm;
 
 // -----------------------------------------------------------------------------
 // Kernel set with FULL explicit configuration
-// All parameters visible: dtype, layout, tile, wave, warp, pipeline, etc.
+// NOTE: This configuration MUST match the kernel header included via -include!
+// The default build uses: fp16, rcr, 128x128x32, compv4, intrawave, cshuffle
 // -----------------------------------------------------------------------------
-DECL_KERNEL_SET(explicit_config,
-                .add(Signature()
-                         .dtype("fp16", "fp16", "fp16", "fp32") // A, B, C, Accumulator
-                         .layout("row", "col", "row"),          // A=row, B=col, C=row
-                     Algorithm()
-                         .tile(128, 128, 32)     // Block tile: M, N, K
-                         .wave(2, 2, 1)          // Warps per block
-                         .warp(32, 32, 16)       // Warp tile
-                         .pipeline("compv4")     // Pipeline type
-                         .scheduler("intrawave") // Scheduler
-                         .epilogue("cshuffle")   // Epilogue
-                         .pad(true, true, true)) // Padding M, N, K
-);
-
-// -----------------------------------------------------------------------------
-// Kernel set with COMPACT syntax
-// Unspecified values auto-expand to all valid combinations
-// -----------------------------------------------------------------------------
-DECL_KERNEL_SET(auto_expand,
-                .add("fp16", "rcr", 64, 64, 32)       // wave/warp auto-expand
-                    .add("fp16", "rcr", 256, 256, 64) // generates all valid combos
-);
-
-// -----------------------------------------------------------------------------
-// Kernel set with MIXED data types
-// -----------------------------------------------------------------------------
-DECL_KERNEL_SET(mixed_dtypes, .add("fp16", "rcr", 128, 128, 32).add("bf16", "rcr", 128, 128, 32));
-
-// -----------------------------------------------------------------------------
-// Kernel set with DIFFERENT layouts
-// -----------------------------------------------------------------------------
-DECL_KERNEL_SET(layouts,
-                .add("fp16", "rcr", 128, 128, 32)     // Row-Col-Row (BLAS-style)
-                    .add("fp16", "rrr", 128, 128, 32) // All row-major
+DECL_KERNEL_SET(
+    explicit_config,
+    .add(Signature()
+             .dtype("fp16", "fp16", "fp16", "fp32") // A, B, C, Accumulator
+             .layout("row", "col", "row"),          // A=row, B=col, C=row
+         Algorithm()
+             .tile(128, 128, 32)        // Block tile: M, N, K
+             .wave(2, 2, 1)             // Warps per block
+             .warp(32, 32, 16)          // Warp tile
+             .pipeline("compv4")        // Pipeline type (matches default build)
+             .scheduler("intrawave")    // Scheduler (intrawave required for compv4+cshuffle)
+             .epilogue("cshuffle")      // Epilogue
+             .pad(false, false, false)) // Padding M, N, K
 );
 
 // =============================================================================

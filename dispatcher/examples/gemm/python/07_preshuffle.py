@@ -5,7 +5,7 @@
 """
 Example 07: PreShuffle Pipeline
 
-Demonstrates PreShuffle kernel configuration using explicit API.
+Demonstrates PreShuffle kernel configuration for large matrices.
 
 Complexity: ★★★★☆
 
@@ -16,84 +16,56 @@ Usage:
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
 import numpy as np
 
 from ctypes_utils import (
     KernelConfig,
-    CodegenRunner,
-    DispatcherLib,
-    Registry,
-    Dispatcher,
+    setup_gemm_dispatcher,
+    cleanup_gemm,
+    reset_for_example,
 )
 
 
 def main():
+    reset_for_example()
+
     print("=" * 60)
     print("Example 07: PreShuffle Pipeline")
     print("=" * 60)
 
     # =========================================================================
-    # Step 1: Define PreShuffle kernel config
+    # Step 1: Setup dispatcher with large tiles
     # =========================================================================
-    print("\nStep 1: Define PreShuffle KernelConfig")
+    print("\nStep 1: Setup Dispatcher")
 
     # PreShuffle works best with larger tiles
-    preshuffle_config = KernelConfig(
+    config = KernelConfig(
+        dtype_a="fp16",
         tile_m=256,
         tile_n=256,
         tile_k=64,
         wave_m=4,
         wave_n=4,
-        wave_k=1,
-        warp_m=32,
-        warp_n=32,
-        warp_k=16,
-        block_size=256,
         pipeline="compv4",
-        scheduler="intrawave",
-        pad_m=True,
-        pad_n=True,
-        pad_k=True,
     )
 
-    print("  PreShuffle Configuration:")
-    print(f"    Tile: {preshuffle_config.tile_str}")
-    print(
-        f"    Waves: {preshuffle_config.wave_m}x{preshuffle_config.wave_n}x{preshuffle_config.wave_k}"
-    )
-    print(f"    Pipeline: {preshuffle_config.pipeline}")
+    setup = setup_gemm_dispatcher(config, registry_name="preshuffle", verbose=True)
+    if not setup.success:
+        print(f"  ERROR: {setup.error}")
+        return 1
+
+    dispatcher = setup.dispatcher
+
     print("\n  PreShuffle Benefits:")
     print("    - Pre-shuffles data in LDS before computation")
     print("    - Reduces bank conflicts")
     print("    - Best for large matrices (2048+)")
 
     # =========================================================================
-    # Step 2: Setup registry and dispatcher
+    # Step 2: Run GEMM with large matrices
     # =========================================================================
-    print("\nStep 2: Setup")
-
-    codegen = CodegenRunner()
-
-    # Generate preshuffle variant
-    result = codegen.generate("preshuffle")
-    print(f"  Generated preshuffle kernels: {result.kernel_count}")
-
-    lib = DispatcherLib.auto()
-    if lib is None:
-        print("  ERROR: Could not load library")
-        return 1
-
-    registry = Registry(name="preshuffle", lib=lib)
-    registry.register_kernel(preshuffle_config)
-
-    dispatcher = Dispatcher(registry=registry, lib=lib)
-    print(f"  {dispatcher}")
-
-    # =========================================================================
-    # Step 3: Run GEMM with large matrices
-    # =========================================================================
-    print("\nStep 3: Run GEMM (large matrices)")
+    print("\nStep 2: Run GEMM (large matrices)")
 
     sizes = [
         (1024, 1024, 1024),
@@ -116,9 +88,10 @@ def main():
         if result.success:
             print(f"  {M}x{N}x{K:<10} {result.time_ms:>12.4f} {result.tflops:>10.2f}")
 
-    # =========================================================================
+    # Cleanup
+    cleanup_gemm()
+
     # Summary
-    # =========================================================================
     print("\n" + "=" * 60)
     print("PreShuffle Pattern:")
     print("=" * 60)

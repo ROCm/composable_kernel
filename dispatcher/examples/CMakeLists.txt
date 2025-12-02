@@ -211,40 +211,39 @@ if(CONV_KERNEL_HEADER AND EXISTS "${CONV_KERNEL_HEADER}")
     message(STATUS "Building ALL Conv examples with GPU kernels: ${CONV_KERNEL_HEADER}")
     
     # 2D forward examples
-    add_gpu_example(conv_01_basic           conv/cpp/01_basic_conv.cpp       ${CONV_KERNEL_HEADER})
-    add_gpu_example(conv_02_forward         conv/cpp/02_conv_forward.cpp     ${CONV_KERNEL_HEADER})
-    add_gpu_example(conv_03_validation      conv/cpp/03_conv_validation.cpp  ${CONV_KERNEL_HEADER})
-    add_gpu_example(conv_04_multi_size      conv/cpp/04_multi_size.cpp       ${CONV_KERNEL_HEADER})
-    add_gpu_example(conv_05_benchmark       conv/cpp/05_benchmark.cpp        ${CONV_KERNEL_HEADER})
-    add_gpu_example(conv_06_heuristics      conv/cpp/06_heuristics.cpp       ${CONV_KERNEL_HEADER})
-    add_gpu_example(conv_07_json_export     conv/cpp/07_json_export.cpp      ${CONV_KERNEL_HEADER})
-    add_gpu_example(conv_08_multi_registry  conv/cpp/08_multi_registry.cpp   ${CONV_KERNEL_HEADER})
+    add_gpu_example(conv_01_forward         conv/cpp/01_conv_forward.cpp     ${CONV_KERNEL_HEADER})
+    add_gpu_example(conv_02_validation      conv/cpp/02_conv_validation.cpp  ${CONV_KERNEL_HEADER})
+    add_gpu_example(conv_03_multi_size      conv/cpp/03_multi_size.cpp       ${CONV_KERNEL_HEADER})
+    add_gpu_example(conv_04_benchmark       conv/cpp/04_benchmark.cpp        ${CONV_KERNEL_HEADER})
+    add_gpu_example(conv_05_heuristics      conv/cpp/05_heuristics.cpp       ${CONV_KERNEL_HEADER})
+    add_gpu_example(conv_06_json_export     conv/cpp/06_json_export.cpp      ${CONV_KERNEL_HEADER})
+    add_gpu_example(conv_07_multi_registry  conv/cpp/07_multi_registry.cpp   ${CONV_KERNEL_HEADER})
     
     # 3D forward example
     file(GLOB CONV_3D_KERNEL_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels/conv_fwd_fp16_3d_compv3*.hpp")
     if(CONV_3D_KERNEL_HEADERS)
         list(GET CONV_3D_KERNEL_HEADERS 0 CONV_3D_KERNEL_HEADER)
-        add_gpu_example(conv_09_conv3d_forward  conv/cpp/09_conv3d_forward.cpp  ${CONV_3D_KERNEL_HEADER})
-        message(STATUS "  Built: conv_09 (3D forward)")
+        add_gpu_example(conv_08_conv3d_forward  conv/cpp/08_conv3d_forward.cpp  ${CONV_3D_KERNEL_HEADER})
+        message(STATUS "  Built: conv_08 (3D forward)")
     endif()
     
     # Backward data example
     file(GLOB CONV_BWDD_KERNEL_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels/conv_bwdd_fp16_2d_compv3*.hpp")
     if(CONV_BWDD_KERNEL_HEADERS)
         list(GET CONV_BWDD_KERNEL_HEADERS 0 CONV_BWDD_KERNEL_HEADER)
-        add_gpu_example(conv_10_bwd_data  conv/cpp/10_bwd_data.cpp  ${CONV_BWDD_KERNEL_HEADER})
-        message(STATUS "  Built: conv_10 (backward data)")
+        add_gpu_example(conv_09_bwd_data  conv/cpp/09_bwd_data.cpp  ${CONV_BWDD_KERNEL_HEADER})
+        message(STATUS "  Built: conv_09 (backward data)")
     endif()
     
     # Backward weight example
     file(GLOB CONV_BWDW_KERNEL_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels/conv_bwdw_fp16_2d_compv3*.hpp")
     if(CONV_BWDW_KERNEL_HEADERS)
         list(GET CONV_BWDW_KERNEL_HEADERS 0 CONV_BWDW_KERNEL_HEADER)
-        add_gpu_example(conv_11_bwd_weight  conv/cpp/11_bwd_weight.cpp  ${CONV_BWDW_KERNEL_HEADER})
-        message(STATUS "  Built: conv_11 (backward weight)")
+        add_gpu_example(conv_10_bwd_weight  conv/cpp/10_bwd_weight.cpp  ${CONV_BWDW_KERNEL_HEADER})
+        message(STATUS "  Built: conv_10 (backward weight)")
     endif()
     
-    message(STATUS "  Built: conv_01 through conv_08 (2D forward with GPU execution)")
+    message(STATUS "  Built: conv_01 through conv_07 (2D forward with GPU execution)")
 else()
     message(STATUS "Conv kernels not found - skipping ALL Conv examples")
     message(STATUS "  Generate with: python3 codegen/unified_conv_codegen.py --datatype fp16 --variant forward bwd_data bwd_weight --ndim 2 3 -o build/generated_kernels")
@@ -327,5 +326,51 @@ add_custom_target(python_libs
     COMMENT "Building all Python ctypes libraries"
 )
 
+# =============================================================================
+# Per-Architecture Kernel Generation Targets
+# =============================================================================
+
+# Common GPU architectures
+set(SUPPORTED_GPU_ARCHS gfx942 gfx90a gfx1100 gfx1030)
+
+# Add per-arch kernel generation targets
+foreach(ARCH ${SUPPORTED_GPU_ARCHS})
+    # GEMM kernels for this arch
+    add_custom_target(generate_gemm_kernels_${ARCH}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${KERNEL_OUTPUT_DIR}
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_gemm_codegen.py 
+                --datatype fp16 --layout rcr --gpu-target ${ARCH}
+                --output ${KERNEL_OUTPUT_DIR}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
+        COMMENT "Generating GEMM kernels for ${ARCH}..."
+    )
+    
+    # Conv kernels for this arch
+    add_custom_target(generate_conv_kernels_${ARCH}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${KERNEL_OUTPUT_DIR}
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
+                --datatype fp16 --variant forward bwd_data bwd_weight --ndim 2 3 --arch ${ARCH}
+                --output ${KERNEL_OUTPUT_DIR}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
+        COMMENT "Generating Conv kernels for ${ARCH}..."
+    )
+    
+    # All kernels for this arch
+    add_custom_target(generate_kernels_${ARCH}
+        DEPENDS generate_gemm_kernels_${ARCH} generate_conv_kernels_${ARCH}
+        COMMENT "Generating all kernels for ${ARCH}..."
+    )
+endforeach()
+
+# Target to generate kernels for all architectures in parallel
+add_custom_target(generate_all_archs
+    COMMENT "Generating kernels for all GPU architectures..."
+)
+foreach(ARCH ${SUPPORTED_GPU_ARCHS})
+    add_dependencies(generate_all_archs generate_kernels_${ARCH})
+endforeach()
+
 message(STATUS "Examples configuration complete")
 message(STATUS "  Use 'make python_libs' to build only the shared libraries for Python")
+message(STATUS "  Use 'make generate_kernels_<arch>' for per-architecture kernel generation")
+message(STATUS "    Supported archs: ${SUPPORTED_GPU_ARCHS}")

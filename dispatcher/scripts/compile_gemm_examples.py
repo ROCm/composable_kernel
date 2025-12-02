@@ -95,7 +95,8 @@ def find_hipcc() -> str:
 def extract_conv_kernel_declarations(source_file: Path) -> list:
     """Extract CONVOLUTION kernel declarations from C++ source file.
 
-    Supports DECL_CONV_KERNEL_SET macro with Signature/Algorithm/Arch pattern.
+    Supports DECL_CONV_KERNEL_SET macro with ConvSig/ConvAlgo pattern.
+    Extracts all parameters: dtype, layout, conv_type, dims, tile, wave, warp, pipeline, scheduler.
     """
     content = source_file.read_text()
     declarations = []
@@ -128,19 +129,20 @@ def extract_conv_kernel_declarations(source_file: Path) -> list:
                         "dtype": dtype,
                         "layout": layout,
                         "conv_type": conv_type,
-                        "num_dims": 2,  # Default
+                        "num_dims": 2,
                         "groups": 1,
                         "tile_n": 1,
                         "tile_k": tile_k,
                         "tile_c": tile_c,
-                        "wave_m": -1,
+                        "wave_m": -1,  # Wildcard - will expand
                         "wave_n": -1,
                         "wave_k": 1,
                         "warp_m": -1,
                         "warp_n": -1,
                         "warp_k": 16,
-                        "pipeline": "compv4",
+                        "pipeline": "compv3",
                         "scheduler": "intrawave",
+                        "epilogue": "cshuffle",
                         "name": name,
                         "set": set_name,
                         "arch": "gfx942",
@@ -148,29 +150,37 @@ def extract_conv_kernel_declarations(source_file: Path) -> list:
                 )
 
         # Pattern 2: Full specification with ConvSig() and ConvAlgo()
-        # .add(ConvSig()...., ConvAlgo()...., "arch")
-        full_add_pattern = (
-            r'\.add\s*\(\s*(ConvSig\(\)[^,]+),\s*(ConvAlgo\(\)[^,]+),\s*"(\w+)"\s*\)'
+        # Match .add( ConvSig()..., ConvAlgo()..., "arch" )
+        # Use robust parsing that handles multi-line and comments
+
+        # Find all .add( blocks containing ConvSig
+        add_blocks = re.findall(
+            r"\.add\s*\(\s*ConvSig\(\)([\s\S]*?)(?=\.add\s*\(|$)", set_body
         )
 
-        for add_match in re.finditer(full_add_pattern, set_body, re.DOTALL):
-            sig_str = add_match.group(1)
-            algo_str = add_match.group(2)
-            arch = add_match.group(3)
+        for add_block in add_blocks:
+            # Find ConvAlgo and arch in this block
+            algo_match = re.search(r'ConvAlgo\(\)([\s\S]*?),\s*"(\w+)"\s*\)', add_block)
+            if not algo_match:
+                continue
 
-            # Parse signature
+            sig_str = add_block[: add_block.find("ConvAlgo()")]
+            algo_str = algo_match.group(1)
+            arch = algo_match.group(2)
+
+            # Parse ConvSig
             dtype = "fp16"
-            dtype_match = re.search(r'\.dtype\s*\(\s*"(\w+)"', sig_str)
+            dtype_match = re.search(r'\.dtype\s*\(\s*"([^"]+)"', sig_str)
             if dtype_match:
                 dtype = dtype_match.group(1)
 
-            layout = "nhwc"
-            layout_match = re.search(r'\.layout\s*\(\s*"(\w+)"', sig_str)
+            layout = "nhwgc"
+            layout_match = re.search(r'\.layout\s*\(\s*"([^"]+)"', sig_str)
             if layout_match:
                 layout = layout_match.group(1)
 
             conv_type = "forward"
-            conv_type_match = re.search(r'\.conv_type\s*\(\s*"(\w+)"', sig_str)
+            conv_type_match = re.search(r'\.conv_type\s*\(\s*"([^"]+)"', sig_str)
             if conv_type_match:
                 conv_type = conv_type_match.group(1)
 
@@ -184,45 +194,51 @@ def extract_conv_kernel_declarations(source_file: Path) -> list:
             if groups_match:
                 groups = int(groups_match.group(1))
 
-            # Parse algorithm
+            # Parse ConvAlgo
             tile_n, tile_k, tile_c = 1, 128, 128
             tile_match = re.search(
-                r"\.tile\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)", algo_str
+                r"\.tile\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", algo_str
             )
             if tile_match:
                 tile_n = int(tile_match.group(1))
                 tile_k = int(tile_match.group(2))
                 tile_c = int(tile_match.group(3))
 
-            wave_m, wave_n, wave_k = -1, -1, 1
+            wave_m, wave_n, wave_k = 2, 2, 1
             wave_match = re.search(
-                r"\.wave\s*\(\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?", algo_str
+                r"\.wave\s*\(\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?\s*\)", algo_str
             )
             if wave_match:
                 wave_m = int(wave_match.group(1))
                 wave_n = int(wave_match.group(2))
                 wave_k = int(wave_match.group(3) or 1)
 
-            warp_m, warp_n, warp_k = -1, -1, 16
+            warp_m, warp_n, warp_k = 32, 32, 16
             warp_match = re.search(
-                r"\.warp\s*\(\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?", algo_str
+                r"\.warp\s*\(\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?\s*\)", algo_str
             )
             if warp_match:
                 warp_m = int(warp_match.group(1))
                 warp_n = int(warp_match.group(2))
                 warp_k = int(warp_match.group(3) or 16)
 
-            pipeline = "compv4"
-            pipeline_match = re.search(r'\.pipeline\s*\(\s*"(\w+)"', algo_str)
+            pipeline = "compv3"
+            pipeline_match = re.search(r'\.pipeline\s*\(\s*"([^"]+)"', algo_str)
             if pipeline_match:
                 pipeline = pipeline_match.group(1)
 
             scheduler = "intrawave"
-            scheduler_match = re.search(r'\.scheduler\s*\(\s*"(\w+)"', algo_str)
+            scheduler_match = re.search(r'\.scheduler\s*\(\s*"([^"]+)"', algo_str)
             if scheduler_match:
                 scheduler = scheduler_match.group(1)
 
-            name = f"{set_name}:{dtype}_{layout}_{conv_type}_{tile_k}x{tile_c}"
+            epilogue = "cshuffle"
+            epilogue_match = re.search(r'\.epilogue\s*\(\s*"([^"]+)"', algo_str)
+            if epilogue_match:
+                epilogue = epilogue_match.group(1)
+
+            # Build unique name with full config
+            name = f"{set_name}:{dtype}_{conv_type}_{num_dims}d_{pipeline}_{scheduler}_{tile_k}x{tile_c}_{wave_m}x{wave_n}x{wave_k}"
             if name not in seen:
                 seen.add(name)
                 declarations.append(
@@ -244,6 +260,7 @@ def extract_conv_kernel_declarations(source_file: Path) -> list:
                         "warp_k": warp_k,
                         "pipeline": pipeline,
                         "scheduler": scheduler,
+                        "epilogue": epilogue,
                         "name": name,
                         "set": set_name,
                         "arch": arch,
@@ -391,6 +408,8 @@ def generate_conv_kernels(declarations: list, gpu_target: str = "gfx942") -> int
             UnifiedConvCodegen,
             ConvKernelConfig,
             ConvVariant,
+            TileConfig,
+            TraitConfig,
         )
     except ImportError as e:
         print_error(f"  Failed to import conv codegen: {e}")
@@ -399,40 +418,82 @@ def generate_conv_kernels(declarations: list, gpu_target: str = "gfx942") -> int
     codegen = UnifiedConvCodegen(kernel_dir)
     total_generated = 0
 
+    # Group by dtype and variant for efficient generation
+    groups = {}
     for decl in declarations:
         dtype = decl.get("dtype", "fp16")
         conv_type = decl.get("conv_type", "forward")
         num_dims = decl.get("num_dims", 2)
+        key = (dtype, conv_type, num_dims)
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(decl)
+
+    for (dtype, conv_type, num_dims), decls in groups.items():
+        print(f"    Generating {dtype} {conv_type} {num_dims}D kernels...")
 
         # Map to ConvVariant
         variant = ConvVariant.FORWARD
         if conv_type == "bwd_data":
-            variant = ConvVariant.BWD_DATA
+            variant = ConvVariant.BACKWARD_DATA
         elif conv_type == "bwd_weight":
-            variant = ConvVariant.BWD_WEIGHT
+            variant = ConvVariant.BACKWARD_WEIGHT
 
-        # Create ConvKernelConfig
-        config = ConvKernelConfig(
-            variant=variant,
-            pipeline=decl.get("pipeline", "compv4"),
-            scheduler=decl.get("scheduler", "intrawave"),
-            tile_m=decl.get("tile_k", 128),  # K is M in conv GEMM view
-            tile_n=decl.get("tile_c", 128),  # C is N in conv GEMM view
-            tile_k=64,
-            wave_m=decl.get("wave_m", 2),
-            wave_n=decl.get("wave_n", 2),
-            warp_m=decl.get("warp_m", 32),
-            warp_n=decl.get("warp_n", 32),
-            warp_k=decl.get("warp_k", 16),
-            ndim=num_dims,
-        )
+        for decl in decls:
+            pipeline = decl.get("pipeline", "compv3")
+            scheduler = decl.get("scheduler", "intrawave")
+            epilogue = decl.get("epilogue", "cshuffle")
 
-        try:
-            filepath = codegen.generate_kernel(config, dtype)
-            total_generated += 1
-            print(f"    Generated: {filepath.name}")
-        except Exception as e:
-            print_error(f"    Failed to generate {decl['name']}: {e}")
+            tile_k = decl.get("tile_k", 128)
+            tile_c = decl.get("tile_c", 128)
+            wave_m = decl.get("wave_m", 2)
+            wave_n = decl.get("wave_n", 2)
+            warp_m = decl.get("warp_m", 32)
+            warp_n = decl.get("warp_n", 32)
+            warp_k = decl.get("warp_k", 16)
+
+            # Adjust tile_k for compv4
+            adj_tile_k = 64 * 2 if pipeline == "compv4" else 64
+
+            # Create TileConfig
+            tile_config = TileConfig(
+                tile_m=tile_k,  # K is M in conv GEMM view
+                tile_n=tile_c,  # C is N in conv GEMM view
+                tile_k=adj_tile_k,
+                warp_m=wave_m,
+                warp_n=wave_n,
+                warp_k=1,
+                warp_tile_m=warp_m,
+                warp_tile_n=warp_n,
+                warp_tile_k=warp_k,
+            )
+
+            # Create TraitConfig
+            trait_config = TraitConfig(
+                pipeline=pipeline,
+                scheduler=scheduler,
+                epilogue=epilogue,
+                double_smem_buffer=(pipeline == "compv4"),
+                pad_m=True,
+                pad_n=True,
+                pad_k=True,
+            )
+
+            # Create ConvKernelConfig
+            config = ConvKernelConfig(
+                tile=tile_config,
+                trait=trait_config,
+                variant=variant,
+                ndim_spatial=num_dims,
+                arch=gpu_target,
+            )
+
+            try:
+                filepath = codegen.generate_kernel(config, dtype)
+                total_generated += 1
+                print(f"      Generated: {filepath.name}")
+            except Exception as e:
+                print_error(f"      Failed to generate {decl['name']}: {e}")
 
     return total_generated
 
@@ -445,9 +506,9 @@ def extract_kernel_declarations(source_file: Path) -> list:
     seen = set()
 
     # -------------------------------------------------------------------------
-    # Pattern 1: Legacy DECLARE_GEMM_KERNEL(dtype, layout, tile_m, tile_n, tile_k)
+    # Pattern 1: Simple DECL_KERNEL_SIMPLE(dtype, layout, tile_m, tile_n, tile_k)
     # -------------------------------------------------------------------------
-    legacy_pattern = r"DECLARE_(?:GEMM_)?KERNEL\s*\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)"
+    legacy_pattern = r"DECL_KERNEL_SIMPLE\s*\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)"
     for match in re.findall(legacy_pattern, content):
         dtype, layout, tm, tn, tk = match
         name = f"{dtype}_{layout}_{tm}x{tn}x{tk}"
@@ -685,24 +746,61 @@ def extract_kernel_declarations(source_file: Path) -> list:
                 )
 
         # Parse .add(Signature()..., Algorithm()...) fluent calls
-        add_fluent = r"\.add\s*\(\s*Signature\(\)([^,]*),\s*Algorithm\(\)([^)]*\))\s*\)"
-        for add_match in re.finditer(add_fluent, set_body, re.DOTALL):
-            sig_str = add_match.group(1)
-            algo_str = add_match.group(2)
+        # Match the entire .add(...) block, handling nested parentheses
+        # Use greedy match to capture full Algorithm chain until the closing )
+        # The closing ) is followed by nothing, or another .add, or ;
+        add_blocks = re.findall(
+            r"\.add\s*\((Signature\(\)[\s\S]*?Algorithm\(\)[\s\S]*?\.(?:pad|epilogue|scheduler|pipeline|warp|wave|tile)\s*\([^)]*\))\s*\)",
+            set_body,
+        )
 
-            # Parse dtype and layout from Signature
+        for add_block in add_blocks:
+            # Split on Algorithm() to separate Signature and Algorithm parts
+            # Handle C++ comments (// ...) between comma and Algorithm()
+            # Pattern: comma, optional comment, whitespace, Algorithm()
+            parts = re.split(r",\s*(?://[^\n]*)?\s*Algorithm\(\)", add_block)
+            if len(parts) < 2:
+                # Try alternative: just split on Algorithm() regardless of comma
+                algo_idx = add_block.find("Algorithm()")
+                if algo_idx != -1:
+                    sig_part = add_block[:algo_idx]
+                    algo_part = add_block[algo_idx + len("Algorithm()") :]
+                    parts = [sig_part, algo_part]
+                else:
+                    continue
+
+            sig_str = parts[0]  # Contains Signature()...
+            algo_str = parts[1]  # Contains the Algorithm chain
+
+            # Parse dtype from Signature - handles .dtype("fp16", "fp16", "fp16", "fp32")
             dtype = "fp16"
-            layout = "rcr"
-            dtype_m = re.search(r'\.dtype\("([^"]+)"', sig_str)
+            dtype_m = re.search(r'\.dtype\s*\(\s*"([^"]+)"', sig_str)
             if dtype_m:
                 dtype = dtype_m.group(1)
-            layout_m = re.search(r'\.layout\("([^"]+)"', sig_str)
+
+            # Parse layout from Signature - handles .layout("row", "col", "row")
+            layout = "rcr"
+            layout_m = re.search(
+                r'\.layout\s*\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"', sig_str
+            )
             if layout_m:
-                layout = layout_m.group(1)
+                la, lb, lc = layout_m.group(1), layout_m.group(2), layout_m.group(3)
+                layout = (
+                    ("r" if la == "row" else "c")
+                    + ("r" if lb == "row" else "c")
+                    + ("r" if lc == "row" else "c")
+                )
+            else:
+                # Single arg form: .layout("rcr")
+                layout_m = re.search(r'\.layout\s*\(\s*"([^"]+)"', sig_str)
+                if layout_m:
+                    layout = layout_m.group(1)
 
             # Parse tile from Algorithm
             tm, tn, tk = 128, 128, 32
-            tile_m = re.search(r"\.tile\((\d+),\s*(\d+),\s*(\d+)\)", algo_str)
+            tile_m = re.search(
+                r"\.tile\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", algo_str
+            )
             if tile_m:
                 tm, tn, tk = (
                     int(tile_m.group(1)),
@@ -710,20 +808,55 @@ def extract_kernel_declarations(source_file: Path) -> list:
                     int(tile_m.group(3)),
                 )
 
-            # Parse wave/warp (optional)
-            wave_m, wave_n, wave_k = -1, -1, 1
-            wave_match = re.search(r"\.wave\((\d+),\s*(\d+)(?:,\s*(\d+))?\)", algo_str)
+            # Parse wave
+            wave_m, wave_n, wave_k = 2, 2, 1
+            wave_match = re.search(
+                r"\.wave\s*\(\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?\s*\)", algo_str
+            )
             if wave_match:
                 wave_m, wave_n = int(wave_match.group(1)), int(wave_match.group(2))
                 wave_k = int(wave_match.group(3) or 1)
 
-            warp_m, warp_n, warp_k = -1, -1, 16
-            warp_match = re.search(r"\.warp\((\d+),\s*(\d+)(?:,\s*(\d+))?\)", algo_str)
+            # Parse warp
+            warp_m, warp_n, warp_k = 32, 32, 16
+            warp_match = re.search(
+                r"\.warp\s*\(\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?\s*\)", algo_str
+            )
             if warp_match:
                 warp_m, warp_n = int(warp_match.group(1)), int(warp_match.group(2))
                 warp_k = int(warp_match.group(3) or 16)
 
-            name = f"{set_name}:{dtype}_{layout}_{tm}x{tn}x{tk}"
+            # Parse pipeline - NEW: extract from declaration
+            pipeline = "compv4"
+            pipeline_m = re.search(r'\.pipeline\s*\(\s*"([^"]+)"', algo_str)
+            if pipeline_m:
+                pipeline = pipeline_m.group(1)
+
+            # Parse scheduler - NEW: extract from declaration
+            scheduler = "intrawave"
+            scheduler_m = re.search(r'\.scheduler\s*\(\s*"([^"]+)"', algo_str)
+            if scheduler_m:
+                scheduler = scheduler_m.group(1)
+
+            # Parse epilogue - NEW: extract from declaration
+            epilogue = "cshuffle"
+            epilogue_m = re.search(r'\.epilogue\s*\(\s*"([^"]+)"', algo_str)
+            if epilogue_m:
+                epilogue = epilogue_m.group(1)
+
+            # Parse padding - NEW: extract from declaration
+            pad_m, pad_n, pad_k = False, False, False
+            pad_match = re.search(
+                r"\.pad\s*\(\s*(true|false)\s*,\s*(true|false)\s*,\s*(true|false)\s*\)",
+                algo_str,
+                re.IGNORECASE,
+            )
+            if pad_match:
+                pad_m = pad_match.group(1).lower() == "true"
+                pad_n = pad_match.group(2).lower() == "true"
+                pad_k = pad_match.group(3).lower() == "true"
+
+            name = f"{set_name}:{dtype}_{layout}_{pipeline}_{scheduler}_{tm}x{tn}x{tk}_{wave_m}x{wave_n}x{wave_k}"
             if name not in seen:
                 seen.add(name)
                 declarations.append(
@@ -741,9 +874,12 @@ def extract_kernel_declarations(source_file: Path) -> list:
                         "warp_m": warp_m,
                         "warp_n": warp_n,
                         "warp_k": warp_k,
-                        "pipeline": "compv4",
-                        "scheduler": "intrawave",
-                        "epilogue": "cshuffle",
+                        "pipeline": pipeline,
+                        "scheduler": scheduler,
+                        "epilogue": epilogue,
+                        "pad_m": pad_m,
+                        "pad_n": pad_n,
+                        "pad_k": pad_k,
                         "name": name,
                         "wildcard": False,
                         "set": set_name,
@@ -979,79 +1115,537 @@ def generate_kernels(declarations: list, gpu_target: str = "gfx942") -> int:
     return total_generated
 
 
-def find_kernel_header(decl: dict) -> Path:
-    """Find a matching kernel header file for a declaration."""
+def get_arch_filter_data():
+    """Load arch filter data from arch_specs_generated if available."""
+    codegen_dir = get_dispatcher_root() / "codegen"
+    sys.path.insert(0, str(codegen_dir))
+
+    try:
+        from arch_specs_generated import (
+            TRAIT_UNSUPPORTED_COMBINATIONS,
+            WARP_SUPPORTED_COMBINATIONS,
+            WARP_TILE_SUPPORTED_COMBINATIONS,
+            get_supported_archs,
+        )
+
+        return {
+            "trait_unsupported": TRAIT_UNSUPPORTED_COMBINATIONS,
+            "warp_combos": WARP_SUPPORTED_COMBINATIONS,
+            "warp_tile_combos": WARP_TILE_SUPPORTED_COMBINATIONS,
+            "supported_archs": get_supported_archs(),
+        }
+    except ImportError:
+        # Fallback defaults
+        return {
+            "trait_unsupported": {
+                ("compv3", "cshuffle", "interwave"),
+                ("compv3", "default", "interwave"),
+                ("compv4", "cshuffle", "interwave"),
+                ("compv4", "default", "interwave"),
+            },
+            "warp_combos": {
+                "gfx942": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
+            },
+            "warp_tile_combos": {
+                "gfx942": {"fp16_fp16_fp16": [[16, 16, 16], [32, 32, 16]]},
+            },
+            "supported_archs": ["gfx90a", "gfx942", "gfx950"],
+        }
+
+
+def is_wildcard_declaration(decl: dict) -> bool:
+    """Check if declaration has wildcards that need expansion."""
+    # Wave/warp wildcards
+    if decl.get("wave_m", 2) < 0 or decl.get("wave_n", 2) < 0:
+        return True
+    if decl.get("warp_m", 32) < 0 or decl.get("warp_n", 32) < 0:
+        return True
+    # Pipeline/scheduler wildcards
+    if decl.get("pipeline", "compv4") == "*":
+        return True
+    if decl.get("scheduler", "intrawave") == "*":
+        return True
+    if decl.get("epilogue", "cshuffle") == "*":
+        return True
+    return False
+
+
+def validate_kernel_config(decl: dict, arch: str = "gfx942") -> tuple:
+    """Validate a kernel configuration against known supported combinations.
+
+    Uses arch_specs_generated for architecture-specific validation.
+
+    For wildcard declarations (-1 values or "*" strings), validation is skipped
+    because the expansion phase will generate only valid combinations.
+
+    Returns: (is_valid, error_message)
+    """
+    # Skip validation for wildcards - expansion will filter invalid combos
+    if is_wildcard_declaration(decl):
+        return (True, None)
+
+    arch_data = get_arch_filter_data()
+
+    pipeline = decl.get("pipeline", "compv4")
+    epilogue = decl.get("epilogue", "cshuffle")
+    scheduler = decl.get("scheduler", "intrawave")
+    dtype = decl.get("dtype_a", "fp16")
+
+    wave_m = decl.get("wave_m", 2)
+    wave_n = decl.get("wave_n", 2)
+    wave_k = decl.get("wave_k", 1)
+
+    warp_m = decl.get("warp_m", 32)
+    warp_n = decl.get("warp_n", 32)
+    warp_k = decl.get("warp_k", 16)
+
+    errors = []
+
+    # Check trait combination (pipeline, epilogue, scheduler)
+    combo = (pipeline, epilogue, scheduler)
+    if combo in arch_data["trait_unsupported"]:
+        errors.append(
+            f"Unsupported trait combination: pipeline={pipeline}, epilogue={epilogue}, scheduler={scheduler}\n"
+            f"    Valid schedulers for {pipeline}+{epilogue}: intrawave"
+        )
+
+    # Check wave configuration for this arch
+    warp_combos = arch_data["warp_combos"].get(arch, [[2, 2, 1]])
+    wave_cfg = [wave_m, wave_n, wave_k]
+    if wave_cfg not in warp_combos:
+        valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_combos)
+        errors.append(
+            f"Unsupported wave configuration [{wave_m},{wave_n},{wave_k}] for {arch}\n"
+            f"    Valid wave configs: {valid_str}"
+        )
+
+    # Check warp tile configuration for this arch and dtype
+    dtype_key = f"{dtype}_{dtype}_{dtype}"
+    warp_tile_combos = (
+        arch_data["warp_tile_combos"]
+        .get(arch, {})
+        .get(dtype_key, [[32, 32, 16], [16, 16, 16]])
+    )
+    warp_cfg = [warp_m, warp_n, warp_k]
+    if warp_cfg not in warp_tile_combos:
+        valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_tile_combos[:5])
+        errors.append(
+            f"Unsupported warp tile [{warp_m},{warp_n},{warp_k}] for {arch}/{dtype}\n"
+            f"    Valid warp tiles: {valid_str}"
+        )
+
+    # Check arch is supported
+    if arch not in arch_data["supported_archs"]:
+        errors.append(
+            f"Unsupported architecture: {arch}\n"
+            f"    Supported: {', '.join(arch_data['supported_archs'])}"
+        )
+
+    if errors:
+        return (False, "\n".join(errors))
+
+    return (True, None)
+
+
+def build_exact_kernel_filename(decl: dict) -> str:
+    """Build the exact kernel filename from a fully-specified declaration.
+
+    Filename format:
+    gemm_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}_{pad_m}_{pad_n}_{pad_k}_{preshuffle}_{tile}_{wave}_{warp}.hpp
+
+    Example:
+    gemm_fp16_rcr_compv4_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_32x32x16.hpp
+    """
+    dtype = decl.get("dtype_a", decl.get("dtype", "fp16"))
+    layout = decl.get("layout", "rcr")
+    pipeline = decl.get("pipeline", "compv4")
+    epilogue = decl.get("epilogue", "cshuffle")
+    scheduler = decl.get("scheduler", "intrawave")
+
+    pad_m = "True" if decl.get("pad_m", False) else "False"
+    pad_n = "True" if decl.get("pad_n", False) else "False"
+    pad_k = "True" if decl.get("pad_k", False) else "False"
+    preshuffle = "True" if decl.get("preshuffle", False) else "False"
+
+    tile_m = decl.get("tile_m", 128)
+    tile_n = decl.get("tile_n", 128)
+    tile_k = decl.get("tile_k", 32)
+
+    wave_m = decl.get("wave_m", 2)
+    wave_n = decl.get("wave_n", 2)
+    wave_k = decl.get("wave_k", 1)
+
+    warp_m = decl.get("warp_m", 32)
+    warp_n = decl.get("warp_n", 32)
+    warp_k = decl.get("warp_k", 16)
+
+    tile_str = f"{tile_m}x{tile_n}x{tile_k}"
+    wave_str = f"{wave_m}x{wave_n}x{wave_k}"
+    warp_str = f"{warp_m}x{warp_n}x{warp_k}"
+
+    return f"gemm_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}_{pad_m}_{pad_n}_{pad_k}_{preshuffle}_{tile_str}_{wave_str}_{warp_str}.hpp"
+
+
+def generate_specific_kernel(decl: dict, gpu_target: str = "gfx942") -> bool:
+    """Generate a specific kernel based on declaration."""
+    dtype = decl.get("dtype_a", decl.get("dtype", "fp16"))
+    layout = decl.get("layout", "rcr")
+
+    print(f"    Generating kernel for {dtype}/{layout}...")
+
+    # Use CodegenRunner to generate
+    runner = CodegenRunner(
+        datatype=dtype,
+        layout=layout,
+        gpu_target=gpu_target,
+    )
+
+    result = runner.generate("standard")
+    return result.success
+
+
+def find_kernel_header(decl: dict, gpu_target: str = "gfx942") -> Path:
+    """Find a matching kernel header file for a declaration.
+
+    Tries multiple matching strategies:
+    1. Exact filename match
+    2. Match with key parameters (dtype, layout, pipeline, scheduler, tile)
+    3. Match with just dtype, layout, and tile (more flexible)
+    4. Any kernel with matching dtype and layout
+
+    If no kernel exists, attempts to generate it.
+    Returns None only if all strategies fail.
+    """
     kernel_dir = get_generated_kernels_dir()
 
     dtype = decl.get("dtype_a", decl.get("dtype", "fp16"))
     layout = decl.get("layout", "rcr")
-    tile_m = decl.get("tile_m", -1)
-    tile_n = decl.get("tile_n", -1)
-    tile_k = decl.get("tile_k", -1)
+    pipeline = decl.get("pipeline", "compv4")
+    scheduler = decl.get("scheduler", "intrawave")
+    tile_m = decl.get("tile_m", 128)
+    tile_n = decl.get("tile_n", 128)
+    tile_k = decl.get("tile_k", 32)
+    wave_m = decl.get("wave_m", 2)
+    wave_n = decl.get("wave_n", 2)
+    wave_k = decl.get("wave_k", 1)
 
-    def is_standard_kernel(path: Path) -> bool:
-        """Check if this is a standard GEMM kernel (not preshuffle/multid/etc)"""
-        name = path.name
-        excludes = ["preshuffle", "multid", "Gelu", "Relu", "multi_d"]
-        return not any(ex in name for ex in excludes)
+    tile_str = f"{tile_m}x{tile_n}x{tile_k}"
+    wave_str = f"{wave_m}x{wave_n}x{wave_k}"
 
-    # Try exact tile match first (standard kernels only)
-    if tile_m > 0 and tile_n > 0 and tile_k > 0:
-        pattern = f"gemm_{dtype}_{layout}*_{tile_m}x{tile_n}x{tile_k}_*.hpp"
-        matches = [p for p in kernel_dir.glob(pattern) if is_standard_kernel(p)]
-        if matches:
-            return matches[0]
+    # Build exact filename
+    exact_filename = build_exact_kernel_filename(decl)
+    exact_path = kernel_dir / exact_filename
 
-    # Fall back to any matching dtype/layout (standard kernels)
-    pattern = f"gemm_{dtype}_{layout}*.hpp"
-    matches = [p for p in kernel_dir.glob(pattern) if is_standard_kernel(p)]
+    # Strategy 1: Exact filename match
+    if exact_path.exists():
+        print(f"    Found exact kernel: {exact_filename}")
+        return exact_path
+
+    # Strategy 2: Match with key parameters
+    pattern = (
+        f"gemm_{dtype}_{layout}_{pipeline}_*_{scheduler}_*_{tile_str}_{wave_str}_*.hpp"
+    )
+    matches = list(kernel_dir.glob(pattern))
     if matches:
-        # Prefer 128x128x32 tiles
-        for m in matches:
-            if "128x128x32" in m.name:
-                return m
+        print(f"    Found matching kernel: {matches[0].name}")
         return matches[0]
 
-    # Fall back to any standard kernel
-    matches = [p for p in kernel_dir.glob("gemm_*.hpp") if is_standard_kernel(p)]
-    return matches[0] if matches else None
+    # Strategy 3: Match with just dtype, layout, tile (ignore wave/warp)
+    pattern = f"gemm_{dtype}_{layout}_{pipeline}_*_{scheduler}_*_{tile_str}_*.hpp"
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        print(f"    Found kernel with matching tile: {matches[0].name}")
+        return matches[0]
+
+    # Strategy 4: Match with just dtype, layout (most flexible, for wildcards)
+    # Prefer kernels with intrawave scheduler (known to work)
+    pattern = f"gemm_{dtype}_{layout}_*_intrawave_*_{tile_str}_*.hpp"
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        print(f"    Found kernel with intrawave: {matches[0].name}")
+        return matches[0]
+
+    # Strategy 5: Any kernel with matching dtype and layout
+    pattern = f"gemm_{dtype}_{layout}_*_{tile_str}_*.hpp"
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        print(f"    Found kernel with matching dtype/layout/tile: {matches[0].name}")
+        return matches[0]
+
+    # Strategy 6: Try to generate the kernel
+    print("    No matching kernel found, attempting to generate...")
+    if generate_specific_kernel(decl, gpu_target):
+        # Check strategies again after generation
+        for pattern in [
+            f"gemm_{dtype}_{layout}_{pipeline}_*_{scheduler}_*_{tile_str}_*.hpp",
+            f"gemm_{dtype}_{layout}_*_intrawave_*_{tile_str}_*.hpp",
+            f"gemm_{dtype}_{layout}_*_{tile_str}_*.hpp",
+        ]:
+            matches = list(kernel_dir.glob(pattern))
+            if matches:
+                print(f"    Generated: {matches[0].name}")
+                return matches[0]
+
+    # All strategies failed - return None (caller will try next expanded decl)
+    return None
 
 
-def find_conv_kernel_header(decl: dict) -> Path:
-    """Find a matching convolution kernel header file."""
-    kernel_dir = get_generated_kernels_dir()
+def is_conv_wildcard_declaration(decl: dict) -> bool:
+    """Check if conv declaration has wildcards that need expansion."""
+    if decl.get("wave_m", 2) < 0 or decl.get("wave_n", 2) < 0:
+        return True
+    if decl.get("warp_m", 32) < 0 or decl.get("warp_n", 32) < 0:
+        return True
+    if decl.get("pipeline", "compv3") == "*":
+        return True
+    if decl.get("scheduler", "intrawave") == "*":
+        return True
+    return False
 
+
+def validate_conv_kernel_config(decl: dict, arch: str = "gfx942") -> tuple:
+    """Validate a conv kernel configuration against arch filter.
+
+    For wildcard declarations, validation is skipped (expansion handles it).
+
+    Returns: (is_valid, error_message)
+    """
+    # Skip validation for wildcards
+    if is_conv_wildcard_declaration(decl):
+        return (True, None)
+
+    arch_data = get_arch_filter_data()
+
+    pipeline = decl.get("pipeline", "compv3")
+    epilogue = decl.get("epilogue", "cshuffle")
+    scheduler = decl.get("scheduler", "intrawave")
+    dtype = decl.get("dtype", "fp16")
+
+    wave_m = decl.get("wave_m", 2)
+    wave_n = decl.get("wave_n", 2)
+    wave_k = decl.get("wave_k", 1)
+
+    warp_m = decl.get("warp_m", 32)
+    warp_n = decl.get("warp_n", 32)
+    warp_k = decl.get("warp_k", 16)
+
+    errors = []
+
+    # Check trait combination
+    combo = (pipeline, epilogue, scheduler)
+    if combo in arch_data["trait_unsupported"]:
+        errors.append(
+            f"Unsupported trait combination: pipeline={pipeline}, epilogue={epilogue}, scheduler={scheduler}\n"
+            f"    Valid schedulers for {pipeline}+{epilogue}: intrawave"
+        )
+
+    # Check wave configuration
+    warp_combos = arch_data["warp_combos"].get(arch, [[2, 2, 1]])
+    wave_cfg = [wave_m, wave_n, wave_k]
+    if wave_cfg not in warp_combos:
+        valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_combos)
+        errors.append(
+            f"Unsupported wave configuration [{wave_m},{wave_n},{wave_k}] for {arch}\n"
+            f"    Valid wave configs: {valid_str}"
+        )
+
+    # Check warp tile configuration
+    dtype_key = f"{dtype}_{dtype}_{dtype}"
+    warp_tile_combos = (
+        arch_data["warp_tile_combos"]
+        .get(arch, {})
+        .get(dtype_key, [[32, 32, 16], [16, 16, 16]])
+    )
+    warp_cfg = [warp_m, warp_n, warp_k]
+    if warp_cfg not in warp_tile_combos:
+        valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_tile_combos[:5])
+        errors.append(
+            f"Unsupported warp tile [{warp_m},{warp_n},{warp_k}] for {arch}/{dtype}\n"
+            f"    Valid warp tiles: {valid_str}"
+        )
+
+    # Check arch is supported
+    if arch not in arch_data["supported_archs"]:
+        errors.append(
+            f"Unsupported architecture: {arch}\n"
+            f"    Supported: {', '.join(arch_data['supported_archs'])}"
+        )
+
+    if errors:
+        return (False, "\n".join(errors))
+
+    return (True, None)
+
+
+def build_exact_conv_kernel_filename(decl: dict) -> str:
+    """Build the exact conv kernel filename from a fully-specified declaration.
+
+    Conv filename format:
+    conv_{type}_{dtype}_{ndim}d_{pipeline}_{epilogue}_{scheduler}_{tile}_{wave}.hpp
+
+    Example:
+    conv_fwd_fp16_2d_compv3_cshuffle_intrawave_128x128x32_2x2x1.hpp
+    """
     dtype = decl.get("dtype", "fp16")
     conv_type = decl.get("conv_type", "forward")
     num_dims = decl.get("num_dims", 2)
-    tile_k = decl.get("tile_k", -1)
-    tile_c = decl.get("tile_c", -1)
+    pipeline = decl.get("pipeline", "compv3")
+    epilogue = decl.get("epilogue", "cshuffle")
+    scheduler = decl.get("scheduler", "intrawave")
 
     # Map conv_type to filename prefix
-    type_prefix = "fwd" if conv_type == "forward" else conv_type.replace("bwd_", "")
+    if conv_type == "forward":
+        type_prefix = "fwd"
+    elif conv_type == "bwd_data":
+        type_prefix = "bwdd"
+    elif conv_type == "bwd_weight":
+        type_prefix = "bwdw"
+    else:
+        type_prefix = conv_type
 
-    # Try exact match first
-    if tile_k > 0 and tile_c > 0:
-        pattern = f"conv_{type_prefix}_{dtype}_{num_dims}d_*_{tile_k}x{tile_c}*.hpp"
+    tile_k = decl.get("tile_k", 128)
+    tile_c = decl.get("tile_c", 128)
+
+    wave_m = decl.get("wave_m", 2)
+    wave_n = decl.get("wave_n", 2)
+    wave_k = decl.get("wave_k", 1)
+
+    tile_str = f"{tile_k}x{tile_c}x32"  # Conv uses tile_k x tile_c x 32 format
+    wave_str = f"{wave_m}x{wave_n}x{wave_k}"
+
+    return f"conv_{type_prefix}_{dtype}_{num_dims}d_{pipeline}_{epilogue}_{scheduler}_{tile_str}_{wave_str}.hpp"
+
+
+def generate_specific_conv_kernel(decl: dict, gpu_target: str = "gfx942") -> bool:
+    """Generate a specific conv kernel based on declaration."""
+    dtype = decl.get("dtype", "fp16")
+    conv_type = decl.get("conv_type", "forward")
+    num_dims = decl.get("num_dims", 2)
+
+    print(f"    Generating conv kernel for {dtype}/{conv_type}/{num_dims}d...")
+
+    # Map to variant name
+    if conv_type == "forward":
+        variant = "forward"
+    elif conv_type == "bwd_data":
+        variant = "bwd_data"
+    elif conv_type == "bwd_weight":
+        variant = "bwd_weight"
+    else:
+        variant = "forward"
+
+    # Use unified_conv_codegen
+    codegen_dir = get_dispatcher_root() / "codegen"
+    codegen_script = codegen_dir / "unified_conv_codegen.py"
+    output_dir = get_generated_kernels_dir()
+
+    cmd = [
+        "python3",
+        str(codegen_script),
+        "--datatype",
+        dtype,
+        "--variant",
+        variant,
+        "--ndim",
+        str(num_dims),
+        "--arch",
+        gpu_target,
+        "--output",
+        str(output_dir),
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+
+
+def find_conv_kernel_header(decl: dict, gpu_target: str = "gfx942") -> Path:
+    """Find the EXACT matching conv kernel header file for a declaration.
+
+    If the kernel doesn't exist, attempts to generate it.
+    Returns None only if generation also fails.
+    """
+    kernel_dir = get_generated_kernels_dir()
+
+    # Build exact filename
+    exact_filename = build_exact_conv_kernel_filename(decl)
+    exact_path = kernel_dir / exact_filename
+
+    # Check if exact kernel exists
+    if exact_path.exists():
+        print(f"    Found exact conv kernel: {exact_filename}")
+        return exact_path
+
+    # Try to find with glob (in case of minor variations)
+    dtype = decl.get("dtype", "fp16")
+    conv_type = decl.get("conv_type", "forward")
+    num_dims = decl.get("num_dims", 2)
+    pipeline = decl.get("pipeline", "compv3")
+    scheduler = decl.get("scheduler", "intrawave")
+    tile_k = decl.get("tile_k", 128)
+    tile_c = decl.get("tile_c", 128)
+    wave_m = decl.get("wave_m", 2)
+    wave_n = decl.get("wave_n", 2)
+    wave_k = decl.get("wave_k", 1)
+
+    # Map conv_type to prefix
+    if conv_type == "forward":
+        type_prefix = "fwd"
+    elif conv_type == "bwd_data":
+        type_prefix = "bwdd"
+    elif conv_type == "bwd_weight":
+        type_prefix = "bwdw"
+    else:
+        type_prefix = conv_type
+
+    tile_str = f"{tile_k}x{tile_c}"
+    wave_str = f"{wave_m}x{wave_n}x{wave_k}"
+
+    # Search pattern with key parameters
+    pattern = f"conv_{type_prefix}_{dtype}_{num_dims}d_{pipeline}_*_{scheduler}_*{tile_str}*_{wave_str}.hpp"
+    matches = list(kernel_dir.glob(pattern))
+
+    if matches:
+        print(f"    Found matching conv kernel: {matches[0].name}")
+        return matches[0]
+
+    # Kernel doesn't exist - try to generate it
+    print(f"    Conv kernel not found: {exact_filename}")
+    print("    Attempting to generate...")
+
+    if generate_specific_conv_kernel(decl, gpu_target):
+        # Check again after generation
         matches = list(kernel_dir.glob(pattern))
         if matches:
+            print(f"    Generated: {matches[0].name}")
             return matches[0]
 
-    # Fall back to any matching dtype and conv_type
-    pattern = f"conv_{type_prefix}_{dtype}_{num_dims}d_*.hpp"
-    matches = list(kernel_dir.glob(pattern))
-    if matches:
-        return matches[0]
+        # Check for exact match
+        if exact_path.exists():
+            print(f"    Generated: {exact_filename}")
+            return exact_path
 
-    # Fall back to any conv kernel
-    pattern = f"conv_{type_prefix}_*.hpp"
-    matches = list(kernel_dir.glob(pattern))
-    if matches:
-        return matches[0]
+    # Still not found - print helpful error
+    print_error(
+        "    ERROR: Could not find or generate conv kernel matching declaration:"
+    )
+    print_error(f"      dtype={dtype}, conv_type={conv_type}, num_dims={num_dims}")
+    print_error(f"      pipeline={pipeline}, scheduler={scheduler}")
+    print_error(f"      tile={tile_k}x{tile_c}, wave={wave_str}")
+    print_error(f"    Expected: {exact_filename}")
+    print_error(f"    Available conv kernels in {kernel_dir}:")
 
-    # Fall back to any conv kernel at all
-    matches = list(kernel_dir.glob("conv_*.hpp"))
-    return matches[0] if matches else None
+    available = list(kernel_dir.glob(f"conv_{type_prefix}_{dtype}_{num_dims}d_*.hpp"))[
+        :5
+    ]
+    for k in available:
+        print_error(f"      - {k.name}")
+    if len(list(kernel_dir.glob(f"conv_{type_prefix}_{dtype}_{num_dims}d_*.hpp"))) > 5:
+        print_error("      ... and more")
+
+    return None
 
 
 def build_dispatcher_library(hipcc: str) -> bool:
@@ -1149,8 +1743,11 @@ Example:
     python3 compile_gemm_examples.py examples/cpp/01_basic_gemm_declarative.cpp my_app
     
 In your C++ code, declare kernels like:
-    DECLARE_GEMM_KERNEL(fp16, rcr, 128, 128, 32);
-    DECLARE_GEMM_KERNEL(bf16, rcr, 256, 256, 64);
+    DECL_KERNEL_SET(my_kernels,
+        .add(Signature().dtype("fp16").layout("rcr"),
+             Algorithm().tile(128, 128, 32).wave(2, 2, 1).warp(32, 32, 16)
+                        .pipeline("compv4").scheduler("intrawave"))
+    );
 """,
     )
     parser.add_argument("source", help="Source file (.cpp)")
@@ -1230,7 +1827,52 @@ In your C++ code, declare kernels like:
             if len(set_decls) > 5:
                 print(f"      ... and {len(set_decls) - 5} more")
 
-        # Expand GEMM declarations
+        # Validate declarations against arch filter
+        print(f"\n    Validating against {args.gpu_target} arch filter...")
+        wildcard_count = 0
+        invalid_count = 0
+        for decl in gemm_declarations:
+            arch = decl.get("arch", args.gpu_target)
+
+            # Check for wildcards
+            if is_wildcard_declaration(decl):
+                wildcard_count += 1
+                continue  # Wildcards validated during expansion
+
+            is_valid, error_msg = validate_kernel_config(decl, arch)
+            if not is_valid:
+                decl_name = (
+                    decl["name"].split(":")[-1] if ":" in decl["name"] else decl["name"]
+                )
+                print(f"\n    ⚠ Invalid configuration: {decl_name}")
+                for line in error_msg.split("\n"):
+                    print(f"      {line}")
+                print("      → Will wildcard expand to find valid configuration")
+                # Convert to wildcard by setting wave/warp to -1
+                decl["wave_m"] = -1
+                decl["wave_n"] = -1
+                decl["warp_m"] = -1
+                decl["warp_n"] = -1
+                # Also wildcard the trait combination if that was the issue
+                if "trait combination" in error_msg.lower():
+                    decl["pipeline"] = "*"
+                    decl["scheduler"] = "*"
+                invalid_count += 1
+                wildcard_count += 1
+
+        if invalid_count > 0:
+            print(
+                f"\n    ⚠ {invalid_count} invalid config(s) will be auto-corrected via expansion"
+            )
+
+        if wildcard_count > 0:
+            print(
+                f"    ✓ {len(gemm_declarations) - wildcard_count} explicit + {wildcard_count} wildcard (will expand)"
+            )
+        else:
+            print(f"    ✓ All {len(gemm_declarations)} configurations valid")
+
+        # Expand GEMM declarations (for wildcards)
         expanded_gemm = []
         for decl in gemm_declarations:
             arch = decl.get("arch", args.gpu_target)
@@ -1257,9 +1899,7 @@ In your C++ code, declare kernels like:
         for set_name, set_decls in sets.items():
             print(f"    [{set_name}] ({len(set_decls)} kernels):")
             for decl in set_decls[:5]:
-                needs_expansion = (
-                    decl.get("wave_m", -1) < 0 or decl.get("warp_m", -1) < 0
-                )
+                needs_expansion = is_conv_wildcard_declaration(decl)
                 suffix = " [expands]" if needs_expansion else ""
                 display_name = (
                     decl["name"].split(":")[-1] if ":" in decl["name"] else decl["name"]
@@ -1268,7 +1908,52 @@ In your C++ code, declare kernels like:
             if len(set_decls) > 5:
                 print(f"      ... and {len(set_decls) - 5} more")
 
-        # Expand Conv declarations
+        # Validate Conv declarations against arch filter
+        print(f"\n    Validating against {args.gpu_target} arch filter...")
+        wildcard_count = 0
+        invalid_count = 0
+        for decl in conv_declarations:
+            arch = decl.get("arch", args.gpu_target)
+
+            # Check for wildcards
+            if is_conv_wildcard_declaration(decl):
+                wildcard_count += 1
+                continue  # Wildcards validated during expansion
+
+            is_valid, error_msg = validate_conv_kernel_config(decl, arch)
+            if not is_valid:
+                decl_name = (
+                    decl["name"].split(":")[-1] if ":" in decl["name"] else decl["name"]
+                )
+                print(f"\n    ⚠ Invalid conv configuration: {decl_name}")
+                for line in error_msg.split("\n"):
+                    print(f"      {line}")
+                print("      → Will wildcard expand to find valid configuration")
+                # Convert to wildcard by setting wave/warp to -1
+                decl["wave_m"] = -1
+                decl["wave_n"] = -1
+                decl["warp_m"] = -1
+                decl["warp_n"] = -1
+                # Also wildcard the trait combination if that was the issue
+                if "trait combination" in error_msg.lower():
+                    decl["pipeline"] = "*"
+                    decl["scheduler"] = "*"
+                invalid_count += 1
+                wildcard_count += 1
+
+        if invalid_count > 0:
+            print(
+                f"\n    ⚠ {invalid_count} invalid config(s) will be auto-corrected via expansion"
+            )
+
+        if wildcard_count > 0:
+            print(
+                f"    ✓ {len(conv_declarations) - wildcard_count} explicit + {wildcard_count} wildcard (will expand)"
+            )
+        else:
+            print(f"    ✓ All {len(conv_declarations)} configurations valid")
+
+        # Expand Conv declarations (for wildcards)
         expanded_conv = []
         for decl in conv_declarations:
             arch = decl.get("arch", args.gpu_target)
@@ -1309,13 +1994,24 @@ In your C++ code, declare kernels like:
 
     kernel_headers = []
 
-    # Find GEMM kernel header
+    # Find GEMM kernel header (try each expanded declaration until one matches)
     if gemm_declarations:
-        first_gemm = gemm_declarations[0]
-        gemm_header = find_kernel_header(first_gemm)
+        gemm_header = None
+        for decl in gemm_declarations:
+            header = find_kernel_header(decl, args.gpu_target)
+            if header:
+                gemm_header = header
+                break
+
         if gemm_header:
             kernel_headers.append(gemm_header)
             print(f"  GEMM: {gemm_header.name}")
+        else:
+            print_error("  GEMM: No kernel found matching any declaration!")
+            print_error(
+                "  The kernels declared in DECL_KERNEL_SET must exist or be generatable."
+            )
+            return 1
 
     # Find Conv kernel header
     if conv_declarations:

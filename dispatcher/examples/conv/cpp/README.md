@@ -22,101 +22,83 @@ make -j$(nproc)
 
 # Run examples
 cd examples
-./conv_01_basic
-./conv_03_validation
-./conv_10_bwd_data --verify
-./conv_11_bwd_weight --verify
+./conv_01_forward
+./conv_02_validation
+./conv_09_bwd_data --verify
+./conv_10_bwd_weight --verify
 ```
 
 ## Examples
 
 | Example | Description | Complexity |
 |---------|-------------|------------|
-| [01_basic_conv.cpp](01_basic_conv.cpp) | Basic 2D conv with declarative API | ★☆☆☆☆ |
-| [02_conv_forward.cpp](02_conv_forward.cpp) | 2D forward with tensor setup | ★★☆☆☆ |
-| [03_conv_validation.cpp](03_conv_validation.cpp) | CPU reference validation | ★★☆☆☆ |
-| [04_multi_size.cpp](04_multi_size.cpp) | Multiple problem sizes | ★★☆☆☆ |
-| [05_benchmark.cpp](05_benchmark.cpp) | ResNet/VGG layer benchmarks | ★★☆☆☆ |
-| [06_heuristics.cpp](06_heuristics.cpp) | Heuristic kernel selection | ★★★☆☆ |
-| [07_json_export.cpp](07_json_export.cpp) | Export registry to JSON | ★★☆☆☆ |
-| [08_multi_registry.cpp](08_multi_registry.cpp) | Multiple registries | ★★★☆☆ |
-| [09_conv3d_forward.cpp](09_conv3d_forward.cpp) | 3D volumetric convolution | ★★★☆☆ |
-| [10_bwd_data.cpp](10_bwd_data.cpp) | Backward data gradient | ★★★☆☆ |
-| [11_bwd_weight.cpp](11_bwd_weight.cpp) | Backward weight gradient | ★★★☆☆ |
+| [01_conv_forward.cpp](01_conv_forward.cpp) | 2D forward with tensor setup | ★★☆☆☆ |
+| [02_conv_validation.cpp](02_conv_validation.cpp) | CPU reference validation | ★★☆☆☆ |
+| [03_multi_size.cpp](03_multi_size.cpp) | Multiple problem sizes | ★★☆☆☆ |
+| [04_benchmark.cpp](04_benchmark.cpp) | ResNet/VGG layer benchmarks | ★★☆☆☆ |
+| [05_heuristics.cpp](05_heuristics.cpp) | Heuristic kernel selection | ★★★☆☆ |
+| [06_json_export.cpp](06_json_export.cpp) | Export registry to JSON | ★★☆☆☆ |
+| [07_multi_registry.cpp](07_multi_registry.cpp) | Multiple registries | ★★★☆☆ |
+| [08_conv3d_forward.cpp](08_conv3d_forward.cpp) | 3D volumetric convolution | ★★★☆☆ |
+| [09_bwd_data.cpp](09_bwd_data.cpp) | Backward data gradient | ★★★☆☆ |
+| [10_bwd_weight.cpp](10_bwd_weight.cpp) | Backward weight gradient | ★★★☆☆ |
 
 ## Example Details
 
-### 01_basic_conv.cpp - Basic Convolution
-The simplest example demonstrating:
-- Declarative kernel specification using `DECL_CONV_KERNEL_SET`
-- ConvSignature/ConvAlgorithm/Arch pattern
-- Registry creation and convolution dispatch
-
-```cpp
-DECL_CONV_KERNEL_SET(basic_conv_kernels,
-    .add(
-        ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
-        ConvAlgo().tile(1, 128, 128).wave(2, 2, 1).warp(32, 32, 16)
-                  .pipeline("compv3").scheduler("intrawave"),
-        "gfx942"
-    )
-);
-```
-
-### 02_conv_forward.cpp - Forward Pass
+### 01_conv_forward.cpp - Forward Pass
 Shows complete forward convolution:
 - Input/Weight/Output tensor creation
 - GPU memory allocation and transfer
 - Kernel execution and timing
 
-### 03_conv_validation.cpp - Validation
+### 02_conv_validation.cpp - Validation
 Demonstrates correctness verification:
 - CPU reference implementation
 - GPU execution
 - Numerical comparison with tolerance
 
-### 04_multi_size.cpp - Multiple Sizes
+### 03_multi_size.cpp - Multiple Sizes
 Shows running on various input sizes:
 - Small (14x14), Medium (28x28), Large (56x56)
 - Performance comparison across sizes
 
-### 05_benchmark.cpp - Benchmarking
+### 04_benchmark.cpp - Benchmarking
 Professional benchmarking with:
 - ResNet layer configurations
 - VGG-16 layer configurations
 - TFLOPS measurement and reporting
 
-### 06_heuristics.cpp - Heuristic Selection
+### 05_heuristics.cpp - Heuristic Selection
 Intelligent kernel selection:
 - Problem analysis (pointwise, depthwise, etc.)
 - Workload classification
 - Automatic kernel matching
 
-### 07_json_export.cpp - JSON Export
+### 06_json_export.cpp - JSON Export
 Registry serialization:
 - Export kernel metadata
 - Configuration documentation
 - Tool integration
 
-### 08_multi_registry.cpp - Multiple Registries
+### 07_multi_registry.cpp - Multiple Registries
 Advanced registry patterns:
 - Compute-optimized registry
 - Memory-optimized registry
 - Workload-based selection
 
-### 09_conv3d_forward.cpp - 3D Convolution
+### 08_conv3d_forward.cpp - 3D Convolution
 Volumetric convolution for:
 - Video processing
 - Medical imaging (CT, MRI)
 - Point cloud processing
 
-### 10_bwd_data.cpp - Backward Data
+### 09_bwd_data.cpp - Backward Data
 Backward data gradient:
 - dL/dInput computation
 - Gradient propagation for backprop
 - CPU reference validation with `--verify` flag
 
-### 11_bwd_weight.cpp - Backward Weight
+### 10_bwd_weight.cpp - Backward Weight
 Backward weight gradient:
 - dL/dWeight computation
 - Filter gradient for training

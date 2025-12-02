@@ -125,9 +125,10 @@ def main():
 
                 hip.hipMalloc(ctypes.byref(input_dev), input_host.nbytes)
                 hip.hipMalloc(ctypes.byref(weight_dev), weight_host.nbytes)
-                hip.hipMalloc(
-                    ctypes.byref(output_dev), prob.N * prob.Ho * prob.Wo * prob.K * 2
+                output_size = (
+                    prob.N * prob.Ho * prob.Wo * prob.K * input_host.dtype.itemsize
                 )
+                hip.hipMalloc(ctypes.byref(output_dev), output_size)
 
                 # Copy to device
                 hip.hipMemcpy(input_dev, input_host.ctypes.data, input_host.nbytes, 1)

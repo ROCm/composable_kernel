@@ -57,9 +57,282 @@ def get_build_dir() -> Path:
     return get_dispatcher_root() / "build"
 
 
+# =============================================================================
+# Supported Data Types
+# =============================================================================
+
+# All supported GEMM dtype combinations from warp_gemm_dispatcher.hpp
+SUPPORTED_DTYPES = {
+    # dtype_a, dtype_b -> acc_dtype, warp_tiles
+    ("fp32", "fp32"): {"acc": "fp32", "warp_tiles": [(16, 16, 4), (16, 16, 16)]},
+    ("fp16", "fp16"): {
+        "acc": "fp32",
+        "warp_tiles": [(32, 32, 8), (32, 32, 16), (16, 16, 16), (16, 16, 32)],
+    },
+    ("bf16", "bf16"): {
+        "acc": "fp32",
+        "warp_tiles": [(32, 32, 8), (32, 32, 16), (16, 16, 16), (16, 16, 32)],
+    },
+    ("fp8", "fp8"): {
+        "acc": "fp32",
+        "warp_tiles": [(32, 32, 16), (32, 32, 32), (16, 16, 32), (16, 16, 64)],
+    },
+    ("fp8", "bf8"): {"acc": "fp32", "warp_tiles": [(32, 32, 16), (16, 16, 32)]},
+    ("bf8", "fp8"): {"acc": "fp32", "warp_tiles": [(32, 32, 16), (16, 16, 128)]},
+    ("bf8", "bf8"): {
+        "acc": "fp32",
+        "warp_tiles": [(32, 32, 16), (32, 32, 32), (16, 16, 32)],
+    },
+    ("int8", "int8"): {
+        "acc": "int32",
+        "warp_tiles": [(32, 32, 16), (16, 16, 32), (16, 16, 16)],
+    },
+    ("pk_fp4", "pk_fp4"): {"acc": "fp32", "warp_tiles": [(16, 16, 128)]},
+}
+
+# All valid individual dtypes
+VALID_DTYPES = ["fp16", "bf16", "fp32", "fp8", "bf8", "int8", "pk_fp4"]
+
+
 def get_generated_kernels_dir() -> Path:
     """Get the generated kernels directory"""
     return get_build_dir() / "generated_kernels"
+
+
+# =============================================================================
+# Arch Filter and Validation
+# =============================================================================
+
+
+def get_arch_filter_data() -> Dict[str, Any]:
+    """Load arch filter data from arch_specs_generated if available."""
+    codegen_dir = get_dispatcher_root() / "codegen"
+    import sys
+
+    sys.path.insert(0, str(codegen_dir))
+
+    try:
+        from arch_specs_generated import (
+            TRAIT_UNSUPPORTED_COMBINATIONS,
+            WARP_SUPPORTED_COMBINATIONS,
+            WARP_TILE_SUPPORTED_COMBINATIONS,
+            get_supported_archs,
+        )
+
+        return {
+            "trait_unsupported": TRAIT_UNSUPPORTED_COMBINATIONS,
+            "warp_combos": WARP_SUPPORTED_COMBINATIONS,
+            "warp_tile_combos": WARP_TILE_SUPPORTED_COMBINATIONS,
+            "supported_archs": get_supported_archs(),
+        }
+    except ImportError:
+        # Fallback defaults
+        return {
+            "trait_unsupported": {
+                ("compv3", "cshuffle", "interwave"),
+                ("compv3", "default", "interwave"),
+                ("compv4", "cshuffle", "interwave"),
+                ("compv4", "default", "interwave"),
+            },
+            "warp_combos": {
+                "gfx942": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
+                "gfx90a": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
+            },
+            "warp_tile_combos": {
+                "gfx942": {"fp16_fp16_fp16": [[16, 16, 16], [32, 32, 16]]},
+                "gfx90a": {"fp16_fp16_fp16": [[16, 16, 16], [32, 32, 16]]},
+            },
+            "supported_archs": ["gfx90a", "gfx942", "gfx950"],
+        }
+
+
+@dataclass
+class ValidationResult:
+    """Result of kernel config validation."""
+
+    is_valid: bool
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    suggested_fixes: Dict[str, Any] = field(default_factory=dict)
+
+    def print_result(self, indent: str = "  "):
+        """Print validation result."""
+        if self.is_valid:
+            print(f"{indent}✓ Configuration valid")
+        else:
+            print(f"{indent}⚠ Configuration has issues:")
+            for err in self.errors:
+                print(f"{indent}  - {err}")
+
+        if self.warnings:
+            for warn in self.warnings:
+                print(f"{indent}  Warning: {warn}")
+
+        if self.suggested_fixes:
+            print(f"{indent}  Suggested fixes:")
+            for key, val in self.suggested_fixes.items():
+                print(f"{indent}    {key}: {val}")
+
+
+def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
+    """
+    Validate a KernelConfig against arch filter rules.
+
+    Returns ValidationResult with is_valid, errors, and suggested fixes.
+    """
+    arch_data = get_arch_filter_data()
+
+    errors = []
+    warnings = []
+    suggested_fixes = {}
+
+    pipeline = config.pipeline
+    epilogue = config.epilogue
+    scheduler = config.scheduler
+    dtype = config.dtype_a
+    arch = config.gfx_arch
+
+    wave_m = config.wave_m
+    wave_n = config.wave_n
+    wave_k = config.wave_k
+
+    warp_m = config.warp_m
+    warp_n = config.warp_n
+    warp_k = config.warp_k
+
+    # Check trait combination (pipeline, epilogue, scheduler)
+    combo = (pipeline, epilogue, scheduler)
+    if combo in arch_data["trait_unsupported"]:
+        errors.append(
+            f"Unsupported trait combination: pipeline={pipeline}, epilogue={epilogue}, scheduler={scheduler}"
+        )
+        suggested_fixes["scheduler"] = "intrawave"
+
+    # Check wave configuration for this arch
+    warp_combos = arch_data["warp_combos"].get(arch, [[2, 2, 1]])
+    wave_cfg = [wave_m, wave_n, wave_k]
+    if wave_cfg not in warp_combos:
+        valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_combos)
+        errors.append(
+            f"Unsupported wave configuration [{wave_m},{wave_n},{wave_k}] for {arch}. Valid: {valid_str}"
+        )
+        if warp_combos:
+            suggested_fixes["wave_m"] = warp_combos[0][0]
+            suggested_fixes["wave_n"] = warp_combos[0][1]
+            suggested_fixes["wave_k"] = warp_combos[0][2]
+
+    # Check warp tile configuration for this arch and dtype
+    dtype_key = f"{dtype}_{dtype}_{dtype}"
+    warp_tile_combos = (
+        arch_data["warp_tile_combos"]
+        .get(arch, {})
+        .get(dtype_key, [[32, 32, 16], [16, 16, 16]])
+    )
+    warp_cfg = [warp_m, warp_n, warp_k]
+    if warp_cfg not in warp_tile_combos:
+        valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_tile_combos[:5])
+        errors.append(
+            f"Unsupported warp tile [{warp_m},{warp_n},{warp_k}] for {arch}/{dtype}. Valid: {valid_str}"
+        )
+        if warp_tile_combos:
+            suggested_fixes["warp_m"] = warp_tile_combos[0][0]
+            suggested_fixes["warp_n"] = warp_tile_combos[0][1]
+            suggested_fixes["warp_k"] = warp_tile_combos[0][2]
+
+    # Check arch is supported
+    if arch not in arch_data["supported_archs"]:
+        errors.append(
+            f"Unsupported architecture: {arch}. Supported: {', '.join(arch_data['supported_archs'])}"
+        )
+
+    return ValidationResult(
+        is_valid=len(errors) == 0,
+        errors=errors,
+        warnings=warnings,
+        suggested_fixes=suggested_fixes,
+    )
+
+
+def auto_correct_kernel_config(config: "KernelConfig") -> Tuple["KernelConfig", bool]:
+    """
+    Validate and auto-correct a KernelConfig.
+
+    Returns (corrected_config, was_modified).
+    If the config was valid, returns (original_config, False).
+    If corrections were made, returns (new_config, True).
+    """
+    validation = validate_kernel_config(config)
+
+    if validation.is_valid:
+        return config, False
+
+    # Apply suggested fixes
+    from dataclasses import replace
+
+    fixes = validation.suggested_fixes
+    new_config = replace(
+        config,
+        scheduler=fixes.get("scheduler", config.scheduler),
+        wave_m=fixes.get("wave_m", config.wave_m),
+        wave_n=fixes.get("wave_n", config.wave_n),
+        wave_k=fixes.get("wave_k", config.wave_k),
+        warp_m=fixes.get("warp_m", config.warp_m),
+        warp_n=fixes.get("warp_n", config.warp_n),
+        warp_k=fixes.get("warp_k", config.warp_k),
+    )
+
+    return new_config, True
+
+
+def find_matching_kernel_header(config: "KernelConfig") -> Optional[Path]:
+    """
+    Find a kernel header that EXACTLY matches the config.
+
+    Uses progressively relaxed matching strategies.
+    """
+    kernel_dir = get_generated_kernels_dir()
+
+    dtype = config.dtype_a
+    layout = config.layout
+    pipeline = config.pipeline
+    scheduler = config.scheduler
+    tile_str = config.tile_str
+    wave_str = f"{config.wave_m}x{config.wave_n}x{config.wave_k}"
+    warp_str = f"{config.warp_m}x{config.warp_n}x{config.warp_k}"
+
+    # Strategy 1: Exact match with ALL parameters including warp tile
+    pattern = f"gemm_{dtype}_{layout}_{pipeline}_*_{scheduler}_*_{tile_str}_{wave_str}_{warp_str}.hpp"
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        return matches[0]
+
+    # Strategy 2: Match with tile and wave, any warp
+    pattern = (
+        f"gemm_{dtype}_{layout}_{pipeline}_*_{scheduler}_*_{tile_str}_{wave_str}_*.hpp"
+    )
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        return matches[0]
+
+    # Strategy 3: Match with just tile (ignore wave/warp)
+    pattern = f"gemm_{dtype}_{layout}_{pipeline}_*_{scheduler}_*_{tile_str}_*.hpp"
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        return matches[0]
+
+    # Strategy 4: Match with intrawave (known to work)
+    pattern = f"gemm_{dtype}_{layout}_*_intrawave_*_{tile_str}_*.hpp"
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        return matches[0]
+
+    # Strategy 5: Any kernel with matching dtype/layout/tile
+    pattern = f"gemm_{dtype}_{layout}_*_{tile_str}_*.hpp"
+    matches = list(kernel_dir.glob(pattern))
+    if matches:
+        return matches[0]
+
+    return None
 
 
 # =============================================================================
@@ -72,14 +345,20 @@ class DispatcherLib:
 
     # Default library search paths (relative to dispatcher root)
     SEARCH_PATHS = [
+        "build/examples/libdispatcher_gemm_lib.so",
+        "build/libdispatcher_gemm_lib.so",
         "build/examples/libdispatcher_gemm.so",
         "build/lib/libdispatcher_gemm.so",
-        "examples/python/libdispatcher_gemm.so",
     ]
+
+    # Track loaded libraries globally for cleanup
+    _loaded_libs: List[Path] = []
 
     def __init__(self, lib: ctypes.CDLL, path: Path):
         self._lib = lib
         self._path = path
+        self._closed = False
+        DispatcherLib._loaded_libs.append(path)
         self._setup_functions()
 
     def _setup_functions(self):
@@ -254,6 +533,15 @@ class DispatcherLib:
 
         kernel_header = kernel_headers[0]
 
+        # Use the ctypes binding source file
+        ctypes_source = root / "bindings/ctypes/gemm_ctypes_lib.cpp"
+        if not ctypes_source.exists():
+            print(f"Source file not found: {ctypes_source}")
+            print(
+                "Please build with CMake: cd build && cmake .. && make dispatcher_gemm_lib"
+            )
+            return None
+
         compile_cmd = [
             "/opt/rocm/bin/hipcc",
             "-shared",
@@ -262,13 +550,16 @@ class DispatcherLib:
             f"-I{root / 'include'}",
             f"-I{ck_root / 'include'}",
             f"-I{ck_root}",
+            f"-I{root / 'build/generated_kernels'}",
             f"-include{kernel_header}",
             "-D__HIP_PLATFORM_AMD__",
             "--offload-arch=gfx942",
             "-DAMDGPU_ARCH=gfx942",
-            str(root / "examples/cpp/dispatcher_dynamic_lib.cpp"),
-            str(root / "src/registry.cpp"),
-            str(root / "src/dispatcher.cpp"),
+            "-mllvm",
+            "-enable-noalias-to-md-conversion=0",
+            "-Wno-undefined-func-template",
+            "-Wno-float-equal",
+            str(ctypes_source),
             "-o",
             str(output_path),
         ]
@@ -288,23 +579,26 @@ class DispatcherLib:
 
     @classmethod
     def auto(cls, recompile: bool = False) -> Optional["DispatcherLib"]:
-        """Auto-find or compile the library"""
-        if not recompile:
-            lib = cls.load()
-            if lib is not None:
-                if lib.initialize():
-                    return lib
+        """Auto-find or compile the library.
 
-        # Try to compile
-        path = cls.compile()
-        if path is None:
-            return None
-
-        lib = cls.load(path)
+        Note: The library is built by CMake with a specific kernel configuration.
+        If you need a different dtype/layout, rebuild with:
+            cd build && cmake .. && make dispatcher_gemm_lib
+        """
+        lib = cls.load()
         if lib is not None:
-            lib.initialize()
+            if lib.initialize():
+                return lib
+            else:
+                print("  Library found but failed to initialize")
+                print(
+                    "  Rebuild with: cd build && cmake .. && make dispatcher_gemm_lib"
+                )
 
-        return lib
+        # Don't fall back to old compile method - use CMake instead
+        print("  Library not found. Build with:")
+        print("    cd dispatcher/build && cmake .. && make dispatcher_gemm_lib")
+        return None
 
 
 # =============================================================================
@@ -1070,8 +1364,9 @@ class CodegenRunner:
         """
         Generate kernel from a specific KernelConfig.
 
-        This method is smart: it checks if the specific kernel already exists
-        and skips generation if so (unless force=True).
+        This generates ONLY the specific kernel header needed (not all kernels).
+        Note: This does NOT rebuild the library - use build_library_for_configs()
+        for that.
 
         Args:
             config: KernelConfig with all kernel parameters
@@ -1080,40 +1375,39 @@ class CodegenRunner:
             show_instances: Print instance names when generating
 
         Returns:
-            CodegenResult with only the EXACT matching kernel counted
+            CodegenResult with the specific kernel
         """
         import sys
+        import json
+        import tempfile
 
         out_dir = output_dir or self.output_dir
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # Build PRECISE kernel filename pattern for this specific config
-        # Format: gemm_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}_{pads}_{tile}_{wave}_{warp}
+        # Build kernel filename pattern for this config
+        # Note: padding flags may differ from config (arch filter may enable padding)
         tile_str = config.tile_str  # e.g., "128x128x32"
-        wave_str = f"{config.wave_m}x{config.wave_n}x{config.wave_k}"  # e.g., "2x2x1"
-        warp_str = (
-            f"{config.warp_m}x{config.warp_n}x{config.warp_k}"  # e.g., "32x32x16"
-        )
+        wave_str = f"{config.wave_m}x{config.wave_n}x{config.wave_k}"
+        warp_str = f"{config.warp_m}x{config.warp_n}x{config.warp_k}"
 
-        # Build precise pattern including pipeline and epilogue
-        # Format: gemm_fp16_rcr_compv4_cshuffle_intrawave_*_128x128x32_2x2x1_32x32x16.hpp
-        # Matches standard kernels ending with .hpp (NOT _preshuffle.hpp or _multid_*.hpp)
-        precise_pattern = f"gemm_{config.dtype_a}_{config.layout}_{config.pipeline}_{config.epilogue}_{config.scheduler}_*_{tile_str}_{wave_str}_{warp_str}.hpp"
+        # Build pattern - use * for padding flags since arch filter may change them
+        precise_pattern = f"gemm_{config.dtype_a}_{config.layout}_{config.pipeline}_{config.epilogue}_{config.scheduler}_*_*_*_*_{tile_str}_{wave_str}_{warp_str}.hpp"
 
-        # Check if exact kernel already exists - skip expensive generation
+        # Check if exact kernel already exists
         existing = list(out_dir.glob(precise_pattern))
         if existing and not force:
             instance_names = sorted([k.stem for k in existing])
             if show_instances:
                 for name in instance_names:
                     print(f"  Kernel exists: {name}")
+
             return CodegenResult(
                 success=True,
                 output_dir=out_dir,
                 variant=f"config:{tile_str}",
                 kernel_count=len(existing),
                 instance_names=instance_names,
-                stdout=f"Kernel already exists ({len(existing)} variants), skipped generation",
+                stdout=f"Kernel exists, using: {existing[0].name}",
             )
 
         if not self.codegen_path.exists():
@@ -1126,26 +1420,58 @@ class CodegenRunner:
 
         start = time.time()
 
-        # Generate standard kernels (codegen generates all tile sizes)
-        cmd = [
-            sys.executable,
-            str(self.codegen_path),
-            "--output-dir",
-            str(out_dir),
-            "--datatype",
-            config.dtype_a,
-            "--layout",
-            config.layout,
-            "--gpu-target",
-            config.gfx_arch,
-            "--variants",
-            "standard",
-        ]
+        # Create a temporary config file for single-kernel generation
+        # Format must match what unified_gemm_codegen.py expects
+        single_config = {
+            "tile_config": {
+                "tile_m": [config.tile_m],
+                "tile_n": [config.tile_n],
+                "tile_k": [config.tile_k],
+                "warp_m": [config.wave_m],
+                "warp_n": [config.wave_n],
+                "warp_k": [config.wave_k],
+                "warp_tile_m": [config.warp_m],
+                "warp_tile_n": [config.warp_n],
+                "warp_tile_k": [config.warp_k],
+            },
+            "trait_config": {
+                "pipeline": [config.pipeline],
+                "epilogue": [config.epilogue],
+                "scheduler": [config.scheduler],
+                "pad_m": [config.pad_m],
+                "pad_n": [config.pad_n],
+                "pad_k": [config.pad_k],
+                "persistent": [False],
+            },
+        }
+
+        # Write temp config file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(single_config, f)
+            config_file = f.name
 
         try:
+            # Generate ONLY this specific kernel using config file
+            cmd = [
+                sys.executable,
+                str(self.codegen_path),
+                "--output-dir",
+                str(out_dir),
+                "--datatype",
+                config.dtype_a,
+                "--layout",
+                config.layout,
+                "--gpu-target",
+                config.gfx_arch,
+                "--config",
+                config_file,
+                "--variants",
+                "standard",
+            ]
+
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
-            # Find ONLY the EXACT matching kernel(s) for this specific config
+            # Find the generated kernel
             matching = list(out_dir.glob(precise_pattern))
             kernel_count = len(matching)
             elapsed = time.time() - start
@@ -1153,8 +1479,7 @@ class CodegenRunner:
             instance_names = sorted([k.stem for k in matching])
             if show_instances and instance_names:
                 for name in instance_names:
-                    print(f"  Adding Instance: {name}")
-                    print(f"  Building Instance: {name}")
+                    print(f"  Generated: {name}")
 
             return CodegenResult(
                 success=result.returncode == 0 and kernel_count > 0,
@@ -1162,7 +1487,7 @@ class CodegenRunner:
                 variant=f"config:{tile_str}",
                 stdout=result.stdout,
                 stderr=result.stderr,
-                kernel_count=kernel_count,  # Only count EXACT matching kernels
+                kernel_count=kernel_count,
                 elapsed_seconds=elapsed,
                 instance_names=instance_names,
             )
@@ -1173,6 +1498,115 @@ class CodegenRunner:
                 variant=f"config:{tile_str}",
                 stderr=str(e),
             )
+        finally:
+            # Clean up temp file
+            import os
+
+            try:
+                os.unlink(config_file)
+            except Exception:
+                pass
+
+    def _rebuild_library_for_config(
+        self, config: KernelConfig, kernel_header: Path
+    ) -> Optional[Path]:
+        """
+        Rebuild the library with the specified kernel header using hipcc directly.
+
+        This compiles a new library with exactly the kernel specified.
+        Builds to a UNIQUE filename to avoid conflicts with loaded libraries.
+
+        Returns: Path to new library, or None on failure
+        """
+        build_dir = get_build_dir()
+        # Use unique filename based on dtype/layout to avoid overwriting loaded library
+        lib_name = f"libdispatcher_gemm_{config.dtype_a}_{config.layout}_lib.so"
+        lib_path = build_dir / "examples" / lib_name
+
+        print(f"  Rebuilding library: {lib_name}")
+        print(f"  With kernel: {kernel_header.name}")
+
+        root = get_dispatcher_root()
+        ck_root = root.parent
+
+        ctypes_source = root / "bindings/ctypes/gemm_ctypes_lib.cpp"
+        if not ctypes_source.exists():
+            print(f"  Source not found: {ctypes_source}")
+            return None
+
+        # Link against the static dispatcher library (contains Registry, Dispatcher)
+        static_lib = build_dir / "libck_tile_dispatcher.a"
+        if not static_lib.exists():
+            print(f"  Static library not found: {static_lib}")
+            print("  Build with: cd build && cmake .. && make ck_tile_dispatcher")
+            return None
+
+        # Compile source to object first, then link
+        obj_file = lib_path.with_suffix(".o")
+
+        # Step 1: Compile source to object
+        compile_cmd = [
+            "/opt/rocm/bin/hipcc",
+            "-c",  # Compile only
+            "-fPIC",
+            "-O3",
+            f"-I{root / 'include'}",
+            f"-I{ck_root / 'include'}",
+            f"-I{ck_root}",
+            f"-I{root / 'build/generated_kernels'}",
+            f"-include{kernel_header}",
+            "-D__HIP_PLATFORM_AMD__",
+            f"--offload-arch={config.gfx_arch}",
+            f"-DAMDGPU_ARCH={config.gfx_arch}",
+            "-mllvm",
+            "-enable-noalias-to-md-conversion=0",
+            "-Wno-undefined-func-template",
+            "-Wno-float-equal",
+            str(ctypes_source),
+            "-o",
+            str(obj_file),
+        ]
+
+        try:
+            print("  Compiling source...")
+            result = subprocess.run(
+                compile_cmd, capture_output=True, text=True, timeout=300
+            )
+            if result.returncode != 0:
+                print(f"  Compilation failed: {result.stderr[:300]}")
+                return None
+
+            # Step 2: Link object with static library into shared library
+            link_cmd = [
+                "/opt/rocm/bin/hipcc",
+                "-shared",
+                "-fPIC",
+                f"--offload-arch={config.gfx_arch}",
+                "--hip-link",
+                str(obj_file),
+                str(static_lib),
+                "-o",
+                str(lib_path),
+            ]
+
+            print("  Linking...")
+            result = subprocess.run(
+                link_cmd, capture_output=True, text=True, timeout=300
+            )
+            if result.returncode == 0:
+                print(f"  ✓ Library rebuilt: {lib_path.name}")
+                # Clean up object file
+                obj_file.unlink(missing_ok=True)
+                return lib_path
+            else:
+                print(f"  Linking failed: {result.stderr[:300]}")
+                return None
+        except subprocess.TimeoutExpired:
+            print("  Build timed out")
+            return None
+        except Exception as e:
+            print(f"  Build error: {e}")
+            return None
 
     def generate_preselected(
         self, preset: str = "fp16_rcr_essential", output_dir: Optional[Path] = None
@@ -1476,6 +1910,309 @@ if __name__ == "__main__":
     correct, max_diff, mean_diff = validator.check(result.output, reference)
     print(f"   Correct: {correct}")
     print(f"   Max diff: {max_diff:.6f}")
+
+    print("\n" + "=" * 60)
+    print("All tests passed!")
+
+
+# =============================================================================
+# High-Level Helper Functions
+# =============================================================================
+
+
+@dataclass
+class GemmSetupResult:
+    """Result of setup_gemm_dispatcher"""
+
+    success: bool
+    dispatcher: Optional[Dispatcher] = None
+    lib: Optional[DispatcherLib] = None
+    registry: Optional[Registry] = None
+    codegen: Optional[CodegenRunner] = None
+    config: Optional[KernelConfig] = None
+    kernel_header: Optional[Path] = None
+    error: str = ""
+
+
+def setup_gemm_dispatcher(
+    config: KernelConfig,
+    registry_name: str = "gemm_registry",
+    verbose: bool = True,
+    auto_rebuild: bool = True,
+) -> GemmSetupResult:
+    """
+    High-level helper to setup a GEMM dispatcher from a kernel config.
+
+    This handles:
+    1. Validate config against arch filter (auto-correct if needed)
+    2. Generate kernel code if needed
+    3. Find matching kernel header
+    4. Load or rebuild library (if dtype mismatch)
+    5. Create registry and dispatcher
+
+    Args:
+        config: KernelConfig with all parameters
+        registry_name: Name for the registry
+        verbose: Print progress messages
+        auto_rebuild: Rebuild library if dtype doesn't match
+
+    Returns:
+        GemmSetupResult with dispatcher, lib, registry, etc.
+    """
+    result = GemmSetupResult(success=False, config=config)
+
+    def log(msg):
+        if verbose:
+            print(msg)
+
+    # Step 1: Validate config
+    log("  Validating config...")
+    validation = validate_kernel_config(config)
+    if not validation.is_valid:
+        log("  ⚠ Auto-correcting configuration...")
+        config, _ = auto_correct_kernel_config(config)
+        result.config = config
+
+    # Step 2: Setup codegen and generate kernel
+    log(f"  Generating kernel (tile={config.tile_str})...")
+    codegen = CodegenRunner(
+        datatype=config.dtype_a,
+        layout=config.layout,
+        gpu_target=config.gfx_arch,
+    )
+    result.codegen = codegen
+
+    codegen_result = codegen.generate_from_config(config)
+    if not codegen_result.success:
+        log("  ⚠ Kernel generation: using existing")
+
+    # Step 3: Find matching kernel header
+    kernel_header = find_matching_kernel_header(config)
+    result.kernel_header = kernel_header
+    if not kernel_header:
+        log("  ⚠ No matching kernel header found")
+
+    # Step 4: Load library
+    log("  Loading library...")
+    lib = DispatcherLib.auto()
+    if lib is None:
+        result.error = "Could not load dispatcher library"
+        return result
+    result.lib = lib
+
+    # Check dtype match and rebuild if needed
+    lib_kernel = lib.get_kernel_name()
+    lib_dtype = lib_kernel.split("_")[1] if lib_kernel else "unknown"
+
+    if lib_dtype != config.dtype_a and kernel_header and auto_rebuild:
+        log(f"  Library dtype ({lib_dtype}) != config dtype ({config.dtype_a})")
+        log("  Rebuilding library...")
+
+        new_lib_path = codegen._rebuild_library_for_config(config, kernel_header)
+        if new_lib_path:
+            lib = DispatcherLib.load(new_lib_path)
+            if lib is None or not lib.initialize():
+                result.error = "Failed to load rebuilt library"
+                return result
+            result.lib = lib
+        else:
+            log("  ⚠ Rebuild failed, using existing library")
+
+    # Step 5: Create registry and dispatcher
+    log("  Creating registry and dispatcher...")
+    registry = Registry(name=registry_name, lib=lib)
+    registry.register_kernel(config)
+    result.registry = registry
+
+    dispatcher = Dispatcher(registry=registry, lib=lib)
+    result.dispatcher = dispatcher
+
+    log(f"  ✓ Ready: {lib.get_kernel_name()}")
+
+    result.success = True
+    return result
+
+
+def cleanup_gemm():
+    """
+    Cleanup function to call after running GEMM examples.
+
+    This helps ensure clean state between examples by:
+    1. Clearing any global state
+    2. Suggesting garbage collection
+    """
+    import gc
+
+    # Clear loaded libraries list
+    DispatcherLib._loaded_libs.clear()
+
+    # Suggest garbage collection
+    gc.collect()
+
+
+def cleanup_generated_kernels(
+    keep_default: bool = True,
+    verbose: bool = False,
+) -> int:
+    """
+    Clean up generated kernel files.
+
+    Call this at the start of examples to ensure fresh state.
+
+    Args:
+        keep_default: Keep the default fp16 kernel (True) or delete all (False)
+        verbose: Print what's being deleted
+
+    Returns:
+        Number of files deleted
+    """
+
+    kernel_dir = get_generated_kernels_dir()
+    if not kernel_dir.exists():
+        return 0
+
+    deleted = 0
+
+    # Default kernel pattern to keep
+    default_pattern = (
+        "gemm_fp16_rcr_compv4_cshuffle_intrawave_*_128x128x32_2x2x1_16x16x16.hpp"
+    )
+
+    for f in kernel_dir.glob("*.hpp"):
+        # Skip dispatcher_wrappers directory
+        if f.is_dir():
+            continue
+
+        # Optionally keep default kernel
+        if keep_default and f.match(default_pattern):
+            continue
+
+        if verbose:
+            print(f"  Deleting: {f.name}")
+        f.unlink()
+        deleted += 1
+
+    # Also clean up any temp libs
+    build_dir = get_build_dir()
+    examples_dir = build_dir / "examples"
+    if examples_dir.exists():
+        for f in examples_dir.glob("libdispatcher_gemm_*_lib.so"):
+            if f.name != "libdispatcher_gemm_lib.so":
+                if verbose:
+                    print(f"  Deleting: {f.name}")
+                f.unlink()
+                deleted += 1
+
+    return deleted
+
+
+def reset_for_example(verbose: bool = False):
+    """
+    Reset state for a fresh example run.
+
+    Call this at the START of each example to ensure clean state.
+    Cleans up generated kernels (except default) and resets globals.
+    """
+    # Cleanup any previously generated kernels
+    deleted = cleanup_generated_kernels(keep_default=True, verbose=verbose)
+    if verbose and deleted > 0:
+        print(f"  Cleaned up {deleted} generated files")
+
+    # Clear any cached state
+    cleanup_gemm()
+
+
+def run_gemm_simple(
+    A: np.ndarray,
+    B: np.ndarray,
+    config: Optional[KernelConfig] = None,
+    verbose: bool = False,
+) -> Optional[np.ndarray]:
+    """
+    Simplest possible GEMM interface - just pass matrices.
+
+    Args:
+        A: Input matrix A (M x K)
+        B: Input matrix B (K x N)
+        config: Optional kernel config (uses default if None)
+        verbose: Print progress
+
+    Returns:
+        Output matrix C (M x N), or None on failure
+    """
+    M, K = A.shape
+    K2, N = B.shape
+    assert K == K2, f"Matrix dimension mismatch: A is {M}x{K}, B is {K2}x{N}"
+
+    # Use default config if not provided
+    if config is None:
+        config = KernelConfig(
+            dtype_a="fp16",
+            tile_m=128,
+            tile_n=128,
+            tile_k=32,
+        )
+
+    # Setup dispatcher
+    setup = setup_gemm_dispatcher(config, verbose=verbose)
+    if not setup.success:
+        if verbose:
+            print(f"Setup failed: {setup.error}")
+        return None
+
+    # Run GEMM
+    result = setup.dispatcher.run(A, B, M, N, K)
+
+    # Cleanup
+    cleanup_gemm()
+
+    return result.output if result.success else None
+
+
+# Main (self-test)
+# =============================================================================
+
+if __name__ == "__main__":
+    print("CK Tile Dispatcher Utils Self-Test")
+    print("=" * 60)
+
+    # Test library loading
+    print("\n1. Loading library...")
+    lib = DispatcherLib.auto()
+    if lib is None:
+        print("   FAILED: Could not load library")
+        exit(1)
+    print(f"   OK: Loaded from {lib.path}")
+    print(f"   Kernel: {lib.get_kernel_name()}")
+    print(f"   Registered kernels: {lib.get_kernel_count()}")
+
+    # Test GEMM
+    print("\n2. Running GEMM 256x256x256...")
+    runner = GemmRunner(lib)
+    A = np.random.randn(256, 256).astype(np.float16)
+    B = np.random.randn(256, 256).astype(np.float16)
+
+    result = runner.run(A, B)
+    print(f"   Status: {'OK' if result.success else 'FAILED'}")
+    print(f"   Time: {result.time_ms:.4f} ms")
+    print(f"   TFLOPS: {result.tflops:.2f}")
+
+    # Test validation
+    print("\n3. Validating result...")
+    validator = Validator()
+    reference = validator.compute_reference(A, B)
+    correct, max_diff, mean_diff = validator.check(result.output, reference)
+    print(f"   Correct: {correct}")
+    print(f"   Max diff: {max_diff:.6f}")
+
+    # Test high-level helper
+    print("\n4. Testing setup_gemm_dispatcher...")
+    config = KernelConfig(tile_m=128, tile_n=128, tile_k=32)
+    setup = setup_gemm_dispatcher(config, verbose=True)
+    print(f"   Success: {setup.success}")
+
+    # Cleanup
+    cleanup_gemm()
 
     print("\n" + "=" * 60)
     print("All tests passed!")

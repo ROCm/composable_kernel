@@ -5,7 +5,7 @@
 """
 Example 06: JSON Export
 
-Exports registry configuration to JSON using explicit API.
+Exports registry configuration to JSON.
 
 Complexity: ★★☆☆☆
 
@@ -17,17 +17,19 @@ import sys
 import json
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
 
 from ctypes_utils import (
     KernelConfig,
-    CodegenRunner,
-    DispatcherLib,
-    Registry,
+    setup_gemm_dispatcher,
+    cleanup_gemm,
+    reset_for_example,
 )
 
 
 def main():
+    reset_for_example()
+
     print("=" * 60)
     print("Example 06: JSON Export")
     print("=" * 60)
@@ -35,51 +37,38 @@ def main():
     output_file = sys.argv[1] if len(sys.argv) > 1 else "kernels.json"
 
     # =========================================================================
-    # Step 1: Define multiple kernel configs
+    # Step 1: Setup dispatcher
     # =========================================================================
-    print("\nStep 1: Define Kernel Configurations")
+    print("\nStep 1: Setup Dispatcher")
+
+    config = KernelConfig(dtype_a="fp16", tile_m=128, tile_n=128, tile_k=32)
+
+    setup = setup_gemm_dispatcher(config, registry_name="export_demo", verbose=True)
+    if not setup.success:
+        print(f"  ERROR: {setup.error}")
+        return 1
+
+    # =========================================================================
+    # Step 2: Define additional configs for export
+    # =========================================================================
+    print("\nStep 2: Define Additional Configs")
 
     configs = [
-        KernelConfig(tile_m=256, tile_n=256, tile_k=64, pipeline="compv4"),
-        KernelConfig(tile_m=128, tile_n=128, tile_k=32, pipeline="compv4"),
-        KernelConfig(tile_m=64, tile_n=64, tile_k=32, pipeline="compv3"),
+        config,
+        KernelConfig(dtype_a="fp16", tile_m=256, tile_n=256, tile_k=64),
+        KernelConfig(dtype_a="fp16", tile_m=64, tile_n=64, tile_k=32),
     ]
 
     for cfg in configs:
-        print(f"  - {cfg.tile_str} ({cfg.pipeline})")
+        print(f"  - {cfg.tile_str}")
 
     # =========================================================================
-    # Step 2: Create registry and register configs
+    # Step 3: Export to JSON
     # =========================================================================
-    print("\nStep 2: Create Registry")
+    print("\nStep 3: Export to JSON")
 
-    registry = Registry(name="export_demo")
-    for cfg in configs:
-        registry.register_kernel(cfg)
-
-    print(f"  {registry}")
-
-    # =========================================================================
-    # Step 3: Generate kernels and load library
-    # =========================================================================
-    print("\nStep 3: Setup")
-
-    codegen = CodegenRunner()
-    codegen.generate("standard")
-
-    lib = DispatcherLib.auto()
-    if lib:
-        registry.bind_library(lib)
-        print(f"  Library kernel: {lib.get_kernel_name()}")
-
-    # =========================================================================
-    # Step 4: Export to JSON
-    # =========================================================================
-    print("\nStep 4: Export to JSON")
-
-    # Build export data from our configs
     export_data = {
-        "registry": registry.name,
+        "registry": setup.registry.name,
         "kernel_count": len(configs),
         "kernels": [],
     }
@@ -87,50 +76,35 @@ def main():
     for cfg in configs:
         kernel_info = {
             "tile": cfg.tile_str,
-            "dtypes": {
-                "A": cfg.dtype_a,
-                "B": cfg.dtype_b,
-                "C": cfg.dtype_c,
-                "Acc": cfg.dtype_acc,
-            },
+            "dtypes": {"A": cfg.dtype_a, "B": cfg.dtype_b, "C": cfg.dtype_c},
             "layout": cfg.layout,
             "pipeline": cfg.pipeline,
-            "scheduler": cfg.scheduler,
-            "block_size": cfg.block_size,
-            "padding": {
-                "M": cfg.pad_m,
-                "N": cfg.pad_n,
-                "K": cfg.pad_k,
-            },
             "target": cfg.gfx_arch,
         }
         export_data["kernels"].append(kernel_info)
 
-    # Also include C++ library export if available
-    if lib:
-        cpp_json = lib.export_registry_json()
+    # Include C++ library info
+    if setup.lib:
+        cpp_json = setup.lib.export_registry_json()
         try:
-            cpp_data = json.loads(cpp_json)
-            export_data["cpp_registry"] = cpp_data
+            export_data["cpp_registry"] = json.loads(cpp_json)
         except json.JSONDecodeError:
             pass
 
     json_str = json.dumps(export_data, indent=2)
 
-    # Save
     with open(output_file, "w") as f:
         f.write(json_str)
     print(f"  Saved to: {output_file}")
 
-    # =========================================================================
-    # Step 5: Preview
-    # =========================================================================
-    print("\nStep 5: Preview")
+    # Preview
+    print("\nStep 4: Preview")
     print("-" * 60)
-    print(json_str[:800])
-    if len(json_str) > 800:
-        print("...")
+    print(json_str[:500] + ("..." if len(json_str) > 500 else ""))
     print("-" * 60)
+
+    # Cleanup
+    cleanup_gemm()
 
     print("\n" + "=" * 60)
     print("JSON Export complete!")

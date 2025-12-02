@@ -16,15 +16,14 @@ Usage:
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
 import numpy as np
 
 from ctypes_utils import (
     KernelConfig,
-    CodegenRunner,
-    DispatcherLib,
-    Registry,
-    Dispatcher,
+    setup_gemm_dispatcher,
+    cleanup_gemm,
+    reset_for_example,
 )
 
 
@@ -37,62 +36,42 @@ def gelu(x):
 
 
 def main():
+    reset_for_example()
+
     print("=" * 60)
     print("Example 08: Multi-D GEMM")
     print("=" * 60)
 
     # =========================================================================
-    # Step 1: Define Multi-D kernel config
+    # Step 1: Setup dispatcher
     # =========================================================================
-    print("\nStep 1: Define Multi-D KernelConfig")
+    print("\nStep 1: Setup Dispatcher")
 
-    # Multi-D enables fused operations: C = op(A @ B + D0 + D1 + ...)
-    multi_d_config = KernelConfig(
+    config = KernelConfig(
+        dtype_a="fp16",
         tile_m=128,
         tile_n=128,
         tile_k=32,
-        wave_m=2,
-        wave_n=2,
-        wave_k=1,
-        block_size=256,
         pipeline="compv4",
-        pad_m=True,
-        pad_n=True,
-        pad_k=True,
     )
 
-    print("  Multi-D Configuration:")
-    print(f"    Tile: {multi_d_config.tile_str}")
-    print("\n  Supported Operations:")
+    setup = setup_gemm_dispatcher(config, registry_name="multi_d", verbose=True)
+    if not setup.success:
+        print(f"  ERROR: {setup.error}")
+        return 1
+
+    dispatcher = setup.dispatcher
+
+    print("\n  Supported Fused Operations:")
     print("    - PassThrough: C = A @ B")
     print("    - MultiDAdd:   C = A @ B + D0 + D1 + ...")
     print("    - Relu:        C = relu(A @ B + D0)")
     print("    - Gelu:        C = gelu(A @ B + D0)")
 
     # =========================================================================
-    # Step 2: Setup
+    # Step 2: CPU simulation of fused operations
     # =========================================================================
-    print("\nStep 2: Setup")
-
-    codegen = CodegenRunner()
-    result = codegen.generate("multi_d")
-    print(f"  Generated multi_d kernels: {result.kernel_count}")
-
-    lib = DispatcherLib.auto()
-    if lib is None:
-        print("  ERROR: Could not load library")
-        return 1
-
-    registry = Registry(name="multi_d", lib=lib)
-    registry.register_kernel(multi_d_config)
-
-    dispatcher = Dispatcher(registry=registry, lib=lib)
-    print(f"  {dispatcher}")
-
-    # =========================================================================
-    # Step 3: CPU simulation of fused operations
-    # =========================================================================
-    print("\nStep 3: CPU Simulation of Fused Operations")
+    print("\nStep 2: CPU Simulation of Fused Operations")
 
     M, N, K = 512, 512, 512
     np.random.seed(42)
@@ -101,25 +80,21 @@ def main():
     B = (np.random.randn(K, N) * 0.1).astype(np.float32)
     bias = (np.random.randn(N) * 0.1).astype(np.float32)
 
-    print(f"\n  Problem: {M}x{N}x{K}")
-    print(f"  A: {A.shape}, B: {B.shape}, bias: {bias.shape}")
-
-    # Simulate fused operations on CPU
     C_gemm = A @ B
     C_bias = C_gemm + bias
     C_relu = relu(C_bias)
     C_gelu = gelu(C_bias)
 
-    print("\n  CPU Reference Results:")
+    print(f"\n  Problem: {M}x{N}x{K}")
     print(f"    GEMM only:   mean={np.mean(C_gemm):>8.4f}")
     print(f"    GEMM+Bias:   mean={np.mean(C_bias):>8.4f}")
     print(f"    GEMM+ReLU:   mean={np.mean(C_relu):>8.4f}")
     print(f"    GEMM+GELU:   mean={np.mean(C_gelu):>8.4f}")
 
     # =========================================================================
-    # Step 4: GPU GEMM (base operation)
+    # Step 3: GPU GEMM
     # =========================================================================
-    print("\nStep 4: GPU GEMM (base operation)")
+    print("\nStep 3: GPU GEMM")
 
     A_fp16 = A.astype(np.float16)
     B_fp16 = B.astype(np.float16)
@@ -128,12 +103,12 @@ def main():
 
     if result.success:
         print(f"  Time: {result.time_ms:.4f} ms ({result.tflops:.2f} TFLOPS)")
-        print("\n  With Multi-D fusion, bias+activation computed")
-        print("  in same kernel with ~0ms overhead!")
+        print("  With Multi-D fusion, bias+activation computed in same kernel!")
 
-    # =========================================================================
+    # Cleanup
+    cleanup_gemm()
+
     # Summary
-    # =========================================================================
     print("\n" + "=" * 60)
     print("Multi-D Pattern:")
     print("=" * 60)

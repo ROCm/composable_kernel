@@ -239,7 +239,13 @@ def main():
             # Sizes
             input_size = input_np.nbytes
             weight_size = weight_np.nbytes
-            output_size = problem.N * problem.Ho * problem.Wo * problem.K * 2
+            output_size = (
+                problem.N
+                * problem.Ho
+                * problem.Wo
+                * problem.K
+                * input_np.dtype.itemsize
+            )
 
             # Allocate GPU memory
             input_dev = ctypes.c_void_p()

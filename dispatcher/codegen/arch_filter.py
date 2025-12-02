@@ -55,6 +55,7 @@ try:
         WARP_TILE_SUPPORTED_COMBINATIONS,
         LDS_CAPACITY_LIMITS,
         TRAIT_UNSUPPORTED_COMBINATIONS,
+        DTYPE_COMBINATIONS,
     )
 
     _USING_GENERATED = True
@@ -108,6 +109,18 @@ except ImportError:
         ("compv4", "default", "interwave"),
     }
 
+    DTYPE_COMBINATIONS = {
+        "fp32_fp32": {"acc": "fp32", "notes": "Full precision"},
+        "fp16_fp16": {"acc": "fp32", "notes": "Standard half precision"},
+        "bf16_bf16": {"acc": "fp32", "notes": "Brain float 16"},
+        "fp8_fp8": {"acc": "fp32", "notes": "FP8 E4M3"},
+        "fp8_bf8": {"acc": "fp32", "notes": "Mixed FP8/BF8"},
+        "bf8_fp8": {"acc": "fp32", "notes": "Mixed BF8/FP8"},
+        "bf8_bf8": {"acc": "fp32", "notes": "BF8 E5M2"},
+        "int8_int8": {"acc": "int32", "notes": "Integer GEMM"},
+        "pk_fp4_pk_fp4": {"acc": "fp32", "notes": "Packed 4-bit float"},
+    }
+
 
 # =============================================================================
 # GPU Family Enum (for backwards compatibility)
@@ -121,6 +134,29 @@ class GpuFamily(Enum):
     CDNA3 = "cdna3"
     CDNA4 = "cdna4"
     RDNA4 = "rdna4"
+
+
+# =============================================================================
+# Dtype Validation Helpers
+# =============================================================================
+
+
+def is_dtype_combo_valid(dtype_a: str, dtype_b: str) -> bool:
+    """Check if a dtype combination is valid for GEMM."""
+    key = f"{dtype_a.lower()}_{dtype_b.lower()}"
+    return key in DTYPE_COMBINATIONS
+
+
+def get_dtype_acc(dtype_a: str, dtype_b: str) -> str:
+    """Get the accumulator type for a dtype combination."""
+    key = f"{dtype_a.lower()}_{dtype_b.lower()}"
+    info = DTYPE_COMBINATIONS.get(key, {"acc": "fp32"})
+    return info["acc"]
+
+
+def get_valid_dtype_combos() -> List[str]:
+    """Get list of all valid dtype combinations."""
+    return list(DTYPE_COMBINATIONS.keys())
 
 
 # =============================================================================

@@ -5,8 +5,7 @@
 """
 Example 09: Multiple Registries
 
-Demonstrates creating multiple registries with different kernel configurations
-for different optimization targets (compute, memory, latency).
+Demonstrates multiple registries for different optimization targets.
 
 Complexity: ★★★★★
 
@@ -17,120 +16,93 @@ Usage:
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
 import numpy as np
 
 from ctypes_utils import (
     KernelConfig,
-    CodegenRunner,
-    DispatcherLib,
     Registry,
     Dispatcher,
+    setup_gemm_dispatcher,
+    cleanup_gemm,
+    reset_for_example,
 )
 
 
 def main():
+    reset_for_example()
+
     print("=" * 60)
     print("Example 09: Multiple Registries")
     print("=" * 60)
 
     # =========================================================================
-    # Step 1: Define kernel configs for different optimization targets
+    # Step 1: Setup base dispatcher
     # =========================================================================
-    print("\nStep 1: Define Kernel Configurations")
+    print("\nStep 1: Setup Base Dispatcher")
 
-    # Compute-optimized: Large tiles for maximum throughput
+    base_config = KernelConfig(dtype_a="fp16", tile_m=128, tile_n=128, tile_k=32)
+
+    setup = setup_gemm_dispatcher(base_config, registry_name="base", verbose=True)
+    if not setup.success:
+        print(f"  ERROR: {setup.error}")
+        return 1
+
+    lib = setup.lib
+
+    # =========================================================================
+    # Step 2: Define configs for different optimization targets
+    # =========================================================================
+    print("\nStep 2: Define Optimization Targets")
+
     compute_config = KernelConfig(
+        dtype_a="fp16",
         tile_m=256,
         tile_n=256,
         tile_k=64,
         wave_m=4,
         wave_n=4,
-        wave_k=1,
-        warp_m=32,
-        warp_n=32,
-        warp_k=16,
-        block_size=256,
         pipeline="compv4",
     )
-    print("\n  compute_config (large matrices):")
-    print(f"    Tile: {compute_config.tile_str}")
-    print("    Best for: M*N >= 4096*4096")
-
-    # Memory-optimized: Medium tiles for balanced workloads
     memory_config = KernelConfig(
+        dtype_a="fp16",
         tile_m=128,
         tile_n=128,
         tile_k=32,
         wave_m=2,
         wave_n=2,
-        wave_k=1,
-        warp_m=32,
-        warp_n=32,
-        warp_k=16,
-        block_size=256,
         pipeline="compv4",
     )
-    print("\n  memory_config (medium matrices):")
-    print(f"    Tile: {memory_config.tile_str}")
-    print("    Best for: 1024*1024 <= M*N < 4096*4096")
-
-    # Latency-optimized: Small tiles for quick response
     latency_config = KernelConfig(
+        dtype_a="fp16",
         tile_m=64,
         tile_n=64,
         tile_k=32,
         wave_m=1,
         wave_n=1,
-        wave_k=1,
-        warp_m=32,
-        warp_n=32,
-        warp_k=16,
-        block_size=64,
         pipeline="compv3",
     )
-    print("\n  latency_config (small matrices):")
-    print(f"    Tile: {latency_config.tile_str}")
-    print("    Best for: M*N < 1024*1024")
+
+    print(f"  Compute: {compute_config.tile_str} (large matrices)")
+    print(f"  Memory:  {memory_config.tile_str} (medium matrices)")
+    print(f"  Latency: {latency_config.tile_str} (small matrices)")
 
     # =========================================================================
-    # Step 2: Create registries for each optimization target
+    # Step 3: Create registries
     # =========================================================================
-    print("\nStep 2: Create Registries")
+    print("\nStep 3: Create Registries")
 
-    compute_registry = Registry(name="compute")
+    compute_registry = Registry(name="compute", lib=lib)
     compute_registry.register_kernel(compute_config)
-    print(f"  {compute_registry}")
 
-    memory_registry = Registry(name="memory")
+    memory_registry = Registry(name="memory", lib=lib)
     memory_registry.register_kernel(memory_config)
-    print(f"  {memory_registry}")
 
-    latency_registry = Registry(name="latency")
+    latency_registry = Registry(name="latency", lib=lib)
     latency_registry.register_kernel(latency_config)
-    print(f"  {latency_registry}")
 
     # =========================================================================
-    # Step 3: Generate kernels and load library
-    # =========================================================================
-    print("\nStep 3: Generate Kernels")
-
-    codegen = CodegenRunner()
-    result = codegen.generate("standard")
-    print(f"  Generated {result.kernel_count} kernels")
-
-    lib = DispatcherLib.auto()
-    if lib is None:
-        print("  ERROR: Could not load library")
-        return 1
-
-    # Bind library to all registries
-    compute_registry.bind_library(lib)
-    memory_registry.bind_library(lib)
-    latency_registry.bind_library(lib)
-
-    # =========================================================================
-    # Step 4: Create dispatchers for each registry
+    # Step 4: Create dispatchers
     # =========================================================================
     print("\nStep 4: Create Dispatchers")
 
@@ -143,12 +115,11 @@ def main():
     print(f"  {latency_dispatcher}")
 
     # =========================================================================
-    # Step 5: Smart dispatcher selection based on problem size
+    # Step 5: Smart dispatcher selection
     # =========================================================================
     print("\nStep 5: Smart Dispatcher Selection")
 
     def select_dispatcher(M: int, N: int, K: int) -> Dispatcher:
-        """Select best dispatcher based on problem size."""
         elements = M * N
         if elements >= 4096 * 4096:
             return compute_dispatcher
@@ -165,33 +136,18 @@ def main():
         (4096, 4096, 4096),
     ]
 
-    print(f"\n  {'Size':<20} {'Elements':>12} {'Registry':>12}")
-    print("  " + "-" * 50)
-
-    for M, N, K in test_sizes:
-        dispatcher = select_dispatcher(M, N, K)
-        print(f"  {M}x{N}x{K:<10} {M * N:>12,} {dispatcher.registry.name:>12}")
-
-    # =========================================================================
-    # Step 6: Run GEMM with auto-selected dispatcher
-    # =========================================================================
-    print("\nStep 6: Run GEMM with Smart Selection")
-
     print(f"\n  {'Size':<20} {'Registry':>10} {'Time (ms)':>12} {'TFLOPS':>10}")
     print("  " + "-" * 55)
 
     for M, N, K in test_sizes:
-        # Select best dispatcher for this problem
         dispatcher = select_dispatcher(M, N, K)
 
         if not dispatcher.is_supported(M, N, K):
             continue
 
-        # Create inputs
         A = np.random.randn(M, K).astype(np.float16) * 0.1
         B = np.random.randn(K, N).astype(np.float16) * 0.1
 
-        # Run with selected dispatcher
         result = dispatcher.run(A, B, M, N, K)
 
         if result.success:
@@ -200,9 +156,10 @@ def main():
                 f"{result.time_ms:>12.4f} {result.tflops:>10.2f}"
             )
 
-    # =========================================================================
+    # Cleanup
+    cleanup_gemm()
+
     # Summary
-    # =========================================================================
     print("\n" + "=" * 60)
     print("Multi-Registry Pattern:")
     print("=" * 60)

@@ -230,9 +230,9 @@ int dispatcher_run_gemm(const void* A, // Host pointer
     catch(const std::exception& e)
     {
         // Unexpected error during execution
-        hipFree(A_dev);
-        hipFree(B_dev);
-        hipFree(C_dev);
+        (void)hipFree(A_dev);
+        (void)hipFree(B_dev);
+        (void)hipFree(C_dev);
         return -1;
     }
 
@@ -246,9 +246,9 @@ int dispatcher_run_gemm(const void* A, // Host pointer
     }
 
     // Cleanup GPU memory
-    hipFree(A_dev);
-    hipFree(B_dev);
-    hipFree(C_dev);
+    (void)hipFree(A_dev);
+    (void)hipFree(B_dev);
+    (void)hipFree(C_dev);
 
     return 0;
 }

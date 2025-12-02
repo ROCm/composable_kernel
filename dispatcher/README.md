@@ -43,7 +43,7 @@ make -j$(nproc)
 
 # Step 4: Run C++ examples
 ./examples/gemm_01_basic
-./examples/conv_01_basic
+./examples/conv_01_forward
 
 # Step 5: Run Python examples (from dispatcher directory)
 cd ..
@@ -62,32 +62,53 @@ python3 examples/conv/python/01_basic_conv.py
 | ROCm | 6.0+ | `rocminfo` |
 | CMake | 3.16+ | `cmake --version` |
 | Python | 3.8+ | `python3 --version` |
-| NumPy | Any | `pip show numpy` |
+| NumPy | 1.20+ | `pip show numpy` |
 | hipcc | (from ROCm) | `/opt/rocm/bin/hipcc --version` |
+
+> **Note:** Newer GPU targets (gfx950, gfx1201) require ROCm 6.3+. For ROCm 6.4+, you can also use `amdclang++` instead of `hipcc`.
 
 ### Check Your GPU Architecture
 
 ```bash
 # Find your GPU architecture
-rocminfo | grep "Name:" | head -1
-# Example output: "Name: gfx942"
+rocminfo | grep -i "gfx"
+# Example output: "gfx942"
 ```
 
 **Supported architectures:**
-- **gfx942** - MI300X, MI300A (Instinct MI300 series) ← Recommended
-- **gfx950** - MI350 series
-- **gfx90a** - MI200 series (MI250, MI250X)
-- **gfx1201** - RDNA4 series
+- **gfx942** - MI300X, MI300A (Instinct MI300 series) - ROCm 6.0+
+- **gfx90a** - MI200 series (MI250, MI250X) - ROCm 5.0+
+- **gfx950** - MI350 series - ROCm 6.3+
+- **gfx1201** - RDNA4 series - ROCm 6.3+
 
 ### Install Dependencies
 
 ```bash
 # Install NumPy (required for Python examples)
 pip install numpy
-
-# Optional: Install hip-python for better GPU memory management
-pip install hip-python
 ```
+
+### Supported Data Types
+
+CK Tile supports a wide range of data types for GEMM operations:
+
+| A dtype | B dtype | Acc dtype | Warp Tile Sizes | Notes |
+|---------|---------|-----------|-----------------|-------|
+| `fp32` | `fp32` | `fp32` | 16x16x4, 16x16x16 | Full precision |
+| `fp16` | `fp16` | `fp32` | 32x32x8, 32x32x16, 16x16x16, 16x16x32 | Standard half |
+| `bf16` | `bf16` | `fp32` | 32x32x8, 32x32x16, 16x16x16, 16x16x32 | Brain float 16 |
+| `fp8` | `fp8` | `fp32` | 32x32x16, 32x32x32, 16x16x32, 16x16x64 | FP8 E4M3 |
+| `fp8` | `bf8` | `fp32` | 32x32x16, 16x16x32 | Mixed FP8/BF8 |
+| `bf8` | `fp8` | `fp32` | 32x32x16, 16x16x128 | Mixed BF8/FP8 |
+| `bf8` | `bf8` | `fp32` | 32x32x16, 32x32x32, 16x16x32 | BF8 E5M2 |
+| `int8` | `int8` | `int32` | 32x32x16, 16x16x32, 16x16x16 | Integer GEMM |
+| `pk_fp4` | `pk_fp4` | `fp32` | 16x16x128 | Packed 4-bit float |
+
+**Notes:**
+- Accumulator is always `fp32` except for `int8` which uses `int32`
+- FP8 types: `fp8` = E4M3, `bf8` = E5M2
+- `pk_fp4` = Packed 4-bit float (2 values per byte)
+- Some dtypes require specific GPU architectures (e.g., FP8 requires MI300+)
 
 ---
 
@@ -157,8 +178,6 @@ make dispatcher_conv_bwdw_lib # Conv backward weight library for Python
 # Build ONLY Python libraries (faster if you don't need C++ examples)
 make python_libs -j$(nproc)
 ```
-
-**Build time:** ~2-5 minutes depending on system
 
 ### Step 5: Verify Build
 
@@ -256,9 +275,11 @@ Step 3: Define Problem
 Step 4: GPU Execution
 ---------------------
   *** GPU EXECUTION ***
-  Time:   0.0523 ms
-  TFLOPS: 41.08
+  Time:   <varies> ms
+  TFLOPS: <varies>
 ```
+
+> **Note:** Timing values vary by GPU model and system configuration.
 
 **Expected Python output (`01_basic_conv.py`):**
 ```
@@ -269,7 +290,6 @@ Example 01: Basic Convolution with GPU Execution
 Step 3: Load Library
 --------------------------------------------------
   Library: /path/to/build/examples/libdispatcher_conv_lib.so
-  Version: 1.0.0
   Has kernels: True
 
 Step 4: GPU Execution
@@ -279,8 +299,8 @@ Step 4: GPU Execution
   Output: (1, 28, 28, 128) (allocated)
 
   *** GPU EXECUTION SUCCESSFUL ***
-  Time:   0.0087 ms
-  TFLOPS: 13.36
+  Time:   <varies> ms
+  TFLOPS: <varies>
 ```
 
 ---

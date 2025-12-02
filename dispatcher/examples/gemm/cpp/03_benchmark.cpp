@@ -30,7 +30,7 @@ using namespace ck_tile::dispatcher::utils;
 // KERNEL SET: High-performance kernels for benchmarking
 // =============================================================================
 
-DECL_KERNEL_SET(benchmark, .add("fp16", "rcr", 128, 128, 32).add("fp16", "rcr", 256, 256, 64));
+DECL_KERNEL_SET(benchmark, .add("bf16", "rcr", 128, 128, 32).add("fp16", "rcr", 256, 256, 64));
 
 // =============================================================================
 // MAIN

@@ -503,6 +503,4 @@ constexpr int ANY_INT     = decl::ANY_INT;
 #define BEGIN_KERNEL_SET() ::ck_tile::dispatcher::decl::KernelSet()
 
 // Legacy compatibility
-#define DECLARE_KERNEL DECL_KERNEL_SIMPLE
-#define DECLARE_KERNELS_ALL DECL_KERNEL_ALL
-#define DECLARE_GEMM_KERNEL DECL_KERNEL_SIMPLE
+// Legacy aliases removed - use DECL_KERNEL_SET instead

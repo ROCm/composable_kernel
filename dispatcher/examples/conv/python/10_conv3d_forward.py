@@ -120,9 +120,17 @@ def main():
         hip_lib = ctypes.CDLL("libamdhip64.so")
 
         # 3D tensor sizes (NDHWC layout)
-        input_size = problem.N * problem.Di * problem.Hi * problem.Wi * problem.C * 2
-        weight_size = problem.K * problem.Z * problem.Y * problem.X * problem.C * 2
-        output_size = problem.N * problem.Do * problem.Ho * problem.Wo * problem.K * 2
+        dtype = np.float16
+        dtype_size = dtype().itemsize  # 2 bytes for fp16
+        input_size = (
+            problem.N * problem.Di * problem.Hi * problem.Wi * problem.C * dtype_size
+        )
+        weight_size = (
+            problem.K * problem.Z * problem.Y * problem.X * problem.C * dtype_size
+        )
+        output_size = (
+            problem.N * problem.Do * problem.Ho * problem.Wo * problem.K * dtype_size
+        )
 
         hip_lib.hipMalloc.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.c_size_t]
         hip_lib.hipMalloc.restype = ctypes.c_int
