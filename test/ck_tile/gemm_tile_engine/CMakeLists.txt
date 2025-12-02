@@ -87,7 +87,7 @@ function(create_individual_gemm_test_target datatype layout config_name trait ti
         target_compile_options(${target_name} PRIVATE -DCK_TILE_USE_OCP_FP8)
     endif()
 
-    message(STATUS "  Created test target: ${target_name}")
+    message(DEBUG "  Created test target: ${target_name}")
 endfunction()
 
 # ============================================================================
@@ -138,11 +138,11 @@ function(build_gemm_test_targets datatype layout config_name)
 
     # Verify kernel list file was generated
     if(NOT EXISTS ${working_path}/gemm_kernel_list.txt)
-        message(STATUS "No kernels found for ${datatype}_${layout}_${config_name} (validation filtered out all combinations)")
+        message(DEBUG "No kernels found for ${datatype}_${layout}_${config_name} (validation filtered out all combinations)")
         return()
     endif()
 
-    message(STATUS "Building tests for ${datatype}_${layout}_${config_name}")
+    message(DEBUG "Building tests for ${datatype}_${layout}_${config_name}")
 
     # STEP 2a: Extract test parameters from config
     set(test_params_file "${working_path}/test_params.hpp")
