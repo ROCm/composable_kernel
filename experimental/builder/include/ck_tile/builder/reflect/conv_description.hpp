@@ -30,7 +30,9 @@
 #include <ck_tile/builder/reflect/instance_traits.hpp>
 #include <ck_tile/builder/reflect/tree_formatter.hpp>
 
-namespace ck_tile::reflect::conv {
+namespace ck_tile::reflect {
+
+namespace conv {
 
 /// @brief Signature information for a convolution operation
 /// Contains high-level properties that define the convolution's interface,
@@ -244,21 +246,22 @@ class ConvDescription : public Description
     GemmAlgorithmInfo algorithm_;
     std::function<std::string()> instance_string_getter_;
 };
+} // namespace conv
 
-/// @brief Helper concept to detect if a type has InstanceTraits specialization
+/// @brief Helper concept to detect if a type has ConvTraits specialization
 template <typename T>
-concept HasInstanceTraits = requires { typename InstanceTraits<T>; };
+concept HasConvTraits = requires { typename conv::ConvTraits<T>; };
 
 /// @brief Factory function to create ConvDescription from a convolution instance type
 /// @tparam Instance The convolution instance type (must have InstanceTraits specialization)
 /// @return A ConvDescription object populated with the instance's configuration details
-template <HasInstanceTraits Instance>
-ConvDescription describe()
+template <HasConvTraits Instance>
+conv::ConvDescription describe()
 {
-    using Traits = ConvTraits<Instance>;
+    using Traits = conv::ConvTraits<Instance>;
 
-    return ConvDescription(
-        ConvSignatureInfo{
+    return conv::ConvDescription(
+        conv::ConvSignatureInfo{
             .spatial_dim       = Traits::spatial_dim,
             .direction         = Traits::direction,
             .layout            = Traits::layout,
@@ -267,7 +270,7 @@ ConvDescription describe()
             .weight_element_op = Traits::weight_element_op,
             .output_element_op = Traits::output_element_op,
         },
-        GemmAlgorithmInfo{
+        conv::GemmAlgorithmInfo{
             .thread_block_size   = Traits::thread_block_size,
             .tile_dims           = Traits::tile_dims,
             .warp_gemm           = Traits::warp_gemm,
@@ -282,4 +285,4 @@ ConvDescription describe()
         []() { return reflect::instance_string<Instance>(); });
 }
 
-} // namespace ck_tile::reflect::conv
+} // namespace ck_tile::reflect

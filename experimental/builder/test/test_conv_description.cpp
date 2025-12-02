@@ -13,7 +13,7 @@
 namespace {
 
 namespace ckb = ck_tile::builder;
-namespace ckr = ck_tile::reflect::conv;
+namespace ckr = ck_tile::reflect;
 namespace ckt = ck_tile::test;
 
 // Defines the signature of the convolution operation to be tested.
