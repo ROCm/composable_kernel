@@ -177,11 +177,10 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
-                                       index_t m,
+                                       [[maybe_unused]] index_t m,
                                        index_t num_loop,
                                        void* p_smem) const
         {
-            (void)m; // unused variable
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
@@ -381,20 +380,86 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             }
 
             // Tail handling
-            block_sync_lds();
-            block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
-            block_gemm(
-                c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
+            auto HotLoopTail = [&](auto tail_num) {
+                static_for<0, tail_num - 1, 1>{}([&](auto prefetch_idx) {
+                    block_sync_lds();
+                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                    block_gemm(c_block_tile,
+                               aq_block_tiles.get(number<prefetch_idx>{}),
+                               a_lds_gemm_window,
+                               b_lds_gemm_window);
+                    // no second block_sync_lds because it's interwave
 
-            if constexpr(TailNum == TailNumber::Even)
+                    if constexpr(is_a_col_major)
+                    {
+                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                            Policy::template MakeShuffledARegTileDistribution<Problem>());
+                        transpose_tile2d(a_shuffle_tmp,
+                                         a_block_tiles.get(number<prefetch_idx + 1>{}));
+                        Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
+                    }
+                    else
+                    {
+                        Base::LocalPrefill(a_copy_lds_window,
+                                           a_block_tiles.get(number<prefetch_idx + 1>{}));
+                    }
+                    if constexpr(is_b_row_major)
+                    {
+                        auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                            Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                        transpose_tile2d(b_shuffle_tmp,
+                                         b_block_tiles.get(number<prefetch_idx + 1>{}));
+                        Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp);
+                    }
+                    else
+                    {
+                        Base::LocalPrefill(b_copy_lds_window,
+                                           b_block_tiles.get(number<prefetch_idx + 1>{}));
+                    }
+                });
+
+                block_sync_lds();
+                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                block_gemm(c_block_tile,
+                           aq_block_tiles.get(number<tail_num - 1>{}),
+                           a_lds_gemm_window,
+                           b_lds_gemm_window);
+            };
+
+            if constexpr(TailNum == TailNumber::One)
             {
-
-                Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I1{}), a_element_func);
-                Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I1{}), b_element_func);
                 block_sync_lds();
                 block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
                 block_gemm(
-                    c_block_tile, aq_block_tiles.get(I1{}), a_lds_gemm_window, b_lds_gemm_window);
+                    c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
+            }
+            else if constexpr(TailNum == TailNumber::Two)
+            {
+                HotLoopTail(number<2>{});
+            }
+            else if constexpr(TailNum == TailNumber::Three)
+            {
+                HotLoopTail(number<3>{});
+            }
+            else if constexpr(TailNum == TailNumber::Four)
+            {
+                HotLoopTail(number<4>{});
+            }
+            else if constexpr(TailNum == TailNumber::Five)
+            {
+                HotLoopTail(number<5>{});
+            }
+            else if constexpr(TailNum == TailNumber::Six)
+            {
+                HotLoopTail(number<6>{});
+            }
+            else if constexpr(TailNum == TailNumber::Seven)
+            {
+                HotLoopTail(number<7>{});
+            }
+            else if constexpr(TailNum == TailNumber::Full)
+            {
+                HotLoopTail(number<PrefetchStages>{});
             }
             return c_block_tile;
         }
