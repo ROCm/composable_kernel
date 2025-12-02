@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 EXE="$(find . -name tile_rmsnorm2d_fwd -type f | head -n 1)"
 
 # 0: for no specific RMSNorm

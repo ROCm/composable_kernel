@@ -1,24 +1,7 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
-// mfma_type, 0:32x32, 1:16x16
-template <typename FlatmmConfig, typename T>
-auto shuffle_b(const ck_tile::HostTensor<T>& t)
-{
-    assert(t.get_lengths().size() == 2);
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
-    ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
-                                   FlatmmConfig::N_Warp_Tile,
-                                   k_ / FlatmmConfig::K_Warp_Tile,
-                                   divisor,
-                                   FlatmmConfig::K_Warp_Tile / divisor});
-    std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-}
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -232,7 +215,7 @@ int run_contiguous_grouped_flatmm_example_with_layouts(
     assert(N % N_Warp_Tile == 0 &&
            "N must be divisible by N_Warp_Tile for contiguous grouped gemm");
     ck_tile::HostTensor<BDataType> b_shuffle_host =
-        shuffle_b<FlatmmConfig, BDataType>(b_k_n_tensor);
+        ck_tile::shuffle_b<FlatmmConfig, BDataType>(b_k_n_tensor);
 
     std::unique_ptr<ck_tile::DeviceMem> a_m_k_dev_buf(
         std::make_unique<ck_tile::DeviceMem>(a_m_k_tensor.get_element_space_size_in_bytes()));
@@ -448,7 +431,7 @@ int run_masked_grouped_flatmm_example_with_layouts(
     assert(N % N_Warp_Tile == 0 &&
            "N must be divisible by N_Warp_Tile for contiguous grouped gemm");
     ck_tile::HostTensor<BDataType> b_shuffle_host =
-        shuffle_b<FlatmmConfig, BDataType>(b_k_n_tensor);
+        ck_tile::shuffle_b<FlatmmConfig, BDataType>(b_k_n_tensor);
 
     std::unique_ptr<ck_tile::DeviceMem> a_m_k_dev_buf(
         std::make_unique<ck_tile::DeviceMem>(a_m_k_tensor.get_element_space_size_in_bytes()));

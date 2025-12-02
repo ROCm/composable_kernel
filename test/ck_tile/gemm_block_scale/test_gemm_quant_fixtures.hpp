@@ -1,11 +1,21 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "test_gemm_quant_base.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
+
+template <bool is_8bit>
+constexpr ck_tile::index_t get_k_warp_tile()
+{
+#if CK_TILE_USE_WMMA
+    return 16;
+#else
+    return is_8bit ? 64 : 32;
+#endif
+}
 
 struct GemmConfigBase
 {
@@ -40,7 +50,14 @@ struct GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<false>();
+};
+
+struct GemmConfigPrefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
 };
 
 struct GemmConfigPreshuffleQuant : public GemmConfigBase
@@ -75,7 +92,7 @@ struct GemmConfigPreshuffleBDecode : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 64;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
 };
 
 struct GemmConfigPreshuffleBPrefill : public GemmConfigBase
@@ -94,13 +111,18 @@ struct GemmConfigPreshuffleBPrefill : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 64;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
 };
 
 struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBPrefill
 {
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
+};
+
+struct GemmConfigPreshuffleBPreshuffleQuantDecode : public GemmConfigPreshuffleBDecode
+{
+    static constexpr bool PreshuffleQuant = true;
 };
 
 template <typename Tuple>
@@ -132,7 +154,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // AQuant uses grouped quantization for A matrix
         const ck_tile::index_t AQK = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
@@ -373,7 +395,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // BQuant uses block/grouped quantization for B matrix
         const ck_tile::index_t BQN       = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
@@ -426,7 +448,13 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         {
             printf("Preshuffle BQ with TiledMMAPermuteN \n");
             ck_tile::HostTensor<QDataType> bq_shuffle_host =
-                ck_tile::shuffle_bq_permuteN<GemmConfig>(bq_bqk_bqn);
+                ck_tile::bq_permuteN<GemmConfig>(bq_bqk_bqn);
+            bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
+        }
+        else if constexpr(GemmConfig::PreshuffleQuant)
+        {
+            ck_tile::HostTensor<QDataType> bq_shuffle_host =
+                ck_tile::shuffle_bq(&bq_bqk_bqn, GemmConfig::K_Tile / QuantGroupSize::kK);
             bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
         }
         else
@@ -629,7 +657,7 @@ class TestCkTileGemmRowColQuant
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // RowColQuant uses per-row and per-column scales
         const ck_tile::index_t stride_row_scales = 1;
@@ -846,7 +874,7 @@ class TestCkTileGemmTensorQuant
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // TensorQuant uses single scalar scale for each tensor
         const ck_tile::index_t stride_scale_a = 1;

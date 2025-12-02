@@ -1,69 +1,57 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include "utils/ckb_conv_test_common.hpp"
+#include "utils/ckb_conv_test_configs.hpp"
+#include "utils/ckb_conv_test_utils.hpp"
+
+namespace {
 
 using namespace ck_tile::builder::test_utils;
 
-namespace ck_tile::builder::testing {
-
 TEST(FwdConvInstances, Create_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK_Instance_2D_FP16_GNHWC)
 {
-    constexpr ConvSignature FwdConvSignature{
-        .spatial_dim           = 2,
-        .direction             = ConvDirection::FORWARD,
-        .layout                = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
-        .data_type             = DataType::FP16,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
-        .device_operation =
-            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK};
+    constexpr ConvSignature FwdConvSignature{.spatial_dim = 2,
+                                             .direction   = ConvDirection::FORWARD,
+                                             .layout      = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
+                                             .data_type   = DataType::FP16,
+                                             .elementwise_operation =
+                                                 ElementwiseOperation::PASS_THROUGH};
 
-    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
-                                         .tile_size  = {.m = 128, .n = 128, .k = 16}};
+    constexpr auto FwdConvAlgorithm =
+        ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK{}
+            .with_thread_block(FwdThreadBlock_256_128x128x16)
+            .with_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
+            .with_dl_thread_config(DlThreadConfig_16x2x4x4x1)
+            .with_dl_thread_cluster(DlThreadCluster_8x2)
+            .with_dl_transfer(DlFwdTransfer);
 
-    run_test_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<FwdConvSignature,
-                                                            FwdThreadBlock,
-                                                            ConvFwdSpecialization::DEFAULT>();
-}
-
-TEST(FwdConvInstances, Create_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK_Instance_2D_FP16_NHWGC)
-{
-    constexpr ConvSignature FwdConvSignature{
-        .spatial_dim           = 2,
-        .direction             = ConvDirection::FORWARD,
-        .layout                = GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
-        .data_type             = DataType::FP16,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
-        .device_operation =
-            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK};
-
-    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
-                                         .tile_size  = {.m = 128, .n = 128, .k = 16}};
-
-    run_test_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<FwdConvSignature,
-                                                            FwdThreadBlock,
-                                                            ConvFwdSpecialization::DEFAULT>();
+    using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+    run_test<Builder>(
+        {"DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK", "256, 128, 128, 16", "Default"});
 }
 
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK_Instance_2D_FP16_FILTER_1X1_PAD0)
 {
-    constexpr ConvSignature FwdConvSignature{
-        .spatial_dim           = 2,
-        .direction             = ConvDirection::FORWARD,
-        .layout                = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
-        .data_type             = DataType::FP16,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
-        .device_operation =
-            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK};
+    constexpr ConvSignature FwdConvSignature{.spatial_dim = 2,
+                                             .direction   = ConvDirection::FORWARD,
+                                             .layout      = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
+                                             .data_type   = DataType::FP16,
+                                             .elementwise_operation =
+                                                 ElementwiseOperation::PASS_THROUGH};
 
-    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
-                                         .tile_size  = {.m = 128, .n = 128, .k = 16}};
+    constexpr auto FwdConvAlgorithm =
+        ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK{}
+            .with_thread_block(FwdThreadBlock_256_128x128x16)
+            .with_specializations(ConvFwdSpecialization::FILTER_1X1_PAD0,
+                                  GemmSpecialization::MNKPadding)
+            .with_dl_thread_config(DlThreadConfig_16x2x4x4x1)
+            .with_dl_thread_cluster(DlThreadCluster_8x2)
+            .with_dl_transfer(DlFwdTransfer);
 
-    run_test_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<
-        FwdConvSignature,
-        FwdThreadBlock,
-        ConvFwdSpecialization::FILTER_1X1_PAD0>();
+    using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+    run_test<Builder>(
+        {"DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK", "256, 128, 128, 16", "Filter1x1Pad0"});
 }
 
-} // namespace ck_tile::builder::testing
+} // namespace

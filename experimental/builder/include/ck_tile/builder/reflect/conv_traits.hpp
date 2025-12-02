@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -15,6 +15,9 @@
 #include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
 #include <ck/utility/loop_scheduler.hpp>
 #include <ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp>
+#include <ck_tile/ops/gemm.hpp>
+#include "ck_tile/ops/epilogue.hpp"
+#include <ck_tile/ops/grouped_convolution.hpp>
 
 namespace ck_tile::reflect::conv {
 

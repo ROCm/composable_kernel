@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_custom_target(example_cgemm_xdl)
 
 add_example_executable(example_cgemm_xdl_bf16 cgemm_xdl_bf16.cpp)
