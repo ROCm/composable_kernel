@@ -35,27 +35,41 @@ cmake                                                                           
   ..
 ```
 
-## Building and testing
+## Building and Testing
 
-During development, all CK Builder tests can be built with command
+The builder test suite is organized into two main categories:
 
-```sh
-ninja test_ckb_all
-```
-
-To execute all tests, run
+### Smoke Tests (Fast Unit Tests)
+Quick unit tests that verify the builder's internal logic without compiling GPU kernels. These complete in under 1 second total and are suitable for frequent execution during development.
 
 ```sh
-ls bin/test_ckb_* | xargs -n1 sh -c
+ninja smoke-builder
 ```
 
-Some tests involve building old CK convolution factories, which will take a long time.
-Hence, one might want to build only single test targets. For example
+### Regression Tests (Integration Tests)
+Integration tests that compile actual GPU kernels to verify that the builder generates valid, compilable code. These are more expensive than smoke tests (can take minutes to compile) but cover more fuctionality.
+
+```sh
+ninja regression-builder
+```
+
+### Running All Tests
+To build and run the complete test suite:
+
+```sh
+ninja check-builder
+```
+
+### Building Individual Tests
+To build and run a specific test:
 
 ```sh
 ninja test_ckb_conv_builder && bin/test_ckb_conv_builder
 ```
 
-When adding new tests, please follow the convention where the CMake build target starts with a prefix `test_ckb`.
-This allows us to filter out the CK Builder tests from the set full CK repository tests.
-Also, the `test_ckb_all` target that builds all CK Builder tests relies on having the `test_ckb` prefix on the CMake build targets.
+### Test Organization
+- **Smoke tests**: Fast feedback during active development
+- **Regression tests**: Thorough validation before submitting changes
+- **Factory tests**: Expensive tests that build all MIOpen kernels (included in regression tests)
+
+When adding new tests, please follow the convention where the CMake build target starts with a prefix `test_ckb`. This allows filtering of CK Builder tests from the full CK repository test suite.

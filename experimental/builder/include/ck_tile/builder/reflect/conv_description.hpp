@@ -98,7 +98,7 @@ struct ConvDescription
         f.writeLine(2, "Weights elementwise operation: ", signature.weight_element_op);
         f.writeLast(2, "Output elementwise operation: ", signature.output_element_op);
 
-        f.writeLine(1, "Algorithm");
+        f.writeLast(1, "Algorithm");
         // Compute Block section
         f.writeLine(2, "Thread block size: ", algorithm.thread_block_size);
         f.writeLine(2,
@@ -123,7 +123,7 @@ struct ConvDescription
                     algorithm.warp_gemm.n_iter);
 
         // Memory Access section
-        f.writeLine(2, "Memory access:");
+        f.writeLast(2, "Memory access:");
 
         f.writeLine(3, "A Tile transfer: ");
         f.writeLine(4,
@@ -219,8 +219,6 @@ struct ConvDescription
         f.writeLast(4,
                     "Vector access (GMEM write) instruction size: ",
                     algorithm.c_tile_transfer.scalar_per_vector);
-        f.writeLast(2);
-        f.writeLast(1);
         return f.getString();
     }
 
