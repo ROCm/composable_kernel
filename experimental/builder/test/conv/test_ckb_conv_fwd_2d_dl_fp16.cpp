@@ -16,8 +16,8 @@ TEST(FwdConvInstances, Create_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK_Ins
         .data_type              = DataType::FP16,
         .accumulation_data_type = DataType::FP32,
         .input                  = ConvolutionTensor{.config = {.layout = TensorLayout::GNHWC}},
-        .weight = ConvolutionTensor{.config = {.layout = TensorLayout::GKYXC}},
-        .output = ConvolutionTensor{.config = {.layout = TensorLayout::GNHWK}}};
+        .weight                 = ConvolutionTensor{.config = {.layout = TensorLayout::GKYXC}},
+        .output                 = ConvolutionTensor{.config = {.layout = TensorLayout::GNHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK{}
@@ -45,8 +45,8 @@ TEST(FwdConvInstances,
         .data_type              = DataType::FP16,
         .accumulation_data_type = DataType::FP32,
         .input                  = ConvolutionTensor{.config = {.layout = TensorLayout::GNHWC}},
-        .weight = ConvolutionTensor{.config = {.layout = TensorLayout::GKYXC}},
-        .output = ConvolutionTensor{.config = {.layout = TensorLayout::GNHWK}}};
+        .weight                 = ConvolutionTensor{.config = {.layout = TensorLayout::GKYXC}},
+        .output                 = ConvolutionTensor{.config = {.layout = TensorLayout::GNHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK{}

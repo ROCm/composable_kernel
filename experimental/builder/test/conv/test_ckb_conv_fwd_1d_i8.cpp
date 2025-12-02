@@ -21,7 +21,7 @@ TEST(FwdConvInstances,
         .accumulation_data_type = DataType::INT32,
         .input                  = ConvolutionTensor{.config = {.layout = TensorLayout::GNWC}},
         .weight                 = ConvolutionTensor{.config = {.layout = TensorLayout::GKXC}},
-        .output = ConvolutionTensor{.config = {.layout = TensorLayout::GNWK}}};
+        .output                 = ConvolutionTensor{.config = {.layout = TensorLayout::GNWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}
