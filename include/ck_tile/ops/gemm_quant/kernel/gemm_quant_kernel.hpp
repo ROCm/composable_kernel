@@ -754,13 +754,13 @@ struct QuantGemmKernel
                                 make_tuple(kargs.stride_B, 1),
                                 number<GemmPipeline::GetVectorSizeB()>{},
                                 number<1>{});
-                        else 
+                        else
                             return make_naive_tensor_view<address_space_enum::global>(
-                                    b_ptr,
-                                    make_tuple(kargs.N, splitk_batch_offset.splitted_k),
-                                    make_tuple(kargs.stride_B, 1),
-                                    number<GemmPipeline::GetVectorSizeB()>{},
-                                    number<1>{});
+                                b_ptr,
+                                make_tuple(kargs.N, splitk_batch_offset.splitted_k),
+                                make_tuple(kargs.stride_B, 1),
+                                number<GemmPipeline::GetVectorSizeB()>{},
+                                number<1>{});
                     }
                 }
             }
@@ -862,16 +862,16 @@ struct QuantGemmKernel
             const auto& b_tensor_view = views.at(I2);
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
             {
-                if constexpr(std::is_same_v<BDataType, pk_fp4_raw_t>)                       
+                if constexpr(std::is_same_v<BDataType, pk_fp4_raw_t>)
                     return pad_tensor_view(b_tensor_view,
-                                        make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                    number<TilePartitioner::KPerBlock / 2>{}),
-                                        sequence<false, GemmPipeline::kPadK>{});
-                else 
+                                           make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                      number<TilePartitioner::KPerBlock / 2>{}),
+                                           sequence<false, GemmPipeline::kPadK>{});
+                else
                     return pad_tensor_view(b_tensor_view,
-                                       make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                  number<TilePartitioner::KPerBlock>{}),
-                                       sequence<false, GemmPipeline::kPadK>{});
+                                           make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                      number<TilePartitioner::KPerBlock>{}),
+                                           sequence<false, GemmPipeline::kPadK>{});
             }
             else
             {
@@ -996,16 +996,17 @@ struct QuantGemmKernel
             {
                 if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
                 {
-                    if constexpr(std::is_same_v<BDataType, pk_fp4_raw_t>)      
-                        return make_tile_window(b_pad_view,
-                                            make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                       number<TilePartitioner::KPerBlock / 2>{}),
-                                            {i_n, 0});
+                    if constexpr(std::is_same_v<BDataType, pk_fp4_raw_t>)
+                        return make_tile_window(
+                            b_pad_view,
+                            make_tuple(number<TilePartitioner::NPerBlock>{},
+                                       number<TilePartitioner::KPerBlock / 2>{}),
+                            {i_n, 0});
                     else
                         return make_tile_window(b_pad_view,
-                                            make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                       number<TilePartitioner::KPerBlock>{}),
-                                            {i_n, 0});
+                                                make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                           number<TilePartitioner::KPerBlock>{}),
+                                                {i_n, 0});
                 }
                 else
                 {

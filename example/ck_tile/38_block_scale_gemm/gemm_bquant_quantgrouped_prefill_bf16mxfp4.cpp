@@ -6,10 +6,10 @@
 template <typename T>
 using GemmConfig = GemmConfigBQuantPrefill<T>;
 
-#define RUN_GEMM_EXAMPLE_PREC_TYPE                         \
+#define RUN_GEMM_EXAMPLE_PREC_TYPE                                \
     run_gemm_example_prec_type<GemmConfig<ck_tile::pk_fp4_raw_t>, \
-                               TypeConfig,                 \
-                               QuantGroupSize,             \
+                               TypeConfig,                        \
+                               QuantGroupSize,                    \
                                ck_tile::QuantType::BQuantGrouped>(arg_parser);
 
 void bquant_quantgrouped_bf16f4_instance_factory(
@@ -20,17 +20,20 @@ void bquant_quantgrouped_bf16f4_instance_factory(
                                                     ck_tile::bf16_t,
                                                     ck_tile::pk_fp4_raw_t>{});
 
-    lut[hash_multiple_strings({"bf16f4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x32"})] =
+    lut[hash_multiple_strings(
+        {"bf16f4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x32"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 32>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
-    lut[hash_multiple_strings({"bf16f4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x64"})] =
+    lut[hash_multiple_strings(
+        {"bf16f4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x64"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 64>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
-    lut[hash_multiple_strings({"bf16f4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x128"})] =
+    lut[hash_multiple_strings(
+        {"bf16f4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x128"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;

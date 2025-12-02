@@ -257,24 +257,24 @@ template <typename ADataType,
           typename BElementOp   = ck_tile::identity,
           typename ACCElementOp = ck_tile::identity>
 CK_TILE_HOST void reference_mxfp4gemm_quant(const HostTensor<ADataType>& a_m_k,
-                                       const HostTensor<QDataType>& q,
-                                       const HostTensor<BDataType>& b_k_n,
-                                       HostTensor<CDataType>& c_m_n,
-                                       const AElementOp& a_element_op     = {},
-                                       const BElementOp& b_element_op     = {},
-                                       const ACCElementOp& acc_element_op = {})
+                                            const HostTensor<QDataType>& q,
+                                            const HostTensor<BDataType>& b_k_n,
+                                            HostTensor<CDataType>& c_m_n,
+                                            const AElementOp& a_element_op     = {},
+                                            const BElementOp& b_element_op     = {},
+                                            const ACCElementOp& acc_element_op = {})
 {
-    const std::size_t M        = a_m_k.get_length(0);
-    const std::size_t N        = b_k_n.get_length(1);
-    const std::size_t K        = a_m_k.get_length(1);
+    const std::size_t M = a_m_k.get_length(0);
+    const std::size_t N = b_k_n.get_length(1);
+    const std::size_t K = a_m_k.get_length(1);
 
     auto f_mn = [&](auto m, auto n) {
-        AccDataType v_acc   = 0;
-        AccDataType pasual  = 0;
+        AccDataType v_acc  = 0;
+        AccDataType pasual = 0;
         for(std::size_t k = 0; k < (K / 2); k++)
         {
             using ComputeType = float;
-            auto b_scale = type_convert<int32_t>(q((2 * k) / QuantGroupSize::kK, n)) - 127;
+            auto b_scale      = type_convert<int32_t>(q((2 * k) / QuantGroupSize::kK, n)) - 127;
             ComputeType v_a_0, v_a_1;
             ComputeType v_b_0, v_b_1;
 
@@ -292,7 +292,7 @@ CK_TILE_HOST void reference_mxfp4gemm_quant(const HostTensor<ADataType>& a_m_k,
                 v_b_0 = type_convert<ComputeType>(b_f4_lo) * b_scale_fp4;
                 v_b_1 = type_convert<ComputeType>(b_f4_hi) * b_scale_fp4;
             }
-            
+
             pasual = v_a_0 * v_b_0 + v_a_1 * v_b_1;
             v_acc += pasual;
         }
@@ -389,14 +389,14 @@ reference_gemm_multiple_abd(const std::array<HostTensor<ADataType>, AsDataType::
     const std::size_t N = b_k_n.get_length(1);
     const std::size_t K = a_m_k.get_length(1);
 
-    auto as_m_k_tuple =
-        generate_tie([&](auto idx) -> auto& { return as_m_k[idx]; }, number<AsDataType::size()>{});
+    auto as_m_k_tuple = generate_tie(
+        [&](auto idx) -> auto& { return as_m_k[idx]; }, number<AsDataType::size()>{});
 
-    auto bs_k_n_tuple =
-        generate_tie([&](auto idx) -> auto& { return bs_k_n[idx]; }, number<BsDataType::size()>{});
+    auto bs_k_n_tuple = generate_tie(
+        [&](auto idx) -> auto& { return bs_k_n[idx]; }, number<BsDataType::size()>{});
 
-    auto ds_m_n_tuple =
-        generate_tie([&](auto idx) -> auto& { return ds_m_n[idx]; }, number<DsDataType::size()>{});
+    auto ds_m_n_tuple = generate_tie(
+        [&](auto idx) -> auto& { return ds_m_n[idx]; }, number<DsDataType::size()>{});
 
     // Apply elementwise function to A
     auto a_elementwise_fn = [&](auto i, auto j) {

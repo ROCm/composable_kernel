@@ -291,7 +291,7 @@ struct UniversalGemmBasePolicy
             std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
                                typename Problem::ADataType,
                                typename Problem::BDataType>;
-        using BLayout   = remove_cvref_t<typename Problem::BLayout>;
+        using BLayout = remove_cvref_t<typename Problem::BLayout>;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -720,7 +720,7 @@ struct UniversalGemmBasePolicy
                 : (Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>());
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
         using BLayout                   = remove_cvref_t<
-                              std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;
+            std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -869,9 +869,10 @@ struct UniversalGemmPipelineAgBgCrPolicy
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
         using ATypeToUse =
             std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
-        using BTypeToUse = 
-            std::conditional_t<std::is_same_v<BDataType, pk_int4_t> || std::is_same_v<BDataType, pk_fp4_raw_t>, 
-            ADataType, BDataType>;
+        using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
+                                                  std::is_same_v<BDataType, pk_fp4_raw_t>,
+                                              ADataType,
+                                              BDataType>;
 
         using WarpGemm = WarpGemmDispatcher<ATypeToUse,
                                             BTypeToUse,

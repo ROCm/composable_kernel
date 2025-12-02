@@ -136,7 +136,6 @@ int main(int argc, char* argv[])
     bquant_quantgrouped_preshuffleb_preshufflequant_instance_factory(lut);
     quant_rowcol_instance_factory(lut);
     quant_tensor_instance_factory(lut);
-    
 
     auto key = gen_lut_key(arg_parser);
 
