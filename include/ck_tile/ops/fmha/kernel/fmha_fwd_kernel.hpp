@@ -1703,7 +1703,7 @@ struct FmhaFwdKernel
 
             BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
 
-            auto o_acc_tile = [&]() {
+            auto o_acc_tile = [&, i_nhead_ = i_nhead]() {
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
                 {
                     // TODO - move global load of descale to pipeline
@@ -1753,16 +1753,16 @@ struct FmhaFwdKernel
                 {
                     const float* q_descale_ptr =
                         reinterpret_cast<const float*>(kargs.q_descale_ptr) +
-                        static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q_descale +
+                        static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_q_descale +
                         batch_offset_q_descale;
                     const float* k_descale_ptr =
                         reinterpret_cast<const float*>(kargs.k_descale_ptr) +
-                        static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                        static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
                             kargs.nhead_stride_k_descale +
                         batch_offset_k_descale;
                     const float* v_descale_ptr =
                         reinterpret_cast<const float*>(kargs.v_descale_ptr) +
-                        static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                        static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
                             kargs.nhead_stride_v_descale +
                         batch_offset_v_descale;
 
