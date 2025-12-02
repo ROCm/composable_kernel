@@ -2,13 +2,13 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 03: Convolution with CPU Validation - Declarative
+ * Example 02: Convolution with CPU Validation - Declarative
  *
  * Demonstrates convolution with CPU reference verification.
  * Uses the Signature/Algorithm/Arch declarative pattern.
  *
  * Self-contained build:
- *   python3 scripts/compile_conv_examples.py examples/conv/cpp/03_conv_validation.cpp
+ *   python3 scripts/compile_conv_examples.py examples/conv/cpp/02_conv_validation.cpp
  *
  * Complexity: ★★★☆☆
  */
@@ -22,6 +22,7 @@
 
 // Declarative utilities
 #include "ck_tile/dispatcher/conv_utils.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 
 // CK Tile includes
 #include "ck_tile/core.hpp"
@@ -32,6 +33,7 @@
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::conv_utils;
+using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
 // KERNEL DECLARATIONS
@@ -63,9 +65,27 @@ using AccDataType = float;
 
 int main(int argc, char* argv[])
 {
+    ExampleArgs args("Example 02: Conv Validation", "Convolution with CPU reference verification");
+    args.add_option("-n", "1", "Batch size N");
+    args.add_option("-c", "64", "Input channels C");
+    args.add_option("-k", "128", "Output channels K");
+    args.add_option("--size", "14", "Spatial size (H=W)");
+    args.add_flag("--no-verify", "Skip CPU validation");
+    args.add_flag("--list", "List all kernel sets");
+
+    if(!args.parse(argc, argv))
+        return 0;
+
     std::cout << "======================================================================\n";
-    std::cout << "Example 03: Convolution with CPU Validation (Declarative)\n";
+    std::cout << "Example 02: Convolution with CPU Validation (Declarative)\n";
     std::cout << "======================================================================\n\n";
+
+    if(args.has("--list"))
+    {
+        std::cout << "Declared Kernel Sets:\n";
+        ConvKernelSetRegistry::instance().print();
+        return 0;
+    }
 
     // -------------------------------------------------------------------------
     // Step 1: Show declared kernels
@@ -83,23 +103,13 @@ int main(int argc, char* argv[])
     std::cout << "Step 2: Define Problem\n";
     std::cout << "----------------------\n";
 
-    int N = 1, C = 64, K = 128, Hi = 14, Wi = 14, Y = 3, X = 3;
-    bool verify = true;
-
-    for(int i = 1; i < argc; ++i)
-    {
-        std::string arg = argv[i];
-        if(arg == "-n" && i + 1 < argc)
-            N = std::stoi(argv[++i]);
-        else if(arg == "-c" && i + 1 < argc)
-            C = std::stoi(argv[++i]);
-        else if(arg == "-k" && i + 1 < argc)
-            K = std::stoi(argv[++i]);
-        else if(arg == "-h" && i + 1 < argc)
-            Hi = Wi = std::stoi(argv[++i]);
-        else if(arg == "--no-verify")
-            verify = false;
-    }
+    int N  = args.get_int("-n", 1);
+    int C  = args.get_int("-c", 64);
+    int K  = args.get_int("-k", 128);
+    int Hi = args.get_int("--size", 14);
+    int Wi = Hi;
+    int Y = 3, X = 3;
+    bool verify = !args.has("--no-verify");
 
     auto problem = create_conv2d_problem(N, C, K, Hi, Wi, Y, X, 1, 1, ConvOp::Forward);
     print_problem(problem);

@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 06: Convolution Heuristics with GPU Execution
+ * Example 05: Convolution Heuristics with GPU Execution
  *
  * Demonstrates heuristic-based kernel selection with GPU execution.
  *
@@ -14,6 +14,7 @@
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
@@ -21,6 +22,7 @@
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::conv_utils;
+using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
 // KERNEL DECLARATIONS
@@ -82,11 +84,24 @@ using OutDataType = ck_tile::half_t;
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    ExampleArgs args("Example 05: Conv Heuristics", "Heuristic-based kernel selection");
+    args.add_flag("--list", "List all kernel sets");
+
+    if(!args.parse(argc, argv))
+        return 0;
+
     std::cout << "======================================================================\n";
-    std::cout << "Example 06: Convolution Heuristics with GPU Execution\n";
+    std::cout << "Example 05: Convolution Heuristics with GPU Execution\n";
     std::cout << "======================================================================\n\n";
+
+    if(args.has("--list"))
+    {
+        std::cout << "Declared Kernel Sets:\n";
+        ConvKernelSetRegistry::instance().print();
+        return 0;
+    }
 
     // -------------------------------------------------------------------------
     // Setup

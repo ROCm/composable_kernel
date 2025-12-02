@@ -960,15 +960,33 @@ def expand_declaration_with_arch_filter(decl: dict, arch: str = "gfx942") -> lis
 
     # === Build valid combinations ===
 
-    # Wave/warp combinations
-    if needs_wave_expansion or needs_warp_expansion:
+    # Wave configurations
+    if needs_wave_expansion:
         wave_configs = WARP_SUPPORTED_COMBINATIONS.get(arch, [[2, 2, 1]])
-        dtype_key = f"{dtype}_{dtype}_{dtype}"
-        warp_tile_configs = WARP_TILE_SUPPORTED_COMBINATIONS.get(arch, {}).get(
-            dtype_key, [[32, 32, 16], [16, 16, 16]]
-        )
     else:
         wave_configs = [[d.get("wave_m", 2), d.get("wave_n", 2), d.get("wave_k", 1)]]
+
+    # Warp tile configurations
+    if needs_warp_expansion:
+        arch_warp_tiles = WARP_TILE_SUPPORTED_COMBINATIONS.get(arch, {})
+
+        # Try to find warp tile configs for this dtype
+        # Keys are like: fp16_fp16_fp32, int8_int8_int32, etc.
+        warp_tile_configs = None
+        dtype_key_variants = [
+            f"{dtype}_{dtype}_{dtype}",  # e.g., fp32_fp32_fp32
+            f"{dtype}_{dtype}_fp32",  # e.g., fp16_fp16_fp32
+            f"{dtype}_{dtype}_int32",  # e.g., int8_int8_int32
+        ]
+        for dtype_key in dtype_key_variants:
+            warp_tile_configs = arch_warp_tiles.get(dtype_key, None)
+            if warp_tile_configs is not None:
+                break
+
+        # If dtype is not supported on this arch, return empty list
+        if warp_tile_configs is None:
+            return []
+    else:
         warp_tile_configs = [
             [d.get("warp_m", 32), d.get("warp_n", 32), d.get("warp_k", 16)]
         ]
@@ -1831,8 +1849,13 @@ In your C++ code, declare kernels like:
         print(f"\n    Validating against {args.gpu_target} arch filter...")
         wildcard_count = 0
         invalid_count = 0
+        auto_corrections = []
+
         for decl in gemm_declarations:
             arch = decl.get("arch", args.gpu_target)
+            decl_name = (
+                decl["name"].split(":")[-1] if ":" in decl["name"] else decl["name"]
+            )
 
             # Check for wildcards
             if is_wildcard_declaration(decl):
@@ -1841,28 +1864,56 @@ In your C++ code, declare kernels like:
 
             is_valid, error_msg = validate_kernel_config(decl, arch)
             if not is_valid:
-                decl_name = (
-                    decl["name"].split(":")[-1] if ":" in decl["name"] else decl["name"]
-                )
                 print(f"\n    ⚠ Invalid configuration: {decl_name}")
-                for line in error_msg.split("\n"):
-                    print(f"      {line}")
-                print("      → Will wildcard expand to find valid configuration")
-                # Convert to wildcard by setting wave/warp to -1
-                decl["wave_m"] = -1
-                decl["wave_n"] = -1
-                decl["warp_m"] = -1
-                decl["warp_n"] = -1
-                # Also wildcard the trait combination if that was the issue
+
+                # Parse the error and show specific auto-corrections
+                corrections = []
+                original_values = {}
+
+                if "wave configuration" in error_msg.lower():
+                    original_values["wave"] = (
+                        f"[{decl.get('wave_m', 2)}, {decl.get('wave_n', 2)}, {decl.get('wave_k', 1)}]"
+                    )
+                    decl["wave_m"] = -1
+                    decl["wave_n"] = -1
+                    corrections.append(
+                        f"wave: {original_values['wave']} → [wildcard expansion]"
+                    )
+
+                if "warp tile" in error_msg.lower():
+                    original_values["warp"] = (
+                        f"[{decl.get('warp_m', 32)}, {decl.get('warp_n', 32)}, {decl.get('warp_k', 16)}]"
+                    )
+                    decl["warp_m"] = -1
+                    decl["warp_n"] = -1
+                    corrections.append(
+                        f"warp_tile: {original_values['warp']} → [wildcard expansion]"
+                    )
+
                 if "trait combination" in error_msg.lower():
+                    original_values["pipeline"] = decl.get("pipeline", "compv4")
+                    original_values["scheduler"] = decl.get("scheduler", "intrawave")
                     decl["pipeline"] = "*"
                     decl["scheduler"] = "*"
+                    corrections.append(
+                        f"pipeline: {original_values['pipeline']} → [wildcard expansion]"
+                    )
+                    corrections.append(
+                        f"scheduler: {original_values['scheduler']} → [wildcard expansion]"
+                    )
+
+                # Print the auto-corrections
+                print("      AUTO-CORRECTION:")
+                for corr in corrections:
+                    print(f"        • {corr}")
+                auto_corrections.append((decl_name, corrections))
+
                 invalid_count += 1
                 wildcard_count += 1
 
         if invalid_count > 0:
             print(
-                f"\n    ⚠ {invalid_count} invalid config(s) will be auto-corrected via expansion"
+                f"\n    ⚠ {invalid_count} invalid config(s) auto-corrected via wildcard expansion"
             )
 
         if wildcard_count > 0:
@@ -1873,14 +1924,41 @@ In your C++ code, declare kernels like:
             print(f"    ✓ All {len(gemm_declarations)} configurations valid")
 
         # Expand GEMM declarations (for wildcards)
+        print("\n    Expanding wildcards to valid configurations...")
         expanded_gemm = []
         for decl in gemm_declarations:
             arch = decl.get("arch", args.gpu_target)
+            decl_name = (
+                decl["name"].split(":")[-1] if ":" in decl["name"] else decl["name"]
+            )
+
             expanded = expand_declaration_with_arch_filter(decl, arch)
             expanded_gemm.extend(expanded)
 
+            # Show what the wildcard expanded to
+            if len(expanded) > 1:
+                print(
+                    f"      {decl_name}: expanded to {len(expanded)} valid configurations"
+                )
+                # Show first few expanded configs
+                for exp in expanded[:3]:
+                    wave_str = f"[{exp['wave_m']}, {exp['wave_n']}, {exp['wave_k']}]"
+                    warp_str = f"[{exp['warp_m']}, {exp['warp_n']}, {exp['warp_k']}]"
+                    print(
+                        f"        → wave={wave_str}, warp={warp_str}, pipeline={exp['pipeline']}, scheduler={exp['scheduler']}"
+                    )
+                if len(expanded) > 3:
+                    print(f"        ... and {len(expanded) - 3} more")
+            elif len(expanded) == 1 and is_wildcard_declaration(decl):
+                exp = expanded[0]
+                wave_str = f"[{exp['wave_m']}, {exp['wave_n']}, {exp['wave_k']}]"
+                warp_str = f"[{exp['warp_m']}, {exp['warp_n']}, {exp['warp_k']}]"
+                print(f"      {decl_name}: → wave={wave_str}, warp={warp_str}")
+
         if len(expanded_gemm) > len(gemm_declarations):
-            print(f"\n    Expanded to {len(expanded_gemm)} GEMM configurations")
+            print(
+                f"\n    Total: {len(gemm_declarations)} declarations → {len(expanded_gemm)} configurations"
+            )
 
         gemm_declarations = expanded_gemm
 
@@ -1912,8 +1990,13 @@ In your C++ code, declare kernels like:
         print(f"\n    Validating against {args.gpu_target} arch filter...")
         wildcard_count = 0
         invalid_count = 0
+        auto_corrections = []
+
         for decl in conv_declarations:
             arch = decl.get("arch", args.gpu_target)
+            decl_name = (
+                decl["name"].split(":")[-1] if ":" in decl["name"] else decl["name"]
+            )
 
             # Check for wildcards
             if is_conv_wildcard_declaration(decl):
@@ -1922,28 +2005,56 @@ In your C++ code, declare kernels like:
 
             is_valid, error_msg = validate_conv_kernel_config(decl, arch)
             if not is_valid:
-                decl_name = (
-                    decl["name"].split(":")[-1] if ":" in decl["name"] else decl["name"]
-                )
                 print(f"\n    ⚠ Invalid conv configuration: {decl_name}")
-                for line in error_msg.split("\n"):
-                    print(f"      {line}")
-                print("      → Will wildcard expand to find valid configuration")
-                # Convert to wildcard by setting wave/warp to -1
-                decl["wave_m"] = -1
-                decl["wave_n"] = -1
-                decl["warp_m"] = -1
-                decl["warp_n"] = -1
-                # Also wildcard the trait combination if that was the issue
+
+                # Parse the error and show specific auto-corrections
+                corrections = []
+                original_values = {}
+
+                if "wave configuration" in error_msg.lower():
+                    original_values["wave"] = (
+                        f"[{decl.get('wave_m', 2)}, {decl.get('wave_n', 2)}, {decl.get('wave_k', 1)}]"
+                    )
+                    decl["wave_m"] = -1
+                    decl["wave_n"] = -1
+                    corrections.append(
+                        f"wave: {original_values['wave']} → [wildcard expansion]"
+                    )
+
+                if "warp tile" in error_msg.lower():
+                    original_values["warp"] = (
+                        f"[{decl.get('warp_m', 32)}, {decl.get('warp_n', 32)}, {decl.get('warp_k', 16)}]"
+                    )
+                    decl["warp_m"] = -1
+                    decl["warp_n"] = -1
+                    corrections.append(
+                        f"warp_tile: {original_values['warp']} → [wildcard expansion]"
+                    )
+
                 if "trait combination" in error_msg.lower():
+                    original_values["pipeline"] = decl.get("pipeline", "compv3")
+                    original_values["scheduler"] = decl.get("scheduler", "intrawave")
                     decl["pipeline"] = "*"
                     decl["scheduler"] = "*"
+                    corrections.append(
+                        f"pipeline: {original_values['pipeline']} → [wildcard expansion]"
+                    )
+                    corrections.append(
+                        f"scheduler: {original_values['scheduler']} → [wildcard expansion]"
+                    )
+
+                # Print the auto-corrections
+                print("      AUTO-CORRECTION:")
+                for corr in corrections:
+                    print(f"        • {corr}")
+                auto_corrections.append((decl_name, corrections))
+
                 invalid_count += 1
                 wildcard_count += 1
 
         if invalid_count > 0:
             print(
-                f"\n    ⚠ {invalid_count} invalid config(s) will be auto-corrected via expansion"
+                f"\n    ⚠ {invalid_count} invalid config(s) auto-corrected via wildcard expansion"
             )
 
         if wildcard_count > 0:
@@ -1954,14 +2065,40 @@ In your C++ code, declare kernels like:
             print(f"    ✓ All {len(conv_declarations)} configurations valid")
 
         # Expand Conv declarations (for wildcards)
+        print("\n    Expanding wildcards to valid configurations...")
         expanded_conv = []
         for decl in conv_declarations:
             arch = decl.get("arch", args.gpu_target)
+            decl_name = (
+                decl["name"].split(":")[-1] if ":" in decl["name"] else decl["name"]
+            )
+
             expanded = expand_conv_declaration_with_arch_filter(decl, arch)
             expanded_conv.extend(expanded)
 
+            # Show what the wildcard expanded to
+            if len(expanded) > 1:
+                print(
+                    f"      {decl_name}: expanded to {len(expanded)} valid configurations"
+                )
+                for exp in expanded[:3]:
+                    wave_str = f"[{exp['wave_m']}, {exp['wave_n']}, {exp['wave_k']}]"
+                    warp_str = f"[{exp['warp_m']}, {exp['warp_n']}, {exp['warp_k']}]"
+                    print(
+                        f"        → wave={wave_str}, warp={warp_str}, pipeline={exp['pipeline']}, scheduler={exp['scheduler']}"
+                    )
+                if len(expanded) > 3:
+                    print(f"        ... and {len(expanded) - 3} more")
+            elif len(expanded) == 1 and is_conv_wildcard_declaration(decl):
+                exp = expanded[0]
+                wave_str = f"[{exp['wave_m']}, {exp['wave_n']}, {exp['wave_k']}]"
+                warp_str = f"[{exp['warp_m']}, {exp['warp_n']}, {exp['warp_k']}]"
+                print(f"      {decl_name}: → wave={wave_str}, warp={warp_str}")
+
         if len(expanded_conv) > len(conv_declarations):
-            print(f"\n    Expanded to {len(expanded_conv)} CONV configurations")
+            print(
+                f"\n    Total: {len(conv_declarations)} declarations → {len(expanded_conv)} configurations"
+            )
 
         conv_declarations = expanded_conv
 

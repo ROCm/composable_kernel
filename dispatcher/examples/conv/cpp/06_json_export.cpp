@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 07: Convolution JSON Export with GPU Execution
+ * Example 06: Convolution JSON Export with GPU Execution
  *
  * Exports kernel configurations to JSON and runs on GPU.
  *
@@ -16,6 +16,7 @@
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
@@ -23,6 +24,7 @@
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::conv_utils;
+using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
 // KERNEL DECLARATIONS
@@ -99,11 +101,25 @@ using OutDataType = ck_tile::half_t;
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    ExampleArgs args("Example 06: Conv JSON Export", "Export kernel configurations to JSON");
+    args.add_option("--output", "conv_kernels.json", "Output JSON file path");
+    args.add_flag("--list", "List all kernel sets");
+
+    if(!args.parse(argc, argv))
+        return 0;
+
     std::cout << "======================================================================\n";
-    std::cout << "Example 07: Convolution JSON Export with GPU Execution\n";
+    std::cout << "Example 06: Convolution JSON Export with GPU Execution\n";
     std::cout << "======================================================================\n\n";
+
+    if(args.has("--list"))
+    {
+        std::cout << "Declared Kernel Sets:\n";
+        ConvKernelSetRegistry::instance().print();
+        return 0;
+    }
 
     // -------------------------------------------------------------------------
     // Export to JSON
@@ -117,12 +133,13 @@ int main()
     std::cout << json << "\n";
 
     // Write to file
-    std::ofstream file("conv_kernels.json");
+    std::string output_file = args.get("--output");
+    std::ofstream file(output_file);
     if(file)
     {
         file << json;
         file.close();
-        std::cout << "[Saved to conv_kernels.json]\n\n";
+        std::cout << "[Saved to " << output_file << "]\n\n";
     }
 
     // -------------------------------------------------------------------------

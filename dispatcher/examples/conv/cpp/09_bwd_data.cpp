@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 10: Backward Data Convolution with GPU Execution and Validation
+ * Example 09: Backward Data Convolution with GPU Execution and Validation
  *
  * Demonstrates backward data gradient computation (dL/dInput).
  * Used during neural network backpropagation.
@@ -17,6 +17,7 @@
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
@@ -25,6 +26,7 @@
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::conv_utils;
+using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
 // KERNEL DECLARATIONS - Backward Data
@@ -55,20 +57,32 @@ using AccDataType = float;
 
 int main(int argc, char* argv[])
 {
-    // Parse args for validation flag
-    bool verify = false;
-    for(int i = 1; i < argc; ++i)
-    {
-        if(std::string(argv[i]) == "--verify" || std::string(argv[i]) == "-v")
-        {
-            verify = true;
-        }
-    }
+    ExampleArgs args("Example 09: Conv Backward Data",
+                     "Backward data gradient computation (dL/dInput)");
+    args.add_option("-n", "1", "Batch size N");
+    args.add_option("-c", "64", "Input channels C");
+    args.add_option("-k", "128", "Output channels K");
+    args.add_option("--size", "28", "Spatial size (H=W)");
+    args.add_flag("--verify", "Enable CPU validation");
+    args.add_flag("-v", "Enable CPU validation");
+    args.add_flag("--list", "List all kernel sets");
+
+    if(!args.parse(argc, argv))
+        return 0;
+
+    bool verify = args.has("--verify") || args.has("-v");
 
     std::cout << "======================================================================\n";
-    std::cout << "Example 10: Backward Data Convolution" << (verify ? " (with validation)" : "")
+    std::cout << "Example 09: Backward Data Convolution" << (verify ? " (with validation)" : "")
               << "\n";
     std::cout << "======================================================================\n\n";
+
+    if(args.has("--list"))
+    {
+        std::cout << "Declared Kernel Sets:\n";
+        ConvKernelSetRegistry::instance().print();
+        return 0;
+    }
 
     // -------------------------------------------------------------------------
     // Step 1: Show declared kernels
@@ -86,7 +100,12 @@ int main(int argc, char* argv[])
     std::cout << "Step 2: Define Problem\n";
     std::cout << "----------------------\n";
 
-    int N = 1, C = 64, K = 128, Hi = 28, Wi = 28, Y = 3, X = 3;
+    int N  = args.get_int("-n", 1);
+    int C  = args.get_int("-c", 64);
+    int K  = args.get_int("-k", 128);
+    int Hi = args.get_int("--size", 28);
+    int Wi = Hi;
+    int Y = 3, X = 3;
     auto problem = create_conv2d_problem(N, C, K, Hi, Wi, Y, X, 1, 1, ConvOp::BackwardData);
     print_problem(problem);
     std::cout << "\n";

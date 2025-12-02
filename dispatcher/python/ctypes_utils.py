@@ -1042,6 +1042,111 @@ def _run_codegen_subprocess(args: Dict[str, Any]) -> CodegenResult:
         )
 
 
+# =============================================================================
+# Preshuffle Utilities
+# =============================================================================
+
+
+def preshuffle_weight_matrix(
+    B: np.ndarray,
+    warp_tile_n: int,
+    warp_tile_k: int,
+    arch: str = "gfx942",
+) -> np.ndarray:
+    """
+    Preshuffle the B (weight) matrix for optimized GEMM inference.
+
+    This transforms the B matrix layout to match the expected memory access
+    pattern for preshuffle-enabled kernels. The transformation reorders data
+    so that warp-level loads are coalesced.
+
+    Args:
+        B: Weight matrix of shape (K, N) in column-major / (K, N) layout
+        warp_tile_n: Warp tile size in N dimension (e.g., 32)
+        warp_tile_k: Warp tile size in K dimension (e.g., 16)
+        arch: Target GPU architecture (gfx9xx, gfx11xx, gfx12xx)
+
+    Returns:
+        Shuffled B matrix with same data but reordered layout
+
+    Example:
+        >>> B = np.random.randn(1024, 2048).astype(np.float16)
+        >>> B_shuffled = preshuffle_weight_matrix(B, warp_tile_n=32, warp_tile_k=16)
+        >>> # Use B_shuffled with preshuffle-enabled kernel
+    """
+    K, N = B.shape
+
+    # Validate dimensions are divisible by warp tiles
+    if N % warp_tile_n != 0:
+        raise ValueError(f"N ({N}) must be divisible by warp_tile_n ({warp_tile_n})")
+    if K % warp_tile_k != 0:
+        raise ValueError(f"K ({K}) must be divisible by warp_tile_k ({warp_tile_k})")
+
+    # Architecture-specific shuffle patterns
+    # Based on ck_tile/host/tensor_shuffle_utils.hpp
+    if arch.startswith("gfx12"):
+        # GFX12 (RDNA4) pattern
+        divisor = 2
+        k_abk1_per_lane = 8
+        k_abk0_per_lane = warp_tile_k // divisor // k_abk1_per_lane
+
+        if k_abk0_per_lane <= 0:
+            raise ValueError(
+                f"warp_tile_k ({warp_tile_k}) too small for GFX12 preshuffle"
+            )
+
+        # Reshape: (K, N) -> (N/warp_n, warp_n, K/warp_k, k0, div, k1)
+        B_view = B.T.reshape(
+            N // warp_tile_n,
+            warp_tile_n,
+            K // warp_tile_k,
+            k_abk0_per_lane,
+            divisor,
+            k_abk1_per_lane,
+        )
+        # Permute: {0, 2, 4, 1, 3, 5}
+        B_shuffled = np.transpose(B_view, (0, 2, 4, 1, 3, 5))
+
+    elif arch.startswith("gfx11"):
+        # GFX11 (RDNA3) pattern - divisor = 1
+        divisor = 1
+
+        # Reshape: (K, N) -> (N/warp_n, warp_n, K/warp_k, div, warp_k/div)
+        B_view = B.T.reshape(
+            N // warp_tile_n,
+            warp_tile_n,
+            K // warp_tile_k,
+            divisor,
+            warp_tile_k // divisor,
+        )
+        # Permute: {0, 2, 3, 1, 4}
+        B_shuffled = np.transpose(B_view, (0, 2, 3, 1, 4))
+
+    else:
+        # GFX9 (CDNA) pattern - wave64
+        divisor = 2 if warp_tile_n == 32 else 4
+
+        # Reshape: (K, N) -> (N/warp_n, warp_n, K/warp_k, div, warp_k/div)
+        B_view = B.T.reshape(
+            N // warp_tile_n,
+            warp_tile_n,
+            K // warp_tile_k,
+            divisor,
+            warp_tile_k // divisor,
+        )
+        # Permute: {0, 2, 3, 1, 4}
+        B_shuffled = np.transpose(B_view, (0, 2, 3, 1, 4))
+
+    # Return contiguous array with same dtype
+    return np.ascontiguousarray(B_shuffled.reshape(-1)).reshape(B.shape)
+
+
+def is_preshuffle_supported(arch: str) -> bool:
+    """Check if preshuffle is supported for the given architecture."""
+    # Preshuffle is supported on CDNA (gfx9xx) and RDNA (gfx11xx, gfx12xx)
+    return arch.startswith(("gfx9", "gfx11", "gfx12"))
+
+
 @dataclass
 class KernelConfig:
     """

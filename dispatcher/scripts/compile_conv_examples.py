@@ -8,12 +8,15 @@ Self-contained build script for C++ convolution examples.
 Parses DECL_CONV_KERNEL_SET declarations from source files,
 generates the needed kernels, and compiles the example.
 
+Includes validation and auto-correction via wildcard expansion.
+
 Usage:
     python3 compile_conv_examples.py examples/conv/cpp/02_conv_forward.cpp
     python3 compile_conv_examples.py examples/conv/cpp/03_conv_validation.cpp --no-compile
 """
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -200,6 +203,347 @@ def extract_conv_declarations(source_file: Path) -> list:
     return declarations
 
 
+# =============================================================================
+# VALIDATION AND AUTO-CORRECTION
+# =============================================================================
+
+
+def get_arch_filter_data() -> dict:
+    """Load architecture filter data from arch_specs.json."""
+    arch_specs_path = DISPATCHER_DIR / "codegen" / "arch_specs.json"
+
+    if arch_specs_path.exists():
+        with open(arch_specs_path) as f:
+            specs = json.load(f)
+
+        # Build lookup tables
+        supported_archs = list(specs.get("architectures", {}).keys())
+
+        # Build warp combos per arch
+        warp_combos = {}
+        for arch, arch_data in specs.get("architectures", {}).items():
+            warp_combos[arch] = arch_data.get("warp_combos", [[2, 2, 1]])
+
+        # Build warp tile combos per arch and dtype
+        warp_tile_combos = {}
+        for arch, arch_data in specs.get("architectures", {}).items():
+            warp_tile_combos[arch] = {}
+            for dtype_key, tiles in arch_data.get("warp_tile_combos", {}).items():
+                warp_tile_combos[arch][dtype_key] = tiles
+
+        # Unsupported trait combinations
+        trait_unsupported = set()
+        for combo in specs.get("trait_combinations", {}).get("unsupported", []):
+            trait_unsupported.add(tuple(combo))
+
+        return {
+            "supported_archs": supported_archs,
+            "warp_combos": warp_combos,
+            "warp_tile_combos": warp_tile_combos,
+            "trait_unsupported": trait_unsupported,
+        }
+
+    # Fallback defaults
+    return {
+        "supported_archs": [
+            "gfx90a",
+            "gfx942",
+            "gfx950",
+            "gfx1100",
+            "gfx1200",
+            "gfx1201",
+        ],
+        "warp_combos": {
+            "gfx942": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
+            "gfx90a": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
+        },
+        "warp_tile_combos": {},
+        "trait_unsupported": {("compv4", "cshuffle", "interwave")},
+    }
+
+
+def is_conv_wildcard_declaration(decl: dict) -> bool:
+    """Check if a declaration uses wildcards (-1 or '*')."""
+    wildcard_fields = ["wave_m", "wave_n", "warp_m", "warp_n", "pipeline", "scheduler"]
+    for field in wildcard_fields:
+        val = decl.get(field)
+        if val == -1 or val == "*":
+            return True
+    return False
+
+
+def validate_conv_kernel_config(decl: dict, arch: str = "gfx942") -> tuple:
+    """Validate a conv kernel configuration against known supported combinations.
+
+    Returns: (is_valid, error_message)
+    """
+    # Skip validation for wildcards - expansion will filter invalid combos
+    if is_conv_wildcard_declaration(decl):
+        return (True, None)
+
+    arch_data = get_arch_filter_data()
+
+    pipeline = decl.get("pipeline", "compv4")
+    scheduler = decl.get("scheduler", "intrawave")
+    dtype = decl.get("dtype", "fp16")
+
+    wave_m = decl.get("wave_m", 2)
+    wave_n = decl.get("wave_n", 2)
+    wave_k = decl.get("wave_k", 1)
+
+    warp_m = decl.get("warp_m", 32)
+    warp_n = decl.get("warp_n", 32)
+    warp_k = decl.get("warp_k", 16)
+
+    errors = []
+
+    # Check trait combination (pipeline, epilogue, scheduler)
+    combo = (pipeline, "cshuffle", scheduler)
+    if combo in arch_data["trait_unsupported"]:
+        errors.append(
+            f"Unsupported trait combination: pipeline={pipeline}, scheduler={scheduler}\n"
+            f"    Valid schedulers for {pipeline}: intrawave"
+        )
+
+    # Check wave configuration for this arch
+    warp_combos = arch_data["warp_combos"].get(arch, [[2, 2, 1]])
+    wave_cfg = [wave_m, wave_n, wave_k]
+    if wave_cfg not in warp_combos:
+        valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_combos)
+        errors.append(
+            f"Unsupported wave configuration [{wave_m},{wave_n},{wave_k}] for {arch}\n"
+            f"    Valid wave configs: {valid_str}"
+        )
+
+    # Check warp tile configuration for this arch and dtype
+    dtype_key = f"{dtype}_{dtype}_{dtype}"
+    warp_tile_combos = (
+        arch_data["warp_tile_combos"]
+        .get(arch, {})
+        .get(dtype_key, [[32, 32, 16], [16, 16, 16], [16, 16, 32]])
+    )
+    warp_cfg = [warp_m, warp_n, warp_k]
+    if warp_cfg not in warp_tile_combos:
+        valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_tile_combos[:5])
+        errors.append(
+            f"Unsupported warp tile [{warp_m},{warp_n},{warp_k}] for {arch}/{dtype}\n"
+            f"    Valid warp tiles: {valid_str}"
+        )
+
+    # Check arch is supported
+    if arch not in arch_data["supported_archs"]:
+        errors.append(
+            f"Unsupported architecture: {arch}\n"
+            f"    Supported: {', '.join(arch_data['supported_archs'])}"
+        )
+
+    if errors:
+        return (False, "\n".join(errors))
+
+    return (True, None)
+
+
+def expand_conv_declaration_with_arch_filter(decl: dict, arch: str = "gfx942") -> list:
+    """Expand a conv declaration with wildcards into valid configurations.
+
+    Wildcards:
+      - wave_m/wave_n = -1: Try all valid wave configs for this arch
+      - warp_m/warp_n = -1: Try all valid warp tiles for this arch/dtype
+      - pipeline/scheduler = "*": Try all valid combinations
+
+    Returns a list of fully-specified declarations.
+    """
+    arch_data = get_arch_filter_data()
+    dtype = decl.get("dtype", "fp16")
+
+    # Get valid combinations for this arch
+    valid_wave_combos = arch_data["warp_combos"].get(arch, [[2, 2, 1]])
+    dtype_key = f"{dtype}_{dtype}_{dtype}"
+    valid_warp_tiles = (
+        arch_data["warp_tile_combos"]
+        .get(arch, {})
+        .get(dtype_key, [[32, 32, 16], [16, 16, 16]])
+    )
+
+    # Valid pipelines and schedulers
+    valid_pipelines = ["compv3", "compv4"]
+    valid_schedulers = ["intrawave"]  # interwave often unsupported
+
+    # Determine which fields need expansion
+    expand_wave = decl.get("wave_m", 2) == -1 or decl.get("wave_n", 2) == -1
+    expand_warp = decl.get("warp_m", 32) == -1 or decl.get("warp_n", 32) == -1
+    expand_pipeline = decl.get("pipeline", "compv4") == "*"
+    expand_scheduler = decl.get("scheduler", "intrawave") == "*"
+
+    # Build combinations
+    wave_options = (
+        valid_wave_combos
+        if expand_wave
+        else [[decl.get("wave_m", 2), decl.get("wave_n", 2), decl.get("wave_k", 1)]]
+    )
+    warp_options = (
+        valid_warp_tiles
+        if expand_warp
+        else [[decl.get("warp_m", 32), decl.get("warp_n", 32), decl.get("warp_k", 16)]]
+    )
+    pipeline_options = (
+        valid_pipelines if expand_pipeline else [decl.get("pipeline", "compv4")]
+    )
+    scheduler_options = (
+        valid_schedulers if expand_scheduler else [decl.get("scheduler", "intrawave")]
+    )
+
+    expanded = []
+    for wave in wave_options:
+        for warp in warp_options:
+            for pipeline in pipeline_options:
+                for scheduler in scheduler_options:
+                    # Skip known invalid combinations
+                    if (pipeline, "cshuffle", scheduler) in arch_data[
+                        "trait_unsupported"
+                    ]:
+                        continue
+
+                    new_decl = decl.copy()
+                    new_decl["wave_m"] = wave[0]
+                    new_decl["wave_n"] = wave[1]
+                    new_decl["wave_k"] = wave[2]
+                    new_decl["warp_m"] = warp[0]
+                    new_decl["warp_n"] = warp[1]
+                    new_decl["warp_k"] = warp[2]
+                    new_decl["pipeline"] = pipeline
+                    new_decl["scheduler"] = scheduler
+
+                    expanded.append(new_decl)
+
+    # If no valid expansions, return original (will fail validation later)
+    if not expanded:
+        return [decl]
+
+    # Return first valid config (or all if needed)
+    return expanded[:1]  # Just use first valid config for conv
+
+
+def validate_and_expand_conv_declarations(
+    declarations: list, arch: str, verbose: bool = False
+) -> list:
+    """Validate declarations and auto-correct invalid ones via wildcard expansion."""
+    print(f"\n    Validating against {arch} arch filter...")
+
+    wildcard_count = 0
+    invalid_count = 0
+    auto_corrections = []
+
+    for decl in declarations:
+        decl_arch = decl.get("arch", arch)
+        decl_name = (
+            f"{decl['dtype']}_{decl['conv_type']}_{decl['tile_k']}x{decl['tile_c']}"
+        )
+
+        # Check for wildcards
+        if is_conv_wildcard_declaration(decl):
+            wildcard_count += 1
+            continue
+
+        is_valid, error_msg = validate_conv_kernel_config(decl, decl_arch)
+        if not is_valid:
+            print(f"\n    ⚠ Invalid conv configuration: {decl_name}")
+
+            # Parse the error and show specific auto-corrections
+            corrections = []
+            original_values = {}
+
+            if "wave configuration" in error_msg.lower():
+                original_values["wave"] = (
+                    f"[{decl.get('wave_m', 2)}, {decl.get('wave_n', 2)}, {decl.get('wave_k', 1)}]"
+                )
+                decl["wave_m"] = -1
+                decl["wave_n"] = -1
+                corrections.append(
+                    f"wave: {original_values['wave']} → [wildcard expansion]"
+                )
+
+            if "warp tile" in error_msg.lower():
+                original_values["warp"] = (
+                    f"[{decl.get('warp_m', 32)}, {decl.get('warp_n', 32)}, {decl.get('warp_k', 16)}]"
+                )
+                decl["warp_m"] = -1
+                decl["warp_n"] = -1
+                corrections.append(
+                    f"warp_tile: {original_values['warp']} → [wildcard expansion]"
+                )
+
+            if "trait combination" in error_msg.lower():
+                original_values["pipeline"] = decl.get("pipeline", "compv4")
+                original_values["scheduler"] = decl.get("scheduler", "intrawave")
+                decl["pipeline"] = "*"
+                decl["scheduler"] = "*"
+                corrections.append(
+                    f"pipeline: {original_values['pipeline']} → [wildcard expansion]"
+                )
+                corrections.append(
+                    f"scheduler: {original_values['scheduler']} → [wildcard expansion]"
+                )
+
+            # Print the auto-corrections
+            print("      AUTO-CORRECTION:")
+            for corr in corrections:
+                print(f"        • {corr}")
+            auto_corrections.append((decl_name, corrections))
+
+            invalid_count += 1
+            wildcard_count += 1
+
+    if invalid_count > 0:
+        print(
+            f"\n    ⚠ {invalid_count} invalid config(s) auto-corrected via wildcard expansion"
+        )
+
+    if wildcard_count > 0:
+        print(
+            f"    ✓ {len(declarations) - wildcard_count} explicit + {wildcard_count} wildcard (will expand)"
+        )
+    else:
+        print(f"    ✓ All {len(declarations)} configurations valid")
+
+    # Expand wildcards
+    print("\n    Expanding wildcards to valid configurations...")
+    expanded_declarations = []
+    for decl in declarations:
+        decl_arch = decl.get("arch", arch)
+        decl_name = (
+            f"{decl['dtype']}_{decl['conv_type']}_{decl['tile_k']}x{decl['tile_c']}"
+        )
+
+        expanded = expand_conv_declaration_with_arch_filter(decl, decl_arch)
+        expanded_declarations.extend(expanded)
+
+        if len(expanded) > 1:
+            print(
+                f"      {decl_name}: expanded to {len(expanded)} valid configurations"
+            )
+            for exp in expanded[:3]:
+                wave_str = f"[{exp['wave_m']}, {exp['wave_n']}, {exp['wave_k']}]"
+                warp_str = f"[{exp['warp_m']}, {exp['warp_n']}, {exp['warp_k']}]"
+                print(
+                    f"        → wave={wave_str}, warp={warp_str}, pipeline={exp['pipeline']}"
+                )
+            if len(expanded) > 3:
+                print(f"        ... and {len(expanded) - 3} more")
+        elif is_conv_wildcard_declaration(decl) and len(expanded) == 1:
+            exp = expanded[0]
+            wave_str = f"[{exp['wave_m']}, {exp['wave_n']}, {exp['wave_k']}]"
+            warp_str = f"[{exp['warp_m']}, {exp['warp_n']}, {exp['warp_k']}]"
+            print(f"      {decl_name}: → wave={wave_str}, warp={warp_str}")
+
+    if len(expanded_declarations) != len(declarations):
+        print(
+            f"\n    Total: {len(declarations)} declarations → {len(expanded_declarations)} configurations"
+        )
+
+    return expanded_declarations
+
+
 def generate_conv_kernels(declarations: list, output_dir: Path) -> list:
     """Generate convolution kernels using unified_conv_codegen."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -351,10 +695,16 @@ def main():
     for decl in declarations:
         name = f"{decl['dtype']}_{decl['conv_type']}_{decl['num_dims']}d_{decl['tile_k']}x{decl['tile_c']}"
         print(f"    [{decl['set']}] {name}")
+
+    # Phase 2: Validate and expand
+    print_phase("\nPhase 2: Validating and expanding declarations...")
+    declarations = validate_and_expand_conv_declarations(
+        declarations, args.gpu_target, args.verbose
+    )
     print()
 
-    # Phase 2: Generate kernels
-    print_phase("Phase 2: Generating kernels...")
+    # Phase 3: Generate kernels
+    print_phase("Phase 3: Generating kernels...")
     generated = generate_conv_kernels(declarations, kernel_dir)
 
     if not generated:
@@ -364,7 +714,7 @@ def main():
     print(f"  Generated {len(generated)} kernel file(s)")
     print()
 
-    # Phase 3: Compile (optional)
+    # Phase 4: Compile (optional)
     if args.no_compile:
         print_info("Skipping compilation (--no-compile)")
         print()
@@ -372,7 +722,7 @@ def main():
         print(f"Kernels in: {kernel_dir}")
         return 0
 
-    print_phase("Phase 3: Compiling example...")
+    print_phase("Phase 4: Compiling example...")
     hipcc = find_hipcc()
 
     if not hipcc:

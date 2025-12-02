@@ -33,13 +33,6 @@ from conv_utils import (
 )
 
 
-def print_kernel_config(sig, algo, arch, title="KERNEL CONFIGURATION"):
-    """Print a kernel configuration."""
-    print(f"    {title}")
-    print(f"      dtype={sig.dtype_in}, direction={sig.direction}")
-    print(f"      tile={algo.tile_k}x{algo.tile_c}, pipeline={algo.pipeline}")
-
-
 def export_kernel_config_to_dict(config: ConvKernelConfig) -> dict:
     """Export a single kernel config to dictionary."""
     sig = config.signature

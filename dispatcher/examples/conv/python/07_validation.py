@@ -31,23 +31,8 @@ from conv_utils import (
     auto_correct_conv_config,
     reset_for_conv_example,
     cleanup_conv,
+    print_conv_kernel_config,
 )
-
-
-def print_kernel_config(sig, algo, arch, title="KERNEL CONFIGURATION"):
-    """Print the kernel configuration being validated."""
-    print()
-    print("-" * 60)
-    print(f"  {title}")
-    print("-" * 60)
-    print(f"  Data Type:  {sig.dtype_in}")
-    print(f"  Direction:  {sig.direction}")
-    print(f"  Layout:     {sig.layout}")
-    print(f"  Tile K x C: {algo.tile_k} x {algo.tile_c}")
-    print(f"  Pipeline:   {algo.pipeline}")
-    print(f"  Scheduler:  {algo.scheduler}")
-    print(f"  Arch:       {arch.name}")
-    print("-" * 60)
 
 
 def cpu_conv2d_nhwc(
@@ -162,7 +147,7 @@ def main():
 
     arch = ArchInfo(name=args.arch)
 
-    print_kernel_config(sig, algo, arch, "REQUESTED CONFIGURATION")
+    print_conv_kernel_config(sig, algo, arch, "REQUESTED CONFIGURATION")
 
     # Validate
     validation = validate_conv_config(
@@ -202,7 +187,7 @@ def main():
             algo.warp_m = corrected["warp_m"]
             algo.warp_n = corrected["warp_n"]
             algo.warp_k = corrected["warp_k"]
-            print_kernel_config(sig, algo, arch, "CORRECTED CONFIGURATION")
+            print_conv_kernel_config(sig, algo, arch, "CORRECTED CONFIGURATION")
     print()
 
     # =========================================================================

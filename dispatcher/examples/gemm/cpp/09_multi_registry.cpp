@@ -20,6 +20,7 @@
 
 #include "ck_tile/dispatcher.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
@@ -53,9 +54,23 @@ DECL_KERNEL_SET(bf16_compute, .add("bf16", "rcr", 128, 128, 32).add("bf16", "rcr
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    ExampleArgs args("Example 09: Multiple Registries",
+                     "Separate registries for different workload types");
+    args.add_flag("--list", "List all kernel sets");
+
+    if(!args.parse(argc, argv))
+        return 0;
+
     print_header("Example 09: Multiple Registries");
+
+    if(args.has("--list"))
+    {
+        std::cout << "\nDeclared Kernel Sets:\n";
+        KernelSetRegistry::instance().print();
+        return 0;
+    }
 
     // =========================================================================
     // Show declared kernel sets

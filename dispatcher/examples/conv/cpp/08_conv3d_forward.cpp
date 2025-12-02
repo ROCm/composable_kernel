@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 09: 3D Convolution Forward with GPU Execution
+ * Example 08: 3D Convolution Forward with GPU Execution
  *
  * Demonstrates 3D convolution (e.g., for video or volumetric data).
  *
@@ -14,6 +14,7 @@
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
@@ -21,6 +22,7 @@
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::conv_utils;
+using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
 // KERNEL DECLARATIONS - 3D Forward
@@ -56,11 +58,29 @@ using OutDataType = ck_tile::half_t;
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    ExampleArgs args("Example 08: Conv3D Forward", "3D convolution for video/volumetric data");
+    args.add_option("-n", "1", "Batch size N");
+    args.add_option("-c", "32", "Input channels C");
+    args.add_option("-k", "64", "Output channels K");
+    args.add_option("--depth", "8", "Depth D");
+    args.add_option("--size", "16", "Spatial size (H=W)");
+    args.add_flag("--list", "List all kernel sets");
+
+    if(!args.parse(argc, argv))
+        return 0;
+
     std::cout << "======================================================================\n";
-    std::cout << "Example 09: 3D Convolution Forward with GPU Execution\n";
+    std::cout << "Example 08: 3D Convolution Forward with GPU Execution\n";
     std::cout << "======================================================================\n\n";
+
+    if(args.has("--list"))
+    {
+        std::cout << "Declared Kernel Sets:\n";
+        ConvKernelSetRegistry::instance().print();
+        return 0;
+    }
 
     // -------------------------------------------------------------------------
     // Step 1: Show declared kernels
@@ -78,9 +98,13 @@ int main()
     std::cout << "Step 2: Define 3D Problem\n";
     std::cout << "-------------------------\n";
 
-    // 3D problem: N=1, C=32, K=64, D=8, H=16, W=16, filter 3x3x3
-    int N = 1, C = 32, K = 64;
-    int Di = 8, Hi = 16, Wi = 16;
+    // 3D problem from args
+    int N  = args.get_int("-n", 1);
+    int C  = args.get_int("-c", 32);
+    int K  = args.get_int("-k", 64);
+    int Di = args.get_int("--depth", 8);
+    int Hi = args.get_int("--size", 16);
+    int Wi = Hi;
     int Z = 3, Y = 3, X = 3;
 
     auto problem = create_conv3d_problem(N, C, K, Di, Hi, Wi, Z, Y, X, 1, 1, ConvOp::Forward);

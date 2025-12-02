@@ -18,6 +18,7 @@
 
 #include "ck_tile/dispatcher.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
@@ -38,13 +39,23 @@ DECL_KERNEL_SET(json_export,
 
 int main(int argc, char* argv[])
 {
+    ExampleArgs args("Example 06: JSON Export", "Export registry information to JSON format");
+    args.add_option("--output", "registry.json", "Output JSON file path");
+    args.add_flag("--list", "List all kernel sets");
+
+    if(!args.parse(argc, argv))
+        return 0;
+
     print_header("Example 06: JSON Export");
 
-    std::string output_file = "registry.json";
-    if(argc > 1)
+    if(args.has("--list"))
     {
-        output_file = argv[1];
+        std::cout << "\nDeclared Kernel Sets:\n";
+        KernelSetRegistry::instance().print();
+        return 0;
     }
+
+    std::string output_file = args.get("--output");
 
     // =========================================================================
     // Setup Registry

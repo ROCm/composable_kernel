@@ -130,7 +130,7 @@ Examples:
         dtype_acc=acc_dtype,
         # Layouts (RCR = Row-Column-Row)
         layout_a="row",
-        layout_b="col",
+        layout_b="row",
         layout_c="row",
         # Tile shape
         tile_m=args.tile_m,

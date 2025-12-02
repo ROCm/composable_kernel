@@ -36,13 +36,6 @@ from conv_utils import (
 import numpy as np
 
 
-def print_kernel_config(sig, algo, arch, title="KERNEL CONFIGURATION"):
-    """Print a kernel configuration."""
-    print(f"  {title}")
-    print(f"    dtype={sig.dtype_in}, tile={algo.tile_k}x{algo.tile_c}")
-    print(f"    pipeline={algo.pipeline}, scheduler={algo.scheduler}")
-
-
 def create_validated_kernel(dtype, tile_k, tile_c, pipeline, scheduler, arch_name):
     """Create a validated kernel configuration."""
     sig = ConvSignature()

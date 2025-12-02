@@ -20,6 +20,7 @@
 
 #include "ck_tile/dispatcher.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
@@ -42,9 +43,25 @@ DECL_KERNEL_SET(
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    ExampleArgs args("Example 08: Multi-D GEMM", "GEMM with fused D tensor operations");
+    args.add_option("--M", "1024", "Matrix M dimension");
+    args.add_option("--N", "1024", "Matrix N dimension");
+    args.add_option("--K", "512", "Matrix K dimension");
+    args.add_flag("--list", "List all kernel sets");
+
+    if(!args.parse(argc, argv))
+        return 0;
+
     print_header("Example 08: Multi-D GEMM (Fused Operations)");
+
+    if(args.has("--list"))
+    {
+        std::cout << "\nDeclared Kernel Sets:\n";
+        KernelSetRegistry::instance().print();
+        return 0;
+    }
 
     std::cout << "\nMulti-D GEMM supports:\n";
     std::cout << "  - C = A * B + D0 (bias add)\n";
@@ -79,7 +96,9 @@ int main()
     // =========================================================================
     // Run GEMM (standard, without D tensors for this demo)
     // =========================================================================
-    const int M = 1024, N = 1024, K = 512;
+    const int M = args.get_int("--M", 1024);
+    const int N = args.get_int("--N", 1024);
+    const int K = args.get_int("--K", 512);
     Problem problem(M, N, K);
 
     GpuBuffer<ADataType> a_dev(M * K);

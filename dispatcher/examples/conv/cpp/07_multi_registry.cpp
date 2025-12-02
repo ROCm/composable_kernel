@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 08: Multiple Convolution Registries with GPU Execution
+ * Example 07: Multiple Convolution Registries with GPU Execution
  *
  * Demonstrates using separate registries for different use cases,
  * each running on GPU.
@@ -15,6 +15,7 @@
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
@@ -22,6 +23,7 @@
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::conv_utils;
+using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
 // KERNEL DECLARATIONS - Different registries for different use cases
@@ -119,11 +121,25 @@ float run_conv(int N, int C, int K, int H, int W)
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    ExampleArgs args("Example 07: Multi-Registry Conv",
+                     "Separate registries for different use cases");
+    args.add_flag("--list", "List all kernel sets");
+
+    if(!args.parse(argc, argv))
+        return 0;
+
     std::cout << "======================================================================\n";
-    std::cout << "Example 08: Multiple Convolution Registries with GPU Execution\n";
+    std::cout << "Example 07: Multiple Convolution Registries with GPU Execution\n";
     std::cout << "======================================================================\n\n";
+
+    if(args.has("--list"))
+    {
+        std::cout << "Declared Kernel Sets:\n";
+        ConvKernelSetRegistry::instance().print();
+        return 0;
+    }
 
     // -------------------------------------------------------------------------
     // Create separate registries

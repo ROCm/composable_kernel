@@ -31,23 +31,8 @@ from conv_utils import (
     validate_conv_config,
     reset_for_conv_example,
     cleanup_conv,
+    print_conv_kernel_config,
 )
-
-
-def print_kernel_config(sig, algo, arch, title="BENCHMARK KERNEL CONFIGURATION"):
-    """Print the kernel configuration being benchmarked."""
-    print()
-    print("-" * 60)
-    print(f"  {title}")
-    print("-" * 60)
-    print(f"  Data Type:  {sig.dtype_in}")
-    print(f"  Direction:  {sig.direction}")
-    print(f"  Layout:     {sig.layout}")
-    print(f"  Tile K x C: {algo.tile_k} x {algo.tile_c}")
-    print(f"  Pipeline:   {algo.pipeline}")
-    print(f"  Scheduler:  {algo.scheduler}")
-    print(f"  Arch:       {arch.name}")
-    print("-" * 60)
 
 
 def main():
@@ -151,7 +136,7 @@ def main():
     # Print one config for reference
     if kernel_set.configs:
         cfg = kernel_set.configs[0]
-        print_kernel_config(cfg.signature, cfg.algorithm, cfg.arch)
+        print_conv_kernel_config(cfg.signature, cfg.algorithm, cfg.arch)
     print()
 
     # =========================================================================

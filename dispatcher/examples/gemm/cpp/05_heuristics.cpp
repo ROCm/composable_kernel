@@ -20,6 +20,7 @@
 
 #include "ck_tile/dispatcher.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
@@ -69,8 +70,17 @@ std::vector<std::string> size_based_heuristic(const Problem& problem)
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    // Parse command line arguments
+    ExampleArgs args("Example 05: Custom Heuristics",
+                     "Demonstrates custom kernel selection heuristics");
+
+    if(!args.parse(argc, argv))
+    {
+        return 0; // --help was printed
+    }
+
     print_header("Example 05: Custom Heuristics");
 
     // =========================================================================

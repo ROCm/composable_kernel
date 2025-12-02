@@ -32,32 +32,8 @@ from conv_utils import (
     auto_correct_conv_config,
     reset_for_conv_example,
     cleanup_conv,
+    print_conv_kernel_config,
 )
-
-
-def print_kernel_config(sig, algo, arch, title="KERNEL CONFIGURATION"):
-    """Print the exact kernel configuration being requested."""
-    print()
-    print("=" * 70)
-    print(f"  {title}")
-    print("=" * 70)
-    print(
-        f"  Data Type:     {sig.dtype_in} (input) / {sig.dtype_wei} (weight) / {sig.dtype_out} (output)"
-    )
-    print(f"  Accumulator:   {sig.dtype_acc}")
-    print(f"  Direction:     {sig.direction}")
-    print(f"  Spatial Dims:  {sig.num_dims}D")
-    print(f"  Layout:        {sig.layout}")
-    print()
-    print(f"  Tile N x K x C: {algo.tile_n} x {algo.tile_k} x {algo.tile_c}")
-    print(f"  Wave Config:    {algo.wave_m} x {algo.wave_n} x {algo.wave_k}")
-    print(f"  Warp Tile:      {algo.warp_m} x {algo.warp_n} x {algo.warp_k}")
-    print(f"  Pipeline:       {algo.pipeline}")
-    print(f"  Scheduler:      {algo.scheduler}")
-    print()
-    print(f"  Target Arch:    {arch.name}")
-    print("=" * 70)
-    print()
 
 
 def reference_conv2d_bwd_weight(input_np, grad_output, Y, X, stride=1, pad=0):
@@ -202,7 +178,7 @@ def main():
     arch = ArchInfo(name=args.arch)
 
     # Print the EXACT configuration requested
-    print_kernel_config(sig, algo, arch, "REQUESTED KERNEL CONFIGURATION")
+    print_conv_kernel_config(sig, algo, arch, "REQUESTED KERNEL CONFIGURATION")
 
     # =========================================================================
     # Step 3: Validate and auto-correct configuration
@@ -247,7 +223,7 @@ def main():
             algo.warp_m = corrected["warp_m"]
             algo.warp_n = corrected["warp_n"]
             algo.warp_k = corrected["warp_k"]
-            print_kernel_config(sig, algo, arch, "CORRECTED KERNEL CONFIGURATION")
+            print_conv_kernel_config(sig, algo, arch, "CORRECTED KERNEL CONFIGURATION")
     print()
 
     # =========================================================================

@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 04: Multi-Size Convolution with GPU Execution
+ * Example 03: Multi-Size Convolution with GPU Execution
  *
  * Demonstrates using different kernel tile sizes for different problem sizes,
  * with actual GPU execution for each.
@@ -16,6 +16,7 @@
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
@@ -23,6 +24,7 @@
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::conv_utils;
+using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
 // KERNEL DECLARATIONS - Multiple tile sizes
@@ -131,11 +133,25 @@ void run_conv_on_gpu(const ConvProblem& problem, const std::string& label)
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    ExampleArgs args("Example 03: Multi-Size Conv",
+                     "Different tile sizes for different problem sizes");
+    args.add_flag("--list", "List all kernel sets");
+
+    if(!args.parse(argc, argv))
+        return 0;
+
     std::cout << "======================================================================\n";
-    std::cout << "Example 04: Multi-Size Convolution with GPU Execution\n";
+    std::cout << "Example 03: Multi-Size Convolution with GPU Execution\n";
     std::cout << "======================================================================\n\n";
+
+    if(args.has("--list"))
+    {
+        std::cout << "Declared Kernel Sets:\n";
+        ConvKernelSetRegistry::instance().print();
+        return 0;
+    }
 
     // -------------------------------------------------------------------------
     // Step 1: Show declared kernels
