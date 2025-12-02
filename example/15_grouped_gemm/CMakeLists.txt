@@ -37,6 +37,13 @@ if(USE_BITINT_EXTENSION_INT4)
     add_example_dependencies(example_grouped_gemm_xdl example_grouped_gemm_xdl_int4)
 endif()
 
+add_custom_target(example_grouped_gemm_wmma)
+add_example_executable(example_grouped_gemm_wmma_splitk_fp16 grouped_gemm_wmma_splitk_fp16.cpp)
+add_example_dependencies(example_grouped_gemm_wmma example_grouped_gemm_wmma_splitk_fp16)
+
+add_example_executable(example_grouped_gemm_wmma_splitk_bf16 grouped_gemm_wmma_splitk_bf16.cpp)
+add_example_dependencies(example_grouped_gemm_wmma example_grouped_gemm_wmma_splitk_bf16)
+
 list(APPEND gpu_list_tf32 gfx942 gfx950)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
