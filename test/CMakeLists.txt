@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/
     ${PROJECT_SOURCE_DIR}/profiler/include
@@ -117,7 +120,7 @@ function(add_test_executable TEST_NAME)
         elseif(source_name_list MATCHES "_wmma")
              list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950)
         elseif(source_name_list MATCHES "_smfmac")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
         endif()
         set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
         add_executable(${TEST_NAME} ${ARGN})
@@ -209,9 +212,9 @@ function(add_gtest_executable TEST_NAME)
         elseif(source_name_list MATCHES "_wmma")
              list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950)
         elseif(source_name_list MATCHES "_smfmac")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
         elseif(source_name_list MATCHES "_mx") #only build mx example for gfx950
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
         endif()
         set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
         add_executable(${TEST_NAME} ${ARGN})
