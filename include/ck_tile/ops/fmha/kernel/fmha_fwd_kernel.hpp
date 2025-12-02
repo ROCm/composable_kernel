@@ -1769,15 +1769,6 @@ struct FmhaFwdKernel
                     size_t idx      = i_m0 / kargs.block_scale_m;
                     float q_descale = q_descale_ptr[idx];
 
-                    float scale_o = 1.0;
-
-                    auto o_acc_element_func = [&]() {
-                        if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
-                            return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
-                                                     ck_tile::scales{scale_o});
-                        else
-                            return ck_tile::scales{scale_o};
-                    }();
                     return FmhaPipeline{}(q_dram_window,
                                           identity{}, // q_element_func
                                           k_dram_window,
@@ -1788,10 +1779,10 @@ struct FmhaFwdKernel
                                           identity{}, // bias_element_func
                                           randval_dram_window,
                                           lse_dram_window,
-                                          identity{},         // lse_element_func
-                                          identity{},         // s_acc_element_func
-                                          scales{1.0f},       // p_compute_element_func
-                                          o_acc_element_func, // o_acc_element_func
+                                          identity{},   // lse_element_func
+                                          identity{},   // s_acc_element_func
+                                          scales{1.0f}, // p_compute_element_func
+                                          scales{1.0f}, // o_acc_element_func
                                           mask,
                                           position_encoding,
                                           kargs.scale_s * q_descale,
