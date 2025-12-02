@@ -2,9 +2,14 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 05: Convolution Benchmark with GPU Execution
+ * Example 04: Convolution Benchmark with GPU Execution
  *
  * Benchmarks different kernel configurations on actual GPU hardware.
+ *
+ * Usage:
+ *   ./conv_04_benchmark
+ *   ./conv_04_benchmark --help
+ *   ./conv_04_benchmark --warmup 10 --iterations 100
  *
  * Complexity: ★★★☆☆
  */
@@ -15,6 +20,7 @@
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
@@ -22,6 +28,7 @@
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::conv_utils;
+using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
 // KERNEL DECLARATIONS - Benchmark configurations
@@ -59,11 +66,28 @@ using OutDataType = ck_tile::half_t;
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    // Parse command line arguments
+    ExampleArgs args("Example 04: Convolution Benchmark",
+                     "Benchmarks conv kernel configurations on GPU");
+    args.add_option("--warmup", "10", "Warmup iterations");
+    args.add_option("--iterations", "50", "Benchmark iterations");
+
+    if(!args.parse(argc, argv))
+    {
+        return 0; // --help was printed
+    }
+
+    int warmup     = args.get_int("--warmup", 10);
+    int iterations = args.get_int("--iterations", 50);
+
     std::cout << "======================================================================\n";
-    std::cout << "Example 05: Convolution Benchmark with GPU Execution\n";
+    std::cout << "Example 04: Convolution Benchmark with GPU Execution\n";
     std::cout << "======================================================================\n\n";
+    std::cout << "Configuration:\n";
+    std::cout << "  Warmup iterations:    " << warmup << "\n";
+    std::cout << "  Benchmark iterations: " << iterations << "\n\n";
 
     // -------------------------------------------------------------------------
     // Setup
@@ -150,7 +174,7 @@ int main()
                                                output_dev.GetDeviceBuffer(),
                                                1);
 
-        ck_tile::stream_config stream_cfg{nullptr, true, 1, 10, 50};
+        ck_tile::stream_config stream_cfg{nullptr, true, 1, warmup, iterations};
         float elapsed_ms = SelectedConvKernelLauncher::launch(args, stream_cfg);
 
         double flops  = problem.get_flops();
@@ -163,6 +187,11 @@ int main()
 #else
     for(const auto& [label, N, C, K, H, W] : problems)
     {
+        (void)N;
+        (void)C;
+        (void)K;
+        (void)H;
+        (void)W;
         std::cout << std::setw(30) << label << std::setw(15) << "-" << std::setw(15) << "-"
                   << std::setw(10) << "NO KERNEL" << "\n";
     }

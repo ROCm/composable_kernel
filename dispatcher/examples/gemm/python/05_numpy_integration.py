@@ -11,9 +11,12 @@ Complexity: ★★☆☆☆
 
 Usage:
     python3 05_numpy_integration.py
+    python3 05_numpy_integration.py --help
+    python3 05_numpy_integration.py --dtype bf16
 """
 
 import sys
+import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
@@ -50,6 +53,26 @@ class GPUMatmul:
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="NumPy Integration Example - GPU-accelerated matmul wrapper",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python3 05_numpy_integration.py             # Default FP16
+  python3 05_numpy_integration.py --dtype bf16  # BF16 mode
+        """,
+    )
+    parser.add_argument(
+        "--dtype",
+        default="fp16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Data type (default: fp16)",
+    )
+    parser.add_argument(
+        "--arch", default="gfx942", help="Target architecture (default: gfx942)"
+    )
+    args = parser.parse_args()
+
     reset_for_example()
 
     print("=" * 60)
@@ -61,7 +84,15 @@ def main():
     # =========================================================================
     print("\nStep 1: Setup Dispatcher")
 
-    config = KernelConfig(dtype_a="fp16", tile_m=128, tile_n=128, tile_k=32)
+    config = KernelConfig(
+        dtype_a=args.dtype,
+        dtype_b=args.dtype,
+        dtype_c=args.dtype,
+        tile_m=128,
+        tile_n=128,
+        tile_k=32,
+        gfx_arch=args.arch,
+    )
 
     setup = setup_gemm_dispatcher(config, registry_name="numpy", verbose=True)
     if not setup.success:
@@ -69,6 +100,7 @@ def main():
         return 1
 
     dispatcher = setup.dispatcher
+    np_dtype = np.float16 if args.dtype in ["fp16", "bf16"] else np.float32
 
     # =========================================================================
     # Step 2: Create GPU matmul wrapper
@@ -83,8 +115,8 @@ def main():
     # =========================================================================
     print("\nStep 3: Demo - Simple Multiplication")
 
-    A = np.random.randn(1024, 512).astype(np.float16) * 0.1
-    B = np.random.randn(512, 256).astype(np.float16) * 0.1
+    A = np.random.randn(1024, 512).astype(np_dtype) * 0.1
+    B = np.random.randn(512, 256).astype(np_dtype) * 0.1
 
     # Use the gpu_matmul wrapper
     C = gpu_matmul(A, B)
@@ -103,9 +135,9 @@ def main():
     print("\nStep 4: Demo - FFN Block")
 
     batch, hidden, ffn = 128, 768, 3072
-    X = np.random.randn(batch, hidden).astype(np.float16) * 0.02
-    W1 = np.random.randn(hidden, ffn).astype(np.float16) * 0.02
-    W2 = np.random.randn(ffn, hidden).astype(np.float16) * 0.02
+    X = np.random.randn(batch, hidden).astype(np_dtype) * 0.02
+    W1 = np.random.randn(hidden, ffn).astype(np_dtype) * 0.02
+    W2 = np.random.randn(ffn, hidden).astype(np_dtype) * 0.02
 
     result1 = dispatcher.run(X, W1, batch, ffn, hidden)
     H = result1.output

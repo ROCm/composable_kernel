@@ -6,17 +6,48 @@
 Example 07: Convolution Validation
 
 Demonstrates validating convolution results against CPU reference,
-similar to GEMM 04_validation.py.
+with kernel configuration validation and auto-correction.
 
 Usage:
     python3 07_validation.py
+    python3 07_validation.py --dtype bf16
 """
 
+import argparse
 import numpy as np
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent))
+
 from conv_utils import (
+    ConvSignature,
+    ConvAlgorithm,
+    ArchInfo,
     ConvProblem,
     ConvValidator,
+    GpuConvRunner,
+    validate_conv_config,
+    auto_correct_conv_config,
+    reset_for_conv_example,
+    cleanup_conv,
 )
+
+
+def print_kernel_config(sig, algo, arch, title="KERNEL CONFIGURATION"):
+    """Print the kernel configuration being validated."""
+    print()
+    print("-" * 60)
+    print(f"  {title}")
+    print("-" * 60)
+    print(f"  Data Type:  {sig.dtype_in}")
+    print(f"  Direction:  {sig.direction}")
+    print(f"  Layout:     {sig.layout}")
+    print(f"  Tile K x C: {algo.tile_k} x {algo.tile_c}")
+    print(f"  Pipeline:   {algo.pipeline}")
+    print(f"  Scheduler:  {algo.scheduler}")
+    print(f"  Arch:       {arch.name}")
+    print("-" * 60)
 
 
 def cpu_conv2d_nhwc(
@@ -80,16 +111,105 @@ def cpu_conv2d_nhwc(
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Convolution Validation Example")
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        default="fp16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Data type (default: fp16)",
+    )
+    parser.add_argument(
+        "--pipeline",
+        type=str,
+        default="compv4",
+        choices=["compv3", "compv4", "mem"],
+        help="Pipeline version (default: compv4)",
+    )
+    parser.add_argument(
+        "--arch", type=str, default="gfx942", help="Target architecture"
+    )
+    args = parser.parse_args()
+
     print("=" * 70)
     print("Example 07: Convolution Validation")
     print("=" * 70)
     print()
 
-    # -------------------------------------------------------------------------
-    # Step 1: Define validation problems
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 0: Reset state for clean example run
+    # =========================================================================
+    reset_for_conv_example(verbose=True)
+
+    # =========================================================================
+    # Step 1: Define and validate kernel configuration
+    # =========================================================================
+    print("\nKERNEL CONFIGURATION")
+    print("=" * 60)
+
+    sig = ConvSignature()
+    sig.dtype(args.dtype, args.dtype, args.dtype, "fp32")
+    sig.layout = "nhwgc"
+    sig.direction = "forward"
+    sig.num_dims = 2
+
+    algo = ConvAlgorithm()
+    algo.tile(1, 128, 128)
+    algo.wave(2, 2, 1)
+    algo.warp(32, 32, 16)
+    algo.pipeline = args.pipeline
+    algo.scheduler = "intrawave"
+
+    arch = ArchInfo(name=args.arch)
+
+    print_kernel_config(sig, algo, arch, "REQUESTED CONFIGURATION")
+
+    # Validate
+    validation = validate_conv_config(
+        pipeline=algo.pipeline,
+        scheduler=algo.scheduler,
+        epilogue=algo.epilogue,
+        wave_m=algo.wave_m,
+        wave_n=algo.wave_n,
+        wave_k=algo.wave_k,
+        warp_m=algo.warp_m,
+        warp_n=algo.warp_n,
+        warp_k=algo.warp_k,
+        dtype=sig.dtype_in,
+        arch=arch.name,
+    )
+    validation.print_result()
+
+    if not validation.is_valid:
+        print("\n  ⚠ Auto-correcting configuration...")
+        corrected, was_modified = auto_correct_conv_config(
+            pipeline=algo.pipeline,
+            scheduler=algo.scheduler,
+            epilogue=algo.epilogue,
+            wave_m=algo.wave_m,
+            wave_n=algo.wave_n,
+            wave_k=algo.wave_k,
+            warp_m=algo.warp_m,
+            warp_n=algo.warp_n,
+            warp_k=algo.warp_k,
+            dtype=sig.dtype_in,
+            arch=arch.name,
+        )
+        if was_modified:
+            algo.scheduler = corrected["scheduler"]
+            algo.wave_m = corrected["wave_m"]
+            algo.wave_n = corrected["wave_n"]
+            algo.warp_m = corrected["warp_m"]
+            algo.warp_n = corrected["warp_n"]
+            algo.warp_k = corrected["warp_k"]
+            print_kernel_config(sig, algo, arch, "CORRECTED CONFIGURATION")
+    print()
+
+    # =========================================================================
+    # Step 2: Define validation problems
+    # =========================================================================
     print("VALIDATION PROBLEMS")
-    print("=" * 40)
+    print("=" * 60)
 
     problems = [
         # Small problem for easy debugging
@@ -131,12 +251,18 @@ def main():
         print(f"  {name}: {prob}")
     print()
 
-    # -------------------------------------------------------------------------
-    # Step 2: Run validation
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 3: Run validation
+    # =========================================================================
     print("VALIDATION RESULTS")
-    print("=" * 40)
+    print("=" * 60)
     print()
+
+    np_dtype = {
+        "fp16": np.float16,
+        "bf16": np.float16,
+        "fp32": np.float32,
+    }[args.dtype]
 
     validator = ConvValidator(rtol=1e-3, atol=1e-3)
     all_passed = True
@@ -148,11 +274,11 @@ def main():
         # Create input data (small values to avoid overflow)
         np.random.seed(42)  # Reproducibility
         input_data = (np.random.randn(prob.N, prob.Hi, prob.Wi, prob.C) * 0.1).astype(
-            np.float16
+            np_dtype
         )
         weight = (
             np.random.randn(prob.K, prob.Y, prob.X, prob.C // prob.G) * 0.1
-        ).astype(np.float16)
+        ).astype(np_dtype)
 
         # Run CPU reference
         reference = cpu_conv2d_nhwc(
@@ -179,19 +305,19 @@ def main():
 
     print()
 
-    # -------------------------------------------------------------------------
-    # Step 3: Detailed validation for small problem
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 4: Detailed validation for small problem
+    # =========================================================================
     print("DETAILED VALIDATION (Small Problem)")
-    print("=" * 40)
+    print("=" * 60)
     print()
 
     prob = problems[0][1]  # Small problem
     np.random.seed(123)
     input_data = (np.random.randn(prob.N, prob.Hi, prob.Wi, prob.C) * 0.5).astype(
-        np.float16
+        np_dtype
     )
-    weight = (np.random.randn(prob.K, prob.Y, prob.X, prob.C) * 0.5).astype(np.float16)
+    weight = (np.random.randn(prob.K, prob.Y, prob.X, prob.C) * 0.5).astype(np_dtype)
 
     reference = cpu_conv2d_nhwc(
         input_data,
@@ -217,20 +343,19 @@ def main():
     print(reference[0, :2, :2, 0])
     print()
 
-    # -------------------------------------------------------------------------
-    # Step 4: Numerical precision analysis
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 5: Numerical precision analysis
+    # =========================================================================
     print("NUMERICAL PRECISION ANALYSIS")
-    print("=" * 40)
+    print("=" * 60)
     print()
 
     # Test with identity-like operation
-    prob = ConvProblem(N=1, C=1, K=1, Hi=5, Wi=5, Y=1, X=1)
-    input_data = np.ones((1, 5, 5, 1), dtype=np.float16)
-    weight = np.ones((1, 1, 1, 1), dtype=np.float16)
+    input_data = np.ones((1, 5, 5, 1), dtype=np_dtype)
+    weight = np.ones((1, 1, 1, 1), dtype=np_dtype)
 
     output = cpu_conv2d_nhwc(input_data, weight)
-    expected = np.ones((1, 5, 5, 1), dtype=np.float16)
+    expected = np.ones((1, 5, 5, 1), dtype=np_dtype)
 
     match = np.allclose(output, expected)
     print(f"Identity test (1x1 conv with ones): {'PASS' if match else 'FAIL'}")
@@ -239,9 +364,8 @@ def main():
     print()
 
     # Test with simple 3x3 sum
-    prob = ConvProblem(N=1, C=1, K=1, Hi=5, Wi=5, Y=3, X=3, pad_h=1, pad_w=1)
-    input_data = np.ones((1, 5, 5, 1), dtype=np.float16)
-    weight = np.ones((1, 3, 3, 1), dtype=np.float16)
+    input_data = np.ones((1, 5, 5, 1), dtype=np_dtype)
+    weight = np.ones((1, 3, 3, 1), dtype=np_dtype)
 
     output = cpu_conv2d_nhwc(input_data, weight, padding=(1, 1))
 
@@ -252,24 +376,20 @@ def main():
     print(f"  Got center:      {center_val}")
     print()
 
-    # -------------------------------------------------------------------------
-    # Step 5: GPU vs CPU Validation
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 6: GPU vs CPU Validation
+    # =========================================================================
     print("GPU vs CPU VALIDATION")
-    print("=" * 40)
+    print("=" * 60)
     print()
-
-    from conv_utils import GpuConvRunner
 
     runner = GpuConvRunner()
     if runner.is_available():
         # Use a small problem for detailed comparison
         prob = ConvProblem(N=1, C=64, K=128, Hi=14, Wi=14, Y=3, X=3, pad_h=1, pad_w=1)
         np.random.seed(42)
-        input_data = np.random.randn(prob.N, prob.Hi, prob.Wi, prob.C).astype(
-            np.float16
-        )
-        weight = np.random.randn(prob.K, prob.Y, prob.X, prob.C).astype(np.float16)
+        input_data = np.random.randn(prob.N, prob.Hi, prob.Wi, prob.C).astype(np_dtype)
+        weight = np.random.randn(prob.K, prob.Y, prob.X, prob.C).astype(np_dtype)
 
         # CPU reference
         cpu_out = cpu_conv2d_nhwc(
@@ -280,7 +400,7 @@ def main():
         )
 
         # GPU output
-        gpu_out = np.zeros((prob.N, prob.Ho, prob.Wo, prob.K), dtype=np.float16)
+        gpu_out = np.zeros((prob.N, prob.Ho, prob.Wo, prob.K), dtype=np_dtype)
         result = runner.run(input_data, weight, prob, gpu_out)
 
         if result.get("success"):
@@ -309,14 +429,22 @@ def main():
         print("  GPU library not available - CPU validation only")
     print()
 
-    # -------------------------------------------------------------------------
-    # Summary
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Cleanup and Summary
+    # =========================================================================
+    cleanup_conv()
+
+    print("=" * 70)
+    print("SUMMARY")
     print("=" * 70)
     if all_passed:
-        print("All validation tests PASSED!")
+        print("  All validation tests PASSED!")
     else:
-        print("Some validation tests FAILED!")
+        print("  Some validation tests FAILED!")
+    print(f"  Data Type: {args.dtype}")
+    print(f"  Pipeline:  {args.pipeline}")
+    print(f"  Arch:      {args.arch}")
+    print("=" * 70)
 
 
 if __name__ == "__main__":

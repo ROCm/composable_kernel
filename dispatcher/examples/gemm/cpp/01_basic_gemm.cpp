@@ -18,6 +18,12 @@
  * Build (using compile script - matches kernel from source):
  *   python3 scripts/compile_gemm_examples.py examples/gemm/cpp/01_basic_gemm.cpp
  *
+ * Usage:
+ *   ./gemm_01_basic
+ *   ./gemm_01_basic --help
+ *   ./gemm_01_basic --list
+ *   ./gemm_01_basic --size 2048
+ *
  * Complexity: ★☆☆☆☆
  */
 
@@ -28,6 +34,7 @@
 
 #include "ck_tile/dispatcher.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
@@ -65,11 +72,23 @@ DECL_KERNEL_SET(
 
 int main(int argc, char* argv[])
 {
-    if(argc > 1 && std::string(argv[1]) == "--list")
+    // Parse command line arguments
+    ExampleArgs args("Example 01: Basic GEMM", "Demonstrates declarative kernel specification");
+    args.add_flag("--list", "List all declared kernel sets");
+    args.add_option("--size", "1024", "Problem size MxNxK");
+
+    if(!args.parse(argc, argv))
+    {
+        return 0; // --help was printed
+    }
+
+    if(args.has("--list"))
     {
         KernelSetRegistry::instance().print();
         return 0;
     }
+
+    int size = args.get_int("--size", 1024);
 
     print_header("Example 01: Basic GEMM");
 
@@ -110,7 +129,7 @@ int main(int argc, char* argv[])
     std::cout << "\nStep 3: Run GEMM\n";
     Dispatcher dispatcher(&registry);
 
-    const int M = 1024, N = 1024, K = 1024;
+    const int M = size, N = size, K = size;
     Problem problem(M, N, K);
 
     GpuBuffer<ADataType> a_dev(M * K);

@@ -9,6 +9,11 @@
  * Build:
  *   python3 scripts/compile_gemm_examples.py examples/cpp/04_validation.cpp
  *
+ * Usage:
+ *   ./gemm_04_validation
+ *   ./gemm_04_validation --help
+ *   ./gemm_04_validation --size 512 --rtol 0.01
+ *
  * Complexity: ★★☆☆☆
  */
 
@@ -21,6 +26,7 @@
 
 #include "ck_tile/dispatcher.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
@@ -64,13 +70,26 @@ void gemm_reference_rcr(const std::vector<float>& A,
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
-    print_header("Example 04: GEMM Validation");
+    // Parse command line arguments
+    ExampleArgs args("Example 04: GEMM Validation", "Validates GPU output against CPU reference");
+    args.add_option("--size", "256", "Problem size MxNxK");
+    args.add_option("--rtol", "0.01", "Relative tolerance");
+    args.add_option("--atol", "0.01", "Absolute tolerance");
 
-    const int M = 256, N = 256, K = 128;
-    const float rtol = 1e-2f; // Relative tolerance
-    const float atol = 1e-2f; // Absolute tolerance for FP16
+    if(!args.parse(argc, argv))
+    {
+        return 0; // --help was printed
+    }
+
+    int M      = args.get_int("--size", 256);
+    int N      = M;
+    int K      = M / 2 > 0 ? M / 2 : 128;
+    float rtol = args.get_float("--rtol", 1e-2f);
+    float atol = args.get_float("--atol", 1e-2f);
+
+    print_header("Example 04: GEMM Validation");
 
     std::cout << "\nConfiguration:\n";
     std::cout << "  Problem:   " << M << " x " << N << " x " << K << "\n";

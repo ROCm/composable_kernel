@@ -11,9 +11,12 @@ Complexity: ★★☆☆☆
 
 Usage:
     python3 02_batch_gemm.py
+    python3 02_batch_gemm.py --help
+    python3 02_batch_gemm.py --dtype bf16
 """
 
 import sys
+import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
@@ -28,6 +31,33 @@ from ctypes_utils import (
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Batch GEMM Example - runs multiple sizes",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python3 02_batch_gemm.py                    # Default FP16
+  python3 02_batch_gemm.py --dtype bf16       # BF16 GEMM
+  python3 02_batch_gemm.py --max-size 2048    # Limit max size
+        """,
+    )
+    parser.add_argument(
+        "--dtype",
+        default="fp16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Data type (default: fp16)",
+    )
+    parser.add_argument(
+        "--max-size",
+        type=int,
+        default=4096,
+        help="Maximum problem size (default: 4096)",
+    )
+    parser.add_argument(
+        "--arch", default="gfx942", help="Target architecture (default: gfx942)"
+    )
+    args = parser.parse_args()
+
     reset_for_example()
 
     print("=" * 60)
@@ -40,10 +70,13 @@ def main():
     print("\nStep 1: Setup Dispatcher")
 
     config = KernelConfig(
-        dtype_a="fp16",
+        dtype_a=args.dtype,
+        dtype_b=args.dtype,
+        dtype_c=args.dtype,
         tile_m=128,
         tile_n=128,
         tile_k=32,
+        gfx_arch=args.arch,
     )
 
     setup = setup_gemm_dispatcher(config, registry_name="batch_gemm", verbose=True)
@@ -58,13 +91,17 @@ def main():
     # =========================================================================
     print("\nStep 2: Run Batch")
 
-    sizes = [
+    # Generate sizes up to max_size
+    all_sizes = [
         (256, 256, 256),
         (512, 512, 512),
         (1024, 1024, 1024),
         (2048, 2048, 2048),
         (4096, 4096, 4096),
     ]
+    sizes = [(m, n, k) for m, n, k in all_sizes if max(m, n, k) <= args.max_size]
+
+    np_dtype = np.float16 if args.dtype in ["fp16", "bf16"] else np.float32
 
     print(f"\n  {'Size':<20} | {'Time (ms)':>12} | {'TFLOPS':>10} | {'Status':>8}")
     print("  " + "-" * 60)
@@ -77,8 +114,8 @@ def main():
             print(f"  {M:>4}x{N:>4}x{K:<4} | {'N/A':>12} | {'N/A':>10} | Skipped")
             continue
 
-        A = np.random.randn(M, K).astype(np.float16) * 0.1
-        B = np.random.randn(K, N).astype(np.float16) * 0.1
+        A = np.random.randn(M, K).astype(np_dtype) * 0.1
+        B = np.random.randn(K, N).astype(np_dtype) * 0.1
 
         result = dispatcher.run(A, B, M, N, K)
 

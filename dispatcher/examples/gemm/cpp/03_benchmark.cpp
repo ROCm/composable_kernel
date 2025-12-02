@@ -9,6 +9,11 @@
  * Build:
  *   python3 scripts/compile_gemm_examples.py examples/cpp/03_benchmark.cpp
  *
+ * Usage:
+ *   ./gemm_03_benchmark
+ *   ./gemm_03_benchmark --help
+ *   ./gemm_03_benchmark --size 4096 --iterations 50
+ *
  * Complexity: ★★☆☆☆
  */
 
@@ -21,6 +26,7 @@
 
 #include "ck_tile/dispatcher.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
@@ -38,20 +44,25 @@ DECL_KERNEL_SET(benchmark, .add("bf16", "rcr", 128, 128, 32).add("fp16", "rcr", 
 
 int main(int argc, char* argv[])
 {
-    print_header("Example 03: GEMM Benchmarking");
+    // Parse command line arguments
+    ExampleArgs args("Example 03: GEMM Benchmarking",
+                     "Runs GEMM multiple times for accurate timing");
+    args.add_option("--size", "4096", "Problem size MxNxK");
+    args.add_option("--warmup", "5", "Warmup iterations");
+    args.add_option("--iterations", "100", "Benchmark iterations");
 
-    // Parse args
-    int M = 4096, N = 4096, K = 4096;
-    int warmup = 5, iterations = 100;
-
-    if(argc >= 4)
+    if(!args.parse(argc, argv))
     {
-        M = std::atoi(argv[1]);
-        N = std::atoi(argv[2]);
-        K = std::atoi(argv[3]);
+        return 0; // --help was printed
     }
-    if(argc >= 5)
-        iterations = std::atoi(argv[4]);
+
+    int M          = args.get_int("--size", 4096);
+    int N          = M;
+    int K          = M;
+    int warmup     = args.get_int("--warmup", 5);
+    int iterations = args.get_int("--iterations", 100);
+
+    print_header("Example 03: GEMM Benchmarking");
 
     std::cout << "\nConfiguration:\n";
     std::cout << "  Problem:    " << M << " x " << N << " x " << K << "\n";

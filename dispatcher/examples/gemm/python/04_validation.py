@@ -11,9 +11,12 @@ Complexity: ★★★☆☆
 
 Usage:
     python3 04_validation.py
+    python3 04_validation.py --help
+    python3 04_validation.py --dtype bf16
 """
 
 import sys
+import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
@@ -29,6 +32,33 @@ from ctypes_utils import (
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="GEMM Validation Example - validates GPU results against NumPy",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python3 04_validation.py                    # Default FP16 validation
+  python3 04_validation.py --dtype bf16       # BF16 validation
+  python3 04_validation.py --rtol 1e-2        # Relaxed tolerance
+        """,
+    )
+    parser.add_argument(
+        "--dtype",
+        default="fp16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Data type (default: fp16)",
+    )
+    parser.add_argument(
+        "--rtol", type=float, default=1e-3, help="Relative tolerance (default: 1e-3)"
+    )
+    parser.add_argument(
+        "--atol", type=float, default=1e-2, help="Absolute tolerance (default: 1e-2)"
+    )
+    parser.add_argument(
+        "--arch", default="gfx942", help="Target architecture (default: gfx942)"
+    )
+    args = parser.parse_args()
+
     reset_for_example()
 
     print("=" * 60)
@@ -41,10 +71,13 @@ def main():
     print("\nStep 1: Setup Dispatcher")
 
     config = KernelConfig(
-        dtype_a="fp16",
+        dtype_a=args.dtype,
+        dtype_b=args.dtype,
+        dtype_c=args.dtype,
         tile_m=128,
         tile_n=128,
         tile_k=32,
+        gfx_arch=args.arch,
     )
 
     setup = setup_gemm_dispatcher(config, registry_name="validation", verbose=True)
@@ -59,7 +92,8 @@ def main():
     # =========================================================================
     print("\nStep 2: Validation Tests")
 
-    validator = Validator(rtol=1e-3, atol=1e-2)
+    validator = Validator(rtol=args.rtol, atol=args.atol)
+    np_dtype = np.float16 if args.dtype in ["fp16", "bf16"] else np.float32
 
     test_cases = [
         ("Identity", 128, 128, 128, "identity"),
@@ -82,11 +116,11 @@ def main():
 
         np.random.seed(42)
         if pattern == "identity":
-            A = np.eye(M, K, dtype=np.float16)
-            B = np.eye(K, N, dtype=np.float16)
+            A = np.eye(M, K, dtype=np_dtype)
+            B = np.eye(K, N, dtype=np_dtype)
         else:
-            A = (np.random.randn(M, K) * 0.1).astype(np.float16)
-            B = (np.random.randn(K, N) * 0.1).astype(np.float16)
+            A = (np.random.randn(M, K) * 0.1).astype(np_dtype)
+            B = (np.random.randn(K, N) * 0.1).astype(np_dtype)
 
         result = dispatcher.run(A, B, M, N, K)
         if not result.success:
@@ -94,7 +128,7 @@ def main():
             failed += 1
             continue
 
-        C_ref = np.matmul(A.astype(np.float32), B.astype(np.float32)).astype(np.float16)
+        C_ref = np.matmul(A.astype(np.float32), B.astype(np.float32)).astype(np_dtype)
         is_valid, max_err, _ = validator.check(result.output, C_ref)
 
         if is_valid:
@@ -111,6 +145,7 @@ def main():
     print("\n" + "=" * 60)
     total = passed + failed
     print(f"Results: {passed}/{total} passed")
+    print(f"Settings: dtype={args.dtype}, rtol={args.rtol}, atol={args.atol}")
     print("=" * 60)
 
     return 0 if failed == 0 else 1

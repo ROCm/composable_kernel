@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 02: 2D Convolution Forward - Declarative with Self-Contained Generation
+ * Example 01: 2D Convolution Forward - Declarative with Self-Contained Generation
  *
  * This example demonstrates the complete declarative workflow:
  * 1. Declare kernels using DECL_CONV_KERNEL_SET (Signature/Algorithm/Arch)
@@ -11,14 +11,19 @@
  *
  * Self-contained build (generates its own kernels):
  *   cd dispatcher
- *   python3 scripts/compile_conv_examples.py examples/conv/cpp/02_conv_forward.cpp
+ *   python3 scripts/compile_conv_examples.py examples/conv/cpp/01_conv_forward.cpp
  *
  * Or manual build:
  *   python3 codegen/unified_conv_codegen.py -o build/generated_kernels \
  *           --dtype fp16 --variant forward --ndim 2 --tile-m 128 --tile-n 128
  *   hipcc -std=c++20 -O2 -I include -I ../include -I build/generated_kernels \
  *         -include build/generated_kernels/conv_fwd_fp16_2d_*.hpp \
- *         --offload-arch=gfx942 examples/conv/cpp/02_conv_forward.cpp -o build/conv_02
+ *         --offload-arch=gfx942 examples/conv/cpp/01_conv_forward.cpp -o build/conv_01
+ *
+ * Usage:
+ *   ./conv_01_forward
+ *   ./conv_01_forward --help
+ *   ./conv_01_forward -n 2 -c 128 -k 256 -h 56
  *
  * Complexity: ★★☆☆☆
  */
@@ -31,6 +36,7 @@
 
 // Use the unified conv utilities
 #include "ck_tile/dispatcher/conv_utils.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 
 // CK Tile core includes
 #include "ck_tile/core.hpp"
@@ -40,6 +46,7 @@
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::conv_utils;
+using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
 // KERNEL DECLARATIONS (Signature/Algorithm/Arch Pattern)
@@ -80,8 +87,30 @@ using OutDataType = ck_tile::half_t;
 
 int main(int argc, char* argv[])
 {
+    // Parse command line arguments
+    ExampleArgs args("Example 01: 2D Convolution Forward",
+                     "Demonstrates declarative conv kernel workflow");
+    args.add_option("-n", "1", "Batch size N");
+    args.add_option("-c", "64", "Input channels C");
+    args.add_option("-k", "128", "Output channels K");
+    args.add_option("-h", "28", "Input height/width H=W");
+    args.add_option("-y", "3", "Filter height/width Y=X");
+
+    if(!args.parse(argc, argv))
+    {
+        return 0; // --help was printed
+    }
+
+    int N  = args.get_int("-n", 1);
+    int C  = args.get_int("-c", 64);
+    int K  = args.get_int("-k", 128);
+    int Hi = args.get_int("-h", 28);
+    int Wi = Hi;
+    int Y  = args.get_int("-y", 3);
+    int X  = Y;
+
     std::cout << "======================================================================\n";
-    std::cout << "Example 02: 2D Convolution Forward (Declarative)\n";
+    std::cout << "Example 01: 2D Convolution Forward (Declarative)\n";
     std::cout << "======================================================================\n\n";
 
     // -------------------------------------------------------------------------
@@ -106,23 +135,6 @@ int main(int argc, char* argv[])
     // -------------------------------------------------------------------------
     std::cout << "Step 2: Define ConvProblem\n";
     std::cout << "--------------------------\n";
-
-    // Parse command line args
-    int N = 1, C = 64, K = 128, Hi = 28, Wi = 28, Y = 3, X = 3;
-    for(int i = 1; i < argc; ++i)
-    {
-        std::string arg = argv[i];
-        if(arg == "-n" && i + 1 < argc)
-            N = std::stoi(argv[++i]);
-        else if(arg == "-c" && i + 1 < argc)
-            C = std::stoi(argv[++i]);
-        else if(arg == "-k" && i + 1 < argc)
-            K = std::stoi(argv[++i]);
-        else if(arg == "-h" && i + 1 < argc)
-            Hi = Wi = std::stoi(argv[++i]);
-        else if(arg == "-y" && i + 1 < argc)
-            Y = X = std::stoi(argv[++i]);
-    }
 
     auto problem = create_conv2d_problem(N, C, K, Hi, Wi, Y, X, 1, 1, ConvOp::Forward);
     print_problem(problem);
@@ -256,7 +268,7 @@ int main(int argc, char* argv[])
     std::cout << "  [Kernel not compiled - run with generated headers]\n";
     std::cout << "  To generate kernels, run:\n";
     std::cout
-        << "    python3 scripts/compile_conv_examples.py examples/conv/cpp/02_conv_forward.cpp\n";
+        << "    python3 scripts/compile_conv_examples.py examples/conv/cpp/01_conv_forward.cpp\n";
 #endif
 
     // -------------------------------------------------------------------------
@@ -276,7 +288,7 @@ DECL_CONV_KERNEL_SET(conv_fwd_kernels,
 );
 
 // Self-contained generation:
-python3 scripts/compile_conv_examples.py examples/conv/cpp/02_conv_forward.cpp
+python3 scripts/compile_conv_examples.py examples/conv/cpp/01_conv_forward.cpp
 )";
     std::cout << "======================================================================\n";
 

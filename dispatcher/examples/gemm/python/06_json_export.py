@@ -10,11 +10,14 @@ Exports registry configuration to JSON.
 Complexity: ★★☆☆☆
 
 Usage:
-    python3 06_json_export.py [output.json]
+    python3 06_json_export.py
+    python3 06_json_export.py --help
+    python3 06_json_export.py --output my_kernels.json
 """
 
 import sys
 import json
+import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
@@ -28,20 +31,52 @@ from ctypes_utils import (
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="JSON Export Example - exports registry to JSON",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python3 06_json_export.py                   # Default output to kernels.json
+  python3 06_json_export.py --output my.json  # Custom output file
+        """,
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="kernels.json",
+        help="Output JSON file (default: kernels.json)",
+    )
+    parser.add_argument(
+        "--dtype",
+        default="fp16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Data type (default: fp16)",
+    )
+    parser.add_argument(
+        "--arch", default="gfx942", help="Target architecture (default: gfx942)"
+    )
+    args = parser.parse_args()
+
     reset_for_example()
 
     print("=" * 60)
     print("Example 06: JSON Export")
     print("=" * 60)
 
-    output_file = sys.argv[1] if len(sys.argv) > 1 else "kernels.json"
-
     # =========================================================================
     # Step 1: Setup dispatcher
     # =========================================================================
     print("\nStep 1: Setup Dispatcher")
 
-    config = KernelConfig(dtype_a="fp16", tile_m=128, tile_n=128, tile_k=32)
+    config = KernelConfig(
+        dtype_a=args.dtype,
+        dtype_b=args.dtype,
+        dtype_c=args.dtype,
+        tile_m=128,
+        tile_n=128,
+        tile_k=32,
+        gfx_arch=args.arch,
+    )
 
     setup = setup_gemm_dispatcher(config, registry_name="export_demo", verbose=True)
     if not setup.success:
@@ -55,8 +90,24 @@ def main():
 
     configs = [
         config,
-        KernelConfig(dtype_a="fp16", tile_m=256, tile_n=256, tile_k=64),
-        KernelConfig(dtype_a="fp16", tile_m=64, tile_n=64, tile_k=32),
+        KernelConfig(
+            dtype_a=args.dtype,
+            dtype_b=args.dtype,
+            dtype_c=args.dtype,
+            tile_m=256,
+            tile_n=256,
+            tile_k=64,
+            gfx_arch=args.arch,
+        ),
+        KernelConfig(
+            dtype_a=args.dtype,
+            dtype_b=args.dtype,
+            dtype_c=args.dtype,
+            tile_m=64,
+            tile_n=64,
+            tile_k=32,
+            gfx_arch=args.arch,
+        ),
     ]
 
     for cfg in configs:
@@ -93,9 +144,9 @@ def main():
 
     json_str = json.dumps(export_data, indent=2)
 
-    with open(output_file, "w") as f:
+    with open(args.output, "w") as f:
         f.write(json_str)
-    print(f"  Saved to: {output_file}")
+    print(f"  Saved to: {args.output}")
 
     # Preview
     print("\nStep 4: Preview")

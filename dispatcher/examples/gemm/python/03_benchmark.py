@@ -10,10 +10,14 @@ Performance benchmarking with compute-optimized kernel configuration.
 Complexity: ★★★☆☆
 
 Usage:
-    python3 03_benchmark.py [M] [N] [K]
+    python3 03_benchmark.py
+    python3 03_benchmark.py --help
+    python3 03_benchmark.py --size 4096
+    python3 03_benchmark.py --dtype bf16 --iterations 20
 """
 
 import sys
+import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
@@ -28,16 +32,45 @@ from ctypes_utils import (
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="GEMM Benchmark Example - performance testing",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python3 03_benchmark.py                     # Default benchmark suite
+  python3 03_benchmark.py --size 4096         # Single size benchmark
+  python3 03_benchmark.py --dtype bf16        # BF16 benchmark
+  python3 03_benchmark.py --iterations 20     # More iterations
+        """,
+    )
+    parser.add_argument(
+        "--dtype",
+        default="bf16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Data type (default: bf16)",
+    )
+    parser.add_argument(
+        "--size",
+        type=int,
+        default=0,
+        help="Single problem size MxNxK (default: run all sizes)",
+    )
+    parser.add_argument(
+        "--warmup", type=int, default=3, help="Warmup iterations (default: 3)"
+    )
+    parser.add_argument(
+        "--iterations", type=int, default=10, help="Benchmark iterations (default: 10)"
+    )
+    parser.add_argument(
+        "--arch", default="gfx942", help="Target architecture (default: gfx942)"
+    )
+    args = parser.parse_args()
+
     reset_for_example()
 
     print("=" * 60)
     print("Example 03: Benchmark")
     print("=" * 60)
-
-    # Parse args
-    M = int(sys.argv[1]) if len(sys.argv) > 1 else 0
-    N = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-    K = int(sys.argv[3]) if len(sys.argv) > 3 else 0
 
     # =========================================================================
     # Step 1: Setup dispatcher with compute-optimized config
@@ -45,12 +78,15 @@ def main():
     print("\nStep 1: Setup Dispatcher")
 
     config = KernelConfig(
-        dtype_a="bf16",
+        dtype_a=args.dtype,
+        dtype_b=args.dtype,
+        dtype_c=args.dtype,
         tile_m=128,
         tile_n=128,
         tile_k=32,
         pipeline="compv4",
         scheduler="intrawave",
+        gfx_arch=args.arch,
     )
 
     setup = setup_gemm_dispatcher(config, registry_name="benchmark", verbose=True)
@@ -65,8 +101,8 @@ def main():
     # =========================================================================
     print("\nStep 2: Benchmark")
 
-    if M > 0 and N > 0 and K > 0:
-        sizes = [(M, N, K)]
+    if args.size > 0:
+        sizes = [(args.size, args.size, args.size)]
     else:
         sizes = [
             (512, 512, 512),
@@ -77,9 +113,9 @@ def main():
             (2048, 1024, 2048),
         ]
 
-    warmup = 3
-    iterations = 10
-    print(f"  Warmup: {warmup}, Iterations: {iterations}\n")
+    np_dtype = np.float16 if args.dtype in ["fp16", "bf16"] else np.float32
+
+    print(f"  Warmup: {args.warmup}, Iterations: {args.iterations}\n")
 
     print(f"  {'Size':<20} | {'Min (ms)':>10} | {'Avg (ms)':>10} | {'TFLOPS':>10}")
     print("  " + "-" * 60)
@@ -90,16 +126,16 @@ def main():
         if not dispatcher.is_supported(M, N, K):
             continue
 
-        A = np.random.randn(M, K).astype(np.float16) * 0.1
-        B = np.random.randn(K, N).astype(np.float16) * 0.1
+        A = np.random.randn(M, K).astype(np_dtype) * 0.1
+        B = np.random.randn(K, N).astype(np_dtype) * 0.1
 
         # Warmup
-        for _ in range(warmup):
+        for _ in range(args.warmup):
             dispatcher.run(A, B, M, N, K)
 
         # Benchmark
         times = []
-        for _ in range(iterations):
+        for _ in range(args.iterations):
             result = dispatcher.run(A, B, M, N, K)
             if result.success:
                 times.append(result.time_ms)

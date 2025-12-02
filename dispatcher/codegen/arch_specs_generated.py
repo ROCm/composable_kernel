@@ -5,7 +5,7 @@
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
 
 Generated from: arch_specs.json
-Generated at: 2025-12-02T05:37:56.664185
+Generated at: 2025-12-02T06:12:48.095014
 
 To update this file:
 1. Edit arch_specs.json
@@ -22,9 +22,12 @@ from typing import Dict, List, Set, Tuple
 
 # GPU architecture to family mapping
 ARCH_FAMILY_MAP: Dict[str, str] = {
+    "gfx908": "cdna1",
     "gfx90a": "cdna2",
     "gfx942": "cdna3",
     "gfx950": "cdna4",
+    "gfx1100": "rdna3",
+    "gfx1200": "rdna4",
     "gfx1201": "rdna4",
 }
 
@@ -44,14 +47,23 @@ ELEMENT_SIZE_MAP: Dict[str, float] = {
 
 # Supported warp configurations per architecture [warp_m, warp_n, warp_k]
 WARP_SUPPORTED_COMBINATIONS: Dict[str, List[List[int]]] = {
+    "gfx908": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx90a": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx942": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx950": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
+    "gfx1100": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
+    "gfx1200": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
     "gfx1201": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
 }
 
 # Supported warp tile combinations: arch -> dtype_key -> [[warp_tile_m, n, k], ...]
 WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
+    "gfx908": {
+        "fp32_fp32_fp32": [[16, 16, 4], [16, 16, 16]],
+        "fp16_fp16_fp32": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32]],
+        "bf16_bf16_fp32": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32]],
+        "int8_int8_int32": [[32, 32, 16], [16, 16, 32]],
+    },
     "gfx90a": {
         "fp32_fp32_fp32": [[16, 16, 4], [16, 16, 16]],
         "fp16_fp16_fp32": [
@@ -142,6 +154,20 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
         ],
         "int8_int8_int32": [[32, 32, 16], [16, 16, 32], [16, 16, 16]],
         "pk_fp4_pk_fp4_fp32": [[16, 16, 128]],
+    },
+    "gfx1100": {
+        "fp16_fp16_fp32": [[16, 16, 16]],
+        "bf16_bf16_fp32": [[16, 16, 16]],
+        "int8_int8_int32": [[16, 16, 16]],
+    },
+    "gfx1200": {
+        "fp16_fp16_fp32": [[16, 16, 16]],
+        "bf16_bf16_fp32": [[16, 16, 16]],
+        "fp8_fp8_fp32": [[16, 16, 16]],
+        "bf8_bf8_fp32": [[16, 16, 16]],
+        "fp8_bf8_fp32": [[16, 16, 16]],
+        "bf8_fp8_fp32": [[16, 16, 16]],
+        "int8_int8_int32": [[16, 16, 16]],
     },
     "gfx1201": {
         "fp16_fp16_fp32": [[16, 16, 16]],

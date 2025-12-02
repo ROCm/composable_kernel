@@ -5,14 +5,16 @@
 """
 Example 10: 3D Convolution Forward with GPU Execution
 
-Demonstrates 3D convolution (e.g., for video or volumetric data) with GPU execution.
+Demonstrates 3D convolution (e.g., for video or volumetric data) with GPU execution
+and kernel configuration validation.
 
 Usage:
     python3 10_conv3d_forward.py
+    python3 10_conv3d_forward.py --dtype bf16
 """
 
 import sys
-import ctypes
+import argparse
 import numpy as np
 from pathlib import Path
 
@@ -24,38 +26,157 @@ from conv_utils import (
     ArchInfo,
     ConvKernelSet,
     ConvProblem,
-    ConvDispatcherLib,
+    GpuConvRunner,
+    validate_conv_config,
+    auto_correct_conv_config,
+    reset_for_conv_example,
+    cleanup_conv,
 )
 
 
+def print_kernel_config(sig, algo, arch, title="KERNEL CONFIGURATION"):
+    """Print the exact kernel configuration being requested."""
+    print()
+    print("=" * 70)
+    print(f"  {title}")
+    print("=" * 70)
+    print(
+        f"  Data Type:     {sig.dtype_in} (input) / {sig.dtype_wei} (weight) / {sig.dtype_out} (output)"
+    )
+    print(f"  Accumulator:   {sig.dtype_acc}")
+    print(f"  Direction:     {sig.direction}")
+    print(f"  Spatial Dims:  {sig.num_dims}D")
+    print(f"  Layout:        {sig.layout}")
+    print()
+    print(f"  Tile N x K x C: {algo.tile_n} x {algo.tile_k} x {algo.tile_c}")
+    print(f"  Wave Config:    {algo.wave_m} x {algo.wave_n} x {algo.wave_k}")
+    print(f"  Warp Tile:      {algo.warp_m} x {algo.warp_n} x {algo.warp_k}")
+    print(f"  Pipeline:       {algo.pipeline}")
+    print(f"  Scheduler:      {algo.scheduler}")
+    print()
+    print(f"  Target Arch:    {arch.name}")
+    print("=" * 70)
+    print()
+
+
 def main():
+    parser = argparse.ArgumentParser(description="3D Convolution Forward Example")
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        default="fp16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Data type (default: fp16)",
+    )
+    parser.add_argument(
+        "--pipeline",
+        type=str,
+        default="compv3",
+        choices=["compv3", "compv4", "mem"],
+        help="Pipeline version (default: compv3)",
+    )
+    parser.add_argument(
+        "--scheduler",
+        type=str,
+        default="intrawave",
+        choices=["intrawave", "interwave"],
+        help="Scheduler (default: intrawave)",
+    )
+    parser.add_argument("--tile-k", type=int, default=128, help="Tile K size")
+    parser.add_argument("--tile-c", type=int, default=128, help="Tile C size")
+    parser.add_argument(
+        "--arch", type=str, default="gfx942", help="Target architecture"
+    )
+    args = parser.parse_args()
+
     print("=" * 70)
     print("Example 10: 3D Convolution Forward with GPU Execution")
     print("=" * 70)
     print()
 
     # =========================================================================
-    # Step 1: Define 3D kernels
+    # Step 0: Reset state for clean example run
     # =========================================================================
-    print("Step 1: Define 3D Kernels")
+    reset_for_conv_example(verbose=True)
+
+    # =========================================================================
+    # Step 1: Define 3D kernel configuration
+    # =========================================================================
+    print("\nStep 1: Define 3D Kernel Configuration")
     print("-" * 50)
 
-    kernel_set = ConvKernelSet("conv3d_fwd_kernels")
-
     sig = ConvSignature()
-    sig.dtype("fp16")
-    sig.layout = "ndhwc"
+    sig.dtype(args.dtype, args.dtype, args.dtype, "fp32")
+    sig.layout = "ndhwgc"
     sig.direction = "forward"
     sig.num_dims = 3  # 3D convolution
 
     algo = ConvAlgorithm()
-    algo.tile(1, 128, 128)
+    algo.tile(1, args.tile_k, args.tile_c)
     algo.wave(2, 2, 1)
     algo.warp(32, 32, 16)
-    algo.pipeline = "compv3"
-    algo.scheduler = "intrawave"
+    algo.pipeline = args.pipeline
+    algo.scheduler = args.scheduler
 
-    kernel_set.add(sig, algo, ArchInfo(name="gfx942"))
+    arch = ArchInfo(name=args.arch)
+
+    # Print the EXACT configuration requested
+    print_kernel_config(sig, algo, arch, "REQUESTED KERNEL CONFIGURATION")
+
+    # =========================================================================
+    # Step 2: Validate and auto-correct configuration
+    # =========================================================================
+    print("Step 2: Validate Config Against Arch Filter")
+    print("-" * 50)
+
+    validation = validate_conv_config(
+        pipeline=algo.pipeline,
+        scheduler=algo.scheduler,
+        epilogue=algo.epilogue,
+        wave_m=algo.wave_m,
+        wave_n=algo.wave_n,
+        wave_k=algo.wave_k,
+        warp_m=algo.warp_m,
+        warp_n=algo.warp_n,
+        warp_k=algo.warp_k,
+        dtype=sig.dtype_in,
+        arch=arch.name,
+    )
+    validation.print_result()
+
+    if not validation.is_valid:
+        print("\n  ⚠ Auto-correcting configuration...")
+        corrected, was_modified = auto_correct_conv_config(
+            pipeline=algo.pipeline,
+            scheduler=algo.scheduler,
+            epilogue=algo.epilogue,
+            wave_m=algo.wave_m,
+            wave_n=algo.wave_n,
+            wave_k=algo.wave_k,
+            warp_m=algo.warp_m,
+            warp_n=algo.warp_n,
+            warp_k=algo.warp_k,
+            dtype=sig.dtype_in,
+            arch=arch.name,
+        )
+        if was_modified:
+            algo.scheduler = corrected["scheduler"]
+            algo.wave_m = corrected["wave_m"]
+            algo.wave_n = corrected["wave_n"]
+            algo.warp_m = corrected["warp_m"]
+            algo.warp_n = corrected["warp_n"]
+            algo.warp_k = corrected["warp_k"]
+            print_kernel_config(sig, algo, arch, "CORRECTED KERNEL CONFIGURATION")
+    print()
+
+    # =========================================================================
+    # Step 3: Create kernel set
+    # =========================================================================
+    print("Step 3: Create Kernel Set")
+    print("-" * 50)
+
+    kernel_set = ConvKernelSet("conv3d_fwd_kernels")
+    kernel_set.add(sig, algo, arch)
 
     print(f"  Kernel Set: {kernel_set.name}")
     print(f"  Configurations: {len(kernel_set.configs)}")
@@ -64,9 +185,9 @@ def main():
     print()
 
     # =========================================================================
-    # Step 2: Define 3D problem
+    # Step 4: Define 3D problem
     # =========================================================================
-    print("Step 2: Define 3D Problem")
+    print("Step 4: Define 3D Problem")
     print("-" * 50)
 
     # 3D problem: N=1, C=32, K=64, D=8, H=16, W=16, filter 3x3x3
@@ -97,104 +218,70 @@ def main():
     print()
 
     # =========================================================================
-    # Step 3: GPU Execution
+    # Step 5: Generate test data
     # =========================================================================
-    print("Step 3: GPU Execution")
+    print("Step 5: Generate Test Data")
     print("-" * 50)
 
-    lib = ConvDispatcherLib.find()
+    np_dtype = {
+        "fp16": np.float16,
+        "bf16": np.float16,
+        "fp32": np.float32,
+    }[args.dtype]
 
-    if lib is None:
-        print("  [Dispatcher library not found]")
-        return 1
+    # 3D tensor sizes (NDHWGC layout)
+    input_host = np.random.randn(
+        problem.N, problem.Di, problem.Hi, problem.Wi, problem.G, problem.C
+    ).astype(np_dtype)
+    weight_host = np.random.randn(
+        problem.G, problem.K, problem.Z, problem.Y, problem.X, problem.C
+    ).astype(np_dtype)
 
-    if not lib.has_kernels():
-        print("  [No kernels compiled]")
-        return 1
+    print(f"  Input (3D):  {input_host.shape} ({np_dtype.__name__})")
+    print(f"  Weight (3D): {weight_host.shape} ({np_dtype.__name__})")
+    print()
 
-    lib.initialize()
-    print(f"  Library: {lib.path}")
-    print(f"  Kernels: {lib.get_kernel_count()}")
+    # =========================================================================
+    # Step 6: GPU Execution
+    # =========================================================================
+    print("Step 6: GPU Execution")
+    print("-" * 50)
 
-    try:
-        hip_lib = ctypes.CDLL("libamdhip64.so")
-
-        # 3D tensor sizes (NDHWC layout)
-        dtype = np.float16
-        dtype_size = dtype().itemsize  # 2 bytes for fp16
-        input_size = (
-            problem.N * problem.Di * problem.Hi * problem.Wi * problem.C * dtype_size
-        )
-        weight_size = (
-            problem.K * problem.Z * problem.Y * problem.X * problem.C * dtype_size
-        )
-        output_size = (
-            problem.N * problem.Do * problem.Ho * problem.Wo * problem.K * dtype_size
-        )
-
-        hip_lib.hipMalloc.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.c_size_t]
-        hip_lib.hipMalloc.restype = ctypes.c_int
-        hip_lib.hipFree.argtypes = [ctypes.c_void_p]
-        hip_lib.hipFree.restype = ctypes.c_int
-        hip_lib.hipMemcpy.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_void_p,
-            ctypes.c_size_t,
-            ctypes.c_int,
-        ]
-        hip_lib.hipMemcpy.restype = ctypes.c_int
-        hip_lib.hipDeviceSynchronize.argtypes = []
-        hip_lib.hipDeviceSynchronize.restype = ctypes.c_int
-
-        # Create tensors
-        input_host = np.random.randn(
-            problem.N, problem.Di, problem.Hi, problem.Wi, problem.C
-        ).astype(np.float16)
-        weight_host = np.random.randn(
-            problem.K, problem.Z, problem.Y, problem.X, problem.C
-        ).astype(np.float16)
-
-        # Allocate device memory
-        input_dev = ctypes.c_void_p()
-        weight_dev = ctypes.c_void_p()
-        output_dev = ctypes.c_void_p()
-
-        hip_lib.hipMalloc(ctypes.byref(input_dev), input_size)
-        hip_lib.hipMalloc(ctypes.byref(weight_dev), weight_size)
-        hip_lib.hipMalloc(ctypes.byref(output_dev), output_size)
-
-        hip_lib.hipMemcpy(input_dev, input_host.ctypes.data, input_size, 1)
-        hip_lib.hipMemcpy(weight_dev, weight_host.ctypes.data, weight_size, 1)
-
+    runner = GpuConvRunner()
+    if runner.is_available():
+        print(f"  Library: {runner.library_path}")
         print(f"  Input (3D):  {input_host.shape} -> GPU")
         print(f"  Weight (3D): {weight_host.shape} -> GPU")
 
         # Run 3D convolution
-        elapsed_ms = lib.run(
-            input_dev.value, weight_dev.value, output_dev.value, problem
-        )
-        hip_lib.hipDeviceSynchronize()
+        result = runner.run(input_host, weight_host, problem)
 
-        if elapsed_ms > 0:
-            tflops = problem.flops_3d / (elapsed_ms * 1e9)
+        if result.get("success"):
             print("\n  *** 3D CONV GPU EXECUTION SUCCESSFUL ***")
-            print(f"  Time:   {elapsed_ms:.4f} ms")
-            print(f"  TFLOPS: {tflops:.2f}")
+            print(f"  Time:   {result['time_ms']:.4f} ms")
+            print(f"  TFLOPS: {result['tflops']:.2f}")
         else:
-            print(f"  [GPU execution returned {elapsed_ms}]")
+            print(f"  [GPU execution returned: {result.get('error', 'unknown')}]")
 
-        hip_lib.hipFree(input_dev)
-        hip_lib.hipFree(weight_dev)
-        hip_lib.hipFree(output_dev)
+        runner.cleanup()
+    else:
+        print("  [Dispatcher library not found]")
+        print(
+            "  Build with: cd dispatcher/build && cmake .. && make dispatcher_conv_lib"
+        )
 
-    except Exception as e:
-        print(f"  [Error: {e}]")
-
-    lib.cleanup()
+    # =========================================================================
+    # Cleanup and Summary
+    # =========================================================================
+    cleanup_conv()
 
     print()
     print("=" * 70)
-    print("3D Convolution: Used for video, medical imaging, volumetric data")
+    print("SUMMARY: 3D Convolution")
+    print("=" * 70)
+    print(f"  Kernel:  {args.dtype} {sig.direction} {sig.num_dims}D")
+    print(f"  Config:  tile={args.tile_k}x{args.tile_c}, pipeline={args.pipeline}")
+    print("  Use for: video, medical imaging, volumetric data")
     print("=" * 70)
 
     return 0

@@ -1,11 +1,34 @@
 {
   "_comment": "Single source of truth for GPU architecture specifications. Edit this file to add new GPU support.",
-  "_version": "1.1.0",
+  "_version": "1.2.0",
   "_instructions": "See ADDING_NEW_GPU.md for instructions on adding new GPU support.",
+  "_supported_arch_note": "CK Tile supports: GFX9 (gfx908, gfx90a, gfx942, gfx950), GFX10.3 (gfx103x), GFX11 (gfx110x, gfx115x), GFX12 (gfx120x)",
   
   "architectures": {
+    "gfx908": {
+      "family": "cdna1",
+      "target_family": "gfx9",
+      "architecture": "cdna",
+      "description": "AMD Instinct MI100",
+      "warp_size": 64,
+      "lds_capacity_kb": 64,
+      "warp_configs": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1]
+      ],
+      "warp_tile_combos": {
+        "fp32_fp32_fp32": [[16, 16, 4], [16, 16, 16]],
+        "fp16_fp16_fp32": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32]],
+        "bf16_bf16_fp32": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32]],
+        "int8_int8_int32": [[32, 32, 16], [16, 16, 32]]
+      }
+    },
+    
     "gfx90a": {
       "family": "cdna2",
+      "target_family": "gfx9",
+      "architecture": "cdna",
       "description": "AMD Instinct MI200 series",
       "warp_size": 64,
       "lds_capacity_kb": 64,
@@ -26,6 +49,8 @@
     
     "gfx942": {
       "family": "cdna3",
+      "target_family": "gfx9",
+      "architecture": "cdna",
       "description": "AMD Instinct MI300 series",
       "warp_size": 64,
       "lds_capacity_kb": 64,
@@ -48,9 +73,11 @@
     
     "gfx950": {
       "family": "cdna4",
+      "target_family": "gfx9",
+      "architecture": "cdna",
       "description": "AMD Instinct MI350 series",
       "warp_size": 64,
-      "lds_capacity_kb": 64,
+      "lds_capacity_kb": 160,
       "warp_configs": [
         [1, 4, 1],
         [2, 2, 1],
@@ -69,8 +96,54 @@
       }
     },
     
+    "gfx1100": {
+      "family": "rdna3",
+      "target_family": "gfx11",
+      "architecture": "rdna",
+      "description": "AMD Radeon RX 7900 series (RDNA3)",
+      "warp_size": 32,
+      "lds_capacity_kb": 64,
+      "warp_configs": [
+        [2, 4, 1],
+        [1, 8, 1],
+        [8, 1, 1],
+        [4, 2, 1]
+      ],
+      "warp_tile_combos": {
+        "fp16_fp16_fp32": [[16, 16, 16]],
+        "bf16_bf16_fp32": [[16, 16, 16]],
+        "int8_int8_int32": [[16, 16, 16]]
+      }
+    },
+    
+    "gfx1200": {
+      "family": "rdna4",
+      "target_family": "gfx12",
+      "architecture": "rdna",
+      "description": "AMD Radeon RX 9000 series (RDNA4)",
+      "warp_size": 32,
+      "lds_capacity_kb": 64,
+      "warp_configs": [
+        [2, 4, 1],
+        [1, 8, 1],
+        [8, 1, 1],
+        [4, 2, 1]
+      ],
+      "warp_tile_combos": {
+        "fp16_fp16_fp32": [[16, 16, 16]],
+        "bf16_bf16_fp32": [[16, 16, 16]],
+        "fp8_fp8_fp32": [[16, 16, 16]],
+        "bf8_bf8_fp32": [[16, 16, 16]],
+        "fp8_bf8_fp32": [[16, 16, 16]],
+        "bf8_fp8_fp32": [[16, 16, 16]],
+        "int8_int8_int32": [[16, 16, 16]]
+      }
+    },
+    
     "gfx1201": {
       "family": "rdna4",
+      "target_family": "gfx12",
+      "architecture": "rdna",
       "description": "AMD Radeon RX 9000 series (RDNA4)",
       "warp_size": 32,
       "lds_capacity_kb": 64,

@@ -11,9 +11,12 @@ Complexity: ★★★★★
 
 Usage:
     python3 08_multi_d.py
+    python3 08_multi_d.py --help
+    python3 08_multi_d.py --dtype bf16
 """
 
 import sys
+import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
@@ -36,6 +39,30 @@ def gelu(x):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Multi-D GEMM Example - demonstrates fused operations",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python3 08_multi_d.py                       # Default FP16
+  python3 08_multi_d.py --dtype bf16          # BF16 mode
+  python3 08_multi_d.py --size 1024           # Custom size
+        """,
+    )
+    parser.add_argument(
+        "--dtype",
+        default="fp16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Data type (default: fp16)",
+    )
+    parser.add_argument(
+        "--size", type=int, default=512, help="Problem size MxNxK (default: 512)"
+    )
+    parser.add_argument(
+        "--arch", default="gfx942", help="Target architecture (default: gfx942)"
+    )
+    args = parser.parse_args()
+
     reset_for_example()
 
     print("=" * 60)
@@ -48,11 +75,14 @@ def main():
     print("\nStep 1: Setup Dispatcher")
 
     config = KernelConfig(
-        dtype_a="fp16",
+        dtype_a=args.dtype,
+        dtype_b=args.dtype,
+        dtype_c=args.dtype,
         tile_m=128,
         tile_n=128,
         tile_k=32,
         pipeline="compv4",
+        gfx_arch=args.arch,
     )
 
     setup = setup_gemm_dispatcher(config, registry_name="multi_d", verbose=True)
@@ -73,7 +103,7 @@ def main():
     # =========================================================================
     print("\nStep 2: CPU Simulation of Fused Operations")
 
-    M, N, K = 512, 512, 512
+    M, N, K = args.size, args.size, args.size
     np.random.seed(42)
 
     A = (np.random.randn(M, K) * 0.1).astype(np.float32)
@@ -96,10 +126,11 @@ def main():
     # =========================================================================
     print("\nStep 3: GPU GEMM")
 
-    A_fp16 = A.astype(np.float16)
-    B_fp16 = B.astype(np.float16)
+    np_dtype = np.float16 if args.dtype in ["fp16", "bf16"] else np.float32
+    A_gpu = A.astype(np_dtype)
+    B_gpu = B.astype(np_dtype)
 
-    result = dispatcher.run(A_fp16, B_fp16, M, N, K)
+    result = dispatcher.run(A_gpu, B_gpu, M, N, K)
 
     if result.success:
         print(f"  Time: {result.time_ms:.4f} ms ({result.tflops:.2f} TFLOPS)")

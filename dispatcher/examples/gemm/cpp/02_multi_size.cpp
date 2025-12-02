@@ -10,6 +10,11 @@
  * Build:
  *   python3 scripts/compile_gemm_examples.py examples/cpp/02_multi_size.cpp
  *
+ * Usage:
+ *   ./gemm_02_multi_size
+ *   ./gemm_02_multi_size --help
+ *   ./gemm_02_multi_size --max-size 2048
+ *
  * Complexity: ★★☆☆☆
  */
 
@@ -20,6 +25,7 @@
 
 #include "ck_tile/dispatcher.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
+#include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
@@ -41,8 +47,19 @@ DECL_KERNEL_SET(multi_size,
 // MAIN
 // =============================================================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    // Parse command line arguments
+    ExampleArgs args("Example 02: Multi-Size GEMM", "Runs GEMM with different problem sizes");
+    args.add_option("--max-size", "4096", "Maximum problem size to test");
+
+    if(!args.parse(argc, argv))
+    {
+        return 0; // --help was printed
+    }
+
+    int max_size = args.get_int("--max-size", 4096);
+
     print_header("Example 02: Multi-Size GEMM");
 
     // =========================================================================
@@ -68,6 +85,7 @@ int main()
     registry.register_kernel(kernel);
     Dispatcher dispatcher(&registry);
     std::cout << "  Registry: " << registry.size() << " kernel(s)\n";
+    std::cout << "  Max size: " << max_size << "\n";
 
     // =========================================================================
     // Run Multiple Problem Sizes
@@ -78,15 +96,25 @@ int main()
               << std::setw(12) << "Time(ms)" << std::setw(12) << "TFLOPS" << "\n";
     print_separator();
 
-    // Test different sizes
-    std::vector<std::tuple<int, int, int>> sizes = {
+    // Test different sizes (filtered by max_size)
+    std::vector<std::tuple<int, int, int>> all_sizes = {
         {256, 256, 256},
         {512, 512, 512},
         {1024, 1024, 1024},
         {2048, 2048, 2048},
+        {4096, 4096, 4096},
         {1024, 2048, 512}, // Rectangular
         {2048, 1024, 512}, // Rectangular
     };
+
+    std::vector<std::tuple<int, int, int>> sizes;
+    for(const auto& [M, N, K] : all_sizes)
+    {
+        if(std::max({M, N, K}) <= max_size)
+        {
+            sizes.push_back({M, N, K});
+        }
+    }
 
     bool all_passed = true;
 

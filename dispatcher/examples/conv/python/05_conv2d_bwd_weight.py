@@ -11,22 +11,53 @@ Uses the Signature/Algorithm/Arch pattern with full GPU execution.
 Usage:
     python3 05_conv2d_bwd_weight.py
     python3 05_conv2d_bwd_weight.py --verify
+    python3 05_conv2d_bwd_weight.py --dtype bf16
 """
 
 import sys
 import argparse
 import numpy as np
+from pathlib import Path
 
-# Import conv utilities
+sys.path.insert(0, str(Path(__file__).parent))
+
 from conv_utils import (
     ConvSignature,
     ConvAlgorithm,
     ArchInfo,
-    ConvKernelConfig,
     ConvKernelSet,
     ConvProblem,
-    create_conv2d_bwd_weight_config,
+    GpuConvBwdWeightRunner,
+    validate_conv_config,
+    auto_correct_conv_config,
+    reset_for_conv_example,
+    cleanup_conv,
 )
+
+
+def print_kernel_config(sig, algo, arch, title="KERNEL CONFIGURATION"):
+    """Print the exact kernel configuration being requested."""
+    print()
+    print("=" * 70)
+    print(f"  {title}")
+    print("=" * 70)
+    print(
+        f"  Data Type:     {sig.dtype_in} (input) / {sig.dtype_wei} (weight) / {sig.dtype_out} (output)"
+    )
+    print(f"  Accumulator:   {sig.dtype_acc}")
+    print(f"  Direction:     {sig.direction}")
+    print(f"  Spatial Dims:  {sig.num_dims}D")
+    print(f"  Layout:        {sig.layout}")
+    print()
+    print(f"  Tile N x K x C: {algo.tile_n} x {algo.tile_k} x {algo.tile_c}")
+    print(f"  Wave Config:    {algo.wave_m} x {algo.wave_n} x {algo.wave_k}")
+    print(f"  Warp Tile:      {algo.warp_m} x {algo.warp_n} x {algo.warp_k}")
+    print(f"  Pipeline:       {algo.pipeline}")
+    print(f"  Scheduler:      {algo.scheduler}")
+    print()
+    print(f"  Target Arch:    {arch.name}")
+    print("=" * 70)
+    print()
 
 
 def reference_conv2d_bwd_weight(input_np, grad_output, Y, X, stride=1, pad=0):
@@ -73,7 +104,29 @@ def main():
     parser.add_argument("-y", type=int, default=3, help="Filter height")
     parser.add_argument("-x", type=int, default=3, help="Filter width")
     parser.add_argument("--verify", action="store_true", help="Run CPU verification")
-    parser.add_argument("--dtype", type=str, default="fp16", help="Data type")
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        default="fp16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Data type (default: fp16)",
+    )
+    parser.add_argument(
+        "--pipeline",
+        type=str,
+        default="compv4",
+        choices=["compv3", "compv4", "mem"],
+        help="Pipeline version (default: compv4)",
+    )
+    parser.add_argument(
+        "--scheduler",
+        type=str,
+        default="intrawave",
+        choices=["intrawave", "interwave"],
+        help="Scheduler (default: intrawave)",
+    )
+    parser.add_argument("--tile-k", type=int, default=128, help="Tile K size")
+    parser.add_argument("--tile-c", type=int, default=128, help="Tile C size")
     parser.add_argument(
         "--arch", type=str, default="gfx942", help="Target architecture"
     )
@@ -83,11 +136,16 @@ def main():
     print("Example 05: 2D Conv Backward Weight (Signature/Algorithm/Arch Pattern)")
     print("=" * 70)
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 0: Reset state for clean example run
+    # =========================================================================
+    reset_for_conv_example(verbose=True)
+
+    # =========================================================================
     # Step 1: Define problem
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("\nStep 1: Define ConvProblem")
-    print("-" * 40)
+    print("-" * 50)
 
     N, G, C, K = args.n, 1, args.c, args.k
     Hi, Wi = args.hi, args.wi
@@ -121,70 +179,112 @@ def main():
     flops = 2 * N * G * K * Ho * Wo * C * Y * X
     print(f"  FLOPs: {flops:.2e}")
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Step 2: Define kernel config
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("\nStep 2: Define Kernel Config")
-    print("-" * 40)
+    print("-" * 50)
 
-    # Method 1: Using convenience function
-    config_simple = create_conv2d_bwd_weight_config(
-        dtype=args.dtype, tile_k=128, tile_c=128, arch=args.arch
-    )
-    print(f"  Simple config: {config_simple.name()}")
-
-    # Method 2: Full explicit specification
     sig = ConvSignature()
     sig.dtype(args.dtype, args.dtype, args.dtype, "fp32")
-    sig.layout = "nhwc"
+    sig.layout = "nhwgc"
     sig.direction = "bwd_weight"
     sig.num_dims = 2
     sig.groups = G
 
     algo = ConvAlgorithm()
-    algo.tile(1, 128, 128)
+    algo.tile(1, args.tile_k, args.tile_c)
     algo.wave(2, 2, 1)
     algo.warp(32, 32, 16)
-    algo.pipeline = "compv4"
-    algo.scheduler = "intrawave"
+    algo.pipeline = args.pipeline
+    algo.scheduler = args.scheduler
 
     arch = ArchInfo(name=args.arch)
 
-    config_explicit = ConvKernelConfig(signature=sig, algorithm=algo, arch=arch)
+    # Print the EXACT configuration requested
+    print_kernel_config(sig, algo, arch, "REQUESTED KERNEL CONFIGURATION")
 
-    print(f"  Explicit config: {config_explicit.name()}")
-    print(f"  Brief: {config_explicit.brief()}")
+    # =========================================================================
+    # Step 3: Validate and auto-correct configuration
+    # =========================================================================
+    print("Step 3: Validate Config Against Arch Filter")
+    print("-" * 50)
 
-    # -------------------------------------------------------------------------
-    # Step 3: Create kernel set
-    # -------------------------------------------------------------------------
-    print("\nStep 3: Create Kernel Set")
-    print("-" * 40)
+    validation = validate_conv_config(
+        pipeline=algo.pipeline,
+        scheduler=algo.scheduler,
+        epilogue=algo.epilogue,
+        wave_m=algo.wave_m,
+        wave_n=algo.wave_n,
+        wave_k=algo.wave_k,
+        warp_m=algo.warp_m,
+        warp_n=algo.warp_n,
+        warp_k=algo.warp_k,
+        dtype=sig.dtype_in,
+        arch=arch.name,
+    )
+    validation.print_result()
+
+    if not validation.is_valid:
+        print("\n  ⚠ Auto-correcting configuration...")
+        corrected, was_modified = auto_correct_conv_config(
+            pipeline=algo.pipeline,
+            scheduler=algo.scheduler,
+            epilogue=algo.epilogue,
+            wave_m=algo.wave_m,
+            wave_n=algo.wave_n,
+            wave_k=algo.wave_k,
+            warp_m=algo.warp_m,
+            warp_n=algo.warp_n,
+            warp_k=algo.warp_k,
+            dtype=sig.dtype_in,
+            arch=arch.name,
+        )
+        if was_modified:
+            algo.scheduler = corrected["scheduler"]
+            algo.wave_m = corrected["wave_m"]
+            algo.wave_n = corrected["wave_n"]
+            algo.warp_m = corrected["warp_m"]
+            algo.warp_n = corrected["warp_n"]
+            algo.warp_k = corrected["warp_k"]
+            print_kernel_config(sig, algo, arch, "CORRECTED KERNEL CONFIGURATION")
+    print()
+
+    # =========================================================================
+    # Step 4: Create kernel set
+    # =========================================================================
+    print("Step 4: Create Kernel Set")
+    print("-" * 50)
 
     kernel_set = ConvKernelSet("conv2d_bwd_weight_set")
     kernel_set.add(sig, algo, arch)
     kernel_set.print()
 
-    # -------------------------------------------------------------------------
-    # Step 4: Generate test data
-    # -------------------------------------------------------------------------
-    print("\nStep 4: Generate Test Data")
-    print("-" * 40)
+    # =========================================================================
+    # Step 5: Generate test data
+    # =========================================================================
+    print("\nStep 5: Generate Test Data")
+    print("-" * 50)
 
-    np_dtype = np.float16 if args.dtype == "fp16" else np.float32
+    np_dtype = {
+        "fp16": np.float16,
+        "bf16": np.float16,
+        "fp32": np.float32,
+    }[args.dtype]
+
     input_np = np.random.uniform(-0.5, 0.5, (N, Hi, Wi, G, C)).astype(np_dtype)
     grad_output = np.random.uniform(-0.5, 0.5, (N, Ho, Wo, G, K)).astype(np_dtype)
 
-    print(f"  input:       {input_np.shape} ({input_np.dtype})")
-    print(f"  grad_output: {grad_output.shape} ({grad_output.dtype})")
+    print(f"  input:       {input_np.shape} ({np_dtype.__name__})")
+    print(f"  grad_output: {grad_output.shape} ({np_dtype.__name__})")
 
-    # -------------------------------------------------------------------------
-    # Step 5: CPU verification (optional)
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 6: CPU verification (optional)
+    # =========================================================================
     grad_weight_cpu = None
     if args.verify:
-        print("\nStep 5: CPU Reference Verification")
-        print("-" * 40)
+        print("\nStep 6: CPU Reference Verification")
+        print("-" * 50)
 
         grad_weight_cpu = reference_conv2d_bwd_weight(
             input_np, grad_output, Y, X, stride, pad
@@ -194,13 +294,11 @@ def main():
         print(f"  CPU[0,0,0,0,0]: {float(grad_weight_cpu[0, 0, 0, 0, 0]):.4f}")
         print("  CPU reference computed successfully!")
 
-    # -------------------------------------------------------------------------
-    # Step 6: GPU Execution (using separate backward weight library)
-    # -------------------------------------------------------------------------
-    print("\nStep 6: GPU Execution")
-    print("-" * 40)
-
-    from conv_utils import GpuConvBwdWeightRunner
+    # =========================================================================
+    # Step 7: GPU Execution (using separate backward weight library)
+    # =========================================================================
+    print("\nStep 7: GPU Execution")
+    print("-" * 50)
 
     runner = GpuConvBwdWeightRunner()
     if runner.is_available():
@@ -249,27 +347,18 @@ def main():
         print("  GPU backward weight library not available")
         print("  Build with: make dispatcher_conv_bwdw_lib")
 
-    # -------------------------------------------------------------------------
-    # Summary
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Cleanup and Summary
+    # =========================================================================
+    cleanup_conv()
+
     print("\n" + "=" * 70)
-    print("BACKWARD WEIGHT CONFIG PATTERN")
+    print("SUMMARY: Backward Weight Convolution")
     print("=" * 70)
-    print("""
-sig = ConvSignature()
-sig.dtype("fp16")
-sig.layout = "nhwc"
-sig.direction = "bwd_weight"  # Key difference from forward
-sig.num_dims = 2
-
-algo = ConvAlgorithm()
-algo.tile(1, 128, 128)
-algo.wave(2, 2, 1)
-algo.warp(32, 32, 16)
-algo.pipeline = "compv4"
-
-config = ConvKernelConfig(signature=sig, algorithm=algo, arch=ArchInfo(name="gfx942"))
-""")
+    print(f"  Kernel:  {args.dtype} {sig.direction} {sig.num_dims}D")
+    print(f"  Config:  tile={args.tile_k}x{args.tile_c}, pipeline={args.pipeline}")
+    print("  Purpose: Compute dL/dWeight for training")
+    print("=" * 70)
 
     return 0
 

@@ -5,7 +5,7 @@
  * AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
  *
  * Generated from: arch_specs.json
- * Generated at: 2025-12-02T05:37:56.667773
+ * Generated at: 2025-12-02T06:12:48.098448
  *
  * To update this file:
  * 1. Edit arch_specs.json
@@ -30,9 +30,12 @@ namespace arch_specs {
 
 enum class GpuArch : std::uint8_t
 {
+    GFX_908,  // AMD Instinct MI100
     GFX_90A,  // AMD Instinct MI200 series
     GFX_942,  // AMD Instinct MI300 series
     GFX_950,  // AMD Instinct MI350 series
+    GFX_1100, // AMD Radeon RX 7900 series (RDNA3)
+    GFX_1200, // AMD Radeon RX 9000 series (RDNA4)
     GFX_1201, // AMD Radeon RX 9000 series (RDNA4)
     UNKNOWN
 };
@@ -45,9 +48,12 @@ inline std::string arch_to_string(GpuArch arch)
 {
     switch(arch)
     {
+    case GpuArch::GFX_908: return "gfx908";
     case GpuArch::GFX_90A: return "gfx90a";
     case GpuArch::GFX_942: return "gfx942";
     case GpuArch::GFX_950: return "gfx950";
+    case GpuArch::GFX_1100: return "gfx1100";
+    case GpuArch::GFX_1200: return "gfx1200";
     case GpuArch::GFX_1201: return "gfx1201";
     default: return "unknown";
     }
@@ -55,12 +61,18 @@ inline std::string arch_to_string(GpuArch arch)
 
 inline GpuArch string_to_arch(const std::string& arch_str)
 {
+    if(arch_str == "gfx908")
+        return GpuArch::GFX_908;
     if(arch_str == "gfx90a")
         return GpuArch::GFX_90A;
     if(arch_str == "gfx942")
         return GpuArch::GFX_942;
     if(arch_str == "gfx950")
         return GpuArch::GFX_950;
+    if(arch_str == "gfx1100")
+        return GpuArch::GFX_1100;
+    if(arch_str == "gfx1200")
+        return GpuArch::GFX_1200;
     if(arch_str == "gfx1201")
         return GpuArch::GFX_1201;
     return GpuArch::UNKNOWN;
@@ -97,9 +109,12 @@ inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch)
 {
     switch(arch)
     {
+    case GpuArch::GFX_908: return {{1, 4, 1}, {2, 2, 1}, {4, 1, 1}};
     case GpuArch::GFX_90A: return {{1, 4, 1}, {2, 2, 1}, {4, 1, 1}};
     case GpuArch::GFX_942: return {{1, 4, 1}, {2, 2, 1}, {4, 1, 1}};
     case GpuArch::GFX_950: return {{1, 4, 1}, {2, 2, 1}, {4, 1, 1}};
+    case GpuArch::GFX_1100: return {{2, 4, 1}, {1, 8, 1}, {8, 1, 1}, {4, 2, 1}};
+    case GpuArch::GFX_1200: return {{2, 4, 1}, {1, 8, 1}, {8, 1, 1}, {4, 2, 1}};
     case GpuArch::GFX_1201: return {{2, 4, 1}, {1, 8, 1}, {8, 1, 1}, {4, 2, 1}};
     default: return {};
     }

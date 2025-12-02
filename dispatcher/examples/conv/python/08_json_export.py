@@ -6,25 +6,42 @@
 Example 08: Convolution Registry JSON Export
 
 Demonstrates exporting the convolution kernel registry to JSON format,
-similar to GEMM 06_json_export.py.
+with kernel configuration validation.
 
 Usage:
     python3 08_json_export.py
+    python3 08_json_export.py --output conv_registry.json
 """
 
+import argparse
 import json
 from datetime import datetime
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent))
+
 from conv_utils import (
     ConvSignature,
     ConvAlgorithm,
     ArchInfo,
     ConvKernelConfig,
     ConvRegistry,
+    validate_conv_config,
+    reset_for_conv_example,
+    cleanup_conv,
 )
 
 
+def print_kernel_config(sig, algo, arch, title="KERNEL CONFIGURATION"):
+    """Print a kernel configuration."""
+    print(f"    {title}")
+    print(f"      dtype={sig.dtype_in}, direction={sig.direction}")
+    print(f"      tile={algo.tile_k}x{algo.tile_c}, pipeline={algo.pipeline}")
+
+
 def export_kernel_config_to_dict(config: ConvKernelConfig) -> dict:
-    """Export a single kernel config to dictionary"""
+    """Export a single kernel config to dictionary."""
     sig = config.signature
     algo = config.algorithm
     arch = config.arch
@@ -77,7 +94,7 @@ def export_kernel_config_to_dict(config: ConvKernelConfig) -> dict:
 
 
 def export_registry_to_json(registry: ConvRegistry) -> dict:
-    """Export entire registry to JSON-serializable dictionary"""
+    """Export entire registry to JSON-serializable dictionary."""
     kernels = []
 
     for config in registry.get_kernels():
@@ -124,38 +141,69 @@ def export_registry_to_json(registry: ConvRegistry) -> dict:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Convolution Registry JSON Export")
+    parser.add_argument("--output", type=str, default=None, help="Output JSON file")
+    parser.add_argument(
+        "--arch", type=str, default="gfx942", help="Target architecture"
+    )
+    args = parser.parse_args()
+
     print("=" * 70)
     print("Example 08: Convolution Registry JSON Export")
     print("=" * 70)
     print()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 0: Reset state for clean example run
+    # =========================================================================
+    reset_for_conv_example(verbose=True)
+
+    # =========================================================================
     # Step 1: Create registry with various kernels
-    # -------------------------------------------------------------------------
-    print("CREATING REGISTRY")
-    print("=" * 40)
+    # =========================================================================
+    print("\nCREATING REGISTRY")
+    print("=" * 60)
 
     registry = ConvRegistry(name="conv_production")
+    arch = ArchInfo(name=args.arch)
 
     # Forward kernels - multiple tile sizes
     for tile_k, tile_c in [(64, 64), (128, 128), (256, 256)]:
         sig = ConvSignature()
         sig.dtype("fp16")
-        sig.layout = "nhwc"
+        sig.layout = "nhwgc"
         sig.direction = "forward"
         sig.num_dims = 2
 
         algo = ConvAlgorithm()
         algo.tile(1, tile_k, tile_c)
         algo.wave(2, 2, 1)
+        algo.warp(32, 32, 16)
         algo.pipeline = "compv4"
         algo.scheduler = "intrawave"
 
-        registry.register_kernel(
-            ConvKernelConfig(
-                signature=sig, algorithm=algo, arch=ArchInfo(name="gfx942")
-            )
+        # Validate before adding
+        validation = validate_conv_config(
+            pipeline=algo.pipeline,
+            scheduler=algo.scheduler,
+            epilogue=algo.epilogue,
+            wave_m=algo.wave_m,
+            wave_n=algo.wave_n,
+            wave_k=algo.wave_k,
+            warp_m=algo.warp_m,
+            warp_n=algo.warp_n,
+            warp_k=algo.warp_k,
+            dtype=sig.dtype_in,
+            arch=arch.name,
         )
+
+        if validation.is_valid:
+            registry.register_kernel(
+                ConvKernelConfig(signature=sig, algorithm=algo, arch=arch)
+            )
+            print(f"  ✓ Added forward fp16 tile={tile_k}x{tile_c}")
+        else:
+            print(f"  ⚠ Skipped forward fp16 tile={tile_k}x{tile_c} (invalid)")
 
     # Backward data kernels
     sig = ConvSignature()
@@ -164,10 +212,13 @@ def main():
 
     algo = ConvAlgorithm()
     algo.tile(1, 128, 128)
+    algo.wave(2, 2, 1)
+    algo.warp(32, 32, 16)
+    algo.pipeline = "compv4"
+    algo.scheduler = "intrawave"
 
-    registry.register_kernel(
-        ConvKernelConfig(signature=sig, algorithm=algo, arch=ArchInfo(name="gfx942"))
-    )
+    registry.register_kernel(ConvKernelConfig(signature=sig, algorithm=algo, arch=arch))
+    print("  ✓ Added bwd_data fp16")
 
     # Backward weight kernels
     sig = ConvSignature()
@@ -176,10 +227,13 @@ def main():
 
     algo = ConvAlgorithm()
     algo.tile(1, 128, 128)
+    algo.wave(2, 2, 1)
+    algo.warp(32, 32, 16)
+    algo.pipeline = "compv4"
+    algo.scheduler = "intrawave"
 
-    registry.register_kernel(
-        ConvKernelConfig(signature=sig, algorithm=algo, arch=ArchInfo(name="gfx942"))
-    )
+    registry.register_kernel(ConvKernelConfig(signature=sig, algorithm=algo, arch=arch))
+    print("  ✓ Added bwd_weight fp16")
 
     # BF16 forward kernel
     sig = ConvSignature()
@@ -188,20 +242,24 @@ def main():
 
     algo = ConvAlgorithm()
     algo.tile(1, 128, 128)
+    algo.wave(2, 2, 1)
+    algo.warp(32, 32, 16)
+    algo.pipeline = "compv4"
+    algo.scheduler = "intrawave"
 
-    registry.register_kernel(
-        ConvKernelConfig(signature=sig, algorithm=algo, arch=ArchInfo(name="gfx942"))
-    )
+    registry.register_kernel(ConvKernelConfig(signature=sig, algorithm=algo, arch=arch))
+    print("  ✓ Added forward bf16")
 
+    print()
     print(f"Registry: {registry}")
     print(f"Total kernels: {registry.kernel_count}")
     print()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Step 2: Export to JSON
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("JSON EXPORT")
-    print("=" * 40)
+    print("=" * 60)
     print()
 
     export_data = export_registry_to_json(registry)
@@ -210,11 +268,11 @@ def main():
     print(json_str)
     print()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Step 3: Show statistics
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("EXPORT STATISTICS")
-    print("=" * 40)
+    print("=" * 60)
     print()
 
     stats = export_data["statistics"]
@@ -230,15 +288,15 @@ def main():
     print()
 
     print("By Architecture:")
-    for arch, count in stats["by_arch"].items():
-        print(f"  {arch}: {count}")
+    for arch_name, count in stats["by_arch"].items():
+        print(f"  {arch_name}: {count}")
     print()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Step 4: Demonstrate kernel lookup
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("KERNEL LOOKUP FROM JSON")
-    print("=" * 40)
+    print("=" * 60)
     print()
 
     # Parse JSON back
@@ -258,27 +316,40 @@ def main():
         print(f"  - {k['name']}: tile={tile['k']}x{tile['c']}")
     print()
 
-    # -------------------------------------------------------------------------
-    # Step 5: Save to file example
-    # -------------------------------------------------------------------------
-    print("SAVE TO FILE")
-    print("=" * 40)
-    print()
+    # =========================================================================
+    # Step 5: Save to file (if requested)
+    # =========================================================================
+    if args.output:
+        print("SAVE TO FILE")
+        print("=" * 60)
+        print()
 
-    # Show how to save
-    print("To save the registry to a file:")
-    print()
-    print("  with open('conv_registry.json', 'w') as f:")
-    print("      json.dump(export_data, f, indent=2)")
-    print()
-    print("To load the registry from a file:")
-    print()
-    print("  with open('conv_registry.json', 'r') as f:")
-    print("      data = json.load(f)")
-    print()
+        with open(args.output, "w") as f:
+            json.dump(export_data, f, indent=2)
+        print(f"  Saved to: {args.output}")
+        print()
+    else:
+        print("SAVE TO FILE")
+        print("=" * 60)
+        print()
+        print("To save the registry to a file:")
+        print()
+        print("  python3 08_json_export.py --output conv_registry.json")
+        print()
+        print("Or programmatically:")
+        print()
+        print("  with open('conv_registry.json', 'w') as f:")
+        print("      json.dump(export_data, f, indent=2)")
+        print()
+
+    # =========================================================================
+    # Cleanup
+    # =========================================================================
+    cleanup_conv()
 
     print("=" * 70)
     print("JSON export completed!")
+    print("=" * 70)
 
 
 if __name__ == "__main__":

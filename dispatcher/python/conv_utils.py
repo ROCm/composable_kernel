@@ -57,8 +57,8 @@ import multiprocessing
 
 def get_dispatcher_root() -> Path:
     """Get the dispatcher root directory"""
-    # This file is in dispatcher/examples/conv/python/
-    return Path(__file__).parent.parent.parent.parent
+    # This file is in dispatcher/python/
+    return Path(__file__).parent.parent
 
 
 def get_ck_root() -> Path:
@@ -2354,14 +2354,13 @@ def auto_correct_conv_config(
     warp_k: int = 16,
     dtype: str = "fp16",
     arch: str = "gfx942",
-    verbose: bool = False,
-) -> Tuple[Dict[str, Any], bool, List[str]]:
+) -> Tuple[Dict[str, Any], bool]:
     """
     Validate and auto-correct a conv kernel configuration.
 
-    Returns (corrected_config_dict, was_modified, corrections_list).
-    If the config was valid, returns (original_config, False, []).
-    If corrections were made, returns (new_config, True, [list of correction descriptions]).
+    Returns (corrected_config_dict, was_modified).
+    If the config was valid, returns (original_config, False).
+    If corrections were made, returns (new_config, True).
     """
     validation = validate_conv_config(
         pipeline=pipeline,
@@ -2392,37 +2391,10 @@ def auto_correct_conv_config(
     }
 
     if validation.is_valid:
-        return original, False, []
+        return original, False
 
-    # Apply suggested fixes and track what changed
+    # Apply suggested fixes
     fixes = validation.suggested_fixes
-    corrections = []
-
-    # Check each fix and describe what changed
-    if "scheduler" in fixes and fixes["scheduler"] != scheduler:
-        corrections.append(
-            f"Scheduler: {scheduler} → {fixes['scheduler']} "
-            f"('{scheduler}' not supported with pipeline={pipeline}, epilogue={epilogue})"
-        )
-
-    if "wave_m" in fixes or "wave_n" in fixes or "wave_k" in fixes:
-        old_wave = f"[{wave_m}, {wave_n}, {wave_k}]"
-        new_wave = f"[{fixes.get('wave_m', wave_m)}, {fixes.get('wave_n', wave_n)}, {fixes.get('wave_k', wave_k)}]"
-        if old_wave != new_wave:
-            corrections.append(
-                f"Wave config: {old_wave} → {new_wave} "
-                f"(original not supported on {arch})"
-            )
-
-    if "warp_m" in fixes or "warp_n" in fixes or "warp_k" in fixes:
-        old_warp = f"[{warp_m}, {warp_n}, {warp_k}]"
-        new_warp = f"[{fixes.get('warp_m', warp_m)}, {fixes.get('warp_n', warp_n)}, {fixes.get('warp_k', warp_k)}]"
-        if old_warp != new_warp:
-            corrections.append(
-                f"Warp tile: {old_warp} → {new_warp} "
-                f"(original not supported for {dtype} on {arch})"
-            )
-
     corrected = {
         "pipeline": fixes.get("pipeline", pipeline),
         "scheduler": fixes.get("scheduler", scheduler),
@@ -2437,67 +2409,7 @@ def auto_correct_conv_config(
         "arch": arch,
     }
 
-    if verbose and corrections:
-        print("  ⚠ Auto-correcting configuration:")
-        for correction in corrections:
-            print(f"    • {correction}")
-
-    return corrected, True, corrections
-
-
-def print_conv_kernel_config(sig, algo, arch, title: str = "KERNEL CONFIGURATION"):
-    """
-    Print a formatted kernel configuration for Conv.
-
-    Args:
-        sig: ConvSignature object
-        algo: ConvAlgorithm object
-        arch: ArchInfo object
-        title: Title to display (e.g., "REQUESTED KERNEL CONFIGURATION")
-    """
-    print()
-    print("=" * 70)
-    print(f"  {title}")
-    print("=" * 70)
-    print(
-        f"  Data Type:     {sig.dtype_in} (input) / {sig.dtype_wei} (weight) / {sig.dtype_out} (output)"
-    )
-    print(f"  Accumulator:   {sig.dtype_acc}")
-    print(f"  Direction:     {sig.direction}")
-    print(f"  Spatial Dims:  {sig.num_dims}D")
-    print(f"  Layout:        {sig.layout}")
-    print(f"  Groups:        {sig.groups}")
-    print()
-    print(f"  Tile N x K x C: {algo.tile_n} x {algo.tile_k} x {algo.tile_c}")
-    print(f"  Wave Config:    {algo.wave_m} x {algo.wave_n} x {algo.wave_k}")
-    print(f"  Warp Tile:      {algo.warp_m} x {algo.warp_n} x {algo.warp_k}")
-    print(f"  Pipeline:       {algo.pipeline}")
-    print(f"  Scheduler:      {algo.scheduler}")
-    print(f"  Epilogue:       {algo.epilogue}")
-    print()
-    print(f"  Target Arch:    {arch.name}")
-    print("=" * 70)
-    print()
-
-
-def print_conv_auto_correction(corrections: List[str], indent: str = "  "):
-    """
-    Print what was auto-corrected and why.
-
-    Args:
-        corrections: List of correction descriptions
-        indent: Indentation for output
-    """
-    if not corrections:
-        print(f"{indent}✓ Configuration valid - no corrections needed")
-        return
-
-    print(f"\n{indent}⚠ AUTO-CORRECTION APPLIED:")
-    print(f"{indent}" + "-" * 50)
-    for correction in corrections:
-        print(f"{indent}  • {correction}")
-    print(f"{indent}" + "-" * 50)
-    print()
+    return corrected, True
 
 
 # =============================================================================
@@ -2852,7 +2764,7 @@ def setup_conv_dispatcher_enhanced(
     if not validation.is_valid:
         if auto_correct:
             log("  ⚠ Auto-correcting configuration...")
-            corrected, was_modified, corrections = auto_correct_conv_config(
+            corrected, _ = auto_correct_conv_config(
                 pipeline=pipeline,
                 scheduler=scheduler,
                 epilogue=epilogue,
@@ -2864,11 +2776,7 @@ def setup_conv_dispatcher_enhanced(
                 warp_k=warp_k,
                 dtype=dtype,
                 arch=arch,
-                verbose=verbose,
             )
-            if verbose and corrections:
-                for correction in corrections:
-                    log(f"    • {correction}")
             pipeline = corrected["pipeline"]
             scheduler = corrected["scheduler"]
             wave_m = corrected["wave_m"]

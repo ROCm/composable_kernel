@@ -6,11 +6,18 @@
 Example 09: Multiple Convolution Registries
 
 Demonstrates using multiple registries for different workload types,
-similar to GEMM 09_multi_registry.py.
+with kernel configuration validation.
 
 Usage:
     python3 09_multi_registry.py
+    python3 09_multi_registry.py --arch gfx942
 """
+
+import argparse
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent))
 
 from conv_utils import (
     ConvSignature,
@@ -20,10 +27,80 @@ from conv_utils import (
     ConvProblem,
     ConvRegistry,
     ConvDispatcher,
+    GpuConvRunner,
+    validate_conv_config,
+    auto_correct_conv_config,
+    reset_for_conv_example,
+    cleanup_conv,
 )
+import numpy as np
 
 
-def create_compute_bound_registry() -> ConvRegistry:
+def print_kernel_config(sig, algo, arch, title="KERNEL CONFIGURATION"):
+    """Print a kernel configuration."""
+    print(f"  {title}")
+    print(f"    dtype={sig.dtype_in}, tile={algo.tile_k}x{algo.tile_c}")
+    print(f"    pipeline={algo.pipeline}, scheduler={algo.scheduler}")
+
+
+def create_validated_kernel(dtype, tile_k, tile_c, pipeline, scheduler, arch_name):
+    """Create a validated kernel configuration."""
+    sig = ConvSignature()
+    sig.dtype(dtype)
+    sig.layout = "nhwgc"
+    sig.direction = "forward"
+
+    algo = ConvAlgorithm()
+    algo.tile(1, tile_k, tile_c)
+    algo.wave(2, 2, 1)
+    algo.warp(32, 32, 16)
+    algo.pipeline = pipeline
+    algo.scheduler = scheduler
+
+    arch = ArchInfo(name=arch_name)
+
+    # Validate
+    validation = validate_conv_config(
+        pipeline=algo.pipeline,
+        scheduler=algo.scheduler,
+        epilogue=algo.epilogue,
+        wave_m=algo.wave_m,
+        wave_n=algo.wave_n,
+        wave_k=algo.wave_k,
+        warp_m=algo.warp_m,
+        warp_n=algo.warp_n,
+        warp_k=algo.warp_k,
+        dtype=sig.dtype_in,
+        arch=arch.name,
+    )
+
+    if not validation.is_valid:
+        # Auto-correct
+        corrected, was_modified = auto_correct_conv_config(
+            pipeline=algo.pipeline,
+            scheduler=algo.scheduler,
+            epilogue=algo.epilogue,
+            wave_m=algo.wave_m,
+            wave_n=algo.wave_n,
+            wave_k=algo.wave_k,
+            warp_m=algo.warp_m,
+            warp_n=algo.warp_n,
+            warp_k=algo.warp_k,
+            dtype=sig.dtype_in,
+            arch=arch.name,
+        )
+        if was_modified:
+            algo.scheduler = corrected["scheduler"]
+            algo.wave_m = corrected["wave_m"]
+            algo.wave_n = corrected["wave_n"]
+            algo.warp_m = corrected["warp_m"]
+            algo.warp_n = corrected["warp_n"]
+            algo.warp_k = corrected["warp_k"]
+
+    return ConvKernelConfig(signature=sig, algorithm=algo, arch=arch)
+
+
+def create_compute_bound_registry(arch_name: str) -> ConvRegistry:
     """
     Create registry for compute-bound problems.
 
@@ -34,29 +111,20 @@ def create_compute_bound_registry() -> ConvRegistry:
 
     # Large tile configurations for compute-bound
     for tile_k, tile_c in [(256, 256), (256, 128), (128, 256)]:
-        sig = ConvSignature()
-        sig.dtype("fp16")
-        sig.layout = "nhwc"
-        sig.direction = "forward"
-
-        algo = ConvAlgorithm()
-        algo.tile(1, tile_k, tile_c)
-        algo.wave(4, 1, 1)  # More warps along K
-        algo.warp(32, 32, 16)
-        algo.pipeline = "compv4"
-        algo.scheduler = "intrawave"
-        algo.double_buffer = True
-
-        registry.register_kernel(
-            ConvKernelConfig(
-                signature=sig, algorithm=algo, arch=ArchInfo(name="gfx942")
-            )
+        config = create_validated_kernel(
+            dtype="fp16",
+            tile_k=tile_k,
+            tile_c=tile_c,
+            pipeline="compv4",
+            scheduler="intrawave",
+            arch_name=arch_name,
         )
+        registry.register_kernel(config)
 
     return registry
 
 
-def create_memory_bound_registry() -> ConvRegistry:
+def create_memory_bound_registry(arch_name: str) -> ConvRegistry:
     """
     Create registry for memory-bound problems.
 
@@ -67,28 +135,20 @@ def create_memory_bound_registry() -> ConvRegistry:
 
     # Smaller tiles but more memory-efficient configurations
     for tile_k, tile_c in [(128, 128), (64, 128), (128, 64)]:
-        sig = ConvSignature()
-        sig.dtype("fp16")
-        sig.layout = "nhwc"
-        sig.direction = "forward"
-
-        algo = ConvAlgorithm()
-        algo.tile(1, tile_k, tile_c)
-        algo.wave(2, 2, 1)
-        algo.warp(32, 32, 16)
-        algo.pipeline = "compv3"  # Simpler pipeline
-        algo.scheduler = "interwave"  # Better for memory
-
-        registry.register_kernel(
-            ConvKernelConfig(
-                signature=sig, algorithm=algo, arch=ArchInfo(name="gfx942")
-            )
+        config = create_validated_kernel(
+            dtype="fp16",
+            tile_k=tile_k,
+            tile_c=tile_c,
+            pipeline="compv3",
+            scheduler="interwave",
+            arch_name=arch_name,
         )
+        registry.register_kernel(config)
 
     return registry
 
 
-def create_latency_optimized_registry() -> ConvRegistry:
+def create_latency_optimized_registry(arch_name: str) -> ConvRegistry:
     """
     Create registry for latency-optimized problems.
 
@@ -99,23 +159,15 @@ def create_latency_optimized_registry() -> ConvRegistry:
 
     # Small tile configurations for low latency
     for tile_k, tile_c in [(64, 64), (32, 64), (64, 32)]:
-        sig = ConvSignature()
-        sig.dtype("fp16")
-        sig.layout = "nhwc"
-        sig.direction = "forward"
-
-        algo = ConvAlgorithm()
-        algo.tile(1, tile_k, tile_c)
-        algo.wave(2, 2, 1)
-        algo.warp(16, 16, 32)
-        algo.pipeline = "compv3"
-        algo.block_size = 128  # Smaller block
-
-        registry.register_kernel(
-            ConvKernelConfig(
-                signature=sig, algorithm=algo, arch=ArchInfo(name="gfx942")
-            )
+        config = create_validated_kernel(
+            dtype="fp16",
+            tile_k=tile_k,
+            tile_c=tile_c,
+            pipeline="compv3",
+            scheduler="intrawave",
+            arch_name=arch_name,
         )
+        registry.register_kernel(config)
 
     return registry
 
@@ -139,22 +191,33 @@ def classify_problem(problem: ConvProblem) -> str:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Multiple Convolution Registries")
+    parser.add_argument(
+        "--arch", type=str, default="gfx942", help="Target architecture"
+    )
+    args = parser.parse_args()
+
     print("=" * 70)
     print("Example 09: Multiple Convolution Registries")
     print("=" * 70)
     print()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 0: Reset state for clean example run
+    # =========================================================================
+    reset_for_conv_example(verbose=True)
+
+    # =========================================================================
     # Step 1: Create specialized registries
-    # -------------------------------------------------------------------------
-    print("CREATING SPECIALIZED REGISTRIES")
-    print("=" * 40)
+    # =========================================================================
+    print("\nCREATING SPECIALIZED REGISTRIES")
+    print("=" * 60)
 
-    compute_registry = create_compute_bound_registry()
-    memory_registry = create_memory_bound_registry()
-    latency_registry = create_latency_optimized_registry()
+    compute_registry = create_compute_bound_registry(args.arch)
+    memory_registry = create_memory_bound_registry(args.arch)
+    latency_registry = create_latency_optimized_registry(args.arch)
 
-    print(f"Compute-bound registry: {compute_registry.kernel_count} kernels")
+    print(f"\nCompute-bound registry: {compute_registry.kernel_count} kernels")
     for cfg in compute_registry.get_kernels()[:3]:
         print(f"  - {cfg.name()}")
     print()
@@ -169,11 +232,11 @@ def main():
         print(f"  - {cfg.name()}")
     print()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Step 2: Create dispatchers
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("CREATING DISPATCHERS")
-    print("=" * 40)
+    print("=" * 60)
 
     compute_dispatcher = ConvDispatcher(compute_registry)
     memory_dispatcher = ConvDispatcher(memory_registry)
@@ -184,11 +247,11 @@ def main():
     print(f"Latency dispatcher: {latency_dispatcher}")
     print()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Step 3: Test problem classification
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("PROBLEM CLASSIFICATION")
-    print("=" * 40)
+    print("=" * 60)
 
     problems = [
         # Compute-bound: large channels
@@ -203,7 +266,7 @@ def main():
         ConvProblem(N=1, C=64, K=64, Hi=28, Wi=28, Y=3, X=3, pad_h=1, pad_w=1, G=64),
     ]
 
-    print(f"{'Problem Description':<50} | {'Classification':<20}")
+    print(f"\n{'Problem Description':<50} | {'Classification':<20}")
     print("-" * 75)
 
     for prob in problems:
@@ -213,11 +276,11 @@ def main():
 
     print()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Step 4: Select appropriate dispatcher
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("DISPATCHER SELECTION")
-    print("=" * 40)
+    print("=" * 60)
     print()
 
     dispatchers = {
@@ -237,11 +300,11 @@ def main():
         print(f"  Selected kernel: {kernel or 'None'}")
         print()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Step 5: Registry merging
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("REGISTRY MERGING")
-    print("=" * 40)
+    print("=" * 60)
     print()
 
     # Create a combined registry
@@ -258,15 +321,12 @@ def main():
     print(f"Combined registry: {combined_registry.kernel_count} kernels")
     print()
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Step 6: GPU Execution with different registries
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("GPU EXECUTION TEST")
-    print("=" * 40)
+    print("=" * 60)
     print()
-
-    from conv_utils import GpuConvRunner
-    import numpy as np
 
     runner = GpuConvRunner()
     if runner.is_available():
@@ -283,7 +343,7 @@ def main():
             -0.5, 0.5, (prob.G, prob.K, prob.Y, prob.X, prob.C)
         ).astype(np_dtype)
 
-        result = runner.run(input_np, weight_np, prob)
+        result = runner.run_forward(input_np, weight_np, prob)
 
         if result.get("success"):
             print("  *** GPU EXECUTION SUCCESSFUL ***")
@@ -298,16 +358,18 @@ def main():
         print("  GPU library not available")
     print()
 
-    # -------------------------------------------------------------------------
-    # Summary
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Cleanup and Summary
+    # =========================================================================
+    cleanup_conv()
+
     print("=" * 70)
     print("SUMMARY")
     print("=" * 70)
     print()
     print("Multiple registries allow specialized kernel selection:")
     print()
-    print("  1. COMPUTE-BOUND: Large tiles (256x256), double buffering")
+    print("  1. COMPUTE-BOUND: Large tiles (256x256), intrawave scheduler")
     print("     Use for: Many channels, large feature maps")
     print()
     print("  2. MEMORY-BOUND: Medium tiles (128x128), interwave scheduler")
@@ -320,6 +382,7 @@ def main():
     print("  - Better performance through workload-specific optimization")
     print("  - Reduced kernel search time (smaller registry per workload)")
     print("  - Flexibility to combine or separate registries as needed")
+    print("=" * 70)
 
 
 if __name__ == "__main__":

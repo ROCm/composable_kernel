@@ -253,23 +253,73 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
     )
 
 
-def auto_correct_kernel_config(config: "KernelConfig") -> Tuple["KernelConfig", bool]:
+@dataclass
+class AutoCorrectionResult:
+    """Result of auto-correction with detailed explanation."""
+
+    original_config: "KernelConfig"
+    corrected_config: "KernelConfig"
+    was_modified: bool
+    corrections: List[str] = field(default_factory=list)
+    validation: Optional[ValidationResult] = None
+
+    def print_corrections(self, indent: str = "  "):
+        """Print what was corrected and why."""
+        if not self.was_modified:
+            print(f"{indent}✓ Configuration valid - no corrections needed")
+            return
+
+        print(f"{indent}⚠ Configuration auto-corrected:")
+        for correction in self.corrections:
+            print(f"{indent}  • {correction}")
+
+
+def auto_correct_kernel_config(
+    config: "KernelConfig", verbose: bool = False
+) -> Tuple["KernelConfig", bool, List[str]]:
     """
     Validate and auto-correct a KernelConfig.
 
-    Returns (corrected_config, was_modified).
-    If the config was valid, returns (original_config, False).
-    If corrections were made, returns (new_config, True).
+    Returns (corrected_config, was_modified, corrections_list).
+    If the config was valid, returns (original_config, False, []).
+    If corrections were made, returns (new_config, True, [list of correction descriptions]).
     """
     validation = validate_kernel_config(config)
 
     if validation.is_valid:
-        return config, False
+        return config, False, []
 
-    # Apply suggested fixes
+    # Apply suggested fixes and track what changed
     from dataclasses import replace
 
     fixes = validation.suggested_fixes
+    corrections = []
+
+    # Check each fix and describe what changed
+    if "scheduler" in fixes and fixes["scheduler"] != config.scheduler:
+        corrections.append(
+            f"Scheduler: {config.scheduler} → {fixes['scheduler']} "
+            f"('{config.scheduler}' not supported with pipeline={config.pipeline}, epilogue={config.epilogue})"
+        )
+
+    if "wave_m" in fixes or "wave_n" in fixes or "wave_k" in fixes:
+        old_wave = f"[{config.wave_m}, {config.wave_n}, {config.wave_k}]"
+        new_wave = f"[{fixes.get('wave_m', config.wave_m)}, {fixes.get('wave_n', config.wave_n)}, {fixes.get('wave_k', config.wave_k)}]"
+        if old_wave != new_wave:
+            corrections.append(
+                f"Wave config: {old_wave} → {new_wave} "
+                f"(original not supported on {config.gfx_arch})"
+            )
+
+    if "warp_m" in fixes or "warp_n" in fixes or "warp_k" in fixes:
+        old_warp = f"[{config.warp_m}, {config.warp_n}, {config.warp_k}]"
+        new_warp = f"[{fixes.get('warp_m', config.warp_m)}, {fixes.get('warp_n', config.warp_n)}, {fixes.get('warp_k', config.warp_k)}]"
+        if old_warp != new_warp:
+            corrections.append(
+                f"Warp tile: {old_warp} → {new_warp} "
+                f"(original not supported for {config.dtype_a} on {config.gfx_arch})"
+            )
+
     new_config = replace(
         config,
         scheduler=fixes.get("scheduler", config.scheduler),
@@ -281,7 +331,68 @@ def auto_correct_kernel_config(config: "KernelConfig") -> Tuple["KernelConfig", 
         warp_k=fixes.get("warp_k", config.warp_k),
     )
 
-    return new_config, True
+    return new_config, True, corrections
+
+
+def print_kernel_config(config: "KernelConfig", title: str = "KERNEL CONFIGURATION"):
+    """
+    Print a formatted kernel configuration for GEMM.
+
+    Args:
+        config: The KernelConfig to print
+        title: Title to display (e.g., "REQUESTED KERNEL CONFIGURATION")
+    """
+    print()
+    print("=" * 70)
+    print(f"  {title}")
+    print("=" * 70)
+    print(f"  Data Type A:   {config.dtype_a}")
+    print(f"  Data Type B:   {config.dtype_b}")
+    print(f"  Data Type C:   {config.dtype_c}")
+    print(f"  Accumulator:   {config.dtype_acc}")
+    print()
+    print(
+        f"  Layout:        {config.layout} (A={config.layout_a}, B={config.layout_b}, C={config.layout_c})"
+    )
+    print()
+    print(f"  Tile M x N x K: {config.tile_m} x {config.tile_n} x {config.tile_k}")
+    print(f"  Wave Config:    {config.wave_m} x {config.wave_n} x {config.wave_k}")
+    print(f"  Warp Tile:      {config.warp_m} x {config.warp_n} x {config.warp_k}")
+    print()
+    print(f"  Pipeline:      {config.pipeline}")
+    print(f"  Scheduler:     {config.scheduler}")
+    print(f"  Epilogue:      {config.epilogue}")
+    print()
+    print(f"  Target Arch:   {config.gfx_arch}")
+    print("=" * 70)
+    print()
+
+
+def print_auto_correction(
+    original: "KernelConfig",
+    corrected: "KernelConfig",
+    corrections: List[str],
+    indent: str = "  ",
+):
+    """
+    Print what was auto-corrected and why.
+
+    Args:
+        original: Original configuration before correction
+        corrected: Configuration after correction
+        corrections: List of correction descriptions
+        indent: Indentation for output
+    """
+    if not corrections:
+        print(f"{indent}✓ Configuration valid - no corrections needed")
+        return
+
+    print(f"\n{indent}⚠ AUTO-CORRECTION APPLIED:")
+    print(f"{indent}" + "-" * 50)
+    for correction in corrections:
+        print(f"{indent}  • {correction}")
+    print(f"{indent}" + "-" * 50)
+    print()
 
 
 def find_matching_kernel_header(config: "KernelConfig") -> Optional[Path]:
@@ -1932,6 +2043,7 @@ class GemmSetupResult:
     config: Optional[KernelConfig] = None
     kernel_header: Optional[Path] = None
     error: str = ""
+    corrections: List[str] = field(default_factory=list)
 
 
 def setup_gemm_dispatcher(
@@ -1970,8 +2082,12 @@ def setup_gemm_dispatcher(
     validation = validate_kernel_config(config)
     if not validation.is_valid:
         log("  ⚠ Auto-correcting configuration...")
-        config, _ = auto_correct_kernel_config(config)
+        config, was_modified, corrections = auto_correct_kernel_config(
+            config, verbose=verbose
+        )
         result.config = config
+        result.corrections = corrections
+        # Note: corrections will be displayed by the caller via print_auto_correction
 
     # Step 2: Setup codegen and generate kernel
     log(f"  Generating kernel (tile={config.tile_str})...")
@@ -2000,23 +2116,55 @@ def setup_gemm_dispatcher(
         return result
     result.lib = lib
 
-    # Check dtype match and rebuild if needed
+    # Check if library kernel matches config - rebuild if ANY parameter differs
     lib_kernel = lib.get_kernel_name()
-    lib_dtype = lib_kernel.split("_")[1] if lib_kernel else "unknown"
+    needs_rebuild = False
+    mismatches = []
 
-    if lib_dtype != config.dtype_a and kernel_header and auto_rebuild:
-        log(f"  Library dtype ({lib_dtype}) != config dtype ({config.dtype_a})")
-        log("  Rebuilding library...")
+    if lib_kernel:
+        # Build expected kernel signature components from config
+        expected_parts = {
+            "dtype": config.dtype_a,
+            "layout": config.layout,
+            "pipeline": config.pipeline,
+            "epilogue": config.epilogue,
+            "scheduler": config.scheduler,
+            "tile": f"{config.tile_m}x{config.tile_n}x{config.tile_k}",
+            "wave": f"{config.wave_m}x{config.wave_n}x{config.wave_k}",
+            "warp": f"{config.warp_m}x{config.warp_n}x{config.warp_k}",
+        }
 
-        new_lib_path = codegen._rebuild_library_for_config(config, kernel_header)
-        if new_lib_path:
-            lib = DispatcherLib.load(new_lib_path)
-            if lib is None or not lib.initialize():
-                result.error = "Failed to load rebuilt library"
-                return result
-            result.lib = lib
+        # Check each component against the library kernel name
+        for name, expected in expected_parts.items():
+            if expected not in lib_kernel:
+                needs_rebuild = True
+                mismatches.append(f"{name}={expected}")
+
+    if needs_rebuild and auto_rebuild:
+        log(f"  Library kernel doesn't match config: {', '.join(mismatches)}")
+        log("  Rebuilding library for exact config match...")
+
+        # First ensure we have a kernel header for this exact config
+        if not kernel_header:
+            # Generate kernel for the exact config
+            log("  Generating kernel for config...")
+            codegen_result = codegen.generate_from_config(config, rebuild_lib=True)
+            kernel_header = find_matching_kernel_header(config)
+            result.kernel_header = kernel_header
+
+        if kernel_header:
+            new_lib_path = codegen._rebuild_library_for_config(config, kernel_header)
+            if new_lib_path:
+                lib = DispatcherLib.load(new_lib_path)
+                if lib is None or not lib.initialize():
+                    result.error = "Failed to load rebuilt library"
+                    return result
+                result.lib = lib
+                log(f"  ✓ Rebuilt library: {lib.get_kernel_name()}")
+            else:
+                log("  ⚠ Rebuild failed, using existing library")
         else:
-            log("  ⚠ Rebuild failed, using existing library")
+            log("  ⚠ No kernel header found for config, using existing library")
 
     # Step 5: Create registry and dispatcher
     log("  Creating registry and dispatcher...")

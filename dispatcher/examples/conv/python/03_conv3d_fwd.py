@@ -10,6 +10,7 @@ Demonstrates 3D forward convolution using the Signature/Algorithm/Arch pattern.
 Usage:
     python3 03_conv3d_fwd.py
     python3 03_conv3d_fwd.py --verify
+    python3 03_conv3d_fwd.py --dtype bf16
 """
 
 import sys
@@ -17,19 +18,45 @@ import argparse
 import numpy as np
 from pathlib import Path
 
-# Import conv utilities
+sys.path.insert(0, str(Path(__file__).parent))
+
 from conv_utils import (
     ConvSignature,
     ConvAlgorithm,
     ArchInfo,
-    ConvKernelConfig,
     ConvKernelSet,
     ConvProblem,
-    create_conv3d_fwd_config,
+    GpuConvRunner,
+    validate_conv_config,
+    auto_correct_conv_config,
+    reset_for_conv_example,
+    cleanup_conv,
 )
 
-# Add codegen path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "codegen"))
+
+def print_kernel_config(sig, algo, arch, title="KERNEL CONFIGURATION"):
+    """Print the exact kernel configuration being requested."""
+    print()
+    print("=" * 70)
+    print(f"  {title}")
+    print("=" * 70)
+    print(
+        f"  Data Type:     {sig.dtype_in} (input) / {sig.dtype_wei} (weight) / {sig.dtype_out} (output)"
+    )
+    print(f"  Accumulator:   {sig.dtype_acc}")
+    print(f"  Direction:     {sig.direction}")
+    print(f"  Spatial Dims:  {sig.num_dims}D")
+    print(f"  Layout:        {sig.layout}")
+    print()
+    print(f"  Tile N x K x C: {algo.tile_n} x {algo.tile_k} x {algo.tile_c}")
+    print(f"  Wave Config:    {algo.wave_m} x {algo.wave_n} x {algo.wave_k}")
+    print(f"  Warp Tile:      {algo.warp_m} x {algo.warp_n} x {algo.warp_k}")
+    print(f"  Pipeline:       {algo.pipeline}")
+    print(f"  Scheduler:      {algo.scheduler}")
+    print()
+    print(f"  Target Arch:    {arch.name}")
+    print("=" * 70)
+    print()
 
 
 def reference_conv3d_fwd(input_np, weight_np, stride=1, pad=0):
@@ -82,7 +109,29 @@ def main():
     parser.add_argument("-d", type=int, default=8, help="Input depth/height/width")
     parser.add_argument("-z", type=int, default=3, help="Filter depth/height/width")
     parser.add_argument("--verify", action="store_true", help="Run CPU verification")
-    parser.add_argument("--dtype", type=str, default="fp16", help="Data type")
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        default="fp16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Data type (default: fp16)",
+    )
+    parser.add_argument(
+        "--pipeline",
+        type=str,
+        default="compv3",
+        choices=["compv3", "compv4", "mem"],
+        help="Pipeline version (default: compv3)",
+    )
+    parser.add_argument(
+        "--scheduler",
+        type=str,
+        default="intrawave",
+        choices=["intrawave", "interwave"],
+        help="Scheduler (default: intrawave)",
+    )
+    parser.add_argument("--tile-k", type=int, default=64, help="Tile K size")
+    parser.add_argument("--tile-c", type=int, default=64, help="Tile C size")
     parser.add_argument(
         "--arch", type=str, default="gfx942", help="Target architecture"
     )
@@ -92,11 +141,16 @@ def main():
     print("Example 03: 3D Convolution Forward (Signature/Algorithm/Arch Pattern)")
     print("=" * 70)
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 0: Reset state for clean example run
+    # =========================================================================
+    reset_for_conv_example(verbose=True)
+
+    # =========================================================================
     # Step 1: Define problem using ConvProblem
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("\nStep 1: Define ConvProblem")
-    print("-" * 40)
+    print("-" * 50)
 
     N, G, C, K = args.n, 1, args.c, args.k
     Di, Hi, Wi = args.d, args.d, args.d
@@ -130,82 +184,122 @@ def main():
     print(f"  Output:   Do={problem.Do}, Ho={problem.Ho}, Wo={problem.Wo}")
     print(f"  FLOPs:    {problem.flops_3d:.2e}")
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Step 2: Define kernel config (Signature/Algorithm/Arch)
-    # -------------------------------------------------------------------------
+    # =========================================================================
     print("\nStep 2: Define Kernel Config")
-    print("-" * 40)
+    print("-" * 50)
 
-    # Method 1: Using convenience function
-    config_simple = create_conv3d_fwd_config(
-        dtype=args.dtype, tile_k=64, tile_c=64, arch=args.arch
-    )
-    print(f"  Simple config: {config_simple.name()}")
-
-    # Method 2: Full explicit specification
     sig = ConvSignature()
     sig.dtype(args.dtype, args.dtype, args.dtype, "fp32")
-    sig.layout = "ndhwc"
+    sig.layout = "ndhwgc"
     sig.direction = "forward"
     sig.num_dims = 3
     sig.groups = G
 
     algo = ConvAlgorithm()
-    algo.tile(1, 64, 64)  # N, K, C tile
-    algo.wave(2, 2, 1)  # Warp distribution
-    algo.warp(16, 16, 32)  # Warp tile sizes
-    algo.pipeline = "compv3"
-    algo.scheduler = "intrawave"
+    algo.tile(1, args.tile_k, args.tile_c)
+    algo.wave(2, 2, 1)
+    algo.warp(16, 16, 32)
+    algo.pipeline = args.pipeline
+    algo.scheduler = args.scheduler
 
     arch = ArchInfo(name=args.arch)
 
-    config_explicit = ConvKernelConfig(signature=sig, algorithm=algo, arch=arch)
+    # Print the EXACT configuration requested
+    print_kernel_config(sig, algo, arch, "REQUESTED KERNEL CONFIGURATION")
 
-    print(f"  Explicit config: {config_explicit.name()}")
-    print(f"  Brief: {config_explicit.brief()}")
+    # =========================================================================
+    # Step 3: Validate and auto-correct configuration
+    # =========================================================================
+    print("Step 3: Validate Config Against Arch Filter")
+    print("-" * 50)
 
-    # -------------------------------------------------------------------------
-    # Step 3: Create kernel set
-    # -------------------------------------------------------------------------
-    print("\nStep 3: Create Kernel Set")
-    print("-" * 40)
+    validation = validate_conv_config(
+        pipeline=algo.pipeline,
+        scheduler=algo.scheduler,
+        epilogue=algo.epilogue,
+        wave_m=algo.wave_m,
+        wave_n=algo.wave_n,
+        wave_k=algo.wave_k,
+        warp_m=algo.warp_m,
+        warp_n=algo.warp_n,
+        warp_k=algo.warp_k,
+        dtype=sig.dtype_in,
+        arch=arch.name,
+    )
+    validation.print_result()
+
+    if not validation.is_valid:
+        print("\n  ⚠ Auto-correcting configuration...")
+        corrected, was_modified = auto_correct_conv_config(
+            pipeline=algo.pipeline,
+            scheduler=algo.scheduler,
+            epilogue=algo.epilogue,
+            wave_m=algo.wave_m,
+            wave_n=algo.wave_n,
+            wave_k=algo.wave_k,
+            warp_m=algo.warp_m,
+            warp_n=algo.warp_n,
+            warp_k=algo.warp_k,
+            dtype=sig.dtype_in,
+            arch=arch.name,
+        )
+        if was_modified:
+            algo.scheduler = corrected["scheduler"]
+            algo.wave_m = corrected["wave_m"]
+            algo.wave_n = corrected["wave_n"]
+            algo.warp_m = corrected["warp_m"]
+            algo.warp_n = corrected["warp_n"]
+            algo.warp_k = corrected["warp_k"]
+            print_kernel_config(sig, algo, arch, "CORRECTED KERNEL CONFIGURATION")
+    print()
+
+    # =========================================================================
+    # Step 4: Create kernel set
+    # =========================================================================
+    print("Step 4: Create Kernel Set")
+    print("-" * 50)
 
     kernel_set = ConvKernelSet("conv3d_fwd_set")
     kernel_set.add(sig, algo, arch)
     kernel_set.print()
 
-    # -------------------------------------------------------------------------
-    # Step 4: Generate test data (NDHWGC layout)
-    # -------------------------------------------------------------------------
-    print("\nStep 4: Generate Test Data")
-    print("-" * 40)
+    # =========================================================================
+    # Step 5: Generate test data (NDHWGC layout)
+    # =========================================================================
+    print("\nStep 5: Generate Test Data")
+    print("-" * 50)
 
-    np_dtype = np.float16 if args.dtype == "fp16" else np.float32
+    np_dtype = {
+        "fp16": np.float16,
+        "bf16": np.float16,
+        "fp32": np.float32,
+    }[args.dtype]
+
     input_np = np.random.uniform(-0.5, 0.5, (N, Di, Hi, Wi, G, C)).astype(np_dtype)
     weight_np = np.random.uniform(-0.5, 0.5, (G, K, Z, Y, X, C)).astype(np_dtype)
 
-    print(f"  Input:  {input_np.shape} ({input_np.dtype})")
-    print(f"  Weight: {weight_np.shape} ({weight_np.dtype})")
+    print(f"  Input:  {input_np.shape} ({np_dtype.__name__})")
+    print(f"  Weight: {weight_np.shape} ({np_dtype.__name__})")
 
-    # -------------------------------------------------------------------------
-    # Step 5: CPU verification (optional)
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Step 6: CPU verification (optional)
+    # =========================================================================
     if args.verify:
-        print("\nStep 5: CPU Reference Verification")
-        print("-" * 40)
+        print("\nStep 6: CPU Reference Verification")
+        print("-" * 50)
 
         output_ref = reference_conv3d_fwd(input_np, weight_np, stride=stride, pad=pad)
         print(f"  Output shape: {output_ref.shape}")
         print(f"  Output range: [{output_ref.min():.4f}, {output_ref.max():.4f}]")
         print("  CPU reference computed successfully!")
 
-    # -------------------------------------------------------------------------
-    # Step 6: GPU Execution
-    # -------------------------------------------------------------------------
-    print("\nStep 6: GPU Execution")
-    print("-" * 40)
-
-    from conv_utils import GpuConvRunner
+    # =========================================================================
+    # Step 7: GPU Execution
+    # =========================================================================
+    print("\nStep 7: GPU Execution")
+    print("-" * 50)
 
     runner = GpuConvRunner()
     if runner.is_available():
@@ -229,29 +323,18 @@ def main():
             "  Build with: cd dispatcher/build && cmake .. && make dispatcher_conv_lib"
         )
 
-    # -------------------------------------------------------------------------
-    # Summary
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Cleanup and Summary
+    # =========================================================================
+    cleanup_conv()
+
     print("\n" + "=" * 70)
-    print("3D CONV CONFIG PATTERN")
+    print("SUMMARY: 3D Convolution")
     print("=" * 70)
-    print("""
-sig = ConvSignature()
-sig.dtype("fp16")
-sig.layout = "ndhwc"
-sig.direction = "forward"
-sig.num_dims = 3
-
-algo = ConvAlgorithm()
-algo.tile(1, 64, 64)
-algo.wave(2, 2, 1)
-algo.warp(16, 16, 32)
-algo.pipeline = "compv3"
-
-arch = ArchInfo(name="gfx942")
-
-config = ConvKernelConfig(signature=sig, algorithm=algo, arch=arch)
-""")
+    print(f"  Kernel:  {args.dtype} {sig.direction} {sig.num_dims}D")
+    print(f"  Config:  tile={args.tile_k}x{args.tile_c}, pipeline={args.pipeline}")
+    print("  Use for: video, medical imaging, volumetric data")
+    print("=" * 70)
 
     return 0
 
