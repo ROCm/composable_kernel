@@ -1121,8 +1121,8 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION',
-            defaultValue: '7.0.1',
-            description: 'Specify which ROCM version to use: 7.0.1 (default).')
+            defaultValue: '7.1.1',
+            description: 'Specify which ROCM version to use: 7.1.1 (default).')
         string(
             name: 'COMPILER_VERSION',
             defaultValue: '',
