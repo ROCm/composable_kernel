@@ -133,14 +133,6 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                                                       GemmConfig::TileParitionerGroupNum,
                                                       GemmConfig::TileParitionerM01>;
 
-    using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
-                                           GemmConfig::kPadN,
-                                           GemmConfig::kPadK,
-                                           ALayout,
-                                           BLayout,
-                                           ELayout,
-                                           GemmConfig::NumWaveGroups>;
-
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                                                  GemmConfig::kPadN,
                                                                  GemmConfig::kPadK,
@@ -154,19 +146,6 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                                                                  GemmConfig::NumWaveGroups,
                                                                  GemmConfig::Preshuffle>;
 
-    using GemmPipelineProblem =
-        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
-
-    using BaseGemmPipeline = typename PipelineTypeTraits<
-        GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
-
-    const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
-    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-    float ave_time{0};
-
     // Create base GEMM arguments pointing to workspace instead of final output
     // The workspace will store partial results from each K-split
     ck_tile::GemmHostArgs base_args(args.a_ptr,
@@ -179,23 +158,18 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                                     args.stride_A,
                                     args.stride_B,
                                     args.stride_E);
+    constexpr auto scheduler = GemmConfig::Scheduler;
 
-    const auto Run = [&](const auto has_hot_loop_,
-                         const auto tail_number_,
-                         const auto memory_operation_) {
-        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-        constexpr auto tail_number_v    = tail_number_.value;
-        constexpr auto scheduler        = GemmConfig::Scheduler;
-        constexpr auto memory_operation = memory_operation_.value;
+    const auto Run = [&]() {
+        // use SET operation since each K-split writes to separate memory
+        constexpr auto memory_operation = ck_tile::memory_operation_enum::set;
 
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                            BDataType,
                                                                            AccDataType,
                                                                            GemmShape,
                                                                            GemmUniversalTraits,
-                                                                           scheduler,
-                                                                           has_hot_loop_v,
-                                                                           tail_number_v>;
+                                                                           scheduler>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
@@ -276,29 +250,20 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                     hipGetErrorString(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
             };
-            return ave_time = ck_tile::launch_kernel_time_mask(
-                       s,
-                       run_flush_cache,
-                       ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                           Kernel{}, grids, blocks, 0, kargs));
+            return ck_tile::launch_kernel_time_mask(
+                s,
+                run_flush_cache,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            return ave_time = ck_tile::launch_kernel(s,
-                                                     ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                                         Kernel{}, grids, blocks, 0, kargs));
+            return ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
     };
 
-    const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-        // For workspace mode, always use SET operation since each K-split writes to separate memory
-        return Run(has_hot_loop_,
-                   tail_number_,
-                   ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::set>{});
-    };
-
-    return ave_time = BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+    return Run();
 }
 
 /**
