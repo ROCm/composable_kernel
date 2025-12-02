@@ -339,14 +339,6 @@ struct ConvAlgorithmTemplate : Components...
         result.transfer = t;
         return result;
     }
-
-    template <typename OP>
-    constexpr auto with_elementwise_operation(const OP& op) const
-    {
-        auto result       = *this;
-        result.element_op = op;
-        return result;
-    }
 };
 
 // Algorithm types
