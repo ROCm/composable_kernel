@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_wmma_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_wmma_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -25,22 +25,20 @@ void add_device_grouped_conv3d_bwd_weight_wmma_ngcdhw_gkczyx_ngkdhw_f16_instance
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_wmma_c_shuffle_f16_instances<3,
-                                                                    NGCDHW,
-                                                                    GKCZYX,
-                                                                    NGKDHW,
-                                                                    ConvBwdWeightDefault,
-                                                                    1,
-                                                                    1>{});
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_weight_wmma_c_shuffle_f16_instances<3,
-                                                                    NGCDHW,
-                                                                    GKCZYX,
-                                                                    NGKDHW,
-                                                                    ConvBwdWeightDefault,
-                                                                    4,
-                                                                    4>{});
+        device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_f16_instances<3,
+                                                                       NGCDHW,
+                                                                       GKCZYX,
+                                                                       NGKDHW,
+                                                                       ConvBwdWeightDefault>{});
+    // add_device_operation_instances(
+    //     instances,
+    //     device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_f16_instances<3,
+    //                                                                    NGCDHW,
+    //                                                                    GKCZYX,
+    //                                                                    NGKDHW,
+    //                                                                    ConvBwdWeightDefault,
+    //                                                                    4,
+    //                                                                    4>{});
 }
 
 } // namespace instance
