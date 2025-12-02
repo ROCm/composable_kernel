@@ -120,12 +120,12 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                                              /*NumWaveGroups*/ 1,
                                              /*Preshuffle*/ false>;
 
-        using BaseGemmPipeline = std::conditional_t<
-            Config::Pipeline_ == (PipelineType::Memory),
-            ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
-            std::conditional_t<Config::Pipeline_ == (PipelineType::CompV3),
-                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV4<GemmPipelineProblem>>>;
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                           BDataType,
+                                                                           AccDataType,
+                                                                           GemmShape,
+                                                                           GemmUniversalTraits,
+                                                                           Config::Scheduler_>;
 
         using GemmPipeline = std::conditional_t<
             Config::Pipeline_ == (PipelineType::Memory),
