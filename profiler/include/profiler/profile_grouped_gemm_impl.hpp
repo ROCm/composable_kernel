@@ -238,7 +238,28 @@ bool profile_grouped_gemm_impl(int do_verification,
             ref_invoker.Run(ref_argument);
         }
     }
+
+    // If the user will provide not empty kbatches list, then we test predefined set of kbatch
+    // values.
+    std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 20, 24, 32, 48, 64};
+    if(!kbatches.empty())
+    {
+        kbatch_list = kbatches;
+    }
+
+    // Check if the operation requested any KBatch size > 1
+    bool operation_requires_splitk_support = false;
+    for(auto kbatch : kbatch_list)
+    {
+        if(kbatch > 1)
+        {
+            operation_requires_splitk_support = true;
+            break;
+        }
+    }
+
     // profile device GEMM instances
+    int instances_supported         = 0;
     int instances_supporting_splitk = 0;
     for(auto& gemm_ptr : op_ptrs)
     {
@@ -267,18 +288,9 @@ bool profile_grouped_gemm_impl(int do_verification,
 
         std::string gemm_name = gemm_ptr->GetTypeString();
 
-        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 20, 24, 32, 48, 64};
-
-        // If the user will provide not empty kbatches list, then we test predefined set of kbatch
-        // values.
-        if(!kbatches.empty())
-        {
-            kbatch_list = kbatches;
-        }
-
-        // If we will test for more than 1 KBatch value, we need at least one to be supported
-        // If there's only one value this check is disabled
-        bool found_supported_kbatch_size = kbatch_list.size() == 1;
+        // Keep track if we found any supported instance
+        bool any_supported_instance          = false;
+        bool any_supported_nontrivial_kbatch = false;
         for(std::size_t j = 0; j < kbatch_list.size(); j++)
         {
             auto kbatch_curr = kbatch_list[j];
@@ -298,9 +310,11 @@ bool profile_grouped_gemm_impl(int do_verification,
                     continue;
                 }
 
+                // Keep track of which supported instances we found
+                any_supported_instance = true;
                 if(kbatch_curr > 1)
                 {
-                    found_supported_kbatch_size = true;
+                    any_supported_nontrivial_kbatch = true;
                 }
 
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
@@ -384,16 +398,30 @@ bool profile_grouped_gemm_impl(int do_verification,
             }
         }
 
-        // If any kbatch sizes were supported by this instance, the instance can be marked as
+        // If any kbatch sizes > 1 were supported by this instance, the instance can be marked as
         // 'supported' for this problem
-        if(found_supported_kbatch_size)
+        if(any_supported_nontrivial_kbatch)
         {
             ++instances_supporting_splitk;
+        }
+
+        if(any_supported_instance)
+        {
+            ++instances_supported;
         }
     }
 
     // Warn if not a single instance was supported
-    if(instances_supporting_splitk == 0)
+    if(instances_supported == 0)
+    {
+        std::cout << "Warning! No supported instance found." << std::endl;
+
+        if(fail_if_no_supported_instance)
+        {
+            return false;
+        }
+    }
+    else if(operation_requires_splitk_support && instances_supporting_splitk == 0)
     {
         std::cout << "Warning! No instance found that supported any of the kbatch sizes."
                   << std::endl;
