@@ -13,7 +13,7 @@
 // GEMM config with 16x16 warp tile for FP4×FP4 MoE
 struct MXfp4_MOE_FlatmmConfig16
 {
-    static constexpr ck_tile::index_t M_Tile = 128;   // MOE 用更小的 M_Tile
+    static constexpr ck_tile::index_t M_Tile = 128; 
     static constexpr ck_tile::index_t N_Tile = 512;
     static constexpr ck_tile::index_t K_Tile = 256;
 
@@ -23,7 +23,7 @@ struct MXfp4_MOE_FlatmmConfig16
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 128;  // FP4×FP4 使用更大的 K_Warp_Tile
+    static constexpr ck_tile::index_t K_Warp_Tile = 128;
 
     static constexpr bool kPadM = false;
     static constexpr bool kPadN = false;

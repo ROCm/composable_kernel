@@ -217,6 +217,8 @@ struct MoeFlatmmKernel
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
     static constexpr auto I3 = number<3>();
+    static constexpr auto I4 = number<4>();  // For MX scale_a
+    static constexpr auto I5 = number<5>();  // For future use
 
     static_assert(DsLayout::size() == DsDataType::size(),
                   "The size of DsLayout and DsDataType should be the same");
@@ -242,6 +244,7 @@ struct MoeFlatmmKernel
 
     // MXF4_Pipeline only has the of scale B and granularityK is 32
     static constexpr bool MXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
+    static constexpr bool MX_Pipeline = std::is_same_v<ADataType, pk_fp4_t> && std::is_same_v<BDataType, pk_fp4_t>;
     static constexpr int MXFP4N_Pack     = 2;
     static constexpr int MXFP4K_Pack     = 2;
 
@@ -249,6 +252,13 @@ struct MoeFlatmmKernel
     static constexpr int K_Pack = MXFP4_Pipeline ? MXFP4K_Pack : 1;
 
     static constexpr int WeightPackedSize = numeric_traits<BDataType>::PackedSize;
+
+    // MX-specific packing parameters (for A4W4 dual-side quantization)
+    static constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(number<0>{});
+    static constexpr int NThreadPerXdl = BlockGemmShape::WarpTile::at(number<1>{});
+    static constexpr int KThreadPerXdl = 64 / MThreadPerXdl;
+    static constexpr int APackedSize = numeric_traits<ADataType>::PackedSize;
+    static constexpr int BPackedSize = numeric_traits<BDataType>::PackedSize;
 
     template <class ScaleM     = FlatmmScalePointer<-1>,
               class ScaleN     = FlatmmScalePointer<-1>,
@@ -647,7 +657,38 @@ struct MoeFlatmmKernel
             number<8>{},
             number<1>{});
 
-        return make_tuple(a_tensor_view, b_flat_tensor_view, c_tensor_view, scale_b_flat_view);
+        // For MX (A4W4), also create scale_a tensor view
+        if constexpr(MX_Pipeline)
+        {
+            auto scale_m = kargs.scale_m;
+            static constexpr int BlockScaleSize = 32;
+            static constexpr int MXdlPack = 2;
+            static constexpr int KXdlPack = 2;
+            
+            const auto&& scale_packs_m = integer_divide_ceil(kargs.M, (MXdlPack * MThreadPerXdl));
+            const auto&& scale_packs_k = kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl);
+
+            const auto& scale_a_tensor_view = [&]() {
+                const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
+                    make_tuple(scale_packs_m, scale_packs_k, KThreadPerXdl, MThreadPerXdl));
+                const auto scale_a_desc = transform_tensor_descriptor(
+                    scale_a_naive_desc,
+                    make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
+                               make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
+                    make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+
+                return make_tensor_view<address_space_enum::global>(
+                    reinterpret_cast<const int32_t*>(scale_m.ptr), scale_a_desc);
+            }();
+            
+            return make_tuple(a_tensor_view, b_flat_tensor_view, c_tensor_view, 
+                              scale_b_flat_view, scale_a_tensor_view);
+        }
+        else
+        {
+            return make_tuple(a_tensor_view, b_flat_tensor_view, c_tensor_view, scale_b_flat_view);
+        }
     }
 
     template <typename TensorView>
@@ -690,7 +731,14 @@ struct MoeFlatmmKernel
             }
         }();
 
-        return make_tuple(a_pad_view, views.at(I1), c_pad_view, views.at(I3));
+        if constexpr(MX_Pipeline)
+        {
+            return make_tuple(a_pad_view, views.at(I1), c_pad_view, views.at(I3), views.at(I4));
+        }
+        else
+        {
+            return make_tuple(a_pad_view, views.at(I1), c_pad_view, views.at(I3));
+        }
     }
 
     template <typename PadView>
@@ -741,14 +789,32 @@ struct MoeFlatmmKernel
         constexpr int XDLPerLoadScaleB =
             MXFP4_Pipeline ? 4 : 1; // GranularityK32 / XDL16x16x32_K8 = 4
 
-        auto scale_block_window =
+        auto scale_b_block_window =
             make_tile_window(views.at(I3),
                              make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
                                         number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
                                                XDLPerLoadScaleB / GranularityK>{}),
                              {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
 
-        return make_tuple(a_block_window, b_flat_block_window, c_block_window, scale_block_window);
+        if constexpr(MX_Pipeline)
+        {
+            static constexpr int BlockScaleSize = 32;
+            static constexpr int MXdlPack = 2;
+            static constexpr int KXdlPack = 2;
+            
+            auto scale_a_block_window = make_tile_window(
+                views.at(I4),
+                make_tuple(number<TilePartitioner::MPerBlock / MXdlPack>{},
+                           number<TilePartitioner::KPerBlock / (BlockScaleSize * KXdlPack)>{}),
+                {0, 0});
+            
+            return make_tuple(a_block_window, b_flat_block_window, c_block_window, 
+                              scale_b_block_window, scale_a_block_window);
+        }
+        else
+        {
+            return make_tuple(a_block_window, b_flat_block_window, c_block_window, scale_b_block_window);
+        }
     }
 
     template <class MoeFlatmmKernelArgs>
@@ -848,13 +914,26 @@ struct MoeFlatmmKernel
                                               a_offsets); // K DRAM tile window for
 
         auto c_block_tile = [&] {
-            if constexpr(MXFP4_Pipeline)
+            if constexpr(MX_Pipeline)
             {
-                // MXFP4_Pipeline uses gate-up interleave 16 layout for weight
-                // so don't need extra processing
+                // MX (A4W4): dual-side quantization with scale_a and scale_b
+                const auto& scale_b_window = gemm_tile_windows.at(I3);
+                const auto& scale_a_window = gemm_tile_windows.at(I4);
                 return FlatmmPipeline{}(a_gather_block_tile,
                                         b_block_window,
-                                        scale_block_window, // weight scale with granularityK = 32
+                                        scale_a_window,
+                                        scale_b_window,
+                                        num_loop,
+                                        smem_ptr_ping,
+                                        smem_ptr_pong);
+            }
+            else if constexpr(MXFP4_Pipeline)
+            {
+                // MXFP4 (A16W4): single-side quantization with only scale_b
+                const auto& scale_b_window = gemm_tile_windows.at(I3);
+                return FlatmmPipeline{}(a_gather_block_tile,
+                                        b_block_window,
+                                        scale_b_window,
                                         num_loop,
                                         kargs.k_padded_zeros,
                                         smem_ptr_ping,
@@ -862,6 +941,7 @@ struct MoeFlatmmKernel
             }
             else
             {
+                // No quantization (fallback)
                 return FlatmmPipeline{}(a_gather_block_tile,
                                         b_block_window,
                                         number<IsGateUp>{},
@@ -1190,13 +1270,59 @@ struct MoeFlatmmKernel
                 });
             };
 
+            // Sequential extraction for MXFP4: [gate_0...gate_N/2-1, up_0...up_N/2-1]
+            auto gate_up_epi_tile_idx_sequential_slice = [&](auto& dest_gate_tensor,
+                                                             auto& dest_up_tensor,
+                                                             const auto& acc_tile_like_tensor,
+                                                             auto epi_m_idx,
+                                                             auto epi_n_idx) {
+                static_for<0, OutputNumNXdlPerWavePerShuffle, 1>{}([&](auto n_xdl) {
+                    // Gate data: from first half of N dimension
+                    dest_gate_tensor.set_y_sliced_thread_data(
+                        merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{}, c_warp_y_lengths),
+                        acc_tile_like_tensor.get_y_sliced_thread_data(
+                            merge_sequences(
+                                sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
+                                         epi_n_idx * NumNXdlPerWavePerShuffle + n_xdl>{},
+                                c_warp_y_index_zeros),
+                            merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
+                                            c_warp_y_lengths)));
+                    // Up data: from second half (offset by OutputNRepeat * NumMXdlPerWavePerShuffle)
+                    dest_up_tensor.set_y_sliced_thread_data(
+                        merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{}, c_warp_y_lengths),
+                        acc_tile_like_tensor.get_y_sliced_thread_data(
+                            merge_sequences(
+                                sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
+                                         epi_n_idx * NumNXdlPerWavePerShuffle + OutputNumNXdlPerWavePerShuffle + n_xdl>{},
+                                c_warp_y_index_zeros),
+                            merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
+                                            c_warp_y_lengths)));
+                });
+            };
+
+            // Sequential extraction for MXFP4: [gate_0...gate_N/2-1, up_0...up_N/2-1]
+
+            // Non-interleaved version for MXFP4 pipeline (gate and up are stored sequentially)
+
             auto process_epi_tile = [&](auto lds_stage, auto epi_m, auto epi_n) {
                 if constexpr(IsGateUp)
                 {
                     LDSTileTensor gate_tensor, up_tensor;
 
-                    gate_up_epi_tile_idx_interleave_slice(
-                        gate_tensor, up_tensor, c_block_tile, epi_m, epi_n);
+                    if constexpr(MXFP4_Pipeline)
+                    {
+                        // For MXFP4, gate and up are stored sequentially (non-interleaved)
+                        gate_up_epi_tile_idx_sequential_slice(
+                            gate_tensor, up_tensor, c_block_tile, epi_m, epi_n);
+                    }
+                    else
+                    {
+                        // For non-MXFP4, gate and up are interleaved
+                        gate_up_epi_tile_idx_interleave_slice(
+                            gate_tensor, up_tensor, c_block_tile, epi_m, epi_n);
+                    }
                     auto epi_scale_m    = epi_tile_idx_slice(scale_m_buffer, epi_m, epi_n);
                     auto epi_scale_n    = epi_tile_idx_slice(scale_n_buffer, epi_m, epi_n);
                     auto epi_scale_n_up = epi_tile_idx_slice(scale_n_up_buffer, epi_m, epi_n);

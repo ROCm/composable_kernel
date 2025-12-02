@@ -87,7 +87,7 @@ __global__ void moe_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
         float scale_B    = 0;
         float scale_B_up = 0;
 
-        index_t scale_A_stride        = (M + scale_granularity_m - 1) / scale_granularity_m;
+        index_t scale_A_stride        = K / scale_granularity_k;
         index_t scale_B_stride        = (N + scale_granularity_n - 1) / scale_granularity_n;
         index_t scale_B_expert_stride = scale_B_stride * K / scale_granularity_k;
 
@@ -102,8 +102,9 @@ __global__ void moe_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
                 acc_temp    = 0.0;
                 acc_up_temp = 0.0;
                 // update scale factors
-                scale_A = scale_A_ptr[(gather_token_id / scale_granularity_m) +
-                                      (k / scale_granularity_k) * scale_A_stride];
+                index_t token_id_for_scale = (MoeGemmKind == 2) ? (gather_token_id / TopK) : gather_token_id;
+                scale_A = scale_A_ptr[(token_id_for_scale / scale_granularity_m) * scale_A_stride +
+                                      (k / scale_granularity_k)];
                 scale_B =
                     scale_B_ptr[expert_id * scale_B_expert_stride + col / scale_granularity_n +
                                 (k / scale_granularity_k) * scale_B_stride];

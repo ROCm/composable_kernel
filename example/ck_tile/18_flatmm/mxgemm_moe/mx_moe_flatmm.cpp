@@ -19,7 +19,6 @@
 #include "ck_tile/ops/moe_flatmm.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/reference/reference_moe_gemm.hpp"
-#include "ck_tile/ops/flatmm/kernel/mx_moe_flatmm_kernel.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -28,7 +27,6 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
-// ==================== Kernel Implementation ====================
 template <typename FlatmmConfig,
           typename ADataType,
           typename BDataType,
@@ -69,8 +67,6 @@ float mx_moe_flatmm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config&
                                                                FlatmmConfig::NumWaveGroups,
                                                                true>; // Preshuffle_
 
-    // ⭐ FP4×FP4 always uses MX pipeline
-    constexpr bool MXFP4_Pipeline = true;
     static_assert(std::is_same_v<ADataType, ck_tile::pk_fp4_t> && 
                   std::is_same_v<BDataType, ck_tile::pk_fp4_t>,
                   "mx_moe_flatmm requires FP4×FP4");
@@ -82,7 +78,7 @@ float mx_moe_flatmm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config&
             "requires NRepeat is multiple of 2 for FFN_gemm1_gate_up");
     }
 
-    using ComputeDataType = ck_tile::pk_fp4_t;  // ⭐ FP4→FP16 dequantize
+    using ComputeDataType = ck_tile::pk_fp4_t; 
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblem<ComputeDataType,
                                                              ComputeDataType,
@@ -113,7 +109,6 @@ float mx_moe_flatmm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config&
         constexpr auto scheduler        = FlatmmConfig::Scheduler;
         constexpr auto memory_operation = memory_operation_.value;
 
-        // ⭐ 使用 MXF4 Pipeline (FP4×FP4)
         using CodegenPipelineProblem =
             ck_tile::MXFlatmmPipelineProblem<ADataType,
                                                BDataType,
@@ -150,14 +145,12 @@ float mx_moe_flatmm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config&
                                              FlatmmConfig::TiledMMAPermuteN,
                                              BlockedXDLN_PerWarp>>;
 
-        // ⭐ 使用 MXF4MoeFlatmmPipeline (FP4×FP4 专用)
         using CodegenFlatmmPipeline = 
             ck_tile::MXF4FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
         
-        // ⭐ FP4×FP4 使用 MoeSilu (不是 Swiglu,因为没有 bias)
-        using FusedAct = ck_tile::moe::MoeSilu;
+        using FusedAct = ck_tile::moe::Swiglu;
 
-        using Kernel = ck_tile::MXMoeFlatmmKernel<TilePartitioner,
+        using Kernel = ck_tile::MoeFlatmmKernel<TilePartitioner,
                                                 CodegenFlatmmPipeline,
                                                 GemmEpilogue,
                                                 moe_kind,
@@ -210,7 +203,6 @@ float mx_moe_flatmm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config&
     return ave_time;
 }
 
-// ==================== Weight Shuffle ====================
 template <class FlatmmConfig, ck_tile::MoeFlatmmKind moe_kind, class IterSrc, class IterDst>
 void shuffle_mx_moe_weight(const IterSrc src, IterDst dst, int experts_cnt, int N, int K)
 {
@@ -277,7 +269,7 @@ void shuffle_mx_moe_weight(const IterSrc src, IterDst dst, int experts_cnt, int 
     }
 }
 
-// ==================== Scale Shuffle ====================
+
 template <typename FlatmmConfig, ck_tile::MoeFlatmmKind moe_kind, typename T>
 auto shuffle_mx_moe_scale(const ck_tile::HostTensor<T>& scale, int experts_cnt)
 {
@@ -326,10 +318,10 @@ auto shuffle_mx_moe_scale(const ck_tile::HostTensor<T>& scale, int experts_cnt)
     }
 }
 
-// ==================== Include Implementation ====================
+
 #include "run_mx_moe_flatmm.inc"
 
-// ==================== Wrapper Function ====================
+
 template <typename FlatmmConfig>
 int run_mx_moe_flatmm_example(int argc, char* argv[])
 {
@@ -394,7 +386,7 @@ int run_mx_moe_flatmm_example(int argc, char* argv[])
     return -1;
 }
 
-// ==================== Main Entry ====================
+
 int main(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
