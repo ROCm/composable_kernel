@@ -48,6 +48,10 @@ struct BatchnormFwd
     using BlockShape      = typename Problem::BlockShape;
 
     static constexpr index_t kBlockSize = BlockShape::BlockSize;
+    static constexpr index_t Block_M    = BlockShape::Block_M;
+    static constexpr index_t Block_N    = BlockShape::Block_N;
+    static constexpr index_t Vector_M   = BlockShape::Vector_M;
+    static constexpr index_t Vector_N   = BlockShape::Vector_N;
 
     // Kernel arguments
     struct BatchnormFwdKargs
@@ -97,10 +101,11 @@ struct BatchnormFwd
         return dim3(hargs.C);  // One block per channel
     }
 
-    // Block size
+    // Block size (wave32/64 aware like layernorm2d)
     CK_TILE_HOST static constexpr auto BlockSize()
     {
-        return kBlockSize;
+        return is_wave32() ? BlockShape::template GetBlockSize<true>()
+                           : BlockShape::template GetBlockSize<false>();
     }
 
     // Shared memory size (must be constexpr for __shared__ allocation)
@@ -111,14 +116,10 @@ struct BatchnormFwd
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        const index_t c = get_block_id();  // Channel index (grid ensures c < C)
+        const index_t c = get_block_id();
         
         const index_t spatial_size = kargs.H * kargs.W;
         const index_t per_channel_size = kargs.N * spatial_size;
-        
-        // Use block dimensions from BlockShape (like layernorm2d)
-        static constexpr index_t Block_M = BlockShape::Block_M;
-        static constexpr index_t Block_N = BlockShape::Block_N;
         
         // NHWC layout: channels are contiguous!
         const auto x_window = [&]() {
@@ -129,8 +130,8 @@ struct BatchnormFwd
                 p_x_channel,
                 make_tuple(kargs.N, spatial_size),  // [N, H×W]
                 make_tuple(spatial_size*kargs.C, kargs.C),  // NHWC strides: [H×W×C, C]
-                number<1>{},
-                number<1>{});
+                number<Vector_M>{},
+                number<Vector_N>{});
             
             const auto tmp2_ = pad_tensor_view(
                 x_view, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<false, false>{});
@@ -168,8 +169,8 @@ struct BatchnormFwd
                 p_y_channel,
                 make_tuple(kargs.N, spatial_size),  // [N, H×W]
                 make_tuple(spatial_size*kargs.C, kargs.C),  // NHWC strides
-                number<1>{},
-                number<1>{});
+                number<Vector_M>{},
+                number<Vector_N>{});
             
             const auto tmp2_ = pad_tensor_view(
                 y_view, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<false, false>{});
