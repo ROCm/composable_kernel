@@ -150,7 +150,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
         static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kN0 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kQKHeaddim == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
+                          kSubQKHeaddim ==
+                              KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                           kN1 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                           kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
@@ -179,7 +180,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
         auto q_dram_window =
             make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kGemmSingleRepM>{}, number<kQKHeaddim>{}),
+                             make_tuple(number<kGemmSingleRepM>{}, number<kSubQKHeaddim>{}),
                              q_dram_block_window_tmp.get_window_origin(),
                              Policy::template MakeQDramSingleRepMTileDistribution<Problem>());
 
@@ -189,7 +190,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kK1>{}, number<kQKHeaddim>{}),
+                             make_tuple(number<kK1>{}, number<kSubQKHeaddim>{}),
                              {seqlen_k_start, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
 

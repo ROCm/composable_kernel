@@ -178,7 +178,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
         auto q_dram_window =
             make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
+                             make_tuple(number<kM0>{}, number<kSubQKHeaddim>{}),
                              q_dram_block_window_tmp.get_window_origin(),
                              Policy::template MakeQDramTileDistribution<Problem>());
 
@@ -188,7 +188,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kK1>{}, number<kQKHeaddim>{}),
+                             make_tuple(number<kK1>{}, number<kSubQKHeaddim>{}),
                              {seqlen_k_start, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
 
