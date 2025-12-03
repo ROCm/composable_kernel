@@ -248,7 +248,8 @@ CK_TILE_DEVICE fp32x2_t pk_mul_f32(fp32x2_t lhs, fp32x2_t rhs)
 }
 } // namespace detail
 
-/// NOTICE: This pipeline is a work in progress and is awaiting upcoming compiler fixes and instruction scheduling optimizations.
+/// NOTICE: This pipeline is a work in progress and is awaiting upcoming compiler fixes and
+/// instruction scheduling optimizations.
 template <typename Problem_, typename Policy_ = BlockFmhaV3PipelineDefaultPolicy>
 struct BlockFmhaFwdV3Pipeline
 {
@@ -298,7 +299,9 @@ struct BlockFmhaFwdV3Pipeline
     static constexpr auto QScaleEnum        = Problem::QScaleEnum;
     static constexpr bool kSkipMinSeqlenQ   = Problem::kSkipMinSeqlenQ;
     static_assert((!kHasLogitsSoftCap && BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
-                   !kStoreLSE && !kHasDropout && (QScaleEnum == ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE) && !kSkipMinSeqlenQ),
+                   !kStoreLSE && !kHasDropout &&
+                   (QScaleEnum == ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE) &&
+                   !kSkipMinSeqlenQ),
                   "enable unsupported features");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
