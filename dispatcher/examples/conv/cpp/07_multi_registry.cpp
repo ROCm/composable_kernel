@@ -105,15 +105,15 @@ float run_conv(int N, int C, int K, int H, int W)
     weight_dev.ToDevice(weight.data());
     output_dev.SetZero();
 
-    ck_tile::GroupedConvFwdHostArgs<> args(conv_param,
-                                           input_dev.GetDeviceBuffer(),
-                                           weight_dev.GetDeviceBuffer(),
-                                           {},
-                                           output_dev.GetDeviceBuffer(),
-                                           1);
+    ck_tile::GroupedConvFwdHostArgs<> kernel_args(conv_param,
+                                                  input_dev.GetDeviceBuffer(),
+                                                  weight_dev.GetDeviceBuffer(),
+                                                  {},
+                                                  output_dev.GetDeviceBuffer(),
+                                                  1);
 
     ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
-    return SelectedConvKernelLauncher::launch(args, stream_cfg);
+    return SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
 }
 #endif
 

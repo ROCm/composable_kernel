@@ -160,8 +160,8 @@ class ConvRegistry
                                : (decl.signature.conv_op_ == "bwd_data") ? ConvOp::BackwardData
                                                                          : ConvOp::BackwardWeight;
             key.tile_m       = 128; // Default, would come from algorithm
-            key.tile_n       = decl.algorithm.tile_k_;
-            key.tile_k       = decl.algorithm.tile_c_;
+            key.tile_n       = decl.algorithm.tile_n_;
+            key.tile_k       = decl.algorithm.tile_k_;
             key.pipeline     = decl.algorithm.pipeline_;
             key.scheduler    = decl.algorithm.scheduler_;
 

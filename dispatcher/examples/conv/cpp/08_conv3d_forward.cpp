@@ -176,15 +176,15 @@ int main(int argc, char* argv[])
     weight_dev.ToDevice(weight.data());
     output_dev.SetZero();
 
-    ck_tile::GroupedConvFwdHostArgs<> args(conv_param,
-                                           input_dev.GetDeviceBuffer(),
-                                           weight_dev.GetDeviceBuffer(),
-                                           {},
-                                           output_dev.GetDeviceBuffer(),
-                                           1);
+    ck_tile::GroupedConvFwdHostArgs<> kernel_args(conv_param,
+                                                  input_dev.GetDeviceBuffer(),
+                                                  weight_dev.GetDeviceBuffer(),
+                                                  {},
+                                                  output_dev.GetDeviceBuffer(),
+                                                  1);
 
     ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
-    float elapsed_ms = SelectedConvKernelLauncher::launch(args, stream_cfg);
+    float elapsed_ms = SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
 
     double flops  = problem.get_flops();
     double tflops = flops / (elapsed_ms * 1e9);

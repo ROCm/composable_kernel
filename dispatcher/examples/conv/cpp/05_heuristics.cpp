@@ -29,23 +29,27 @@ using namespace ck_tile::dispatcher::utils;
 // =============================================================================
 
 DECL_CONV_KERNEL_SET(conv_heuristic_kernels,
-                     // Small tile for latency
+                     // Small tile for latency-sensitive workloads
                      .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
                           ConvAlgo()
                               .tile(1, 64, 64)
                               .wave(2, 2, 1)
                               .warp(16, 16, 32)
                               .pipeline("compv3")
-                              .scheduler("intrawave"),
+                              .scheduler("intrawave")
+                              .vector_sizes(4, 8, 8)
+                              .block_per_cu(2),
                           "gfx942")
-                         // Large tile for throughput
+                         // Large tile for throughput-bound workloads
                          .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
                               ConvAlgo()
                                   .tile(1, 128, 128)
                                   .wave(2, 2, 1)
                                   .warp(32, 32, 16)
                                   .pipeline("compv3")
-                                  .scheduler("intrawave"),
+                                  .scheduler("intrawave")
+                                  .vector_sizes(4, 8, 8)
+                                  .block_per_cu(1),
                               "gfx942"));
 
 // =============================================================================
@@ -190,15 +194,15 @@ int main(int argc, char* argv[])
         weight_dev.ToDevice(weight.data());
         output_dev.SetZero();
 
-        ck_tile::GroupedConvFwdHostArgs<> args(conv_param,
-                                               input_dev.GetDeviceBuffer(),
-                                               weight_dev.GetDeviceBuffer(),
-                                               {},
-                                               output_dev.GetDeviceBuffer(),
-                                               1);
+        ck_tile::GroupedConvFwdHostArgs<> kernel_args(conv_param,
+                                                      input_dev.GetDeviceBuffer(),
+                                                      weight_dev.GetDeviceBuffer(),
+                                                      {},
+                                                      output_dev.GetDeviceBuffer(),
+                                                      1);
 
         ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
-        float elapsed_ms = SelectedConvKernelLauncher::launch(args, stream_cfg);
+        float elapsed_ms = SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
 
         double flops  = problem.get_flops();
         double tflops = flops / (elapsed_ms * 1e9);

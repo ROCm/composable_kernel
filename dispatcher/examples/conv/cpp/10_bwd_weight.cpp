@@ -32,12 +32,15 @@ using namespace ck_tile::dispatcher::utils;
 // KERNEL DECLARATIONS - Backward Weight
 // =============================================================================
 
+// Use ConvConfigComputeV3 validated configuration:
+// M=16 (batch*spatial), N=64 (output channels), K=64 (input channels)
+// Wave=(1,4,1), Warp=(16,16,32)
 DECL_CONV_KERNEL_SET(conv_bwd_weight_kernels,
                      .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("bwd_weight").dims(2),
                           ConvAlgo()
-                              .tile(1, 128, 128)
-                              .wave(2, 2, 1)
-                              .warp(32, 32, 16)
+                              .tile(16, 64, 64)
+                              .wave(1, 4, 1)
+                              .warp(16, 16, 32)
                               .pipeline("compv3")
                               .scheduler("intrawave"),
                           "gfx942"));
@@ -177,7 +180,7 @@ int main(int argc, char* argv[])
 
     // Backward weight: compute dWeight from Input and dOutput
     // GroupedConvBwdWeightHostArgs: (in_ptr=Input, wei_ptr=dWeight, out_ptr=dOutput)
-    ck_tile::GroupedConvBwdWeightHostArgs args(
+    ck_tile::GroupedConvBwdWeightHostArgs kernel_args(
         conv_param,
         input_dev.GetDeviceBuffer(),   // Input (forward activation)
         dweight_dev.GetDeviceBuffer(), // dWeight (output of bwd_weight)
@@ -187,7 +190,7 @@ int main(int argc, char* argv[])
     );
 
     ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
-    float elapsed_ms = SelectedConvBwdWeightLauncher::launch(args, stream_cfg);
+    float elapsed_ms = SelectedConvBwdWeightLauncher::launch(kernel_args, stream_cfg);
 
     // Copy results back
     dweight_dev.FromDevice(dweight_gpu.data());

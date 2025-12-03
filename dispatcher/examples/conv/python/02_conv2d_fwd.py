@@ -35,6 +35,7 @@ from conv_utils import (
     reset_for_conv_example,
     cleanup_conv,
     print_conv_kernel_config,
+    print_conv_auto_correction,
 )
 
 
@@ -167,7 +168,7 @@ def main():
 
     if not validation.is_valid:
         print("\n  ⚠ Auto-correcting configuration...")
-        corrected, was_modified = auto_correct_conv_config(
+        corrected, was_modified, corrections = auto_correct_conv_config(
             pipeline=algo.pipeline,
             scheduler=algo.scheduler,
             epilogue=algo.epilogue,
@@ -181,6 +182,7 @@ def main():
             arch=arch.name,
         )
         if was_modified:
+            print_conv_auto_correction(corrections)
             algo.scheduler = corrected["scheduler"]
             algo.wave_m = corrected["wave_m"]
             algo.wave_n = corrected["wave_n"]
@@ -277,7 +279,7 @@ def main():
         print(f"  Input:  {input_np.shape} -> GPU")
         print(f"  Weight: {weight_np.shape} -> GPU")
 
-        result = runner.run_forward(input_np, weight_np, problem)
+        result = runner.run(input_np, weight_np, problem)
 
         if result.get("success"):
             print("\n  *** GPU EXECUTION SUCCESSFUL ***")

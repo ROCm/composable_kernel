@@ -44,14 +44,17 @@ constexpr int ANY_INT     = -1;
 class ConvSignature
 {
     public:
-    std::string dtype_in_  = "fp16";    // Input data type
-    std::string dtype_wei_ = "fp16";    // Weight data type
-    std::string dtype_out_ = "fp16";    // Output data type
-    std::string dtype_acc_ = "fp32";    // Accumulator type
-    std::string layout_    = "nhwc";    // Data layout: nhwc, nchw
-    std::string conv_op_   = "forward"; // forward, bwd_data, bwd_weight
-    int num_dims_          = 2;         // Spatial dimensions: 1, 2, or 3
-    int groups_            = 1;         // Group convolution
+    std::string dtype_in_        = "fp16";    // Input data type
+    std::string dtype_wei_       = "fp16";    // Weight data type
+    std::string dtype_out_       = "fp16";    // Output data type
+    std::string dtype_acc_       = "fp32";    // Accumulator type
+    std::string dtype_workspace_ = "fp32";    // Workspace type (two-stage algorithms)
+    std::string dtype_bias_      = "fp16";    // Bias type (bias epilogue)
+    std::string layout_          = "nhwc";    // Data layout: nhwc, nchw
+    std::string conv_op_         = "forward"; // forward, bwd_data, bwd_weight
+    int num_dims_                = 2;         // Spatial dimensions: 1, 2, or 3
+    int groups_                  = 1;         // Group convolution
+    std::string specialization_  = "default"; // Filter specialization
 
     ConvSignature& dtype(const std::string& in,
                          const std::string& wei,
@@ -67,8 +70,20 @@ class ConvSignature
 
     ConvSignature& dtype(const std::string& all)
     {
-        dtype_in_ = dtype_wei_ = dtype_out_ = all;
-        dtype_acc_                          = "fp32";
+        dtype_in_ = dtype_wei_ = dtype_out_ = dtype_bias_ = all;
+        dtype_acc_ = dtype_workspace_ = "fp32";
+        return *this;
+    }
+
+    ConvSignature& dtype_workspace(const std::string& ws)
+    {
+        dtype_workspace_ = ws;
+        return *this;
+    }
+
+    ConvSignature& dtype_bias(const std::string& b)
+    {
+        dtype_bias_ = b;
         return *this;
     }
 
@@ -92,6 +107,11 @@ class ConvSignature
         groups_ = g;
         return *this;
     }
+    ConvSignature& spec(const std::string& s)
+    {
+        specialization_ = s;
+        return *this;
+    }
 
     std::string op_str() const
     {
@@ -112,10 +132,10 @@ class ConvSignature
 class ConvAlgorithm
 {
     public:
-    // Tile shape (N, K, C per tile)
-    int tile_n_ = 1;
-    int tile_k_ = 128;
-    int tile_c_ = 128;
+    // Tile shape (M, N, K per tile - M=spatial*N, N=K_out, K=C_in)
+    int tile_m_ = 1;   // Tile M (output spatial * batch)
+    int tile_n_ = 128; // Tile N (output channels K)
+    int tile_k_ = 128; // Tile K (input channels C)
 
     // Output spatial tile
     int tile_ho_ = 1;
@@ -129,19 +149,35 @@ class ConvAlgorithm
     int warp_n_ = ANY_INT;
     int warp_k_ = 16;
 
-    // Pipeline
+    // Vector sizes
+    int vector_a_ = 4; // Input vector size
+    int vector_b_ = 8; // Weight vector size
+    int vector_c_ = 8; // Output vector size
+
+    // Pipeline configuration
     std::string pipeline_  = "compv4";
     std::string scheduler_ = "intrawave";
     std::string epilogue_  = "cshuffle";
+    std::string memory_op_ = "set"; // Memory operation: set, atomic_add, atomic_max, add
 
-    // Block size
-    int block_size_ = 256;
+    // Occupancy/performance hints
+    int block_size_          = 256;
+    int block_per_cu_        = 1;
+    int num_wave_groups_     = 1;
+    int num_groups_to_merge_ = 1;
+    bool double_smem_buffer_ = false;
 
-    ConvAlgorithm& tile(int n, int k, int c)
+    // Padding
+    bool pad_m_ = true;
+    bool pad_n_ = true;
+    bool pad_k_ = true;
+
+    // Tile setter (M, N, K)
+    ConvAlgorithm& tile(int m, int n, int k)
     {
+        tile_m_ = m;
         tile_n_ = n;
         tile_k_ = k;
-        tile_c_ = c;
         return *this;
     }
 
@@ -168,6 +204,14 @@ class ConvAlgorithm
         return *this;
     }
 
+    ConvAlgorithm& vector_sizes(int a, int b, int c)
+    {
+        vector_a_ = a;
+        vector_b_ = b;
+        vector_c_ = c;
+        return *this;
+    }
+
     ConvAlgorithm& pipeline(const std::string& p)
     {
         pipeline_ = p;
@@ -181,6 +225,42 @@ class ConvAlgorithm
     ConvAlgorithm& epilogue(const std::string& e)
     {
         epilogue_ = e;
+        return *this;
+    }
+    ConvAlgorithm& memory_op(const std::string& m)
+    {
+        memory_op_ = m;
+        return *this;
+    }
+
+    // Occupancy setters
+    ConvAlgorithm& block_per_cu(int b)
+    {
+        block_per_cu_ = b;
+        return *this;
+    }
+    ConvAlgorithm& num_wave_groups(int n)
+    {
+        num_wave_groups_ = n;
+        return *this;
+    }
+    ConvAlgorithm& num_groups_to_merge(int n)
+    {
+        num_groups_to_merge_ = n;
+        return *this;
+    }
+    ConvAlgorithm& double_smem_buffer(bool d)
+    {
+        double_smem_buffer_ = d;
+        return *this;
+    }
+
+    // Padding setters
+    ConvAlgorithm& padding(bool m, bool n, bool k)
+    {
+        pad_m_ = m;
+        pad_n_ = n;
+        pad_k_ = k;
         return *this;
     }
 
@@ -241,7 +321,9 @@ class ConvAlgorithm
         return {
             {"compv3", "intrawave"},
             {"compv4", "intrawave"},
-            {"compv4", "interwave"}, // Some combos valid
+            {"compv5", "intrawave"},
+            {"mem", "intrawave"},
+            {"mem", "interwave"},
         };
     }
 };
@@ -269,7 +351,7 @@ struct ConvKernelDecl
     {
         std::ostringstream oss;
         oss << "conv_" << signature.op_str() << "_" << signature.dtype_in_ << "_"
-            << signature.layout_ << "_" << algorithm.tile_k_ << "x" << algorithm.tile_c_;
+            << signature.layout_ << "_" << algorithm.tile_n_ << "x" << algorithm.tile_k_;
         return oss.str();
     }
 

@@ -40,14 +40,17 @@ using namespace ck_tile::dispatcher::utils;
 // =============================================================================
 
 DECL_CONV_KERNEL_SET(conv_validation_kernels,
-                     // Validation kernel
+                     // Validation kernel with full configuration
                      .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
                           ConvAlgo()
                               .tile(1, 128, 128)
                               .wave(2, 2, 1)
                               .warp(32, 32, 16)
                               .pipeline("compv4")
-                              .scheduler("intrawave"),
+                              .scheduler("intrawave")
+                              .vector_sizes(4, 8, 8)
+                              .block_per_cu(1)
+                              .epilogue("cshuffle"),
                           "gfx942"));
 
 // =============================================================================
@@ -199,15 +202,15 @@ int main(int argc, char* argv[])
     output_dev.SetZero();
 
 #ifdef CONV_KERNEL_AVAILABLE
-    ck_tile::GroupedConvFwdHostArgs<> args(conv_param,
-                                           input_dev.GetDeviceBuffer(),
-                                           weight_dev.GetDeviceBuffer(),
-                                           {},
-                                           output_dev.GetDeviceBuffer(),
-                                           1);
+    ck_tile::GroupedConvFwdHostArgs<> kernel_args(conv_param,
+                                                  input_dev.GetDeviceBuffer(),
+                                                  weight_dev.GetDeviceBuffer(),
+                                                  {},
+                                                  output_dev.GetDeviceBuffer(),
+                                                  1);
 
     ck_tile::stream_config stream_cfg{nullptr, true, 1, 3, 10};
-    float elapsed_ms = SelectedConvKernelLauncher::launch(args, stream_cfg);
+    float elapsed_ms = SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
 
     output_dev.FromDevice(output_gpu.data());
 
@@ -234,7 +237,9 @@ int main(int argc, char* argv[])
             max_rel       = std::max(max_rel, rel);
         }
 
-        bool passed = max_rel < 0.01f; // 1% tolerance
+        // FP16 has ~0.1% precision, convolutions accumulate error
+        // Use 2% relative tolerance for FP16 validation
+        bool passed = max_rel < 0.02f; // 2% tolerance for FP16
 
         std::cout << "  Max abs diff: " << std::scientific << max_diff << "\n";
         std::cout << "  Max rel diff: " << std::scientific << max_rel << "\n";

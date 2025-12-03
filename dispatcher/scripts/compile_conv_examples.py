@@ -80,11 +80,25 @@ def extract_conv_declarations(source_file: Path) -> list:
     declarations = []
 
     # Pattern: DECL_CONV_KERNEL_SET(name, .add(...).add(...))
-    set_pattern = r"DECL_CONV_KERNEL_SET\s*\(\s*(\w+)\s*,([^;]+)\)"
-
-    for match in re.finditer(set_pattern, content, re.DOTALL):
+    # Find all DECL_CONV_KERNEL_SET blocks by matching parentheses
+    pattern_start = r"DECL_CONV_KERNEL_SET\s*\(\s*(\w+)\s*,"
+    for match in re.finditer(pattern_start, content):
         set_name = match.group(1)
-        set_body = match.group(2)
+        start_pos = match.end()
+
+        # Find matching closing paren by counting parens
+        paren_count = 1  # We're already inside the first paren
+        end_pos = start_pos
+        for i, c in enumerate(content[start_pos:]):
+            if c == "(":
+                paren_count += 1
+            elif c == ")":
+                paren_count -= 1
+                if paren_count == 0:
+                    end_pos = start_pos + i
+                    break
+
+        set_body = content[start_pos:end_pos]
 
         # Pattern 1: Simple add("dtype", "layout", "conv_type", tile_k, tile_c)
         simple_add = (
@@ -113,13 +127,41 @@ def extract_conv_declarations(source_file: Path) -> list:
             )
 
         # Pattern 2: Full ConvSig()/ConvAlgo() specification
-        full_add = (
-            r'\.add\s*\(\s*ConvSig\(\)([^,]*),\s*ConvAlgo\(\)([^,]*),\s*"(\w+)"\s*\)'
-        )
-        for add_match in re.finditer(full_add, set_body, re.DOTALL):
-            sig_str = add_match.group(1)
-            algo_str = add_match.group(2)
-            arch = add_match.group(3)
+        # Find all .add( positions that start with ConvSig()
+        full_add = r"\.add\s*\(\s*ConvSig\(\)"
+        add_positions = [m.start() for m in re.finditer(full_add, set_body)]
+
+        for pos in add_positions:
+            # Find matching closing paren by counting parens
+            paren_count = 0
+            in_add = False
+            end = pos
+            for i, c in enumerate(set_body[pos:]):
+                if c == "(":
+                    paren_count += 1
+                    in_add = True
+                elif c == ")":
+                    paren_count -= 1
+                    if in_add and paren_count == 0:
+                        end = pos + i + 1
+                        break
+
+            add_str = set_body[pos:end]
+
+            # Extract signature part (between ConvSig() and ConvAlgo())
+            sig_match = re.search(r"ConvSig\(\)(.*?)ConvAlgo\(\)", add_str, re.DOTALL)
+            if not sig_match:
+                continue
+            sig_str = sig_match.group(1)
+
+            # Extract algorithm part (between ConvAlgo() and arch string)
+            algo_match = re.search(
+                r'ConvAlgo\(\)(.*?),\s*"(\w+)"\s*\)', add_str, re.DOTALL
+            )
+            if not algo_match:
+                continue
+            algo_str = algo_match.group(1)
+            arch = algo_match.group(2)
 
             # Parse signature
             dtype = "fp16"
@@ -179,6 +221,63 @@ def extract_conv_declarations(source_file: Path) -> list:
             if scheduler_match:
                 scheduler = scheduler_match.group(1)
 
+            # Parse additional parameters
+            vector_a, vector_b, vector_c = 4, 8, 8
+            vector_match = re.search(
+                r"\.vector_sizes\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)", algo_str
+            )
+            if vector_match:
+                vector_a = int(vector_match.group(1))
+                vector_b = int(vector_match.group(2))
+                vector_c = int(vector_match.group(3))
+
+            block_per_cu = 1
+            block_per_cu_match = re.search(r"\.block_per_cu\s*\(\s*(\d+)", algo_str)
+            if block_per_cu_match:
+                block_per_cu = int(block_per_cu_match.group(1))
+
+            memory_op = "set"
+            memory_op_match = re.search(r'\.memory_op\s*\(\s*"(\w+)"', algo_str)
+            if memory_op_match:
+                memory_op = memory_op_match.group(1)
+
+            epilogue = "cshuffle"
+            epilogue_match = re.search(r'\.epilogue\s*\(\s*"(\w+)"', algo_str)
+            if epilogue_match:
+                epilogue = epilogue_match.group(1)
+
+            # Parse num_wave_groups (for V5 pipeline)
+            num_wave_groups = 1
+            nwg_match = re.search(r"\.num_wave_groups\s*\(\s*(\d+)", algo_str)
+            if nwg_match:
+                num_wave_groups = int(nwg_match.group(1))
+
+            # Parse num_groups_to_merge (for merged group convolution)
+            num_groups_to_merge = 1
+            ngm_match = re.search(r"\.num_groups_to_merge\s*\(\s*(\d+)", algo_str)
+            if ngm_match:
+                num_groups_to_merge = int(ngm_match.group(1))
+
+            # Parse double_smem_buffer (for V4 pipeline)
+            double_smem_buffer = False
+            dsb_match = re.search(
+                r"\.double_smem_buffer\s*\(\s*(true|false)", algo_str, re.I
+            )
+            if dsb_match:
+                double_smem_buffer = dsb_match.group(1).lower() == "true"
+
+            # Parse padding flags
+            pad_m, pad_n, pad_k = True, True, True
+            padding_match = re.search(
+                r"\.padding\s*\(\s*(true|false)\s*,\s*(true|false)\s*,\s*(true|false)",
+                algo_str,
+                re.I,
+            )
+            if padding_match:
+                pad_m = padding_match.group(1).lower() == "true"
+                pad_n = padding_match.group(2).lower() == "true"
+                pad_k = padding_match.group(3).lower() == "true"
+
             declarations.append(
                 {
                     "set": set_name,
@@ -196,6 +295,18 @@ def extract_conv_declarations(source_file: Path) -> list:
                     "warp_m": warp_m,
                     "warp_n": warp_n,
                     "warp_k": warp_k,
+                    "vector_a": vector_a,
+                    "vector_b": vector_b,
+                    "vector_c": vector_c,
+                    "block_per_cu": block_per_cu,
+                    "memory_op": memory_op,
+                    "epilogue": epilogue,
+                    "num_wave_groups": num_wave_groups,
+                    "num_groups_to_merge": num_groups_to_merge,
+                    "double_smem_buffer": double_smem_buffer,
+                    "pad_m": pad_m,
+                    "pad_n": pad_n,
+                    "pad_k": pad_k,
                     "arch": arch,
                 }
             )
@@ -553,6 +664,8 @@ def generate_conv_kernels(declarations: list, output_dir: Path) -> list:
             UnifiedConvCodegen,
             ConvKernelConfig,
             ConvVariant,
+            TileConfig,
+            TraitConfig,
         )
     except ImportError as e:
         print_error(f"Failed to import conv codegen: {e}")
@@ -565,23 +678,49 @@ def generate_conv_kernels(declarations: list, output_dir: Path) -> list:
         # Map conv_type to variant
         variant = ConvVariant.FORWARD
         if decl["conv_type"] == "bwd_data":
-            variant = ConvVariant.BWD_DATA
+            variant = ConvVariant.BACKWARD_DATA
         elif decl["conv_type"] == "bwd_weight":
-            variant = ConvVariant.BWD_WEIGHT
+            variant = ConvVariant.BACKWARD_WEIGHT
 
-        config = ConvKernelConfig(
-            variant=variant,
-            pipeline=decl["pipeline"],
-            scheduler=decl["scheduler"],
+        # Create tile config
+        tile = TileConfig(
             tile_m=decl["tile_k"],
             tile_n=decl["tile_c"],
             tile_k=64,
-            wave_m=decl["wave_m"],
-            wave_n=decl["wave_n"],
-            warp_m=decl["warp_m"],
-            warp_n=decl["warp_n"],
-            warp_k=decl["warp_k"],
-            ndim=decl["num_dims"],
+            warp_m=decl["wave_m"],
+            warp_n=decl["wave_n"],
+            warp_k=decl.get("wave_k", 1),
+            warp_tile_m=decl["warp_m"],
+            warp_tile_n=decl["warp_n"],
+            warp_tile_k=decl["warp_k"],
+        )
+
+        # Create trait config
+        trait = TraitConfig(
+            pipeline=decl["pipeline"],
+            scheduler=decl["scheduler"],
+            epilogue=decl.get("epilogue", "cshuffle"),
+            double_smem_buffer=decl.get("double_smem_buffer", False),
+            pad_m=decl.get("pad_m", True),
+            pad_n=decl.get("pad_n", True),
+            pad_k=decl.get("pad_k", True),
+            num_groups_to_merge=decl.get("num_groups_to_merge", 1),
+        )
+
+        # Create kernel config
+        config = ConvKernelConfig(
+            tile=tile,
+            trait=trait,
+            variant=variant,
+            ndim_spatial=decl["num_dims"],
+            arch=decl.get("arch", "gfx942"),
+            vector_size_a=decl.get("vector_a", 4),
+            vector_size_b=decl.get("vector_b", 8),
+            vector_size_c=decl.get("vector_c", 8),
+            block_per_cu=decl.get("block_per_cu", 1),
+            num_wave_groups=decl.get("num_wave_groups", 1),
+            num_groups_to_merge=decl.get("num_groups_to_merge", 1),
+            double_smem_buffer=decl.get("double_smem_buffer", False),
         )
 
         try:

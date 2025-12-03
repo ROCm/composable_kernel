@@ -170,7 +170,7 @@ def main():
             ).astype(np_dtype)
 
             # Run
-            result = runner.run_forward(input_host, weight_host, prob)
+            result = runner.run(input_host, weight_host, prob)
 
             prob_str = f"C={prob.C} K={prob.K} {prob.Hi}x{prob.Wi} {prob.Y}x{prob.X}"
             if result.get("success"):

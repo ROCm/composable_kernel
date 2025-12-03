@@ -32,12 +32,15 @@ using namespace ck_tile::dispatcher::utils;
 // KERNEL DECLARATIONS - Backward Data
 // =============================================================================
 
+// Use ConvConfigComputeV3 validated configuration:
+// M=16 (batch*spatial), N=64 (output channels), K=64 (input channels)
+// Wave=(1,4,1), Warp=(16,16,32)
 DECL_CONV_KERNEL_SET(conv_bwd_data_kernels,
                      .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("bwd_data").dims(2),
                           ConvAlgo()
-                              .tile(1, 128, 128)
-                              .wave(2, 2, 1)
-                              .warp(32, 32, 16)
+                              .tile(16, 64, 64)
+                              .wave(1, 4, 1)
+                              .warp(16, 16, 32)
                               .pipeline("compv3")
                               .scheduler("intrawave"),
                           "gfx942"));
@@ -177,7 +180,7 @@ int main(int argc, char* argv[])
 
     // Backward data: compute dInput from dOutput and Weight
     // GroupedConvBwdDataHostArgs: (in_ptr=dInput, wei_ptr=Weight, out_ptr=dOutput)
-    ck_tile::GroupedConvBwdDataHostArgs args(
+    ck_tile::GroupedConvBwdDataHostArgs kernel_args(
         conv_param,
         dinput_dev.GetDeviceBuffer(),  // dInput (output of bwd_data)
         weight_dev.GetDeviceBuffer(),  // Weight
@@ -187,7 +190,7 @@ int main(int argc, char* argv[])
     );
 
     ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
-    float elapsed_ms = SelectedConvBwdDataLauncher::launch(args, stream_cfg);
+    float elapsed_ms = SelectedConvBwdDataLauncher::launch(kernel_args, stream_cfg);
 
     // Copy results back
     dinput_dev.FromDevice(dinput_gpu.data());

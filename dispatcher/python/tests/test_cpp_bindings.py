@@ -4,7 +4,7 @@ Unit tests for C++ bindings
 Tests the low-level C++ Python bindings directly to ensure proper integration.
 """
 
-import pytest
+import unittest
 
 # Try to import C++ extension
 try:
@@ -13,99 +13,101 @@ try:
     HAS_CPP = True
 except ImportError:
     HAS_CPP = False
-    pytest.skip("C++ extension not available", allow_module_level=True)
 
 
-class TestEnums:
+@unittest.skipUnless(HAS_CPP, "C++ extension not available")
+class TestEnums(unittest.TestCase):
     """Test enum bindings"""
 
     def test_datatype_enum(self):
         """Test DataType enum"""
-        assert hasattr(cpp, "DataType")
-        assert hasattr(cpp.DataType, "FP16")
-        assert hasattr(cpp.DataType, "FP32")
-        assert hasattr(cpp.DataType, "BF16")
-        assert hasattr(cpp.DataType, "INT8")
+        self.assertTrue(hasattr(cpp, "DataType"))
+        self.assertTrue(hasattr(cpp.DataType, "FP16"))
+        self.assertTrue(hasattr(cpp.DataType, "FP32"))
+        self.assertTrue(hasattr(cpp.DataType, "BF16"))
+        self.assertTrue(hasattr(cpp.DataType, "INT8"))
 
     def test_layout_enum(self):
         """Test LayoutTag enum"""
-        assert hasattr(cpp, "LayoutTag")
-        assert hasattr(cpp.LayoutTag, "RowMajor")
-        assert hasattr(cpp.LayoutTag, "ColMajor")
+        self.assertTrue(hasattr(cpp, "LayoutTag"))
+        self.assertTrue(hasattr(cpp.LayoutTag, "RowMajor"))
+        self.assertTrue(hasattr(cpp.LayoutTag, "ColMajor"))
 
     def test_pipeline_enum(self):
         """Test Pipeline enum"""
-        assert hasattr(cpp, "Pipeline")
-        assert hasattr(cpp.Pipeline, "Mem")
-        assert hasattr(cpp.Pipeline, "CompV4")
+        self.assertTrue(hasattr(cpp, "Pipeline"))
+        self.assertTrue(hasattr(cpp.Pipeline, "Mem"))
+        self.assertTrue(hasattr(cpp.Pipeline, "CompV4"))
 
     def test_scheduler_enum(self):
         """Test Scheduler enum"""
-        assert hasattr(cpp, "Scheduler")
-        assert hasattr(cpp.Scheduler, "Intrawave")
-        assert hasattr(cpp.Scheduler, "Interwave")
+        self.assertTrue(hasattr(cpp, "Scheduler"))
+        self.assertTrue(hasattr(cpp.Scheduler, "Intrawave"))
+        self.assertTrue(hasattr(cpp.Scheduler, "Interwave"))
 
     def test_epilogue_enum(self):
         """Test Epilogue enum"""
-        assert hasattr(cpp, "Epilogue")
-        assert hasattr(cpp.Epilogue, "CShuffle")
+        self.assertTrue(hasattr(cpp, "Epilogue"))
+        self.assertTrue(hasattr(cpp.Epilogue, "CShuffle"))
 
 
-class TestProblem:
+@unittest.skipUnless(HAS_CPP, "C++ extension not available")
+class TestProblem(unittest.TestCase):
     """Test Problem class bindings"""
 
     def test_problem_construction(self):
         """Test Problem construction"""
         problem = cpp.Problem()
-        assert problem.M == 0
-        assert problem.N == 0
-        assert problem.K == 0
+        self.assertEqual(problem.M, 0)
+        self.assertEqual(problem.N, 0)
+        self.assertEqual(problem.K, 0)
 
         problem2 = cpp.Problem(1024, 2048, 512)
-        assert problem2.M == 1024
-        assert problem2.N == 2048
-        assert problem2.K == 512
+        self.assertEqual(problem2.M, 1024)
+        self.assertEqual(problem2.N, 2048)
+        self.assertEqual(problem2.K, 512)
 
     def test_problem_attributes(self):
         """Test Problem attributes"""
         problem = cpp.Problem(100, 200, 300)
-        assert problem.k_batch == 1
-        assert problem.smem_budget == 0
-        assert not problem.prefer_persistent
-        assert not problem.enable_validation
+        self.assertEqual(problem.k_batch, 1)
+        self.assertEqual(problem.smem_budget, 0)
+        self.assertFalse(problem.prefer_persistent)
+        self.assertFalse(problem.enable_validation)
 
     def test_problem_is_valid(self):
         """Test Problem validation"""
         problem1 = cpp.Problem(100, 200, 300)
-        assert problem1.is_valid()
+        self.assertTrue(problem1.is_valid())
 
         problem2 = cpp.Problem(0, 200, 300)
-        assert not problem2.is_valid()
+        self.assertFalse(problem2.is_valid())
 
     def test_problem_num_ops(self):
         """Test Problem num_ops calculation"""
         problem = cpp.Problem(100, 200, 50)
         expected_ops = 2 * 100 * 200 * 50  # 2 * M * N * K
-        assert problem.num_ops() == expected_ops
+        self.assertEqual(problem.num_ops(), expected_ops)
 
     def test_problem_repr(self):
         """Test Problem string representation"""
         problem = cpp.Problem(128, 256, 64)
         repr_str = repr(problem)
-        assert "Problem" in repr_str
-        assert "128" in repr_str
-        assert "256" in repr_str
-        assert "64" in repr_str
+        self.assertIn("Problem", repr_str)
+        self.assertIn("128", repr_str)
+        self.assertIn("256", repr_str)
+        self.assertIn("64", repr_str)
 
 
-class TestKernelKey:
+@unittest.skipUnless(HAS_CPP, "C++ extension not available")
+class TestKernelKey(unittest.TestCase):
     """Test KernelKey class bindings"""
 
     def test_signature_construction(self):
         """Test Signature construction"""
         sig = cpp.Signature()
-        assert sig.dtype_a == cpp.DataType.FP16  # or UNKNOWN, depending on defaults
-        assert sig.split_k == 1 or sig.split_k == 0
+        self.assertEqual(sig.dtype_a, cpp.DataType.FP16)  # or UNKNOWN
+        self.assertIn(sig.split_k, [0, 1])
 
     def test_signature_attributes(self):
         """Test Signature attributes"""
@@ -121,8 +123,8 @@ class TestKernelKey:
         sig.num_d_tensors = 0
         sig.structured_sparsity = False
 
-        assert sig.dtype_a == cpp.DataType.FP16
-        assert sig.elementwise_op == "PassThrough"
+        self.assertEqual(sig.dtype_a, cpp.DataType.FP16)
+        self.assertEqual(sig.elementwise_op, "PassThrough")
 
     def test_tile_shape_construction(self):
         """Test TileShape construction"""
@@ -131,9 +133,9 @@ class TestKernelKey:
         ts.n = 256
         ts.k = 32
 
-        assert ts.m == 256
-        assert ts.n == 256
-        assert ts.k == 32
+        self.assertEqual(ts.m, 256)
+        self.assertEqual(ts.n, 256)
+        self.assertEqual(ts.k, 32)
 
     def test_wave_shape_construction(self):
         """Test WaveShape construction"""
@@ -142,9 +144,9 @@ class TestKernelKey:
         ws.n = 2
         ws.k = 1
 
-        assert ws.m == 2
-        assert ws.n == 2
-        assert ws.k == 1
+        self.assertEqual(ws.m, 2)
+        self.assertEqual(ws.n, 2)
+        self.assertEqual(ws.k, 1)
 
     def test_algorithm_construction(self):
         """Test Algorithm construction"""
@@ -168,8 +170,8 @@ class TestKernelKey:
         algo.block_size = 256
         algo.persistent = False
 
-        assert algo.tile_shape.m == 256
-        assert algo.pipeline == cpp.Pipeline.CompV4
+        self.assertEqual(algo.tile_shape.m, 256)
+        self.assertEqual(algo.pipeline, cpp.Pipeline.CompV4)
 
     def test_kernel_key_construction(self):
         """Test KernelKey construction"""
@@ -192,8 +194,8 @@ class TestKernelKey:
         # Set arch
         key.gfx_arch = "gfx942"
 
-        assert key.gfx_arch == "gfx942"
-        assert key.signature.dtype_a == cpp.DataType.FP16
+        self.assertEqual(key.gfx_arch, "gfx942")
+        self.assertEqual(key.signature.dtype_a, cpp.DataType.FP16)
 
     def test_kernel_key_encode_identifier(self):
         """Test KernelKey identifier encoding"""
@@ -217,10 +219,10 @@ class TestKernelKey:
 
         identifier = key.encode_identifier()
 
-        assert "256x256x32" in identifier
-        assert "2x2x1" in identifier
-        assert "32x32x16" in identifier
-        assert "persist" in identifier
+        self.assertIn("256x256x32", identifier)
+        self.assertIn("2x2x1", identifier)
+        self.assertIn("32x32x16", identifier)
+        self.assertIn("persist", identifier)
 
     def test_kernel_key_equality(self):
         """Test KernelKey equality"""
@@ -237,42 +239,42 @@ class TestKernelKey:
         key2.gfx_arch = "gfx942"
 
         # Note: Full equality requires all fields to match
-        # This is a basic check
-        assert key1.gfx_arch == key2.gfx_arch
+        self.assertEqual(key1.gfx_arch, key2.gfx_arch)
 
 
-class TestRegistry:
+@unittest.skipUnless(HAS_CPP, "C++ extension not available")
+class TestRegistry(unittest.TestCase):
     """Test Registry class bindings"""
 
     def test_registry_singleton(self):
         """Test Registry singleton access"""
         registry = cpp.Registry.instance()
-        assert registry is not None
+        self.assertIsNotNone(registry)
 
         # Should get same instance
         registry2 = cpp.Registry.instance()
-        assert registry is registry2
+        self.assertIs(registry, registry2)
 
     def test_registry_size(self):
         """Test Registry size"""
         registry = cpp.Registry.instance()
         registry.clear()
 
-        assert registry.size() == 0
-        assert len(registry) == 0
+        self.assertEqual(registry.size(), 0)
+        self.assertEqual(len(registry), 0)
 
     def test_registry_clear(self):
         """Test Registry clear"""
         registry = cpp.Registry.instance()
         registry.clear()
-        assert registry.size() == 0
+        self.assertEqual(registry.size(), 0)
 
     def test_priority_enum(self):
         """Test Priority enum"""
-        assert hasattr(cpp, "Priority")
-        assert hasattr(cpp.Priority, "Low")
-        assert hasattr(cpp.Priority, "Normal")
-        assert hasattr(cpp.Priority, "High")
+        self.assertTrue(hasattr(cpp, "Priority"))
+        self.assertTrue(hasattr(cpp.Priority, "Low"))
+        self.assertTrue(hasattr(cpp.Priority, "Normal"))
+        self.assertTrue(hasattr(cpp.Priority, "High"))
 
     def test_registry_repr(self):
         """Test Registry string representation"""
@@ -280,29 +282,30 @@ class TestRegistry:
         registry.clear()
 
         repr_str = repr(registry)
-        assert "Registry" in repr_str
-        assert "size=0" in repr_str
+        self.assertIn("Registry", repr_str)
+        self.assertIn("size=0", repr_str)
 
 
-class TestDispatcher:
+@unittest.skipUnless(HAS_CPP, "C++ extension not available")
+class TestDispatcher(unittest.TestCase):
     """Test Dispatcher class bindings"""
 
     def test_dispatcher_construction(self):
         """Test Dispatcher construction"""
         dispatcher = cpp.Dispatcher()
-        assert dispatcher is not None
+        self.assertIsNotNone(dispatcher)
 
     def test_dispatcher_with_registry(self):
         """Test Dispatcher with custom registry"""
         registry = cpp.Registry.instance()
         dispatcher = cpp.Dispatcher(registry)
-        assert dispatcher is not None
+        self.assertIsNotNone(dispatcher)
 
     def test_selection_strategy_enum(self):
         """Test SelectionStrategy enum"""
-        assert hasattr(cpp, "SelectionStrategy")
-        assert hasattr(cpp.SelectionStrategy, "FirstFit")
-        assert hasattr(cpp.SelectionStrategy, "Heuristic")
+        self.assertTrue(hasattr(cpp, "SelectionStrategy"))
+        self.assertTrue(hasattr(cpp.SelectionStrategy, "FirstFit"))
+        self.assertTrue(hasattr(cpp.SelectionStrategy, "Heuristic"))
 
     def test_dispatcher_set_strategy(self):
         """Test Dispatcher set_strategy"""
@@ -319,16 +322,17 @@ class TestDispatcher:
 
         # No kernels registered, should return None
         kernel = dispatcher.select_kernel(problem)
-        assert kernel is None
+        self.assertIsNone(kernel)
 
     def test_dispatcher_repr(self):
         """Test Dispatcher string representation"""
         dispatcher = cpp.Dispatcher()
         repr_str = repr(dispatcher)
-        assert "Dispatcher" in repr_str
+        self.assertIn("Dispatcher", repr_str)
 
 
-class TestIntegration:
+@unittest.skipUnless(HAS_CPP, "C++ extension not available")
+class TestIntegration(unittest.TestCase):
     """Integration tests for complete workflows"""
 
     def test_kernel_key_creation_and_encoding(self):
@@ -377,21 +381,21 @@ class TestIntegration:
         identifier = key.encode_identifier()
 
         # Verify components
-        assert "256x256x32" in identifier
-        assert "2x2x1" in identifier
-        assert "32x32x16" in identifier
-        assert "nopers" in identifier  # not persistent
+        self.assertIn("256x256x32", identifier)
+        self.assertIn("2x2x1", identifier)
+        self.assertIn("32x32x16", identifier)
+        self.assertIn("nopers", identifier)  # not persistent
 
     def test_problem_creation_workflow(self):
         """Test creating and validating problems"""
         # Valid problem
         problem1 = cpp.Problem(1024, 2048, 512)
-        assert problem1.is_valid()
-        assert problem1.num_ops() == 2 * 1024 * 2048 * 512
+        self.assertTrue(problem1.is_valid())
+        self.assertEqual(problem1.num_ops(), 2 * 1024 * 2048 * 512)
 
         # Invalid problem
-        problem2 = cpp.Problem(0, 100, 100)
-        assert not problem2.is_valid()
+        problem2 = cpp.Problem(0, 200, 300)
+        self.assertFalse(problem2.is_valid())
 
         # Problem with settings
         problem3 = cpp.Problem(512, 512, 512)
@@ -399,10 +403,10 @@ class TestIntegration:
         problem3.prefer_persistent = True
         problem3.enable_validation = True
 
-        assert problem3.k_batch == 2
-        assert problem3.prefer_persistent
-        assert problem3.enable_validation
+        self.assertEqual(problem3.k_batch, 2)
+        self.assertTrue(problem3.prefer_persistent)
+        self.assertTrue(problem3.enable_validation)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    unittest.main()

@@ -233,7 +233,8 @@ int main(int argc, char* argv[])
 
     float expected = static_cast<float>(K);
     float actual   = static_cast<float>(c_host[0]);
-    bool passed    = std::abs(actual - expected) < 1.0f;
+    // Use 1% relative tolerance for FP16 accumulation over K elements
+    bool passed = std::abs(actual - expected) < (0.01f * expected + 1.0f);
 
     print_separator();
     std::cout << "Result: C[0,0] = " << actual << " (expected " << expected << ")\n";

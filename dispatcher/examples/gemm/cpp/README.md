@@ -65,10 +65,15 @@ DECL_KERNEL_SET(basic_kernels,
 - Track performance across problem sizes
 - Dynamic workload handling
 
-### 03_benchmark.cpp - Benchmarking
-- Accurate GPU timing with warmup runs
-- TFLOPS calculation
-- Multiple iterations for stable measurements
+### 03_benchmark.cpp - Advanced Benchmarking
+Demonstrates benchmark parameters (matching CK Tile `stream_config`):
+- Warmup iterations (discarded)
+- Benchmark iterations (averaged)
+- Statistics: min/max/mean/median
+
+```bash
+./gemm_03_benchmark --warmup 10 --iterations 100
+```
 
 ### 04_validation.cpp - CPU Validation
 - CPU reference implementation
@@ -99,6 +104,31 @@ DECL_KERNEL_SET(basic_kernels,
 - Separate registries for different workloads
 - Compute-optimized vs latency-optimized kernels
 - Registry selection strategies
+
+## Benchmark Parameters (stream_config)
+
+CK Tile uses `stream_config` for benchmark control:
+
+```cpp
+ck_tile::stream_config cfg{
+    nullptr,    // stream_id       - HIP stream (nullptr = default)
+    true,       // time_kernel     - Enable timing
+    1,          // log_level       - Verbosity (0=quiet, 1=normal)
+    5,          // cold_niters     - Warmup iterations
+    20,         // nrepeat         - Benchmark iterations
+    true,       // is_gpu_timer    - Use GPU events vs CPU chrono
+    false,      // flush_cache     - Flush L2 cache between iterations
+    1           // rotating_count  - Rotating buffers for cache simulation
+};
+```
+
+| Parameter | CLI Option | Default | Description |
+|-----------|------------|---------|-------------|
+| `cold_niters_` | `--warmup` | 5 | Warmup iterations |
+| `nrepeat_` | `--iterations` | 100 | Benchmark iterations |
+| `flush_cache_` | - | false | Flush L2 cache |
+| `rotating_count_` | - | 1 | Rotating buffers |
+| `is_gpu_timer_` | - | true | GPU timer vs CPU |
 
 ## Declarative Kernel Pattern
 

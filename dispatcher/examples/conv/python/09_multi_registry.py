@@ -69,7 +69,7 @@ def create_validated_kernel(dtype, tile_k, tile_c, pipeline, scheduler, arch_nam
 
     if not validation.is_valid:
         # Auto-correct
-        corrected, was_modified = auto_correct_conv_config(
+        corrected, was_modified, _ = auto_correct_conv_config(
             pipeline=algo.pipeline,
             scheduler=algo.scheduler,
             epilogue=algo.epilogue,
@@ -336,7 +336,7 @@ def main():
             -0.5, 0.5, (prob.G, prob.K, prob.Y, prob.X, prob.C)
         ).astype(np_dtype)
 
-        result = runner.run_forward(input_np, weight_np, prob)
+        result = runner.run(input_np, weight_np, prob)
 
         if result.get("success"):
             print("  *** GPU EXECUTION SUCCESSFUL ***")

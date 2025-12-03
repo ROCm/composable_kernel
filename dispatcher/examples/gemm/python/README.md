@@ -44,6 +44,7 @@ python3 examples/gemm/python/05_numpy_integration.py
 | [07_preshuffle.py](07_preshuffle.py) | Preshuffle optimization |
 | [08_multi_d.py](08_multi_d.py) | Multi-D tensor ops |
 | [09_multi_registry.py](09_multi_registry.py) | Multiple registries |
+| [10_advanced_benchmark.py](10_advanced_benchmark.py) | Advanced benchmark with full control |
 
 ## Example Details
 

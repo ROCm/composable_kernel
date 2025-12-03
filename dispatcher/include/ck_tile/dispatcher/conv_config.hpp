@@ -30,6 +30,38 @@ namespace dispatcher {
 // DataType, Pipeline, Scheduler, Epilogue are defined in kernel_key.hpp
 // No need to redefine them here
 
+// =============================================================================
+// Data Type Enum (matching CK Tile numeric types)
+// =============================================================================
+
+enum class ConvDataType
+{
+    // Standard floating point
+    FP32, // float
+    FP64, // double
+    FP16, // half_t
+    BF16, // bf16_t
+
+    // 8-bit float variants (FP8/BF8)
+    FP8,      // fp8_t (E4M3)
+    BF8,      // bf8_t (E5M2)
+    FP8_E4M3, // Explicit E4M3 format
+    FP8_E5M2, // Explicit E5M2 format
+
+    // Integer types
+    INT8,  // int8_t
+    UINT8, // uint8_t
+    INT32, // int32_t (accumulator)
+
+    // 4-bit types (gfx950+ only)
+    FP4, // MXFP4
+    INT4 // pk_int4_t
+};
+
+// =============================================================================
+// Direction and Layout Enums
+// =============================================================================
+
 enum class ConvDirection
 {
     FORWARD,
@@ -53,35 +85,79 @@ enum class ConvLayout3D
     NGCDHW_GKCZYX_NGKDHW
 };
 
+// =============================================================================
+// Element-wise Operations
+// =============================================================================
+
 enum class ElementwiseOp
 {
     PASS_THROUGH,
     BIAS,
     BIAS_CLAMP,
     SCALE,
-    BILINEAR
+    BILINEAR,
+    RELU,
+    GELU,
+    SIGMOID,
+    TANH
 };
+
+// =============================================================================
+// Convolution Specialization
+// =============================================================================
 
 enum class ConvSpecialization
 {
     DEFAULT,
     FILTER_1X1_PAD0,
     FILTER_1X1_STRIDE1_PAD0,
-    FILTER_3X3
+    FILTER_3X3,
+    FILTER_5X5,
+    FILTER_7X7
 };
 
 // =============================================================================
-// Algorithm Enums (matching builder/types.hpp)
+// Memory Operation Types (for accumulator operations)
+// =============================================================================
+
+enum class MemoryOperation
+{
+    SET,        // Direct write (=)
+    ATOMIC_ADD, // Atomic addition (+=)
+    ATOMIC_MAX, // Atomic max
+    ADD         // Non-atomic addition
+};
+
+// =============================================================================
+// Epilogue Types
+// =============================================================================
+
+enum class EpilogueType
+{
+    CSHUFFLE,        // C-shuffle epilogue
+    DEFAULT_2D,      // Default 2D epilogue
+    DEFAULT_GEMM_2D, // Default GEMM 2D epilogue
+    DIRECT_STORE,    // Direct store without shuffle
+    BIAS_ADD,        // Add bias
+    BIAS_ADD_RELU,   // Add bias + ReLU
+    BIAS_ADD_GELU    // Add bias + GELU
+};
+
+// =============================================================================
+// Algorithm Enums (matching builder/types.hpp and CK Tile pipelines)
 // =============================================================================
 
 enum class PipelineVersion
 {
-    V1,    // Basic pipeline
-    V2,    // Improved pipeline
-    V3,    // Compute V3 (intrawave only)
-    V4,    // Compute V4 (double buffer)
-    V5,    // Compute V5 (wave groups)
-    MEMORY // Memory pipeline
+    V1,            // Basic pipeline V1
+    V2,            // Basic pipeline V2
+    V3,            // Compute V3 (intrawave only)
+    V4,            // Compute V4 (double buffer, ping-pong LDS)
+    V5,            // Compute V5 (wave groups)
+    V6,            // Compute V6 (newest)
+    MEMORY,        // Memory pipeline
+    COMPUTE_ASYNC, // Compute with async copy
+    PRESHUFFLE_V2  // Preshuffle V2 pipeline
 };
 
 enum class PipelineScheduler
@@ -94,6 +170,7 @@ enum class PipelineScheduler
 enum class GemmPadding
 {
     DEFAULT,
+    NO_PADDING, // No padding
     M_PADDING,
     N_PADDING,
     K_PADDING,
@@ -115,6 +192,8 @@ struct ConvSignatureInfo
     std::string wei_type         = "fp16";
     std::string out_type         = "fp16";
     std::string acc_type         = "fp32";
+    std::string workspace_type   = "fp32"; // For two-stage algorithms
+    std::string bias_type        = "fp16"; // For bias epilogue
     ElementwiseOp in_element_op  = ElementwiseOp::PASS_THROUGH;
     ElementwiseOp wei_element_op = ElementwiseOp::PASS_THROUGH;
     ElementwiseOp out_element_op = ElementwiseOp::PASS_THROUGH;
@@ -129,6 +208,27 @@ struct ConvSignatureInfo
         case ConvDirection::FORWARD: return "fwd";
         case ConvDirection::BACKWARD_DATA: return "bwdd";
         case ConvDirection::BACKWARD_WEIGHT: return "bwdw";
+        default: return "unknown";
+        }
+    }
+
+    static const char* datatype_str(ConvDataType dt)
+    {
+        switch(dt)
+        {
+        case ConvDataType::FP32: return "fp32";
+        case ConvDataType::FP64: return "fp64";
+        case ConvDataType::FP16: return "fp16";
+        case ConvDataType::BF16: return "bf16";
+        case ConvDataType::FP8: return "fp8";
+        case ConvDataType::BF8: return "bf8";
+        case ConvDataType::FP8_E4M3: return "fp8_e4m3";
+        case ConvDataType::FP8_E5M2: return "fp8_e5m2";
+        case ConvDataType::INT8: return "int8";
+        case ConvDataType::UINT8: return "uint8";
+        case ConvDataType::INT32: return "int32";
+        case ConvDataType::FP4: return "fp4";
+        case ConvDataType::INT4: return "int4";
         default: return "unknown";
         }
     }
@@ -179,6 +279,8 @@ struct ConvAlgorithmInfo
     PipelineVersion pipeline    = PipelineVersion::V4;
     PipelineScheduler scheduler = PipelineScheduler::INTRAWAVE;
     GemmPadding padding         = GemmPadding::MNK_PADDING;
+    MemoryOperation memory_op   = MemoryOperation::SET;
+    EpilogueType epilogue       = EpilogueType::CSHUFFLE;
 
     int thread_block_size   = 256;
     bool double_smem_buffer = false;
@@ -196,7 +298,10 @@ struct ConvAlgorithmInfo
         case PipelineVersion::V3: return "compv3";
         case PipelineVersion::V4: return "compv4";
         case PipelineVersion::V5: return "compv5";
+        case PipelineVersion::V6: return "compv6";
         case PipelineVersion::MEMORY: return "mem";
+        case PipelineVersion::COMPUTE_ASYNC: return "comp_async";
+        case PipelineVersion::PRESHUFFLE_V2: return "preshuffle_v2";
         default: return "unknown";
         }
     }
@@ -208,6 +313,33 @@ struct ConvAlgorithmInfo
         case PipelineScheduler::DEFAULT: return "default";
         case PipelineScheduler::INTRAWAVE: return "intrawave";
         case PipelineScheduler::INTERWAVE: return "interwave";
+        default: return "unknown";
+        }
+    }
+
+    static const char* memory_op_str(MemoryOperation mo)
+    {
+        switch(mo)
+        {
+        case MemoryOperation::SET: return "set";
+        case MemoryOperation::ATOMIC_ADD: return "atomic_add";
+        case MemoryOperation::ATOMIC_MAX: return "atomic_max";
+        case MemoryOperation::ADD: return "add";
+        default: return "unknown";
+        }
+    }
+
+    static const char* epilogue_str(EpilogueType et)
+    {
+        switch(et)
+        {
+        case EpilogueType::CSHUFFLE: return "cshuffle";
+        case EpilogueType::DEFAULT_2D: return "default_2d";
+        case EpilogueType::DEFAULT_GEMM_2D: return "default_gemm_2d";
+        case EpilogueType::DIRECT_STORE: return "direct_store";
+        case EpilogueType::BIAS_ADD: return "bias_add";
+        case EpilogueType::BIAS_ADD_RELU: return "bias_add_relu";
+        case EpilogueType::BIAS_ADD_GELU: return "bias_add_gelu";
         default: return "unknown";
         }
     }
@@ -386,7 +518,68 @@ struct WMMA : public ConvConfig
     }
 };
 
+// Merged groups config
+template <typename PrecType>
+struct CompV3_MergedGroups : public ConvConfig
+{
+    CompV3_MergedGroups()
+    {
+        algorithm.tile                = {16, 32, 32};
+        algorithm.warp                = {1, 2, 1, 16, 16, 32};
+        algorithm.vector_size         = {4, 8, 8};
+        algorithm.pipeline            = PipelineVersion::V3;
+        algorithm.num_groups_to_merge = 2;
+    }
+};
+
 } // namespace configs
+
+// =============================================================================
+// DataType Traits (compile-time type info for CK Tile types)
+// =============================================================================
+
+template <typename T>
+struct DataTypeTraits;
+
+template <>
+struct DataTypeTraits<float>
+{
+    static constexpr const char* name = "fp32";
+    static constexpr int size_bytes   = 4;
+};
+
+template <>
+struct DataTypeTraits<double>
+{
+    static constexpr const char* name = "fp64";
+    static constexpr int size_bytes   = 8;
+};
+
+// Forward declare CK Tile types for traits
+// Note: actual ck_tile types are defined in ck_tile/core/numeric/
+// These traits allow working with type names at compile time
+
+// =============================================================================
+// ConvTypeConfig (input/weight/acc/output type combinations)
+// =============================================================================
+
+template <typename InDataType,
+          typename WeiDataType = InDataType,
+          typename OutDataType = InDataType,
+          typename AccDataType = float>
+struct ConvTypeConfig
+{
+    using input_type       = InDataType;
+    using weight_type      = WeiDataType;
+    using output_type      = OutDataType;
+    using accumulator_type = AccDataType;
+};
+
+// Common type configurations as type aliases
+// FP16 -> FP32 accumulator -> FP16 output (most common)
+// BF16 -> FP32 accumulator -> BF16 output
+// FP8 -> FP32 accumulator -> FP8 output
+// INT8 -> INT32 accumulator -> INT8 output
 
 } // namespace dispatcher
 } // namespace ck_tile

@@ -172,7 +172,8 @@ int main(int argc, char* argv[])
         std::vector<CDataType> c_host(test.M * test.N);
         c_dev.copy_to_host(c_host.data());
         float expected = static_cast<float>(test.K);
-        if(std::abs(static_cast<float>(c_host[0]) - expected) > 1.0f)
+        // Use 1% relative tolerance for FP16 accumulation over K elements
+        if(std::abs(static_cast<float>(c_host[0]) - expected) > (0.01f * expected + 1.0f))
         {
             std::cout << "  Status: FAIL\n";
             all_passed = false;

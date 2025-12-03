@@ -61,7 +61,9 @@ DECL_CONV_KERNEL_SET(conv_fwd_kernels,
                               .wave(2, 2, 1)
                               .warp(32, 32, 16)
                               .pipeline("compv4")
-                              .scheduler("intrawave"),
+                              .scheduler("intrawave")
+                              .vector_sizes(4, 8, 8)
+                              .block_per_cu(1),
                           "gfx942")
                          // Smaller kernel for smaller problems
                          .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
@@ -70,7 +72,9 @@ DECL_CONV_KERNEL_SET(conv_fwd_kernels,
                                   .wave(2, 2, 1)
                                   .warp(16, 16, 32)
                                   .pipeline("compv3")
-                                  .scheduler("intrawave"),
+                                  .scheduler("intrawave")
+                                  .vector_sizes(4, 8, 8)
+                                  .block_per_cu(2),
                               "gfx942"));
 
 // =============================================================================
@@ -245,18 +249,18 @@ int main(int argc, char* argv[])
 
 #ifdef CONV_KERNEL_AVAILABLE
     // If kernel was generated and compiled, launch it
-    ck_tile::GroupedConvFwdHostArgs<> args(conv_param,
-                                           input_dev.GetDeviceBuffer(),
-                                           weight_dev.GetDeviceBuffer(),
-                                           {},
-                                           output_dev.GetDeviceBuffer(),
-                                           1 // k_batch
+    ck_tile::GroupedConvFwdHostArgs<> kernel_args(conv_param,
+                                                  input_dev.GetDeviceBuffer(),
+                                                  weight_dev.GetDeviceBuffer(),
+                                                  {},
+                                                  output_dev.GetDeviceBuffer(),
+                                                  1 // k_batch
     );
 
     ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
 
     // Use generated launcher (SelectedConvKernel is the Config, Launcher has the launch method)
-    float elapsed_ms = SelectedConvKernelLauncher::launch(args, stream_cfg);
+    float elapsed_ms = SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
 
     double flops  = problem.get_flops();
     double tflops = flops / (elapsed_ms * 1e9);

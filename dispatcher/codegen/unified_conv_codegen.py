@@ -124,12 +124,25 @@ class ConvKernelConfig:
     vector_size_b: int = 8
     vector_size_c: int = 8
 
-    # Fixed parameters
+    # Occupancy parameters
     block_per_cu: int = 1
     num_wave_groups: int = 1
+    num_groups_to_merge: int = 1  # For group merged convolution
+
+    # Double buffering
+    double_smem_buffer: bool = False
 
     def name(self, datatype: str) -> str:
-        """Generate kernel name"""
+        """
+        Generate kernel name that uniquely identifies the kernel configuration.
+
+        Format: conv_{variant}_{dtype}_{ndim}d_{pipeline}_{epilogue}_{scheduler}
+                _{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}
+                _{warp_tile_m}x{warp_tile_n}x{warp_tile_k}
+                [_vec{a}_{b}_{c}][_bpc{n}][_wg{n}][_gm{n}][_dsb][_pad{mnk}]
+
+        All parameters that affect kernel behavior are included.
+        """
         t = self.tile
         tr = self.trait
 
@@ -139,12 +152,42 @@ class ConvKernelConfig:
             ConvVariant.BACKWARD_WEIGHT: "bwdw",
         }[self.variant]
 
+        # Core identity: variant, dtype, dims
         name = f"conv_{variant_str}_{datatype}_{self.ndim_spatial}d"
+
+        # Pipeline configuration
         name += f"_{tr.pipeline}_{tr.epilogue}_{tr.scheduler}"
+
+        # Block tile dimensions (M_Tile x N_Tile x K_Tile)
         name += f"_{t.tile_m}x{t.tile_n}x{t.tile_k}"
+
+        # Wave distribution (M_Warp x N_Warp x K_Warp)
         name += f"_{t.warp_m}x{t.warp_n}x{t.warp_k}"
 
-        # Add padding suffix if not all enabled
+        # Warp tile dimensions (M_Warp_Tile x N_Warp_Tile x K_Warp_Tile)
+        name += f"_{t.warp_tile_m}x{t.warp_tile_n}x{t.warp_tile_k}"
+
+        # Vector sizes (only if non-default)
+        if (self.vector_size_a, self.vector_size_b, self.vector_size_c) != (4, 8, 8):
+            name += (
+                f"_vec{self.vector_size_a}_{self.vector_size_b}_{self.vector_size_c}"
+            )
+
+        # Occupancy hints (only if non-default)
+        if self.block_per_cu != 1:
+            name += f"_bpc{self.block_per_cu}"
+
+        if self.num_wave_groups != 1:
+            name += f"_wg{self.num_wave_groups}"
+
+        if self.num_groups_to_merge != 1:
+            name += f"_gm{self.num_groups_to_merge}"
+
+        # Double SMEM buffer (for compute V4+)
+        if self.double_smem_buffer or tr.double_smem_buffer:
+            name += "_dsb"
+
+        # Padding suffix (only if not all enabled)
         if not (tr.pad_m and tr.pad_n and tr.pad_k):
             name += f"_pad{int(tr.pad_m)}{int(tr.pad_n)}{int(tr.pad_k)}"
 
@@ -786,6 +829,44 @@ def main():
         help="List configurations without generating",
     )
 
+    # Individual kernel configuration (when not using predefined configs)
+    parser.add_argument("--tile-m", type=int, help="Block tile M dimension")
+    parser.add_argument("--tile-n", type=int, help="Block tile N dimension")
+    parser.add_argument("--tile-k", type=int, help="Block tile K dimension")
+    parser.add_argument("--warp-m", type=int, help="Wave distribution M")
+    parser.add_argument("--warp-n", type=int, help="Wave distribution N")
+    parser.add_argument("--warp-k", type=int, default=1, help="Wave distribution K")
+    parser.add_argument("--warp-tile-m", type=int, help="Warp tile M")
+    parser.add_argument("--warp-tile-n", type=int, help="Warp tile N")
+    parser.add_argument("--warp-tile-k", type=int, default=16, help="Warp tile K")
+    parser.add_argument(
+        "--pipeline",
+        type=str,
+        choices=["mem", "compv3", "compv4", "compv5"],
+        help="Pipeline type",
+    )
+    parser.add_argument(
+        "--scheduler",
+        type=str,
+        choices=["intrawave", "interwave"],
+        help="Scheduler type",
+    )
+    parser.add_argument(
+        "--epilogue",
+        type=str,
+        default="cshuffle",
+        choices=["cshuffle", "default"],
+        help="Epilogue type",
+    )
+    parser.add_argument("--pad-m", type=bool, default=True, help="Pad M dimension")
+    parser.add_argument("--pad-n", type=bool, default=True, help="Pad N dimension")
+    parser.add_argument("--pad-k", type=bool, default=True, help="Pad K dimension")
+    parser.add_argument("--vector-a", type=int, default=4, help="Vector size A")
+    parser.add_argument("--vector-b", type=int, default=8, help="Vector size B")
+    parser.add_argument("--vector-c", type=int, default=8, help="Vector size C")
+    parser.add_argument("--block-per-cu", type=int, default=1, help="Blocks per CU")
+    parser.add_argument("--num-wave-groups", type=int, default=1, help="Wave groups")
+
     args = parser.parse_args()
 
     if args.verbose:
@@ -799,10 +880,52 @@ def main():
     }
     requested_variants = [variant_map[v] for v in args.variant]
 
-    # Get configurations for target arch with requested variants and ndims
-    filtered_configs = get_default_configs(
-        arch=args.arch, variants=requested_variants, ndims=args.ndim
+    # Check if user specified custom configuration
+    custom_config = (
+        args.tile_m is not None or args.tile_n is not None or args.pipeline is not None
     )
+
+    if custom_config:
+        # Build custom config from CLI arguments
+        tile = TileConfig(
+            tile_m=args.tile_m or 128,
+            tile_n=args.tile_n or 128,
+            tile_k=args.tile_k or 64,
+            warp_m=args.warp_m or 2,
+            warp_n=args.warp_n or 2,
+            warp_k=args.warp_k or 1,
+            warp_tile_m=args.warp_tile_m or 32,
+            warp_tile_n=args.warp_tile_n or 32,
+            warp_tile_k=args.warp_tile_k or 16,
+        )
+        trait = TraitConfig(
+            pipeline=args.pipeline or "compv4",
+            scheduler=args.scheduler or "intrawave",
+            epilogue=args.epilogue or "cshuffle",
+            pad_m=args.pad_m,
+            pad_n=args.pad_n,
+            pad_k=args.pad_k,
+        )
+        config = ConvKernelConfig(
+            tile=tile,
+            trait=trait,
+            variant=requested_variants[0]
+            if requested_variants
+            else ConvVariant.FORWARD,
+            ndim_spatial=args.ndim[0] if args.ndim else 2,
+            arch=args.arch,
+            vector_size_a=args.vector_a,
+            vector_size_b=args.vector_b,
+            vector_size_c=args.vector_c,
+            block_per_cu=args.block_per_cu,
+            num_wave_groups=args.num_wave_groups,
+        )
+        filtered_configs = [config]
+    else:
+        # Get predefined configurations for target arch with requested variants and ndims
+        filtered_configs = get_default_configs(
+            arch=args.arch, variants=requested_variants, ndims=args.ndim
+        )
 
     if args.list_configs:
         print(f"Convolution configurations for {args.arch}:")

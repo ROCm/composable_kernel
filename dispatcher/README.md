@@ -166,7 +166,7 @@ cmake .. \
 ### Step 4: Build
 
 ```bash
-# Build all targets (uses all CPU cores)
+# Build all targets (generates kernels automatically, then compiles)
 make -j$(nproc)
 
 # Or build specific targets
@@ -177,6 +177,31 @@ make dispatcher_conv_bwdw_lib # Conv backward weight library for Python
 
 # Build ONLY Python libraries (faster if you don't need C++ examples)
 make python_libs -j$(nproc)
+```
+
+### Kernel Generation Targets
+
+Kernels are generated automatically during `make`, but you can also control generation explicitly:
+
+```bash
+# Generate all kernels only (no compilation)
+make generate_all_kernels
+
+# Generate specific kernel types
+make generate_gemm_kernels      # GEMM kernels only
+make generate_conv_kernels      # Conv kernels (fwd + bwd)
+make generate_conv_fwd_kernels  # Conv forward only
+make generate_conv_bwd_kernels  # Conv backward only
+
+# Force regenerate (even if kernels exist)
+make regenerate_all_kernels
+make regenerate_gemm_kernels
+make regenerate_conv_kernels
+
+# Generate for specific GPU architecture
+make generate_kernels_gfx942    # MI300X
+make generate_kernels_gfx90a    # MI200
+make generate_kernels_gfx1100   # RDNA3
 ```
 
 ### Step 5: Verify Build
@@ -302,6 +327,99 @@ Step 4: GPU Execution
   Time:   <varies> ms
   TFLOPS: <varies>
 ```
+
+---
+
+## Benchmark Parameters
+
+The dispatcher supports fine-grained control over benchmarking, matching CK Tile's `stream_config`:
+
+### Available Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `warmup` | int | 5 | Warmup iterations (discarded from timing) |
+| `repeat` | int | 20 | Benchmark iterations (averaged) |
+| `flush_cache` | bool | false | Flush GPU L2 cache between iterations |
+| `rotating_count` | int | 1 | Rotating buffer count (for cache simulation) |
+| `timer` | string | "gpu" | Timer type: "gpu" (HIP events) or "cpu" |
+| `init` | string | "random" | Matrix initialization: "random", "linear", "constant" |
+| `split_k` | int | 1 | Split-K parallelism factor |
+
+### Python Usage
+
+```python
+from conv_utils import GpuConvRunner
+
+# Basic usage (default benchmark settings)
+runner = GpuConvRunner()
+
+# Advanced benchmark settings
+runner = GpuConvRunner(
+    warmup=10,           # More warmup iterations
+    repeat=100,          # More benchmark iterations
+    flush_cache=True,    # Flush L2 cache (for memory-bound analysis)
+    rotating_count=4,    # 4 rotating buffers
+    timer="gpu",         # Use GPU timer (most accurate)
+)
+
+result = runner.run(input_data, weight_data, problem)
+print(f"Average time: {result['time_ms']:.4f} ms")
+print(f"TFLOPS: {result['tflops']:.2f}")
+```
+
+### C++ Usage
+
+```cpp
+// Basic timing
+ck_tile::stream_config cfg{nullptr, true};
+
+// Advanced benchmark settings
+ck_tile::stream_config cfg{
+    nullptr,          // stream_id (nullptr = default stream)
+    true,             // time_kernel
+    1,                // log_level
+    10,               // cold_niters (warmup)
+    100,              // nrepeat
+    true,             // is_gpu_timer
+    true,             // flush_cache
+    4                 // rotating_count
+};
+
+float avg_time = kernel.run(args, cfg);
+```
+
+### Command Line (Python Examples)
+
+```bash
+# Basic run
+python3 examples/gemm/python/10_advanced_benchmark.py
+
+# With benchmark parameters
+python3 examples/gemm/python/10_advanced_benchmark.py \
+    --warmup 10 \
+    --repeat 100 \
+    --flush-cache \
+    --rotating-count 4 \
+    --timer gpu
+
+# For memory-bound analysis
+python3 examples/conv/python/13_advanced_benchmark.py \
+    --flush-cache \
+    --init constant \
+    -n 1 -c 256 -k 256 -hi 56 -wi 56
+```
+
+### When to Use Each Parameter
+
+| Use Case | Recommended Settings |
+|----------|---------------------|
+| Quick test | `warmup=1, repeat=3` |
+| Stable benchmark | `warmup=10, repeat=100` |
+| Memory-bound analysis | `flush_cache=True, rotating_count=4` |
+| Compute-bound analysis | `flush_cache=False` (default) |
+| Debug timing | `timer="cpu"` |
+| Production | `timer="gpu"` (default) |
 
 ---
 

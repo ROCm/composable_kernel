@@ -2,17 +2,20 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 03: GEMM Benchmarking
+ * Example 03: Advanced GEMM Benchmarking
  *
- * Runs GEMM multiple times to get accurate timing statistics.
+ * Demonstrates all available benchmark parameters matching CK Tile stream_config:
+ *   - warmup: Number of warmup iterations (default: 5)
+ *   - iterations: Number of benchmark iterations (default: 100)
+ *   - (Note: flush_cache, rotating_count available via stream_config in advanced usage)
  *
  * Build:
- *   python3 scripts/compile_gemm_examples.py examples/cpp/03_benchmark.cpp
+ *   cd dispatcher/build && cmake .. -DBUILD_DISPATCHER_EXAMPLES=ON && make gemm_03_benchmark
  *
  * Usage:
  *   ./gemm_03_benchmark
  *   ./gemm_03_benchmark --help
- *   ./gemm_03_benchmark --size 4096 --iterations 50
+ *   ./gemm_03_benchmark --size 4096 --warmup 10 --iterations 100
  *
  * Complexity: ★★☆☆☆
  */

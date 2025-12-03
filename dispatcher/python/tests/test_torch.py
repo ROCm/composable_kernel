@@ -2,7 +2,7 @@
 Unit tests for PyTorch integration
 """
 
-import pytest
+import unittest
 
 # Check if PyTorch is available
 try:
@@ -23,11 +23,16 @@ if HAS_TORCH:
     import torch.nn as nn
 
 
-@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not available")
-class TestTorchGEMM:
+def has_cuda():
+    """Check if CUDA is available"""
+    return HAS_TORCH and torch.cuda.is_available()
+
+
+@unittest.skipUnless(HAS_TORCH, "PyTorch not available")
+class TestTorchGEMM(unittest.TestCase):
     """Test PyTorch GEMM operations"""
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    @unittest.skipUnless(has_cuda(), "CUDA not available")
     def test_ck_gemm_cuda(self):
         """Test CK GEMM on CUDA"""
         A = torch.randn(128, 128, device="cuda", dtype=torch.float16)
@@ -35,9 +40,9 @@ class TestTorchGEMM:
 
         C = ck_gemm(A, B)
 
-        assert C.shape == (128, 128)
-        assert C.device.type == "cuda"
-        assert C.dtype == torch.float16
+        self.assertEqual(C.shape, (128, 128))
+        self.assertEqual(C.device.type, "cuda")
+        self.assertEqual(C.dtype, torch.float16)
 
     def test_ck_gemm_cpu(self):
         """Test CK GEMM on CPU (fallback)"""
@@ -46,9 +51,9 @@ class TestTorchGEMM:
 
         C = ck_gemm(A, B)
 
-        assert C.shape == (64, 64)
+        self.assertEqual(C.shape, (64, 64))
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    @unittest.skipUnless(has_cuda(), "CUDA not available")
     def test_ck_gemm_correctness(self):
         """Test CK GEMM correctness"""
         A = torch.randn(64, 64, device="cuda", dtype=torch.float16)
@@ -58,86 +63,86 @@ class TestTorchGEMM:
         C_pt = torch.matmul(A, B)
 
         max_diff = torch.max(torch.abs(C_ck - C_pt)).item()
-        assert max_diff < 0.1
+        self.assertLess(max_diff, 0.1)
 
 
-@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not available")
-class TestCKLinear:
+@unittest.skipUnless(HAS_TORCH, "PyTorch not available")
+class TestCKLinear(unittest.TestCase):
     """Test CKLinear layer"""
 
     def test_create_layer(self):
         """Test layer creation"""
         layer = CKLinear(128, 256)
 
-        assert layer.in_features == 128
-        assert layer.out_features == 256
-        assert layer.weight.shape == (256, 128)
+        self.assertEqual(layer.in_features, 128)
+        self.assertEqual(layer.out_features, 256)
+        self.assertEqual(layer.weight.shape, (256, 128))
 
     def test_forward_cpu(self):
         """Test forward pass on CPU"""
         layer = CKLinear(128, 256).half()
-        input = torch.randn(32, 128, dtype=torch.float16)
+        input_tensor = torch.randn(32, 128, dtype=torch.float16)
 
-        output = layer(input)
+        output = layer(input_tensor)
 
-        assert output.shape == (32, 256)
+        self.assertEqual(output.shape, (32, 256))
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    @unittest.skipUnless(has_cuda(), "CUDA not available")
     def test_forward_cuda(self):
         """Test forward pass on CUDA"""
         layer = CKLinear(128, 256).cuda().half()
-        input = torch.randn(32, 128, device="cuda", dtype=torch.float16)
+        input_tensor = torch.randn(32, 128, device="cuda", dtype=torch.float16)
 
-        output = layer(input)
+        output = layer(input_tensor)
 
-        assert output.shape == (32, 256)
-        assert output.device.type == "cuda"
+        self.assertEqual(output.shape, (32, 256))
+        self.assertEqual(output.device.type, "cuda")
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    @unittest.skipUnless(has_cuda(), "CUDA not available")
     def test_backward(self):
         """Test backward pass"""
         layer = CKLinear(64, 128).cuda().half()
-        input = torch.randn(
+        input_tensor = torch.randn(
             16, 64, device="cuda", dtype=torch.float16, requires_grad=True
         )
 
-        output = layer(input)
+        output = layer(input_tensor)
         loss = output.sum()
         loss.backward()
 
-        assert input.grad is not None
-        assert layer.weight.grad is not None
+        self.assertIsNotNone(input_tensor.grad)
+        self.assertIsNotNone(layer.weight.grad)
 
 
-@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not available")
-class TestCKMLP:
+@unittest.skipUnless(HAS_TORCH, "PyTorch not available")
+class TestCKMLP(unittest.TestCase):
     """Test CKMLP"""
 
     def test_create_mlp(self):
         """Test MLP creation"""
         mlp = CKMLP([128, 256, 512, 256])
 
-        assert len(mlp.layers) == 3
+        self.assertEqual(len(mlp.layers), 3)
 
     def test_forward(self):
         """Test forward pass"""
         mlp = CKMLP([128, 256, 128]).half()
-        input = torch.randn(16, 128, dtype=torch.float16)
+        input_tensor = torch.randn(16, 128, dtype=torch.float16)
 
-        output = mlp(input)
+        output = mlp(input_tensor)
 
-        assert output.shape == (16, 128)
+        self.assertEqual(output.shape, (16, 128))
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    @unittest.skipUnless(has_cuda(), "CUDA not available")
     def test_forward_cuda(self):
         """Test forward pass on CUDA"""
         mlp = CKMLP([128, 256, 128]).cuda().half()
-        input = torch.randn(16, 128, device="cuda", dtype=torch.float16)
+        input_tensor = torch.randn(16, 128, device="cuda", dtype=torch.float16)
 
-        output = mlp(input)
+        output = mlp(input_tensor)
 
-        assert output.shape == (16, 128)
-        assert output.device.type == "cuda"
+        self.assertEqual(output.shape, (16, 128))
+        self.assertEqual(output.device.type, "cuda")
 
     def test_different_activations(self):
         """Test different activation functions"""
@@ -145,17 +150,17 @@ class TestCKMLP:
 
         for act in activations:
             mlp = CKMLP([64, 128, 64], activation=act).half()
-            input = torch.randn(8, 64, dtype=torch.float16)
+            input_tensor = torch.randn(8, 64, dtype=torch.float16)
 
-            output = mlp(input)
-            assert output.shape == (8, 64)
+            output = mlp(input_tensor)
+            self.assertEqual(output.shape, (8, 64))
 
 
-@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not available")
-class TestAutograd:
+@unittest.skipUnless(HAS_TORCH, "PyTorch not available")
+class TestAutograd(unittest.TestCase):
     """Test autograd support"""
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    @unittest.skipUnless(has_cuda(), "CUDA not available")
     def test_autograd_gemm(self):
         """Test autograd with GEMM"""
         A = torch.randn(64, 64, device="cuda", dtype=torch.float16, requires_grad=True)
@@ -165,22 +170,22 @@ class TestAutograd:
         loss = C.sum()
         loss.backward()
 
-        assert A.grad is not None
-        assert B.grad is not None
-        assert A.grad.shape == A.shape
-        assert B.grad.shape == B.shape
+        self.assertIsNotNone(A.grad)
+        self.assertIsNotNone(B.grad)
+        self.assertEqual(A.grad.shape, A.shape)
+        self.assertEqual(B.grad.shape, B.shape)
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    @unittest.skipUnless(has_cuda(), "CUDA not available")
     def test_training_loop(self):
         """Test training loop"""
         model = CKLinear(64, 32).cuda().half()
         optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
         for _ in range(5):
-            input = torch.randn(16, 64, device="cuda", dtype=torch.float16)
+            input_tensor = torch.randn(16, 64, device="cuda", dtype=torch.float16)
             target = torch.randn(16, 32, device="cuda", dtype=torch.float16)
 
-            output = model(input)
+            output = model(input_tensor)
             loss = nn.functional.mse_loss(output, target)
 
             optimizer.zero_grad()
@@ -190,8 +195,8 @@ class TestAutograd:
         # Should complete without errors
 
 
-@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not available")
-class TestModelConversion:
+@unittest.skipUnless(HAS_TORCH, "PyTorch not available")
+class TestModelConversion(unittest.TestCase):
     """Test model conversion"""
 
     def test_convert_simple_model(self):
@@ -202,9 +207,9 @@ class TestModelConversion:
 
         # Count CKLinear layers
         ck_count = sum(1 for m in model_ck.modules() if isinstance(m, CKLinear))
-        assert ck_count == 2
+        self.assertEqual(ck_count, 2)
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    @unittest.skipUnless(has_cuda(), "CUDA not available")
     def test_convert_preserves_weights(self):
         """Test that conversion preserves weights"""
         model = nn.Linear(64, 128).cuda().half()
@@ -218,16 +223,13 @@ class TestModelConversion:
 
         # Check weights are preserved
         ck_linear = list(model_ck.modules())[0]
-        assert torch.allclose(ck_linear.weight.data, orig_weight, rtol=1e-3)
+        self.assertTrue(torch.allclose(ck_linear.weight.data, orig_weight, rtol=1e-3))
         if orig_bias is not None:
-            assert torch.allclose(ck_linear.bias.data, orig_bias, rtol=1e-3)
+            self.assertTrue(torch.allclose(ck_linear.bias.data, orig_bias, rtol=1e-3))
 
 
-@pytest.mark.skipif(
-    not HAS_TORCH or not torch.cuda.is_available(),
-    reason="PyTorch or CUDA not available",
-)
-class TestBenchmark:
+@unittest.skipUnless(has_cuda(), "PyTorch or CUDA not available")
+class TestBenchmark(unittest.TestCase):
     """Test benchmarking"""
 
     def test_benchmark_vs_pytorch(self):
@@ -236,12 +238,12 @@ class TestBenchmark:
             M=256, N=256, K=256, num_warmup=2, num_iterations=5, dtype=torch.float16
         )
 
-        assert "ck_tile_gflops" in results
-        assert "pytorch_gflops" in results
-        assert "speedup" in results
-        assert results["ck_tile_gflops"] > 0
-        assert results["pytorch_gflops"] > 0
+        self.assertIn("ck_tile_gflops", results)
+        self.assertIn("pytorch_gflops", results)
+        self.assertIn("speedup", results)
+        self.assertGreater(results["ck_tile_gflops"], 0)
+        self.assertGreater(results["pytorch_gflops"], 0)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    unittest.main()

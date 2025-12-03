@@ -69,62 +69,79 @@ namespace conv_utils {
 
 /**
  * @brief Create a 2D forward convolution config
- * @param dtype Data type (fp16, fp32, bf16)
- * @param tile_k K tile size
- * @param tile_c C tile size
+ * @param dtype Data type (fp16, fp32, bf16, fp8, int8, etc.)
+ * @param tile_n N tile size (output channels)
+ * @param tile_k K tile size (input channels)
  * @param arch Target architecture
  */
 inline ConvKernelDecl create_conv2d_fwd(const std::string& dtype = "fp16",
+                                        int tile_n               = 128,
                                         int tile_k               = 128,
-                                        int tile_c               = 128,
                                         const std::string& arch  = "gfx942")
 {
-    return ConvKernelDecl(
-        ConvSig().dtype(dtype).layout("nhwc").conv_type("forward").dims(2),
-        ConvAlgo().tile(1, tile_k, tile_c).wave(2, 2, 1).warp(32, 32, 16).pipeline("compv4"),
-        arch);
+    return ConvKernelDecl(ConvSig().dtype(dtype).layout("nhwc").conv_type("forward").dims(2),
+                          ConvAlgo()
+                              .tile(1, tile_n, tile_k)
+                              .wave(2, 2, 1)
+                              .warp(32, 32, 16)
+                              .pipeline("compv4")
+                              .vector_sizes(4, 8, 8),
+                          arch);
 }
 
 /**
  * @brief Create a 3D forward convolution config
  */
 inline ConvKernelDecl create_conv3d_fwd(const std::string& dtype = "fp16",
+                                        int tile_n               = 64,
                                         int tile_k               = 64,
-                                        int tile_c               = 64,
                                         const std::string& arch  = "gfx942")
 {
-    return ConvKernelDecl(
-        ConvSig().dtype(dtype).layout("ndhwc").conv_type("forward").dims(3),
-        ConvAlgo().tile(1, tile_k, tile_c).wave(2, 2, 1).warp(16, 16, 32).pipeline("compv3"),
-        arch);
+    return ConvKernelDecl(ConvSig().dtype(dtype).layout("ndhwc").conv_type("forward").dims(3),
+                          ConvAlgo()
+                              .tile(1, tile_n, tile_k)
+                              .wave(2, 2, 1)
+                              .warp(16, 16, 32)
+                              .pipeline("compv3")
+                              .vector_sizes(4, 8, 8),
+                          arch);
 }
 
 /**
  * @brief Create a 2D backward data convolution config
  */
 inline ConvKernelDecl create_conv2d_bwd_data(const std::string& dtype = "fp16",
+                                             int tile_n               = 128,
                                              int tile_k               = 128,
-                                             int tile_c               = 128,
                                              const std::string& arch  = "gfx942")
 {
-    return ConvKernelDecl(
-        ConvSig().dtype(dtype).layout("nhwc").conv_type("bwd_data").dims(2),
-        ConvAlgo().tile(1, tile_k, tile_c).wave(2, 2, 1).warp(32, 32, 16).pipeline("compv4"),
-        arch);
+    return ConvKernelDecl(ConvSig().dtype(dtype).layout("nhwc").conv_type("bwd_data").dims(2),
+                          ConvAlgo()
+                              .tile(1, tile_n, tile_k)
+                              .wave(2, 2, 1)
+                              .warp(32, 32, 16)
+                              .pipeline("compv4")
+                              .vector_sizes(4, 8, 8),
+                          arch);
 }
 
 /**
  * @brief Create a 2D backward weight convolution config
  */
 inline ConvKernelDecl create_conv2d_bwd_weight(const std::string& dtype = "fp16",
+                                               int tile_n               = 128,
                                                int tile_k               = 128,
-                                               int tile_c               = 128,
                                                const std::string& arch  = "gfx942")
 {
-    return ConvKernelDecl(
-        ConvSig().dtype(dtype).layout("nhwc").conv_type("bwd_weight").dims(2),
-        ConvAlgo().tile(1, tile_k, tile_c).wave(2, 2, 1).warp(32, 32, 16).pipeline("compv4"),
-        arch);
+    return ConvKernelDecl(ConvSig().dtype(dtype).layout("nhwc").conv_type("bwd_weight").dims(2),
+                          ConvAlgo()
+                              .tile(1, tile_n, tile_k)
+                              .wave(2, 2, 1)
+                              .warp(32, 32, 16)
+                              .pipeline("compv4")
+                              .memory_op("atomic_add") // Weight gradient uses atomic add
+                              .vector_sizes(4, 8, 8),
+                          arch);
 }
 
 // =============================================================================
@@ -258,8 +275,8 @@ inline void print_kernel_decl(const ConvKernelDecl& decl, std::ostream& os = std
     os << "    Groups:        " << sig.groups_ << "\n";
 
     os << "  Algorithm (HOW):\n";
-    os << "    Block Tile:    N=" << algo.tile_n_ << ", K=" << algo.tile_k_
-       << ", C=" << algo.tile_c_ << "\n";
+    os << "    Block Tile:    M=" << algo.tile_m_ << ", N=" << algo.tile_n_
+       << ", K=" << algo.tile_k_ << "\n";
     os << "    Output Tile:   Ho=" << algo.tile_ho_ << ", Wo=" << algo.tile_wo_ << "\n";
     os << "    Wave Config:   " << algo.wave_m_ << "x" << algo.wave_n_ << "x" << algo.wave_k_
        << "\n";
