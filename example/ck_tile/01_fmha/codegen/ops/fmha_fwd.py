@@ -743,14 +743,7 @@ def is_compatible(
     problem_ctx: ProblemContext,
     kernel_ctx: KernelContext,
     rules: Iterable[CompatibilityRule],
-    *,
-    short_circuit: bool = True,
 ) -> bool:
-    if short_circuit:
-        for rule in rules:
-            if not rule(problem_ctx, kernel_ctx):
-                return False
-        return True
     return all(rule(problem_ctx, kernel_ctx) for rule in rules)
 
 
@@ -1299,9 +1292,7 @@ def get_fwd_blobs(
                 rules = factory.get_rules()
                 product = get_product(receipt)
 
-                if not is_compatible(
-                    problem_ctx, kernel_ctx, [*rules, product], short_circuit=True
-                ):
+                if not is_compatible(problem_ctx, kernel_ctx, [*rules, product]):
                     continue
 
                 k = create_kernel(factory.arch, problem_ctx, kernel_ctx)
