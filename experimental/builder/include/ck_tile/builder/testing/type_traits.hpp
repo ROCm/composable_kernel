@@ -1,57 +1,42 @@
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #pragma once
 
 #include <cstddef>
 #include "ck_tile/builder/types.hpp"
-#include "ck_tile/ops/common/tensor_layout.hpp"
 
-// TODO(Robin): Test to check that all DataType variants are covered?
-// TODO(Robin): Put this file somewhere else?
+/// This file implements various backend-independent traits for
+/// CK-Builder types.
 
 namespace ck_tile::builder::test {
 
-/// This structure contains some useful traits for CK-Builder's DataType
-/// type. Its main usecase is to convert a CK-Builder DataType into an
-/// equivalent C++ type.
-template <DataType DT>
-struct DataTypeTraits;
-
-template <>
-struct DataTypeTraits<DataType::FP32>
+/// @brief Query the size of a data type in memory.
+///
+/// This function computes the size of a variant of `DataType` in memory.
+/// This is more complicated than it seems. For most types, this is just
+/// the size of the equivalent C++-type, but for sub-byte type we have to
+/// represent each byte by multiple values, for example. For now, we only
+/// care about types which consist of an integral number of bytes, though.
+///
+/// @note The details of this function are likely going to change with the
+/// support of sub-byte types.
+///
+/// @param DataType The type to query the in-memory size of.
+/// @returns The number of bytes that an element of this data type requires
+///   in memory.
+constexpr size_t data_type_sizeof(DataType dt)
 {
-    using Type = float;
-};
-
-template <>
-struct DataTypeTraits<DataType::FP16>
-{
-    using Type = ck::half_t;
-};
-
-template <>
-struct DataTypeTraits<DataType::BF16>
-{
-    using Type = ck::bhalf_t;
-};
-
-template <>
-struct DataTypeTraits<DataType::FP8>
-{
-    using Type = ck::f8_t;
-};
-
-template <>
-struct DataTypeTraits<DataType::I8>
-{
-    using Type = int8_t;
-};
-
-template <>
-struct DataTypeTraits<DataType::U8>
-{
-    using Type = uint8_t;
-};
+    switch(dt)
+    {
+    case DataType::UNDEFINED_DATA_TYPE: return 0;
+    case DataType::FP32: return 4;
+    case DataType::FP16: return 2;
+    case DataType::BF16: return 2;
+    case DataType::FP8: return 1;
+    case DataType::I8: return 1;
+    case DataType::U8: return 1;
+    }
+}
 
 } // namespace ck_tile::builder::test

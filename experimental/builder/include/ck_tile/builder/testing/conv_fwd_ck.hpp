@@ -10,15 +10,20 @@
 
 /// This file contains the implementation details for invoking/testing
 /// grouped convolution operations in old CK. The main item is the
-/// ckt::run function, which is the main implementation used to invoke
+/// `run()` function, which is the main implementation used to invoke
 /// CK grouped forward convolution kernels.
 
 namespace ck_tile::builder::test {
 
-/// This concept is used to tell whether a convolution implementation is likely to
-/// be an "old CK" implementation - that is, whether we should invoke it as an old
-/// CK kernel. This is mainly used with ckt::run() to differentiate the implementation
-/// that should be called.
+/// @brief Concept for checking whether a convolution is invoked like old CK.
+///
+/// This concept is used to tell whether a convolution implementation is
+/// likely to be an "old CK" implementation - that is, whether we should
+/// invoke it as an old CK kernel. This is mainly used with `run()` to
+/// differentiate which implementation that should be invoked.
+///
+/// - SIGNATURE is the operation signature.
+/// - Conv is a convolution instance created by the CK Builder API.
 template <auto SIGNATURE, typename Conv>
 concept IsCkConvInstance =
     // TODO: This should be implemented by converting the signature into the
@@ -27,6 +32,13 @@ concept IsCkConvInstance =
     // move this to the ck conv factory helper.
     true;
 
+/// @brief `run()` specialization for forward convolution and old CK.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+/// @throws std::runtime_error if the arguments werent actually valid for the
+/// operation. This should be caught and reported by the testing framework.
+///
+/// @see run()
 template <auto SIGNATURE, typename Conv>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE> &&
              IsCkConvInstance<SIGNATURE, Conv>

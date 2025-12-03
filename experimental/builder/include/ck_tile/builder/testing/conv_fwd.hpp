@@ -7,6 +7,7 @@
 #include "ck_tile/builder/conv_signature_utils.hpp"
 #include "ck_tile/builder/factory/helpers/conv_tensor_layout.hpp"
 #include "ck_tile/builder/testing/testing.hpp"
+#include "ck_tile/builder/testing/extent.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
@@ -24,11 +25,14 @@
 
 namespace ck_tile::builder::test {
 
-/// This structure is used to describe lengths of a convolution problem. In fact, this
-/// structure is a complete description of ALL inputs and outputs lengths of a convolution
-/// problem, as this structure contains all of the combined parameters. Note that we can't
-/// also use this structure to describe tensor strides: whereas the lengths are all governed
-/// by a common set of parameters, strides of the input, weight, and output tensor are all
+/// @brief Convolution tensor dimensions.
+///
+/// This structure is used to describe lengths of a convolution problem. In
+/// fact, this structure is a complete description of ALL inputs and outputs
+/// lengths of a convolution problem, as this structure contains all of the
+/// combined parameters. Note that we can't also use this structure to describe
+/// tensor strides: whereas the lengths are all governed by a common set of
+/// parameters, strides of the input, weight, and output tensor are all
 /// independent.
 template <int SPATIAL_DIM>
 struct ConvTensorLengths
@@ -41,9 +45,11 @@ struct ConvTensorLengths
     Extent<SPATIAL_DIM> filter = {}; // X, Y, Z
 };
 
-/// The ConvArgs structure is the runtime counterpart of the `ConvSignature`: it contains the
-/// runtime values for a convolution operation, and forms a complete description of such an
-/// operation together with the signature.
+/// @brief `Args` specialization for forward convolution.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+///
+/// @see Args
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
 struct Args<SIGNATURE>
@@ -56,9 +62,9 @@ struct Args<SIGNATURE>
     using Ops = factory::internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
 
     ConvTensorLengths<SPATIAL_DIM> lengths;
-    // TODO(Robin): Tensor strides. This needs a new structure as well as some reworking
-    // of the TensorDescriptor, as the current implementation (based on ConvParam in old CK/
-    // CK Tile) does not support strides at all.
+    // TODO: Tensor strides. This needs a new structure as well as some reworking
+    // of the TensorDescriptor, as the current implementation (based on ConvParam
+    // in old CK / CK Tile) does not support strides at all.
 
     Extent<SPATIAL_DIM> filter_strides;
     Extent<SPATIAL_DIM> filter_dilation;
@@ -69,7 +75,7 @@ struct Args<SIGNATURE>
     Ops::BElementwiseOp b_elementwise_op;
     Ops::CDEElementwiseOp cde_elementwise_op;
 
-    // TODO(Robin): We shouldn't need to call into an internal namespace here.
+    // TODO: We shouldn't need to call into an internal namespace here.
     using Layouts = decltype(factory::internal::GetTensorLayout<SIGNATURE.layout,
                                                                 SPATIAL_DIM,
                                                                 ConvDirection::FORWARD>());
@@ -140,14 +146,24 @@ struct Args<SIGNATURE>
     }
 };
 
+/// @brief `Inputs` specialization for forward convolution.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+///
+/// @see Inputs
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
 struct Inputs<SIGNATURE>
 {
-    const void* input;
-    const void* weight;
+    void* input;
+    void* weight;
 };
 
+/// @brief `Outputs` specialization for forward convolution.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+///
+/// @see Outputs
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
 struct Outputs<SIGNATURE>
@@ -155,6 +171,12 @@ struct Outputs<SIGNATURE>
     void* output;
 };
 
+/// @brief `UniqueInputs` specialization for forward convolution.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+///
+/// @see UniqueInputs
+/// @see ValidUniqueInputs
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
 struct UniqueInputs<SIGNATURE>
@@ -162,6 +184,7 @@ struct UniqueInputs<SIGNATURE>
     DeviceBuffer input_buf;
     DeviceBuffer weight_buf;
 
+    /// @see ValidUniqueInputs
     Inputs<SIGNATURE> get()
     {
         return {
@@ -171,12 +194,19 @@ struct UniqueInputs<SIGNATURE>
     }
 };
 
+/// @brief `UniqueOutputs` specialization for forward convolution.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+///
+/// @see UniqueOutputs
+/// @see ValidUniqueOutputs
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
 struct UniqueOutputs<SIGNATURE>
 {
     DeviceBuffer output_buf;
 
+    /// @see ValidUniqueOutputs
     Outputs<SIGNATURE> get()
     {
         return {
@@ -185,8 +215,14 @@ struct UniqueOutputs<SIGNATURE>
     }
 };
 
+/// @brief `alloc_inputs()` specialization for forward convolution.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+///
+/// @see alloc_inputs()
 template <auto SIGNATURE>
-    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE> &&
+             ValidUniqueInputs<SIGNATURE>
 UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args)
 {
     return {
@@ -195,8 +231,14 @@ UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args)
     };
 }
 
+/// @brief `alloc_outputs()` specialization for forward convolution.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+///
+/// @see alloc_outputs()
 template <auto SIGNATURE>
-    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE> &&
+             ValidUniqueOutputs<SIGNATURE>
 UniqueOutputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args)
 {
     return {
