@@ -195,8 +195,9 @@ float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream
         (traits.data_type.compare("fp16") == 0 or traits.data_type.compare("bf16") == 0) and
         traits.is_v_rowmajor and (not traits.has_logits_soft_cap) and
         (traits.bias_type == bias_enum::no_bias) and (not traits.has_lse) and
-        (not traits.has_dropout) and (not traits.do_fp8_static_quant) and (not is_swa) and
-        (args.nhead_q % args.nhead_k == 0) and (args.hdim_q == 128) and (args.hdim_v == 128);
+        (not traits.has_dropout) and (traits.qscale_type == quant_scale_enum::no_scale) and
+        (not is_swa) and (args.nhead_q % args.nhead_k == 0) and (args.hdim_q == 128) and
+        (args.hdim_v == 128);
     if ({F_is_v3_enabled} and can_dispatch_v3) {{
         return fmha_fwd_v3(traits, args, config);
     }} else {{
@@ -881,12 +882,19 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
 
     _DT_FP32 = ("fp32",)
     _DT_FP16_BF16 = ("fp16", "bf16")
-    _DT_FP8_FP8BF16 = ("fp8", "fp8bf16")
+    _DT_FP8 = ("fp8",)
+    _DT_FP8BF16 = ("fp8bf16",)
     _DT_FP8FP32 = ("fp8fp32",)
 
     @classmethod
     def supported_dtypes(cls) -> Tuple[str]:
-        return cls._DT_FP32 + cls._DT_FP16_BF16 + cls._DT_FP8_FP8BF16 + cls._DT_FP8FP32
+        return (
+            cls._DT_FP32
+            + cls._DT_FP16_BF16
+            + cls._DT_FP8
+            + cls._DT_FP8BF16
+            + cls._DT_FP8FP32
+        )
 
     # TODO: design a more practical way to do it
     # this is current supported tile size per hdim
@@ -921,7 +929,7 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                 (192, 192) : [FmhaFwdTileSize(128, 128,  32, 192,  32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
                 (256, 256) : [FmhaFwdTileSize(128, 128,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
             }  # fmt: skip
-        elif dtype in cls._DT_FP8_FP8BF16:
+        elif dtype in cls._DT_FP8 or dtype in cls._DT_FP8BF16:
             return {
                 ( 64,  64) : [FmhaFwdTileSize(128,  64,  32,  64,  32,  64,  2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
                 (128, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
@@ -983,7 +991,7 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                         pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f"))  # fmt: skip
                     if receipt == 1 and bias != "bias":
                         pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f"))  # fmt: skip # TODO: cover arbitraty hdim# fmt: skip
-        elif dtype in cls._DT_FP8_FP8BF16 or dtype in cls._DT_FP8FP32:
+        elif dtype in cls._DT_FP8BF16 or dtype in cls._DT_FP8FP32:
             # no need lse/dropout kernels
             for logits, qscale, mask, bias in itertools.product(
                 ["f"],
@@ -1186,7 +1194,7 @@ def get_product(receipt: int) -> Product:
             cond &= problem_ctx.mode == "batch"
             cond &= kernel_ctx.pipeline.F_vlayout == "row"
             if problem_ctx.dtype == "fp8bf16":
-                cond &= problem_ctx.hdim == 128
+                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 256
             return cond
 
         return Product(name="Aiter(mha_fwd) integration", rule=fit)
@@ -1198,7 +1206,7 @@ def get_product(receipt: int) -> Product:
             cond &= problem_ctx.mode == "group"
             cond &= kernel_ctx.pipeline.F_vlayout == "row"
             if problem_ctx.dtype == "fp8bf16":
-                cond &= problem_ctx.hdim == 128
+                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 256
             return cond
 
         return Product(name="Aiter(mha_varlen_fwd) integration", rule=fit)
@@ -1209,16 +1217,16 @@ def get_product(receipt: int) -> Product:
             cond = problem_ctx.dtype in ["fp16", "bf16", "fp8bf16"]
             cond &= kernel_ctx.pipeline.F_vlayout == "row"
             if problem_ctx.dtype == "fp8bf16":
-                cond &= problem_ctx.hdim == 128
+                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 256
             return cond
 
         return Product(name="aiter::mha_fwd C++ api integration", rule=fit)
     elif receipt == 888:
 
         def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
-            cond = problem_ctx.dtype in ["fp8", "fp8bf16", "fp8fp32"]
+            cond = problem_ctx.dtype in ["fp8bf16", "fp8fp32"]
             cond &= kernel_ctx.pipeline.F_vlayout == "row"
-            cond &= problem_ctx.hdim == 128
+            cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 256
             return cond
 
         return Product(name="receipt = 888", rule=fit)
