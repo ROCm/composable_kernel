@@ -29,7 +29,15 @@ from codegen.cpp_symbol_map import (
 from codegen.utils import check_duplicates_and_paddings, if_, indent, update_file
 
 
-DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "fp8bf16": 8, "fp8fp32": 8, "bf8": 8}
+DTYPE_BITS = {
+    "fp32": 32,
+    "fp16": 16,
+    "bf16": 16,
+    "fp8": 8,
+    "fp8bf16": 8,
+    "fp8fp32": 8,
+    "bf8": 8,
+}
 
 K0_MAX_SUBMAX_MAP = {32: 32, 48: 48, 64: 64, 96: 128, 128: 128, 192: 192, 256: 256}
 
@@ -743,8 +751,8 @@ class KernelComponentFactoryGfx9:
                 get_mask_map(mask_impl).keys(),
                 ["no"],
             ):
-                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f"))
-                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f"))
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
         elif dtype in ["fp8", "fp8fp16", "bf8"]:
             # TODO
             None
