@@ -393,7 +393,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         // BQuant uses block/grouped quantization for B matrix
         const ck_tile::index_t BQN       = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
         const ck_tile::index_t BQK       = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
-        const ck_tile::index_t stride_BQ = BQK;
+        const ck_tile::index_t stride_BQ = this->is_row_major(BLayout{}) ? BQN : BQK;
 
         // Generate test data
         ck_tile::HostTensor<ADataType> a_m_k(

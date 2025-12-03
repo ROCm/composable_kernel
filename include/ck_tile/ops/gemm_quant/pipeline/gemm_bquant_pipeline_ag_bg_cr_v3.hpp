@@ -125,7 +125,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
         constexpr index_t B_Buffer_Load_Inst_Num =
             NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
         constexpr index_t BQ_Buffer_Load_Inst_Num =
-            NPerBlock * KPerBlockBQ / (BlockSize * GetVectorSizeBQ());
+            NPerBlockBQ * KPerBlockBQ / (BlockSize * GetVectorSizeBQ());
 
         constexpr index_t A_LDS_Write_Inst_Num =
             MPerBlock * KPerBlock / (BlockSize * A_LDS_Write_Width);

@@ -251,7 +251,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
 
                 if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>)
                 {
-                    // ColumnMajor: [N, K] - N on Y-axis, partition Y
+                    // ColumnMajor: [(N0, N1, N2), K] - N on Y-axis, partition Y
                     return make_static_tile_distribution(
                         tile_distribution_encoding<sequence<MWarps, NR, NPerQ>,
                                                    tuple<sequence<N0, N1, N2>, sequence<KPerTile>>,
@@ -262,7 +262,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 }
                 else
                 {
-                    // RowMajor: [K, N] - N on X-axis, partition X
+                    // RowMajor: [K, (N0, N1, N2)] - N on X-axis, partition X
                     return make_static_tile_distribution(
                         tile_distribution_encoding<sequence<MWarps, NR, NPerQ>,
                                                    tuple<sequence<KPerTile>, sequence<N0, N1, N2>>,
@@ -281,7 +281,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 
                 if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>)
                 {
-                    // ColumnMajor: [N, K] - N on Y-axis
+                    // ColumnMajor: [(N0, N1), K] - N on Y-axis
                     return make_static_tile_distribution(
                         tile_distribution_encoding<sequence<MWarps, NR, get_warp_size()>,
                                                    tuple<sequence<N0, N1>, sequence<KPerTile>>,
@@ -292,7 +292,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 }
                 else
                 {
-                    // RowMajor: [K, N] - N on X-axis
+                    // RowMajor: [K, (N0, N1)] - N on X-axis
                     return make_static_tile_distribution(
                         tile_distribution_encoding<sequence<MWarps, NR, get_warp_size()>,
                                                    tuple<sequence<KPerTile>, sequence<N0, N1>>,
