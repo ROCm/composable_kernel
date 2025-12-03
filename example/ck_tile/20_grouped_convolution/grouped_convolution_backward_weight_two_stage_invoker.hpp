@@ -17,7 +17,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
               typename DsDataType     = ck_tile::tuple<>,
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    static float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
+    static InvokerResult grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
                                          const ck_tile::stream_config& s)
     {
         using WorkspaceDataType = float;
@@ -83,12 +83,15 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                       1,
                                       std::multiplies<ck_tile::index_t>());
 
-        const ck_tile::index_t k_grain     = args.k_batch * ConvConfig::K_Tile;
+        // TODO: What is the best way to calculate K_split for split-K autodeduction?
+        const ck_tile::index_t k_batch_eff = args.k_batch > 0 ? args.k_batch : 1;
+        const ck_tile::index_t k_grain     = k_batch_eff * ConvConfig::K_Tile;
         const ck_tile::index_t K_split     = (gemm_k + k_grain - 1) / k_grain * ConvConfig::K_Tile;
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
         float ave_time{0};
+        ck_tile::index_t split_k{0};
 
         const auto Run = [&](const auto has_hot_loop_,
                              const auto tail_number_,
@@ -155,7 +158,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                 ck_tile::GroupedConvBwdWeightHostArgs(args);
             auto c_ptr      = ws_args.wei_ptr;
             ws_args.wei_ptr = ws_m_n_dev_buf.GetDeviceBuffer();
-            auto kargs      = Kernel::MakeKernelArgs(ws_args);
+            const auto kargs      = Kernel::MakeKernelArgs(ws_args);
 
             const dim3 grids  = Kernel::GridSize(kargs);
             const dim3 blocks = Kernel::BlockSize();
@@ -220,7 +223,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
             }
 
             auto preprocess = [&]() {
-                if(args.k_batch > 1)
+                if(kargs.k_batch > 1)
                     ck_tile::hip_check_error(
                         hipMemsetAsync(ws_args.wei_ptr,
                                        0,
@@ -243,7 +246,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                     input_tensors,
                     static_cast<WeiDataType*>(c_ptr)));
 
-            return ave_time;
+            split_k = kargs.k_batch;
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
@@ -258,6 +261,6 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
         };
 
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-        return ave_time;
+        return {ave_time, split_k};
     }
 };
