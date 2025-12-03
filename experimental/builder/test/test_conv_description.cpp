@@ -13,7 +13,7 @@
 namespace {
 
 namespace ckb = ck_tile::builder;
-namespace ckr = ck_tile::reflect::conv;
+namespace ckr = ck_tile::reflect;
 namespace ckt = ck_tile::test;
 
 // Defines the signature of the convolution operation to be tested.
@@ -110,7 +110,7 @@ TEST(ConvDescriptionTest, DefaultInstanceHasBriefDescription)
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
     using Instance = ckb::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
-    EXPECT_THAT(ckr::Describe<Instance>().brief(), ckt::StringEqWithDiff("2D Forward convolution"));
+    EXPECT_THAT(ckr::describe<Instance>().brief(), ckt::StringEqWithDiff("2D Forward convolution"));
 }
 
 TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
@@ -118,7 +118,7 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
     using Instance = ckb::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
-    EXPECT_THAT(ckr::Describe<Instance>().detailed(),
+    EXPECT_THAT(ckr::describe<Instance>().detailed(),
                 ckt::StringEqWithDiff( //
                     "2D Forward Convolution Kernel\n"
                     "├─ Signature\n"
@@ -162,6 +162,23 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
                     "         └─ Vector access (GMEM write) instruction size: 2"));
 }
 
+TEST(ConvDescriptionTest, DefaultInstanceHasInstanceString)
+{
+    static constexpr const ConvSignature SIGNATURE;
+    static constexpr const DefaultAlgorithm ALGORITHM;
+    using Instance = ckb::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
+
+    // Get the instance string from the description
+    std::string instance_str = ckr::describe<Instance>().instance_string();
+
+    // Verify that the instance string is not empty
+    EXPECT_FALSE(instance_str.empty());
+
+    // Verify that it contains the device operation name
+    // The exact format depends on the InstanceTraits implementation
+    EXPECT_THAT(instance_str, ::testing::HasSubstr("DeviceGroupedConvFwdMultipleABD"));
+}
+
 // NOTE: BackwardDataInstanceHasDetailedDescription test is disabled because ConvFactory
 // does not have a specialization for backward data convolutions. The test fails with:
 //   "implicit instantiation of undefined template 'ck_tile::builder::ConvFactory<...>'"
@@ -195,4 +212,5 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
 //     EXPECT_THAT(ckr::Describe<Builder>().detailed(),
 //                 ckt::StringEqWithDiff("PLACEHOLDER"));
 // }
+
 } // namespace
