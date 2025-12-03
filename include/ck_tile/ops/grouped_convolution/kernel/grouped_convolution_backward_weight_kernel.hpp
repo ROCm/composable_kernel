@@ -22,19 +22,8 @@
 
 namespace ck_tile {
 
-template <
-    typename GroupedConvTraitsType_, 
-    typename TilePartitioner_, 
-    typename GemmPipeline_,
-    typename EpiloguePipeline_>
-struct ActiveWorkgroupsPerCU
-{
-    CK_TILE_HOST ActiveWorkgroupsPerCU();
-    index_t max_occupancy_{1};
-};
-
 /// @brief The Grouped Convolution kernel device arguments.
-template <typename GroupedConvTraitsType_, typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
+template <typename GroupedConvTraitsType_>
 struct GroupedConvBwdWeightKernelArgs
 {
 
@@ -46,36 +35,6 @@ struct GroupedConvBwdWeightKernelArgs
                                      GroupedConvTraitsType_::VectorSizeC,
                                      GroupedConvTraitsType_::NumGroupsToMerge>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
-
-    CK_TILE_HOST index_t TryGetOptimalKBatch(index_t k_batch_value, index_t gemmM, index_t gemmN, index_t gemm_batch) const
-    {
-        static ActiveWorkgroupsPerCU<GroupedConvTraitsType_, TilePartitioner_, GemmPipeline_, EpiloguePipeline_> active_workgroups_per_cu;
-
-        index_t optimal_k_batch = k_batch_value;
-        if (optimal_k_batch < 0)
-        {
-            const auto grid_size = TilePartitioner_::GridSize(gemmM, gemmN) * gemm_batch;
-            optimal_k_batch = get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_,
-                                                        grid_size);
-
-            // TODO: Upper limit for the k_batch value?
-
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-            {
-                std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << optimal_k_batch
-                            << std::endl;
-            }
-        }
-        else 
-        {
-            if (ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-            {
-                std::cout << "Using user defined k_batch: " << optimal_k_batch << std::endl;
-            }
-        }
-
-        return optimal_k_batch;
-    }
 
     template <
         typename InLay                      = typename GroupedConvTraitsType_::InLayout,
@@ -145,14 +104,16 @@ struct GroupedConvBwdWeightKernelArgs
         GemmK     = a_grid_desc_k_m.get_length(number<0>{});
         GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
 
+        k_batch = args.k_batch;
+
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
                       << ", GemmBatch: " << GemmBatch
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch 
+                      << ", k_batch: " << k_batch
+                      << std::endl;
         }
-
-        k_batch = TryGetOptimalKBatch(args.k_batch, GemmM, GemmN, GemmBatch);
     }
 
     template <
@@ -230,14 +191,16 @@ struct GroupedConvBwdWeightKernelArgs
         GemmK     = a_grid_desc_k_m.get_length(number<0>{});
         GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
 
+        k_batch = args.k_batch;
+
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
                       << ", GemmBatch: " << GemmBatch
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch
+                      << ", k_batch: " << k_batch
+                      << std::endl;
         }
-
-        k_batch = TryGetOptimalKBatch(args.k_batch, GemmM, GemmN, GemmBatch);
     }
 
     template <
@@ -322,14 +285,16 @@ struct GroupedConvBwdWeightKernelArgs
         GemmK     = a_grid_desc_k_m.get_length(number<0>{});
         GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
 
+        k_batch = args.k_batch;
+
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
                       << ", GemmBatch: " << GemmBatch
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch
+                      << ", k_batch: " << k_batch
+                      << std::endl;
         }
-
-        k_batch = TryGetOptimalKBatch(args.k_batch, GemmM, GemmN, GemmBatch);
     }
 
     using ABCGridDescs = remove_cvref_t<
@@ -438,8 +403,7 @@ struct GroupedConvolutionBackwardWeightKernel
     using DsDataType  = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
     using WeiDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    using GroupedConvBwdWeightKernelArgsSpecialized =
-        GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_, TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    using GroupedConvBwdWeightKernelArgsSpecialized = GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_>;
 
     static constexpr bool IsSplitKSupported = true;
 
@@ -513,7 +477,20 @@ struct GroupedConvolutionBackwardWeightKernel
             std::cout << "NPerBlock: " << number<TilePartitioner::NPerBlock>{} << std::endl;
             std::cout << "KPerBlock: " << number<TilePartitioner::KPerBlock>{} << std::endl;
         }
-        return GroupedConvBwdWeightKernelArgsSpecialized(hostArgs);
+
+        auto kernel_args = GroupedConvBwdWeightKernelArgsSpecialized(hostArgs);
+
+        using KernelImpl = GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType_,
+                                                            TilePartitioner_,
+                                                            GemmPipeline_,
+                                                            EpiloguePipeline_>; 
+
+        const auto optimal_split_k = calculate_optimal_k_batch<GemmPipeline_::BlockSize, KernelImpl, TilePartitioner_>
+            (kernel_args);
+
+        kernel_args.k_batch = optimal_split_k;
+
+        return kernel_args;
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -551,6 +528,15 @@ struct GroupedConvolutionBackwardWeightKernel
     CK_TILE_HOST static bool
     IsSupportedArgument(const GroupedConvBwdWeightKernelArgsSpecialized& kargs)
     {
+        if (kargs.k_batch < 1)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("k_batch must be at least one. Ensure argument is created via MakeKernelArgs.");
+            }
+            return false;
+        }
+
         if constexpr((GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                       is_any_of<WeiDataType, fp16_t, bf16_t>::value))
         {
@@ -1024,19 +1010,5 @@ struct GroupedConvolutionBackwardWeightKernel
         }
     }
 };
-
-template <typename GroupedConvTraitsType_, 
-          typename TilePartitioner_, 
-          typename GemmPipeline_, 
-          typename EpiloguePipeline_>
-CK_TILE_HOST ActiveWorkgroupsPerCU<GroupedConvTraitsType_, TilePartitioner_, GemmPipeline_, EpiloguePipeline_>::ActiveWorkgroupsPerCU()
-{
-    using Kernel = GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType_,
-                                                            TilePartitioner_,
-                                                            GemmPipeline_,
-                                                            EpiloguePipeline_>;
-
-    max_occupancy_ = get_max_occupancy_for_kernel<Kernel, GemmPipeline_::BlockSize>();
-}
 
 } // namespace ck_tile

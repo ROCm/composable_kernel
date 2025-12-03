@@ -146,7 +146,7 @@ struct GroupedConvolutionBackwardWeightInvoker
                                                                            ConvEpilogue>;
             const auto& kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids  = Kernel::GridSize(args);
+            const dim3 grids  = Kernel::GridSize(kargs);
             const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
@@ -169,9 +169,7 @@ struct GroupedConvolutionBackwardWeightInvoker
             }
 
             auto preprocess = [&]() {
-                // Mutiple K batches: either explicit split-K or internally deducted split-K (negative k_batch value). 
-                const bool has_multiple_k_batches = args.k_batch > 1 || args.k_batch < 0; 
-                if(has_multiple_k_batches)
+                if(kargs.k_batch > 1)
                 {
                     ck_tile::hip_check_error(
                         hipMemsetAsync(kargs.wei_ptr,
