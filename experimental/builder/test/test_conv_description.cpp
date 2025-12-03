@@ -67,11 +67,11 @@ struct DefaultAlgorithm
     ckb::test::TransferABC transfer{
         .a =
             {
-                .block_transfer              = {.k0 = 4, .m_n = 256, .k1 = 8},
+                .block_transfer              = {.k0 = 1, .m_n = 128, .k1 = 2},
                 .lds_transfer                = {.src_vector_dim            = 2,
-                                                .src_scalar_per_vector     = 8,
-                                                .lds_dst_scalar_per_vector = 8,
-                                                .is_direct_load            = true,
+                                                .src_scalar_per_vector     = 2,
+                                                .lds_dst_scalar_per_vector = 2,
+                                                .is_direct_load            = false,
                                                 .lds_padding               = false},
                 .block_transfer_access_order = {.order = {0, 1, 2}},
                 .src_access_order            = {.order = {0, 1, 2}},
@@ -79,11 +79,11 @@ struct DefaultAlgorithm
             },
         .b =
             {
-                .block_transfer              = {.k0 = 4, .m_n = 256, .k1 = 8},
+                .block_transfer              = {.k0 = 1, .m_n = 128, .k1 = 2},
                 .lds_transfer                = {.src_vector_dim            = 2,
-                                                .src_scalar_per_vector     = 8,
-                                                .lds_dst_scalar_per_vector = 8,
-                                                .is_direct_load            = true,
+                                                .src_scalar_per_vector     = 2,
+                                                .lds_dst_scalar_per_vector = 2,
+                                                .is_direct_load            = false,
                                                 .lds_padding               = false},
                 .block_transfer_access_order = {.order = {0, 1, 2}},
                 .src_access_order            = {.order = {0, 1, 2}},
@@ -92,9 +92,9 @@ struct DefaultAlgorithm
             {
                 .thread_cluster_dims =
                     {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
-                .epilogue = {.m_per_wave_per_shuffle = 1,
-                             .n_per_wave_per_shuffle = 1,
-                             .scalar_per_vector      = 8},
+                .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
+                             .n_per_wave_per_shuffle     = 1,
+                             .scalar_per_vector          = 2},
             },
     };
 
@@ -109,16 +109,16 @@ TEST(ConvDescriptionTest, DefaultInstanceHasBriefDescription)
 {
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
-    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-    EXPECT_THAT(ckr::Describe<Builder>().brief(), ckt::StringEqWithDiff("2D Forward convolution"));
+    using Instance = ckb::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
+    EXPECT_THAT(ckr::Describe<Instance>().brief(), ckt::StringEqWithDiff("2D Forward convolution"));
 }
 
 TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
 {
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
-    using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-    EXPECT_THAT(ckr::Describe<Builder>().detailed(),
+    using Instance = ckb::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
+    EXPECT_THAT(ckr::Describe<Instance>().detailed(),
                 ckt::StringEqWithDiff( //
                     "2D Forward Convolution Kernel\n"
                     "├─ Signature\n"
@@ -127,41 +127,39 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
                     "│  ├─ Input elementwise operation: PASS_THROUGH\n"
                     "│  ├─ Weights elementwise operation: PASS_THROUGH\n"
                     "│  └─ Output elementwise operation: PASS_THROUGH\n"
-                    "├─ Algorithm\n"
-                    "│  ├─ Thread block size: 256\n"
-                    "│  ├─ Data tile size: 256×256×32\n"
-                    "│  ├─ Gemm padding: DEFAULT\n"
-                    "│  ├─ Convolution specialization: DEFAULT\n"
-                    "│  ├─ Pipeline version: V4\n"
-                    "│  ├─ Pipeline scheduler: INTRAWAVE\n"
-                    "│  ├─ Warp Gemm parameters: \n"
-                    "│  │  ├─ subtile size: 16×16\n"
-                    "│  │  └─ Number of warp gemm iterations: 4×4\n"
-                    "│  ├─ Memory access:\n"
-                    "│  │  ├─ A Tile transfer: \n"
-                    "│  │  │  ├─ Tile dimensions: 4×256×8×\n"
-                    "│  │  │  ├─ The innermost K subdimension size: 8\n"
-                    "│  │  │  ├─ Spatial thread distribution over the data tile: 0×1×2\n"
-                    "│  │  │  ├─ The order of accessing data tile axes: 0×1×2\n"
-                    "│  │  │  ├─ Vectorized memory access axis index (with contiguous memory): 2\n"
-                    "│  │  │  ├─ Vector access (GMEM read) instruction size: 8\n"
-                    "│  │  │  ├─ Vector access (LDS write) instruction size: 8\n"
-                    "│  │  │  └─ LDS data layout padding (to prevent bank conflicts): 8\n"
-                    "│  │  ├─ B Tile transfer: \n"
-                    "│  │  │  ├─ Tile dimensions: 4×256×8×\n"
-                    "│  │  │  ├─ The innermost K subdimension size: 8\n"
-                    "│  │  │  ├─ Spatial thread distribution over the data tile: 0×1×2\n"
-                    "│  │  │  ├─ The order of accessing data tile axes: 0×1×2\n"
-                    "│  │  │  ├─ Vectorized memory access axis index (with contiguous memory): 2\n"
-                    "│  │  │  ├─ Vector access (GMEM read) instruction size: 8\n"
-                    "│  │  │  ├─ Vector access (LDS write) instruction size: 8\n"
-                    "│  │  │  └─ LDS data layout padding (to prevent bank conflicts): 8\n"
-                    "│  │  └─ C Tile transfer: \n"
-                    "│  │     ├─ Data shuffle (number of gemm instructions per iteration): 1×1\n"
-                    "│  │     ├─ Spatial thread distribution used to store data: 1×32×1×8\n"
-                    "│  │     └─ Vector access (GMEM write) instruction size: 8\n"
-                    "│  └─ \n"
-                    "└─ "));
+                    "└─ Algorithm\n"
+                    "   ├─ Thread block size: 256\n"
+                    "   ├─ Data tile size: 256×256×32\n"
+                    "   ├─ Gemm padding: DEFAULT\n"
+                    "   ├─ Convolution specialization: DEFAULT\n"
+                    "   ├─ Pipeline version: V4\n"
+                    "   ├─ Pipeline scheduler: INTRAWAVE\n"
+                    "   ├─ Warp Gemm parameters: \n"
+                    "   │  ├─ subtile size: 16×16\n"
+                    "   │  └─ Number of warp gemm iterations: 4×4\n"
+                    "   └─ Memory access:\n"
+                    "      ├─ A Tile transfer: \n"
+                    "      │  ├─ Tile dimensions: 4×256×8×\n"
+                    "      │  ├─ The innermost K subdimension size: 8\n"
+                    "      │  ├─ Spatial thread distribution over the data tile: 0×1×2\n"
+                    "      │  ├─ The order of accessing data tile axes: 0×1×2\n"
+                    "      │  ├─ Vectorized memory access axis index (with contiguous memory): 2\n"
+                    "      │  ├─ Vector access (GMEM read) instruction size: 2\n"
+                    "      │  ├─ Vector access (LDS write) instruction size: 2\n"
+                    "      │  └─ LDS data layout padding (to prevent bank conflicts): 2\n"
+                    "      ├─ B Tile transfer: \n"
+                    "      │  ├─ Tile dimensions: 4×256×8×\n"
+                    "      │  ├─ The innermost K subdimension size: 8\n"
+                    "      │  ├─ Spatial thread distribution over the data tile: 0×1×2\n"
+                    "      │  ├─ The order of accessing data tile axes: 0×1×2\n"
+                    "      │  ├─ Vectorized memory access axis index (with contiguous memory): 2\n"
+                    "      │  ├─ Vector access (GMEM read) instruction size: 2\n"
+                    "      │  ├─ Vector access (LDS write) instruction size: 2\n"
+                    "      │  └─ LDS data layout padding (to prevent bank conflicts): 2\n"
+                    "      └─ C Tile transfer: \n"
+                    "         ├─ Data shuffle (number of gemm instructions per iteration): 1×1\n"
+                    "         ├─ Spatial thread distribution used to store data: 1×32×1×8\n"
+                    "         └─ Vector access (GMEM write) instruction size: 2"));
 }
 
 // NOTE: BackwardDataInstanceHasDetailedDescription test is disabled because ConvFactory

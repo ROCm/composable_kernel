@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -643,8 +643,6 @@ struct GroupedConvolutionBackwardWeightKernel
                 CK_TILE_ERROR("ConvG must be a multiple of NumGroupsToMerge!");
                 return false;
             }
-
-            // TODO: Should we also check that GemmM <= MPerBlock and GemmN <= NPerBlock?
         }
 
         return true;
