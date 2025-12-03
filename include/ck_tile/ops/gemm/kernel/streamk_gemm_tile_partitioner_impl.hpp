@@ -1,5 +1,6 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #pragma once
 #include "streamk_gemm_tile_partitioner.hpp"
 namespace ck_tile {

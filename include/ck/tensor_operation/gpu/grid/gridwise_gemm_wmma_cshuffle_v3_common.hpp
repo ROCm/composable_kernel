@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -729,6 +729,13 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             auto KReadPadSplited    = math::integer_divide_ceil(karg.K, K_t) * KReadVec;
             if((KReadPadSplited * (karg.KBatch - 1)) >= karg.K)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Arg K value too low for combination of AK1/BK1/KBatch. AK1: "
+                              << AK1Number << ", BK1: " << BK1Number << ", KBatch: " << karg.KBatch
+                              << ", K: " << karg.K << " " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
+                }
                 return false;
             }
         }

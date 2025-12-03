@@ -1,5 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
@@ -22,7 +23,8 @@ struct BaseGemmPipelineAgBgCrCompV4
 
     CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
-        return num_loop > PrefetchStages;
+        constexpr index_t HotLoopGlobalReads = 2;
+        return num_loop >= (HotLoopGlobalReads + PrefetchStages);
     }
 
     CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
