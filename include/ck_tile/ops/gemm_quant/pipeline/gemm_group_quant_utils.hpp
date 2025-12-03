@@ -169,8 +169,8 @@ struct tile_distribution_encoding_pattern_aq_transposed_c
 template <typename BlockGemmShape,
           typename WarpGemm,
           index_t BlockSize,
-          index_t YPerTile,
-          index_t XPerTile,
+          index_t YPerTile, //64
+          index_t XPerTile, //4
           index_t XPerQ,
           bool PreshuffleQuant = false>
 struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
@@ -216,17 +216,17 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     {
         if constexpr(PreshuffleQuant)
         {
-            constexpr index_t X1 = warp_size;
-            constexpr index_t X0 = XPerTile / warp_size;
-            constexpr index_t Y1 = NWarps;
-            constexpr index_t Y0 = YPerTile / Y1;
+            constexpr index_t Y1 = warp_size;
+            constexpr index_t Y0 = YPerTile / warp_size;
+            constexpr index_t X1 = NWarps;
+            constexpr index_t X0 = XPerTile / X1;
 
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps>,
                                            tuple<sequence<Y0, Y1>, sequence<X0, X1>>,
-                                           tuple<sequence<0, 1>, sequence<2>>,
+                                           tuple<sequence<0, 2>, sequence<1>>,//(MWarp, Nwarp), (warp_size)
                                            tuple<sequence<0, 1>, sequence<1>>,
-                                           sequence<1, 2>,
+                                           sequence<2, 1>,  // Y0, X0 == (1,1)
                                            sequence<0, 0>>{});
         }
         else

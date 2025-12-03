@@ -9,17 +9,17 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     set(EXE_NAME tile_example_gemm_quant)
     add_executable(${EXE_NAME} EXCLUDE_FROM_ALL 
         gemm_quant.cpp
-        gemm_aquant_quantgrouped.cpp
-        gemm_aquant_quantgrouped_preshufflequant.cpp
-        gemm_bquant_quantgrouped_bf8i4.cpp
-        gemm_bquant_quantgrouped_fp8i4.cpp
-        gemm_bquant_quantgrouped_bf8.cpp
-        gemm_bquant_quantgrouped_fp8.cpp
-        gemm_bquant_quantgrouped_preshuffleb.cpp
+#         gemm_aquant_quantgrouped.cpp
+#         gemm_aquant_quantgrouped_preshufflequant.cpp
+#         gemm_bquant_quantgrouped_bf8i4.cpp
+#         gemm_bquant_quantgrouped_fp8i4.cpp
+#         gemm_bquant_quantgrouped_bf8.cpp
+#         gemm_bquant_quantgrouped_fp8.cpp
+#         gemm_bquant_quantgrouped_preshuffleb.cpp
         gemm_bquant_quantgrouped_preshufflequant.cpp
-        gemm_bquant_quantgrouped_preshuffleb_preshufflequant.cpp
-        gemm_quant_rowcol.cpp
-        gemm_quant_tensor.cpp
+#         gemm_bquant_quantgrouped_preshuffleb_preshufflequant.cpp
+#         gemm_quant_rowcol.cpp
+#         gemm_quant_tensor.cpp
         )
     target_compile_options(${EXE_NAME} PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 else()

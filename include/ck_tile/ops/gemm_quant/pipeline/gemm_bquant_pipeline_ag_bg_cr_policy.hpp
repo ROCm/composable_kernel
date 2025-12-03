@@ -59,8 +59,8 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                 BlockGemmShape,
                 WarpGemm,
                 BlockSize,
-                NPerBlock / WarpGemm::kN,
-                ck_tile::integer_least_multiple(WarpGemm::kN * KPerBlockBQ, get_warp_size()),
+                ck_tile::integer_least_multiple(WarpGemm::kN * KPerBlockBQ, get_warp_size()), //64
+                NPerBlock / WarpGemm::kN, //4
                 VecLoadSize,
                 PreshuffleQuant>;
             return TileEncodingPattern::make_2d_static_tile_distribution();

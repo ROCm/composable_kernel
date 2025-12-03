@@ -33,14 +33,14 @@ auto create_args(int argc, char* argv[])
                 "fp8",
                 "Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, "
                 "or bf8i4")
-        .insert("warmup", "50", "Number of iterations before benchmarking the kernel")
-        .insert("repeat", "1000", "Number of iterations to benchmark the kernel")
+        .insert("warmup", "1", "Number of iterations before benchmarking the kernel")
+        .insert("repeat", "0", "Number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "SplitK value")
         .insert("device", "0", "Device id that will be used to run the kernel")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("flush_cache", "true", "Flush cache before running the kernel")
-        .insert("rotating_count", "1000", "Rotating count")
+        .insert("rotating_count", "0", "Rotating count")
         .insert("quant_mode", "bquant", "Choose aquant, bquant, tensor or rowcol")
         .insert("preshuffleb", "false", "Enable preshuffle of tensor B")
         .insert("preshufflequant", "false", "Enable preshuffle of quant tensor")
@@ -85,28 +85,28 @@ auto gen_lut_key(const ck_tile::ArgParser& arg_parser)
     return hash_multiple_strings(params);
 }
 
-void aquant_quantgrouped_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-void aquant_quantgrouped_preshufflequant_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-void bquant_quantgrouped_fp8_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-void bquant_quantgrouped_bf8_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-void bquant_quantgrouped_fp8i4_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-void bquant_quantgrouped_bf8i4_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-void bquant_quantgrouped_preshuffleb_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+// void aquant_quantgrouped_instance_factory(
+//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+// void aquant_quantgrouped_preshufflequant_instance_factory(
+//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+// void bquant_quantgrouped_fp8_instance_factory(
+//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+// void bquant_quantgrouped_bf8_instance_factory(
+//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+// void bquant_quantgrouped_fp8i4_instance_factory(
+//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+// void bquant_quantgrouped_bf8i4_instance_factory(
+//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+// void bquant_quantgrouped_preshuffleb_instance_factory(
+//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_preshufflequant_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-void bquant_quantgrouped_preshuffleb_preshufflequant_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-void quant_rowcol_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-void quant_tensor_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+// void bquant_quantgrouped_preshuffleb_preshufflequant_instance_factory(
+//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+// void quant_rowcol_instance_factory(
+//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+// void quant_tensor_instance_factory(
+//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 
 int main(int argc, char* argv[])
 {
@@ -122,17 +122,17 @@ int main(int argc, char* argv[])
     ck_tile::hip_check_error(hipSetDevice(device_id));
 
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>> lut;
-    aquant_quantgrouped_instance_factory(lut);
-    aquant_quantgrouped_preshufflequant_instance_factory(lut);
-    bquant_quantgrouped_fp8_instance_factory(lut);
-    bquant_quantgrouped_bf8_instance_factory(lut);
-    bquant_quantgrouped_fp8i4_instance_factory(lut);
-    bquant_quantgrouped_bf8i4_instance_factory(lut);
-    bquant_quantgrouped_preshuffleb_instance_factory(lut);
+    // aquant_quantgrouped_instance_factory(lut);
+    // aquant_quantgrouped_preshufflequant_instance_factory(lut);
+    // bquant_quantgrouped_fp8_instance_factory(lut);
+    // bquant_quantgrouped_bf8_instance_factory(lut);
+    // bquant_quantgrouped_fp8i4_instance_factory(lut);
+    // bquant_quantgrouped_bf8i4_instance_factory(lut);
+    // bquant_quantgrouped_preshuffleb_instance_factory(lut);
     bquant_quantgrouped_preshufflequant_instance_factory(lut);
-    bquant_quantgrouped_preshuffleb_preshufflequant_instance_factory(lut);
-    quant_rowcol_instance_factory(lut);
-    quant_tensor_instance_factory(lut);
+    // bquant_quantgrouped_preshuffleb_preshufflequant_instance_factory(lut);
+    // quant_rowcol_instance_factory(lut);
+    // quant_tensor_instance_factory(lut);
 
     auto key = gen_lut_key(arg_parser);
 
