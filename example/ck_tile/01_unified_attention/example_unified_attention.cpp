@@ -52,7 +52,7 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
                 "if true, will be b*h*s*d, else b*s*h*d")
         .insert("operm", "0", "permute output")
         .insert("causal", "0", "0: no mask, 1: causal mask")
-        .insert("v", "1", "0:no verify, 1:verify")
+        .insert("verify", "1", "0:no verify, 1:verify")
         .insert("varlen", "1", "0: fixed length, 1: variable length")
         .insert("seed",
                 "11939",
@@ -60,14 +60,14 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
                 "non-deterministic seed")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "30", "number of iterations to benchmark the kernel")
-        .insert("page_blk_size", "32", "page block size of kv cache")
+        .insert("page_blk_size", "128", "page block size of kv cache")
         // Optional effective seqlen override (exclude PAD) for batch mode
         .insert("query_lens",
-                "32,32,32",
+                "",
                 "Batch-mode only: per-batch effective seqlen for Q (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.")
         .insert("kv_lens",
-                "64,64,64",
+                "",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.");
 
@@ -217,7 +217,7 @@ struct RunConfig
 
         kernel_warmup = args.get_int("warmup");
         kernel_repeat = args.get_int("repeat");
-        verify        = args.get_bool("v");
+        verify        = args.get_bool("verify");
     }
 
     std::optional<uint32_t> seed;
@@ -522,10 +522,10 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
               << " TFlops, " << std::setprecision(2)
               << (static_cast<double>(mem) / 1e12 / (time / 1e3)) << " TB/s" << std::endl;
 
-    // if(!run_config.verify)
-    // {
-    //     return true;
-    // }
+    if(!run_config.verify)
+    {
+        return true;
+    }
 
     // variable lengths are provided -> compute per-batch references
     // with the effective lengths; else compute a single full reference.

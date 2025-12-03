@@ -694,7 +694,7 @@ struct UnifiedAttentionPipeline
             {
                 // Moving outside the page, fetch new physical page index
                 k_block_table_off++;
-                index_t k_page_blk_idx = block_tables_ptr_[block_table_offset + k_block_table_off];
+                index_t k_page_blk_idx = amd_wave_read_first_lane(block_tables_ptr_[block_table_offset + k_block_table_off]);
                 k_dram_window.set_window_origin({k_page_blk_idx * PAGE_BLOCK_SIZE, 0});
                 k_block_i_inside_page = 0;
             }
@@ -718,7 +718,7 @@ struct UnifiedAttentionPipeline
             {
                 // Moving outside the page, fetch new physical page index
                 v_block_table_off++;
-                index_t v_page_blk_idx = block_tables_ptr_[block_table_offset + v_block_table_off];
+                index_t v_page_blk_idx = amd_wave_read_first_lane(block_tables_ptr_[block_table_offset + v_block_table_off]);
                 v_dram_window.set_window_origin({v_page_blk_idx * PAGE_BLOCK_SIZE, 0});
                 v_block_i_inside_page = 0;
             }
