@@ -8,14 +8,13 @@
 
 namespace {
 
-using ::ck_tile::builder::factory::internal::ElementwiseOpToCK;
 using ::ck_tile::builder::ElementwiseOperation;
+using ::ck_tile::builder::factory::internal::ElementwiseOpToCK;
 
 TEST(ConvElementwiseOp, AssignsOpsForPassThrough)
 {
     using Op = ElementwiseOpToCK<ElementwiseOperation::PASS_THROUGH>::Op;
-    EXPECT_TRUE(
-        (std::is_same_v<Op, ck::tensor_operation::element_wise::PassThrough>));
+    EXPECT_TRUE((std::is_same_v<Op, ck::tensor_operation::element_wise::PassThrough>));
 }
 
 TEST(ConvElementwiseOp, AssignsOpsForScale)
@@ -39,7 +38,8 @@ TEST(ConvElementwiseOp, AssignsOpsForScaleAddScaleAddRelu)
 TEST(ConvElementwiseOp, AssignsOpsForBiasNormClamp)
 {
     using Op = ElementwiseOpToCK<ElementwiseOperation::BIAS_BNORM_CLAMP>::Op;
-    EXPECT_TRUE((std::is_same_v<Op, ck::tensor_operation::element_wise::BiasNormalizeInInferClamp>));
+    EXPECT_TRUE(
+        (std::is_same_v<Op, ck::tensor_operation::element_wise::BiasNormalizeInInferClamp>));
 }
 
 } // namespace
