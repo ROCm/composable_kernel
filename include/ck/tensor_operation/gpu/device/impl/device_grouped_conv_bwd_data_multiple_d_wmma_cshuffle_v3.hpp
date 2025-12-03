@@ -70,7 +70,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<e_data_type, ck::bhalf_t>)))
     {
 #endif
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueCShuffle>()];
+        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
 
         const index_t block_args_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
         index_t left                = 0;
