@@ -785,7 +785,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
               bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
               bool CTranspose,
-              TailNumber TailNum>
+              TailNumber TailNum,
+              typename EpilogueArgument>
     __device__ static void Run(void* p_shared,
                                const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
@@ -797,7 +798,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
                                const ComputePtrOffsetOfN compute_ptr_offset_of_n,
                                const index_t num_k_per_block,
-                               Argument& karg)
+                               Argument& karg,
+                               EpilogueArgument& epilogue_args)
     {
         const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
         const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z / karg.KBatch);
@@ -881,6 +883,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
                            decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
                            decltype(b_scale_struct),
+                           decltype(epilogue_args),
                            HasMainKBlockLoop,
                            EGlobalMemoryDataOperation,
                            TailNum>(p_as_grid_,
@@ -899,6 +902,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                     block_n_id,
                                     num_k_block_per_scale,
                                     b_scale_struct,
+                                    epilogue_args,
                                     karg.KBatch,
                                     k_idx);
     }

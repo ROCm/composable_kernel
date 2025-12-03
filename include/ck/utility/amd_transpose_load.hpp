@@ -17,7 +17,7 @@ __device__ auto amd_global_load_transpose_to_vgpr(const T* in_ptr)
         __attribute__((address_space(1))) llvm_fp16x8_t* glb_ptr =
             reinterpret_cast<__attribute__((address_space(1))) llvm_fp16x8_t*>(
                 reinterpret_cast<uintptr_t>(in_ptr));
-        return bit_cast<vector_t>(__builtin_amdgcn_global_load_tr_b128_v8f16(glb_ptr));
+        return bit_cast<vector_t>(__builtin_amdgcn_global_load_tr_v8f16(glb_ptr));
     }
     else if constexpr(sizeof(T) == 1)
     {
@@ -25,7 +25,7 @@ __device__ auto amd_global_load_transpose_to_vgpr(const T* in_ptr)
         __attribute__((address_space(1))) llvm_intx2_t* glb_ptr =
             reinterpret_cast<__attribute__((address_space(1))) llvm_intx2_t*>(
                 reinterpret_cast<uintptr_t>(in_ptr));
-        return bit_cast<vector_t>(__builtin_amdgcn_global_load_tr_b64_v2i32(glb_ptr));
+        return bit_cast<vector_t>(__builtin_amdgcn_global_load_tr_v2i32(glb_ptr));
     }
     else
     {
