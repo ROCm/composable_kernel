@@ -533,13 +533,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
     return pass;
 }
 
-template <typename PrecType, ck_tile::QuantType QuantMode>
+template <typename PrecType, ck_tile::QuantType QuantMode, typename GemmConfig>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
-    using Row        = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col        = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using GemmConfig = GemmQuantConfig<QuantMode>::template GemmConfig<PrecType>;
-    using Types      = GemmTypeConfig<PrecType>;
+    using Row   = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using Types = GemmTypeConfig<PrecType>;
     // Specific type aliases for easy access
     using ADataType      = typename Types::ADataType;
     using BDataType      = typename Types::BDataType;
@@ -551,6 +550,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 
     if(a_layout == "R" && b_layout == "C")
     {
+
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      AQDataType,
@@ -568,6 +568,24 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
 }
 
+template <typename PrecType, ck_tile::QuantType QuantMode>
+int run_gemm_example_persistency(
+    std::string a_layout, std::string b_layout, bool persistent, int argc, char* argv[])
+{
+    if(persistent)
+    {
+        using GemmConfig = GemmQuantConfig<QuantMode>::template GemmConfig<PrecType, true>;
+        return run_gemm_example_prec_type<PrecType, QuantMode, GemmConfig>(
+            a_layout, b_layout, argc, argv);
+    }
+    else
+    {
+        using GemmConfig = GemmQuantConfig<QuantMode>::template GemmConfig<PrecType, false>;
+        return run_gemm_example_prec_type<PrecType, QuantMode, GemmConfig>(
+            a_layout, b_layout, argc, argv);
+    }
+}
+
 int run_grouped_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -580,28 +598,29 @@ int run_grouped_gemm_example(int argc, char* argv[])
     const std::string b_layout  = arg_parser.get_str("b_layout");
     const std::string data_type = arg_parser.get_str("prec");
     std::string quant_mode      = arg_parser.get_str("quant_mode");
+    bool persistent             = arg_parser.get_bool("persistent");
 
     if(data_type == "fp8")
     {
         if(quant_mode == "tensor")
         {
-            return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::QuantType::TensorQuant>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::TensorQuant>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else if(quant_mode == "rowcol")
         {
-            return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::QuantType::RowColQuant>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::RowColQuant>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else if(quant_mode == "aquant")
         {
-            return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::QuantType::AQuantGrouped>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::AQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else if(quant_mode == "bquant")
         {
-            return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::QuantType::BQuantGrouped>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::BQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else
         {
@@ -612,23 +631,23 @@ int run_grouped_gemm_example(int argc, char* argv[])
     {
         if(quant_mode == "tensor")
         {
-            return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::QuantType::TensorQuant>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::TensorQuant>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else if(quant_mode == "rowcol")
         {
-            return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::QuantType::RowColQuant>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::RowColQuant>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else if(quant_mode == "aquant")
         {
-            return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::QuantType::AQuantGrouped>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::AQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else if(quant_mode == "bquant")
         {
-            return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::QuantType::BQuantGrouped>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::BQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else
         {
