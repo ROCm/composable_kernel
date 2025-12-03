@@ -24,6 +24,15 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
         return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
     }
 
+    CK_TILE_HOST static constexpr amd_buffer_coherence_enum GetBMemNTType(index_t N, index_t K)
+    {
+        if (N % 3072 == 0 && K == 3072)
+        {
+            return ck_tile::amd_buffer_coherence_enum::WAVE_NT1;
+        }
+        return ck_tile::amd_buffer_coherence_enum::coherence_default;
+    }
+
     template <bool DispatchHotloop = false, TailNumber tail_num, typename RunFunction>
     CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func, bool has_hot_loop)
     {
