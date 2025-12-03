@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) , Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -110,7 +110,7 @@ struct GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigQuant : public GemmConfigBase
+struct GemmConfigQuantDecode : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
@@ -142,7 +142,7 @@ struct GemmConfigRowColQuant : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigPreshuffleQuant : public GemmConfigBase
+struct GemmConfigPreshuffleQuantDecode : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
@@ -161,7 +161,7 @@ struct GemmConfigPreshuffleQuant : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigPreshuffleB_Bquant_decode : public GemmConfigBase
+struct GemmConfigPreshuffleB_BQuant_Decode : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
@@ -184,7 +184,14 @@ struct GemmConfigPreshuffleB_Bquant_decode : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase
+struct GemmConfigPreshuffleB_PreshuffleBQuant_Decode
+    : public GemmConfigPreshuffleB_BQuant_Decode<PrecType>
+{
+    static constexpr bool PreshuffleQuant = true;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffleB_BQuant_Prefill : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -207,7 +214,14 @@ struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigBQuantPrefill : public GemmConfigBase
+struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill
+    : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>
+{
+    static constexpr bool PreshuffleQuant = true;
+};
+
+template <typename PrecType>
+struct GemmConfigQuantPrefill : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -223,7 +237,31 @@ struct GemmConfigBQuantPrefill : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigBQuantPrefill_Wmma : public GemmConfigBQuantPrefill<PrecType>
+struct GemmConfigPreshuffleBQuantPrefill : public GemmConfigQuantPrefill<PrecType>
+{
+    static constexpr bool PreshuffleQuant = true;
+};
+
+template <typename PrecType>
+struct GemmConfigBQuantPrefill_Wmma : public GemmConfigQuantPrefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffleB_BQuant_Prefill_Wmma
+    : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill_Wmma
+    : public GemmConfigPreshuffleB_PreshuffleBQuant_Prefill<PrecType>
 {
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
@@ -241,61 +279,4 @@ struct GemmQuantTypeConfig
     using BDataType   = BDataType_;
     using AccDataType = float;
     using CDataType   = CDataType_;
-};
-
-template <typename T>
-struct DataTypeTraits;
-
-template <>
-struct DataTypeTraits<float>
-{
-    static constexpr const char* name = "fp32";
-};
-
-template <>
-struct DataTypeTraits<double>
-{
-    static constexpr const char* name = "fp64";
-};
-
-template <>
-struct DataTypeTraits<int32_t>
-{
-    static constexpr const char* name = "int32";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::half_t>
-{
-    static constexpr const char* name = "fp16";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::bf16_t>
-{
-    static constexpr const char* name = "bf16";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::fp8_t>
-{
-    static constexpr const char* name = "fp8";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::bf8_t>
-{
-    static constexpr const char* name = "bf8";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::pk_int4_t>
-{
-    static constexpr const char* name = "pk_int4_t";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::int8_t>
-{
-    static constexpr const char* name = "int8";
 };

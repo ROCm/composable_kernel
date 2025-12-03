@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c), Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include <cstring>
@@ -11,15 +11,19 @@
 #include <tuple>
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/ops/common/utils.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
+#include "ck_tile/ops/gemm_quant.hpp"
 #include "gemm_utils.hpp"
 
 template <typename GemmConfig,
           typename TypeConfig,
           typename ALayout,
+          typename AQLayout,
           typename BLayout,
+          typename BQLayout,
           typename CLayout,
           typename QuantGroupSize,
           ck_tile::QuantType QuantMode,
@@ -49,8 +53,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                     BLayout,
                                                     CLayout,
                                                     QuantMode,
-                                                    ALayout, // for AQLayout
-                                                    BLayout, // for BQLayout
+                                                    AQLayout, // for AQLayout
+                                                    BQLayout, // for BQLayout
                                                     false,
                                                     GemmConfig::DoubleSmemBuffer>;
 
@@ -61,12 +65,11 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                                  GemmTraits,
                                                                  ComputeDataType>;
 
-    // This example only supports BQuant (no AQuant)
-    // For non-preshuffled BQuant, use BaseBQuantGemmPipelineAgBgCrCompV3
+    // Base pipeline selection based on quant mode and preshuffle settings
     using BaseGemmPipeline = std::conditional_t<
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-        ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+        ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -281,7 +284,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float ave_time = gemm_calc_quant<GemmConfig,
                                      TypeConfig,
                                      ALayout,
+                                     AQLayout,
                                      BLayout,
+                                     BQLayout,
                                      CLayout,
                                      QuantGroupSize,
                                      QuantMode,
@@ -309,21 +314,22 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideAQ =" << stride_AQ << " StrideB =" << stride_B
               << " StrideC =" << stride_C << " A_Layout =" << ALayout::name
-              << " B_Layout =" << BLayout::name << " C_Layout =" << CLayout::name;
+              << " B_Layout =" << BLayout::name << " C_Layout =" << CLayout::name
+              << " AQ_Layout =" << AQLayout::name << " BQ_Layout =" << BQLayout::name;
     if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant)
     {
         std::cout << " StrideBQ =" << stride_BQ;
     }
-    std::cout << " A_Type = " << DataTypeTraits<typename TypeConfig::ADataType>::name
-              << " AQ_Type = " << DataTypeTraits<typename TypeConfig::QDataType>::name
-              << " B_Type = " << DataTypeTraits<typename TypeConfig::BDataType>::name;
+    std::cout << " A_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::ADataType>::name
+              << " AQ_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::QDataType>::name
+              << " B_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::BDataType>::name;
     if constexpr(!std::is_same_v<typename TypeConfig::QDataType, void>)
     {
-        std::cout << " BQ_Type = " << DataTypeTraits<typename TypeConfig::QDataType>::name;
+        std::cout << " BQ_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::QDataType>::name;
     }
-    std::cout << " Acc_Type = " << DataTypeTraits<typename TypeConfig::AccDataType>::name
-              << " C_Type = " << DataTypeTraits<typename TypeConfig::CDataType>::name
+    std::cout << " Acc_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::AccDataType>::name
+              << " C_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::CDataType>::name
               << " QuantMode = " << quant_type_to_string(QuantMode)
               << " PreshuffleQuant = " << (GemmConfig::PreshuffleQuant ? "true" : "false") << " : "
               << " PreshuffleB = " << (GemmConfig::PreshuffleB ? "true" : "false") << " : "
@@ -557,7 +563,6 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         aq_dev_buf_ptr =
             std::make_unique<ck_tile::DeviceMem>(aq_tensor_ptr->get_element_space_size_in_bytes());
     }
-
     std::unique_ptr<ck_tile::DeviceMem> bq_dev_buf_ptr = nullptr;
     if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant ||
@@ -626,8 +631,24 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         if constexpr(GemmConfig::PreshuffleB && GemmConfig::TiledMMAPermuteN)
         {
             printf("Preshuffle BQ with TiledMMAPermuteN \n");
+            ck_tile::HostTensor<BQDataType> bq_permuted_host =
+                ck_tile::bq_permuteN<GemmConfig>(*bq_tensor_ptr);
+
+            if constexpr(GemmConfig::PreshuffleQuant)
+            {
+                ck_tile::HostTensor<BQDataType> bq_shuffle_host =
+                    ck_tile::shuffle_bq(&bq_permuted_host, GemmConfig::K_Tile / QuantGroupSize::kK);
+                bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
+            }
+            else
+            {
+                bq_dev_buf_ptr->ToDevice(bq_permuted_host.data());
+            }
+        }
+        else if constexpr(GemmConfig::PreshuffleQuant)
+        {
             ck_tile::HostTensor<BQDataType> bq_shuffle_host =
-                ck_tile::shuffle_bq_permuteN<GemmConfig>(*bq_tensor_ptr);
+                ck_tile::shuffle_bq(bq_tensor_ptr.get(), GemmConfig::K_Tile / QuantGroupSize::kK);
             bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
         }
         else
@@ -769,6 +790,39 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
             return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
                 arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
         }
+
+        if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped && !GemmConfig::PreshuffleQuant)
+        {
+            if(a_layout == "R" && b_layout == "R")
+            {
+                return run_gemm_example_with_layouts<GemmConfig,
+                                                     TypeConfig,
+                                                     QuantGroupSize,
+                                                     QuantMode>(
+                    arg_parser, Row{}, Row{}, Row{}, Col{}, Row{});
+            }
+            else if(a_layout == "C" && b_layout == "R")
+            {
+                return run_gemm_example_with_layouts<GemmConfig,
+                                                     TypeConfig,
+                                                     QuantGroupSize,
+                                                     QuantMode>(
+                    arg_parser, Col{}, Row{}, Row{}, Col{}, Row{});
+            }
+            else if(a_layout == "C" && b_layout == "C")
+            {
+                return run_gemm_example_with_layouts<GemmConfig,
+                                                     TypeConfig,
+                                                     QuantGroupSize,
+                                                     QuantMode>(
+                    arg_parser, Col{}, Col{}, Col{}, Col{}, Row{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported memory layout for the input matrices!");
+            }
+        }
+
         else
         {
             throw std::runtime_error("Unsupported memory layout for the input matrices!");

@@ -1,13 +1,13 @@
-// SPDX-License-Identifier: MIT
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
 
 #pragma once
 
 #include <concepts>
 #include <ck_tile/builder/conv_builder.hpp>
-#include <ck_tile/builder/conv_factory.hpp>
 #include <ck_tile/builder/conv_signature_concepts.hpp>
 #include <ck_tile/builder/reflect/instance_traits.hpp>
+#include <ck_tile/builder/reflect/instance_traits_util.hpp>
 #include <ck_tile/builder/types.hpp>
 #include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
 #include <ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp>
@@ -680,15 +680,14 @@ struct ConvTraits<Instance>
 /// @brief Specialization of `ConvTraits` for a `ConvBuilder` type.
 /// @details This specialization provides backward compatibility for reflecting
 /// on kernels defined via the `ConvBuilder` interface. It works by first
-/// creating the `Instance` via the builder's factory, and then delegating
+/// creating the `Instance` via the builder, and then delegating
 /// all trait extraction to the `ConvTraits<Instance>` specialization.
 template <builder::ConvSignatureDescriptor auto SIGNATURE,
           builder::ConvAlgorithmDescriptor auto ALGORITHM,
           builder::StringLiteral VERSION>
 struct ConvTraits<builder::ConvBuilder<SIGNATURE, ALGORITHM, VERSION>>
 {
-    using Factory  = builder::ConvFactory<SIGNATURE, ALGORITHM, VERSION>;
-    using Instance = typename Factory::Instance;
+    using Instance = typename builder::ConvBuilder<SIGNATURE, ALGORITHM, VERSION>::Instance;
 
     // Delegate to Instance-based ConvTraits
     using InstanceConvTraits = ConvTraits<Instance>;

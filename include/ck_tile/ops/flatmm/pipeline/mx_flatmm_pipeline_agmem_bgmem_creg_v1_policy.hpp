@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 
 namespace ck_tile {
 
-struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
+struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 {
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -58,7 +58,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
     template <typename Problem, typename TensorView>
     CK_TILE_DEVICE static constexpr auto
-    MakeMXFP4_AAsyncLoadDramDescriptor(const TensorView& naive_view)
+    MakeMX_AAsyncLoadDramDescriptor(const TensorView& naive_view)
     {
         using ADataType           = remove_cvref_t<typename Problem::ADataType>;
         using ALayout             = remove_cvref_t<typename Problem::ALayout>;
@@ -107,7 +107,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto MakeMXFP4_ADramTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeMX_ADramTileDistribution()
     {
 
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
@@ -140,7 +140,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto MakeMXFP4_ALdsBlockDescriptor()
+    CK_TILE_DEVICE static constexpr auto MakeMX_ALdsBlockDescriptor()
     {
         using ADataType           = remove_cvref_t<typename Problem::ADataType>;
         using ALayout             = remove_cvref_t<typename Problem::ALayout>;
@@ -218,7 +218,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXF4_ALDS_TileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ALDS_TileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape;
 
@@ -255,7 +255,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_BFlatDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_BFlatDramTileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape;
 
@@ -298,7 +298,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_ScaleA_DramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_DramTileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
 
@@ -335,7 +335,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_ScaleB_DramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleB_DramTileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
 
@@ -372,7 +372,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_ScaleA_FlatDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_FlatDramTileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape;
 
@@ -394,7 +394,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_ScaleB_FlatDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleB_FlatDramTileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape;
 
@@ -420,8 +420,8 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     {
         using ADataType               = remove_cvref_t<typename Problem::ADataType>;
         constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
-        return sizeof(ADataType) *
-               MakeMXFP4_ALdsBlockDescriptor<Problem>().get_element_space_size() / APackedSize;
+        return sizeof(ADataType) * MakeMX_ALdsBlockDescriptor<Problem>().get_element_space_size() /
+               APackedSize;
     }
 
     template <typename Problem>
