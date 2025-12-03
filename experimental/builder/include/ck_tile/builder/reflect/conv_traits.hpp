@@ -551,8 +551,7 @@ struct ConvTraits;
 /// @details This is the primary specialization used to extract a comprehensive
 /// set of traits directly from a fully-formed device kernel `Instance` type.
 /// It uses `InstanceTraits` to access the kernel's template parameters.
-template <typename Instance>
-    requires requires { typename InstanceTraits<Instance>; }
+template <HasInstanceTraits Instance>
 struct ConvTraits<Instance>
 {
     using InstTraits = InstanceTraits<Instance>;
