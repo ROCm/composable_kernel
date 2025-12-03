@@ -74,12 +74,12 @@ using BQuantTypes = ::testing::Types<
     std::tuple<ColumnMajor,    RowMajor, RowMajor, RowMajor,    FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>
 
     // and pkint4 + transpose cases - currently disabled
-    // std::tuple<   RowMajor,    RowMajor, RowMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
-    // std::tuple<ColumnMajor, ColumnMajor, RowMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
-    // std::tuple<ColumnMajor,    RowMajor, RowMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
-    // std::tuple<   RowMajor,    RowMajor, RowMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>,
-    // std::tuple<ColumnMajor, ColumnMajor, RowMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>,
-    // std::tuple<ColumnMajor,    RowMajor, RowMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>
+    // std::tuple<   RowMajor,    RowMajor, RowMajor,    RowMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
+    // std::tuple<ColumnMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
+    // std::tuple<ColumnMajor,    RowMajor, RowMajor,    RowMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
+    // std::tuple<   RowMajor,    RowMajor, RowMajor,    RowMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>,
+    // std::tuple<ColumnMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>,
+    // std::tuple<ColumnMajor,    RowMajor, RowMajor,    RowMajor, FP8, PkInt4, float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D64N>
 >;
 // clang-format on
 
