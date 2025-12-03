@@ -11,7 +11,7 @@
 #include "device.hpp"
 #include "device_conv_fwd.hpp"
 #include "common_header.hpp"
-#include "naive_conv_fwd.hpp"
+#include "naive_conv_fwd_gpu.hpp"
 
 namespace ck {
 namespace tensor_operation {
