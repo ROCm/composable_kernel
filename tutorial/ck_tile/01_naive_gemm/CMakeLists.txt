@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_executable(tile_tutorial_naive_gemm practice_gemm.cpp)
 
 target_compile_options(tile_tutorial_naive_gemm PRIVATE

@@ -50,9 +50,17 @@ int run_grouped_conv_fwd_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+    try
+    {
 #if CK_TILE_USE_WMMA
-    return !run_grouped_conv_fwd_example<ConvConfigComputeV3_WMMA>(argc, argv);
+        return !run_grouped_conv_fwd_example<ConvConfigComputeV3_WMMA>(argc, argv);
 #else
-    return !run_grouped_conv_fwd_example<ConvConfigComputeV3>(argc, argv);
+        return !run_grouped_conv_fwd_example<ConvConfigComputeV3>(argc, argv);
 #endif
+    }
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Runtime error: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    }
 }
