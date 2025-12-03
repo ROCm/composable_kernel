@@ -1,62 +1,72 @@
 {
   "tile_config": {
     "tile_m": {
-        "values": [
-            128
-        ]
+      "max": 256,
+      "min": 64,
+      "step": 64
     },
     "tile_n": {
-        "values": [
-            128
-        ]
+      "max": 256,
+      "min": 64,
+      "step": 64
     },
     "tile_k": {
-        "values": [
-            128
-        ]
+      "max": 256,
+      "min": 64,
+      "step": 64
     },
     "warp_m": {
-        "values": [
-            1
-        ]
+      "values": [
+        4,
+        2,
+        1
+      ]
     },
     "warp_n": {
-        "values": [
-            4
-        ]
+      "values": [
+        4,
+        2,
+        1
+      ]
     },
     "warp_k": {
-        "values": [
-            1
-        ]
+      "values": [
+        1
+      ]
     },
     "warp_tile_m": {
-        "values": [
-            16
-        ]
+      "values": [
+        4,
+        16,
+        32
+      ]
     },
     "warp_tile_n": {
-        "values": [
-            16
-        ]
+      "values": [
+        16,
+        32,
+        64
+      ]
     },
     "warp_tile_k": {
-        "values": [
-            16,32
-        ]
+      "values": [
+        8,
+        16,
+        32,
+        64,
+        128
+      ]
     }
   },
   "trait_config": {
     "pipeline": {
       "values": [
-        "preshufflev1",
         "preshufflev2"
       ]
     },
     "scheduler": {
       "values": [
-        "interwave",
-        "intrawave"
+        "default"
       ]
     },
     "epilogue": {
@@ -81,11 +91,12 @@
       ]
     },
     "persistent": {
-        "values": [
-            true,
-            false
-        ]
+      "values": [
+        true,
+        false
+      ]
     }
   },
-  "k_block_per_cu": 2
+  "k_block_per_cu": 1,
+  "permute_n": true
 }

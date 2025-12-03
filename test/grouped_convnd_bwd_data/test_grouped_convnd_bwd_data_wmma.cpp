@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -10,6 +10,9 @@
 #include <gtest/gtest.h>
 
 #include "profiler/profile_grouped_conv_bwd_data_impl.hpp"
+
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 
 template <typename Tuple>
 class TestGroupedConvndBwdDataWmma : public ::testing::Test
@@ -27,20 +30,27 @@ class TestGroupedConvndBwdDataWmma : public ::testing::Test
     {
         EXPECT_FALSE(conv_params.empty());
         bool pass = true;
-        for(auto& param : conv_params)
+        for(size_t i = 0; i < conv_params.size(); i++)
         {
-            pass = pass && ck::profiler::profile_grouped_conv_bwd_data_impl<NDimSpatial,
-                                                                            OutLayout,
-                                                                            WeiLayout,
-                                                                            InLayout,
-                                                                            DataType,
-                                                                            DataType,
-                                                                            DataType>(
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& param = conv_params[i];
+            pass        = pass && ck::profiler::profile_grouped_conv_bwd_data_impl<NDimSpatial,
+                                                                                   OutLayout,
+                                                                                   WeiLayout,
+                                                                                   InLayout,
+                                                                                   DataType,
+                                                                                   DataType,
+                                                                                   DataType>(
                                true,  // do_verification
                                1,     // init_method: integer value
                                false, // do_log
                                false, // time_kernel
-                               param);
+                               param,
+                               1, // splitK
+                               instance_index);
         }
         EXPECT_TRUE(pass);
     }
@@ -105,4 +115,21 @@ TYPED_TEST(TestGroupedConvndBwdDataWmma3d, Test3D)
     this->conv_params.push_back(
         {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->template Run<3>();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

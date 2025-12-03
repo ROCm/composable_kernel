@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -19,14 +19,19 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
 using F32 = float;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -160,17 +165,19 @@ int main(int argc, char* argv[])
 
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, Bypass{});
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, Bypass{});
             }
         };
 
+    ck::index_t StrideD = 0;
+
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<DDataType> d_m_n(f_host_tensor_descriptor(M, N, 0, ELayout{}));
+    Tensor<DDataType> d_m_n(f_host_tensor_descriptor(M, N, StrideD, ELayout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
     Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
@@ -221,7 +228,7 @@ int main(int argc, char* argv[])
                                K,
                                StrideA,
                                StrideB,
-                               std::array<ck::index_t, 1>{0},
+                               std::array<ck::index_t, 1>{static_cast<int>(StrideD)},
                                StrideE,
                                a_element_op,
                                b_element_op,

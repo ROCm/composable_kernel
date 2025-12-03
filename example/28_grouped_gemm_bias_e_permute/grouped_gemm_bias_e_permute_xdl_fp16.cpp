@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -17,6 +17,14 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/numeric.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::make_ParallelTensorFunctor;
+using ::ck::Tensor;
+
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -304,10 +312,10 @@ int main(int argc, char* argv[])
         const auto e_ms_ns_lengths = contraction_descs[i].e_ms_ns_lengths;
         const auto e_ms_ns_strides = contraction_descs[i].e_ms_ns_strides;
 
-        Tensor<ADataType> a_ms_ks(a_ms_ks_lengths, a_ms_ks_strides);
-        Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides);
-        Tensor<DDataType> d_ms_ns(d_ms_ns_lengths, d_ms_ns_strides);
-        Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides);
+        Tensor<ADataType> a_ms_ks(a_ms_ks_lengths, a_ms_ks_strides, Row{});
+        Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides, Row{});
+        Tensor<DDataType> d_ms_ns(d_ms_ns_lengths, d_ms_ns_strides, Bypass{});
+        Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
 
         ck::index_t M_ =
             ck::accumulate_n<ck::index_t>(e_ms_ns_lengths.begin(), NumDimM, 1, std::multiplies<>{});
@@ -416,9 +424,9 @@ int main(int argc, char* argv[])
             const auto e_ms_ns_lengths = contraction_descs[i].e_ms_ns_lengths;
             const auto e_ms_ns_strides = contraction_descs[i].e_ms_ns_strides;
 
-            Tensor<EDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
+            Tensor<EDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
 
-            Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
+            Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
 
             e_tensors_device[i]->FromDevice(e_device_tensors[i].mData.data());
 

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,6 +11,24 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_smfmac.hpp"
 
 namespace ck_tile {
+
+// fp32
+
+using WarpGemmMfmaF32F32F32M16N16K4 = WarpGemmImpl<
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImplF32F32F32M16N16K4<WGAttrCtlEnum::Default_>>>;
+
+template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaF32F32F32M16N16K16 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
+    WarpGemmAttributeMfmaImplF32F32F32M16N16K4<WGAttrCtlEnum::Default_>,
+    4,
+    AttrNumAccess>>;
+
+template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaF32F32F32M16N16K16TransposedCDistribution =
+    WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution<
+        WarpGemmAttributeMfmaImplF32F32F32M16N16K4<WGAttrCtlEnum::Default_>,
+        4,
+        AttrNumAccess>>;
 
 // fp16
 
@@ -245,6 +263,9 @@ using WarpGemmMfma_f32_32x32x16_fp8_fp8 = WarpGemmImpl<
 using WarpGemmMfma_f32_32x32x16_fp8_bf8 = WarpGemmImpl<
     WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_bf8<WGAttrCtlEnum::Default_>>>;
 
+using WarpGemmMfma_f32_16x16x32_fp8_bf8 = WarpGemmImpl<
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x32_fp8_bf8<WGAttrCtlEnum::Default_>>>;
+
 using WarpGemmMfma_f32_32x32x16_bf8_fp8 = WarpGemmImpl<
     WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_fp8<WGAttrCtlEnum::Default_>>>;
 
@@ -257,6 +278,10 @@ using WarpGemmMfma_f32_32x32x32_fp8_fp8 = WarpGemmImpl<WarpGemmAttributeMfmaIter
 
 using WarpGemmMfma_f32_32x32x32_bf8_bf8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
     WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_bf8<WGAttrCtlEnum::Default_>,
+    2>>;
+
+using WarpGemmMfma_f32_32x32x32_fp8_bf8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
+    WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_bf8<WGAttrCtlEnum::Default_>,
     2>>;
 
 using WarpGemmMfma_f32_16x16x32_fp8_fp8 = WarpGemmImpl<
@@ -282,47 +307,51 @@ using WarpGemmMfma_f32_16x16x64_bf8_bf8 = WarpGemmImpl<WarpGemmAttributeMfmaIter
     2>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfma_f32_16x16x128_fp8_fp8 = WarpGemmImpl<
-    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_fp8<WGAttrCtlEnum::Default_>,
+using WarpGemmMfma_f32_16x16x128_fp4 = WarpGemmImpl<
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4<pk_fp4_t, pk_fp4_t>,
+                          AttrNumAccess>>;
+template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfma_f32_16x16x128_fp8_fp8 = WarpGemmImpl< //
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4<fp8_t, fp8_t>,
                           AttrNumAccess>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfma_f32_16x16x128_fp8_bf8 = WarpGemmImpl<
-    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_bf8<WGAttrCtlEnum::Default_>,
+using WarpGemmMfma_f32_16x16x128_fp8_bf8 = WarpGemmImpl< //
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4<fp8_t, bf8_t>,
                           AttrNumAccess>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfma_f32_16x16x128_bf8_fp8 = WarpGemmImpl<
-    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_bf8_fp8<WGAttrCtlEnum::Default_>,
+using WarpGemmMfma_f32_16x16x128_bf8_fp8 = WarpGemmImpl< //
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4<bf8_t, fp8_t>,
                           AttrNumAccess>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfma_f32_16x16x128_bf8_bf8 = WarpGemmImpl<
-    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_bf8_bf8<WGAttrCtlEnum::Default_>,
+using WarpGemmMfma_f32_16x16x128_bf8_bf8 = WarpGemmImpl< //
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4<bf8_t, bf8_t>,
                           AttrNumAccess>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfma_f32_16x16x128_fp8_fp8_CTransposed =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
-        WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_fp8<WGAttrCtlEnum::Default_>,
+        WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4<fp8_t, fp8_t>,
         AttrNumAccess>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfma_f32_16x16x128_fp8_bf8_CTransposed =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
-        WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_bf8<WGAttrCtlEnum::Default_>,
+        WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4<fp8_t, bf8_t>,
         AttrNumAccess>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfma_f32_16x16x128_bf8_fp8_CTransposed =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
-        WarpGemmAttributeMfmaImpl_f32_16x16x128_bf8_fp8<WGAttrCtlEnum::Default_>,
+        WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4<bf8_t, fp8_t>,
         AttrNumAccess>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfma_f32_16x16x128_bf8_bf8_CTransposed =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
-        WarpGemmAttributeMfmaImpl_f32_16x16x128_bf8_bf8<WGAttrCtlEnum::Default_>,
+        WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4<bf8_t, bf8_t>,
         AttrNumAccess>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
@@ -362,9 +391,9 @@ using WarpGemmMfma_f32_32x32x16_bf8_bf8_CTransposed =
         WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_bf8<WGAttrCtlEnum::Default_>>>;
 
 template <index_t swizzle_factor = 2>
-using WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution =
+using WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution =
     WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, fp8_t, WGAttrCtlEnum::Default_>,
+        WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_fp8<WGAttrCtlEnum::Default_>,
         2,
         swizzle_factor>>;
 

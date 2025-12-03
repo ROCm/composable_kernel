@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -84,9 +84,9 @@ struct BatchedTransposeKernel
         static constexpr ck_tile::index_t VectorSizeOutput   = Problem::VectorSizeOutput;
         static constexpr ck_tile::index_t VectorStrideOutput = 1;
 
-        const auto iM     = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
-        const auto iN     = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
-        const auto offset = __builtin_amdgcn_readfirstlane(blockIdx.z * kargs.height * kargs.width);
+        const auto iM     = amd_wave_read_first_lane(blockIdx.x * kMPerBlock);
+        const auto iN     = amd_wave_read_first_lane(blockIdx.y * kNPerBlock);
+        const auto offset = amd_wave_read_first_lane(blockIdx.z * kargs.height * kargs.width);
 
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(

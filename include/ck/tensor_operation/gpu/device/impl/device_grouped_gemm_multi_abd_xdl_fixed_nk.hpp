@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -688,6 +688,12 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        // Split-K autodeduction is not supported
+        if(arg.k_batch_ < 1)
+        {
+            return false;
+        }
+
         if(ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) != arg.group_count_)
         {
             return false;

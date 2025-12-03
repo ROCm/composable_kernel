@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -82,7 +82,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
         // Problem::BlockShape
         static constexpr index_t Block_N = Problem::BlockShape::Block_N;
         index_t num_n_tile_iteration =
-            __builtin_amdgcn_readfirstlane(integer_divide_ceil(row_size, Block_N));
+            amd_wave_read_first_lane(integer_divide_ceil(row_size, Block_N));
 
         auto reduce_square_sum_func = ReduceOp::SquareAdd{};
         auto reduce_sum_func        = ReduceOp::Add{};
@@ -95,7 +95,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
         auto square_sum         = block_reduce2d.template MakeYBlockTile<ComputeTensorType>();
         set_tile(square_sum, reduce_square_sum_func.GetIdentityValue<ComputeDataType>());
 
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        for(int iN = amd_wave_read_first_lane(0); iN < num_n_tile_iteration; ++iN)
         {
             auto x      = load_tile(x_window);
             auto x_resi = load_tile(x_residual_window);
@@ -151,7 +151,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
         move_tile_window(y_window, {0, stride_to_right_most_window});
 
         // rmsnorm computation
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        for(int iN = amd_wave_read_first_lane(0); iN < num_n_tile_iteration; ++iN)
         {
             auto acc = make_static_distributed_tensor<ComputeDataType>(
                 decltype(load_tile(x_window))::get_tile_distribution());

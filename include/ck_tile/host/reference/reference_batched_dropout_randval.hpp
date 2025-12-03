@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -33,18 +33,22 @@ reference_batched_dropout_randval(HostTensor<RandValOutputDataType>& randval_b_m
     // With SFactor = 2 it becomes:
     // C i: (16 * floor(GPR_num / 8) % 32) + 8 * floor(lane / 32) + (GPR_num % 8)
     // C j: (lane % 32)
+    // See ck_tile/ops/fmha/block/block_dropout.hpp for more details.
 
-    constexpr index_t max_warp_size = 64;
-    constexpr index_t warp_gemm_mn  = 32;
+    // The number of Philox 4x32 results required to fill 32x32 tile of 8-bit values
+    constexpr index_t philox_per_tile = 64;
+    constexpr index_t warp_gemm_mn    = 32;
 
     const index_t rows = integer_divide_ceil(real_seqlen_q, warp_gemm_mn);
     const index_t cols = integer_divide_ceil(real_seqlen_k, warp_gemm_mn);
 
     auto f = [&](index_t i_h, index_t row, index_t col) {
         uint2 rowcol = make_uint2(row, col);
-        for(index_t lane = 0; lane < max_warp_size; lane++)
+        for(index_t lane = 0; lane < philox_per_tile; lane++)
         {
-            philox ph(drop_seed, drop_offset + (batch * nhead + i_h) * max_warp_size + lane);
+            const uint64_t ph_head_offset = drop_offset + (batch * nhead + i_h) * philox_per_tile;
+            const index_t ph_offset       = lane;
+            philox ph(drop_seed, ph_head_offset + ph_offset);
 
             uint8_t random_uint8_t[16];
             ph.get_random_16x8(random_uint8_t, reinterpret_cast<unsigned long long&>(rowcol));

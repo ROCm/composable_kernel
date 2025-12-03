@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,6 +18,10 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_pool_fwd.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <typename InDataType,
           typename OutDataType,
@@ -78,12 +82,12 @@ bool pool_test(bool do_verification,
 
             if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCHW>::value)
             {
-                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, H * W, W, 1_uz});
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, H * W, W, 1_uz}, layout);
             }
             else if constexpr(ck::is_same<decltype(layout),
                                           ck::tensor_layout::convolution::NHWC>::value)
             {
-                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_}, layout);
             }
         };
 

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -50,6 +50,19 @@ struct CWarpDstrEncodingTrait
         typename Impl::kCYs2RHsMinor>;
 };
 
+template <typename Impl>
+struct CTransposedWarpDstrEncodingTrait
+{
+    using type = tile_distribution_encoding<
+        sequence<>,
+        tuple<sequence<Impl::kCNLane>,
+              sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>>,
+        tuple<typename Impl::kCTPs2RHssMajor>,
+        tuple<typename Impl::kCTPs2RHssMinor>,
+        typename Impl::kCTYs2RHsMajor,
+        typename Impl::kCTYs2RHsMinor>;
+};
+
 template <typename WarpGemmAttributeWmmaImpl_, bool kTransC = false>
 struct WarpGemmAttributeWmma
 {
@@ -66,6 +79,7 @@ struct WarpGemmAttributeWmma
     static constexpr index_t kM          = Impl::kM;
     static constexpr index_t kN          = Impl::kN;
     static constexpr index_t kK          = Impl::kK;
+    static constexpr index_t kCMLane     = Impl::kCMLane;
     static constexpr index_t kKPerThread = Impl::kABK0PerLane * Impl::kABK1PerLane;
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return 1; }
@@ -75,9 +89,11 @@ struct WarpGemmAttributeWmma
     using AWarpDstrEncoding = typename AWarpDstrEncodingTrait<Impl>::type;
     using BWarpDstrEncoding = typename BWarpDstrEncodingTrait<Impl>::type;
 
-    // kCM0PerLane = 4, kCMLane = 2, kCM1PerLane = 2, kCNLane = 16 for 16 bit input
-    // kCM0PerLane = 2, kCMLane = 2, kCM1PerLane = 4, kCNLane = 16 for 8 bit input
-    using CWarpDstrEncoding = typename CWarpDstrEncodingTrait<Impl>::type;
+    // kCM0PerLane = 1, kCMLane = 2, kCM1PerLane = 2, kCNLane = 16
+    using CWarpDstrEncoding =
+        std::conditional_t<kTransC,
+                           typename CTransposedWarpDstrEncodingTrait<Impl>::type,
+                           typename CWarpDstrEncodingTrait<Impl>::type>;
 
     // c_vec += a_vec * b_vec
     template <bool post_nop_ = false>

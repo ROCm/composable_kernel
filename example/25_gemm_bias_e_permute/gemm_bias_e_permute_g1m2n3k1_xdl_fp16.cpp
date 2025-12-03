@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -18,6 +18,14 @@
 #include "ck/library/utility/numeric.hpp"
 
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::make_ParallelTensorFunctor;
+using ::ck::Tensor;
+
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -247,11 +255,11 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
-    Tensor<BDataType> b_gs_ns_ks(b_gs_ns_ks_lengths, b_gs_ns_ks_strides);
-    Tensor<DDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
-    Tensor<EDataType> e_gs_ms_ns_host_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
-    Tensor<EDataType> e_gs_ms_ns_device_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
+    Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides, Row{});
+    Tensor<BDataType> b_gs_ns_ks(b_gs_ns_ks_lengths, b_gs_ns_ks_strides, Row{});
+    Tensor<DDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides, Bypass{});
+    Tensor<EDataType> e_gs_ms_ns_host_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides, Bypass{});
+    Tensor<EDataType> e_gs_ms_ns_device_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides, Bypass{});
 
     std::cout << "a_gs_ms_ks: " << a_gs_ms_ks.mDesc << std::endl;
     std::cout << "b_gs_ns_ks: " << b_gs_ns_ks.mDesc << std::endl;
@@ -342,7 +350,8 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        Tensor<CShuffleDataType> c_gs_ms_ns_host_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
+        Tensor<CShuffleDataType> c_gs_ms_ns_host_result(
+            e_gs_ms_ns_lengths, e_gs_ms_ns_strides, Bypass{});
 
         using ReferenceOpInstance = ReferenceContraction_G1_M2_N3_K1<NumDimM,
                                                                      NumDimN,

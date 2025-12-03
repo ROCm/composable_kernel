@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <cstdlib>
@@ -31,4 +31,4 @@ using AccDataType = double;
 
 #include "run_gemm_test.inc"
 
-int main() { return run_gemm_test(); }
+int main(int argc, char* argv[]) { return run_gemm_test(argc, argv); }

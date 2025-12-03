@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -58,6 +58,8 @@ struct DeviceGemmMultipleD_ABScale : public BaseOperator
                         CDEElementwiseOperation cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+
+    virtual void SetKBatch(BaseArgument* arg, int KBatch) const = 0;
 };
 
 template <typename ALayout,

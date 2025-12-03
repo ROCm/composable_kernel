@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -60,7 +60,7 @@ struct BlockFmhaPipelineProblem
     static constexpr auto BiasEnum          = Traits::BiasEnum;
     static constexpr bool kStoreLSE         = Traits::kStoreLSE;
     static constexpr bool kHasDropout       = Traits::kHasDropout;
-    static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
+    static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
 };
 
@@ -204,6 +204,7 @@ struct BlockFmhaSplitKVCombinePipelineProblem
 
     using BaseType::kM0;
     using BaseType::kN1;
+    using BaseType::NThreads;
 
     static_assert(kN1 <= kHeadDimV && kHeadDimV % kN1 == 0);
 
@@ -216,7 +217,7 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     static constexpr index_t kMaxSplits     = Traits::kMaxSplits;
     static_assert(8 <= kMaxSplits);
 
-    static constexpr index_t kNumWarps  = 4; // always use 4 warps for each workgroup
+    static constexpr index_t kNumWarps  = 4;
     static constexpr index_t kBlockSize = kNumWarps * get_warp_size();
 
     static_assert(get_warp_size() <= (kM0 * kMaxSplits) &&

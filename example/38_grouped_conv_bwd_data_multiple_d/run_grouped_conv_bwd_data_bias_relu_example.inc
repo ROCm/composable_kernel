@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 bool run_conv_bwd_data_bias_relu(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_params,
@@ -206,7 +206,8 @@ int run_grouped_conv_bwd_data_bias_relu_example(int argc, char* argv[])
                                                               1,              // c
                                                               0,              // hi
                                                               0               // wi
-                                                          });
+                                                          },
+                                                          ctc::GNCHW{});
 
     // input image: GNHWC
     const auto in_g_n_c_wis_desc =

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -199,7 +199,7 @@ struct BaseArgument
     BaseArgument(const BaseArgument&)            = default;
     BaseArgument& operator=(const BaseArgument&) = default;
 
-    virtual ~BaseArgument() {}
+    virtual __host__ __device__ ~BaseArgument() {}
 
     void* p_workspace_ = nullptr;
 };
@@ -227,6 +227,7 @@ struct BaseOperator
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
     virtual std::string GetTypeString() const { return ""; }
+    virtual std::string GetInstanceString() const { return ""; }
 
     virtual std::string GetTypeIdName() const { return typeid(*this).name(); }
 

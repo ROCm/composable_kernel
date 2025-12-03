@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -40,10 +40,13 @@ bool profile_permute_scale_impl(int do_verification,
     using ElementOp = ck::tensor_operation::element_wise::Scale;
     float scale     = 2.f;
 
-    std::array<Tensor<ADataType>, 1> as = {Tensor<ADataType>(lengths_vector, input_strides_vector)};
-    Tensor<ADataType>& a                = as[0];
-    Tensor<BDataType> b(lengths_vector, output_strides_vector);
-    Tensor<BDataType> host_b(lengths_vector, output_strides_vector);
+    using ALayout                       = ck::tensor_layout::BypassLayoutVerification;
+    using BLayout                       = ck::tensor_layout::BypassLayoutVerification;
+    std::array<Tensor<ADataType>, 1> as = {
+        Tensor<ADataType>(lengths_vector, input_strides_vector, ALayout{})};
+    Tensor<ADataType>& a = as[0];
+    Tensor<BDataType> b(lengths_vector, output_strides_vector, BLayout{});
+    Tensor<BDataType> host_b(lengths_vector, output_strides_vector, BLayout{});
 
     std::cout << "A: " << a.mDesc << std::endl;
     std::cout << "B: " << b.mDesc << std::endl;

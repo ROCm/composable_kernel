@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -21,6 +21,10 @@
 
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
@@ -28,8 +32,9 @@ using F16 = ck::half_t;
 using F8  = ck::f8_t;
 using F32 = float;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using A0DataType       = F8;
 using B0DataType       = F8;
@@ -278,14 +283,14 @@ int main(int argc, char* argv[])
         }
     }
 
-    Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}));
-    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
-    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
+    Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}, Row{}));
+    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}, Col{}));
+    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}, Col{}));
     Tensor<D0DataType> d0_t_n(
-        HostTensorDescriptor({tokens, topk, N}, {StrideDs[0] * topk, StrideDs[0], 0}));
+        HostTensorDescriptor({tokens, topk, N}, {StrideDs[0] * topk, StrideDs[0], 0}, Bypass{}));
     Tensor<D1DataType> d1_e_n(
         HostTensorDescriptor({experts, N}, {PerTokenQuant ? StrideDs[1] * N : 1, StrideDs[1]}));
-    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
+    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}, Bypass{}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     e_t_n_device_result.SetZero();

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <iomanip>
@@ -23,6 +23,11 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_weight.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::Tensor;
+
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 template <typename Tuple>
 class TestGroupedConvndBwdWeight : public ::testing::Test
 {
@@ -83,7 +88,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
     }
 
     bool PerformConvWeightBilinear(ck::utils::conv::ConvParam& conv_param,
-                                   const ck::index_t split_k)
+                                   const ck::index_t split_k,
+                                   ck::index_t instance_index_ = -1)
     {
         bool passed = true;
 
@@ -163,6 +169,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         // get device op instances
         const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
             DeviceOp>::GetInstances();
+        int num_kernel = 0;
 
         for(std::size_t i = 0; i < op_ptrs.size(); ++i)
         {
@@ -197,6 +204,12 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
+                ++num_kernel;
+                if((instance_index_ != -1) && (instance_index_ + 1 != num_kernel))
+                {
+                    // skip test if instance_index is specified
+                    continue;
+                }
                 float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr});
                 wei_device_buf.FromDevice(wei_device.mData.data());
                 passed &= ck::utils::check_err(wei_device, wei_host, "Error: incorrect results!");
@@ -218,6 +231,11 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 std::cerr << op_name << " does not support this problem" << std::endl;
             }
         }
+        if(instance_index != -1)
+        {
+            std::cout << "grouped_conv_bwd_weight_instance (" << instance_index << "/" << num_kernel
+                      << "): Passed" << std::endl;
+        }
         return passed;
     }
 
@@ -228,9 +246,14 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
         for(auto split_k : split_ks)
         {
-            for(auto& param : conv_params)
+            for(size_t i = 0; i < conv_params.size(); i++)
             {
-                pass = pass && PerformConvWeightBilinear(param, split_k);
+                if((param_mask & (1 << i)) == 0)
+                {
+                    continue;
+                }
+                auto& param = conv_params[i];
+                pass        = pass && PerformConvWeightBilinear(param, split_k, instance_index);
             }
         }
         EXPECT_TRUE(pass);
@@ -267,4 +290,21 @@ TYPED_TEST(TestGroupedConvndBwdWeight3d, Test3D)
     this->conv_params.push_back(
         {3, 1, 1, 4, 4, {3, 3, 3}, {14, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->Run();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

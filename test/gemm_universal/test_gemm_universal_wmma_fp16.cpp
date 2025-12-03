@@ -1,15 +1,16 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <tuple>
 
 #include "gtest/gtest.h"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "test_gemm_universal_util.hpp"
-
-using I4  = ck::pk_i4_t;
-using F8  = ck::f8_t;
-using F16 = ck::half_t;
+ck::index_t param_mask     = 0xffff;
+ck::index_t instance_index = -1;
+using I4                   = ck::pk_i4_t;
+using F8                   = ck::f8_t;
+using F16                  = ck::half_t;
 
 using F32 = float;
 
@@ -99,3 +100,19 @@ TYPED_TEST_SUITE(TestGemmUniversal_FP16_KM_NK, KernelTypes_KM_NK);
 TYPED_TEST_SUITE(TestGemmUniversal_FP16_KM_KN, KernelTypes_KM_KN);
 
 #include "test_gemm_universal_ut_cases_fp16.inc"
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
+}

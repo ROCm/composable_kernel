@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -46,20 +46,25 @@ bool profile_gemm_multiply_add_impl(int do_verification,
                                     int StrideD1,
                                     int StrideE)
 {
-    auto f_host_tensor_descriptor =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            using namespace ck::literals;
 
-            if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
-            {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
-            }
-            else
-            {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
-            }
-        };
+    auto f_host_tensor_descriptor = [](std::size_t row, std::size_t col, int& stride, auto layout) {
+        using namespace ck::literals;
 
+        if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
+        {
+            auto desc = HostTensorDescriptor({row, col}, {static_cast<std::size_t>(stride), 1_uz});
+            if(stride <= 0)
+                stride = desc.GetStrides()[0];
+            return desc;
+        }
+        else
+        {
+            auto desc = HostTensorDescriptor({row, col}, {1_uz, static_cast<std::size_t>(stride)});
+            if(stride <= 0)
+                stride = desc.GetStrides()[1];
+            return desc;
+        }
+    };
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
@@ -117,6 +122,11 @@ bool profile_gemm_multiply_add_impl(int do_verification,
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
+    if(op_ptrs.size() == 0)
+    {
+        std::cout << "No device operation instances found." << std::endl;
+        return false;
+    }
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     // run reference

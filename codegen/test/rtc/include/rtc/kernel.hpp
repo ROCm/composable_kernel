@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef GUARD_HOST_TEST_RTC_INCLUDE_RTC_KERNEL
 #define GUARD_HOST_TEST_RTC_INCLUDE_RTC_KERNEL
@@ -52,7 +52,7 @@ struct kernel
     template <class... Ts>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {
-        return [=](auto&&... xs) {
+        return [=, this](auto&&... xs) {
             launch(stream, global, local, std::vector<kernel_argument>{xs...}, zs...);
         };
     }

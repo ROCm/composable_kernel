@@ -1,6 +1,5 @@
-
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,20 +10,13 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#include "conv_configs.hpp"
 
-struct GemmWarpConfig_Mfma
-{
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
-};
-
-struct GemmWarpConfig_Wmma
-{
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
-};
+using MemoryOpSet =
+    std::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>;
+using MemoryOpAtomicAdd = std::integral_constant<ck_tile::memory_operation_enum,
+                                                 ck_tile::memory_operation_enum::atomic_add>;
 
 template <typename InDataType, typename WeiDataType, typename AccDataType, typename OutDataType>
 auto calculate_rtol_atol(const ck_tile::index_t GemmK,

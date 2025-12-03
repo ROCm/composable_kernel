@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
@@ -117,12 +117,8 @@ using bf16_raw_t = uint16_t;
 CK_TILE_HOST_DEVICE
 constexpr uint16_t float_to_bf16_rtn_raw(float f)
 {
-    union
-    {
-        float fp32;
-        uint32_t int32;
-    } u = {f};
-    if(~u.int32 & 0x7f800000)
+    uint32_t bits = bit_cast<uint32_t>(f);
+    if(~bits & 0x7f800000)
     {
         // When the exponent bits are not all 1s, then the value is zero, normal,
         // or subnormal. We round the bfloat16 mantissa up by adding 0x7FFF, plus
@@ -140,9 +136,9 @@ constexpr uint16_t float_to_bf16_rtn_raw(float f)
         // When the bfloat16 value has an exponent of 0xFE and a mantissa of 0x7F,
         // incrementing it causes it to become an exponent of 0xFF and a mantissa
         // of 0x00, which is Inf, the next higher value to the unrounded value.
-        u.int32 += 0x7fff + ((u.int32 >> 16) & 1); // Round to nearest, round to even
+        bits += 0x7fff + ((bits >> 16) & 1); // Round to nearest, round to even
     }
-    else if(u.int32 & 0xffff)
+    else if(bits & 0xffff)
     {
         // When all of the exponent bits are 1, the value is Inf or NaN.
         // Inf is indicated by a zero mantissa. NaN is indicated by any nonzero
@@ -152,9 +148,9 @@ constexpr uint16_t float_to_bf16_rtn_raw(float f)
         // lower 16 bits of the mantissa are 1, we set the least significant bit
         // of the bfloat16 mantissa, in order to preserve signaling NaN in case
         // the bloat16's mantissa bits are all 0.
-        u.int32 |= 0x10000; // Preserve signaling NaN
+        bits |= 0x10000; // Preserve signaling NaN
     }
-    return uint16_t(u.int32 >> 16);
+    return uint16_t(bits >> 16);
 }
 
 CK_TILE_HOST
@@ -172,8 +168,12 @@ uint16_t float_to_bf16_rtn_asm(float f)
     static constexpr uint32_t FP32_NAN            = 0x7fff0000;
     static constexpr uint32_t ROUND_BIAS_FOR_BF16 = 0x7fff;
 
+#if defined(__GFX9__)
     using uint32x2_t = uint32_t __attribute__((ext_vector_type(2)));
     uint32x2_t check_nan;
+#else
+    uint32_t check_nan;
+#endif
     uint32_t tmp;
     asm volatile("\n \
             v_cmp_u_f32 %0, %2, %2 \n \
@@ -208,8 +208,12 @@ uint16_t float_to_bf16_rta_asm(float f)
     const uint32_t low_nan = 0x7fff;
     const uint32_t hi_nan  = 0x7fff0000;
 
+#if defined(__GFX9__)
     using uint32x2_t = uint32_t __attribute__((ext_vector_type(2)));
     uint32x2_t check_nan;
+#else
+    uint32_t check_nan;
+#endif
 
     asm volatile("v_cmp_u_f32 %[s_cnan], %[v_x], %[v_x] \n"
                  "v_add3_u32 %[v_x], %[v_x], %[v_blo], 1 \n"
@@ -225,24 +229,16 @@ uint16_t float_to_bf16_rta_asm(float f)
 CK_TILE_HOST_DEVICE
 constexpr uint16_t float_to_bf16_truc_nan_raw(float f)
 {
-    union
-    {
-        float fp32;
-        uint32_t int32;
-    } u = {f};
-    return uint16_t(u.int32 >> 16) | (!(~u.int32 & 0x7f800000) && (u.int32 & 0xffff));
+    uint32_t bits = bit_cast<uint32_t>(f);
+    return static_cast<uint16_t>(bits >> 16) | (!(~bits & 0x7f800000) && (bits & 0xffff));
 }
 
 // Fast truncate instead of rounding, RTZ
 CK_TILE_HOST_DEVICE
 constexpr uint16_t float_to_bf16_truc_raw(float f)
 {
-    union
-    {
-        float fp32;
-        uint32_t int32;
-    } u = {f};
-    return uint16_t(u.int32 >> 16);
+    uint32_t bits = bit_cast<uint32_t>(f);
+    return static_cast<uint16_t>(bits >> 16);
 }
 
 template <bf16_rounding_mode rounding>
@@ -287,7 +283,10 @@ template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
 CK_TILE_HOST_DEVICE constexpr bfloat16_t float_to_bf16(float f, constant<rounding> = {})
 {
-#if defined(__gfx950__)
+// Use builtin bfloat16 conversion only on gfx950 as its predecessors do not support bf16 cvt
+// instructions, resulting in suboptimal performance; Add host side marcro check for consistency
+// during accuracy tests.
+#if CK_TILE_USE_LLVM_BUILTIN_BF16 && (defined(__gfx950__) || defined(CK_GFX950_SUPPORT))
     return static_cast<bfloat16_t>(f);
 #else
     return bit_cast<bfloat16_t>(float_to_bf16_raw(f, constant<rounding>{}));
@@ -430,5 +429,15 @@ bfloat16_t exp2(bfloat16_t x) { return static_cast<bfloat16_t>(exp2f(static_cast
 
 CK_TILE_DEVICE
 bfloat16_t log(bfloat16_t x) { return static_cast<bfloat16_t>(__logf(static_cast<float>(x))); };
+
+using bf16x2_t = bfloat16_t __attribute__((ext_vector_type(2)));
+using fp32x2_t = float __attribute__((ext_vector_type(2)));
+
+template <bf16_rounding_mode rounding =
+              static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
+CK_TILE_HOST_DEVICE constexpr bf16x2_t fp32x2_to_bf16x2(const fp32x2_t& x)
+{
+    return bf16x2_t{float_to_bf16<rounding>(x.x), float_to_bf16<rounding>(x.y)};
+}
 
 } // namespace ck_tile

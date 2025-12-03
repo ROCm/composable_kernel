@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -865,7 +865,17 @@ struct FmhaFwdPagedKVKernel
         }
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize()
+    {
+        if(is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -880,8 +890,8 @@ struct FmhaFwdPagedKVKernel
         // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
-        const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * FmhaPipeline::kM0);
+        const index_t i_n1 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN1);
 
         long_index_t batch_offset_q    = 0;
         long_index_t batch_offset_k    = 0;

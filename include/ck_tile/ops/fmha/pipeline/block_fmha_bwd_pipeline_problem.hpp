@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -57,13 +57,11 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr bool kUseTrLoad       = kUseTrLoad_;
 
     // attributes from traits
-    static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
-    static constexpr auto BiasEnum       = Traits::BiasEnum;
-    static constexpr bool kHasBiasGrad   = Traits::kHasBiasGrad;
-    static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
-    static_assert(!Traits::kPadSeqLenQ, "BlockFmhaBwdPipelineProblem does not need kPadSeqLenQ");
-    static_assert(!Traits::kPadSeqLenK, "BlockFmhaBwdPipelineProblem does not need kPadSeqLenQ");
+    static constexpr index_t kPadHeadDimQ = Traits::kPadHeadDimQ;
+    static constexpr index_t kPadHeadDimV = Traits::kPadHeadDimV;
+    static constexpr auto BiasEnum        = Traits::BiasEnum;
+    static constexpr bool kHasBiasGrad    = Traits::kHasBiasGrad;
+    static constexpr index_t kBlockPerCu  = Traits::kBlockPerCu;
 };
 
 template <typename ODataType_,

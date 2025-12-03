@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <cstdlib>
@@ -21,6 +21,10 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 constexpr ck::index_t NDimSpatial = 3;
 using InDataType                  = ck::half_t;
@@ -130,11 +134,12 @@ bool run_grouped_conv(bool do_verification,
     // Fill other lenghts than G,K with 1 and strides with 0
     bias_g_k_lengths.fill(1);
     bias_g_k_strides.fill(0);
-    bias_g_k_lengths[0]              = G;
-    bias_g_k_lengths[2]              = K;
-    bias_g_k_strides[0]              = K; // stride to G
-    bias_g_k_strides[2]              = 1; // stride to K
-    const auto broadcasted_bias_desc = HostTensorDescriptor(bias_g_k_lengths, bias_g_k_strides);
+    bias_g_k_lengths[0] = G;
+    bias_g_k_lengths[2] = K;
+    bias_g_k_strides[0] = K; // stride to G
+    bias_g_k_strides[2] = 1; // stride to K
+    const auto broadcasted_bias_desc =
+        HostTensorDescriptor(bias_g_k_lengths, bias_g_k_strides, BiasLayout{});
 
     //  y = relu ( alpha1 * conv(x) + alpha2 * z + bias )
     Tensor<InDataType> in(in_g_n_c_wis_desc);

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -113,6 +113,7 @@ struct BlockFlatmmASmemBSmemCRegV1
                         merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                         c_warp_tensor.get_thread_buffer());
+                    __builtin_amdgcn_sched_barrier(0x7F6);
                 });
             });
         });

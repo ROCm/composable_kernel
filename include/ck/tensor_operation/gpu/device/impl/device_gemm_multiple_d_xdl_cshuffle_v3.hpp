@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -682,6 +682,10 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                 return GridwiseGemm64::CheckValidity(arg);
             }
         }
+        if(CDEShuffleBlockTransferScalarPerVectors{}[Number<0>{}] <= 1 && (arg.KBatch > 1))
+        {
+            return false;
+        }
         else
         {
             if constexpr(NXdlPerWave32 > 0)
@@ -791,7 +795,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
             {BlockGemmPipelineVersion::v5, "v5"}};
 
         // clang-format off
-        str << "DeviceGemmXdlUniversal"
+        str << "DeviceGemmMultiD_Xdl_CShuffle_V3"
             << "<"
             << getGemmSpecializationString(GemmSpec) << ", "
             << std::string(ALayout::name)[0]
@@ -813,7 +817,11 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages << ", "
+            << "AK1: "
+            << AK1 << ", "
+            << "BK1: "
+            << BK1;
         // clang-format on
 
         return str.str();

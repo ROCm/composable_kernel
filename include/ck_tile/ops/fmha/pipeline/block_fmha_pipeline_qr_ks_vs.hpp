@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -58,17 +58,6 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
 
-    using BlockGemm0 = remove_cvref_t<decltype(Policy::template GetQKBlockGemm<Problem>())>;
-    static constexpr auto WarpGemmConfig =
-        BlockGemm0::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-    using WarpGemm0                     = remove_cvref_t<decltype(WarpGemmConfig.template at<0>())>;
-    static constexpr index_t Gemm0MWarp = WarpGemmConfig.template at<1>();
-    static constexpr index_t Gemm0NWarp = WarpGemmConfig.template at<2>();
-    static constexpr index_t WarpGemm0M = WarpGemm0::WarpGemmAttribute::Impl::kM;
-    static constexpr index_t WarpGemm0N = WarpGemm0::WarpGemmAttribute::Impl::kN;
-    static constexpr index_t WarpGemm0K = WarpGemm0::WarpGemmAttribute::Impl::kK;
-    static constexpr int NumMfmaInsts =
-        (kM0 / WarpGemm0M) * (kN0 / WarpGemm0N) * (kK0 / WarpGemm0K) / (Gemm0MWarp * Gemm0NWarp);
     static constexpr uint32_t DS_READ = 0x100; // Barrier for DS (data share) read
     static constexpr uint32_t MFMA    = 0x008; // Barrier for MFMA (matrix multiply-accumulate)
 
@@ -94,6 +83,8 @@ struct BlockFmhaPipelineQRKSVS
         kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentRandVal =
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentRandVal<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::kBlockPerCu != -1)
@@ -298,7 +289,18 @@ struct BlockFmhaPipelineQRKSVS
         // Use compile-time conditional for group barrier sequence
         // (No runtime lambda selection)
         auto schedule_gemm0 = [] {
-            if constexpr(kQKHeaddim == 256)
+            using BlockGemm0 = remove_cvref_t<decltype(gemm_0)>;
+            constexpr auto WarpGemmConfig =
+                BlockGemm0::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WarpGemm0 = remove_cvref_t<decltype(WarpGemmConfig.template at<0>())>;
+            constexpr index_t Gemm0MWarp   = WarpGemmConfig.template at<1>();
+            constexpr index_t Gemm0NWarp   = WarpGemmConfig.template at<2>();
+            constexpr index_t WarpGemm0M   = WarpGemm0::WarpGemmAttribute::Impl::kM;
+            constexpr index_t WarpGemm0N   = WarpGemm0::WarpGemmAttribute::Impl::kN;
+            constexpr index_t WarpGemm0K   = WarpGemm0::WarpGemmAttribute::Impl::kK;
+            constexpr index_t NumMfmaInsts = (kM0 / WarpGemm0M) * (kN0 / WarpGemm0N) *
+                                             (kK0 / WarpGemm0K) / (Gemm0MWarp * Gemm0NWarp);
+            if constexpr(get_warp_size() == 64 && kQKHeaddim == 256)
             {
                 static_assert(NumMfmaInsts % 8 == 0);
                 static_for<0, NumMfmaInsts / 8, 1>{}([&](auto) {
@@ -578,6 +580,9 @@ struct BlockFmhaPipelineQRKSVS
 
             if constexpr(kHasDropout)
             {
+                // K and dropout use the same address in LDS, finish loading from k_lds_window by
+                // gemm_0 to reuse LDS.
+                block_sync_lds();
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
             }

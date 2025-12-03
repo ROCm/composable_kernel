@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -47,6 +47,9 @@ using I8_Tuple      = ck::Tuple<I8>;
 using BF16_Tuple    = ck::Tuple<BF16>;
 
 using F32_F32_Tuple = ck::Tuple<F32, F32>;
+
+// Generic layouts
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 // GEMM layout
 using Row  = ck::tensor_layout::gemm::RowMajor;

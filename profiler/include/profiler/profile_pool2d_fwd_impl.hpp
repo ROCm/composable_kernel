@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -35,7 +35,8 @@ bool profile_pool2d_fwd_impl(int do_verification,
                              std::vector<index_t> window_strides,
                              std::vector<index_t> window_dilations,
                              std::vector<index_t> input_left_pads,
-                             std::vector<index_t> input_right_pads)
+                             std::vector<index_t> input_right_pads,
+                             index_t instance_index = -1)
 {
     constexpr index_t InOutRank  = 4;
     constexpr index_t WindowRank = 2;
@@ -74,7 +75,9 @@ bool profile_pool2d_fwd_impl(int do_verification,
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W) {
             using namespace ck::literals;
 
-            return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
+            return HostTensorDescriptor({N_, C_, H, W},
+                                        {C_ * H * W, 1_uz, W * C_, C_},
+                                        ck::tensor_layout::convolution::NCHW{});
         };
 
     Tensor<InDataType> in_n_c_hi_wi(f_host_tensor_descriptor(N, C, Hi, Wi));
@@ -169,6 +172,11 @@ bool profile_pool2d_fwd_impl(int do_verification,
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             ++num_kernel;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
         }
         else
         {
@@ -266,7 +274,11 @@ bool profile_pool2d_fwd_impl(int do_verification,
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
-
+    if(instance_index != -1)
+    {
+        std::cout << "max_pool2d_fwd_instance (" << instance_index << "/" << num_kernel
+                  << "): Passed" << std::endl;
+    }
     return true;
 }
 

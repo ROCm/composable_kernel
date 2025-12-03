@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -182,14 +182,6 @@ struct GemmKernelMultiABD
     {
         // Currently MultiABD kernel doesn't support k_batch > 1
         if(kargs.k_batch > 1)
-        {
-            return false;
-        }
-        // Currently MultiABD kernel doesn't support F8 data type
-        if(ck_tile::get_device_name() == "gfx950" &&
-           (std::is_same<ck_tile::fp8_t, ADataType>::value ||
-            std::is_same<ck_tile::fp8_t, BDataType>::value ||
-            std::is_same<ck_tile::fp8_t, DDataType>::value))
         {
             return false;
         }

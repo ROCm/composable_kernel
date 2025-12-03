@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -144,8 +144,11 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                     }
                     CDataType v_c{0};
-                    D0DataType v_d0 = arg.d0_(t, topk_id); // a
-                    D0DataType v_d1 = arg.d1_(e, n);       // b
+                    D0DataType v_d0 = arg.d0_.mDesc.GetNumOfDimension() == 3
+                                          ? arg.d0_(t, topk_id, 0)
+                                          : arg.d0_(t, topk_id); // a
+
+                    D0DataType v_d1 = arg.d1_(e, n); // b
                     if constexpr(MulRoutedWeight)
                     {
                         arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);

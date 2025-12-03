@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -21,6 +21,10 @@
 #include "ck/library/utility/fill.hpp"
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
@@ -32,8 +36,9 @@ using XDataType       = ck::e8m0_bexp_t;
 using XPackedDataType = int32_t; // 4 packed e8m0_bexp_t
 using I64             = int64_t;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using A0DataType       = F4;
 using A1DataType       = XPackedDataType;
@@ -180,7 +185,7 @@ constexpr ck::index_t ScaleBlockSize   = 32;                   // scaling block 
 constexpr ck::index_t KPerBlock        = 256 / DataPackedSize; // 256 f4 = 128 fp4x2
 static constexpr ck::index_t Nswizzle  = false;
 static constexpr ck::index_t ActOP     = 0; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr ck::index_t MPerBlock = 128;
+static constexpr ck::index_t MPerBlock = 32;
 static constexpr bool MulRoutedWeight  = true;
 
 // clang-format off
@@ -189,10 +194,10 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmMXBPreShuffl
     A0DataType,  A1DataType,  B0DataType,  B1DataType,  DsDataType, EDataType, AccDataType, CShuffleDataType,
     AElementOp,  BElementOp, CDEElementOp, GemmSpec,   
     ScaleBlockSize,  256, 
-    MPerBlock,  64,  KPerBlock,
+    MPerBlock,  128,  KPerBlock,
     16,   16,
     16,   16,
-    4,    2,
+    2,    2,
     S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
     S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
     2,    2,   S<1, 32, 1, 8>, S<8, 1, 1, 1>,
@@ -212,10 +217,10 @@ int main(int argc, char* argv[])
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
 
-    ck::index_t N       = 6144;
-    ck::index_t K       = 4096;
+    ck::index_t N       = 7168;
+    ck::index_t K       = 256;
     ck::index_t experts = 8;
-    ck::index_t tokens  = 832;
+    ck::index_t tokens  = 208;
     ck::index_t topk    = 2;
 
     if(argc == 1)
@@ -296,12 +301,15 @@ int main(int argc, char* argv[])
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
     Tensor<XDataType> a1_t_k(HostTensorDescriptor(
         {tokens, (K + ScaleBlockSize - 1) / ScaleBlockSize}, {Scale_Stride_AM, 1}));
-    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
+    Tensor<B0DataType> b0_e_n_k(
+        HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}, Col{}));
     Tensor<XDataType> b1_e_n_k(
         HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N * 2},
-                             {(N * 2 * Scale_Stride_BN), 1, Scale_Stride_BN}));
+                             {(N * 2 * Scale_Stride_BN), 1, Scale_Stride_BN},
+                             Col{}));
     // B preshuffle
-    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
+    Tensor<B0DataType> b0_preshuffled(
+        HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}, Col{}));
 
     // A, B Scale preshuffle
     Tensor<XDataType> a_scale_sorted(HostTensorDescriptor(
@@ -310,12 +318,13 @@ int main(int argc, char* argv[])
         {sorted_size, (K + ScaleBlockSize - 1) / ScaleBlockSize}, {Scale_Stride_AM, 1}));
     Tensor<XDataType> b_scale_preshuffled(
         HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N * 2},
-                             {N * 2 * Scale_Stride_BN, 1, Scale_Stride_BN}));
-    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
+                             {N * 2 * Scale_Stride_BN, 1, Scale_Stride_BN},
+                             Col{}));
+    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}, Bypass{}));
     Tensor<EDataType> e_t_k_n_host_result(
-        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
+        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}, Row{}));
     Tensor<EDataType> e_t_k_n_device_result(
-        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
+        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}, Row{}));
 
     e_t_k_n_device_result.SetZero();
     std::cout << "a0_t_k:   " << a0_t_k.mDesc << std::endl;
@@ -506,7 +515,7 @@ int main(int argc, char* argv[])
     {
         invoker.Run(argument, StreamConfig{nullptr, false, 0, 0, 1});
 
-        Tensor<float> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
+        Tensor<float> c_t_k_n({tokens, topk, N}, {topk * N, N, 1}, Row{});
 
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceMoeMXGemm1<A0DataType,

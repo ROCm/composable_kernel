@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -40,7 +40,7 @@ enum struct ScaleBlockTile
 
 int profile_gemm_ab_scale(int argc, char* argv[])
 {
-    if(argc != 15 && argc != 18)
+    if(argc != 15 && argc != 16 && argc != 19)
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: "
@@ -57,10 +57,11 @@ int profile_gemm_ab_scale(int argc, char* argv[])
         printf("arg7: print tensor value (0: no; 1: yes)\n");
         printf("arg8: time kernel (0=no, 1=yes)\n");
         printf("arg9 to 14: M, N, K, StrideA, StrideB, StrideE\n");
+        printf("arg15: KBatch (default: 1)\n");
         printf("optional:\n");
-        printf("arg15: number of warm-up cycles (default 1)\n");
-        printf("arg16: number of iterations (default 10)\n");
-        printf("arg17: memory for rotating buffer (default 0, size in MB)\n");
+        printf("arg16: number of warm-up cycles (default 1)\n");
+        printf("arg17: number of iterations (default 10)\n");
+        printf("arg18: memory for rotating buffer (default 0, size in MB)\n");
         exit(1);
     }
 
@@ -79,15 +80,16 @@ int profile_gemm_ab_scale(int argc, char* argv[])
     const int StrideA = std::stoi(argv[12]);
     const int StrideB = std::stoi(argv[13]);
     const int StrideE = std::stoi(argv[14]);
+    const int KBatch  = (argc > 15) ? std::stoi(argv[15]) : 1;
 
     int n_warmup      = 1;
     int n_iter        = 10;
     uint64_t rotating = 0;
-    if(argc == 18)
+    if(argc == 19)
     {
-        n_warmup = std::stoi(argv[15]);
-        n_iter   = std::stoi(argv[16]);
-        rotating = std::stoull(argv[17]) * 1024 * 1024;
+        n_warmup = std::stoi(argv[16]);
+        n_iter   = std::stoi(argv[17]);
+        rotating = std::stoull(argv[18]) * 1024 * 1024;
     }
 
     using F32  = float;
@@ -149,6 +151,7 @@ int profile_gemm_ab_scale(int argc, char* argv[])
             (StrideA < 0) ? DefaultStrideA : StrideA,
             (StrideB < 0) ? DefaultStrideB : StrideB,
             (StrideE < 0) ? DefaultStrideE : StrideE,
+            KBatch,
             n_warmup,
             n_iter,
             rotating);

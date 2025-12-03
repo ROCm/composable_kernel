@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include "gemm_utils.hpp"
 
 struct WeightPreshuffleInvoker
@@ -109,7 +108,7 @@ struct WeightPreshuffleInvoker
                                                  GemmConfig::NumWaveGroups,
                                                  false,
                                                  1,
-                                                 true>>;
+                                                 GemmConfig::TiledMMAPermuteN>>;
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
@@ -194,10 +193,7 @@ struct WeightPreshuffleInvoker
             }
             else
             {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::atomic_add>{});
+                throw std::runtime_error("split-k is not supported yet!");
             }
         };
 

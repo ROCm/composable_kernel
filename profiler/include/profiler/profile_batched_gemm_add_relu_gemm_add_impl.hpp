@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -116,11 +116,13 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
 
         if(std::is_same<decltype(layout), Row>::value)
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, stride, 1_uz}, layout);
         }
         else
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, 1_uz, stride}, layout);
         }
     };
 

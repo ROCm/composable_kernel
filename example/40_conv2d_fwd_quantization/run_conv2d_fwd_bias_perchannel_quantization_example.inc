@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 template <ck::index_t NDimSpatial,
@@ -214,7 +214,8 @@ int run_conv2d_fwd_bias_perchannel_quantization_example(const OutElementOp& out_
                                                         1,             // k
                                                         0,             // ho
                                                         0              // wo
-                                                    });
+                                                    },
+                                                    BiasLayout{});
 
     const auto requant_scale_g_k_desc = bias_g_k_desc;
 

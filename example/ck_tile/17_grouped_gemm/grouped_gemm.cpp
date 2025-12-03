@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -70,99 +70,95 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
     float ave_time{0};
 
-    const auto Run = [&](const auto has_hot_loop_,
-                         const auto tail_number_,
-                         const auto memory_operation_) {
-        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-        constexpr auto tail_number_v    = tail_number_.value;
-        constexpr auto scheduler        = GemmConfig::Scheduler;
-        constexpr auto memory_operation = memory_operation_.value;
+    const auto Run =
+        [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {
+            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
+            constexpr auto tail_number_v    = tail_number_.value;
+            constexpr auto scheduler        = GemmConfig::Scheduler;
+            constexpr auto memory_operation = memory_operation_.value;
 
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler,
-                                                                           has_hot_loop_v,
-                                                                           tail_number_v>;
+            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                               BDataType,
+                                                                               AccDataType,
+                                                                               GemmShape,
+                                                                               GemmUniversalTraits,
+                                                                               scheduler,
+                                                                               has_hot_loop_v,
+                                                                               tail_number_v>;
 
-        using GemmPipeline = typename PipelineTypeTraits<
-            GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             CDataType,
-                                             DsLayout,
-                                             CLayout,
-                                             CDEElementWise,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             memory_operation>>;
-        using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs   = Kernel::MakeKargs(gemm_descs);
-        if(!Kernel::IsSupportedArgument(kargs))
-        {
-            throw std::runtime_error("Kernel arguments not supported!");
-        }
+            using GemmPipeline = typename PipelineTypeTraits<
+                GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<
+                ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                 BDataType,
+                                                 DsDataType,
+                                                 AccDataType,
+                                                 CDataType,
+                                                 DsLayout,
+                                                 CLayout,
+                                                 CDEElementWise,
+                                                 TilePartitioner::MPerBlock,
+                                                 TilePartitioner::NPerBlock,
+                                                 GemmConfig::M_Warp,
+                                                 GemmConfig::N_Warp,
+                                                 GemmConfig::M_Warp_Tile,
+                                                 GemmConfig::N_Warp_Tile,
+                                                 GemmConfig::K_Warp_Tile,
+                                                 UniversalGemmProblem::TransposeC,
+                                                 memory_operation>>;
+            using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            auto kargs   = Kernel::MakeKargs(gemm_descs);
+            if(!Kernel::IsSupportedArgument(kargs))
+            {
+                throw std::runtime_error("Kernel arguments not supported!");
+            }
 
-        const dim3 blocks = Kernel::BlockSize();
-        const dim3 grids  = Kernel::GridSize(gemm_descs);
+            const dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Kernel::GridSize(gemm_descs);
 
-        HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
-                                            kargs.data(),
-                                            get_workspace_size(gemm_descs),
-                                            hipMemcpyHostToDevice,
-                                            s.stream_id_));
+            HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
+                                                kargs.data(),
+                                                get_workspace_size(gemm_descs),
+                                                hipMemcpyHostToDevice,
+                                                s.stream_id_));
 
-        if(s.log_level_ > 0)
-        {
-            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
-                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
-                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
-        }
+            if(s.log_level_ > 0)
+            {
+                std::cout << "Launching kernel: " << Kernel::GetName()
+                          << " with args:" << " grid: {" << grids.x << ", " << grids.y << ", "
+                          << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
+                          << blocks.z << "}" << std::endl;
+            }
 
-        ave_time =
-            ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                       Kernel{},
-                                       grids,
-                                       blocks,
-                                       0,
-                                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                                       gemm_descs.size()));
-
-        return ave_time;
-    };
+            return ave_time = ck_tile::launch_kernel(
+                       s,
+                       ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                           Kernel{},
+                           grids,
+                           blocks,
+                           0,
+                           ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                           gemm_descs.size()));
+        };
 
     const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
         if(gemm_descs[0].k_batch == 1)
         {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
+            return Run(has_hot_loop_,
+                       tail_number_,
+                       ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                  ck_tile::memory_operation_enum::set>{});
         }
         else
         {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
+            return Run(has_hot_loop_,
+                       tail_number_,
+                       ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                  ck_tile::memory_operation_enum::atomic_add>{});
         }
     };
 
-    BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-
-    return ave_time;
+    return ave_time = BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
 }
 
 template <typename GemmConfig,
@@ -243,31 +239,28 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                       << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
         }
 
-        ave_time =
-            ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                       Kernel{},
-                                       grids,
-                                       blocks,
-                                       0,
-                                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                                       num_groups));
-
-        return ave_time;
+        return ave_time = ck_tile::launch_kernel(
+                   s,
+                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                       Kernel{},
+                       grids,
+                       blocks,
+                       0,
+                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                       num_groups));
     };
 
     if(!splitk)
     {
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::set>{});
+        return ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                         ck_tile::memory_operation_enum::set>{});
     }
     else
     {
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::atomic_add>{});
+        return ave_time =
+                   Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                  ck_tile::memory_operation_enum::atomic_add>{});
     }
-
-    return ave_time;
 }
 
 #include "run_grouped_gemm_example.inc"
@@ -338,6 +331,11 @@ int run_grouped_gemm_example(int argc, char* argv[])
     if(data_type == "fp16")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "bf16")
+    {
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>, ck_tile::bf16_t>(
             a_layout, b_layout, argc, argv);
     }
     else if(data_type == "fp8")

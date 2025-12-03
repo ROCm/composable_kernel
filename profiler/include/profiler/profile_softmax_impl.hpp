@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -53,7 +53,8 @@ bool profile_softmax_impl(int do_verification,
                           std::vector<index_t> in_strides,
                           std::vector<index_t> reduce_dims,
                           double alpha,
-                          double beta)
+                          double beta,
+                          index_t instance_index = -1)
 {
     if(Rank != in_length.size())
     {
@@ -124,7 +125,7 @@ bool profile_softmax_impl(int do_verification,
     float best_avg_time   = std::numeric_limits<float>::max();
     float best_gb_per_sec = 0;
     std::vector<bool> instance_pass;
-
+    index_t num_kernel = 0;
     for(auto& inst_ptr : instances)
     {
         auto argument_ptr = inst_ptr->MakeArgumentPointer(in_tensor_lengths,
@@ -145,6 +146,15 @@ bool profile_softmax_impl(int do_verification,
             LogRange(std::cout << ", reduce dims = [", reduce_dims, ", ") << "]." << std::endl;
             instance_pass.push_back(true);
             continue;
+        }
+        else
+        {
+            num_kernel++;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
         }
 
         out_dev.ToDevice(prior_out.data());
@@ -215,6 +225,11 @@ bool profile_softmax_impl(int do_verification,
         LogRange(std::cout << "reduce dims ", reduce_dims, ",") << ", ";
         std::cout << "alpha = " << alpha << ", " << "beta = " << beta << ", " << best_avg_time
                   << " ms, " << best_gb_per_sec << " GB/s, " << best_instance_name << std::endl;
+    }
+    if(instance_index != -1)
+    {
+        std::cout << "reduce_instance (" << instance_index << "/" << num_kernel << "): Passed"
+                  << std::endl;
     }
     return std::all_of(
         std::begin(instance_pass), std::end(instance_pass), [](bool p) { return p; });

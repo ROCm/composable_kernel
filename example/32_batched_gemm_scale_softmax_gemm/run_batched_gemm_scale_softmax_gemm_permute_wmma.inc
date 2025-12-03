@@ -1,5 +1,9 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 int run(int argc, char* argv[])
 {
@@ -88,11 +92,30 @@ int run(int argc, char* argv[])
             ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
             : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
 
-    Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
-    Tensor<B0DataType> b0_gs_ns_ks(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
-    Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
-    Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
-    Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+    auto f_host_tensor_descriptor = [](std::vector<ck::index_t> lens,
+                                       std::vector<ck::index_t> strides,
+                                       bool permute,
+                                       auto layout) {
+        if(permute)
+        {
+            return HostTensorDescriptor(lens, strides, Bypass{});
+        }
+        else
+        {
+            return HostTensorDescriptor(lens, strides, layout);
+        }
+    };
+
+    Tensor<ADataType> a_gs_ms_ks(
+        f_host_tensor_descriptor(a_gs_ms_ks_lengths, a_gs_ms_ks_strides, input_permute, Row{}));
+    Tensor<B0DataType> b0_gs_ns_ks(
+        f_host_tensor_descriptor(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides, input_permute, Row{}));
+    Tensor<B1DataType> b1_gs_os_ns(
+        f_host_tensor_descriptor(b1_gs_os_ns_lengths, b1_gs_os_ns_strides, input_permute, Col{}));
+    Tensor<CDataType> c_gs_ms_os_host_result(
+        f_host_tensor_descriptor(c_gs_ms_os_lengths, c_gs_ms_os_strides, output_permute, Row{}));
+    Tensor<CDataType> c_gs_ms_os_device_result(
+        f_host_tensor_descriptor(c_gs_ms_os_lengths, c_gs_ms_os_strides, output_permute, Row{}));
 
     std::cout << "a_gs_ms_ks: " << a_gs_ms_ks.mDesc << std::endl;
     std::cout << "b0_gs_ns_ks: " << b0_gs_ns_ks.mDesc << std::endl;

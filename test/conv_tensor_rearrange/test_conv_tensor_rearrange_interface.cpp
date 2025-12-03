@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -18,6 +18,8 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
 #include <gtest/gtest.h>
+
+using ::ck::HostTensorDescriptor;
 
 using DataType = float;
 using ImLayout = ck::tensor_layout::convolution::GNWC;
@@ -188,7 +190,7 @@ TEST_F(TestConvTensorRearrangeInterface1ScalarPerVector, X1ScalarPerVector)
     is_supported = this->template Run<ColumnToImage>();
     EXPECT_TRUE(is_supported);
     // vector load C % ScalarPerVector, dilation
-    this->conv_param = {1, 1, 1, 1, 1, {4}, {3}, {1}, {2}, {0}, {0}};
+    this->conv_param = {1, 1, 1, 1, 1, {4}, {8}, {1}, {2}, {0}, {0}};
     is_supported     = this->template Run<ImageToColumn>();
     EXPECT_TRUE(is_supported);
     is_supported = this->template Run<ColumnToImage>();
@@ -234,7 +236,7 @@ TEST_F(TestConvTensorRearrangeInterface4ScalarPerVector, X4ScalarPerVector)
     is_supported = this->template Run<ColumnToImage>();
     EXPECT_FALSE(is_supported);
     // vector load C % ScalarPerVector, dilation
-    this->conv_param = {1, 1, 1, 1, 1, {4}, {3}, {1}, {2}, {0}, {0}};
+    this->conv_param = {1, 1, 1, 1, 1, {4}, {8}, {1}, {2}, {0}, {0}};
     is_supported     = this->template Run<ImageToColumn>();
     EXPECT_FALSE(is_supported);
     is_supported = this->template Run<ColumnToImage>();
@@ -250,13 +252,13 @@ TEST_F(TestConvTensorRearrangeInterface4ScalarPerVector, X4ScalarPerVector)
 TEST_F(TestConvTensorRearrangeInterface4ScalarPerVectorFakeC, X4ScalarPerVectorFakeC)
 {
     // C = 3
-    this->conv_param  = {1, 1, 1, 1, 3, {4}, {3}, {1}, {1}, {0}, {0}};
+    this->conv_param  = {1, 1, 1, 1, 3, {4}, {5}, {1}, {1}, {0}, {0}};
     bool is_supported = this->template Run<ImageToColumn>();
     EXPECT_FALSE(is_supported);
     is_supported = this->template Run<ColumnToImage>();
     EXPECT_FALSE(is_supported);
     // C = 4
-    this->conv_param = {1, 1, 1, 1, 8, {4}, {3}, {1}, {1}, {0}, {0}};
+    this->conv_param = {1, 1, 1, 1, 8, {4}, {5}, {1}, {1}, {0}, {0}};
     is_supported     = this->template Run<ImageToColumn>();
     EXPECT_TRUE(is_supported);
     is_supported = this->template Run<ColumnToImage>();

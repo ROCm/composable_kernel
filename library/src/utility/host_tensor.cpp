@@ -1,21 +1,11 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cassert>
 
 #include "ck/library/utility/host_tensor.hpp"
 
-void HostTensorDescriptor::CalculateStrides()
-{
-    mStrides.clear();
-    mStrides.resize(mLens.size(), 0);
-    if(mStrides.empty())
-        return;
-
-    mStrides.back() = 1;
-    std::partial_sum(
-        mLens.rbegin(), mLens.rend() - 1, mStrides.rbegin() + 1, std::multiplies<std::size_t>());
-}
+namespace ck {
 
 std::size_t HostTensorDescriptor::GetNumOfDimension() const { return mLens.size(); }
 
@@ -57,3 +47,16 @@ std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc)
 
     return os;
 }
+
+std::ostream& operator<<(std::ostream& os, HostTensorDescriptor::ChosenLayout tag)
+{
+    switch(tag)
+    {
+    case HostTensorDescriptor::ChosenLayout::Original: os << "Original"; break;
+    case HostTensorDescriptor::ChosenLayout::RowMajor: os << "RowMajor"; break;
+    case HostTensorDescriptor::ChosenLayout::ColumnMajor: os << "ColumnMajor"; break;
+    }
+    return os;
+}
+
+} // namespace ck

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -196,7 +196,7 @@ struct DeviceGemm_Wmma_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
 
     static constexpr auto DsVectorLengthSequence = generate_sequence_v2(
         [](auto i) {
-            using DLayout = ::std::__remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+            using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
             if constexpr(is_same<CLayout, DLayout>::value)
                 return Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{};
             else
@@ -253,7 +253,7 @@ struct DeviceGemm_Wmma_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 DsLengths[i] = out_lengths;
 
-                using DLayout = ::std::__remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                 if constexpr(is_same<DLayout, ck::tensor_layout::gemm::RowMajor>::value)
                 {
                     DsStrides[i] = {arg.StrideDs[i], 1};

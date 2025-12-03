@@ -1,7 +1,12 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
+// use macro to minimize code change
+#ifndef EXAMPLE_WITH_COMPUTE_DATATYPE
+using ComputeDataType = AccDataType;
+#endif
 
 struct ProblemSize final
 {
@@ -14,6 +19,10 @@ struct ProblemSize final
     std::vector<ck::index_t> stride_Cs;
 
     ck::index_t group_count;
+
+#if defined(EXAMPLE_USE_SPLITK)
+    ck::index_t k_batch;
+#endif
 };
 
 struct ExecutionConfig final
@@ -172,6 +181,10 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     auto argument = gemm.MakeArgument(
         p_a, p_b, p_Ds, p_c, gemm_descs, a_element_op, b_element_op, c_element_op);
 
+#if defined(EXAMPLE_USE_SPLITK)
+    gemm.SetKBatchSize(&argument, problem_size.k_batch);
+#endif
+
     std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
     std::size_t kargs_size     = gemm.GetDeviceKernelArgSize(&argument);
     std::size_t hargs_size     = gemm.GetHostKernelArgSize(&argument);
@@ -231,7 +244,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
-                                                                                CDEElementOp>;
+                                                                                CDEElementOp,
+                                                                                ComputeDataType>;
 
         for(std::size_t i = 0; i < gemm_descs.size(); i++)
         {
@@ -253,7 +267,9 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             pass &= ck::utils::check_err(c_device_result_converted, c_host_tensors[i]);
 
 #else
-            pass &= ck::utils::check_err(c_device_tensors[i], c_host_tensors[i]);
+            pass &= ck::utils::check_err<decltype(c_device_tensors[i]),
+                                         decltype(c_host_tensors[i]),
+                                         ComputeDataType>(c_device_tensors[i], c_host_tensors[i]);
 #endif
         }
     }
@@ -277,20 +293,31 @@ bool run_grouped_gemm_example(int argc, char* argv[])
     ExecutionConfig config;
 
     problem_size.group_count = 16;
+#if defined(EXAMPLE_USE_SPLITK)
+    problem_size.k_batch = 1;
+#endif
 
-    if(argc == 4)
+    if(argc == 1)
+    {
+        // use default cases
+    }
+    else if(argc == 4 || argc == 6 || argc == 7)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
-    }
-    else if(argc == 6)
-    {
-        config.do_verification   = std::stoi(argv[1]);
-        config.init_method       = std::stoi(argv[2]);
-        config.time_kernel       = std::stoi(argv[3]);
-        config.async_hargs       = std::stoi(argv[4]);
-        problem_size.group_count = std::stoi(argv[5]);
+        if(argc == 6)
+        {
+            config.async_hargs       = std::stoi(argv[4]);
+            problem_size.group_count = std::stoi(argv[5]);
+        }
+
+#if defined(EXAMPLE_USE_SPLITK)
+        if(argc == 7)
+        {
+            problem_size.k_batch = std::stoi(argv[6]);
+        }
+#endif
     }
     else
     {
@@ -298,9 +325,24 @@ bool run_grouped_gemm_example(int argc, char* argv[])
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4: async hargs (0=n0, 1=yes)\n");
-        printf("arg5: group count (default=16)");
-        exit(0);
+        printf("arg5: group count (default=16)\n");
+#if defined(EXAMPLE_USE_SPLITK)
+        printf("arg6: k-batch count (default=1)\n");
+#endif
+        exit(1);
     }
+
+    // Lambda to get stride based on layout
+    auto get_stride = [](auto layout, auto row_dim, auto col_dim) {
+        if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
+        {
+            return col_dim;
+        }
+        else
+        {
+            return row_dim;
+        }
+    };
 
     for(int i = 0; i < problem_size.group_count; i++)
     {
@@ -308,9 +350,12 @@ bool run_grouped_gemm_example(int argc, char* argv[])
         problem_size.Ns.push_back(128 + 128 * i);
         problem_size.Ks.push_back(128 + 64 * i);
 
-        problem_size.stride_As.push_back(problem_size.Ks[i]);
-        problem_size.stride_Bs.push_back(problem_size.Ks[i]);
-        problem_size.stride_Cs.push_back(problem_size.Ns[i]);
+        problem_size.stride_As.push_back(
+            get_stride(ALayout{}, problem_size.Ms[i], problem_size.Ks[i]));
+        problem_size.stride_Bs.push_back(
+            get_stride(BLayout{}, problem_size.Ks[i], problem_size.Ns[i]));
+        problem_size.stride_Cs.push_back(
+            get_stride(ELayout{}, problem_size.Ms[i], problem_size.Ns[i]));
     }
 
     return run_grouped_gemm(problem_size, config);

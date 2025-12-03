@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -561,9 +561,10 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             return;
         }
 
-        const index_t num_k_per_block =
+        const index_t num_ak0_per_block =
             __builtin_amdgcn_readfirstlane(a_grid_desc_ak0_m_ak1.GetLength(I0) / k_batch);
-
+        const index_t num_bk0_per_block =
+            __builtin_amdgcn_readfirstlane(b_grid_desc_bk0_n_bk1.GetLength(I0) / k_batch);
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
@@ -605,7 +606,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                 true,
                                                 NumGemmKPrefetchStage>(
                 a_grid_desc_ak0_m_ak1,
-                make_multi_index(num_k_per_block * k_idx, m_block_data_idx_on_grid, 0),
+                make_multi_index(num_ak0_per_block * k_idx, m_block_data_idx_on_grid, 0),
                 a_element_op,
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
@@ -636,7 +637,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                 true,
                                                 NumGemmKPrefetchStage>(
                 b_grid_desc_bk0_n_bk1,
-                make_multi_index(num_k_per_block * k_idx, n_block_data_idx_on_grid, 0),
+                make_multi_index(num_bk0_per_block * k_idx, n_block_data_idx_on_grid, 0),
                 b_element_op,
                 b_block_desc_bk0_n_bk1,
                 make_multi_index(0, 0, 0),

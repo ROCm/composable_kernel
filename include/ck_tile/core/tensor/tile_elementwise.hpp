@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -184,7 +184,7 @@ namespace impl {
 template <typename OutDataType, typename InTensor>
 CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
 {
-#if defined(__gfx94__)
+#if defined(__gfx94__) || defined(__gfx12__)
     // This API is designed to use the _pk_ serious of function
     constexpr auto in_tile_dstr = InTensor::get_tile_distribution();
 
@@ -195,7 +195,7 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
     auto out_dstr_tensor = make_static_distributed_tensor<OutDataType>(in_tile_dstr);
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wuninitialized"
-    // __builtin_amdgcn_cvt_pk_fp8_f32() this builtin require the old value, and
+    // __builtin_amdgcn_cvt_pk_fp8_f32() this builtin requires the old value, and
     // will generate a v_mov_b32 vxxx [old] before cvt, which result in unwanted ISA
     // so we prepare an uninitialized variable purposely, and turn off the warning
     int dummy_old;
@@ -209,13 +209,12 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
         uint32_t y = __builtin_amdgcn_cvt_pk_fp8_f32(
             in_dstr_tensors.get_thread_buffer()[number<4 * i + 2>{}],
             in_dstr_tensors.get_thread_buffer()[number<4 * i + 3>{}],
-            dummy_old,
-            false); // false -> WORD0
+            x,
+            true); // true -> WORD1
 
-        constexpr int32_t m0 = 0x05040100;
-        using vec_t          = array<OutDataType, 4>;
+        using vec_t = array<OutDataType, 4>;
 
-        vec_t d = bit_cast<vec_t>(__builtin_amdgcn_perm(y, x, m0));
+        vec_t d = bit_cast<vec_t>(y);
         out_dstr_tensor.get_thread_buffer().template set_as<vec_t>(number<i>{}, d);
     });
 #pragma clang diagnostic pop
@@ -229,7 +228,7 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
 }
 
 template <typename OutDataType, typename InTensor>
-CK_TILE_DEVICE auto cast_tile_pk_fp16_fp32(const InTensor& in_dstr_tensors)
+CK_TILE_DEVICE auto cast_tile_pkrtz_fp16_fp32(const InTensor& in_dstr_tensors)
 {
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__)
     // This API is designed to use the _pk_ serious of function
@@ -257,6 +256,30 @@ CK_TILE_DEVICE auto cast_tile_pk_fp16_fp32(const InTensor& in_dstr_tensors)
     return tile_elementwise_in(type_convert<OutDataType, typename InTensor::DataType>,
                                in_dstr_tensors);
 #endif
+}
+
+template <typename OutDataType, typename InTensor>
+CK_TILE_DEVICE auto cast_tile_pk_fp16bf16_fp32(const InTensor& in_dstr_tensors)
+{
+    // This API is designed to help compiler to identify pairs of f32 -> fp16/bf16 cast and use
+    // cvt_pk instruction when possible
+    constexpr auto in_tile_dstr = InTensor::get_tile_distribution();
+
+    constexpr index_t thread_buffer_size = InTensor::get_thread_buffer_size();
+    static_assert(thread_buffer_size % 2 == 0);
+    auto out_dstr_tensor = make_static_distributed_tensor<OutDataType>(in_tile_dstr);
+    using f16x2_t = std::conditional_t<std::is_same_v<OutDataType, fp16_t>, fp16x2_t, bf16x2_t>;
+    for(index_t i = 0; i < thread_buffer_size / 2; i++)
+    {
+        auto o = type_convert<f16x2_t>(fp32x2_t{
+            in_dstr_tensors.get_thread_buffer()[2 * i + 0],
+            in_dstr_tensors.get_thread_buffer()[2 * i + 1],
+        });
+
+        out_dstr_tensor.get_thread_buffer().at(2 * i + 0) = o.x;
+        out_dstr_tensor.get_thread_buffer().at(2 * i + 1) = o.y;
+    }
+    return out_dstr_tensor;
 }
 
 #if CK_TILE_USE_SUBDWORD_TILE_CAST
@@ -330,22 +353,22 @@ CK_TILE_DEVICE auto cast_tile(const SrcTensor& src_tensor)
     if constexpr((std::is_same_v<DstType, fp8_t> || std::is_same_v<DstType, bf8_t>) &&
                  std::is_same_v<typename SrcTensor::DataType, float> &&
                  (SrcTensor::get_thread_buffer_size() % 4 == 0))
-    {
         return impl::cast_tile_pk_fp8_fp32<DstType, SrcTensor>(src_tensor);
-    }
 #if CK_TILE_USE_PK_FP16_TILE_CAST
     else if constexpr(std::is_same_v<DstType, fp16_t> &&
                       std::is_same_v<typename SrcTensor::DataType, float> &&
                       (SrcTensor::get_thread_buffer_size() % 2 == 0))
-    {
-        return impl::cast_tile_pk_fp16_fp32<DstType, SrcTensor>(src_tensor);
-    }
+        return impl::cast_tile_pkrtz_fp16_fp32<DstType, SrcTensor>(src_tensor);
+#endif
+#if 0 // currently it causes extra spills in qr_async_vr pipeline of fmha_fwd
+    else if constexpr((std::is_same_v<DstType, fp16_t> || std::is_same_v<DstType, bf16_t>) &&
+                      std::is_same_v<typename SrcTensor::DataType, float> &&
+                      (SrcTensor::get_thread_buffer_size() % 2 == 0))
+        return impl::cast_tile_pk_fp16bf16_fp32<DstType, SrcTensor>(src_tensor);
 #endif
 #if CK_TILE_USE_SUBDWORD_TILE_CAST
     else if constexpr(sizeof(DstType) < 4 || sizeof(typename SrcTensor::DataType) < 4)
-    {
         return impl::cast_tile_opt_subdword<DstType, SrcTensor>(src_tensor);
-    }
 #endif
     else
         return tile_elementwise_in(type_convert<DstType, typename SrcTensor::DataType>, src_tensor);

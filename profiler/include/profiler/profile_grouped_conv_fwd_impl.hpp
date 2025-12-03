@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -42,7 +42,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                    bool do_log,
                                    bool time_kernel,
                                    const ck::utils::conv::ConvParam& conv_param,
-                                   const OutElementOp out_element_op = OutElementOp{})
+                                   const OutElementOp out_element_op = OutElementOp{},
+                                   index_t instance_index            = -1)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -144,7 +145,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     float best_avg_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-
+    index_t num_kernel    = 0;
     // profile device op instances
     bool pass = true;
 
@@ -156,6 +157,13 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            num_kernel++;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                return;
+            }
+
             std::string op_name = op_ptr->GetTypeString();
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
@@ -253,7 +261,11 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
               << "\nGB/s: " << best_gb_per_sec << std::endl;
-
+    if(instance_index != -1)
+    {
+        std::cout << "grouped_conv_fwd_instance (" << instance_index << "/" << num_kernel
+                  << "): Passed" << std::endl;
+    }
     return pass;
 }
 

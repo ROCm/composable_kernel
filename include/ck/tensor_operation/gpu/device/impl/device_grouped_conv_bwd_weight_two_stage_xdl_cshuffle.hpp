@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1687,6 +1687,23 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         const index_t GemmK =
             arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
+        if constexpr(is_same_v<ComputeTypeA, ck::tf32_t> || is_same_v<ComputeTypeB, ck::tf32_t>)
+        {
+            if(!is_tf32_supported())
+            {
+                return false;
+            }
+            if constexpr(!is_same_v<ComputeTypeA, ComputeTypeB>)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "ComputeDataType for A and B should be same while using TF32"
+                              << std::endl;
+                }
+                return false;
+            }
+        }
+
         if(get_warp_size() == 64)
         {
             if constexpr(NXdlPerWave64 > 0)
@@ -1867,6 +1884,14 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             {
                 return false;
             }
+        }
+
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+        if(!(arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+             arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB &&
+             arg.ce_grid_desc_m_n_.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
+        {
+            return false;
         }
 
         return true;

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
@@ -156,7 +156,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
 int main(int argc, char* argv[])
 {
-    auto [result, arg_parser] = create_args(argc, argv);
+    bool result = true;
+    ck_tile::ArgParser arg_parser;
+    std::tie(result, arg_parser) = create_args(argc, argv);
     if(!result)
         return -1;
 

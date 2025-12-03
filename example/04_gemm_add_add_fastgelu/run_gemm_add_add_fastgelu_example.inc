@@ -1,3 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionConfig& config)
@@ -6,18 +9,21 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
 #endif
     using namespace ck::literals;
+    using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
-    auto& [M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE] = problem_size;
+    ProblemSize ps =
+        problem_size; // make mutable copy because default stride values of 0 need to be updated
+    auto& [M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE] = ps;
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, Bypass{});
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, Bypass{});
             }
         };
 
@@ -40,6 +46,30 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
     std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_host_result.mDesc << std::endl;
+
+    // If any user-provided leading stride < 0, replace it with the one determined by the
+    // created tensor descriptor. For RowMajor the leading stride is index 0, for ColMajor index 1.
+    auto fetch_leading_stride = [](const auto& tensor, auto layout_tag) -> int {
+        if constexpr(std::is_same_v<decltype(layout_tag), ck::tensor_layout::gemm::RowMajor>)
+        {
+            return static_cast<int>(tensor.GetStrides()[0]);
+        }
+        else
+        {
+            return static_cast<int>(tensor.GetStrides()[1]);
+        }
+    };
+
+    if(StrideA < 0)
+        StrideA = fetch_leading_stride(a_m_k, ALayout{});
+    if(StrideB < 0)
+        StrideB = fetch_leading_stride(b_k_n, BLayout{});
+    if(StrideD0 < 0)
+        StrideD0 = fetch_leading_stride(d0_m_n, D0Layout{});
+    if(StrideD1 < 0)
+        StrideD1 = fetch_leading_stride(d1_m_n, D1Layout{});
+    if(StrideE < 0)
+        StrideE = fetch_leading_stride(e_m_n_host_result, ELayout{});
 
     switch(config.init_method)
     {

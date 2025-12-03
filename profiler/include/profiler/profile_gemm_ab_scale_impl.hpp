@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,7 +19,6 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
-#include "ck/library/utility/validation_common.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -48,6 +47,7 @@ bool profile_gemm_ab_scale_impl(int do_verification,
                                 int StrideA,
                                 int StrideB,
                                 int StrideE,
+                                int KBatch,
                                 int n_warmup,
                                 int n_iter,
                                 uint64_t rotating = 0)
@@ -74,10 +74,6 @@ bool profile_gemm_ab_scale_impl(int do_verification,
     ck::index_t Scale_Stride_BN = ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>
                                       ? ((K + ScaleBlockK - 1) / ScaleBlockK)
                                       : ((N + ScaleBlockN - 1) / ScaleBlockN);
-
-    ck::utils::validate_gemm_stride<ALayout>(M, K, StrideA, "StrideA");
-    ck::utils::validate_gemm_stride<BLayout>(K, N, StrideB, "StrideB");
-    ck::utils::validate_gemm_stride<BLayout>(M, N, StrideE, "StrideE");
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<A1DataType> a1_m_k(f_host_tensor_descriptor((M + ScaleBlockM - 1) / ScaleBlockM,
@@ -243,6 +239,7 @@ bool profile_gemm_ab_scale_impl(int do_verification,
                                         a_element_op,
                                         b_element_op,
                                         c_element_op);
+        op_ptr->SetKBatch(argument_ptr.get(), KBatch);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

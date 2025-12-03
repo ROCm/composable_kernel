@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -158,7 +158,9 @@ float fmha_fwd_v3_kernel_launch(const fmha_fwd_v3_args& args, const stream_confi
                                    args.window_size_left,
                                    args.window_size_right,
                                    args.mask_type,
-                                   remap_opt);
+                                   remap_opt,
+                                   args.cu_seqlen_q_ptr,
+                                   args.cu_seqlen_kv_ptr);
 
     dim3 grids            = Kernel::GridSize(args.batch, args.nhead_q, args.seqlen_q, args.hdim_v);
     constexpr dim3 blocks = Kernel::BlockSize();

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,7 +14,8 @@ namespace ck_tile {
 template <typename Problem, typename Policy>
 class BlockFmhaBwdDQDKDVPipelineSelector
 {
-    static constexpr bool has_dpad = Problem::Traits::kPadHeadDimQ || Problem::Traits::kPadHeadDimV;
+    static constexpr bool has_dpad1 =
+        Problem::Traits::kPadHeadDimQ == 1 || Problem::Traits::kPadHeadDimV == 1;
     static constexpr bool is_decode = Problem::BlockFmhaShape::kMaxSeqLenQ > 0;
 
     public:
@@ -24,7 +25,7 @@ class BlockFmhaBwdDQDKDVPipelineSelector
                            std::conditional_t<is_decode,
                                               BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR<TS...>,
                                               BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR<TS...>>,
-                           std::conditional_t<has_dpad,
+                           std::conditional_t<has_dpad1,
                                               BlockFmhaBwdDQDKDVPipelineKRKTRVR<TS...>,
                                               BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP<TS...>>>;
     using type = std::conditional_t<std::is_same_v<Policy, void>, //

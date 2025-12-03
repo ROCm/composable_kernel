@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -442,7 +442,7 @@ struct BlockFmhaV3PipelineDefaultPolicy
 
         constexpr index_t SingleVSize = [&]() {
             using VDataType                = remove_cvref_t<typename Problem::VDataType>;
-            constexpr index_t Banks        = 32; // TODO: need change based on arch
+            constexpr index_t Banks        = get_n_lds_banks();
             constexpr index_t PixelsPerRow = Banks * 4 / sizeof(VDataType);
             constexpr index_t kKPack       = GetSmemKPackK<Problem>();
             static_assert(PixelsPerRow % kKPack == 0);

@@ -1,6 +1,6 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
-
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+#pragma once
 #include <gtest/gtest.h>
 #include <hip/hip_runtime.h>
 #include <iostream>
@@ -37,19 +37,25 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
+ck_tile::index_t get_cu_count();
+
 template <typename Tuple>
 class TestCkTileStreamK : public ::testing::Test
 {
     protected:
-    using ALayout     = std::tuple_element_t<0, Tuple>;
-    using BLayout     = std::tuple_element_t<1, Tuple>;
-    using CLayout     = std::tuple_element_t<2, Tuple>;
-    using ADataType   = std::tuple_element_t<3, Tuple>;
-    using BDataType   = std::tuple_element_t<4, Tuple>;
-    using AccDataType = std::tuple_element_t<5, Tuple>;
-    using CDataType   = std::tuple_element_t<6, Tuple>;
-    using DsLayout    = ck_tile::tuple<>;
-    using DsDataType  = ck_tile::tuple<>;
+    using ALayout                            = std::tuple_element_t<0, Tuple>;
+    using BLayout                            = std::tuple_element_t<1, Tuple>;
+    using CLayout                            = std::tuple_element_t<2, Tuple>;
+    using ADataType                          = std::tuple_element_t<3, Tuple>;
+    using BDataType                          = std::tuple_element_t<4, Tuple>;
+    using AccDataType                        = std::tuple_element_t<5, Tuple>;
+    using CDataType                          = std::tuple_element_t<6, Tuple>;
+    using DsLayout                           = ck_tile::tuple<>;
+    using DsDataType                         = ck_tile::tuple<>;
+    static constexpr ck_tile::index_t M_Tile = std::tuple_element_t<7, Tuple>::value;
+    static constexpr ck_tile::index_t N_Tile = std::tuple_element_t<8, Tuple>::value;
+    static constexpr ck_tile::index_t K_Tile = std::tuple_element_t<9, Tuple>::value;
+    static constexpr bool Persistent         = std::tuple_element_t<10, Tuple>::value;
 
     template <ck_tile::StreamKReductionStrategy ReductionStrategy,
               bool PadM       = true,
@@ -57,16 +63,9 @@ class TestCkTileStreamK : public ::testing::Test
               bool PadK       = true,
               bool Preshuffle = false,
               bool TransposeC = false>
-    void invoke_streamk(const ck_tile::StreamKHostArgs& args,
-                        const ck_tile::stream_config& s,
-                        int num_cu,
-                        int occupancy)
+    ck_tile::index_t invoke_streamk(const ck_tile::StreamKHostArgs& args,
+                                    const ck_tile::stream_config& s)
     {
-
-        constexpr ck_tile::index_t M_Tile = 128;
-        constexpr ck_tile::index_t N_Tile = 128;
-        constexpr ck_tile::index_t K_Tile = 32;
-
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
@@ -90,7 +89,8 @@ class TestCkTileStreamK : public ::testing::Test
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-        using TilePartitioner = ck_tile::StreamKTilePartitioner<GemmShape, ReductionStrategy>;
+        using TilePartitioner =
+            ck_tile::StreamKTilePartitioner<GemmShape, ReductionStrategy, Persistent>;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
@@ -101,7 +101,7 @@ class TestCkTileStreamK : public ::testing::Test
                                                                      CLayout,
                                                                      TransposeC,
                                                                      StructuredSparsity,
-                                                                     false,
+                                                                     Persistent,
                                                                      NumWaveGroup,
                                                                      preshuffle>;
 
@@ -121,7 +121,7 @@ class TestCkTileStreamK : public ::testing::Test
                                                                                scheduler>;
             // For initial testing, we will just test with one pipeline.
             // More extensive testing is coming later and will test other pipelines.
-            using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>;
+            using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -144,7 +144,7 @@ class TestCkTileStreamK : public ::testing::Test
 
             using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
-            auto kargs = Kernel::MakeKernelArgs(args, num_cu, occupancy);
+            auto kargs = Kernel::MakeKernelArgs(args);
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
@@ -156,31 +156,31 @@ class TestCkTileStreamK : public ::testing::Test
 
             ck_tile::launch_kernel(
                 s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grid_dims, block_dims, 0, kargs));
+
+            return kargs.tile_partitioner.estimate_num_wgs_per_tile();
         };
 
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       // Since we are doing stream K, in the case of
-                                       // atomics, multiple workgroups may write to the same
-                                       // output tile in the C tensor, so we must atomic add
-                                       // the results (not set)
-                                       ck_tile::memory_operation_enum::atomic_add>{});
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              // Since we are doing stream K, in the case of
+                                              // atomics, multiple workgroups may write to the same
+                                              // output tile in the C tensor, so we must atomic add
+                                              // the results (not set)
+                                              ck_tile::memory_operation_enum::atomic_add>{});
     }
 
     public:
-    // Since Stream-K is build on gfx9, the lower bound for CUs is 104. Thus, we default num_cu to
-    // 104 and occupancy to 1 to ensure tests are reproducible on different architectures.
     void Run(ck_tile::index_t M,
              ck_tile::index_t N,
              ck_tile::index_t K,
-             uint32_t num_sk_blocks = 0xffffffff,
              ck_tile::StreamKReductionStrategy reduction_strategy =
                  ck_tile::StreamKReductionStrategy::Atomic,
-             int occupancy             = 1,
-             int num_cu                = 104,
              ck_tile::index_t stride_A = 0,
              ck_tile::index_t stride_B = 0,
              ck_tile::index_t stride_C = 0)
     {
+        // Since M, N, and K will vary depending on the number of CUs, we print it here to
+        // facilitate test output readability.
+        std::cout << "M: " << M << ", N: " << N << ", K: " << K << std::endl;
 
         using namespace ck_tile::literals;
 
@@ -250,12 +250,11 @@ class TestCkTileStreamK : public ::testing::Test
                                       K,
                                       stride_A,
                                       stride_B,
-                                      stride_C,
-                                      reduction_strategy,
-                                      num_sk_blocks};
+                                      stride_C};
 
-        invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
-            args, ck_tile::stream_config{nullptr, false, 0, 0, 1}, num_cu, occupancy);
+        ck_tile::index_t num_accumulations_per_tile =
+            invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
+                args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
@@ -269,7 +268,7 @@ class TestCkTileStreamK : public ::testing::Test
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-            K, /*kbatch*/ 1, max_accumulated_value);
+            K, num_accumulations_per_tile, max_accumulated_value);
 
         bool pass = ck_tile::check_err(c_m_n_dev_result,
                                        c_m_n_host_ref,

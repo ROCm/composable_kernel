@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -28,7 +28,8 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<QuantDataType> quant_b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     // assume scale tensor is [1, n]
-    Tensor<ScaleDataType> scale_k_n(f_host_tensor_descriptor(K, N, 0, Row{}));
+    Tensor<ScaleDataType> scale_k_n(
+        HostTensorDescriptor({K, N}, {0, 1_uz}, ck::tensor_layout::BypassLayoutVerification()));
 
     switch(config.init_method)
     {

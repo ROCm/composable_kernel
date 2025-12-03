@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -35,13 +35,13 @@ using DeviceGemmV2Instance =
         256,
         128,  128,  64,
         8,    4,
-        32,   32,
-        2,    2,
+        16,   16,
+        4,    4,
         S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,
         2,    8,    8,   0,
         S<16, 16, 1>,    S<0, 2, 1>,    S<0, 2, 1>,
         1,    8,    4,   0,
-        1,    1,    S<1, 32, 1, 8>,  8,
+        1,    1,    S<1, 32, 1, 8>,  4,
         ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
 // clang-format on
 

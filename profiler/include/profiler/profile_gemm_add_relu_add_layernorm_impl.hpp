@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -136,19 +136,27 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
         return HostTensorDescriptor({len}, {stride});
     };
 
-    auto f_host_tensor_descriptor2d =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            using namespace ck::literals;
+    auto f_host_tensor_descriptor2d = [](std::size_t row,
+                                         std::size_t col,
+                                         int& stride,
+                                         auto layout) {
+        using namespace ck::literals;
 
-            if constexpr(std::is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
-            {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
-            }
-            else
-            {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
-            }
-        };
+        if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
+        {
+            auto desc = HostTensorDescriptor({row, col}, {static_cast<std::size_t>(stride), 1_uz});
+            if(stride <= 0)
+                stride = desc.GetStrides()[0];
+            return desc;
+        }
+        else
+        {
+            auto desc = HostTensorDescriptor({row, col}, {1_uz, static_cast<std::size_t>(stride)});
+            if(stride <= 0)
+                stride = desc.GetStrides()[1];
+            return desc;
+        }
+    };
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
@@ -158,6 +166,12 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
     Tensor<BetaDataType> beta_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<HDataType> h_m_n(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
     Tensor<HDataType> h_m_n_host(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
+
+    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
+    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
+    std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
+    std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
+    std::cout << "h_m_n: " << h_m_n.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -304,9 +318,8 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
 
             float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-            if(time_kernel)
-                std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << gb_per_sec
-                          << " GB/s, " << op_name << std::endl;
+            std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << gb_per_sec << " GB/s, "
+                      << op_name << std::endl;
 
             if(ave_time < best_ave_time)
             {
@@ -325,8 +338,7 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
         }
         else
         {
-            if(time_kernel)
-                std::cout << op_name << " does not support this problem" << std::endl;
+            std::cout << op_name << " does not support this problem" << std::endl;
         }
     }
 

@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include <functional>
 #include "gemm_utils.hpp"
 
@@ -174,24 +173,25 @@ struct UniversalInvoker
                 preprocess = clear_gemm_output;
             }
 
-            return ck_tile::launch_kernel_time_mask(
+            ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 preprocess,
                 ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+
+            return ave_time;
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(args.k_batch == 1)
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpSet{});
+                return Run(has_hot_loop_, tail_number_, MemoryOpSet{});
             }
             else
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+                return Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
             }
         };
 
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-        return ave_time;
+        return ave_time = BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 };

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "profiler/profile_grouped_conv_fwd_impl.hpp"
@@ -20,14 +20,15 @@ enum struct ConvLayout
 
 enum struct ConvDataType
 {
-    F32_F32_F32,    // 0
-    F16_F16_F16,    // 1
-    BF16_BF16_BF16, // 2
-    INT8_INT8_INT8, // 3
-    F8_F8_F8,       // 4
-    BF8_BF8_F8,     // 5
-    F8_BF8_F8,      // 6
-    BF8_F8_F8,      // 7
+    F32_F32_F32,      // 0
+    F16_F16_F16,      // 1
+    BF16_BF16_BF16,   // 2
+    INT8_INT8_INT8,   // 3
+    F8_F8_F8,         // 4
+    BF8_BF8_F8,       // 5
+    F8_BF8_F8,        // 6
+    BF8_F8_F8,        // 7
+    F32_F32_F32_TF32, // 8
 };
 
 enum struct IndexType
@@ -51,7 +52,8 @@ static void print_helper_msg()
         << "                 4: Input fp8, Weight fp8, Output fp8\n"
         << "                 5: Input bf8, Weight bf8, Output fp8\n"
         << "                 6: Input fp8, Weight bf8, Output fp8\n"
-        << "                 7: Input bf8, Weight fp8, Output fp8)\n"
+        << "                 7: Input bf8, Weight fp8, Output fp8\n"
+        << "                 8: Input fp32, Weight fp32, Output fp32, Compute tf32)\n"
         << "arg3: tensor layout (0: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, N, Ho, Wo, K]\n"
         << "                     1: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, Ho, Wo, G, K]\n"
         << "                     2: Input[N, G, C, Hi, Wi], Weight[G, K, Y, X, C], Output[N, "
@@ -103,6 +105,9 @@ int grouped_conv_fwd_clamp(int argc, char* argv[])
     using F32  = float;
     using BF16 = ck::bhalf_t;
     using F16  = ck::half_t;
+#if defined(__gfx942__)
+    using TF32 = ck::tf32_t;
+#endif
 
     using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
     using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
@@ -168,6 +173,12 @@ int grouped_conv_fwd_clamp(int argc, char* argv[])
         {
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
         }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+#if defined(__gfx942__)
+            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+#endif
+        }
     }
     else if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
     {
@@ -183,6 +194,12 @@ int grouped_conv_fwd_clamp(int argc, char* argv[])
         {
             return profile(
                 I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+#if defined(__gfx942__)
+            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+#endif
         }
     }
 

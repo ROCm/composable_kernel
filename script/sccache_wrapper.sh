@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set -e
 COMPILERS_HASH_DIR=${COMPILERS_HASH_DIR:-"/tmp/.sccache"}
 SCCACHE_EXTRAFILES=${SCCACHE_EXTRAFILES:-"${COMPILERS_HASH_DIR}/rocm_compilers_hash_file"}
@@ -52,5 +55,22 @@ if [ "${ENFORCE_REDIS}" == "true" ]; then
 fi
 setup_rocm_compilers_hash_file
 $SCCACHE_BIN --version
+echo "=== Starting sccache server at $(date) ==="
 $SCCACHE_BIN --start-server
+
+# Log initial sccache statistics
+echo "=== Initial sccache statistics ==="
+$SCCACHE_BIN --show-stats || echo "Could not get initial stats"
+
+# Test Redis connectivity and performance
+echo "=== Testing Redis connectivity ==="
+start_time=$(date +%s%N)
+redis-cli -u ${SCCACHE_REDIS} ping || echo "Redis ping failed"
+end_time=$(date +%s%N)
+latency=$(( (end_time - start_time) / 1000000 ))
+echo "Redis ping latency: ${latency}ms"
+
+# Check Redis memory status
+echo "=== Redis memory status ==="
+redis-cli -u ${SCCACHE_REDIS} info memory | grep -E "(used_memory|maxmemory|evicted_keys)" || echo "Could not get Redis memory info"
 

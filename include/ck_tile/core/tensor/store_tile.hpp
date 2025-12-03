@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,6 +9,7 @@
 #include "ck_tile/core/algorithm/coordinate_transform.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/numeric/math.hpp"
+#include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/tensor/tile_window.hpp"
 #include "ck_tile/core/tensor/tile_window_linear.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
@@ -43,6 +44,31 @@ template <typename BottomTensorView_,
           typename TileDistribution_,
           typename DataType_>
 CK_TILE_DEVICE void
+store_tile(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& tile_window_tmp,
+           const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor,
+           decltype(get_partition_index(dstr_tensor.get_tile_distribution())) partition_index)
+{
+    using DataType = remove_cvref_t<typename BottomTensorView_::DataType>;
+    using TileDstr = remove_cvref_t<TileDistribution_>;
+
+    static_assert(std::is_same_v<remove_cvref_t<DataType_>, DataType>, "wrong!");
+
+    constexpr auto tile_dstr = TileDstr{};
+
+    auto tile_window = make_tile_window(tile_window_tmp.get_bottom_tensor_view(),
+                                        tile_window_tmp.get_window_lengths(),
+                                        tile_window_tmp.get_window_origin(),
+                                        tile_dstr,
+                                        partition_index);
+
+    tile_window.store(dstr_tensor);
+}
+
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          typename DataType_>
+CK_TILE_DEVICE void
 store_tile_raw(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& tile_window_tmp,
                const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor)
 {
@@ -57,6 +83,31 @@ store_tile_raw(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_
                                         tile_window_tmp.get_window_lengths(),
                                         tile_window_tmp.get_window_origin(),
                                         tile_dstr);
+
+    tile_window.store_raw(dstr_tensor);
+}
+
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          typename DataType_>
+CK_TILE_DEVICE void
+store_tile_raw(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& tile_window_tmp,
+               const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor,
+               decltype(get_partition_index(dstr_tensor.get_tile_distribution())) partition_index)
+{
+    using DataType = remove_cvref_t<typename BottomTensorView_::DataType>;
+    using TileDstr = remove_cvref_t<TileDistribution_>;
+
+    static_assert(std::is_same_v<remove_cvref_t<DataType_>, DataType>, "wrong!");
+
+    constexpr auto tile_dstr = TileDstr{};
+
+    auto tile_window = make_tile_window(tile_window_tmp.get_bottom_tensor_view(),
+                                        tile_window_tmp.get_window_lengths(),
+                                        tile_window_tmp.get_window_origin(),
+                                        tile_dstr,
+                                        partition_index);
 
     tile_window.store_raw(dstr_tensor);
 }

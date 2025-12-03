@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -12,10 +12,11 @@
 #include "profiler/profile_contraction_impl.hpp"
 #include "profiler/profile_contraction_utils.hpp"
 
-using F16  = ck::half_t;
-using BF16 = ck::bhalf_t;
-using F32  = float;
-using F64  = double;
+static ck::index_t instance_index = -1;
+using F16                         = ck::half_t;
+using BF16                        = ck::bhalf_t;
+using F32                         = float;
+using F64                         = double;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -95,7 +96,8 @@ class TestContraction : public ::testing::Test
                                                                     StridesA,
                                                                     StridesB,
                                                                     StridesC,
-                                                                    StridesD);
+                                                                    StridesD,
+                                                                    instance_index);
             EXPECT_TRUE(pass);
         }
     }
@@ -218,4 +220,19 @@ TYPED_TEST(TestContractionScaleMixedPrecision, scale)
     this->template Run<2>({{8, 16}, {16, 8}, {1, 1}});
     this->template Run<2>({{8, 16}, {1, 1}, {8, 16}});
     this->template Run<2>({{1, 1}, {1, 1}, {1, 1}});
+}
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 2)
+    {
+        instance_index = atoi(argv[1]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1: instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

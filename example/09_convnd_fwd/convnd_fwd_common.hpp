@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -18,6 +18,10 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 void print_helper_msg()
 {
@@ -77,7 +81,7 @@ inline __host__ __device__ constexpr double get_atol()
 {
     if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
     {
-        return 1e-2;
+        return 1e-3;
     }
     else if constexpr(std::is_same_v<DataType, float>)
     {

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -310,6 +310,12 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
+
+    void SetKBatch(BaseArgument* base_arg, int KBatch) const override
+    {
+        auto& arg  = *dynamic_cast<Argument*>(base_arg);
+        arg.KBatch = KBatch;
+    }
 
     static constexpr bool IsValidCompilationParameter()
     {

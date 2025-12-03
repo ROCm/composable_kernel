@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,7 +19,6 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
-#include "ck/library/utility/validation_common.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -56,16 +55,13 @@ bool profile_gemm_universal_impl(int do_verification,
 
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, layout);
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, layout);
             }
         };
-
-    ck::utils::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
-        M, N, K, StrideA, StrideB, StrideC);
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
@@ -94,7 +90,7 @@ bool profile_gemm_universal_impl(int do_verification,
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-1, 2});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});

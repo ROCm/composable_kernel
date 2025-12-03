@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <gtest/gtest.h>
@@ -306,6 +306,12 @@ class CaseHalfPadRectTile2LoadTranspose
 {
 };
 
+class CaseBytePadRectTile
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::fp8_t, PipelineTag::Universal, 256, 32, 2, 2, false, false>>
+{
+};
+
 TEST_P(CaseHalf, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseByte, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseWord, TestCorrectness) { this->Run(GetParam()); }
@@ -321,6 +327,7 @@ TEST_P(CaseHalfPadRectTile1, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadRectTile1LoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadRectTile2, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadRectTile2LoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseBytePadRectTile, TestCorrectness) { this->Run(GetParam()); }
 
 // clang-format off
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalf, kTestingValues);
@@ -338,5 +345,6 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile1, 
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile1LoadTranspose, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile2, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile2LoadTranspose, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseBytePadRectTile, kTestingValues);
 
 // clang-format on

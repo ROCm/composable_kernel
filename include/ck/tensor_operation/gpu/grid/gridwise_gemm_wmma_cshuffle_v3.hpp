@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -175,7 +175,8 @@ template <typename ALayout,
           typename ComputeTypeA,
           typename ComputeTypeB,
           bool PermuteA,
-          bool PermuteB>
+          bool PermuteB,
+          bool ForceThreadTileTransfer = false>
 struct GridwiseGemm_wmma_cshuffle_v3
     : GridwiseGemm_wmma_cshuffle_v3_base<
           ALayout,
@@ -227,7 +228,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
           ComputeTypeA,
           ComputeTypeB,
           PermuteA,
-          PermuteB>
+          PermuteB,
+          ForceThreadTileTransfer>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
         ALayout,
@@ -279,7 +281,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        ForceThreadTileTransfer>;
 
     using Base::I0;
     using Base::I1;
@@ -312,14 +315,9 @@ struct GridwiseGemm_wmma_cshuffle_v3
     using Base::MakeDsGridDescriptor_M_N;
     using Base::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock;
 
-    using Base::GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat;
-
     using Base::MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
-
-    using Base::GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1;
-    using Base::GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1;
 
     using Base::NumATensor;
     using Base::NumBTensor;
@@ -472,9 +470,9 @@ struct GridwiseGemm_wmma_cshuffle_v3
         DsGridPointer p_ds_grid;
         EDataType* p_e_grid;
 
-        const AElementwiseOperation a_element_op;
-        const BElementwiseOperation b_element_op;
-        const CDEElementwiseOperation cde_element_op;
+        AElementwiseOperation a_element_op;
+        BElementwiseOperation b_element_op;
+        CDEElementwiseOperation cde_element_op;
 
         // TODO: it can be used with SplitK+reduction but currently only used with SplitK+atomicAdd
         bool is_reduce;
@@ -556,16 +554,22 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
-              TailNumber TailNum>
+              TailNumber TailNum,
+              typename Block2CTileMap,
+              typename EpilogueArgument,
+              int BlockMapMBlockIndex = 0,
+              int BlockMapNBlockIndex = 1>
     __device__ static void Run(AsGridPointer& p_as_grid,
                                BsGridPointer& p_bs_grid,
                                DsGridPointer& p_ds_grid,
                                EDataType* p_e_grid,
                                void* p_shared,
                                const Problem& problem,
+                               const Block2CTileMap& block_2_ctile_map,
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
-                               CDEElementwiseOperation cde_element_op)
+                               CDEElementwiseOperation cde_element_op,
+                               EpilogueArgument& epilogue_args)
     {
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
@@ -582,9 +586,6 @@ struct GridwiseGemm_wmma_cshuffle_v3
             MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 e_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
-        // divide block work by [M, N]
-        const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N, 4};
-
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
@@ -596,8 +597,10 @@ struct GridwiseGemm_wmma_cshuffle_v3
             return;
         }
 
-        const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
-        const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
+        const index_t block_m_id =
+            __builtin_amdgcn_readfirstlane(block_work_idx[Number<BlockMapMBlockIndex>{}]);
+        const index_t block_n_id =
+            __builtin_amdgcn_readfirstlane(block_work_idx[Number<BlockMapNBlockIndex>{}]);
 
         // BScale struct (Empty)
         using BScale        = typename BlockwiseGemmPipe::Empty;
@@ -610,6 +613,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
                            decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
                            decltype(b_scale_struct),
+                           decltype(epilogue_args),
                            HasMainKBlockLoop,
                            EGlobalMemoryDataOperation,
                            TailNum>(p_as_grid,
@@ -627,16 +631,56 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                     block_m_id,
                                     block_n_id,
                                     num_k_block_per_scale,
-                                    b_scale_struct);
+                                    b_scale_struct,
+                                    epilogue_args);
+    }
+
+    template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              TailNumber TailNum,
+              typename EpilogueArgument>
+    __device__ static void Run(AsGridPointer& p_as_grid,
+                               BsGridPointer& p_bs_grid,
+                               DsGridPointer& p_ds_grid,
+                               EDataType* p_e_grid,
+                               void* p_shared,
+                               const Problem& problem,
+                               AElementwiseOperation a_element_op,
+                               BElementwiseOperation b_element_op,
+                               CDEElementwiseOperation cde_element_op,
+                               EpilogueArgument& epilogue_args)
+    {
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            Block2CTileMap,
+            EpilogueArgument>(p_as_grid,
+                              p_bs_grid,
+                              p_ds_grid,
+                              p_e_grid,
+                              p_shared,
+                              problem,
+                              DefaultBlock2CTileMap(problem),
+                              a_element_op,
+                              b_element_op,
+                              cde_element_op,
+                              epilogue_args);
     }
 
     // Wrapper function to have __global__ function in common
     // between gemm_universal, b_scale, ab_scale, etc.
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
-              TailNumber TailNum>
-    __device__ static void
-    Run(void* p_shared, const SplitKBatchOffset& splitk_batch_offset, Argument& karg)
+              TailNumber TailNum,
+              typename Block2CTileMap,
+              typename EpilogueArgument,
+              int BlockMapMBlockIndex = 0,
+              int BlockMapNBlockIndex = 1>
+    __device__ static void Run(void* p_shared,
+                               const SplitKBatchOffset& splitk_batch_offset,
+                               Argument& karg,
+                               const Block2CTileMap& block_2_ctile_map,
+                               EpilogueArgument& epilogue_args)
     {
         // shift A matrices pointer for splitk
         AsGridPointer p_as_grid_splitk;
@@ -654,16 +698,47 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                   splitk_batch_offset.b_k_split_offset[i];
         });
 
-        Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
-            p_as_grid_splitk,
-            p_bs_grid_splitk,
-            karg.p_ds_grid,
-            karg.p_e_grid + splitk_batch_offset.c_reduce_offset,
-            p_shared,
-            karg,
-            karg.a_element_op,
-            karg.b_element_op,
-            karg.cde_element_op);
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            Block2CTileMap,
+            EpilogueArgument,
+            BlockMapMBlockIndex,
+            BlockMapNBlockIndex>(p_as_grid_splitk,
+                                 p_bs_grid_splitk,
+                                 karg.p_ds_grid,
+                                 karg.p_e_grid + splitk_batch_offset.c_reduce_offset,
+                                 p_shared,
+                                 karg,
+                                 block_2_ctile_map,
+                                 karg.a_element_op,
+                                 karg.b_element_op,
+                                 karg.cde_element_op,
+                                 epilogue_args);
+    }
+
+    // Wrapper function to have __global__ function in common
+    // between gemm_universal, b_scale, ab_scale, etc.
+    template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              TailNumber TailNum,
+              typename EpilogueArgument>
+    __device__ static void Run(void* p_shared,
+                               const SplitKBatchOffset& splitk_batch_offset,
+                               Argument& karg,
+                               EpilogueArgument& epilogue_args)
+    {
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            Block2CTileMap,
+            EpilogueArgument>(
+            p_shared, splitk_batch_offset, karg, DefaultBlock2CTileMap(karg), epilogue_args);
+    }
+
+    __device__ static auto DefaultBlock2CTileMap(const Problem& problem)
+    {
+        return Block2CTileMap{problem.M, problem.N, 4};
     }
 };
 

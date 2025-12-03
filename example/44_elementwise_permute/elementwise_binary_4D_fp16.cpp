@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <cstdlib>
@@ -16,12 +16,18 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using F16 = ck::half_t;
 using F32 = float;
 
 using ADataType = F16;
 using BDataType = F16;
 
+using NchwLayout  = ck::tensor_layout::convolution::NCHW;
+using NhwcLayout  = ck::tensor_layout::convolution::NHWC;
 using UnaryScale  = ck::tensor_operation::element_wise::Scale;
 using UnarySquare = ck::tensor_operation::element_wise::UnarySquare;
 using UnaryScaleSquare =
@@ -49,6 +55,8 @@ int main(int argc, char* argv[])
     bool do_verification = true;
     bool time_kernel     = true;
 
+    std::vector<std::size_t> nchw = {16, 128, 32, 64};
+
     if(argc == 1)
     {
         // use default
@@ -58,14 +66,23 @@ int main(int argc, char* argv[])
         do_verification = std::stoi(argv[1]);
         time_kernel     = std::stoi(argv[2]);
     }
+    else if(argc == 7)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+        nchw[0]         = std::stoi(argv[3]);
+        nchw[1]         = std::stoi(argv[4]);
+        nchw[2]         = std::stoi(argv[5]);
+        nchw[3]         = std::stoi(argv[6]);
+    }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: time kernel (0=no, 1=yes)\n");
-        exit(0);
+        printf("arg3-6: N, C, H, W (default 16, 128, 32, 64)\n");
+        exit(1);
     }
 
-    std::vector<std::size_t> nchw = {16, 128, 32, 64};
     std::array<ck::index_t, 4> ab_lengths;
     std::array<ck::index_t, 4> ab_strides = {static_cast<int>(nchw[1] * nchw[2] * nchw[3]),
                                              static_cast<int>(nchw[2] * nchw[3]),
@@ -73,11 +90,11 @@ int main(int argc, char* argv[])
                                              1};
     ck::ranges::copy(nchw, ab_lengths.begin());
 
-    std::array<Tensor<ADataType>, 2> as = {Tensor<ADataType>(ab_lengths, ab_strides),
-                                           Tensor<ADataType>(ab_lengths, ab_strides)};
+    std::array<Tensor<ADataType>, 2> as = {Tensor<ADataType>(ab_lengths, ab_strides, NchwLayout{}),
+                                           Tensor<ADataType>(ab_lengths, ab_strides, NchwLayout{})};
     Tensor<ADataType>& a0               = as[0];
     Tensor<ADataType>& a1               = as[1];
-    Tensor<BDataType> b(ab_lengths, ab_strides);
+    Tensor<BDataType> b(ab_lengths, ab_strides, NchwLayout{});
     float alpha = 3.f;
     float beta  = 2.f;
     a0.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -134,7 +151,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        Tensor<BDataType> host_b(ab_lengths, ab_strides);
+        Tensor<BDataType> host_b(ab_lengths, ab_strides, NchwLayout{});
 
         using ReferenceElementwiseInstance = ck::tensor_operation::host::
             ReferenceElementwise<2, ADataType, BDataType, BinaryAddUnaryScaleSquare>;

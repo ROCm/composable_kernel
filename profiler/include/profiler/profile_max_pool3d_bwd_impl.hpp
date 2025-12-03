@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,7 +34,8 @@ bool profile_max_pool3d_bwd_impl(int do_verification,
                                  std::vector<index_t> window_strides,
                                  std::vector<index_t> window_dilations,
                                  std::vector<index_t> input_left_pads,
-                                 std::vector<index_t> input_right_pads)
+                                 std::vector<index_t> input_right_pads,
+                                 index_t instance_index = -1)
 {
     // AtomicAdd only support f32 for now. ComputeDataType must be float32
     using ComputeDataType = float;
@@ -84,7 +85,8 @@ bool profile_max_pool3d_bwd_impl(int do_verification,
             using namespace ck::literals;
 
             return HostTensorDescriptor({N_, C_, D, H, W},
-                                        {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_});
+                                        {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_},
+                                        ck::tensor_layout::convolution::NDHWC{});
         };
 
     Tensor<InDataType> in_n_c_di_hi_wi(f_host_tensor_descriptor(N, C, Di, Hi, Wi));
@@ -192,6 +194,11 @@ bool profile_max_pool3d_bwd_impl(int do_verification,
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             ++num_kernel;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
         }
         else
         {
@@ -280,7 +287,11 @@ bool profile_max_pool3d_bwd_impl(int do_verification,
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
-
+    if(instance_index != -1)
+    {
+        std::cout << "max_pool3d_bwd_instance (" << instance_index << "/" << num_kernel
+                  << "): Passed" << std::endl;
+    }
     return true;
 }
 
