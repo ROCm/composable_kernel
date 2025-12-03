@@ -1091,7 +1091,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                  AsDataType,
                                                  AElementwiseOperation,
                                                  BlockwiseGemmPipe::GlobalBufferNum>(
-                as_grid_desc_ak0_m_ak1, a_block_desc_ak0_m_ak1, a_element_op, block_m_id, k_id);
+                as_grid_desc_ak0_m_ak1, a_block_desc_ak0_m_ak1, a_element_op, block_m_id);
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
@@ -1100,7 +1100,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                  BsDataType,
                                                  BElementwiseOperation,
                                                  BlockwiseGemmPipe::GlobalBufferNum>(
-                bs_grid_desc_bk0_n_bk1, b_block_desc_bk0_n_bk1, b_element_op, block_n_id, k_id);
+                bs_grid_desc_bk0_n_bk1, b_block_desc_bk0_n_bk1, b_element_op, block_n_id);
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
@@ -1125,7 +1125,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
-            ATransfer::GetKDimension(as_grid_desc_ak0_m_ak1[I0]) / (KPerBlock * k_batch));
+            ATransfer::GetKDimension(as_grid_desc_ak0_m_ak1[I0]) / KPerBlock);
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
             get_first_element_workaround<NumATensor>(as_grid_desc_ak0_m_ak1),
