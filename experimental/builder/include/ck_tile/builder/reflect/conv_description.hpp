@@ -107,8 +107,8 @@ class ConvDescription : public Description
         f.writeLine(0, signature_.spatial_dim, "D ", signature_.direction, " Convolution Kernel");
         f.writeLine(1, "Signature");
         f.writeLine(2, "Tensor Type: ", signature_.data_type);
-        f.writeLine(2, "Input Layout: ", signature._input_layout);
-        f.writeLine(2, "Weight Layout: ", signature._weight_layout);
+        f.writeLine(2, "Input Layout: ", signature_.input_layout);
+        f.writeLine(2, "Weight Layout: ", signature_.weight_layout);
         f.writeLine(2, "Output Layout: ", signature_.output_layout);
         f.writeLine(2, "Input elementwise operation: ", signature_.input_element_op);
         f.writeLine(2, "Weights elementwise operation: ", signature_.weight_element_op);
