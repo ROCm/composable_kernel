@@ -28,9 +28,9 @@ This structure makes tests easier to read, write, and maintain. Each phase has a
 
 The "Given" phase establishes the context for your test. This includes both the compile-time characteristics of the kernel and the runtime parameters for the specific test case.
 
-#### `ConvSignature`
+#### Operation Signature
 
-The `ConvSignature` defines the **mathematical contract** that the kernel must satisfy. It specifies compile-time properties such as:
+The "signature" defines the **mathematical contract** that the kernel must satisfy. It specifies compile-time properties such as:
 
 - Spatial dimensionality (1D, 2D, or 3D)
 - Convolution direction (Forward, Backward Data, Backward Weight)
@@ -67,7 +67,7 @@ constexpr auto SIGNATURE = ConvSignature{
 The `Args` struct template provides the **runtime parameters** for your test case. It is parameterized by the `SIGNATURE` and contains fields for tensor dimensions, strides, dilations, and other dynamic properties. Note that the exact parameters required for each `Args` depends on the `SIGNATURE`: For example, a `SIGNATURE` that represents a forward convolution requires specifying the number of batches, groups, input- and output-channels, filter dimensions, filter strides, and so on. A `SIGNATURE` that represents a simple GEMM operation may instead require only the dimensions of the A-, B- and C-matrices.
 
 ```cpp
-ck_tile::testing::Args<SIGNATURE> args = {
+ck_tile::test::Args<SIGNATURE> args = {
     .lengths = {
         .batch_size      = 128,
         .groups          = 1,
@@ -87,26 +87,26 @@ ck_tile::testing::Args<SIGNATURE> args = {
 
 Tensor memory is passed around using the `Inputs<SIGNATURE>` and `Outputs<SIGNATURE>` structures. These group all inputs and outputs for an operation. Note that these structures do not "own" the memory inside: They only logically group the inputs so that they can be passed around as a common type. The amount of inputs and outputs may differ depending on the `SIGNATURE`, and this avoids having to pass around additional values and accept additional parameters in those situations.
 
-The `Inputs` and `Outputs` structures can be constructed manually from external data, however, the `UniqueInputs<SIGNATURE>` and `UniqueOutputs<SIGNATURE>` structures can be used to manage memory using RAII. The `alloc_inputs` and `alloc_outputs` functions are used to initialize these types: They take an `Args` structure and allocate the appropriate amounts of memory.
+The exact fields in `Inputs` and `Outputs` depend again on the particular `SIGNATURE` that they are constructed with. In general, these structures are intended to be freely constructible from external data and only serve to group relevant information. Automatic memory management can be performed using the `UniqueInputs<SIGNATURE>` and `UniqueOutputs<SIGNATURE>` structures instead. The `alloc_inputs` and `alloc_outputs` functions are used to initialize these types: They take an `Args` structure and allocate the appropriate amounts of memory. `.get()` is used to return an instance of the appropriate `Input` or `Output`.
 
 ```cpp
-auto inputs = allocate_inputs(args);
-auto outputs = allocate_outputs(args);
+auto inputs = ck_tile::test::allocate_inputs(args);
+auto outputs = ck_tile::test::allocate_outputs(args);
 ```
 
 Note that these functions merely _allocate_ memory: After allocation, the memory is yet uninitialized.
 
-#### Tensor Initialization
+#### Tensor Memory Initialization
 
-
+Operation inputs can be initialized by using `ck_tile::test::init_inputs()`. Crucially, this operation accepts _all_ inputs, as well as the `args` structure. This is because initializing tensor memory is a context-dependent operation: We need to understand the operation in detail in order to generate inputs which do not overflow, do not generate NaNs or all zeros, etc. Passing the `args` allows `init_inputs` to generate a good test for the operation at hand.
 
 ### When: Executing the Kernel
 
 The "When" phase is where the kernel to be tested is actually executed. This involves selecting an algorithm and using the `Builder` to generate the kernel.
 
-#### `ConvAlgorithm`
+#### Operation Algorithm
 
-The `ConvAlgorithm` defines the **implementation strategy** for the kernel. It specifies low-level details such as:
+The "algorithm" defines the **implementation strategy** for the kernel. It specifies low-level details such as:
 
 - Thread block dimensions and tile sizes
 - GEMM implementation (XDL or WMMA)
@@ -116,47 +116,78 @@ The `ConvAlgorithm` defines the **implementation strategy** for the kernel. It s
 ```cpp
 struct ConvAlgorithm {
     // Thread block configuration
-    ThreadBlock thread_block = /* ... */;
+    ThreadBlock thread_block;
 
     // Gridwise GEMM configuration
-    GridwiseXdlGemm gridwise_gemm = /* ... */;
+    GridwiseXdlGemm gridwise_gemm;
 
     // Block transfer configuration
-    Transfer transfer = /* ... */;
+    Transfer transfer;
 
     // Additional tuning parameters
     // ...
 };
 static_assert(ck_tile::builder::ConvAlgorithmDescriptor<ConvAlgorithm>);
-constexpr auto ALGORITHM = ConvAlgorithm{};
+constexpr auto ALGORITHM = ConvAlgorithm{
+    .thread_block = /* ... */;
+    .gridwise_gem = /* ... */;
+    .transfer = /* ... */;
+    // ...
+};
 ```
 
-#### Building and Running the Kernel
+#### Building the Kernel
 
-The `Builder` combines the `ConvSignature` (what to compute) with the `ConvAlgorithm` (how to compute it) to generate a runnable kernel operation.
+The `Builder` combines the signature (what to compute) with the algorithm (how to compute it) to generate a kernel type which represents the operation. The implementation details, including invocation method, depend on the particular signature and algorithm.
 
 ```cpp
-using ConvOp = ck_tile::builder::Builder<ConvSignature, ConvAlgorithm>::op;
+using Conv = ck_tile::builder::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
+auto conv = Conv{};
+```
 
-// Launch the kernel with tensor pointers from TensorMemoryManager
-ConvOp::Run(
-    dev_mem.input_ptr(),
-    dev_mem.weight_ptr(),
-    dev_mem.output_ptr(),
-    args
-);
+#### Invoking the Kernel
+
+After creating the kernel instance, it can be invoked by passing the instance, the arguments, the inputs, and the outputs to `run()`. This operation writes results into the buffers in `outputs`.
+
+```cpp
+ck_tile::test::run(conv, args, inputs.get(), outputs.get());
 ```
 
 ### Then: Verifying the Results
 
-The "Then" phase validates that the kernel produced the expected output.
+The "Then" phase validates that the kernel produced the expected output. This is done by running a reference kernel and comparing the results.
 
-#### `Validator<ConvSignature>`
+#### Building the Reference Kernel
 
-The `Validator` class encapsulates the validation logic. It performs on-GPU correctness checks by comparing the kernel's output against a reference implementation or expected properties.
+The reference kernel is just another kernel instance of the builder, one that's been externally verified to produce the correct results. As this kernel is also running on the GPU, we can use it to perform tests far more quickly than when comparing the outputs to a CPU-based reference implementation.
+
+In order to obtain an instance of the reference kernel, the correct `ALGORITHM` needs to be passed to the `Builder`.
 
 ```cpp
-ck_tile::testing::Validator<ConvSignature> validator(args, dev_mem);
+struct ReferenceAlgorithm {
+    ck_tile::builder::ConvAlgorithmSpecialization specialization;
+};
+static_assert(ck_tile::builder::ConvAlgorithmDescriptor<ReferenceAlgorithm>);
+constexpr auto REFERENCE_ALGORITHM = ReferenceAlgorithm{
+    .specialization = ck_tile::builder::ConvAlgorithmSpecialization::REFERENCE;
+};
+using ReferenceConv = ck_tile::builder::ConvBuilder<SIGNATURE, REFERENCE_ALGORITHM>::Instance;
+auto reference_conv = ReferenceConv{};
+```
+
+This instance can then be invoked using `ck_tile::testing::run()`, the same as the kernel to be tested. Note that another instance of the `Outputs` structure needs to be passed here in order to store the results.
+
+```cpp
+auto reference_outputs = ck_tile::test::allocate_outputs(args);
+ck_tile::test::run(conv, args, inputs.get(), reference_outputs.get());
+```
+
+#### `Validator<SIGNATURE>`
+
+The `Validator` class encapsulates the validation logic. It performs on-GPU correctness checks by comparing two instances of the `Outputs` structure.
+
+```cpp
+ck_tile::test::Validator<SIGNATURE> validator(outputs.get(), reference_outputs.get());
 ```
 
 The `Validator` provides methods that return GoogleMock matchers, enabling clean integration with GoogleTest:
@@ -186,19 +217,24 @@ Here's a complete test that demonstrates the Given-When-Then pattern:
 
 // Define the convolution signature
 struct ConvSignature {
-    static constexpr int spatial_dim = 2;
-    static constexpr ck_tile::builder::ConvDirection direction =
+    int spatial_dim = 2;
+    ck_tile::builder::ConvDirection direction =
         ck_tile::builder::ConvDirection::FORWARD;
-    static constexpr ck_tile::builder::GroupConvLayout2D layout =
+    ck_tile::builder::GroupConvLayout2D layout =
         ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK;
-    static constexpr ck_tile::builder::DataType data_type =
+    ck_tile::builder::DataType data_type =
         ck_tile::builder::DataType::FP16;
-    static constexpr ck_tile::builder::ElementwiseOperation elementwise_operation =
+    ck_tile::builder::ElementwiseOperation elementwise_operation =
         ck_tile::builder::ElementwiseOperation::NONE;
-    static constexpr ck_tile::builder::GroupConvDeviceOp device_operation =
-        ck_tile::builder::GroupConvDeviceOp::IMPLICIT_GEMM;
 };
 static_assert(ck_tile::builder::ConvSignatureDescriptor<ConvSignature>);
+constexpr auto SIGNATURE = ConvSignature{
+    .spatial_dim = 2,
+    .direction = ck_tile::builder::ConvDirection::FORWARD,
+    .layout = ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
+    .data_type = ck_tile::builder::DataType::FP16,
+    .elementwise_operation = ck_tile::builder::ElementwiseOperation::NONE,
+};
 
 // Define the convolution algorithm
 struct ConvAlgorithm {
@@ -206,46 +242,65 @@ struct ConvAlgorithm {
     // (Omitted for brevity)
 };
 static_assert(ck_tile::builder::ConvAlgorithmDescriptor<ConvAlgorithm>);
+constexpr auto ALGORITHM = ConvAlgorithm{/* ... */};
 
+// Define the reference convolution algorithm
+struct ReferenceAlgorithm {
+    ck_tile::builder::ConvAlgorithmSpecialization specialization;
+};
+static_assert(ck_tile::builder::ConvAlgorithmDescriptor<ReferenceAlgorithm>);
+constexpr auto REFERENCE_ALGORITHM = ReferenceAlgorithm{
+    .specialization = ck_tile::builder::ConvAlgorithmSpecialization::REFERENCE;
+};
+
+// The actual test
 TEST(ConvolutionTest, Forward2D_FP16) {
     // ===== GIVEN: Set up the test case =====
 
     // Define runtime parameters
-    ck_tile::testing::Args<ConvSignature> args = {
-        .batch_size = 128,
-        .num_groups = 1,
-        .input_channels = 64,
-        .output_channels = 128,
-        .input_height = 56,
-        .input_width = 56,
-        .filter_height = 3,
-        .filter_width = 3,
-        .stride_height = 1,
-        .stride_width = 1,
-        .dilation_height = 1,
-        .dilation_width = 1,
-        .pad_height = 1,
-        .pad_width = 1,
+    ck_tile::test::Args<ConvSignature> args = {
+        .lengths = {
+            .batch_size      = 128,
+            .groups          = 1,
+            .input_channels  = 64,
+            .output_channels = 128,
+            .image           = {.height = 56, .width = 56},
+            .filter          = {.height = 3,  .width = 3},
+        },
+        .filter_strides  = {.height = 1, .width  = 1},
+        .filter_dilation = {.height = 1, .width  = 1},
+        .input_left_pad  = {.width  = 1, .height = 1},
+        .input_right_pad = {.width  = 1, .height = 1},
     };
 
-    // Allocate and initialize GPU memory
-    ck_tile::testing::TensorMemoryManager<ConvSignature> dev_mem(args);
-    dev_mem.initialize();
+    // Allocate GPU memory
+    auto inputs = ck_tile::test::allocate_inputs(args);
+    auto outputs = ck_tile::test::allocate_outputs(args);
+    auto reference_outputs = ck_tile::testing::allocate_outputs(args);
+
+    // Initialize inputs
+    ck_tile::test::init_inputs(args, inputs);
 
     // ===== WHEN: Execute the kernel =====
 
-    using ConvOp = ck_tile::builder::Builder<ConvSignature, ConvAlgorithm>::op;
+    // Build the kernel
+    using Conv = ck_tile::builder::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
+    auto conv = Conv{};
 
-    ConvOp::Run(
-        dev_mem.input_ptr(),
-        dev_mem.weight_ptr(),
-        dev_mem.output_ptr(),
-        args
-    );
+    // Compute actual results
+    ck_tile::test::run(conv, args, inputs.get(), outputs.get());
 
     // ===== THEN: Verify the results =====
 
-    ck_tile::testing::Validator<ConvSignature> validator(args, dev_mem);
+    // Build the reference kernel
+    using ReferenceConv = ck_tile::builder::ConvBuilder<SIGNATURE, REFERENCE_ALGORITHM>::Instance;
+    auto reference_conv = ReferenceConv{};
+
+    // Compute reference results
+    ck_tile::test::run(conv, args, inputs.get(), reference_outputs.get());
+
+    // Check the results
+    ck_tile::test::Validator<SIGNATURE> validator(outputs.get(), reference_outputs.get());
     EXPECT_THAT(validator.result(), validator.is_ok());
 }
 ```
@@ -258,7 +313,7 @@ TEST(ConvolutionTest, Forward2D_FP16) {
 
 3. **Type Safety**: The use of C++20 concepts ensures that signatures and algorithms are well-formed at compile time.
 
-4. **Flexibility**: The `Args` struct can be easily extended to support different test scenarios, and the `TensorMemoryManager` supports various initialization patterns.
+4. **Flexibility**: The `Args` struct can be easily extended to support different test scenarios, `Inputs` and `Outputs` can be modified to support additional tensors where necessary, and alternatives to `init_inputs()` can be provided to support additional testing strategies.
 
 5. **Integration**: The `Validator` integrates seamlessly with GoogleTest/GoogleMock, providing familiar assertion syntax.
 
@@ -268,7 +323,6 @@ TEST(ConvolutionTest, Forward2D_FP16) {
 
 Potential improvements to the testing utilities include:
 
-- Support for custom reference implementations in the `Validator`
 - Performance benchmarking utilities
 - Automatic test case generation from parameter ranges
 - Enhanced error reporting with visual diffs
