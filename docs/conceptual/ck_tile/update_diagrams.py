@@ -73,7 +73,7 @@ def convert_mermaid_to_svg(mermaid_code, output_path):
     
     try:
         # Run mmdc to convert to SVG
-        result = subprocess.run(
+        subprocess.run(
             ['mmdc', '-i', tmp_path, '-o', str(output_path), '-t', 'neutral', '-b', 'transparent'],
             capture_output=True,
             text=True,

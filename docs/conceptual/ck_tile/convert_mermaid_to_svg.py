@@ -76,7 +76,7 @@ def convert_mermaid_to_svg(mermaid_code, output_path):
     
     try:
         # Run mmdc to convert to SVG (use shell=True on Windows for .cmd files)
-        result = subprocess.run(
+        subprocess.run(
             ['mmdc', '-i', tmp_path, '-o', str(output_path), '-t', 'neutral', '-b', 'transparent'],
             capture_output=True,
             text=True,
@@ -109,8 +109,7 @@ def update_rst_file(file_path, diagrams_info):
         
         # Create the replacement text
         mermaid_block = match.group(0)
-        mermaid_content = match.group(1)
-        
+
         # Create commented mermaid block
         commented_lines = ['.. ', '   Original mermaid diagram (edit here, then run update_diagrams.py)', '   ']
         for line in mermaid_block.split('\n'):
@@ -192,7 +191,6 @@ def main():
     DIAGRAMS_DIR.mkdir(parents=True, exist_ok=True)
     
     # Process each file
-    total_diagrams = 0
     for rst_file in RST_FILES:
         file_path = DOCS_DIR / rst_file
         if file_path.exists():
