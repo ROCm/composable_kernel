@@ -12,6 +12,7 @@
 
 namespace ck_tile {
 
+/// NOTICE: This kernel is a work in progress and is awaiting upcoming compiler fixes and instruction scheduling optimizations.
 template <typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdV3Kernel
 {
