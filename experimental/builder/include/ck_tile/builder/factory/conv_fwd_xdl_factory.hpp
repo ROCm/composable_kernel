@@ -28,7 +28,7 @@ struct ConvFwdXdlFactory
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>;
     using Types   = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops     = decltype(internal::GetElementwiseOps<SIGNATURE>());
+    using Ops     = internal::ElementwiseOps<SIGNATURE>;
     using AlgorithmType = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();

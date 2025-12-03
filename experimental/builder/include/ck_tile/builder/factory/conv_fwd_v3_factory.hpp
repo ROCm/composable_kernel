@@ -28,7 +28,7 @@ struct ConvFwdXdlV3Factory
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>;
     using Types   = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops     = decltype(internal::GetElementwiseOps<SIGNATURE>());
+    using Ops     = internal::ElementwiseOps<SIGNATURE>;
     using AlgorithmType = decltype(ALGORITHM);
 
     static_assert(ALGORITHM.transfer.a.lds_transfer.is_direct_load ==
