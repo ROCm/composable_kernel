@@ -12,11 +12,13 @@ namespace {
 namespace ckb = ::ck_tile::builder;
 using ::ck_tile::builder::factory::internal::ConvTensorLayouts;
 using ::ck_tile::builder::factory::internal::GetTensorLayout;
+using ::ck_tile::builder::TensorLayout;
 using enum ::ck_tile::builder::ConvDirection;
 
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_NWGC_GKXC_NWGK)
 {
-    using TensorLayouts = ConvTensorLayouts<ckb::GroupConvLayout1D::NWGC_GKXC_NWGK, 1, FORWARD>;
+    using TensorLayouts =
+        ConvTensorLayouts<TensorLayout::NWGC, TensorLayout::GKXC, TensorLayout::NWGK, 1, FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NWGC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>));
@@ -25,7 +27,8 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NWGC_GKXC_NWGK)
 
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKXC_NGKW)
 {
-    using TensorLayouts = ConvTensorLayouts<ckb::GroupConvLayout1D::NGCW_GKXC_NGKW, 1, FORWARD>;
+    using TensorLayouts =
+        ConvTensorLayouts<TensorLayout::NGCW, TensorLayout::GKXC, TensorLayout::NGKW, 1, FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>));
@@ -34,7 +37,8 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKXC_NGKW)
 
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_GNWC_GKXC_GNWK)
 {
-    using TensorLayouts = ConvTensorLayouts<ckb::GroupConvLayout1D::GNWC_GKXC_GNWK, 1, FORWARD>;
+    using TensorLayouts =
+        ConvTensorLayouts<TensorLayout::GNWC, TensorLayout::GKXC, TensorLayout::GNWK, 1, FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNWC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>));
@@ -43,7 +47,8 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_GNWC_GKXC_GNWK)
 
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKCX_NGKW)
 {
-    using TensorLayouts = ConvTensorLayouts<ckb::GroupConvLayout1D::NGCW_GKCX_NGKW, 1, FORWARD>;
+    using TensorLayouts =
+        ConvTensorLayouts<TensorLayout::NGCW, TensorLayout::GKCX, TensorLayout::NGKW, 1, FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKCX>));
@@ -52,7 +57,11 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKCX_NGKW)
 
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKYXC_NGKHW)
 {
-    using TensorLayouts = ConvTensorLayouts<ckb::GroupConvLayout2D::NGCHW_GKYXC_NGKHW, 2, FORWARD>;
+    using TensorLayouts = ConvTensorLayouts<TensorLayout::NGCHW,
+                                            TensorLayout::GKYXC,
+                                            TensorLayout::NGKHW,
+                                            2,
+                                            FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCHW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>));
@@ -61,7 +70,11 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKYXC_NGKHW)
 
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_NHWGC_GKYXC_NHWGK)
 {
-    using TensorLayouts = ConvTensorLayouts<ckb::GroupConvLayout2D::NHWGC_GKYXC_NHWGK, 2, FORWARD>;
+    using TensorLayouts = ConvTensorLayouts<TensorLayout::NHWGC,
+                                            TensorLayout::GKYXC,
+                                            TensorLayout::NHWGK,
+                                            2,
+                                            FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NHWGC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>));
@@ -70,7 +83,11 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NHWGC_GKYXC_NHWGK)
 
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_GNHWC_GKYXC_GNHWK)
 {
-    using TensorLayouts = ConvTensorLayouts<ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK, 2, FORWARD>;
+    using TensorLayouts = ConvTensorLayouts<TensorLayout::GNHWC,
+                                            TensorLayout::GKYXC,
+                                            TensorLayout::GNHWK,
+                                            2,
+                                            FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNHWC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>));
@@ -79,7 +96,11 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_GNHWC_GKYXC_GNHWK)
 
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKCYX_NGKHW)
 {
-    using TensorLayouts = ConvTensorLayouts<ckb::GroupConvLayout2D::NGCHW_GKCYX_NGKHW, 2, FORWARD>;
+    using TensorLayouts = ConvTensorLayouts<TensorLayout::NGCHW,
+                                            TensorLayout::GKCYX,
+                                            TensorLayout::NGKHW,
+                                            2,
+                                            FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCHW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKCYX>));
@@ -88,8 +109,11 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKCYX_NGKHW)
 
 TEST(ConvTensorLayout, AssignsLayoutsFor3D_NGCDHW_GKCZYX_NGKDHW)
 {
-    using TensorLayouts =
-        ConvTensorLayouts<ckb::GroupConvLayout3D::NGCDHW_GKCZYX_NGKDHW, 3, FORWARD>;
+    using TensorLayouts = ConvTensorLayouts<TensorLayout::NGCDHW,
+                                            TensorLayout::GKCZYX,
+                                            TensorLayout::NGKDHW,
+                                            3,
+                                            FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCDHW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKCZYX>));
@@ -98,8 +122,11 @@ TEST(ConvTensorLayout, AssignsLayoutsFor3D_NGCDHW_GKCZYX_NGKDHW)
 
 TEST(ConvTensorLayout, AssignsLayoutsFor3D_NDHWGC_GKZYXC_NDHWGK)
 {
-    using TensorLayouts =
-        ConvTensorLayouts<ckb::GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK, 3, FORWARD>;
+    using TensorLayouts = ConvTensorLayouts<TensorLayout::NDHWGC,
+                                            TensorLayout::GKZYXC,
+                                            TensorLayout::NDHWGK,
+                                            3,
+                                            FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NDHWGC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKZYXC>));
@@ -108,8 +135,11 @@ TEST(ConvTensorLayout, AssignsLayoutsFor3D_NDHWGC_GKZYXC_NDHWGK)
 
 TEST(ConvTensorLayout, AssignsLayoutsFor3D_GNDHWC_GKZYXC_GNDHWK)
 {
-    using TensorLayouts =
-        ConvTensorLayouts<ckb::GroupConvLayout3D::GNDHWC_GKZYXC_GNDHWK, 3, FORWARD>;
+    using TensorLayouts = ConvTensorLayouts<TensorLayout::GNDHWC,
+                                            TensorLayout::GKZYXC,
+                                            TensorLayout::GNDHWK,
+                                            3,
+                                            FORWARD>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNDHWC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKZYXC>));
