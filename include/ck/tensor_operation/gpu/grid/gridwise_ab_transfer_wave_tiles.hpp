@@ -21,6 +21,8 @@ template <typename ABLayout,
           index_t WaveSize>
 struct ABTransferWaveTiles
 {
+    __device__ static constexpr bool IsLDSNeeded() { return true; }
+
     static_assert(!(is_same_v<remove_cvref_t<LDSTypeAB>, pk_i4_t>),
                   "wave tile transfer method does not support pk_i4_t");
     static constexpr auto I0 = Number<0>{};
@@ -264,7 +266,8 @@ struct ABTransferWaveTiles
     __device__ static auto GetBlockTransfer(GridDescriptor& grid_descriptor,
                                             BlockDescriptor& block_descriptor,
                                             ABElementwiseOperation& ab_element_op,
-                                            const index_t block_mn_id)
+                                            const index_t block_mn_id,
+                                            const index_t)
     {
         // Note: GlobalBufferNum is currently not used but it will be needed
         // once we add other pipelines. It is currently needed only for
@@ -339,6 +342,12 @@ struct ABTransferWaveTiles
     __device__ static constexpr index_t GetKDimension(const GridDescriptor& grid_desc)
     {
         return grid_desc.GetLength(I1) * KPack;
+    }
+
+    template <typename LDSType, typename IndexType>
+    __device__ static auto GetBuffer(LDSType* p_shared_AB, const IndexType& size)
+    {
+        return make_dynamic_buffer<AddressSpaceEnum::Lds>(p_shared_AB, size);
     }
 };
 
