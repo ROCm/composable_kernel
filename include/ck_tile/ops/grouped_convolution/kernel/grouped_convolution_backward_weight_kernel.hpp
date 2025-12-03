@@ -29,18 +29,7 @@ template <
     typename EpiloguePipeline_>
 struct ActiveWorkgroupsPerCU
 {
-    CK_TILE_HOST ActiveWorkgroupsPerCU()
-    {
-        using Kernel = GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType_,
-                                                              TilePartitioner_,
-                                                              GemmPipeline_,
-                                                              EpiloguePipeline_>;
-
-        using KernelArgs = GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_, TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
-
-        max_occupancy_ = get_max_active_workgroups_per_cu<Kernel, KernelArgs, GemmPipeline_::BlockSize>();
-    }
-
+    CK_TILE_HOST ActiveWorkgroupsPerCU();
     index_t max_occupancy_{1};
 };
 
@@ -1035,5 +1024,21 @@ struct GroupedConvolutionBackwardWeightKernel
         }
     }
 };
+
+template <typename GroupedConvTraitsType_, 
+          typename TilePartitioner_, 
+          typename GemmPipeline_, 
+          typename EpiloguePipeline_>
+CK_TILE_HOST ActiveWorkgroupsPerCU<GroupedConvTraitsType_, TilePartitioner_, GemmPipeline_, EpiloguePipeline_>::ActiveWorkgroupsPerCU()
+{
+    using Kernel = GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType_,
+                                                            TilePartitioner_,
+                                                            GemmPipeline_,
+                                                            EpiloguePipeline_>;
+
+    using KernelArgs = GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_, TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+
+    max_occupancy_ = get_max_occupancy_for_kernel<Kernel, KernelArgs, GemmPipeline_::BlockSize>();
+}
 
 } // namespace ck_tile

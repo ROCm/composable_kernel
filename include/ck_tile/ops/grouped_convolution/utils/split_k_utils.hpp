@@ -11,18 +11,37 @@
 
 namespace ck_tile {
 
-template <typename Kernel, typename KernelArgs, int BlockSize>
+//
+// Return actual kernel that can be passed e.g. to  hipOccupancyMaxActiveBlocksPerMultiprocessor.
+// The KernelImpl should be a class without non-static data member, or let's say
+// can be instantiate with "KernelImpl{}"
+//
+// the "static __device__ operator()(some_arg)" is the entry point of KernelImpl
+//
+template <int MinBlockPerCu,
+          typename KernelImpl,
+          typename... Args>
+CK_TILE_HOST auto
+make_kernel(KernelImpl)
+{
+    const auto kernel = []() {
+        return kentry<MinBlockPerCu, KernelImpl, Args...>;
+    }();
+    return kernel;
+}
+
+template <typename Kernel, typename KernelArgs, index_t BlockSize>
 CK_TILE_HOST index_t get_max_occupancy_for_kernel()
 {
     constexpr int dynamic_smem_size = 0;
     constexpr int min_blocks_per_cu = 1;
 
-    const auto& kernel_instance = make_kernel<min_blocks_per_cu, KernelArgs>(Kernel{});
+    const auto& kernel = make_kernel<min_blocks_per_cu, Kernel, KernelArgs>(Kernel{});
 
     int max_occupancy = 0;
     hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
                 &max_occupancy,
-                kernel_instance,
+                kernel,
                 BlockSize,
                 dynamic_smem_size));
 

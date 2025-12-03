@@ -74,37 +74,6 @@ make_kernel(KernelImpl /*f*/, dim3 grid_dim, dim3 block_dim, std::size_t lds_byt
     };
 }
 
-//
-// Return actual kernel that can be passed e.g. to  hipOccupancyMaxActiveBlocksPerMultiprocessor.
-// The KernelImpl should be a class without non-static data member, or let's say
-// can be instantiate with "KernelImpl{}"
-//
-// the "static __device__ operator()(some_arg)" is the entry point of KernelImpl
-//
-// Arch can be used to support linking multiple object files that have the same kernel compiled for
-// different architectures. In this case each object file has to use a different tag (gfx9_t,
-// gfx12_t etc.), so the kernel will have different symbols for each architecture.
-//
-template <int MinBlockPerCu = CK_TILE_MIN_BLOCK_PER_CU,
-          typename Arch     = void,
-          typename KernelImpl,
-          typename... Args>
-CK_TILE_HOST auto
-make_kernel(KernelImpl /*f*/)
-{
-    const auto kernel = []() {
-        if constexpr(std::is_void_v<Arch>)
-        {
-            return kentry<MinBlockPerCu, KernelImpl, Args...>;
-        }
-        else
-        {
-            return kentry<Arch, MinBlockPerCu, KernelImpl, Args...>;
-        }
-    }();
-    return kernel;
-}
-
 template <typename... Callables>
 CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... callables)
 {
