@@ -25,7 +25,7 @@ import numpy as np
 from pathlib import Path
 
 # Add parent for imports
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
 
 from conv_utils import (
     ConvSignature,

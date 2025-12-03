@@ -23,11 +23,8 @@ import argparse
 import sys
 from pathlib import Path
 
-# Add paths for imports
-script_dir = Path(__file__).parent.resolve()
-dispatcher_root = script_dir.parent.parent.parent
-sys.path.insert(0, str(dispatcher_root / "python"))
-sys.path.insert(0, str(script_dir))
+# Add path for imports - conv_utils.py is in dispatcher/python/
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
 
 import numpy as np  # noqa: E402
 from conv_utils import (  # noqa: E402

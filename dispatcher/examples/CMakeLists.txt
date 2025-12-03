@@ -247,6 +247,9 @@ add_gpu_example(conv_09_bwd_data        conv/cpp/09_bwd_data.cpp         ${CONV_
 # Backward weight example
 add_gpu_example(conv_10_bwd_weight      conv/cpp/10_bwd_weight.cpp       ${CONV_BWDW_KERNEL_HEADER})
 
+# Advanced benchmark example
+add_gpu_example(conv_11_advanced_benchmark conv/cpp/11_advanced_benchmark.cpp ${CONV_KERNEL_HEADER})
+
 # Make Conv examples depend on kernel generation
 add_dependencies(conv_01_forward        generate_conv_fwd_kernels)
 add_dependencies(conv_02_validation     generate_conv_fwd_kernels)

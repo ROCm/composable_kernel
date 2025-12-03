@@ -61,7 +61,7 @@ endif()
 option(BUILD_DISPATCHER_TESTS "Build dispatcher unit tests" OFF)
 if(BUILD_DISPATCHER_TESTS)
     enable_testing()
-    add_subdirectory(test)
+    add_subdirectory(tests)
 endif()
 
 # Optional: Build Python bindings

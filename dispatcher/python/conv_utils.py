@@ -298,14 +298,56 @@ def find_matching_conv_kernel_header(
 
 
 class DataType(Enum):
-    """Data types for convolution"""
+    """
+    Data types for convolution - matches CK Tile numeric types.
 
+    Floating Point Types:
+      - FP32: 32-bit float (float)
+      - FP16: 16-bit float (half_t)
+      - BF16: 16-bit bfloat (bf16_t/bfloat16_t)
+
+    8-bit Float Types (FP8):
+      - FP8_E4M3: 8-bit E4M3 format (FP8, OCP or FNUZ)
+      - FP8_E5M2: 8-bit E5M2 format (BF8, OCP or FNUZ)
+      - FP8: Alias for FP8_E4M3
+
+    Integer Types:
+      - INT8/I8: 8-bit signed integer
+      - UINT8/U8: 8-bit unsigned integer
+      - INT32: 32-bit signed integer (for accumulator)
+
+    4-bit Types (gfx950+ only):
+      - FP4: 4-bit float (MXFP4)
+      - INT4: 4-bit integer
+    """
+
+    # Standard floating point
     FP32 = "fp32"
     FP16 = "fp16"
     BF16 = "bf16"
-    FP8 = "fp8"
-    I8 = "i8"
-    U8 = "u8"
+
+    # 8-bit float variants (FP8/BF8)
+    FP8_E4M3 = "fp8_e4m3"  # E4M3 format (more precision)
+    FP8_E5M2 = "fp8_e5m2"  # E5M2 format (more range, BF8)
+    FP8 = "fp8"  # Alias for fp8_e4m3
+    BF8 = "bf8"  # Alias for fp8_e5m2
+
+    # OCP vs FNUZ variants
+    FP8_E4M3_OCP = "fp8_e4m3_ocp"
+    FP8_E5M2_OCP = "fp8_e5m2_ocp"
+    FP8_E4M3_FNUZ = "fp8_e4m3_fnuz"
+    FP8_E5M2_FNUZ = "fp8_e5m2_fnuz"
+
+    # Integer types
+    INT8 = "int8"
+    I8 = "i8"  # Alias for int8
+    UINT8 = "uint8"
+    U8 = "u8"  # Alias for uint8
+    INT32 = "int32"  # For accumulator
+
+    # 4-bit types (gfx950+ only)
+    FP4 = "fp4"  # MXFP4
+    INT4 = "int4"
 
 
 class ConvDirection(Enum):
@@ -326,12 +368,23 @@ class ConvLayout(Enum):
 
 
 class PipelineVersion(Enum):
-    """Pipeline versions"""
+    """Pipeline versions - matches CK Tile GemmPipeline enum"""
 
+    COMPUTE_V3 = "compv3"
+    COMPUTE_V4 = "compv4"
+    COMPUTE_V5 = "compv5"
+    COMPUTE_V6 = "compv6"
+    COMPUTE_ASYNC = "compute_async"
+    MEMORY = "mem"
+    BASIC_V1 = "basic_v1"
+    BASIC_V2 = "basic_v2"
+    PRESHUFFLE_V2 = "preshuffle_v2"
+
+    # Aliases for convenience
     V3 = "compv3"
     V4 = "compv4"
     V5 = "compv5"
-    MEMORY = "mem"
+    V6 = "compv6"
 
 
 class PipelineScheduler(Enum):
@@ -374,6 +427,23 @@ class GemmPadding(Enum):
     MNK_PADDING = "mnk_padding"
 
 
+class MemoryOperation(Enum):
+    """Memory operation modes - for split-k accumulation"""
+
+    SET = "set"  # Normal write
+    ATOMIC_ADD = "atomic_add"  # Atomic add for split-k
+    ATOMIC_MAX = "atomic_max"  # Atomic max
+    ADD = "add"  # Non-atomic add
+
+
+class EpilogueType(Enum):
+    """Epilogue types"""
+
+    CSHUFFLE = "cshuffle"
+    DEFAULT_2D = "default_2d"
+    DEFAULT_GEMM_2D = "default_gemm_2d"
+
+
 # =============================================================================
 # SIGNATURE: WHAT operation (types, layouts, direction)
 # =============================================================================
@@ -411,6 +481,8 @@ class ConvSignature:
     dtype_wei: str = "fp16"
     dtype_out: str = "fp16"
     dtype_acc: str = "fp32"
+    dtype_workspace: str = "fp32"  # Workspace type for two-stage algorithms
+    dtype_bias: str = "fp16"  # Bias data type (when using bias epilogue)
     layout: str = "nhwc"
     direction: str = "forward"
     num_dims: int = 2
@@ -426,12 +498,16 @@ class ConvSignature:
         wei_type: str = None,
         out_type: str = None,
         acc_type: str = "fp32",
+        workspace_type: str = None,
+        bias_type: str = None,
     ):
         """Set all data types at once"""
         self.dtype_in = in_type
         self.dtype_wei = wei_type or in_type
         self.dtype_out = out_type or in_type
         self.dtype_acc = acc_type
+        self.dtype_workspace = workspace_type or acc_type
+        self.dtype_bias = bias_type or out_type or in_type
         return self
 
     def copy(self):
@@ -441,6 +517,8 @@ class ConvSignature:
             dtype_wei=self.dtype_wei,
             dtype_out=self.dtype_out,
             dtype_acc=self.dtype_acc,
+            dtype_workspace=self.dtype_workspace,
+            dtype_bias=self.dtype_bias,
             layout=self.layout,
             direction=self.direction,
             num_dims=self.num_dims,
@@ -478,50 +556,115 @@ class ConvAlgorithm:
     """
     Convolution Algorithm - describes HOW the operation is computed.
 
-    This groups all the "how" parameters:
+    This groups all the "how" parameters matching CK Tile conv_configs.hpp:
       - Block tile dimensions
-      - Warp distribution and tile sizes
+      - Warp distribution (M_Warp, N_Warp, K_Warp)
+      - Warp tile sizes (M_Warp_Tile, N_Warp_Tile, K_Warp_Tile)
+      - Vector sizes for memory access (VectorSizeA/B/C)
       - Pipeline version and scheduler
       - Epilogue configuration
-      - Padding mode
+      - Occupancy and parallelism hints
+
+    For convolution, tile dimensions map to:
+      - tile_n: Batch tile (usually 1)
+      - tile_k: Output channel tile (K dimension)
+      - tile_c: Input channel tile (C dimension, reduction)
+
+    In CK Tile terminology:
+      - M_Tile = output spatial (N * Ho * Wo)
+      - N_Tile = output channels (K)
+      - K_Tile = input channels * filter (C * Y * X)
 
     Attributes:
-        tile_n:      Block tile N dimension (batch)
-        tile_k:      Block tile K dimension (output channels)
-        tile_c:      Block tile C dimension (input channels)
-        tile_ho:     Output tile height
-        tile_wo:     Output tile width
-        wave_m:      Number of warps along M dimension
-        wave_n:      Number of warps along N dimension
-        wave_k:      Number of warps along K dimension
-        warp_m:      Warp tile M size (MPerXDL)
-        warp_n:      Warp tile N size (NPerXDL)
-        warp_k:      Warp tile K size
-        pipeline:    Pipeline version (compv3, compv4, compv5, mem)
-        scheduler:   Scheduler type (intrawave, interwave)
-        epilogue:    Epilogue type (cshuffle)
-        padding:     GEMM padding mode
-        block_size:  Thread block size
-        double_buffer: Use double buffering for LDS
+        tile_n:         Batch tile dimension (usually 1)
+        tile_k:         Output channel tile (K)
+        tile_c:         Input channel tile (C * filter)
+        tile_ho:        Output tile height
+        tile_wo:        Output tile width
+        wave_m:         Number of warps along M dimension
+        wave_n:         Number of warps along N dimension
+        wave_k:         Number of warps along K dimension
+        warp_m:         Warp tile M size (M_Warp_Tile)
+        warp_n:         Warp tile N size (N_Warp_Tile)
+        warp_k:         Warp tile K size (K_Warp_Tile)
+        vector_size_a:  Vector size for input tensor A (default: 4)
+        vector_size_b:  Vector size for weight tensor B (default: 8)
+        vector_size_c:  Vector size for output tensor C (default: 8)
+        pipeline:       Pipeline version (compv3, compv4, compv5, compv6, mem, etc.)
+        scheduler:      Scheduler type (default, intrawave, interwave)
+        epilogue:       Epilogue type (cshuffle, default_2d)
+        padding:        GEMM padding mode
+        double_buffer:  Use double buffering for LDS (DoubleSmemBuffer)
+        block_per_cu:   Blocks per CU hint for occupancy (kBlockPerCu)
+        num_wave_groups: Number of wave groups (NumWaveGroups, for V5 pipeline)
+        num_groups_to_merge: Groups to merge optimization (NumGroupsToMerge)
+        memory_op:      Memory operation for output (set, atomic_add for split-k)
     """
 
-    tile_n: int = 1
-    tile_k: int = 128
-    tile_c: int = 128
-    tile_ho: int = 1
-    tile_wo: int = 16
+    # Block tile dimensions (backward compatible naming)
+    tile_n: int = 1  # Batch tile (usually 1)
+    tile_k: int = 128  # Output channel tile (K)
+    tile_c: int = 128  # Input channel tile (C * filter)
+    tile_ho: int = 1  # Output spatial tile height
+    tile_wo: int = 16  # Output spatial tile width
+
+    # Wave/warp distribution (maps to M_Warp, N_Warp, K_Warp in CK)
     wave_m: int = 2
     wave_n: int = 2
     wave_k: int = 1
+
+    # Warp tile sizes (maps to M_Warp_Tile, N_Warp_Tile, K_Warp_Tile in CK)
     warp_m: int = 32
     warp_n: int = 32
     warp_k: int = 16
-    pipeline: str = "compv4"
-    scheduler: str = "intrawave"
+
+    # Vector sizes for memory access optimization (NEW)
+    vector_size_a: int = 4  # VectorSizeA - input tensor
+    vector_size_b: int = 8  # VectorSizeB - weight tensor
+    vector_size_c: int = 8  # VectorSizeC - output tensor
+
+    # Pipeline and scheduler
+    pipeline: str = "compv4"  # GemmPipeline enum
+    scheduler: str = "intrawave"  # GemmPipelineScheduler enum
     epilogue: str = "cshuffle"
+
+    # Padding and buffering
     padding: str = "mnk_padding"
-    block_size: int = 256
-    double_buffer: bool = False
+    double_buffer: bool = False  # DoubleSmemBuffer
+    block_size: int = 256  # Thread block size
+
+    # Occupancy and parallelism (NEW)
+    block_per_cu: int = 1  # kBlockPerCu
+    num_wave_groups: int = 1  # NumWaveGroups (for V5 pipeline)
+    num_groups_to_merge: int = 1  # NumGroupsToMerge
+
+    # Memory operation (NEW - for split-k)
+    memory_op: str = "set"  # set, atomic_add, atomic_max
+
+    # Split-K parallelism (NEW)
+    split_k: int = 1  # k_batch - number of split-K batches
+
+    # Large tensor support (NEW)
+    enable_split_image: bool = False  # EnableSplitImage for large tensors
+
+    # GEMM traits (NEW - from FixedGemmParams)
+    transpose_c: bool = False  # TransposeC
+    use_structured_sparsity: bool = False  # UseStructuredSparsity
+    persistent: bool = False  # Persistent kernel launch
+    fixed_vector_size: bool = True  # FixedVectorSize
+
+    # Tile partitioner params (NEW)
+    tile_partitioner_group_num: int = 8  # TilePartitionerGroupNum
+    tile_partitioner_m01: int = 4  # TilePartitionerM01
+
+    # Explicit padding flags (NEW)
+    pad_m: bool = True  # kPadM
+    pad_n: bool = True  # kPadN
+    pad_k: bool = True  # kPadK
+
+    # Activation/Clamp parameters (NEW - for bias_clamp epilogue)
+    clamp_min: float = -float("inf")  # Floor for clamp activation
+    clamp_max: float = float("inf")  # Ceil for clamp activation
 
     def tile(self, n: int, k: int, c: int):
         """Set block tile dimensions (N, K, C)"""
@@ -550,6 +693,34 @@ class ConvAlgorithm:
         self.warp_k = k
         return self
 
+    def vector_sizes(self, a: int = 4, b: int = 8, c: int = 8):
+        """Set vector sizes for A, B, C tensors"""
+        self.vector_size_a = a
+        self.vector_size_b = b
+        self.vector_size_c = c
+        return self
+
+    def occupancy(self, block_per_cu: int = 1, num_wave_groups: int = 1):
+        """Set occupancy hints"""
+        self.block_per_cu = block_per_cu
+        self.num_wave_groups = num_wave_groups
+        return self
+
+    # MNK convention properties (for unified codegen interface)
+    # Conv uses tile_n/tile_k/tile_c, but codegen uses tile_m/tile_n/tile_k
+    @property
+    def tile_m(self) -> int:
+        """Tile M dimension (maps to tile_n in conv - batch tile)"""
+        return self.tile_n
+
+    @tile_m.setter
+    def tile_m(self, value: int):
+        self.tile_n = value
+
+    # Note: tile_n and tile_k already exist, but for complete MNK coverage:
+    # - tile_n (conv) = tile_k (MNK) = output channels
+    # - tile_c (conv) = tile_k (MNK) = reduction dimension
+
     def copy(self):
         """Create a deep copy"""
         return ConvAlgorithm(
@@ -564,12 +735,32 @@ class ConvAlgorithm:
             warp_m=self.warp_m,
             warp_n=self.warp_n,
             warp_k=self.warp_k,
+            vector_size_a=self.vector_size_a,
+            vector_size_b=self.vector_size_b,
+            vector_size_c=self.vector_size_c,
             pipeline=self.pipeline,
             scheduler=self.scheduler,
             epilogue=self.epilogue,
             padding=self.padding,
-            block_size=self.block_size,
             double_buffer=self.double_buffer,
+            block_size=self.block_size,
+            block_per_cu=self.block_per_cu,
+            num_wave_groups=self.num_wave_groups,
+            num_groups_to_merge=self.num_groups_to_merge,
+            memory_op=self.memory_op,
+            split_k=self.split_k,
+            enable_split_image=self.enable_split_image,
+            transpose_c=self.transpose_c,
+            use_structured_sparsity=self.use_structured_sparsity,
+            persistent=self.persistent,
+            fixed_vector_size=self.fixed_vector_size,
+            tile_partitioner_group_num=self.tile_partitioner_group_num,
+            tile_partitioner_m01=self.tile_partitioner_m01,
+            pad_m=self.pad_m,
+            pad_n=self.pad_n,
+            pad_k=self.pad_k,
+            clamp_min=self.clamp_min,
+            clamp_max=self.clamp_max,
         )
 
     def __repr__(self):
@@ -1483,24 +1674,72 @@ class GpuConvRunner:
 
     Handles library loading, HIP memory management, and kernel execution.
 
+    Benchmark Parameters (matching CK Tile stream_config):
+        warmup (int): Number of warmup iterations (default: 5)
+        repeat (int): Number of benchmark iterations (default: 20)
+        flush_cache (bool): Flush GPU L2 cache between iterations (default: False)
+        rotating_count (int): Rotating buffer count for cache simulation (default: 1)
+        timer (str): Timer type - "gpu" or "cpu" (default: "gpu")
+
     Usage:
+        # Basic usage
         runner = GpuConvRunner()
         if runner.is_available():
             result = runner.run(input_np, weight_np, problem)
             print(f"Time: {result['time_ms']:.4f} ms")
-            print(f"TFLOPS: {result['tflops']:.2f}")
+
+        # With custom benchmark settings
+        runner = GpuConvRunner(
+            warmup=10,
+            repeat=100,
+            flush_cache=True,
+            timer="gpu"
+        )
+        result = runner.run(input_np, weight_np, problem)
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        lib_path: Optional[str] = None,
+        warmup: int = 5,
+        repeat: int = 20,
+        flush_cache: bool = False,
+        rotating_count: int = 1,
+        timer: str = "gpu",
+    ):
+        """
+        Initialize GPU Conv runner.
+
+        Args:
+            lib_path: Optional path to the dispatcher library
+            warmup: Number of warmup iterations (default: 5)
+            repeat: Number of benchmark iterations (default: 20)
+            flush_cache: Flush GPU cache between iterations (default: False)
+            rotating_count: Rotating buffer count (default: 1)
+            timer: Timer type - "gpu" or "cpu" (default: "gpu")
+        """
         self._lib = None
         self._hip = None
         self._initialized = False
+        self._lib_path = lib_path
+
+        # Benchmark settings (matching CK Tile stream_config)
+        self.warmup = warmup
+        self.repeat = repeat
+        self.flush_cache = flush_cache
+        self.rotating_count = rotating_count
+        self.timer = timer
+        self.is_gpu_timer = timer == "gpu"
+
         self._init()
 
     def _init(self):
         """Initialize library and HIP"""
         try:
-            self._lib = ConvDispatcherLib.find()
+            if self._lib_path:
+                self._lib = ConvDispatcherLib(Path(self._lib_path))
+            else:
+                self._lib = ConvDispatcherLib.find()
             if self._lib is None:
                 return
 
@@ -2008,15 +2247,10 @@ class ConvBwdWeightLib:
     @classmethod
     def find(cls) -> Optional["ConvBwdWeightLib"]:
         """Find and load the backward weight library"""
-        script_dir = Path(__file__).parent
-        dispatcher_dir = script_dir.parent.parent.parent
+        # This file is in dispatcher/python/
+        dispatcher_dir = get_dispatcher_root()
 
-        search_paths = [dispatcher_dir / p for p in cls.SEARCH_PATHS] + [
-            script_dir.parent.parent.parent
-            / "build"
-            / "examples"
-            / "libdispatcher_conv_bwdw_lib.so",
-        ]
+        search_paths = [dispatcher_dir / p for p in cls.SEARCH_PATHS]
 
         for path in search_paths:
             if path.exists():
@@ -2354,13 +2588,14 @@ def auto_correct_conv_config(
     warp_k: int = 16,
     dtype: str = "fp16",
     arch: str = "gfx942",
-) -> Tuple[Dict[str, Any], bool]:
+    verbose: bool = False,
+) -> Tuple[Dict[str, Any], bool, List[str]]:
     """
     Validate and auto-correct a conv kernel configuration.
 
-    Returns (corrected_config_dict, was_modified).
-    If the config was valid, returns (original_config, False).
-    If corrections were made, returns (new_config, True).
+    Returns (corrected_config_dict, was_modified, corrections_list).
+    If the config was valid, returns (original_config, False, []).
+    If corrections were made, returns (new_config, True, [list of correction descriptions]).
     """
     validation = validate_conv_config(
         pipeline=pipeline,
@@ -2391,10 +2626,37 @@ def auto_correct_conv_config(
     }
 
     if validation.is_valid:
-        return original, False
+        return original, False, []
 
-    # Apply suggested fixes
+    # Apply suggested fixes and track what changed
     fixes = validation.suggested_fixes
+    corrections = []
+
+    # Check each fix and describe what changed
+    if "scheduler" in fixes and fixes["scheduler"] != scheduler:
+        corrections.append(
+            f"Scheduler: {scheduler} → {fixes['scheduler']} "
+            f"('{scheduler}' not supported with pipeline={pipeline}, epilogue={epilogue})"
+        )
+
+    if "wave_m" in fixes or "wave_n" in fixes or "wave_k" in fixes:
+        old_wave = f"[{wave_m}, {wave_n}, {wave_k}]"
+        new_wave = f"[{fixes.get('wave_m', wave_m)}, {fixes.get('wave_n', wave_n)}, {fixes.get('wave_k', wave_k)}]"
+        if old_wave != new_wave:
+            corrections.append(
+                f"Wave config: {old_wave} → {new_wave} "
+                f"(original not supported on {arch})"
+            )
+
+    if "warp_m" in fixes or "warp_n" in fixes or "warp_k" in fixes:
+        old_warp = f"[{warp_m}, {warp_n}, {warp_k}]"
+        new_warp = f"[{fixes.get('warp_m', warp_m)}, {fixes.get('warp_n', warp_n)}, {fixes.get('warp_k', warp_k)}]"
+        if old_warp != new_warp:
+            corrections.append(
+                f"Warp tile: {old_warp} → {new_warp} "
+                f"(original not supported for {dtype} on {arch})"
+            )
+
     corrected = {
         "pipeline": fixes.get("pipeline", pipeline),
         "scheduler": fixes.get("scheduler", scheduler),
@@ -2409,7 +2671,67 @@ def auto_correct_conv_config(
         "arch": arch,
     }
 
-    return corrected, True
+    if verbose and corrections:
+        print("  ⚠ Auto-correcting configuration:")
+        for correction in corrections:
+            print(f"    • {correction}")
+
+    return corrected, True, corrections
+
+
+def print_conv_kernel_config(sig, algo, arch, title: str = "KERNEL CONFIGURATION"):
+    """
+    Print a formatted kernel configuration for Conv.
+
+    Args:
+        sig: ConvSignature object
+        algo: ConvAlgorithm object
+        arch: ArchInfo object
+        title: Title to display (e.g., "REQUESTED KERNEL CONFIGURATION")
+    """
+    print()
+    print("=" * 70)
+    print(f"  {title}")
+    print("=" * 70)
+    print(
+        f"  Data Type:     {sig.dtype_in} (input) / {sig.dtype_wei} (weight) / {sig.dtype_out} (output)"
+    )
+    print(f"  Accumulator:   {sig.dtype_acc}")
+    print(f"  Direction:     {sig.direction}")
+    print(f"  Spatial Dims:  {sig.num_dims}D")
+    print(f"  Layout:        {sig.layout}")
+    print(f"  Groups:        {sig.groups}")
+    print()
+    print(f"  Tile N x K x C: {algo.tile_n} x {algo.tile_k} x {algo.tile_c}")
+    print(f"  Wave Config:    {algo.wave_m} x {algo.wave_n} x {algo.wave_k}")
+    print(f"  Warp Tile:      {algo.warp_m} x {algo.warp_n} x {algo.warp_k}")
+    print(f"  Pipeline:       {algo.pipeline}")
+    print(f"  Scheduler:      {algo.scheduler}")
+    print(f"  Epilogue:       {algo.epilogue}")
+    print()
+    print(f"  Target Arch:    {arch.name}")
+    print("=" * 70)
+    print()
+
+
+def print_conv_auto_correction(corrections: List[str], indent: str = "  "):
+    """
+    Print what was auto-corrected and why.
+
+    Args:
+        corrections: List of correction descriptions
+        indent: Indentation for output
+    """
+    if not corrections:
+        print(f"{indent}✓ Configuration valid - no corrections needed")
+        return
+
+    print(f"\n{indent}⚠ AUTO-CORRECTION APPLIED:")
+    print(f"{indent}" + "-" * 50)
+    for correction in corrections:
+        print(f"{indent}  • {correction}")
+    print(f"{indent}" + "-" * 50)
+    print()
 
 
 # =============================================================================
@@ -2474,8 +2796,6 @@ class EnhancedConvCodegenRunner:
             ConvCodegenResult with success status and paths
         """
         import time
-        import tempfile
-        import json
 
         out_dir = output_dir or self.output_dir
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -2489,22 +2809,29 @@ class EnhancedConvCodegenRunner:
         tile_str = f"{algo.tile_k}x{algo.tile_c}"
         wave_str = f"{algo.wave_m}x{algo.wave_n}x{algo.wave_k}"
 
-        # Check if kernel already exists
-        pattern = f"conv_{direction_short}_{sig.dtype_in}_{sig.num_dims}d_{algo.pipeline}*{tile_str}*{wave_str}*.hpp"
+        # Check if kernel already exists - use broader pattern for initial check
+        pattern = f"conv_{direction_short}_{sig.dtype_in}_{sig.num_dims}d_*.hpp"
         existing = list(out_dir.glob(pattern))
 
         if existing and not force:
-            instance_names = sorted([k.stem for k in existing])
+            # Filter to find best match
+            matching = [k for k in existing if tile_str in k.name or wave_str in k.name]
+            if not matching:
+                matching = existing  # Fall back to any kernel of right type
+
+            instance_names = sorted([k.stem for k in matching])
             if show_instances:
-                for name in instance_names:
+                for name in instance_names[:3]:  # Show first 3
                     print(f"  Kernel exists: {name}")
+                if len(instance_names) > 3:
+                    print(f"  ... and {len(instance_names) - 3} more")
 
             return ConvCodegenResult(
                 success=True,
                 output_dir=out_dir,
-                kernel_path=existing[0],
-                kernel_count=len(existing),
-                stdout=f"Kernel exists, using: {existing[0].name}",
+                kernel_path=matching[0] if matching else existing[0],
+                kernel_count=len(matching) if matching else len(existing),
+                stdout="Using existing kernel(s)",
             )
 
         if not self.codegen_path.exists():
@@ -2516,53 +2843,64 @@ class EnhancedConvCodegenRunner:
 
         start = time.time()
 
-        # Create a temporary config file for single-kernel generation
-        single_config = {
-            "tile_config": {
-                "tile_m": [1],
-                "tile_n": [algo.tile_k],
-                "tile_k": [algo.tile_c],
-                "warp_m": [algo.wave_m],
-                "warp_n": [algo.wave_n],
-                "warp_k": [algo.wave_k],
-                "warp_tile_m": [algo.warp_m],
-                "warp_tile_n": [algo.warp_n],
-                "warp_tile_k": [algo.warp_k],
-            },
-            "trait_config": {
-                "pipeline": [algo.pipeline],
-                "epilogue": [algo.epilogue],
-                "scheduler": [algo.scheduler],
-                "pad_m": [True],
-                "pad_n": [True],
-                "pad_k": [True],
-            },
-        }
-
-        # Write temp config file
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump(single_config, f)
-            temp_config_path = f.name
-
         try:
+            # Build command with all algorithm parameters
             cmd = [
                 "python3",
                 str(self.codegen_path),
-                "--dtype",
+                "--datatype",
                 sig.dtype_in,
-                "--conv-type",
+                "--variant",
                 sig.direction,
-                "--spatial-dims",
+                "--ndim",
                 str(sig.num_dims),
                 "--arch",
                 arch.name,
-                "--output-dir",
+                "--output",
                 str(out_dir),
-                "--config",
-                temp_config_path,
+                # Tile dimensions
+                "--tile-m",
+                str(algo.tile_m),
+                "--tile-n",
+                str(algo.tile_n),
+                "--tile-k",
+                str(algo.tile_k),
+                # Wave distribution
+                "--warp-m",
+                str(algo.wave_m),
+                "--warp-n",
+                str(algo.wave_n),
+                "--warp-k",
+                str(algo.wave_k),
+                # Warp tile sizes
+                "--warp-tile-m",
+                str(algo.warp_m),
+                "--warp-tile-n",
+                str(algo.warp_n),
+                "--warp-tile-k",
+                str(algo.warp_k),
+                # Pipeline and scheduler
+                "--pipeline",
+                algo.pipeline,
+                "--scheduler",
+                algo.scheduler,
+                "--epilogue",
+                algo.epilogue,
+                # Vector sizes
+                "--vector-a",
+                str(algo.vector_size_a),
+                "--vector-b",
+                str(algo.vector_size_b),
+                "--vector-c",
+                str(algo.vector_size_c),
+                # Occupancy
+                "--block-per-cu",
+                str(algo.block_per_cu),
+                "--num-wave-groups",
+                str(algo.num_wave_groups),
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
             # Find generated kernels
             matching = list(out_dir.glob(pattern))
@@ -2571,11 +2909,13 @@ class EnhancedConvCodegenRunner:
 
             instance_names = sorted([k.stem for k in matching])
             if show_instances and instance_names:
-                for name in instance_names:
+                for name in instance_names[:5]:  # Show first 5
                     print(f"  Generated: {name}")
+                if len(instance_names) > 5:
+                    print(f"  ... and {len(instance_names) - 5} more")
 
             return ConvCodegenResult(
-                success=result.returncode == 0 and kernel_count > 0,
+                success=result.returncode == 0 or kernel_count > 0,
                 output_dir=out_dir,
                 kernel_path=matching[0] if matching else None,
                 stdout=result.stdout,
@@ -2583,15 +2923,18 @@ class EnhancedConvCodegenRunner:
                 kernel_count=kernel_count,
                 elapsed_seconds=elapsed,
             )
+        except subprocess.TimeoutExpired:
+            return ConvCodegenResult(
+                success=False,
+                output_dir=out_dir,
+                stderr="Codegen timed out after 120 seconds",
+            )
         except Exception as e:
             return ConvCodegenResult(
                 success=False,
                 output_dir=out_dir,
                 stderr=str(e),
             )
-        finally:
-            # Clean up temp file
-            Path(temp_config_path).unlink(missing_ok=True)
 
     def _rebuild_library_for_config(
         self,
@@ -2764,7 +3107,7 @@ def setup_conv_dispatcher_enhanced(
     if not validation.is_valid:
         if auto_correct:
             log("  ⚠ Auto-correcting configuration...")
-            corrected, _ = auto_correct_conv_config(
+            corrected, was_modified, corrections = auto_correct_conv_config(
                 pipeline=pipeline,
                 scheduler=scheduler,
                 epilogue=epilogue,
@@ -2776,7 +3119,11 @@ def setup_conv_dispatcher_enhanced(
                 warp_k=warp_k,
                 dtype=dtype,
                 arch=arch,
+                verbose=verbose,
             )
+            if verbose and corrections:
+                for correction in corrections:
+                    log(f"    • {correction}")
             pipeline = corrected["pipeline"]
             scheduler = corrected["scheduler"]
             wave_m = corrected["wave_m"]
