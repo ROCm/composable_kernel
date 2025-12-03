@@ -388,6 +388,7 @@ struct UnifiedAttentionPipeline
                                    const index_t num_blocks_start,
                                    const void* block_tables_ptr,
                                    index_t block_table_offset,
+                                   const index_t kv_page_size_in_blocks,
                                    [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
                                    const PComputeElementFunction& p_compute_element_func,
                                    const OAccElementFunction& o_acc_element_func,
@@ -546,6 +547,7 @@ struct UnifiedAttentionPipeline
         const auto num_total_loop = num_blocks;
         index_t k_block_table_off = num_blocks_start;
         index_t v_block_table_off = num_blocks_start;
+        
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking)
@@ -561,21 +563,23 @@ struct UnifiedAttentionPipeline
 
         // TODO check correctness of this
         index_t i_total_loops = num_blocks_start;
+        const index_t PAGE_BLOCK_SIZE = kv_page_size_in_blocks * BLOCK_SIZE;
         const ck_tile::index_t* block_tables_ptr_ =
             reinterpret_cast<const ck_tile::index_t*>(block_tables_ptr);
-        index_t kv_blk_idx_intial      = block_tables_ptr_[block_table_offset + k_block_table_off];
+        assert(k_block_table_off == v_block_table_off); // because of the following line
+        index_t kv_blk_idx_initial      = block_tables_ptr_[block_table_offset + k_block_table_off];
 
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
                              k_dram_block_window_tmp.get_window_lengths(),
-                             {kv_blk_idx_intial * BLOCK_SIZE, 0},
+                             {kv_blk_idx_initial * PAGE_BLOCK_SIZE, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
         k_dram_window.init_raw();
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
                              v_dram_block_window_tmp.get_window_lengths(),
-                             {kv_blk_idx_intial * BLOCK_SIZE, 0},
+                             {kv_blk_idx_initial * PAGE_BLOCK_SIZE, 0},
                              Policy::template MakeVDramTileDistribution<Problem>());
         v_dram_window.init_raw();
 
@@ -667,28 +671,61 @@ struct UnifiedAttentionPipeline
         constexpr int K_mem_su_ld_insts = k_dram_window.get_num_of_access();
         constexpr int V_mem_su_ld_insts = v_dram_window.get_num_of_access();
 
+        // Page block index tracking
+        // const index_t kv_page_size_in_blocks = 
+        //     PAGE_BLOCK_SIZE / BLOCK_SIZE;
+        index_t k_block_i_inside_page = 0;
+        index_t v_block_i_inside_page = 0;
         auto K_mem_load = [&](auto k_lds_write_idx) {
             async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
-            // TODO maybe needs i_total_loops as argument. Or maybe needs to use the k_lds_write_idx
-            // as the index
-
-            k_block_table_off++;
-            index_t kv_blk_idx = block_tables_ptr_[block_table_offset + k_block_table_off];
-            /// FIXME: use the future-predicting method to move the window
-            k_dram_window.set_window_origin({kv_blk_idx * BLOCK_SIZE, 0});
-        };
-
-        auto K_lds_load = [&](auto k_lds_read_idx) {
-            kv_tile.k_tile = load_tile(k_lds_window_load(k_lds_read_idx));
+            // prefetch next K tile (only if not at the end of loop)
+            if (k_block_table_off * kv_page_size_in_blocks + k_block_i_inside_page + 1 >= num_total_loop)
+            {
+                return;
+            }
+            // Update block index inside the page           
+            ++k_block_i_inside_page;
+            if(k_block_i_inside_page < kv_page_size_in_blocks)
+            {
+                // Staying inside the page, just move the window
+                move_tile_window(k_dram_window, {BLOCK_SIZE, 0});
+            }
+            else
+            {
+                // Moving outside the page, fetch new physical page index
+                k_block_table_off++;
+                index_t k_page_blk_idx = block_tables_ptr_[block_table_offset + k_block_table_off];
+                k_dram_window.set_window_origin({k_page_blk_idx * PAGE_BLOCK_SIZE, 0});
+                k_block_i_inside_page = 0;
+            }
         };
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
             async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
-            v_block_table_off++;
+            // prefetch next V tile (only if not at the end of loop)
+            if (v_block_table_off * kv_page_size_in_blocks + v_block_i_inside_page + 1 >= num_total_loop)
+            {
+                return;
+            }
+            // Update the block index inside the page           
+            ++v_block_i_inside_page;
+            if(v_block_i_inside_page < kv_page_size_in_blocks)
+            {
+                // Staying inside the page, just move the window
+                move_tile_window(v_dram_window, {BLOCK_SIZE, 0});
+            }
+            else
+            {
+                // Moving outside the page, fetch new physical page index
+                v_block_table_off++;
+                index_t v_page_blk_idx = block_tables_ptr_[block_table_offset + v_block_table_off];
+                v_dram_window.set_window_origin({v_page_blk_idx * PAGE_BLOCK_SIZE, 0});
+                v_block_i_inside_page = 0;
+            }
+        };
 
-            index_t kv_blk_idx = block_tables_ptr_[block_table_offset + v_block_table_off];
-            /// FIXME: use the future-predicting method to move the window
-            v_dram_window.set_window_origin({kv_blk_idx * BLOCK_SIZE, 0});
+        auto K_lds_load = [&](auto k_lds_read_idx) {
+            kv_tile.k_tile = load_tile(k_lds_window_load(k_lds_read_idx));
         };
 
         auto V_lds_load = [&](auto v_lds_read_idx) {
@@ -1216,6 +1253,7 @@ struct UnifiedAttentionPipeline
                                    const index_t num_blocks_start,
                                    const void* block_tables_ptr,
                                    index_t block_table_offset,
+                                   const index_t kv_page_size_in_blocks,
                                    FmhaMask mask,
                                    float scale_s,
                                    void* smem_ptr) const
@@ -1232,6 +1270,7 @@ struct UnifiedAttentionPipeline
                           num_blocks_start,
                           block_tables_ptr,
                           block_table_offset,
+                          kv_page_size_in_blocks,
                           identity{},
                           identity{},
                           identity{},

@@ -63,7 +63,7 @@ struct unified_attention_kernel_traits
     static constexpr index_t HEAD_SIZE  = 128;
 
     // TODO please fix this to support also other num_queries_per_kv
-    static constexpr index_t num_queries_per_kv = 4;
+    static constexpr index_t num_queries_per_kv = 1;
     static constexpr index_t BLOCK_Q            = BLOCK_M / num_queries_per_kv;
 
     //                                    BLOCK_M BLOCK_Q   BLOCK_SIZE  HEAD_SIZE
@@ -139,6 +139,7 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
                                    args.scale_k,
                                    args.scale_v,
                                    args.scale_out,
+                                   args.page_blk_size,
                                    total_num_q_blocks,
                                    args.query_stride_0,
                                    args.query_stride_1,

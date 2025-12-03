@@ -56,8 +56,8 @@ struct UnifiedAttentionKernel
     struct UnifiedAttentionCommonKargs
     {
         const void* q_ptr;
-        const void* k_ptr; // [num_blks, blk_size, num_kv_heads, head_size]
-        const void* v_ptr; // [num_blks, blk_size, num_kv_heads, head_size]
+        const void* k_ptr; // [num_blks, page_blk_size, num_kv_heads, head_size]
+        const void* v_ptr; // [num_blks, page_blk_size, num_kv_heads, head_size]
         void* o_ptr;
 
         ck_tile::index_t num_blks;
@@ -71,6 +71,8 @@ struct UnifiedAttentionKernel
         float scale_k;
         float scale_v;
         float scale_out;
+
+        ck_tile::index_t page_blk_size;
 
         ck_tile::index_t total_num_q_blocks;
         ck_tile::index_t query_stride_0;
@@ -111,6 +113,7 @@ struct UnifiedAttentionKernel
                                                   float scale_k,
                                                   float scale_v,
                                                   float scale_out,
+                                                  ck_tile::index_t page_blk_size,
                                                   ck_tile::index_t total_num_q_blocks,
                                                   ck_tile::index_t query_stride_0,
                                                   ck_tile::index_t query_stride_1,
@@ -142,6 +145,7 @@ struct UnifiedAttentionKernel
                      scale_k,
                      scale_v,
                      scale_out,
+                     page_blk_size,
                      total_num_q_blocks,
                      query_stride_0,
                      query_stride_1,
@@ -356,7 +360,7 @@ struct UnifiedAttentionKernel
             // HEAD dim is skipped as defined in the ptrs
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.num_blks * BLOCK_SIZE, HEAD_SIZE),
+                make_tuple(kargs.num_blks * kargs.page_blk_size, HEAD_SIZE),
                 make_tuple(kargs.stride_k_cache_1, kargs.stride_k_cache_3),
                 number<UnifiedAttentionPipeline::kAlignmentK>{},
                 number<1>{});
@@ -375,7 +379,7 @@ struct UnifiedAttentionKernel
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
-                make_tuple(kargs.num_blks * BLOCK_SIZE, HEAD_SIZE),
+                make_tuple(kargs.num_blks * kargs.page_blk_size, HEAD_SIZE),
                 make_tuple(kargs.stride_v_cache_1, kargs.stride_v_cache_3),
                 number<UnifiedAttentionPipeline::kAlignmentV>{},
                 number<1>{});
@@ -405,6 +409,9 @@ struct UnifiedAttentionKernel
                 return FmhaMask{cur_batch_query_len, seq_len};
         }();
 
+        const index_t kv_page_size_in_blocks = kargs.page_blk_size / BLOCK_SIZE;
+        assert(kv_page_size_in_blocks >= 1); // BLOCK_SIZE <= page_blk_size
+        
         auto o_acc_tile = [&]() {
             return UnifiedAttentionPipeline{}(q_dram_window,
                                               k_dram_window,
@@ -413,6 +420,7 @@ struct UnifiedAttentionKernel
                                               num_blocks_start,
                                               kargs.block_tables_ptr,
                                               block_table_offset,
+                                              kv_page_size_in_blocks,
                                               mask,
                                               kargs.scale_s,
                                               smem_ptr);

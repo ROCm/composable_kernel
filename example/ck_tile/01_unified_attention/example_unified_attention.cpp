@@ -25,8 +25,8 @@
 #include "unified_attention.hpp"
 #include "mask.hpp"
 
-const ck_tile::index_t BLOCK_SIZE         = 32;
-const ck_tile::index_t num_queries_per_kv = 4;
+// const ck_tile::index_t page_blk_size         = 32;
+const ck_tile::index_t num_queries_per_kv = 1;
 
 auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParser>
 {
@@ -60,13 +60,14 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
                 "non-deterministic seed")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "30", "number of iterations to benchmark the kernel")
+        .insert("page_blk_size", "32", "page block size of kv cache")
         // Optional effective seqlen override (exclude PAD) for batch mode
         .insert("query_lens",
-                "",
+                "32,32,32",
                 "Batch-mode only: per-batch effective seqlen for Q (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.")
         .insert("kv_lens",
-                "",
+                "64,64,64",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.");
 
@@ -141,6 +142,8 @@ struct Problem
         kv_lens    = args.get_int_vec("kv_lens");
         assert(query_lens.size() == kv_lens.size() && "query_lens and kv_lens must have the same length b");
         batch    = args.get_int("b");
+        page_blk_size = args.get_int("page_blk_size");
+
 
         bool varlen = args.get_bool("varlen");
         auto [query_lens_, kv_lens_] = seqlen_preprocess(
@@ -175,12 +178,12 @@ struct Problem
 
     std::vector<ck_tile::index_t> get_key_shape() const
     {
-        return {num_blks, BLOCK_SIZE, nhead_kv, hdim};
+        return {num_blks, page_blk_size, nhead_kv, hdim};
     }
 
     std::vector<ck_tile::index_t> get_value_shape() const
     {
-        return {num_blks, BLOCK_SIZE, nhead_kv, hdim};
+        return {num_blks, page_blk_size, nhead_kv, hdim};
     }
 
     std::vector<ck_tile::index_t> get_output_shape() const { return {num_tokens, nhead_q, hdim}; }
@@ -191,6 +194,7 @@ struct Problem
     ck_tile::index_t nhead_q;
     ck_tile::index_t nhead_kv;
     ck_tile::index_t hdim;
+    ck_tile::index_t page_blk_size;
     ck_tile::index_t num_tokens;
     float scale_s;
     float scale;
@@ -338,7 +342,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.num_seqs           = problem.batch;
     args.num_head_q         = problem.nhead_q;
     args.num_queries_per_kv = num_queries_per_kv;
-    args.BLOCK_SIZE         = BLOCK_SIZE;
+    args.page_blk_size         = problem.page_blk_size;
     args.mask_type          = 2;
     args.hdim               = problem.hdim;
 
@@ -350,7 +354,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     args.k_ptr = k_buf.GetDeviceBuffer();
 
-    args.stride_k_cache_0 = problem.hdim * problem.nhead_kv * BLOCK_SIZE;
+    args.stride_k_cache_0 = problem.hdim * problem.nhead_kv * problem.page_blk_size;
     args.stride_k_cache_1 = problem.hdim * problem.nhead_kv;
     args.stride_k_cache_2 = problem.hdim;
     args.stride_k_cache_3 = 1;
@@ -424,7 +428,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     ck_tile::index_t max_kv_len = max_element(eff_kv_lens);
 
-    ck_tile::index_t max_num_blocks_per_seq = (max_kv_len + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    ck_tile::index_t max_num_blocks_per_seq = (max_kv_len + problem.page_blk_size - 1) / problem.page_blk_size;
 
     // Create block_tables
     ck_tile::DeviceMem block_tables_buf(problem.batch * max_num_blocks_per_seq *
@@ -551,18 +555,18 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         });
         k_b.ForEach([&](auto& self, auto idx) {
             // kv cache is paged
-            ck_tile::index_t table_col          = int(idx[1] / BLOCK_SIZE);
+            ck_tile::index_t table_col          = int(idx[1] / problem.page_blk_size);
             ck_tile::index_t block_table_offset = b * max_num_blocks_per_seq + table_col;
             ck_tile::index_t block_idx          = block_tables_host[block_table_offset];
 
-            self(idx) = k(block_idx, idx[1] % BLOCK_SIZE, idx[2], idx[3]);
+            self(idx) = k(block_idx, idx[1] % problem.page_blk_size, idx[2], idx[3]);
         });
         v_b.ForEach([&](auto& self, auto idx) {
-            ck_tile::index_t table_col          = int(idx[1] / BLOCK_SIZE);
+            ck_tile::index_t table_col          = int(idx[1] / problem.page_blk_size);
             ck_tile::index_t block_table_offset = b * max_num_blocks_per_seq + table_col;
             ck_tile::index_t block_idx          = block_tables_host[block_table_offset];
 
-            self(idx) = v(block_idx, idx[1] % BLOCK_SIZE, idx[2], idx[3]);
+            self(idx) = v(block_idx, idx[1] % problem.page_blk_size, idx[2], idx[3]);
         });
         // v_b.ForEach([&](auto& self, auto idx) { self(idx) = v(b, idx[1], idx[2], idx[3]); });
 

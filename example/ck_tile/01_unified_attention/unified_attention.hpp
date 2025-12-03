@@ -29,7 +29,8 @@ struct unified_attention_args
     index_t num_blks;
     index_t num_head_q;
     index_t num_queries_per_kv;
-    index_t BLOCK_SIZE;
+    index_t page_blk_size;
+    //index_t BLOCK_SIZE;
 
     index_t hdim;
     // TODO window
