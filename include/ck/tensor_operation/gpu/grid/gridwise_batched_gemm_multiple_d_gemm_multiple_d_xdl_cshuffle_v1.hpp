@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <cstdarg>
+#include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -295,6 +297,10 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         if constexpr((Gemm0MPerXdl * Gemm0MXdlPerWave) == 0 ||
                      (Gemm0NXdlPerWave * Gemm0NPerXdl) == 0)
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "wrong! GEMM0 invalid MNPerXdl/MNXdlPerWave." << std::endl;
+            }
             return false;
         }
         else
@@ -302,12 +308,21 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             if constexpr((Gemm0MPerBlock % (Gemm0MPerXdl * Gemm0MXdlPerWave) != 0) ||
                          (Gemm0NPerBlock % (Gemm0NXdlPerWave * Gemm0NPerXdl) != 0))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "wrong! GEMM0 MNPerXdl/PerWave don't match MNPerBlock"
+                              << std::endl;
+                }
                 return false;
             }
             else
             {
                 if(WaveSize != get_warp_size())
                 {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "wrong! Misconfigured wave size" << std::endl;
+                    }
                     return false;
                 }
             }
@@ -320,12 +335,20 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 
         if(!(M == e1_grid_desc_m_n.GetLength(I0) && Gemm1N == e1_grid_desc_m_n.GetLength(I1)))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "wrong! e1 grid desc mismatch with M/N size" << std::endl;
+            }
             return false;
         }
 
         if(!(M % Gemm0MPerBlock == 0 && N % Gemm0NPerBlock == 0 && K % Gemm0KPerBlock == 0 &&
              Gemm1N % Gemm1NPerBlock == 0))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "wrong! K/M/N not divisible by K/M/N-PerBlock" << std::endl;
+            }
             return false;
         }
 
@@ -333,23 +356,41 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         const auto num_gemm0_k_loop = K / Gemm0KPerBlock;
         if(!GridwiseGemmPipe::IsSupported(num_gemm0_k_loop))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "wrong! Gemm0Pipeline doesnt support " << num_gemm0_k_loop
+                          << " k-inner loops" << std::endl;
+            }
             return false;
         }
 
         // check gemm1 gridwise gemm pipeline
         if(!(Gemm0NPerBlock % Gemm1KPerBlock == 0))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "wrong! Gemm0NPerBlock not divisible by Gemm1KPerBlock" << std::endl;
+            }
             return false;
         }
 
         const auto num_gemm1_k_inner_loop = Gemm0NPerBlock / Gemm1KPerBlock;
         if(!GridwiseGemmPipe::IsSupported(num_gemm1_k_inner_loop))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "wrong! Gemm1Pipeline doesnt support " << num_gemm1_k_inner_loop
+                          << " k-inner loops" << std::endl;
+            }
             return false;
         }
 
         if(!block_2_e1tile_map.CheckValidity(e1_grid_desc_m_n))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "wrong! block_2_e1tile_map not valid for e1_grid_desc" << std::endl;
+            }
             return false;
         }
 

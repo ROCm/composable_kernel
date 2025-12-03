@@ -19,25 +19,29 @@
 
 namespace ck {
 
-// Gemm0: A [M x K] x B0 [K x L] = Acc [M x L]
-// Gemm1: Acc [M x L] x B1 [L x N] = C [M x N]
+// Gemm0: AccOp(A [M x K] x B0 [K x L], D0) = Acc [M x L]
+// Gemm1: CDEOp1(Acc [M x L] x B1 [L x N], D1) = E [M x N]
 template <typename ADataType,
           typename B0DataType,
+          typename D0sDataType,
           typename Acc0DataType,
           typename B1DataType,
+          typename D1sDataType,
           typename Acc1DataType,
           typename CShuffleDataType,
-          typename CDataType,
+          typename EDataType,
           typename AElementwiseOperation,
           typename B0ElementwiseOperation,
           typename AccElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename CElementwiseOperation,
+          typename CDEElementwiseOperation,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc,
           typename B0GridDesc,
+          typename D0sGridDesc,
           typename B1GridDesc,
-          typename CGridDesc_M_N,
+          typename D1sGridDesc,
+          typename EGridDesc,
           index_t MPerBlock,
           index_t LPerBlock,
           index_t KPerBlock,
@@ -93,6 +97,9 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
     static constexpr auto I6 = Number<6>{};
+
+    static constexpr index_t NumD0Tensor = D0sDataType::Size();
+    static constexpr index_t NumD1Tensor = D1sDataType::Size();
 
     static constexpr auto AK0 = Number<KPerBlock / AK1Value>{};
     static constexpr auto AK1 = Number<AK1Value>{};
@@ -210,6 +217,30 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     {
         constexpr auto b1_block_copy_step = [&]() { return make_multi_index(L0PerBlock, 0, 0); }();
         return b1_block_copy_step;
+    }
+
+    // ck::Tuple<const D0DataType1*, const D0DataType2*, ...>
+    static constexpr auto MakeD0sGridPointer()
+    {
+        return generate_tuple(
+            [&](auto i) {
+                using D0DataType = remove_cvref_t<tuple_element_t<i.value, D0sDataType>>;
+
+                return static_cast<const D0DataType*>(nullptr);
+            },
+            Number<NumD0Tensor>{});
+    }
+
+    // ck::Tuple<const D1DataType1*, const D1DataType2*, ...>
+    static constexpr auto MakeD1sGridPointer()
+    {
+        return generate_tuple(
+            [&](auto i) {
+                using D1DataType = remove_cvref_t<tuple_element_t<i.value, D1sDataType>>;
+
+                return static_cast<const D1DataType*>(nullptr);
+            },
+            Number<NumD1Tensor>{});
     }
 
     template <index_t MNRepeat, index_t MNWaves, index_t MNPerWmma, typename BlockDesc>
@@ -436,7 +467,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc& a_grid_desc,
                                                             const B0GridDesc& b0_grid_desc,
                                                             const B1GridDesc& b1_grid_desc,
-                                                            const CGridDesc_M_N& c_grid_desc_m_n,
+                                                            const EGridDesc& c_grid_desc_m_n,
                                                             const Block2CTileMap& block_2_ctile_map)
     {
         // Print lambda with env check and printf() style formmating.
@@ -539,37 +570,106 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     }
 
     __host__ __device__ static constexpr auto
-    MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const CGridDesc_M_N& c_grid_desc_m_n)
+    MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const EGridDesc& e_grid_desc_m_n)
     {
-        const auto M = c_grid_desc_m_n.GetLength(I0);
-        const auto N = c_grid_desc_m_n.GetLength(I1);
+        const auto M = e_grid_desc_m_n.GetLength(I0);
+        const auto N = e_grid_desc_m_n.GetLength(I1);
 
         const auto MBlock = M / MPerBlock;
         const auto NBlock = N / NPerBlock;
 
-        const auto c_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
-            c_grid_desc_m_n,
+        const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
+            e_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
                        make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
 
-        return c_grid_desc_mblock_mperblock_nblock_nperblock;
+        return e_grid_desc_mblock_mperblock_nblock_nperblock;
+    }
+
+    // D0 desc for source in blockwise copy
+    template <typename D0GridDesc_M_N>
+    __host__ __device__ static constexpr auto
+    MakeGemm0D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const D0GridDesc_M_N& d0_grid_desc_m_n)
+    {
+        const auto M = d0_grid_desc_m_n.GetLength(I0);
+        const auto N = d0_grid_desc_m_n.GetLength(I1);
+
+        constexpr auto lcm_A0K1_B0K1 = math::lcm(A0K1, B0K1);
+        constexpr bool is_single_rate_mfma =
+            (((is_same<A0B0B1DataType, half_t>::value || is_same<A0B0B1DataType, bhalf_t>::value) &&
+              lcm_A0K1_B0K1 <= 4) ||
+             (is_same<A0B0B1DataType, int8_t>::value && lcm_A0K1_B0K1 <= 8) ||
+             ((is_same<A0B0B1DataType, f8_t>::value || is_same<A0B0B1DataType, bf8_t>::value) &&
+              lcm_A0K1_B0K1 < 32))
+                ? true
+                : false;
+        constexpr auto is_scale_mfma = false;
+        constexpr auto mfma          = MfmaSelector<A0B0B1DataType,
+                                                    Gemm0MPerXdl,
+                                                    Gemm0NPerXdl,
+                                                    A0B0B1DataType,
+                                                    is_single_rate_mfma,
+                                                    is_scale_mfma>::selected_mfma;
+        constexpr auto N3            = mfma.num_groups_per_blk;
+        constexpr auto N5            = mfma.group_size;
+        return transform_tensor_descriptor(
+            d0_grid_desc_m_n,
+            make_tuple(make_unmerge_transform(make_tuple(
+                           M / Gemm0MPerBlock, Gemm0MXdlPerWave, Gemm0MWaves, Gemm0MPerXdl)),
+                       make_unmerge_transform(make_tuple(N / Gemm0NPerBlock,
+                                                         Gemm0NXdlPerWave,
+                                                         Gemm0NWaves,
+                                                         N3,
+                                                         WaveSize / Gemm0NPerXdl,
+                                                         N5))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
+    }
+    // D0s desc for source in blockwise copy
+    __host__ __device__ static constexpr auto
+    MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const D0sGridDesc& ds_grid_desc_m_n)
+    {
+        return generate_tuple(
+            [&](auto i) {
+                return MakeGemm0D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(ds_grid_desc_m_n[i]);
+            },
+            Number<NumD0Tensor>{});
+    }
+    // Ds desc for source in blockwise copy
+    template <typename DsGridDescriptor_M_N>
+    __host__ __device__ static constexpr auto
+    MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        const DsGridDescriptor_M_N& ds_grid_desc_m_n)
+    {
+        return generate_tuple(
+            [&](auto i) {
+                return MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(ds_grid_desc_m_n[i]);
+            },
+            Number<NumD1Tensor>{});
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto MakeDefaultBlock2CTileMap(
-        const CGridDesc_M_N& c_grid_desc_m_n, index_t /* M01 */, index_t /* N01 */)
+        const EGridDesc& c_grid_desc_m_n, index_t /* M01 */, index_t /* N01 */)
     {
-        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>(
-            c_grid_desc_m_n);
+        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc>(c_grid_desc_m_n);
     }
 
-    using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
-        remove_cvref_t<decltype(MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-            CGridDesc_M_N{}))>;
+    using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            EGridDesc{}))>;
+
+    using D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5 =
+        remove_cvref_t<decltype(MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+            D0sGridDesc{}))>;
+
+    using D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            D1sGridDesc{}))>;
     using DefaultBlock2CTileMap =
-        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
+        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(EGridDesc{}, 1, 1))>;
 
     struct SharedMemTrait
     {
@@ -600,29 +700,39 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                 .GetElementSpaceSize();
     };
 
+    using D0sGridPointer = decltype(MakeD0sGridPointer());
+    using D1sGridPointer = decltype(MakeD1sGridPointer());
+
     template <bool HasMainKBlockLoop,
               TailNumber TailNum,
               typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void Run(const ADataType* __restrict__ p_a_grid,
                                const B0DataType* __restrict__ p_b0_grid,
+                               D0sGridPointer p_d0s_grid,
                                const B1DataType* __restrict__ p_b1_grid,
-                               CDataType* __restrict__ p_c_grid,
+                               D1sGridPointer p_d1s_grid,
+                               EDataType* __restrict__ p_c_grid,
                                void* __restrict__ p_shared,
                                const AGridDesc& a_grid_desc,
                                const B0GridDesc& b0_grid_desc,
+                               const D0sGridDesc& d0s_grid_desc,
                                const B1GridDesc& b1_grid_desc,
-                               const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
-                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   d1s_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
                                const AElementwiseOperation& a_element_op,
                                const B0ElementwiseOperation& b0_element_op,
                                const AccElementwiseOperation& acc_element_op,
                                const B1ElementwiseOperation& b1_element_op,
-                               const CElementwiseOperation& c_element_op,
+                               const CDEElementwiseOperation& c_element_op,
                                const Block2CTileMap& block_2_ctile_map)
     {
         // clang-format off
 /*******************************************************************************/
 // Memory buffer zone.
+        const auto d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+            MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(d0s_grid_desc);
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc.GetElementSpaceSize());
         const auto b0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -630,15 +740,29 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         const auto b1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b1_grid, b1_grid_desc.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+            p_c_grid, e_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+        const auto d0s_grid_buf = generate_tuple(
+            [&](auto i) {
+                return make_dynamic_buffer<AddressSpaceEnum::Global>(
+                    p_d0s_grid[i],
+                    d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i].GetElementSpaceSize());
+            },
+            Number<NumD0Tensor>{});
+        const auto d1s_grid_buf = generate_tuple(
+            [&](auto i) {
+                return make_dynamic_buffer<AddressSpaceEnum::Global>(
+                    p_d1s_grid[i],
+                    d1s_grid_desc_mblock_mperblock_nblock_nperblock[i].GetElementSpaceSize());
+            },
+            Number<NumD1Tensor>{});
 
 /*******************************************************************************/
 // BlockIdx.x -> [BlockId.m, BlockId.n]
         const auto block_work_idx = block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
         if(!block_2_ctile_map.ValidCTileIndex(
                block_work_idx,
-               make_tuple(c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
-                          c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
+               make_tuple(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
+                          e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
         { return; }
 
         // Store BlockId into SGPR
@@ -1127,7 +1251,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
                 ThisThreadBlock,            // ThreadGroup
-                CElementwiseOperation,      // ElementwiseOperation,
+                CDEElementwiseOperation,      // ElementwiseOperation,
                 CGlobalMemoryDataOperation, // DstInMemOp,
                 Sequence<1,
                          CShuffleMRepeatPerShuffle * MWave * MPerWmma,
@@ -1136,9 +1260,9 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                 CShuffleDataType,        // typename SrcData,
-                CDataType,               // typename DstData,
+                EDataType,               // typename DstData,
                 decltype(c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat),
-                decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
+                decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
                 Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,
                 3,                                              // index_t VectorDim,
                 CShuffleBlockTransferScalarPerVector_NPerBlock, // index_t ScalarPerVector,
@@ -1146,7 +1270,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                 false> // bool ThreadTransferDstResetCoordinateAfterRun>
                 {c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat,
                  make_multi_index(0, 0, 0, 0),
-                 c_grid_desc_mblock_mperblock_nblock_nperblock,
+                 e_grid_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  c_element_op};
 
@@ -1194,7 +1318,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                 c_shuffle_block_copy_lds_to_global.Run(
                     c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat,
                     c_shuffle_block_buf,
-                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                    e_grid_desc_mblock_mperblock_nblock_nperblock,
                     c_grid_buf);
 
                 if constexpr(access_id < num_access - 1)
@@ -1202,7 +1326,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                     constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
                     // move on C
                     c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
-                        c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
+                        e_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
                 }
             });
         }

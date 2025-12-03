@@ -9,7 +9,6 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "19_gemm_multi_d/gemm_multi_d_fp16.hpp"
 #include "ck/ck.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -21,7 +20,6 @@
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm_arraybase.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
-#include "ck/utility/tuple.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -242,10 +240,8 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         // DataType Family
         ADataType,
         B0DataType,
-        Tuple<>,     // Ds0DataType
         AccDataType, // Acc0DataType
         B1DataType,
-        Tuple<>,     // Ds1DataType
         AccDataType, // Acc1DataType
         CShuffleDataType,
         CDataType,
@@ -259,9 +255,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         // InMemory Data Descriptor
         AGridDesc,
         B0GridDesc,
-        void, // Ds0GridDesc
         B1GridDesc,
-        void, // Ds1GridDesc
         CGridDesc_M_N,
         // Tiling Family
         MPerBlock,
@@ -375,7 +369,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             b1_grid_desc    = MakeB1GridDescriptor(b1_g_o_n_lengths, b1_g_o_n_strides);
             c_grid_desc_m_n = Transform::MakeCGridDescriptor_M_N(c_g_m_o_lengths, c_g_m_o_strides);
             c_grid_desc_mblock_mperblock_nblock_nperblock =
-                GridwiseOp::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
+                GridwiseOp::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
             block_2_ctile_map = GridwiseOp::MakeDefaultBlock2CTileMap(c_grid_desc_m_n, 1, 1);
         }
         // Pointers
@@ -411,7 +405,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         B0GridDesc b0_grid_desc;
         B1GridDesc b1_grid_desc;
         CGridDesc_M_N c_grid_desc_m_n;
-        typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        typename GridwiseOp::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock;
 
         typename GridwiseOp::DefaultBlock2CTileMap block_2_ctile_map;
