@@ -962,3 +962,30 @@ struct SelectedKernel {{
             
             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;"""
         return instance_code
+
+    def _generate_cmake_individual_targets(self, kernel_list):
+        """Generate CMake include file that creates individual targets"""
+        cmake_code = f"""# Generated CMake file for individual {self.kernel_name_prefix} targets
+        # Datatype: {self.datatype}, Layout: {self.layout}
+        """
+
+        for kernel_name, trait_combo, tile_config in kernel_list:
+            pipeline, epilogue, scheduler = trait_combo[:3]
+
+            # Format tile config for CMake function
+            tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+            tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+            tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
+
+            trait_str = f"{pipeline}_{epilogue}_{scheduler}_" + "_".join(
+                str(x) for x in trait_combo[3:]
+            )
+
+            cmake_code += f'create_individual_{self.kernel_name_prefix}_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
+
+        # Write CMake include file
+        with open(
+            self.working_path / f"{self.kernel_name_prefix}_individual_targets.cmake",
+            "w",
+        ) as f:
+            f.write(cmake_code)
