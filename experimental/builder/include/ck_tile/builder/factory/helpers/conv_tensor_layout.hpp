@@ -17,7 +17,7 @@ struct LayoutToCK
                   "Unsupported layout conversion to CK.");
 };
 
-// BiasLayout
+// Bias layouts
 template <>
 struct LayoutToCK<TensorLayout::G_K_strided>
 {
@@ -180,7 +180,7 @@ consteval auto TensorLayoutToCK()
 
 struct EmptyAuxiliaryTensorLayout
 {
-    using DsLayout = ck::Tuple<>;
+    using type = ck::Tuple<>;
 };
 
 template <auto AuxiliaryTensorConfigsArray, size_t... Indices>
@@ -195,7 +195,7 @@ template <auto AuxiliaryTensorConfigsValue, size_t SPATIAL_DIM, ConvDirection DI
 struct AuxiliaryTensorLayouts
 {
     static constexpr auto Size = AuxiliaryTensorConfigsValue.size();
-    using DsLayout = decltype(GetAuxiliaryTensorLayoutTuple<AuxiliaryTensorConfigsValue>(
+    using type = decltype(GetAuxiliaryTensorLayoutTuple<AuxiliaryTensorConfigsValue>(
         std::make_index_sequence<Size>{}));
 };
 
@@ -216,31 +216,21 @@ consteval auto GetAuxiliaryTensorLayouts()
     return EmptyAuxiliaryTensorLayout{};
 }
 
-template <TensorLayout InputLayoutValue,
-          TensorLayout WeightLayoutValue,
-          TensorLayout OutputLayoutValue,
+template <auto Signature,
           size_t SPATIAL_DIM,
           ConvDirection DIR>
     requires(ConvSpatialDim<SPATIAL_DIM> &&
-             ValidConvInputLayoutForSpatialDim<InputLayoutValue, SPATIAL_DIM> &&
-             ValidConvWeightLayoutForSpatialDim<WeightLayoutValue, SPATIAL_DIM> &&
-             ValidConvOutputLayoutForSpatialDim<OutputLayoutValue, SPATIAL_DIM>)
+             ValidConvInputLayoutForSpatialDim<Signature.input.config.layout, SPATIAL_DIM> &&
+             ValidConvWeightLayoutForSpatialDim<Signature.weight.config.layout, SPATIAL_DIM> &&
+             ValidConvOutputLayoutForSpatialDim<Signature.output.config.layout, SPATIAL_DIM>)
 struct ConvTensorLayouts
 {
     static_assert(DIR == ConvDirection::FORWARD, "Only Forward convolution is supported.");
-    using ALayout = decltype(TensorLayoutToCK<InputLayoutValue>());
-    using BLayout = decltype(TensorLayoutToCK<WeightLayoutValue>());
-    using ELayout = decltype(TensorLayoutToCK<OutputLayoutValue>());
+    using ALayout = decltype(TensorLayoutToCK<Signature.input.config.layout>());
+    using BLayout = decltype(TensorLayoutToCK<Signature.weight.config.layout>());
+    using ELayout = decltype(TensorLayoutToCK<Signature.output.config.layout>());
+    using DsLayout = decltype(GetAuxiliaryTensorLayouts<Signature, SPATIAL_DIM, DIR>())::type;
 };
 
-template <auto Signature, size_t SPATIAL_DIM, ConvDirection DIR>
-consteval auto GetTensorLayout()
-{
-    constexpr auto INPUT_LAYOUT  = Signature.input.config.layout;
-    constexpr auto WEIGHT_LAYOUT = Signature.weight.config.layout;
-    constexpr auto OUTPUT_LAYOUT = Signature.output.config.layout;
-
-    return ConvTensorLayouts<INPUT_LAYOUT, WEIGHT_LAYOUT, OUTPUT_LAYOUT, SPATIAL_DIM, DIR>{};
-}
 
 } // namespace ck_tile::builder::factory::internal

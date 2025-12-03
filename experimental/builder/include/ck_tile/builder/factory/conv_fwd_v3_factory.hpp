@@ -26,12 +26,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdXdlV3Factory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts                       = decltype(internal::GetTensorLayout<SIGNATURE,
-                                                                             SPATIAL_DIM,
-                                                                             ConvDirection::FORWARD>());
-    using AuxiliaryLayouts =
-        decltype(internal::GetAuxiliaryTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>());
-
+    using Layouts       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>;
     using Types         = internal::FwdConvTensorDataTypes<SIGNATURE>;
     using Ops           = decltype(internal::GetElementwiseOps<SIGNATURE>());
     using AlgorithmType = decltype(ALGORITHM);
@@ -70,7 +65,7 @@ struct ConvFwdXdlV3Factory
         SPATIAL_DIM,
         typename Layouts::ALayout,
         typename Layouts::BLayout,
-        typename AuxiliaryLayouts::DsLayout,
+        typename Layouts::DsLayout,
         typename Layouts::ELayout,
         typename Types::ADataType,
         typename Types::BDataType,
