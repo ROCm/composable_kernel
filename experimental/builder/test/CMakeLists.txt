@@ -78,23 +78,24 @@ add_ck_builder_test(test_ckb_conv_builder
     test_fwd_instance_traits.cpp
     test_bwd_data_instance_traits.cpp
     test_instance_traits_util.cpp
-    test_memory_manager.cpp
+    unit_device_buffer.cpp
+    unit_tensor_descriptor.cpp
     unit_conv_elementwise_op.cpp
     unit_conv_tensor_layout.cpp
     unit_conv_tensor_type.cpp
     unit_conv_thread_block.cpp
     unit_conv_tuning_params.cpp)
 
-    # Tests the inline diff utility used for comparing strings in tests assertions
-    add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
+# Tests the inline diff utility used for comparing strings in tests assertions
+add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
 
-    # Tests convolution trait selection and configuration
-    add_ck_builder_test(test_ckb_conv_traits
-        conv/test_conv_traits.cpp)
+# Tests convolution trait selection and configuration
+add_ck_builder_test(test_ckb_conv_traits
+    conv/ck/test_conv_traits.cpp)
 
-    # Tests convolution problem description and parameter handling
-    add_ck_builder_test(test_ckb_conv_description
-        test_conv_description.cpp)
+# Tests convolution problem description and parameter handling
+add_ck_builder_test(test_ckb_conv_description
+    test_conv_description.cpp)
 
 ################################################################################
 # REGRESSION TESTS - Integration Tests (With Kernel Compilation)

@@ -22,12 +22,12 @@ namespace ck_tile::builder::test {
 /// @note The details of this function are likely going to change with the
 /// support of sub-byte types.
 ///
-/// @param DataType The type to query the in-memory size of.
+/// @param data_type The type to query the in-memory size of.
 /// @returns The number of bytes that an element of this data type requires
 ///   in memory.
-constexpr size_t data_type_sizeof(DataType dt)
+constexpr size_t data_type_sizeof(DataType data_type)
 {
-    switch(dt)
+    switch(data_type)
     {
     case DataType::UNDEFINED_DATA_TYPE: return 0;
     case DataType::FP32: return 4;
