@@ -34,7 +34,7 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static inline constexpr ck::index_t NDimSpatial    = 2;
-static inline constexpr ck::index_t NDimSpatial_3D = 3;
+
 
 static constexpr auto ConvBwdDataDefault =
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default;
@@ -59,12 +59,6 @@ struct ExecutionConfig final
     ck::utils::conv::ConvParam                                                           \
     {                                                                                    \
         NDimSpatial, 32, 4, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, { 1, 1 } \
-    }
-
-#define DefaultConvParams_3D                                                                \
-    ck::utils::conv::ConvParam                                                           \
-    {                                                                                    \
-        NDimSpatial_3D, 32, 4, 192, 192, {3, 3, 3}, {28, 28,28}, {1, 1,1}, {1, 1,1}, {1, 1,1}, { 1, 1 ,1} \
     }
 
 inline void print_help_msg()
