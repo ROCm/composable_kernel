@@ -17,7 +17,7 @@ struct GroupedConvolutionBackwardWeightInvoker
               typename DsDataType     = ck_tile::tuple<>,
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    static float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
+    static InvokerResult grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
                                          const ck_tile::stream_config& s)
     {
         // Implicit GEMM Traits
@@ -89,6 +89,7 @@ struct GroupedConvolutionBackwardWeightInvoker
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
         float ave_time{0};
+        ck_tile::index_t split_k{0};
 
         const auto Run = [&](const auto has_hot_loop_,
                              const auto tail_number_,
@@ -143,7 +144,7 @@ struct GroupedConvolutionBackwardWeightInvoker
                                                                            TilePartitioner,
                                                                            GemmPipeline,
                                                                            ConvEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
+            const auto& kargs   = Kernel::MakeKernelArgs(args);
 
             const dim3 grids  = Kernel::GridSize(args);
             const dim3 blocks = Kernel::BlockSize();
@@ -168,7 +169,9 @@ struct GroupedConvolutionBackwardWeightInvoker
             }
 
             auto preprocess = [&]() {
-                if(args.k_batch > 1)
+                // Mutiple K batches: either explicit split-K or internally deducted split-K (negative k_batch value). 
+                const bool has_multiple_k_batches = args.k_batch > 1 || args.k_batch < 0; 
+                if(has_multiple_k_batches)
                 {
                     ck_tile::hip_check_error(
                         hipMemsetAsync(kargs.wei_ptr,
@@ -183,7 +186,7 @@ struct GroupedConvolutionBackwardWeightInvoker
                 preprocess,
                 ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
-            return ave_time;
+            split_k = kargs.k_batch;
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
@@ -198,6 +201,6 @@ struct GroupedConvolutionBackwardWeightInvoker
         };
 
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-        return ave_time;
+        return {ave_time, split_k};
     }
 };
