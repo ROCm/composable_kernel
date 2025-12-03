@@ -32,7 +32,16 @@ get_dtype_string = _validation_utils.get_dtype_string
 
 
 class GemmKernelBuilder:
-    def __init__(self, working_path, gpu_target, datatype, layout, config_json=None):
+    def __init__(
+        self,
+        kernel_name_prefix,
+        working_path,
+        gpu_target,
+        datatype,
+        layout,
+        config_json=None,
+    ):
+        self.kernel_name_prefix = kernel_name_prefix
         self.working_path = Path(working_path)
         self.gpu_target = gpu_target
         self.datatype = datatype
@@ -47,10 +56,10 @@ class GemmKernelBuilder:
             with open(config_json, "r") as f:
                 self.config = json.load(f)
 
-    def _list_kernels(self, kernel_name_prefix):
+    def _list_kernels(self):
         """Write kernel list to file for CMake to read (with comprehensive validation)"""
         # Get configurations using comprehensive validation
-        tile_configs = self._get_tile_configs(kernel_name_prefix)
+        tile_configs = self._get_tile_configs(self.kernel_name_prefix)
         trait_combos = self._generate_trait_combinations()
 
         kernel_list = []
@@ -67,7 +76,7 @@ class GemmKernelBuilder:
                 ) = trait_combo
 
                 # Create kernel name with proper boolean capitalization
-                kernel_name = f"{kernel_name_prefix}_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
+                kernel_name = f"{self.kernel_name_prefix}_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
                 # Create tile configuration string
                 tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
@@ -86,13 +95,13 @@ class GemmKernelBuilder:
 
         # Write kernel count
         with open(
-            self.working_path / f"{kernel_name_prefix}_kernel_count.txt", "w"
+            self.working_path / f"{self.kernel_name_prefix}_kernel_count.txt", "w"
         ) as f:
             f.write(str(len(kernel_list)))
 
         # Write kernel list
         with open(
-            self.working_path / f"{kernel_name_prefix}_kernel_list.txt", "w"
+            self.working_path / f"{self.kernel_name_prefix}_kernel_list.txt", "w"
         ) as f:
             for kernel in kernel_list:
                 # Format: kernel_name|tile_config|trait_combo
@@ -112,7 +121,7 @@ class GemmKernelBuilder:
 
         print(f"Listed {len(kernel_list)} kernel configurations")
 
-    def _get_tile_configs(self, kernel_name_prefix, fast_mode=False):
+    def _get_tile_configs(self, fast_mode=False):
         """Get tile configurations for the current datatype and layout"""
 
         tile_config = self.config["tile_config"]
@@ -150,11 +159,11 @@ class GemmKernelBuilder:
 
         # Generate all combinations
         default_pipeline = ""
-        if kernel_name_prefix == "gemm_universal":
+        if self.kernel_name_prefix == "gemm_universal":
             default_pipeline = "compv4"
-        elif kernel_name_prefix == "gemm_multi_d":
+        elif self.kernel_name_prefix == "gemm_multi_d":
             default_pipeline = "compv4"
-        elif kernel_name_prefix == "gemm_preshuffle":
+        elif self.kernel_name_prefix == "gemm_preshuffle":
             default_pipeline = "preshufflev2"
 
         configs = []
@@ -316,7 +325,7 @@ class GemmKernelBuilder:
                 )
         return combinations
 
-    def _generate_kernel_instance(self, kernel_name_prefix, tile_config, trait_combo):
+    def _generate_kernel_instance(self, tile_config, trait_combo):
         """Generate a single kernel instance"""
 
         k_block_per_cu = self.config.get("k_block_per_cu")
@@ -334,7 +343,7 @@ class GemmKernelBuilder:
         ) = trait_combo
 
         # Create kernel name with proper boolean capitalization
-        kernel_name = f"{kernel_name_prefix}_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
+        kernel_name = f"{self.kernel_name_prefix}_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
         # Create tile configuration string
         tile_str = (
@@ -347,7 +356,7 @@ class GemmKernelBuilder:
 
         kernel_name += f"_{tile_str}"
 
-        if kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
+        if self.kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
             # Map pipeline names to the correct pipeline implementation
             pipeline_impl_map = {
                 "mem": "ck_tile::GemmPipelineAgBgCrMem",
@@ -360,7 +369,7 @@ class GemmKernelBuilder:
                 "compv3": "ck_tile::BaseGemmPipelineAgBgCrCompV3",
                 "compv4": "ck_tile::BaseGemmPipelineAgBgCrCompV4",
             }
-        elif kernel_name_prefix == "gemm_preshuffle":
+        elif self.kernel_name_prefix == "gemm_preshuffle":
             # Map pipeline names to the correct pipeline implementation
             pipeline_impl_map = {
                 "preshufflev2": "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2",
@@ -377,15 +386,17 @@ class GemmKernelBuilder:
         }
 
         instance_code = self.populate_kernel_header(kernel_name)
-        instance_code += self.populate_kernel_dtype_layout(kernel_name_prefix)
+        instance_code += self.populate_kernel_dtype_layout(self.kernel_name_prefix)
         instance_code += self.populate_strut_begin(kernel_name)
         instance_code += self.populate_tile_config(tile_config)
-        instance_code += self.populate_trait_config(kernel_name_prefix, trait_combo)
+        instance_code += self.populate_trait_config(
+            self.kernel_name_prefix, trait_combo
+        )
         instance_code += self.populate_initialization(
-            kernel_name_prefix, base_pipeline_map, pipeline
+            self.kernel_name_prefix, base_pipeline_map, pipeline
         )
         instance_code += self.populate_launch(
-            kernel_name_prefix,
+            self.kernel_name_prefix,
             scheduler_type_map,
             scheduler,
             pipeline_impl_map,
@@ -397,11 +408,12 @@ class GemmKernelBuilder:
 
         # Write into a file
         simplified_name = kernel_name
-        if simplified_name.startswith(f"{kernel_name_prefix}_"):
-            simplified_name = simplified_name[len(kernel_name_prefix) + 1 :]
+        if simplified_name.startswith(f"{self.kernel_name_prefix}_"):
+            simplified_name = simplified_name[len(self.kernel_name_prefix) + 1 :]
 
         header_file = (
-            self.working_path / f"{kernel_name_prefix}_single_{simplified_name}.hpp"
+            self.working_path
+            / f"{self.kernel_name_prefix}_single_{simplified_name}.hpp"
         )
         with open(header_file, "w") as f:
             f.write(instance_code)
@@ -427,7 +439,7 @@ class GemmKernelBuilder:
 """
         return instance_code
 
-    def populate_kernel_dtype_layout(self, kernel_name_prefix):
+    def populate_kernel_dtype_layout(self):
         # Determine accumulator type based on datatype
         acc_type = "float"
 
@@ -437,11 +449,11 @@ class GemmKernelBuilder:
             c_type = "fp16"
 
         # Determine layouts based on self.layout
-        if kernel_name_prefix == "gemm_multi_d":
+        if self.kernel_name_prefix == "gemm_multi_d":
             a_layout, b_layout, c_layout, ds_layout = get_abcd_layouts(self.layout)
         elif (
-            kernel_name_prefix == "gemm_universal"
-            or kernel_name_prefix == "gemm_preshuffle"
+            self.kernel_name_prefix == "gemm_universal"
+            or self.kernel_name_prefix == "gemm_preshuffle"
         ):
             a_layout, b_layout, c_layout = get_abc_layouts(self.layout)
 
@@ -451,7 +463,7 @@ using BDataType = {get_dtype_string(self.datatype)};
 using AccDataType = {acc_type};
 using CDataType = {get_dtype_string(c_type)};"""
 
-        if kernel_name_prefix == "gemm_multi_d":
+        if self.kernel_name_prefix == "gemm_multi_d":
             instance_code += f"""
 using D0DataType = {get_dtype_string(self.datatype)};
 using D1DataType = {get_dtype_string(self.datatype)};
@@ -462,7 +474,7 @@ using ALayout = {a_layout};
 using BLayout = {b_layout};
 using CLayout = {c_layout};
 """
-        if kernel_name_prefix == "gemm_multi_d":
+        if self.kernel_name_prefix == "gemm_multi_d":
             instance_code += f"""
 using D0Layout = {ds_layout[0]};
 using D1Layout = {ds_layout[1]};
@@ -496,7 +508,7 @@ struct SelectedKernel {{
     static constexpr ck_tile::index_t WarpTileK = {tile_config["warp_tile_k"]};"""
         return instance_code
 
-    def populate_trait_config(self, kernel_name_prefix, trait_combo):
+    def populate_trait_config(self, trait_combo):
         (
             pipeline,
             epilogue,
@@ -516,13 +528,13 @@ struct SelectedKernel {{
     static constexpr bool TransposeC = false;
     static constexpr bool DoubleSmemBuffer = {"true" if pipeline in ["compv4", "preshufflev2"] else "false"};"""
 
-        if kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
+        if self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code += f"""    
     static constexpr bool UsePersistentKernel = {"true" if persistent in [True, "true"] else "false"};
     static constexpr bool UseStructuredSparsity = false;
     static constexpr ck_tile::index_t NumWaveGroups = 1;"""
 
-            if kernel_name_prefix == "gemm_preshuffle":
+            if self.kernel_name_prefix == "gemm_preshuffle":
                 instance_code += f"""
     static constexpr bool Preshuffle = true;
     static constexpr bool PermuteN     = {"true" if self.config.get("permute_n") else "false"};"""
@@ -531,9 +543,9 @@ struct SelectedKernel {{
     static constexpr bool Preshuffle = false;"""
         return instance_code
 
-    def populate_initialization(self, kernel_name_prefix, base_pipeline_map, pipeline):
+    def populate_initialization(self, base_pipeline_map, pipeline):
         # Tile Shape
-        if kernel_name_prefix == "gemm_multi_d":
+        if self.kernel_name_prefix == "gemm_multi_d":
             instance_code = """  
 
     // Tile shape
@@ -542,7 +554,7 @@ struct SelectedKernel {{
         ck_tile::sequence<WarpPerBlock_M, WarpPerBlock_N, WarpPerBlock_K>,
         ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>>;"""
 
-        elif kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
+        elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code = """
             
     // Tile shape
@@ -559,12 +571,12 @@ struct SelectedKernel {{
     using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;"""
 
         # Traits
-        if kernel_name_prefix == "gemm_multi_d":
+        if self.kernel_name_prefix == "gemm_multi_d":
             instance_code += """
 
     // Traits
     using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;"""
-        elif kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
+        elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code += """
 
     // Traits
@@ -582,13 +594,13 @@ struct SelectedKernel {{
         Traits>;"""
 
         # Base pipeline for hot loop detection
-        if kernel_name_prefix == "gemm_preshuffle":
+        if self.kernel_name_prefix == "gemm_preshuffle":
             instance_code += f"""
 
     // Base pipeline for hot loop detection
     using BaseGemmPipeline = {base_pipeline_map.get(pipeline, "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2")}<GemmPipelineProblem>;"""
 
-        elif kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
+        elif self.kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
             instance_code += f"""
 
     // Base pipeline for hot loop detection
@@ -598,7 +610,6 @@ struct SelectedKernel {{
 
     def populate_launch(
         self,
-        kernel_name_prefix,
         scheduler_type_map,
         scheduler,
         pipeline_impl_map,
@@ -608,12 +619,12 @@ struct SelectedKernel {{
         persistent,
     ):
         # Function Signature
-        if kernel_name_prefix == "gemm_multi_d":
+        if self.kernel_name_prefix == "gemm_multi_d":
             instance_code = """
 
     // Launch function
     static float launch(const ck_tile::GemmMultiDHostArgs<DsDataType::size()>&  args, const ck_tile::stream_config& stream) {"""
-        elif kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
+        elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code = """
 
     // Launch function
@@ -637,10 +648,10 @@ struct SelectedKernel {{
             constexpr auto tail_number_v = tail_number_.value;"""
 
         # Scheduler initialization
-        if kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
+        if self.kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
             instance_code += f"""
             constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
-        elif kernel_name_prefix == "gemm_preshuffle":
+        elif self.kernel_name_prefix == "gemm_preshuffle":
             instance_code += f"""
             constexpr auto scheduler = {scheduler_type_map.get(scheduler, "ck_tile::GemmPipelineScheduler::Default")};"""
 
@@ -649,7 +660,7 @@ struct SelectedKernel {{
             [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;"""
 
         # UniversalGemmProblem
-        if kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
+        if self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code += """
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
@@ -664,7 +675,7 @@ struct SelectedKernel {{
                 scheduler,
                 has_hot_loop_v,
                 tail_number_v>;"""
-        elif kernel_name_prefix == "gemm_multi_d":
+        elif self.kernel_name_prefix == "gemm_multi_d":
             instance_code += """
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
@@ -679,20 +690,20 @@ struct SelectedKernel {{
                 tail_number_v>;"""
 
         # GemmPipeline
-        if kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
+        if self.kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
             instance_code += f"""
 
             using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
-        elif kernel_name_prefix == "gemm_preshuffle":
+        elif self.kernel_name_prefix == "gemm_preshuffle":
             instance_code += f"""
 
             using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2")}<UniversalGemmProblem>;"""
 
         # Epilogue
-        instance_code += self.populate_epilogue(kernel_name_prefix, epilogue)
+        instance_code += self.populate_epilogue(self.kernel_name_prefix, epilogue)
 
         # Kernel type
-        if kernel_name_prefix == "gemm_multi_d":
+        if self.kernel_name_prefix == "gemm_multi_d":
             instance_code += f"""
             
             // Kernel type
@@ -725,7 +736,7 @@ struct SelectedKernel {{
             return ave_time;
         }};"""
 
-        elif kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
+        elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code += f"""
             
             // Kernel type
@@ -783,25 +794,25 @@ struct SelectedKernel {{
 """
         return instance_code
 
-    def populate_epilogue(self, kernel_name_prefix, epilogue):
+    def populate_epilogue(self, epilogue):
         instance_code = """
 
             // Epilogue
             """
 
         if epilogue == "cshuffle":
-            if kernel_name_prefix == "gemm_universal":
+            if self.kernel_name_prefix == "gemm_universal":
                 instance_code += self.populate_cshuffle_gemm_universal()
-            elif kernel_name_prefix == "gemm_multi_d":
+            elif self.kernel_name_prefix == "gemm_multi_d":
                 instance_code += self.populate_cshuffle_gemm_multi_d()
-            elif kernel_name_prefix == "gemm_preshuffle":
+            elif self.kernel_name_prefix == "gemm_preshuffle":
                 instance_code += self.populate_cshuffle_gemm_preshuffle()
         else:  # default epilogue
-            if kernel_name_prefix == "gemm_universal":
+            if self.kernel_name_prefix == "gemm_universal":
                 instance_code += self.populate_default_gemm_universal()
-            elif kernel_name_prefix == "gemm_multi_d":
+            elif self.kernel_name_prefix == "gemm_multi_d":
                 instance_code += self.populate_default_gemm_multi_d()
-            elif kernel_name_prefix == "gemm_preshuffle":
+            elif self.kernel_name_prefix == "gemm_preshuffle":
                 instance_code += self.populate_default_gemm_preshuffle()
 
         return instance_code

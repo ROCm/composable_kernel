@@ -27,6 +27,7 @@ GemmKernelBuilder = _import_gemm_kernel_builder()
 class GemmMultiDKernelBuilder(GemmKernelBuilder):
     def __init__(
         self,
+        kernel_name_prefix,
         working_path,
         gpu_target,
         datatype,
@@ -34,17 +35,19 @@ class GemmMultiDKernelBuilder(GemmKernelBuilder):
         elementwise_function,
         config_json=None,
     ):
-        super().__init__(working_path, gpu_target, datatype, layout, config_json)
+        super().__init__(
+            kernel_name_prefix, working_path, gpu_target, datatype, layout, config_json
+        )
         self.elementwise_function = elementwise_function
 
-    def _generate_all_individual(self, kernel_name_prefix, num_workers=None):
+    def _generate_all_individual(self, num_workers=None):
         """Generate individual kernel files for separate compilation with parallel processing"""
         if num_workers is None:
             num_workers = min(
                 multiprocessing.cpu_count(), 8
             )  # Limit to avoid memory issues
 
-        tile_configs = self._get_tile_configs(kernel_name_prefix)
+        tile_configs = self._get_tile_configs()
         trait_combos = self._generate_trait_combinations()
 
         # Prepare work items for parallel processing
@@ -61,7 +64,7 @@ class GemmMultiDKernelBuilder(GemmKernelBuilder):
                         self.layout,
                         self.elementwise_function,
                         self.config_json,
-                        kernel_name_prefix,
+                        self.kernel_name_prefix,
                     )
                 )
 
@@ -173,7 +176,7 @@ def _generate_single_kernel_individual(work_item):
 
     try:
         kernel_name, instance_code = builder._generate_kernel_instance(
-            kernel_name_prefix, tile_config, trait_combo
+            tile_config, trait_combo
         )
 
         # Create simplified filename without the "gemm_multi_d_" prefix
@@ -281,7 +284,9 @@ def main():
     args.elementwise_function = function_name
 
     # Create builder
+    kernel_name_prefix = "gemm_multi_d"
     builder = GemmMultiDKernelBuilder(
+        kernel_name_prefix,
         args.working_path,
         args.gpu_target,
         args.datatype,
@@ -290,9 +295,8 @@ def main():
         args.config_json,
     )
 
-    kernel_name_prefix = "gemm_multi_d"
     if args.list_kernels:
-        builder._list_kernels(kernel_name_prefix)
+        builder._list_kernels()
     elif args.gen_single:
         # Generate a single kernel file
         if not args.kernel_name or not args.tile_config or not args.trait_combo:
@@ -332,13 +336,12 @@ def main():
 
         # Generate the kernel
         builder._generate_kernel_instance(
-            kernel_name_prefix,
             tile_config,
             trait_combo,
         )
     elif args.gen_all_individual:
         # Generate all individual kernel files
-        builder._generate_all_individual(kernel_name_prefix, args.num_workers)
+        builder._generate_all_individual(args.num_workers)
     else:
         parser.error(
             "Must specify one of: --list_kernels, --gen_all_individual, or --gen_single"
