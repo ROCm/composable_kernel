@@ -86,22 +86,17 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
 
     struct GroupedGemKernelParam_Mfma
     {
-        // HACK: There's a bug in the AQuant pipeline that causes MRepeat > 1 to be incorrect
-        // For now we work-around like this
-        constexpr static bool DisableMRepeat =
-            QuantType == ck_tile::QuantType::AQuantGrouped && !TransposeC;
-
         static const bool kPadM = false;
         static const bool kPadN = false;
         static const bool kPadK = false;
 
         static const int kBlockPerCu         = 1;
-        static const ck_tile::index_t M_Tile = DisableMRepeat ? 128 : 256;
-        static const ck_tile::index_t N_Tile = DisableMRepeat ? 128 : 256;
+        static const ck_tile::index_t M_Tile = 256;
+        static const ck_tile::index_t N_Tile = 256;
         static const ck_tile::index_t K_Tile = 128;
 
-        static const ck_tile::index_t M_Warp = DisableMRepeat ? 4 : 2;
-        static const ck_tile::index_t N_Warp = DisableMRepeat ? 1 : 2;
+        static const ck_tile::index_t M_Warp = 2;
+        static const ck_tile::index_t N_Warp = 2;
         static const ck_tile::index_t K_Warp = 1;
 
         static const ck_tile::index_t M_Warp_Tile = 32;
