@@ -65,6 +65,13 @@ TYPED_TEST(TestGroupedGemm, MNKPadded)
 
 TYPED_TEST(TestGroupedGemm, TestLargeKBatch)
 {
+    // gfx11 does not support split-K due to missing atomic add for fp16/bf16
+    // Technically, we could still run the tests for fp32, but we currently don't have instances for
+    // it so we disable it entirely
+    if(ck::is_gfx11_supported())
+        GTEST_SKIP() << "Split-K not supported for FP16/BF16 on GFX11 due to missing atomic add "
+                        "instructions";
+
     const std::vector<int> Ms{188, 210};
     constexpr int N = 768;
     constexpr int K = 4096;

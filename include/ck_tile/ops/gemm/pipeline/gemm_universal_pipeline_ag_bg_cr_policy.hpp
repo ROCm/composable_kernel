@@ -37,10 +37,21 @@ struct UniversalGemmBasePolicy
 #if defined(__gfx950__)
     // The combination of pk_int4_t and transposed loading causes numerical errors.
     // Therefore do not use transposed loading in this case.
+    // Also, transpose load (ds_read_tr) requires specific tile distribution patterns
+    // that only work for certain K warp tile sizes based on data type size:
+    // - For 1-byte types (fp8/bf8): K warp tile <= 64
+    // - For 2-byte types (fp16/bf16): K warp tile <= 32
     template <typename Problem>
     static constexpr bool is_a_load_tr = []() {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using ADataType              = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType              = remove_cvref_t<typename Problem::BDataType>;
+        using WarpTile               = typename Problem::BlockGemmShape::WarpTile;
+        constexpr index_t kKWarpTile = WarpTile::at(number<2>{});
+        // Max K warp tile for transpose load based on data type size
+        constexpr index_t kMaxKWarpTile = (sizeof(ADataType) == 1) ? 64 : 32;
         if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
         else
             return std::is_same_v<remove_cvref_t<typename Problem::ALayout>,
@@ -49,8 +60,14 @@ struct UniversalGemmBasePolicy
 
     template <typename Problem>
     static constexpr bool is_b_load_tr = []() {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using BDataType              = remove_cvref_t<typename Problem::BDataType>;
+        using WarpTile               = typename Problem::BlockGemmShape::WarpTile;
+        constexpr index_t kKWarpTile = WarpTile::at(number<2>{});
+        // Max K warp tile for transpose load based on data type size
+        constexpr index_t kMaxKWarpTile = (sizeof(BDataType) == 1) ? 64 : 32;
         if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
         else
             return std::is_same_v<remove_cvref_t<typename Problem::BLayout>,
@@ -87,13 +104,12 @@ struct UniversalGemmBasePolicy
             return DefaultBTileAccessPattern;
     }
 
-    template <typename Problem>
+    template <typename Problem,
+              typename OverrideADataType = remove_cvref_t<typename Problem::ADataType>>
     CK_TILE_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
-        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-
-        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
+        using ALayout               = remove_cvref_t<typename Problem::ALayout>;
+        using ADataType             = OverrideADataType;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t KPack     = GetSmemPackA<Problem>();

@@ -19,6 +19,10 @@ struct ProblemSize final
     std::vector<ck::index_t> stride_Cs;
 
     ck::index_t group_count;
+
+#if defined(EXAMPLE_USE_SPLITK)
+    ck::index_t k_batch;
+#endif
 };
 
 struct ExecutionConfig final
@@ -177,6 +181,10 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     auto argument = gemm.MakeArgument(
         p_a, p_b, p_Ds, p_c, gemm_descs, a_element_op, b_element_op, c_element_op);
 
+#if defined(EXAMPLE_USE_SPLITK)
+    gemm.SetKBatchSize(&argument, problem_size.k_batch);
+#endif
+
     std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
     std::size_t kargs_size     = gemm.GetDeviceKernelArgSize(&argument);
     std::size_t hargs_size     = gemm.GetHostKernelArgSize(&argument);
@@ -285,12 +293,15 @@ bool run_grouped_gemm_example(int argc, char* argv[])
     ExecutionConfig config;
 
     problem_size.group_count = 16;
+#if defined(EXAMPLE_USE_SPLITK)
+    problem_size.k_batch = 1;
+#endif
 
     if(argc == 1)
     {
         // use default cases
     }
-    else if(argc == 4 || argc == 6)
+    else if(argc == 4 || argc == 6 || argc == 7)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
@@ -300,6 +311,13 @@ bool run_grouped_gemm_example(int argc, char* argv[])
             config.async_hargs       = std::stoi(argv[4]);
             problem_size.group_count = std::stoi(argv[5]);
         }
+
+#if defined(EXAMPLE_USE_SPLITK)
+        if(argc == 7)
+        {
+            problem_size.k_batch = std::stoi(argv[6]);
+        }
+#endif
     }
     else
     {
@@ -307,7 +325,10 @@ bool run_grouped_gemm_example(int argc, char* argv[])
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4: async hargs (0=n0, 1=yes)\n");
-        printf("arg5: group count (default=16)");
+        printf("arg5: group count (default=16)\n");
+#if defined(EXAMPLE_USE_SPLITK)
+        printf("arg6: k-batch count (default=1)\n");
+#endif
         exit(1);
     }
 
