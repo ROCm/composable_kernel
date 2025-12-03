@@ -77,12 +77,6 @@ void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
         }
         ComputeDataType variance = var_sum / static_cast<ComputeDataType>(per_channel_size);
         
-        // DEBUG: Print reference variance
-        if(c < 4)
-        {
-            ComputeDataType inv_std = static_cast<ComputeDataType>(1.0) / std::sqrt(variance + epsilon);
-            std::cout << ", var=" << variance << ", inv_std=" << inv_std << std::endl;
-        }
         
         // Load gamma and beta for this channel
         ComputeDataType gamma_val = static_cast<ComputeDataType>(1.0);
@@ -242,23 +236,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // Get device result
         y_buf.FromDevice(y_host_dev.mData.data());
         
-        // Print sample outputs for each channel (2 samples per channel)
-        std::cout << "\n=== Sample Outputs (first 2 values per channel) ===" << std::endl;
+        // Print sample outputs for each channel (1 random sample per channel)
+        std::cout << "\n=== Sample Outputs (1 random sample per channel) ===" << std::endl;
+        std::srand(42);  // Fixed seed for reproducibility
         for(ck_tile::index_t c = 0; c < C; ++c)
         {
-            std::cout << "Channel " << c << ":" << std::endl;
+            // Pick random n, h, w for this channel
+            ck_tile::index_t rand_n = std::rand() % N;
+            ck_tile::index_t rand_h = std::rand() % H;
+            ck_tile::index_t rand_w = std::rand() % W;
             
-            // Print 2 sample values from first sample (n=0, h=0, w=0,1)
-            for(ck_tile::index_t w = 0; w < 2; ++w)
-            {
-                ck_tile::index_t idx = 0*H*W*C + 0*W*C + w*C + c;  // NHWC
-                float ref_val = ck_tile::type_convert<float>(y_host_ref.mData[idx]);
-                float dev_val = ck_tile::type_convert<float>(y_host_dev.mData[idx]);
-                std::cout << "  Sample[" << w << "]: "
-                          << "Ref=" << std::fixed << std::setprecision(6) << ref_val
-                          << ", Kernel=" << dev_val
-                          << ", Diff=" << std::abs(ref_val - dev_val) << std::endl;
-            }
+            ck_tile::index_t idx = rand_n*H*W*C + rand_h*W*C + rand_w*C + c;  // NHWC
+            float ref_val = ck_tile::type_convert<float>(y_host_ref.mData[idx]);
+            float dev_val = ck_tile::type_convert<float>(y_host_dev.mData[idx]);
+            
+            std::cout << "Ch" << std::setw(3) << c 
+                      << " [n=" << std::setw(4) << rand_n 
+                      << ",h=" << std::setw(4) << rand_h 
+                      << ",w=" << std::setw(4) << rand_w << "]: "
+                      << "Ref=" << std::fixed << std::setprecision(6) << std::setw(10) << ref_val
+                      << " Kernel=" << std::setw(10) << dev_val
+                      << " Diff=" << std::setw(10) << std::abs(ref_val - dev_val) << std::endl;
         }
         std::cout << std::endl;
         

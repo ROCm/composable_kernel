@@ -38,6 +38,7 @@ template <typename Problem_>
 struct BatchnormFwd
 {
     using Problem         = remove_cvref_t<Problem_>;
+    using Pipeline        = BatchnormFwdPipeline<Problem>;  // Class-level, like layernorm2d
     using XDataType       = typename Problem::XDataType;
     using GammaDataType   = typename Problem::GammaDataType;
     using BetaDataType    = typename Problem::BetaDataType;
@@ -105,26 +106,15 @@ struct BatchnormFwd
     // Shared memory size (must be constexpr for __shared__ allocation)
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return BatchnormFwdPipeline<Problem>::GetSmemSize();
+        return Pipeline::GetSmemSize();
     }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        using Pipeline = BatchnormFwdPipeline<Problem>;
+        const index_t c = get_block_id();  // Channel index (grid ensures c < C)
         
-        const index_t N = kargs.N;
-        const index_t C = kargs.C;
-        const index_t H = kargs.H;
-        const index_t W = kargs.W;
-        
-        const index_t block_id = get_block_id();
-        const index_t c = block_id;  // Channel index
-        
-        if(c >= C)
-            return;
-        
-        const index_t spatial_size = H * W;
-        const index_t per_channel_size = N * spatial_size;
+        const index_t spatial_size = kargs.H * kargs.W;
+        const index_t per_channel_size = kargs.N * spatial_size;
         
         // Use block dimensions from BlockShape (like layernorm2d)
         static constexpr index_t Block_M = BlockShape::Block_M;
@@ -137,8 +127,8 @@ struct BatchnormFwd
             
             const auto x_view = make_naive_tensor_view<address_space_enum::global>(
                 p_x_channel,
-                make_tuple(N, spatial_size),  // [N, H×W]
-                make_tuple(spatial_size*C, C),  // NHWC strides: [H×W×C, C]
+                make_tuple(kargs.N, spatial_size),  // [N, H×W]
+                make_tuple(spatial_size*kargs.C, kargs.C),  // NHWC strides: [H×W×C, C]
                 number<1>{},
                 number<1>{});
             
@@ -176,8 +166,8 @@ struct BatchnormFwd
             
             const auto y_view = make_naive_tensor_view<address_space_enum::global>(
                 p_y_channel,
-                make_tuple(N, spatial_size),  // [N, H×W]
-                make_tuple(spatial_size*C, C),  // NHWC strides
+                make_tuple(kargs.N, spatial_size),  // [N, H×W]
+                make_tuple(spatial_size*kargs.C, kargs.C),  // NHWC strides
                 number<1>{},
                 number<1>{});
             
