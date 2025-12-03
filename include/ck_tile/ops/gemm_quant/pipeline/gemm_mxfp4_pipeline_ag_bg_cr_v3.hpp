@@ -144,8 +144,7 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             << "BQ vector size: " << GetVectorSizeBQ() << "\n"
             << "A/B LDS read/write width: " << A_LDS_Read_Width << ", " << B_LDS_Read_Width << "\n"
             << "A/B buffer load inst: " << A_Buffer_Load_Inst_Num << ", " << B_Buffer_Load_Inst_Num
-            << ", "
-            << "BQ buffer load inst: " << BQ_Buffer_Load_Inst_Num << "\n"
+            << ", " << "BQ buffer load inst: " << BQ_Buffer_Load_Inst_Num << "\n"
             << "A/B LDS write inst: " << A_LDS_Write_Inst_Num << ", " << B_LDS_Write_Inst_Num
             << "\n"
             << "A/B LDS read inst: " << A_LDS_Read_Inst_Num << ", " << B_LDS_Read_Inst_Num << "\n"

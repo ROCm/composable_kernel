@@ -129,8 +129,9 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
                 ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
-                std::conditional_t<GemmConfig::PreshuffleB == true,
-                                   ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
+                std::conditional_t<
+                    GemmConfig::PreshuffleB == true,
+                    ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
                     std::conditional_t<
                         std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>,
                         ck_tile::MxFp4GemmPipelineAgBgCrCompV3<PipelineProblem>,
@@ -808,8 +809,8 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
 
     if((QuantMode == ck_tile::QuantType::AQuantGrouped ||
         QuantMode == ck_tile::QuantType::RowColQuant ||
-        std::is_same_v<typename TypeConfig::BDataType,
-                       ck_tile::pk_fp4_raw_t>)&&GemmConfig::PreshuffleB)
+        std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>) &&
+       GemmConfig::PreshuffleB)
     {
         throw std::runtime_error(
             "Preshuffling weight matrix is not supported for AQuant, RowColQuant or bf16_fp4_gemm");

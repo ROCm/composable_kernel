@@ -389,14 +389,14 @@ reference_gemm_multiple_abd(const std::array<HostTensor<ADataType>, AsDataType::
     const std::size_t N = b_k_n.get_length(1);
     const std::size_t K = a_m_k.get_length(1);
 
-    auto as_m_k_tuple = generate_tie(
-        [&](auto idx) -> auto& { return as_m_k[idx]; }, number<AsDataType::size()>{});
+    auto as_m_k_tuple =
+        generate_tie([&](auto idx) -> auto& { return as_m_k[idx]; }, number<AsDataType::size()>{});
 
-    auto bs_k_n_tuple = generate_tie(
-        [&](auto idx) -> auto& { return bs_k_n[idx]; }, number<BsDataType::size()>{});
+    auto bs_k_n_tuple =
+        generate_tie([&](auto idx) -> auto& { return bs_k_n[idx]; }, number<BsDataType::size()>{});
 
-    auto ds_m_n_tuple = generate_tie(
-        [&](auto idx) -> auto& { return ds_m_n[idx]; }, number<DsDataType::size()>{});
+    auto ds_m_n_tuple =
+        generate_tie([&](auto idx) -> auto& { return ds_m_n[idx]; }, number<DsDataType::size()>{});
 
     // Apply elementwise function to A
     auto a_elementwise_fn = [&](auto i, auto j) {
