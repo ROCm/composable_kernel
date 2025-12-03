@@ -1779,13 +1779,13 @@ struct FmhaFwdKernel
                                           identity{}, // bias_element_func
                                           randval_dram_window,
                                           lse_dram_window,
-                                          identity{},   // lse_element_func
-                                          identity{},   // s_acc_element_func
-                                          scales{1.0f}, // p_compute_element_func
-                                          scales{1.0f}, // o_acc_element_func
+                                          identity{},        // lse_element_func
+                                          scales{q_descale}, // s_acc_element_func
+                                          scales{1.0f},      // p_compute_element_func
+                                          scales{1.0f},      // o_acc_element_func
                                           mask,
                                           position_encoding,
-                                          kargs.scale_s * q_descale,
+                                          kargs.scale_s,
                                           variant,
                                           variant_params,
                                           block_indices,

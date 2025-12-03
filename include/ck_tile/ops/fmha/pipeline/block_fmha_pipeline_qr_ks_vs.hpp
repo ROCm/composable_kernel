@@ -402,14 +402,19 @@ struct BlockFmhaPipelineQRKSVS
                 schedule_gemm0();
             }
             // dequant
-            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
-            {
-                tile_elementwise_inout([k_descale](auto& x) { x = x * k_descale; }, s_acc);
-            }
+            auto s_acc_element_func_ = [&s_acc_element_func, k_descale]() {
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+                    return s_acc_element_func * k_descale;
+                }
+                else
+                    return s_acc_element_func;
+            }();
+
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
-                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                s_acc = tile_elementwise_in(s_acc_element_func_, s_acc);
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
@@ -427,7 +432,7 @@ struct BlockFmhaPipelineQRKSVS
             {
                 const auto k_origin    = k_dram_block_window.get_window_origin();
                 constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
-                s_acc                  = tile_elementwise_in(s_acc_element_func, s_acc);
+                s_acc                  = tile_elementwise_in(s_acc_element_func_, s_acc);
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
@@ -444,7 +449,7 @@ struct BlockFmhaPipelineQRKSVS
             }
             else
             {
-                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                s_acc = tile_elementwise_in(s_acc_element_func_, s_acc);
                 if constexpr(kHasLogitsSoftCap)
                 {
                     auto apply_logits_transform =
