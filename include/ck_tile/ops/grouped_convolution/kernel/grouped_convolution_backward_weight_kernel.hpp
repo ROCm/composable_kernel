@@ -1036,9 +1036,7 @@ CK_TILE_HOST ActiveWorkgroupsPerCU<GroupedConvTraitsType_, TilePartitioner_, Gem
                                                             GemmPipeline_,
                                                             EpiloguePipeline_>;
 
-    using KernelArgs = GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_, TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
-
-    max_occupancy_ = get_max_occupancy_for_kernel<Kernel, KernelArgs, GemmPipeline_::BlockSize>();
+    max_occupancy_ = get_max_occupancy_for_kernel<Kernel, GemmPipeline_::BlockSize>();
 }
 
 } // namespace ck_tile

@@ -20,22 +20,23 @@ namespace ck_tile {
 //
 template <int MinBlockPerCu,
           typename KernelImpl,
-          typename... Args>
+          typename KernelArgs>
 CK_TILE_HOST auto
 make_kernel(KernelImpl)
 {
     const auto kernel = []() {
-        return kentry<MinBlockPerCu, KernelImpl, Args...>;
+        return kentry<MinBlockPerCu, KernelImpl, KernelArgs>;
     }();
     return kernel;
 }
 
-template <typename Kernel, typename KernelArgs, index_t BlockSize>
+template <typename Kernel, index_t BlockSize>
 CK_TILE_HOST index_t get_max_occupancy_for_kernel()
 {
     constexpr int dynamic_smem_size = 0;
     constexpr int min_blocks_per_cu = 1;
 
+    using KernelArgs = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized;
     const auto& kernel = make_kernel<min_blocks_per_cu, Kernel, KernelArgs>(Kernel{});
 
     int max_occupancy = 0;
