@@ -5,39 +5,50 @@
  * Example 08: Multi-D GEMM (Fused Operations)
  *
  * Demonstrates GEMM with additional D tensors for fused operations.
- * C = A * B + D0 + D1 + ...
+ * E = ElementWise(A * B, D0, D1, ...)
+ *
+ * For example with MultiDMultiply:
+ *   E = (A @ B) * D0 * D1
+ *
+ * The D tensors have the same shape as the output (M x N) and are loaded
+ * during the epilogue phase, enabling fusion without extra memory passes.
+ *
+ * Key concepts:
+ *   - GemmKernelMultiD: Special kernel that handles D tensor loading
+ *   - GemmMultiDHostArgs: Host args with D tensor pointers and strides
+ *   - DsDataType/DsLayout: Tuples defining D tensor types and layouts
+ *   - ElementWiseFn: Fused operation (MultiDAdd, MultiDMultiply, Relu, etc.)
+ *
+ * This example uses a generated kernel via -include, like other examples.
  *
  * Build:
- *   python3 scripts/compile_gemm_examples.py examples/cpp/08_multi_d.cpp
+ *   cmake -DBUILD_DISPATCHER_EXAMPLES=ON ..
+ *   make gemm_08_multi_d
  *
- * Complexity: ★★★☆☆
+ * Complexity: ★★★★☆
  */
 
 #include <hip/hip_runtime.h>
 #include <iostream>
 #include <iomanip>
 #include <vector>
+#include <array>
 
-#include "ck_tile/dispatcher.hpp"
-#include "ck_tile/dispatcher/kernel_decl.hpp"
+#include "ck_tile/core.hpp"
+#include "ck_tile/host.hpp"
 #include "ck_tile/dispatcher/example_args.hpp"
 
-using namespace ck_tile::dispatcher;
-using namespace ck_tile::dispatcher::backends;
+using namespace ck_tile;
 using namespace ck_tile::dispatcher::utils;
-using Signature = decl::Signature;
-using Algorithm = decl::Algorithm;
 
 // =============================================================================
-// KERNEL SET: Multi-D kernels with fused elementwise
+// Types from generated kernel (via -include)
 // =============================================================================
-
-DECL_KERNEL_SET(
-    multi_d,
-    .add(Signature().dtype("fp16").layout("rcr").elementwise("MultiDAdd", 1), // 1 D tensor
-         Algorithm().tile(128, 128, 32))
-        .add(Signature().dtype("fp16").layout("rcr").elementwise("MultiDAdd", 2), // 2 D tensors
-             Algorithm().tile(128, 128, 32)));
+// The generated kernel provides:
+//   - SelectedKernel: The kernel struct
+//   - ADataType, BDataType, CDataType: Data types
+//   - NumDTensor: Number of D tensors
+//   - GemmMultiDArgs: Host args type for Multi-D
 
 // =============================================================================
 // MAIN
@@ -46,95 +57,172 @@ DECL_KERNEL_SET(
 int main(int argc, char* argv[])
 {
     ExampleArgs args("Example 08: Multi-D GEMM", "GEMM with fused D tensor operations");
-    args.add_option("--M", "1024", "Matrix M dimension");
-    args.add_option("--N", "1024", "Matrix N dimension");
-    args.add_option("--K", "512", "Matrix K dimension");
-    args.add_flag("--list", "List all kernel sets");
+    args.add_option("--M", "512", "Matrix M dimension");
+    args.add_option("--N", "512", "Matrix N dimension");
+    args.add_option("--K", "256", "Matrix K dimension");
+    args.add_option("--warmup", "5", "Warmup iterations");
+    args.add_option("--repeat", "20", "Benchmark iterations");
+    args.add_flag("--verify", "Run CPU verification");
 
     if(!args.parse(argc, argv))
         return 0;
 
-    print_header("Example 08: Multi-D GEMM (Fused Operations)");
+    std::cout << "\n======================================================================\n";
+    std::cout << "Example 08: Multi-D GEMM (Fused Operations)\n";
+    std::cout << "======================================================================\n";
 
-    if(args.has("--list"))
-    {
-        std::cout << "\nDeclared Kernel Sets:\n";
-        KernelSetRegistry::instance().print();
-        return 0;
-    }
+    const int M       = args.get_int("--M", 512);
+    const int N       = args.get_int("--N", 512);
+    const int K       = args.get_int("--K", 256);
+    const int warmup  = args.get_int("--warmup", 5);
+    const int repeat  = args.get_int("--repeat", 20);
+    const bool verify = args.has("--verify");
 
-    std::cout << "\nMulti-D GEMM supports:\n";
-    std::cout << "  - C = A * B + D0 (bias add)\n";
-    std::cout << "  - C = A * B + D0 + D1 (multiple additions)\n";
-    std::cout << "  - C = ReLU(A * B + D0) (fused activation)\n";
-
-    // =========================================================================
-    // Setup
-    // =========================================================================
-    std::cout << "\nSetup:\n";
-    Registry registry;
-    registry.set_name("multi_d_registry");
-
-    KernelConfig config =
-        KernelConfig::fp16_rcr()
-            .tile(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK)
-            .wave(SelectedKernel::WarpPerBlock_M,
-                  SelectedKernel::WarpPerBlock_N,
-                  SelectedKernel::WarpPerBlock_K)
-            .warp_tile(
-                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
-
-    auto kernel =
-        create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            config.build_key(), KERNEL_NAME);
-
-    registry.register_kernel(kernel);
-    Dispatcher dispatcher(&registry);
-
-    std::cout << "  Kernel: " << kernel->get_name() << "\n";
+    std::cout << "\nMulti-D GEMM Configuration:\n";
+    std::cout << "  Kernel:    " << KERNEL_NAME << "\n";
+    std::cout << "  Operation: E = ElementWise(A @ B, D0, D1)\n";
+    std::cout << "  Problem:   " << M << " x " << N << " x " << K << "\n";
+    std::cout << "  D tensors: " << NumDTensor << " (each " << M << " x " << N << ")\n";
+    std::cout << "\n";
 
     // =========================================================================
-    // Run GEMM (standard, without D tensors for this demo)
+    // Setup tensors
     // =========================================================================
-    const int M = args.get_int("--M", 1024);
-    const int N = args.get_int("--N", 1024);
-    const int K = args.get_int("--K", 512);
-    Problem problem(M, N, K);
+    std::cout << "Step 1: Initialize Tensors\n";
+    std::cout << "--------------------------\n";
 
-    GpuBuffer<ADataType> a_dev(M * K);
-    GpuBuffer<BDataType> b_dev(K * N);
-    GpuBuffer<CDataType> c_dev(M * N);
+    // Host tensors
+    HostTensor<ADataType> a_host({M, K});
+    HostTensor<BDataType> b_host({K, N});
+    HostTensor<CDataType> d0_host({M, N});
+    HostTensor<CDataType> d1_host({M, N});
+    HostTensor<CDataType> e_host({M, N});
 
-    std::vector<ADataType> a_host(M * K, ADataType(1.0f));
-    std::vector<BDataType> b_host(K * N, BDataType(1.0f));
-    a_dev.copy_from_host(a_host.data());
-    b_dev.copy_from_host(b_host.data());
-    c_dev.zero();
+    // Initialize with random values
+    FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_host);
+    FillUniformDistribution<BDataType>{-0.5f, 0.5f}(b_host);
+    FillUniformDistribution<CDataType>{0.5f, 1.5f}(d0_host); // Positive for multiplication
+    FillUniformDistribution<CDataType>{0.5f, 1.5f}(d1_host);
 
-    std::cout << "\nRunning GEMM (" << M << " x " << N << " x " << K << ")...\n";
-    float time_ms = dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
+    std::cout << "  A:  " << M << " x " << K << " (fp16)\n";
+    std::cout << "  B:  " << K << " x " << N << " (fp16)\n";
+    std::cout << "  D0: " << M << " x " << N << " (fp16)\n";
+    std::cout << "  D1: " << M << " x " << N << " (fp16)\n";
+    std::cout << "  E:  " << M << " x " << N << " (fp16, output)\n\n";
+
+    // Device memory
+    DeviceMem a_dev(a_host.get_element_space_size_in_bytes());
+    DeviceMem b_dev(b_host.get_element_space_size_in_bytes());
+    DeviceMem d0_dev(d0_host.get_element_space_size_in_bytes());
+    DeviceMem d1_dev(d1_host.get_element_space_size_in_bytes());
+    DeviceMem e_dev(e_host.get_element_space_size_in_bytes());
+
+    a_dev.ToDevice(a_host.data());
+    b_dev.ToDevice(b_host.data());
+    d0_dev.ToDevice(d0_host.data());
+    d1_dev.ToDevice(d1_host.data());
+    e_dev.SetZero();
+
+    // =========================================================================
+    // Setup kernel args
+    // =========================================================================
+    std::cout << "Step 2: Create GemmMultiDHostArgs\n";
+    std::cout << "---------------------------------\n";
+
+    // Strides (row-major for A, E, D; column-major for B)
+    const index_t stride_A  = K; // Row-major: stride = K
+    const index_t stride_B  = K; // Col-major: stride = K (leading dimension)
+    const index_t stride_D0 = N; // Row-major
+    const index_t stride_D1 = N; // Row-major
+    const index_t stride_E  = N; // Row-major
+
+    // D tensor pointers and strides as arrays
+    std::array<const void*, NumDTensor> ds_ptrs = {d0_dev.GetDeviceBuffer(),
+                                                   d1_dev.GetDeviceBuffer()};
+    std::array<index_t, NumDTensor> ds_strides  = {stride_D0, stride_D1};
+
+    GemmMultiDArgs kernel_args{a_dev.GetDeviceBuffer(),
+                               b_dev.GetDeviceBuffer(),
+                               ds_ptrs,
+                               e_dev.GetDeviceBuffer(),
+                               1, // k_batch (must be 1 for Multi-D)
+                               M,
+                               N,
+                               K,
+                               stride_A,
+                               stride_B,
+                               ds_strides,
+                               stride_E};
+
+    std::cout << "  D tensor pointers: " << ds_ptrs.size() << "\n";
+    std::cout << "  D strides: [" << stride_D0 << ", " << stride_D1 << "]\n\n";
+
+    // =========================================================================
+    // Run kernel
+    // =========================================================================
+    std::cout << "Step 3: GPU Execution\n";
+    std::cout << "---------------------\n";
+
+    stream_config stream_cfg{nullptr, true, 0, warmup, repeat};
+
+    float time_ms = SelectedKernel::launch(kernel_args, stream_cfg);
+
+    double flops  = 2.0 * M * N * K + 2.0 * M * N * NumDTensor; // GEMM + element-wise ops
+    double tflops = (flops / (time_ms / 1000.0)) / 1e12;
 
     std::cout << "  Time:   " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
-    std::cout << "  TFLOPS: " << std::setprecision(2) << calculate_tflops(M, N, K, time_ms) << "\n";
+    std::cout << "  TFLOPS: " << std::setprecision(2) << tflops << "\n\n";
 
     // =========================================================================
-    // Verify
+    // Verification
     // =========================================================================
-    std::vector<CDataType> c_host(M * N);
-    c_dev.copy_to_host(c_host.data());
+    if(verify)
+    {
+        std::cout << "Step 4: CPU Verification\n";
+        std::cout << "------------------------\n";
 
-    float expected = static_cast<float>(K);
-    float actual   = static_cast<float>(c_host[0]);
-    // Use 1% relative tolerance for FP16 accumulation over K elements
-    bool passed = std::abs(actual - expected) < (0.01f * expected + 1.0f);
+        // CPU reference: E = (A @ B) * D0 * D1 (for MultiDMultiply)
+        HostTensor<CDataType> e_ref({M, N});
 
-    print_separator();
-    std::cout << "Result: C[0,0] = " << actual << " (expected " << expected << ")\n";
-    std::cout << "Status: " << (passed ? "PASS" : "FAIL") << "\n";
-    print_separator();
+        // Compute GEMM: C = A @ B, then apply element-wise
+        // Note: B is column-major, so b(k, n) accesses element at column n, row k
+        for(int m = 0; m < M; ++m)
+        {
+            for(int n = 0; n < N; ++n)
+            {
+                float acc = 0.0f;
+                for(int k = 0; k < K; ++k)
+                {
+                    // B is column-major: b[n * K + k]
+                    acc += type_convert<float>(a_host(m, k)) *
+                           type_convert<float>(b_host.data()[n * K + k]);
+                }
+                // Apply element-wise: E = C * D0 * D1
+                float d0    = type_convert<float>(d0_host(m, n));
+                float d1    = type_convert<float>(d1_host(m, n));
+                e_ref(m, n) = type_convert<CDataType>(acc * d0 * d1);
+            }
+        }
 
-    std::cout << "\nNote: This example uses standard GEMM.\n";
-    std::cout << "For Multi-D, use dispatcher.run_with_d(...) with D tensor pointers.\n";
+        // Copy result back
+        e_dev.FromDevice(e_host.data());
 
-    return passed ? 0 : 1;
+        // Compare
+        bool pass = check_err(e_host, e_ref, "Multi-D GEMM verification", 0.05f, 0.05f);
+
+        std::cout << "  Status: " << (pass ? "PASS" : "FAIL") << "\n\n";
+    }
+
+    // =========================================================================
+    // Summary
+    // =========================================================================
+    std::cout << "======================================================================\n";
+    std::cout << "Multi-D GEMM Pattern:\n";
+    std::cout << "  1. D tensors loaded during epilogue (fused)\n";
+    std::cout << "  2. Zero extra memory passes for element-wise ops\n";
+    std::cout << "  3. Supports: MultiDAdd, MultiDMultiply, Relu, Gelu, etc.\n";
+    std::cout << "  4. Use cases: Transformers, MLPs, Conv layers\n";
+    std::cout << "======================================================================\n";
+
+    return 0;
 }

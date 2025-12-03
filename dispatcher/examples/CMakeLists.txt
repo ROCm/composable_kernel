@@ -22,15 +22,16 @@ set(GEMM_SENTINEL "${KERNEL_OUTPUT_DIR}/.gemm_generated")
 set(CONV_FWD_SENTINEL "${KERNEL_OUTPUT_DIR}/.conv_fwd_generated")
 set(CONV_BWD_SENTINEL "${KERNEL_OUTPUT_DIR}/.conv_bwd_generated")
 
-# Generate GEMM kernels
+# Generate GEMM kernels (standard + multi_d)
+# Note: 4-char layout "rcrr" means A=row, B=col, C=row, D=row (for multi-d)
 add_custom_command(
     OUTPUT ${GEMM_SENTINEL}
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_gemm_codegen.py 
-            --datatype fp16 --layout rcr
+            --datatype fp16 --layout rcrr --variants standard multi_d
             --output ${KERNEL_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E touch ${GEMM_SENTINEL}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Generating GEMM kernels (fp16, rcr)..."
+    COMMENT "Generating GEMM kernels (fp16, rcrr, standard + multi_d)..."
     VERBATIM
 )
 
@@ -89,11 +90,11 @@ add_custom_target(generate_all_kernels
 add_custom_target(regenerate_gemm_kernels
     COMMAND ${CMAKE_COMMAND} -E remove -f ${GEMM_SENTINEL}
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_gemm_codegen.py 
-            --datatype fp16 --layout rcr
+            --datatype fp16 --layout rcr --variants standard multi_d
             --output ${KERNEL_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E touch ${GEMM_SENTINEL}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Force regenerating GEMM kernels..."
+    COMMENT "Force regenerating GEMM kernels (standard + multi_d)..."
     VERBATIM
 )
 
@@ -141,6 +142,30 @@ function(add_gpu_example NAME SOURCE KERNEL_HEADER)
     endif()
 endfunction()
 
+# Helper for standalone GPU examples (instantiate kernel directly, no pre-generated header)
+function(add_standalone_gpu_example NAME SOURCE)
+    add_executable(${NAME} ${SOURCE})
+    
+    target_link_libraries(${NAME} PRIVATE ck_tile_dispatcher)
+    
+    target_include_directories(${NAME} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../include              # CK root include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include                 # Dispatcher include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels # Generated kernels (optional)
+    )
+    
+    target_compile_options(${NAME} PRIVATE
+        -mllvm -enable-noalias-to-md-conversion=0
+        -Wno-undefined-func-template
+        -Wno-float-equal
+        --offload-compress
+    )
+    
+    if(hip_FOUND)
+        target_link_libraries(${NAME} PRIVATE hip::device hip::host)
+    endif()
+endfunction()
+
 # Helper for declarative examples (configuration demo, still needs HIP compiler for CK headers)
 function(add_declarative_example NAME SOURCE)
     add_executable(${NAME} ${SOURCE})
@@ -170,6 +195,7 @@ endfunction()
 
 # Set default kernel header path (will be found after generation)
 # Naming convention: gemm_<dtype>_<layout>_<pipeline>_<epilogue>_<scheduler>_<pad_m>_<pad_n>_<pad_k>_<preshuffle>_<tile>_<wave>_<warp>.hpp
+# Note: standard kernels use 3-char layout (rcr), multi-d uses 4-char (rcrr)
 set(GEMM_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/gemm_fp16_rcr_compv4_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_32x32x16.hpp")
 
 # GEMM C++ examples - these depend on generate_gemm_kernels
@@ -180,7 +206,9 @@ add_gpu_example(gemm_04_validation      gemm/cpp/04_validation.cpp       ${GEMM_
 add_gpu_example(gemm_05_heuristics      gemm/cpp/05_heuristics.cpp       ${GEMM_KERNEL_HEADER})
 add_gpu_example(gemm_06_json_export     gemm/cpp/06_json_export.cpp      ${GEMM_KERNEL_HEADER})
 add_gpu_example(gemm_07_preshuffle      gemm/cpp/07_preshuffle.cpp       ${GEMM_KERNEL_HEADER})
-add_gpu_example(gemm_08_multi_d         gemm/cpp/08_multi_d.cpp          ${GEMM_KERNEL_HEADER})
+# Multi-D example uses a generated multi-d kernel
+set(GEMM_MULTI_D_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/gemm_fp16_rcr_compv3_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_32x32x16_multid_MultiDMultiply_d2.hpp")
+add_gpu_example(gemm_08_multi_d         gemm/cpp/08_multi_d.cpp          ${GEMM_MULTI_D_KERNEL_HEADER})
 add_gpu_example(gemm_09_multi_registry  gemm/cpp/09_multi_registry.cpp   ${GEMM_KERNEL_HEADER})
 
 # Make GEMM examples depend on kernel generation

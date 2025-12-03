@@ -114,6 +114,7 @@ class KernelConfig:
     preshuffle: bool = False
     elementwise_op: str = "PassThrough"
     num_d_tensors: int = 0
+    d_layout: str = "r"  # Layout for D tensors (r=row, c=col) - same for all D tensors
 
     # Fixed parameters
     block_size: int = 256
@@ -252,6 +253,7 @@ class KernelNaming:
         if config.variant == GemmVariant.PRESHUFFLE:
             name += "_preshuffle"
         elif config.variant == GemmVariant.MULTI_D:
+            # Include D layout in name (use full layout: abc + d)
             name += f"_multid_{config.elementwise_op}_d{config.num_d_tensors}"
 
         return name
@@ -297,9 +299,10 @@ class CKTileKernelGenerator:
 """
 
         if config.variant == GemmVariant.MULTI_D:
-            includes += (
-                '\n#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"'
-            )
+            includes += """
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#include "ck_tile/ops/gemm/kernel/gemm_multi_d_kernel.hpp"
+"""
 
         return includes
 
@@ -325,12 +328,17 @@ using CLayout = {self.tm.LAYOUT_TO_CK[self.layout[2]]};
 
         if config.variant == GemmVariant.MULTI_D:
             d_types = ", ".join(["CDataType"] * config.num_d_tensors)
-            d_layouts = ", ".join(["CLayout"] * config.num_d_tensors)
+            # D layout can be independent of C layout
+            d_layout_ck = self.tm.LAYOUT_TO_CK[config.d_layout]
+            d_layouts = ", ".join([d_layout_ck] * config.num_d_tensors)
             types += f"""
 // Multi-D types
 using DsDataType = tuple<{d_types}>;
+using DLayout = {d_layout_ck};  // D tensor layout (can differ from C)
 using DsLayout = tuple<{d_layouts}>;
 using ElementWiseFn = element_wise::{config.elementwise_op};
+static constexpr index_t NumDTensor = {config.num_d_tensors};
+using GemmMultiDArgs = GemmMultiDHostArgs<NumDTensor>;
 """
 
         return types
@@ -404,6 +412,12 @@ using SelectedKernel = {struct_name};
 
     def _launch_function(self, config: KernelConfig) -> str:
         """Generate launch function"""
+        if config.variant == GemmVariant.MULTI_D:
+            return self._launch_function_multi_d(config)
+        return self._launch_function_standard(config)
+
+    def _launch_function_standard(self, config: KernelConfig) -> str:
+        """Generate launch function for standard GEMM"""
         return f"""
     static float launch(const GemmHostArgs& args, const stream_config& stream) {{
         const index_t k_grain = args.k_batch * TileK;
@@ -464,6 +478,91 @@ using SelectedKernel = {struct_name};
 
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
         return ave_time;
+    }}"""
+
+    def _launch_function_multi_d(self, config: KernelConfig) -> str:
+        """Generate launch function for Multi-D GEMM"""
+        return f"""
+    // Multi-D launch function - takes GemmMultiDHostArgs with D tensor pointers
+    static float launch(const GemmMultiDArgs& args, const stream_config& stream) {{
+        const index_t k_grain = args.k_batch * TileK;
+        const index_t K_split = (args.K + k_grain - 1) / k_grain * TileK;
+        const index_t num_loop = TilePartitioner::GetLoopNum(K_split);
+        const bool has_hot_loop = BaseGemmPipeline::BlockHasHotloop(num_loop);
+        const TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+        
+        float ave_time{{0}};
+        
+        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {{
+            constexpr bool has_hot_loop_v = has_hot_loop_.value;
+            constexpr auto tail_number_v = tail_number_.value;
+            constexpr auto scheduler = {self.tm.SCHEDULER_TO_CK[config.trait.scheduler]};
+            [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;
+            
+            using UniversalGemmProblem = UniversalGemmPipelineProblem<
+                ADataType, BDataType, AccDataType, TileShape,
+                TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                                ALayout, BLayout, CLayout, TransposeC,
+                                                UseStructuredSparsity, UsePersistentKernel,
+                                                NumWaveGroups, Preshuffle>,
+                scheduler, has_hot_loop_v, tail_number_v>;
+            
+            using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+            {self._epilogue_code(config)}
+            
+            // Use GemmKernelMultiD for Multi-D variant
+            using GemmKernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            auto kargs = GemmKernel::MakeKernelArgs(args);
+            
+            if (!GemmKernel::IsSupportedArgument(kargs)) {{
+                throw std::runtime_error("Arguments not supported! Multi-D currently doesn't support k_batch > 1");
+            }}
+            
+            const dim3 grids = GemmKernel::GridSize(args.M, args.N, args.k_batch);
+            const dim3 blocks = GemmKernel::BlockSize();
+            
+            constexpr int kBlockPerCu = {config.k_block_per_cu};
+            ave_time = launch_kernel(stream,
+                make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
+            
+            return ave_time;
+        }};
+        
+        // Multi-D only supports k_batch == 1, use memory_operation_enum::set
+        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
+            Run(has_hot_loop_,
+                tail_number_,
+                integral_constant<memory_operation_enum,
+                                        memory_operation_enum::set>{{}});
+        }};
+
+        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        return ave_time;
+    }}
+    
+    // Overload for standard GemmHostArgs (converts to Multi-D args with empty D tensors)
+    static float launch(const GemmHostArgs& args, const stream_config& stream) {{
+        std::array<const void*, NumDTensor> empty_ds{{}};
+        std::array<index_t, NumDTensor> empty_strides{{}};
+        for (index_t i = 0; i < NumDTensor; ++i) {{
+            empty_ds[i] = nullptr;
+            empty_strides[i] = 0;
+        }}
+        GemmMultiDArgs multi_d_args{{
+            args.a_ptr,
+            args.b_ptr,
+            empty_ds,
+            args.e_ptr,
+            args.k_batch,
+            args.M,
+            args.N,
+            args.K,
+            args.stride_A,
+            args.stride_B,
+            empty_strides,
+            args.stride_C
+        }};
+        return launch(multi_d_args, stream);
     }}"""
 
     def _epilogue_code(self, config: KernelConfig) -> str:
@@ -606,7 +705,12 @@ class UnifiedGemmCodegen:
     ):
         self.output_dir = Path(output_dir)
         self.datatype = datatype
-        self.layout = layout
+        # Support 3-char (rcr) or 4-char (rcrr) layout codes
+        # 4th char specifies D tensor layout for multi-d
+        self.layout = layout[:3]  # A, B, C layouts
+        self.d_layout = (
+            layout[3] if len(layout) >= 4 else layout[2]
+        )  # D layout (default = C layout)
         self.gpu_target = gpu_target
         self.variants = variants or [GemmVariant.STANDARD]
         self.use_preselected = use_preselected
@@ -795,6 +899,7 @@ class UnifiedGemmCodegen:
                             variant=variant,
                             elementwise_op=ew_op,
                             num_d_tensors=num_d,
+                            d_layout=self.d_layout,  # Use extracted D layout
                         )
                     )
 
@@ -1047,7 +1152,10 @@ def main():
         help="Data type (fp16, bf16, fp32, fp8, bf8, int8, pk_fp4)",
     )
     parser.add_argument(
-        "--layout", type=str, default="rcr", help="Layout (e.g., rcr for row-col-row)"
+        "--layout",
+        type=str,
+        default="rcr",
+        help="Layout (e.g., rcr for A=row, B=col, C=row; or rcrr for multi-d with D=row)",
     )
     parser.add_argument(
         "--gpu-target",

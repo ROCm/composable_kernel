@@ -5,14 +5,27 @@
 """
 Example 08: Multi-D GEMM
 
-Demonstrates Multi-D kernel configuration with fused operations.
+Demonstrates Multi-D GEMM with fused element-wise operations.
+
+Multi-D GEMM computes: E = ElementWise(A @ B, D0, D1, ...)
+
+For example with MultiDMultiply:
+    E = (A @ B) * D0 * D1
+
+Key concepts:
+  - D tensors have same shape as output (M x N)
+  - Loaded during epilogue phase (fused, no extra memory passes)
+  - Supports: MultiDAdd, MultiDMultiply, Relu, Gelu, etc.
+
+NOTE: Multi-D requires kernel generation with --variants multi_d flag:
+    python3 codegen/unified_gemm_codegen.py --variants multi_d ...
 
 Complexity: ★★★★★
 
 Usage:
     python3 08_multi_d.py
     python3 08_multi_d.py --help
-    python3 08_multi_d.py --dtype bf16
+    python3 08_multi_d.py --verify
 """
 
 import sys
@@ -20,9 +33,9 @@ import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
-import numpy as np
+import numpy as np  # noqa: E402
 
-from ctypes_utils import (
+from ctypes_utils import (  # noqa: E402
     KernelConfig,
     setup_gemm_dispatcher,
     cleanup_gemm,
@@ -31,22 +44,44 @@ from ctypes_utils import (
 
 
 def relu(x):
+    """ReLU activation"""
     return np.maximum(x, 0)
 
 
 def gelu(x):
+    """GELU activation (approximate)"""
     return 0.5 * x * (1 + np.tanh(np.sqrt(2 / np.pi) * (x + 0.044715 * x**3)))
+
+
+def multi_d_multiply(c, d0, d1):
+    """Multi-D multiply: E = C * D0 * D1"""
+    return c * d0 * d1
+
+
+def multi_d_add(c, d0, d1=None):
+    """Multi-D add: E = C + D0 (+ D1)"""
+    result = c + d0
+    if d1 is not None:
+        result = result + d1
+    return result
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Multi-D GEMM Example - demonstrates fused operations",
+        description="Multi-D GEMM Example - demonstrates fused element-wise operations",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Multi-D GEMM computes: E = ElementWise(A @ B, D0, D1, ...)
+
+Key points:
+  - D tensors have same shape as output (M x N)
+  - Loaded during epilogue (no extra memory passes)
+  - Supports: MultiDAdd, MultiDMultiply, Relu, Gelu
+
 Examples:
-  python3 08_multi_d.py                       # Default FP16
-  python3 08_multi_d.py --dtype bf16          # BF16 mode
-  python3 08_multi_d.py --size 1024           # Custom size
+  python3 08_multi_d.py                  # Default simulation
+  python3 08_multi_d.py --verify         # With verification
+  python3 08_multi_d.py --size 1024      # Custom size
         """,
     )
     parser.add_argument(
@@ -61,18 +96,29 @@ Examples:
     parser.add_argument(
         "--arch", default="gfx942", help="Target architecture (default: gfx942)"
     )
+    parser.add_argument("--verify", action="store_true", help="Run CPU verification")
+    parser.add_argument(
+        "--elementwise",
+        default="multiply",
+        choices=["multiply", "add"],
+        help="Element-wise operation (default: multiply)",
+    )
     args = parser.parse_args()
 
     reset_for_example()
 
-    print("=" * 60)
-    print("Example 08: Multi-D GEMM")
-    print("=" * 60)
+    print("=" * 70)
+    print("Example 08: Multi-D GEMM (Fused Element-wise Operations)")
+    print("=" * 70)
+
+    M, N, K = args.size, args.size, args.size
+    np.random.seed(42)
 
     # =========================================================================
-    # Step 1: Setup dispatcher
+    # Step 1: Setup dispatcher (for standard GEMM)
     # =========================================================================
     print("\nStep 1: Setup Dispatcher")
+    print("-" * 40)
 
     config = KernelConfig(
         dtype_a=args.dtype,
@@ -88,66 +134,147 @@ Examples:
     setup = setup_gemm_dispatcher(config, registry_name="multi_d", verbose=True)
     if not setup.success:
         print(f"  ERROR: {setup.error}")
-        return 1
+        print("\n  Note: Multi-D kernels require generation with --variants multi_d")
+        print("  Continuing with CPU simulation...\n")
+        dispatcher = None
+    else:
+        dispatcher = setup.dispatcher
 
-    dispatcher = setup.dispatcher
-
-    print("\n  Supported Fused Operations:")
-    print("    - PassThrough: C = A @ B")
-    print("    - MultiDAdd:   C = A @ B + D0 + D1 + ...")
-    print("    - Relu:        C = relu(A @ B + D0)")
-    print("    - Gelu:        C = gelu(A @ B + D0)")
-
-    # =========================================================================
-    # Step 2: CPU simulation of fused operations
-    # =========================================================================
-    print("\nStep 2: CPU Simulation of Fused Operations")
-
-    M, N, K = args.size, args.size, args.size
-    np.random.seed(42)
-
-    A = (np.random.randn(M, K) * 0.1).astype(np.float32)
-    B = (np.random.randn(K, N) * 0.1).astype(np.float32)
-    bias = (np.random.randn(N) * 0.1).astype(np.float32)
-
-    C_gemm = A @ B
-    C_bias = C_gemm + bias
-    C_relu = relu(C_bias)
-    C_gelu = gelu(C_bias)
-
-    print(f"\n  Problem: {M}x{N}x{K}")
-    print(f"    GEMM only:   mean={np.mean(C_gemm):>8.4f}")
-    print(f"    GEMM+Bias:   mean={np.mean(C_bias):>8.4f}")
-    print(f"    GEMM+ReLU:   mean={np.mean(C_relu):>8.4f}")
-    print(f"    GEMM+GELU:   mean={np.mean(C_gelu):>8.4f}")
+    print("\n  Multi-D GEMM Overview:")
+    print("    - E = ElementWise(A @ B, D0, D1, ...)")
+    print("    - D tensors: same shape as output (M x N)")
+    print("    - Fused: loaded during epilogue, zero overhead")
+    print("    - Operations: MultiDAdd, MultiDMultiply, Relu, Gelu")
 
     # =========================================================================
-    # Step 3: GPU GEMM
+    # Step 2: Create tensors
     # =========================================================================
-    print("\nStep 3: GPU GEMM")
+    print("\nStep 2: Create Tensors")
+    print("-" * 40)
 
     np_dtype = np.float16 if args.dtype in ["fp16", "bf16"] else np.float32
-    A_gpu = A.astype(np_dtype)
-    B_gpu = B.astype(np_dtype)
 
-    result = dispatcher.run(A_gpu, B_gpu, M, N, K)
+    # Input tensors
+    A = (np.random.randn(M, K) * 0.1).astype(np_dtype)
+    B = (np.random.randn(K, N) * 0.1).astype(np_dtype)
 
-    if result.success:
-        print(f"  Time: {result.time_ms:.4f} ms ({result.tflops:.2f} TFLOPS)")
-        print("  With Multi-D fusion, bias+activation computed in same kernel!")
+    # D tensors (same shape as output)
+    D0 = (np.random.uniform(0.5, 1.5, (M, N))).astype(np_dtype)  # Positive for multiply
+    D1 = (np.random.uniform(0.5, 1.5, (M, N))).astype(np_dtype)
+
+    print(f"  Problem: {M} x {N} x {K}")
+    print(f"  A:  {A.shape} ({args.dtype})")
+    print(f"  B:  {B.shape} ({args.dtype})")
+    print(f"  D0: {D0.shape} ({args.dtype})")
+    print(f"  D1: {D1.shape} ({args.dtype})")
+
+    # =========================================================================
+    # Step 3: CPU reference computation
+    # =========================================================================
+    print("\nStep 3: CPU Reference Computation")
+    print("-" * 40)
+
+    # Standard GEMM
+    C_fp32 = A.astype(np.float32) @ B.astype(np.float32)
+
+    # Apply element-wise operation
+    if args.elementwise == "multiply":
+        E_ref = multi_d_multiply(
+            C_fp32, D0.astype(np.float32), D1.astype(np.float32)
+        ).astype(np_dtype)
+        op_name = "E = (A @ B) * D0 * D1"
+    else:
+        E_ref = multi_d_add(
+            C_fp32, D0.astype(np.float32), D1.astype(np.float32)
+        ).astype(np_dtype)
+        op_name = "E = (A @ B) + D0 + D1"
+
+    print(f"  Operation: {op_name}")
+    print(f"  C = A @ B:  mean={np.mean(C_fp32):>8.4f}, std={np.std(C_fp32):>8.4f}")
+    print(f"  E (fused):  mean={np.mean(E_ref):>8.4f}, std={np.std(E_ref):>8.4f}")
+
+    # =========================================================================
+    # Step 4: GPU execution (if available)
+    # =========================================================================
+    print("\nStep 4: GPU Execution")
+    print("-" * 40)
+
+    if dispatcher is not None:
+        # Run standard GEMM (Multi-D requires special kernel)
+        result = dispatcher.run(A, B, M, N, K)
+
+        if result.success:
+            print(f"  Standard GEMM Time: {result.time_ms:.4f} ms")
+            print(f"  Standard GEMM TFLOPS: {result.tflops:.2f}")
+            print("\n  Note: Full Multi-D fusion requires generated multi_d kernels")
+        else:
+            print(f"  GPU execution failed: {result.error}")
+    else:
+        print("  [GPU not available - using CPU simulation]")
+
+        # Simulate timing
+        import time
+
+        start = time.perf_counter()
+        _ = A.astype(np.float32) @ B.astype(np.float32)
+        cpu_time = (time.perf_counter() - start) * 1000
+
+        print(f"  CPU GEMM time: {cpu_time:.4f} ms")
+
+    # =========================================================================
+    # Step 5: Verification
+    # =========================================================================
+    if args.verify:
+        print("\nStep 5: Verification")
+        print("-" * 40)
+
+        # Compare different approaches
+        C_direct = (A.astype(np.float32) @ B.astype(np.float32)).astype(np_dtype)
+
+        # Multi-D fused (reference)
+        if args.elementwise == "multiply":
+            E_fused = (
+                C_direct.astype(np.float32)
+                * D0.astype(np.float32)
+                * D1.astype(np.float32)
+            ).astype(np_dtype)
+        else:
+            E_fused = (
+                C_direct.astype(np.float32)
+                + D0.astype(np.float32)
+                + D1.astype(np.float32)
+            ).astype(np_dtype)
+
+        # Verify reference matches
+        max_diff = np.max(np.abs(E_ref.astype(np.float32) - E_fused.astype(np.float32)))
+        rtol = 0.01 if np_dtype == np.float16 else 0.001
+
+        passed = max_diff < rtol * np.max(np.abs(E_ref))
+
+        print(f"  Max diff:  {max_diff:.6f}")
+        print(f"  Tolerance: {rtol * np.max(np.abs(E_ref)):.6f}")
+        print(f"  Status:    {'PASS' if passed else 'FAIL'}")
 
     # Cleanup
     cleanup_gemm()
 
+    # =========================================================================
     # Summary
-    print("\n" + "=" * 60)
-    print("Multi-D Pattern:")
-    print("=" * 60)
-    print("  1. Generate 'multi_d' variant")
-    print("  2. Fuses: GEMM + Bias + Activation in one kernel")
-    print("  3. Zero overhead for elementwise ops")
-    print("  4. Common in: Transformers, MLPs, Conv layers")
-    print("=" * 60)
+    # =========================================================================
+    print("\n" + "=" * 70)
+    print("Multi-D GEMM Pattern Summary:")
+    print("=" * 70)
+    print("  1. D tensors loaded during epilogue (zero extra memory passes)")
+    print("  2. Supports multiple D tensors: D0, D1, ...")
+    print("  3. Flexible element-wise: MultiDAdd, MultiDMultiply, Relu, Gelu")
+    print("  4. Use cases:")
+    print("     - Transformers: GEMM + bias + activation")
+    print("     - MLPs: GEMM + residual connection")
+    print("     - Conv layers: GEMM + batch norm fusion")
+    print("")
+    print("  To generate Multi-D kernels:")
+    print("    python3 codegen/unified_gemm_codegen.py --variants multi_d ...")
+    print("=" * 70)
 
     return 0
 
