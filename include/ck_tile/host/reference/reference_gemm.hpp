@@ -116,6 +116,173 @@ CK_TILE_HOST void reference_gemm_quant(const HostTensor<ADataType>& a_m_k,
     make_ParallelTensorFunctor(f_mn, M, N)(std::thread::hardware_concurrency());
     std::cout << std::endl;
 }
+template <typename DataType>
+void print_tensor_elements(index_t row,
+                           index_t col,
+                           const ck_tile::HostTensor<DataType>& tensor,
+                           const std::string& name)
+{
+    ignore       = tensor;
+    index_t Dim1 = row; // 第一維度 (M 或 K)
+    index_t Dim2 = col; // 第二維度 (K 或 N)
+
+    std::cout << "\n--- 張量內容: " << name << " (" << Dim1 << "x" << Dim2 << ") ---" << std::endl;
+    std::cout << std::fixed << std::setprecision(2);
+
+    for(index_t d1 = 0; d1 < Dim1; ++d1)
+    {
+        std::cout << "Row " << d1 << ": [";
+
+        for(index_t d2 = 0; d2 < Dim2; ++d2)
+        {
+
+            std::cout << static_cast<float>(tensor(d1, d2));
+
+            if(d2 < Dim2 - 1)
+            {
+                std::cout << ", ";
+            }
+        }
+        std::cout << "]" << (d1 < Dim1 - 1 ? "," : "") << std::endl;
+    }
+    std::cout << "---------------------------------------------------------" << std::endl;
+}
+
+template <typename ADataType,
+          typename AQDataType,
+          typename BDataType,
+          typename BQDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename QuantGroupSize,
+          typename AElementOp   = ck_tile::identity,
+          typename BElementOp   = ck_tile::identity,
+          typename ACCElementOp = ck_tile::identity>
+CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
+                                         const HostTensor<AQDataType>& a_q,
+                                         const HostTensor<BDataType>& b_k_n,
+                                         const HostTensor<BQDataType>& b_q,
+                                         HostTensor<CDataType>& c_m_n,
+                                         const AElementOp& a_element_op     = {},
+                                         const BElementOp& b_element_op     = {},
+                                         const ACCElementOp& acc_element_op = {})
+{
+    const std::size_t M = a_m_k.get_length(0);
+    const std::size_t N = b_k_n.get_length(1);
+    const std::size_t K = a_m_k.get_length(1);
+
+    auto f_mn = [&](auto m, auto n) {
+        AccDataType v_acc = 0, v_block_acc = 0;
+
+        static_assert(std::is_same_v<ADataType, pk_int4_t> || std::is_same_v<ADataType, fp8_t> ||
+                      std::is_same_v<ADataType, bf8_t>);
+        static_assert(std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t> ||
+                      std::is_same_v<BDataType, pk_int4_t>);
+        static_assert(std::is_same_v<AccDataType, float>);
+        static_assert(std::is_same_v<CDataType, float> ||
+                      std::is_same_v<CDataType, ck_tile::half_t>);
+        for(std::size_t k = 0; k < K; ++k)
+        {
+            AccDataType v_a;
+            AccDataType v_b;
+            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            {
+                const pk_int4_t pk_val  = a_element_op(a_m_k(m, k));
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
+                if(k % 2 == 1)
+                    v_a = fp32_val.hi;
+                else
+                    v_a = fp32_val.lo;
+            }
+            else
+            {
+                v_a = ck_tile::type_convert<AccDataType>(a_element_op(a_m_k(m, k)));
+                // printf("A %f m=%d k=%d\n", static_cast<float>(v_a),static_cast<int>(m)
+                // ,static_cast<int>(k));
+            }
+
+            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            {
+                const pk_int4_t pk_val  = b_element_op(b_k_n(k, n));
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
+                if(k % 2 == 1)
+                    v_b = fp32_val.hi;
+                else
+                    v_b = fp32_val.lo;
+            }
+            else if constexpr(std::is_same_v<BDataType, fp8_t>)
+            {
+                v_b = fp8_to_float_raw(b_element_op(b_k_n(k, n)));
+                // printf("B %f k=%d n=%d\n", static_cast<float>(v_b),static_cast<int>(k)
+                // ,static_cast<int>(n));
+            }
+            else
+            {
+                v_b = ck_tile::type_convert<AccDataType>(b_element_op(b_k_n(k, n)));
+            }
+            v_block_acc += v_a * v_b;
+
+            // Apply group dequant scale
+            if((k + 1) % QuantGroupSize::kK == 0)
+            {
+                float a_scale = 0.f;
+                float b_scale = 0.f;
+                // A scale
+                index_t outer_dim = m / QuantGroupSize::kM;
+                index_t inner_dim = k / QuantGroupSize::kK;
+                if constexpr(std::is_same_v<AQDataType, float>)
+                {
+                    a_scale = a_q(outer_dim, inner_dim);
+                }
+                else if constexpr(std::is_same_v<AQDataType, ck_tile::fp8_t>)
+                {
+                    a_scale = fp8_to_float_raw(a_q(outer_dim, inner_dim));
+                }
+                else if constexpr(std::is_same_v<AQDataType, ck_tile::bf8_t>)
+                {
+                    a_scale = bf8_to_float_raw(a_q(outer_dim, inner_dim));
+                }
+                else
+                {
+                    static_assert(false, "Unexpected Q datatype.");
+                }
+                // B scale
+                outer_dim = k / QuantGroupSize::kK;
+                inner_dim = n / QuantGroupSize::kN;
+                if constexpr(std::is_same_v<BQDataType, float>)
+                {
+                    b_scale = b_q(outer_dim, inner_dim);
+                }
+                else if constexpr(std::is_same_v<BQDataType, ck_tile::fp8_t>)
+                {
+                    b_scale = fp8_to_float_raw(b_q(outer_dim, inner_dim));
+                }
+                else if constexpr(std::is_same_v<BQDataType, ck_tile::bf8_t>)
+                {
+                    b_scale = bf8_to_float_raw(b_q(outer_dim, inner_dim));
+                }
+                else
+                {
+                    static_assert(false, "Unexpected Q datatype.");
+                }
+                v_block_acc = v_block_acc * a_scale * b_scale;
+                v_acc += v_block_acc;
+                v_block_acc = 0;
+            }
+        }
+
+        c_m_n(m, n) = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
+    };
+
+    make_ParallelTensorFunctor(f_mn, M, N)(std::thread::hardware_concurrency());
+
+    // print_tensor_elements<ADataType>(M, K, a_m_k, "float A (a_m_k)");
+    // print_tensor_elements<BDataType>(K, N, b_k_n, "float B (b_k_n)");
+    // print_tensor_elements<AQDataType>(M, K / QuantGroupSize::kK, a_q, "dequant A_q (a_q)");
+    // print_tensor_elements<BQDataType>(N / QuantGroupSize::kK, K / QuantGroupSize::kK,b_q,
+    // "dequant B_q (b_q)"); print_tensor_elements<CDataType>(M, N, c_m_n, "result C (c_m_n)");
+    // printf("%f\n", static_cast<float>(a_m_k(0, 0)));
+}
 
 template <typename ADataType,
           typename AQDataType,
