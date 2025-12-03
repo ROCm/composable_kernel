@@ -72,7 +72,10 @@ template <typename ALayout,
           typename ComputeTypeA,
           typename ComputeTypeB,
           bool PermuteA,
-          bool PermuteB>
+          bool PermuteB,
+          bool IsBPreShuffled   = false,
+          typename AScaleLayout = ALayout,
+          typename BScaleLayout = BLayout>
 struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
     : GridwiseGemm_wmma_cshuffle_v3_base<
           ALayout,
@@ -125,7 +128,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
           ComputeTypeB,
           PermuteA,
           PermuteB,
-          false,
+          IsBPreShuffled,
           true>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
@@ -179,7 +182,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
         ComputeTypeB,
         PermuteA,
         PermuteB,
-        false,
+        IsBPreShuffled,
         true>;
 
     using Base::I0;
@@ -255,7 +258,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
               AK0{CalculateAK0Padded(K_, KBatch_)},
               BK0{CalculateBK0Padded(K_, KBatch_)},
               MBlock{CalculateMBlock(M_)},
-              NBlock{CalculateNBlock(N_)}
+              NBlock{CalculateNBlock(N_)},
+              Kt{K_}
         {
         }
 
@@ -304,6 +308,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
         index_t BK0;
         index_t MBlock;
         index_t NBlock;
+        index_t Kt;
     };
 
     // Argument
@@ -417,42 +422,50 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
                     [&](auto i) { a_k_split_offset[i] = k_id * karg.KRead * karg.StrideAs[i]; });
             }
 
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+            if constexpr(IsBPreShuffled)
             {
-                static_for<0, NumBTensor, 1>{}(
-                    [&](auto i) { b_k_split_offset[i] = k_id * karg.KRead * karg.StrideBs[i]; });
+                static_for<0, NumBTensor, 1>{}([&](auto i) { b_k_split_offset[i] = 0; });
             }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+            else
             {
-                if constexpr(!PermuteB)
+                if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
                 {
-                    static_for<0, NumBTensor, 1>{}(
-                        [&](auto i) { b_k_split_offset[i] = k_id * karg.KRead / BPackedSize; });
+                    static_for<0, NumBTensor, 1>{}([&](auto i) {
+                        b_k_split_offset[i] = k_id * karg.KRead * karg.StrideBs[i];
+                    });
                 }
-                else
+                else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
                 {
-                    const int k0_offset = karg.KRead * karg.N;
-                    static_for<0, NumBTensor, 1>{}(
-                        [&](auto i) { b_k_split_offset[i] = k_id * k0_offset / BPackedSize; });
+                    if constexpr(!PermuteB)
+                    {
+                        static_for<0, NumBTensor, 1>{}(
+                            [&](auto i) { b_k_split_offset[i] = k_id * karg.KRead / BPackedSize; });
+                    }
+                    else
+                    {
+                        const int k0_offset = karg.KRead * karg.N;
+                        static_for<0, NumBTensor, 1>{}(
+                            [&](auto i) { b_k_split_offset[i] = k_id * k0_offset / BPackedSize; });
+                    }
                 }
             }
 
             // Calculate A scale offset
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, AScaleLayout>)
             {
                 scale_a_k_split_offset = k_id * (karg.KRead / ScaleBlockK);
             }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, AScaleLayout>)
             {
                 scale_a_k_split_offset = k_id * (karg.KRead / ScaleBlockK) * karg.StrideScaleA;
             }
 
             // Calculate B scale offset
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BScaleLayout>)
             {
                 scale_b_k_split_offset = k_id * (karg.KRead / ScaleBlockK) * karg.StrideScaleB;
             }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BScaleLayout>)
             {
                 scale_b_k_split_offset = k_id * (karg.KRead / ScaleBlockK);
             }
@@ -493,11 +506,11 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
     {
         const auto BM = math::integer_divide_ceil(M, ScaleBlockM);
         const auto BK = math::integer_divide_ceil(K, ScaleBlockK);
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+        if constexpr(is_same<tensor_layout::gemm::RowMajor, AScaleLayout>::value)
         {
             return make_naive_tensor_descriptor(make_tuple(BM, BK), make_tuple(StrideScaleA, I1));
         }
-        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
+        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, AScaleLayout>::value)
         {
             return make_naive_tensor_descriptor(make_tuple(BM, BK), make_tuple(I1, StrideScaleA));
         }
@@ -557,10 +570,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
                 (get_thread_local_1d_id() / 32) / NWaves * MPerWmma / ScaleBlockM;
 
             constexpr index_t VectorDim =
-                is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value ? 0 : 1;
-            constexpr index_t VectorSize = is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value
-                                               ? RegSizePerWmma
-                                               : ScaleSliceSizeK;
+                is_same<tensor_layout::gemm::ColumnMajor, AScaleLayout>::value ? 0 : 1;
+            constexpr index_t VectorSize =
+                is_same<tensor_layout::gemm::ColumnMajor, AScaleLayout>::value ? RegSizePerWmma
+                                                                               : ScaleSliceSizeK;
 
             auto a_scale_thread_copy =
                 ThreadwiseTensorSliceTransfer_v2<AScaleType,
@@ -600,11 +613,11 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
     {
         const auto BN = math::integer_divide_ceil(N, ScaleBlockN);
         const auto BK = math::integer_divide_ceil(K, ScaleBlockK);
-        if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+        if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BScaleLayout>::value)
         {
             return make_naive_tensor_descriptor(make_tuple(BN, BK), make_tuple(StrideScaleB, I1));
         }
-        else if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
+        else if constexpr(is_same<tensor_layout::gemm::RowMajor, BScaleLayout>::value)
         {
             return make_naive_tensor_descriptor(make_tuple(BN, BK), make_tuple(I1, StrideScaleB));
         }
@@ -650,9 +663,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
                                      ScaleBlockN;
 
             constexpr index_t VectorDim =
-                is_same<tensor_layout::gemm::RowMajor, BLayout>::value ? 0 : 1;
+                is_same<tensor_layout::gemm::RowMajor, BScaleLayout>::value ? 0 : 1;
             constexpr index_t VectorSize =
-                is_same<tensor_layout::gemm::RowMajor, BLayout>::value ? 1 : ScaleSliceSizeK;
+                is_same<tensor_layout::gemm::RowMajor, BScaleLayout>::value ? 1 : ScaleSliceSizeK;
 
             auto b_scale_thread_copy =
                 ThreadwiseTensorSliceTransfer_v2<BScaleType,
@@ -714,12 +727,14 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
                                CDEElementwiseOperation cde_element_op,
-                               EpilogueArgument& epilogue_args)
+                               EpilogueArgument& epilogue_args,
+                               const index_t k_id = 0)
     {
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
+        const index_t K_b                 = IsBPreShuffled ? problem.Kt : problem.K;
         const auto bs_grid_desc_bk0_n_bk1 = MakeBsGridDescriptor_BK0_N_BK1(
-            problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideBs, problem.BK0);
+            K_b, problem.KPadded, problem.N, problem.NPadded, problem.StrideBs, problem.BK0);
         const auto ds_grid_desc_m_n = MakeDsGridDescriptor_M_N(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideDs);
         const auto e_grid_desc_m_n = Base::template MakeDEGridDescriptor_M_N<ELayout>(
@@ -782,7 +797,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
                                     num_k_block_per_scale,
                                     a_scale_struct,
                                     b_scale_struct,
-                                    epilogue_args);
+                                    epilogue_args,
+                                    k_id);
     }
 
     // NOTE: Wrapper function to have __global__ function in common
@@ -794,7 +810,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
     __device__ static void Run(void* p_shared,
                                const SplitKBatchOffset& splitk_batch_offset,
                                Argument& karg,
-                               EpilogueArgument& epilogue_args)
+                               EpilogueArgument& epilogue_args,
+                               const index_t k_id = 0)
     {
         // shift A matrices pointer for splitk
         AsGridPointer p_as_grid_splitk;
@@ -844,7 +861,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
             karg.a_element_op,
             karg.b_element_op,
             karg.cde_element_op,
-            epilogue_args);
+            epilogue_args,
+            k_id);
     }
 };
 

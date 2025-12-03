@@ -108,6 +108,11 @@ function(add_instance_library INSTANCE_NAME)
             message(DEBUG "removing gemm_ab_scale_f8 instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
+        # Do not build gemm_blockscale_wp_f8 for any targets except gfx94, gfx95 and gfx12
+        if(NOT (INST_TARGETS MATCHES "gfx942" OR INST_TARGETS MATCHES "gfx950" OR INST_TARGETS MATCHES "gfx12") AND (source_name MATCHES "gemm_blockscale_wp") AND (source_name MATCHES "_f8_f8_"))
+            message(DEBUG "removing gemm_blockscale_wp_f8 instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
         # Only build tf32 instances for gfx942 & gfx950
         if(source_name MATCHES "_tf32_")
             if(NOT ((INST_TARGETS MATCHES "gfx942|gfx950") AND CK_ENABLE_TF32))
