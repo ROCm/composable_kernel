@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 # WMMA_AND_XDL_KERNELS
-set(GROUPED_CONV3D_BWD_DATA_BILINEAR
+set(GROUPED_CONV3D_BWD_DATA_SCALE
    xdl/device_grouped_conv3d_bwd_data_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
    xdl/device_grouped_conv3d_bwd_data_xdl_scale_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
    xdl/device_grouped_conv3d_bwd_data_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp
@@ -11,4 +11,4 @@ set(GROUPED_CONV3D_BWD_DATA_BILINEAR
    wmma/device_grouped_conv3d_bwd_data_wmma_v3_scale_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
    wmma/device_grouped_conv3d_bwd_data_wmma_v3_scale_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp)
 
-add_instance_library(device_grouped_conv3d_bwd_data_scale_instance ${GROUPED_CONV3D_BWD_DATA_BILINEAR})
+add_instance_library(device_grouped_conv3d_bwd_data_scale_instance ${GROUPED_CONV3D_BWD_DATA_SCALE})
