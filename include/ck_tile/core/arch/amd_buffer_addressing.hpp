@@ -1413,6 +1413,7 @@ enum struct amd_buffer_coherence_enum
     WAVE_NT1   = 2,
     GROUP_NT0  = 1,
     GROUP_NT1  = 3,
+    TEST = 4,
     DEVICE_NT0 = 8,
     DEVICE_NT1 = 10,
     SYSTEM_NT0 = 9,

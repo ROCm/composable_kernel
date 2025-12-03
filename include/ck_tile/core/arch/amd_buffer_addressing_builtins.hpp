@@ -1281,10 +1281,12 @@ enum struct amd_buffer_coherence_enum
     WAVE_NT1   = 2,
     GROUP_NT0  = 1,
     GROUP_NT1  = 3,
+    TEST1 = 16,
+    TEST2 = 17,
     DEVICE_NT0 = 8,
     DEVICE_NT1 = 10,
     SYSTEM_NT0 = 9,
-    SYSTEM_NT1 = 11,
+    SYSTEM_NT1 = 19,
 };
 
 template <index_t N,
