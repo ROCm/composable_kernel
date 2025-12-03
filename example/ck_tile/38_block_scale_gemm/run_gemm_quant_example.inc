@@ -85,7 +85,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         constexpr auto tail_number_v  = tail_number_.value;
         constexpr bool transpose_c    = false;
 
-        // row-col and tensor quants use the regular pipeline, A/B quants use their own
+        // row-col and tensor quants use the regular pipeline, A/B/AB quants use their own
         using PipelineProblem = std::conditional_t<
             QuantMode == ck_tile::QuantType::RowColQuant ||
                 QuantMode == ck_tile::QuantType::TensorQuant,
@@ -100,30 +100,46 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                           GemmConfig::Scheduler,
                                                           has_hot_loop_v,
                                                           tail_number_v>,
-            std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
-                               ck_tile::GemmAQuantPipelineProblem<typename TypeConfig::ADataType,
-                                                                  typename TypeConfig::QDataType,
-                                                                  typename TypeConfig::BDataType,
-                                                                  typename TypeConfig::AccDataType,
-                                                                  GemmShape,
-                                                                  GemmTraits,
-                                                                  QuantGroupSize,
-                                                                  transpose_c,
-                                                                  ComputeDataType,
-                                                                  GemmConfig::Scheduler,
-                                                                  has_hot_loop_v,
-                                                                  tail_number_v>,
-                               ck_tile::GemmBQuantPipelineProblem<typename TypeConfig::ADataType,
-                                                                  typename TypeConfig::BDataType,
-                                                                  typename TypeConfig::QDataType,
-                                                                  typename TypeConfig::AccDataType,
-                                                                  GemmShape,
-                                                                  GemmTraits,
-                                                                  QuantGroupSize,
-                                                                  ComputeDataType,
-                                                                  GemmConfig::Scheduler,
-                                                                  has_hot_loop_v,
-                                                                  tail_number_v>>>;
+            std::conditional_t<
+                QuantMode == ck_tile::QuantType::AQuantGrouped,
+                ck_tile::GemmAQuantPipelineProblem<typename TypeConfig::ADataType,
+                                                   typename TypeConfig::QDataType,
+                                                   typename TypeConfig::BDataType,
+                                                   typename TypeConfig::AccDataType,
+                                                   GemmShape,
+                                                   GemmTraits,
+                                                   QuantGroupSize,
+                                                   transpose_c,
+                                                   ComputeDataType,
+                                                   GemmConfig::Scheduler,
+                                                   has_hot_loop_v,
+                                                   tail_number_v>,
+                std::conditional_t<
+                    QuantMode == ck_tile::QuantType::BQuantGrouped,
+                    ck_tile::GemmBQuantPipelineProblem<typename TypeConfig::ADataType,
+                                                       typename TypeConfig::BDataType,
+                                                       typename TypeConfig::QDataType,
+                                                       typename TypeConfig::AccDataType,
+                                                       GemmShape,
+                                                       GemmTraits,
+                                                       QuantGroupSize,
+                                                       ComputeDataType,
+                                                       GemmConfig::Scheduler,
+                                                       has_hot_loop_v,
+                                                       tail_number_v>,
+                    ck_tile::GemmABQuantPipelineProblem<typename TypeConfig::ADataType,
+                                                        typename TypeConfig::QDataType, // For AQ
+                                                        typename TypeConfig::BDataType,
+                                                        typename TypeConfig::QDataType, // For BQ
+                                                        typename TypeConfig::AccDataType,
+                                                        GemmShape,
+                                                        GemmTraits,
+                                                        QuantGroupSize,
+                                                        transpose_c,
+                                                        ComputeDataType,
+                                                        GemmConfig::Scheduler,
+                                                        has_hot_loop_v,
+                                                        tail_number_v>>>>;
 
         using GemmPipeline = std::conditional_t<
             QuantMode == ck_tile::QuantType::RowColQuant ||
@@ -134,9 +150,12 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                 std::conditional_t<GemmConfig::PreshuffleQuant == true,
                                    ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
                                    ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>>,
-                std::conditional_t<GemmConfig::PreshuffleB == true,
-                                   ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
-                                   ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
+                std::conditional_t<
+                    QuantMode == ck_tile::QuantType::BQuantGrouped,
+                    std::conditional_t<GemmConfig::PreshuffleB == true,
+                                       ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
+                                       ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>,
+                    ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<typename TypeConfig::ADataType,
@@ -318,7 +337,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
               << " StrideA =" << stride_A << " StrideAQ =" << stride_AQ << " StrideB =" << stride_B
               << " StrideC =" << stride_C << " A_Layout =" << ALayout::name
               << " B_Layout =" << BLayout::name << " C_Layout =" << CLayout::name;
-    if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
+    if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped ||
+                 QuantMode == ck_tile::QuantType::BQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant)
     {
         std::cout << " StrideBQ =" << stride_BQ;
@@ -369,7 +389,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     ck_tile::index_t K = arg_parser.get_int("k");
 
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped ||
-                 QuantMode == ck_tile::QuantType::BQuantGrouped)
+                 QuantMode == ck_tile::QuantType::BQuantGrouped ||
+                 QuantMode == ck_tile::QuantType::ABQuantGrouped)
     {
         if(K % QuantGroupSize::kK != 0)
         {
@@ -377,7 +398,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 "K must be aligned with QuantGroupSize for AQuantGrouped/BQuantGrouped mode");
         }
     }
-    ck_tile::index_t AQK, BQK;
+    ck_tile::index_t AQK, BQK, BQN;
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
     {
         AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
@@ -387,6 +408,12 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     {
         AQK = 0;                      // No A quantization
         BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
+    }
+    else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
+    {
+        AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
+        BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
+        BQN = N / QuantGroupSize::kN; // Group quantization: BQN = N / GroupSize
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
                       QuantMode == ck_tile::QuantType::TensorQuant)
@@ -402,9 +429,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     ck_tile::index_t stride_A  = arg_parser.get_int("stride_a");
     ck_tile::index_t stride_AQ = arg_parser.get_int("stride_q");
     ck_tile::index_t stride_B  = arg_parser.get_int("stride_b");
-    ck_tile::index_t stride_C  = arg_parser.get_int("stride_c");
-
     ck_tile::index_t stride_BQ = arg_parser.get_int("stride_q");
+    ck_tile::index_t stride_C  = arg_parser.get_int("stride_c");
 
     ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
     int n_warmup                 = arg_parser.get_int("warmup");
@@ -428,6 +454,11 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         stride_AQ = 0; // No A quantization
         stride_BQ = ck_tile::get_default_stride(BQK, N, stride_BQ, is_row_major(bq_layout));
     }
+    else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
+    {
+        stride_AQ = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
+        stride_BQ = ck_tile::get_default_stride(BQK, N, stride_BQ, is_row_major(bq_layout));
+    }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
     {
         stride_AQ = ck_tile::get_default_stride(M, 1, stride_AQ, is_row_major(aq_layout));
@@ -449,6 +480,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     // Create AQ tensor with appropriate shape
     std::unique_ptr<ck_tile::HostTensor<AQDataType>> aq_tensor_ptr = nullptr;
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped ||
+                 QuantMode == ck_tile::QuantType::ABQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant)
     {
         aq_tensor_ptr = std::make_unique<ck_tile::HostTensor<AQDataType>>(
@@ -467,6 +499,11 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     {
         bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
             ck_tile::host_tensor_descriptor(BQK, N, stride_BQ, is_row_major(bq_layout)));
+    }
+    else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
+    {
+        bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
+            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, is_row_major(bq_layout)));
     }
     else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
     {
@@ -510,6 +547,25 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 *aq_tensor_ptr);
             ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
         }
+        else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
+        {
+            if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
+            {
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                    a_m_k);
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                    b_k_n);
+            }
+            else
+            {
+                ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
+                ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
+            }
+            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *aq_tensor_ptr);
+            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *bq_tensor_ptr);
+        }
         else
         {
             ck_tile::FillUniformDistribution<ADataType>{-2.0f, 2.0f, fill_seed(gen)}(a_m_k);
@@ -531,6 +587,13 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         {
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
             ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x22)}(b_k_n);
+            ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
+        {
+            ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
+            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x22)}(b_k_n);
+            ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(*aq_tensor_ptr);
             ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
         }
         else
@@ -559,6 +622,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
 
     std::unique_ptr<ck_tile::DeviceMem> aq_dev_buf_ptr = nullptr;
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped ||
+                 QuantMode == ck_tile::QuantType::ABQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant ||
                  QuantMode == ck_tile::QuantType::TensorQuant)
     {
@@ -567,6 +631,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     }
     std::unique_ptr<ck_tile::DeviceMem> bq_dev_buf_ptr = nullptr;
     if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
+                 QuantMode == ck_tile::QuantType::ABQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant ||
                  QuantMode == ck_tile::QuantType::TensorQuant)
     {
@@ -575,6 +640,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     }
 
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped ||
+                 QuantMode == ck_tile::QuantType::ABQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant ||
                  QuantMode == ck_tile::QuantType::TensorQuant)
     {
@@ -627,6 +693,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     c_m_n_dev_result.SetZero();
 
     if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
+                 QuantMode == ck_tile::QuantType::ABQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant ||
                  QuantMode == ck_tile::QuantType::TensorQuant)
     {
@@ -715,6 +782,17 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                                           QuantGroupSize,
                                           false>(a_m_k, *bq_tensor_ptr, b_k_n, c_m_n_host_ref);
         }
+        else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
+        {
+            ck_tile::reference_gemm_abquant<ADataType,
+                                            AQDataType,
+                                            BDataType,
+                                            BQDataType,
+                                            AccDataType,
+                                            CDataType,
+                                            QuantGroupSize>(
+                a_m_k, *aq_tensor_ptr, b_k_n, *bq_tensor_ptr, c_m_n_host_ref);
+        }
         else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
         {
             ck_tile::reference_gemm_rowcol_quant<ADataType,
@@ -772,7 +850,8 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    if((QuantMode == ck_tile::QuantType::AQuantGrouped ||
+    if((QuantMode == ck_tile::QuantType::ABQuantGrouped ||
+        QuantMode == ck_tile::QuantType::AQuantGrouped ||
         QuantMode == ck_tile::QuantType::RowColQuant) &&
        GemmConfig::PreshuffleB)
     {
