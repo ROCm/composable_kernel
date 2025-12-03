@@ -95,7 +95,7 @@ struct DeviceGroupedConvBwdWeight_Explicit
                                                          I1,
                                                          I1>;
 
-    struct Argument : public BaseArgument
+    struct Argument : public BaseArgument, public ArgumentSplitK
     {
         using GemmArgument = typename DeviceGemmV3Op::Argument;
 
@@ -151,11 +151,11 @@ struct DeviceGroupedConvBwdWeight_Explicit
                 std::tie(gdx, gdy, gdz) =
                     DeviceGemmV3Op::GridwiseGemm::CalculateGridSize(M, N, BatchSize);
                 const index_t grid_size = gdx * gdy * gdz;
-                split_k_ = get_best_occupancy_k_batch_value(max_occupancy, grid_size);
+                k_batch_ = get_best_occupancy_k_batch_value(max_occupancy, grid_size);
             }
             else
             {
-                split_k_ = split_k;
+                k_batch_ = split_k;
             }
 
             if constexpr(IsTwoStageNeeded)
@@ -192,7 +192,7 @@ struct DeviceGroupedConvBwdWeight_Explicit
                                                   out_element_op,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  split_k_};
+                                                  k_batch_};
             }
             else
             {
@@ -215,7 +215,7 @@ struct DeviceGroupedConvBwdWeight_Explicit
                                                   out_element_op,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  split_k_};
+                                                  k_batch_};
             }
         }
 
@@ -252,7 +252,6 @@ struct DeviceGroupedConvBwdWeight_Explicit
         bool is_filter_data_packed;
         CElementwiseGridDesc elementwise_desc_;
         Block2TileMapElementwise elementwise_block_2_ctile_map_;
-        ck::index_t split_k_;
     };
 
     // Invoker

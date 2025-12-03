@@ -17,6 +17,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -450,7 +451,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
     using Block2CTileMap = decltype(GridwiseGemm::MakeDefaultBlock2CTileMap(
         CGridDesc_M_N{}, I1 /* M01 */, I1 /* N01 */));
 
-    struct Argument : public BaseArgument
+    struct Argument : public BaseArgument, public ArgumentSplitK
     {
         Argument(const InDataType* p_in_grid,
                  WeiDataType* p_wei_grid,
@@ -490,8 +491,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
               output_spatial_lengths_{},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
-              input_right_pads_{input_right_pads},
-              k_batch_{split_k}
+              input_right_pads_{input_right_pads}
         {
             constexpr index_t spatial_offset = 3;
             std::copy(begin(a_g_n_c_wis_lengths) + spatial_offset,
@@ -503,6 +503,8 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
             std::copy(begin(e_g_n_k_wos_lengths) + spatial_offset,
                       end(e_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
+
+            k_batch_ = split_k;
 
             const auto descs =
                 DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -576,7 +578,6 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         const std::array<index_t, NDimSpatial>& conv_filter_strides_;
         const std::array<index_t, NDimSpatial>& input_left_pads_;
         const std::array<index_t, NDimSpatial>& input_right_pads_;
-        const index_t k_batch_;
     };
 
     // Invoker
