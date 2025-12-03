@@ -13,6 +13,8 @@ function(add_instance_library INSTANCE_NAME)
                     set(type1 "_f16")
                 elseif(type MATCHES "fp32")
                     set(type1 "_f32")
+                elseif(type MATCHES "tf32")
+                    set(type1 "_tf32")
                 elseif(type MATCHES "fp8")
                     set(type1 "_f8")
                 elseif(type MATCHES "bf16")
@@ -27,8 +29,8 @@ function(add_instance_library INSTANCE_NAME)
                     #if filename matches any selected type, exit type loop and do no exclude the file from the list
                     set(test 0)
                     break()
-                elseif((source_name MATCHES "fp8" OR source_name MATCHES "fp32" OR source_name MATCHES "fp64" OR source_name MATCHES "bf16" OR source_name MATCHES "int8" OR source_name MATCHES "fp16" OR
-                         source_name MATCHES "_f8" OR source_name MATCHES "_f32" OR source_name MATCHES "_f64" OR source_name MATCHES "_i8" OR source_name MATCHES "_f16" OR source_name MATCHES "_b16") AND
+                elseif((source_name MATCHES "fp8" OR source_name MATCHES "fp32" OR source_name MATCHES "tf32" OR source_name MATCHES "fp64" OR source_name MATCHES "bf16" OR source_name MATCHES "int8" OR source_name MATCHES "fp16" OR
+                         source_name MATCHES "_f8" OR source_name MATCHES "_f32" OR source_name MATCHES "_tf32" OR source_name MATCHES "_f64" OR source_name MATCHES "_i8" OR source_name MATCHES "_f16" OR source_name MATCHES "_b16") AND
                     NOT (source_name MATCHES type OR source_name MATCHES type1))
                     #if filename contains a type which doesn't match any selected type, mark it for removal
                     set(test 1)
@@ -237,6 +239,10 @@ FOREACH(subdir_path ${dir_list})
             message(DEBUG "fp32 instance found!")
             set(add_inst 1)
         endif()
+        if(("${cmake_instance}" MATCHES "_tf32" OR "${cmake_instance}" MATCHES "_tf32") AND DTYPES MATCHES "tf32")
+            message(DEBUG "tf32 instance found!")
+            set(add_inst 1)
+        endif()
         if(("${cmake_instance}" MATCHES "_fp64" OR "${cmake_instance}" MATCHES "_f64") AND DTYPES MATCHES "fp64")
             message(DEBUG "fp64 instance found!")
             set(add_inst 1)
@@ -251,6 +257,7 @@ FOREACH(subdir_path ${dir_list})
                 "${cmake_instance}" MATCHES "_f16" OR
                 "${cmake_instance}" MATCHES "_fp32" OR
                 "${cmake_instance}" MATCHES "_f32" OR
+                "${cmake_instance}" MATCHES "_tf32" OR
                 "${cmake_instance}" MATCHES "_fp64" OR
                 "${cmake_instance}" MATCHES "_f64" OR
                 "${cmake_instance}" MATCHES "_bf16" OR

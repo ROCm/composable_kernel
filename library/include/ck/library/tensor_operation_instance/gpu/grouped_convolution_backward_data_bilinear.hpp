@@ -135,28 +135,30 @@ struct DeviceOperationInstanceFactory<
                         op_ptrs);
                 }
 #endif
-#ifdef CK_ENABLE_FP32
-                else if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                                  is_same_v<OutDataType, F32>)
+                if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
+                             is_same_v<OutDataType, F32>)
                 {
                     static_assert(is_same_v<ComputeTypeA, ComputeTypeB>,
                                   "ComputeTypeA and ComputeTypeB must be the same");
+#ifdef CK_ENABLE_FP32
                     if constexpr(is_same_v<ComputeTypeA, F32>)
                     {
                         add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f32_instances(
                             op_ptrs);
                     }
-                    else if constexpr(is_same_v<ComputeTypeA, TF32>)
+#endif
+#ifdef CK_ENABLE_TF32
+                    if constexpr(is_same_v<ComputeTypeA, TF32>)
                     {
                         add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f32_tf32_instances(
                             op_ptrs);
                     }
-                }
 #endif
+                }
 #ifdef CK_ENABLE_BF16
-                else if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
-                                  is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
-                                  is_same_v<ComputeTypeB, BF16>)
+                if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
+                             is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                             is_same_v<ComputeTypeB, BF16>)
                 {
                     add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
                         op_ptrs);
