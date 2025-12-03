@@ -4,8 +4,8 @@
 #pragma once
 
 #include "ck_tile/builder/conv_signature_concepts.hpp"
-#include "ck_tile/builder/conv_signature_utils.hpp"
-#include "ck_tile/builder/factory/helpers/conv_tensor_layout.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
 #include "ck_tile/builder/testing/testing.hpp"
 #include "ck_tile/builder/testing/extent.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
@@ -62,9 +62,10 @@ struct Args<SIGNATURE>
     using Ops = factory::internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
 
     ConvTensorLengths<SPATIAL_DIM> lengths;
-    // TODO: Tensor strides. This needs a new structure as well as some reworking
-    // of the TensorDescriptor, as the current implementation (based on ConvParam
-    // in old CK / CK Tile) does not support strides at all.
+    // TODO: Tensor strides. This needs a new structure as well as some
+    // reworking of the make_*_descriptor() functions, as the current
+    // implementation (based on ConvParam in old CK / CK Tile) does not
+    // support strides at all.
 
     Extent<SPATIAL_DIM> filter_strides;
     Extent<SPATIAL_DIM> filter_dilation;
@@ -80,22 +81,26 @@ struct Args<SIGNATURE>
                                                                 SPATIAL_DIM,
                                                                 ConvDirection::FORWARD>());
 
-    /// This function returns the `TensorDescriptor` corresponding to the input-tensor of
-    /// the convolution problem. This can then be used to, for example, allocate memory.
+    /// This function returns the `TensorDescriptor` corresponding to
+    /// the input-tensor of the convolution problem. This can then
+    /// be used to, for example, allocate memory.
     TensorDescriptor<INPUT_TYPE> make_input_descriptor() const
     {
-        // TODO: We're using old CK functionality to compute the right values here, mainly
-        // because CK tile does not support the right tensor layouts here. We should probably
-        // change that because CK currently prints an annoying message about it, plus that
-        // would let us get rid of the `to_ck_conv_param()` function.
+        // TODO: We're using old CK functionality to compute the right
+        // values here, mainly because CK tile does not support the
+        // right tensor layouts here. We should probably change that
+        // because CK currently prints an annoying message about it,
+        // plus that would let us get rid of the `to_ck_conv_param()`
+        // function.
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
              typename Layouts::ALayout>(param);
         return TensorDescriptor<INPUT_TYPE>(desc.GetLengths(), desc.GetStrides());
     }
 
-    /// This function returns the `TensorDescriptor` corresponding to the weight-tensor of
-    /// the convolution problem. This can then be used to, for example, allocate memory.
+    /// This function returns the `TensorDescriptor` corresponding to
+    /// the weight-tensor of  the convolution problem. This can then
+    /// be used to, for example, allocate memory.
     TensorDescriptor<WEIGHT_TYPE> make_weight_descriptor() const
     {
         // See note in implementation of `make_input_descriptor`.
@@ -105,8 +110,9 @@ struct Args<SIGNATURE>
         return TensorDescriptor<WEIGHT_TYPE>(desc.GetLengths(), desc.GetStrides());
     }
 
-    /// This function returns the `TensorDescriptor` corresponding to the output-tensor of
-    /// the convolution problem. This can then be used to, for example, allocate memory.
+    /// This function returns the `TensorDescriptor` corresponding to
+    /// the output-tensor of the convolution problem. This can then
+    /// be used to, for example, allocate memory.
     TensorDescriptor<OUTPUT_TYPE> make_output_descriptor() const
     {
         // See note in implementation of `make_input_descriptor`.
@@ -116,6 +122,9 @@ struct Args<SIGNATURE>
         return TensorDescriptor<OUTPUT_TYPE>(desc.GetLengths(), desc.GetStrides());
     }
 
+    /// Convert the Args structure into a CK conv_param structure. This
+    /// function is mainly used to be able to use the existing
+    /// CK-functionality to obtain tensor descriptors.
     ck::utils::conv::ConvParam to_ck_conv_param() const
     {
         const auto to_vector = [](const auto& extent) {

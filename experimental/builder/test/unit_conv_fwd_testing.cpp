@@ -1,0 +1,83 @@
+// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+// SPDX-License-Identifier: MIT
+
+#include "impl/conv_signature_types.hpp"
+#include "testing_utils.hpp"
+#include "ck_tile/builder/testing/conv_fwd.hpp"
+#include <gtest/gtest.h>
+#include <gmock/gmock.h>
+#include <vector>
+
+namespace ckb = ck_tile::builder;
+namespace ckt = ck_tile::builder::test;
+
+using ::testing::ElementsAreArray;
+using ::testing::NotNull;
+
+constexpr auto SIGNATURE =
+    ckt::ConvSignature{.spatial_dim           = 2,
+                       .direction             = ckb::ConvDirection::FORWARD,
+                       .layout                = ckb::GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
+                       .data_type             = ckb::DataType::BF16,
+                       .elementwise_operation = ckb::ElementwiseOperation::PASS_THROUGH};
+
+constexpr ckt::Args<SIGNATURE> ARGS = {
+    .lengths =
+        {
+            .batch_size      = 123,
+            .groups          = 5,
+            .input_channels  = 13,
+            .output_channels = 341,
+            .image =
+                {
+                    .width  = 514,
+                    .height = 125,
+                },
+            .filter =
+                {
+                    .width  = 9,
+                    .height = 4,
+                },
+        },
+    .filter_strides     = {.width = 1, .height = 1},
+    .filter_dilation    = {.width = 1, .height = 1},
+    .input_left_pad     = {.width = 0, .height = 0},
+    .input_right_pad    = {.width = 0, .height = 0},
+    .a_elementwise_op   = {},
+    .b_elementwise_op   = {},
+    .cde_elementwise_op = {},
+};
+
+using Inputs        = ckt::Inputs<SIGNATURE>;
+using Outputs       = ckt::Outputs<SIGNATURE>;
+using UniqueInputs  = ckt::UniqueInputs<SIGNATURE>;
+using UniqueOutputs = ckt::UniqueOutputs<SIGNATURE>;
+
+static_assert(ckt::ValidUniqueInputs<SIGNATURE>);
+static_assert(ckt::ValidUniqueOutputs<SIGNATURE>);
+
+TEST(ConvFwdTesting, MakeDescriptors)
+{
+    const auto get_lengths = [](const auto& descriptor) {
+        const auto lengths = descriptor.get_lengths();
+        // Google Test cannot print std::span, so turn it into a vector for
+        // legibility.
+        return std::vector(lengths.begin(), lengths.end());
+    };
+
+    EXPECT_THAT(get_lengths(ARGS.make_input_descriptor()),
+                ElementsAreArray({5, 123, 13, 125, 514}));
+    EXPECT_THAT(get_lengths(ARGS.make_weight_descriptor()), ElementsAreArray({5, 341, 13, 4, 9}));
+    EXPECT_THAT(get_lengths(ARGS.make_output_descriptor()),
+                ElementsAreArray({5, 123, 341, 122, 506}));
+}
+
+TEST(ConvFwdTesting, Alloc)
+{
+    auto inputs  = alloc_inputs(ARGS);
+    auto outputs = alloc_outputs(ARGS);
+
+    EXPECT_THAT(inputs.get().input, NotNull());
+    EXPECT_THAT(inputs.get().weight, NotNull());
+    EXPECT_THAT(outputs.get().output, NotNull());
+}
