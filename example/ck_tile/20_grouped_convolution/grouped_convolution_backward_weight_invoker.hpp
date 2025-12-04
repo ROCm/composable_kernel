@@ -18,7 +18,7 @@ struct GroupedConvolutionBackwardWeightInvoker
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
     static InvokerResult grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
-                                         const ck_tile::stream_config& s)
+                                                 const ck_tile::stream_config& s)
     {
         // Implicit GEMM Traits
         using GemmShape = ck_tile::TileGemmShape<
@@ -144,7 +144,7 @@ struct GroupedConvolutionBackwardWeightInvoker
                                                                            TilePartitioner,
                                                                            GemmPipeline,
                                                                            ConvEpilogue>;
-            const auto kargs   = Kernel::MakeKernelArgs(args);
+            const auto kargs = Kernel::MakeKernelArgs(args);
 
             const dim3 grids  = Kernel::GridSize(kargs);
             const dim3 blocks = Kernel::BlockSize();

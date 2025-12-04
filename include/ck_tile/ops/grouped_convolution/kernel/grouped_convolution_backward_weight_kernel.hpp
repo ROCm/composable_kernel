@@ -110,8 +110,7 @@ struct GroupedConvBwdWeightKernelArgs
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
                       << ", GemmBatch: " << GemmBatch
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch 
-                      << ", k_batch: " << k_batch
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << ", k_batch: " << k_batch
                       << std::endl;
         }
     }
@@ -197,8 +196,7 @@ struct GroupedConvBwdWeightKernelArgs
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
                       << ", GemmBatch: " << GemmBatch
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch
-                      << ", k_batch: " << k_batch
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << ", k_batch: " << k_batch
                       << std::endl;
         }
     }
@@ -291,8 +289,7 @@ struct GroupedConvBwdWeightKernelArgs
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
                       << ", GemmBatch: " << GemmBatch
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch
-                      << ", k_batch: " << k_batch
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << ", k_batch: " << k_batch
                       << std::endl;
         }
     }
@@ -403,7 +400,8 @@ struct GroupedConvolutionBackwardWeightKernel
     using DsDataType  = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
     using WeiDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    using GroupedConvBwdWeightKernelArgsSpecialized = GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_>;
+    using GroupedConvBwdWeightKernelArgsSpecialized =
+        GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_>;
 
     static constexpr bool IsSplitKSupported = true;
 
@@ -481,12 +479,13 @@ struct GroupedConvolutionBackwardWeightKernel
         auto kernel_args = GroupedConvBwdWeightKernelArgsSpecialized(hostArgs);
 
         using KernelImpl = GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType_,
-                                                            TilePartitioner_,
-                                                            GemmPipeline_,
-                                                            EpiloguePipeline_>; 
+                                                                  TilePartitioner_,
+                                                                  GemmPipeline_,
+                                                                  EpiloguePipeline_>;
 
-        const auto optimal_split_k = calculate_optimal_k_batch<GemmPipeline_::BlockSize, KernelImpl, TilePartitioner_>
-            (kernel_args);
+        const auto optimal_split_k =
+            calculate_optimal_k_batch<GemmPipeline_::BlockSize, KernelImpl, TilePartitioner_>(
+                kernel_args);
 
         kernel_args.k_batch = optimal_split_k;
 
@@ -528,18 +527,19 @@ struct GroupedConvolutionBackwardWeightKernel
     CK_TILE_HOST static bool
     IsSupportedArgument(const GroupedConvBwdWeightKernelArgsSpecialized& kargs)
     {
-        if (kargs.k_batch < 1)
+        if(kargs.k_batch < 1)
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
-                CK_TILE_ERROR("k_batch must be at least one. Ensure argument is created via MakeKernelArgs.");
+                CK_TILE_ERROR(
+                    "k_batch must be at least one. Ensure argument is created via MakeKernelArgs.");
             }
             return false;
         }
 
-        if constexpr (EpiloguePipeline_::MemoryOperation == memory_operation_enum::atomic_add)
+        if constexpr(EpiloguePipeline_::MemoryOperation == memory_operation_enum::atomic_add)
         {
-            if (kargs.k_batch == 1)
+            if(kargs.k_batch == 1)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {

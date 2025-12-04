@@ -86,7 +86,6 @@ inline size_t get_num_cus()
         return 0;
     }
     return static_cast<size_t>(props.multiProcessorCount);
-
 }
 
 } // namespace ck_tile

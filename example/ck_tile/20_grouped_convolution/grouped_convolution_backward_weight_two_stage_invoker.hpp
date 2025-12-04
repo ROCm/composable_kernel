@@ -18,7 +18,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
     static InvokerResult grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
-                                         const ck_tile::stream_config& s)
+                                                 const ck_tile::stream_config& s)
     {
         using WorkspaceDataType = float;
 
@@ -156,9 +156,9 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                               sizeof(WorkspaceDataType));
             ck_tile::GroupedConvBwdWeightHostArgs ws_args =
                 ck_tile::GroupedConvBwdWeightHostArgs(args);
-            auto c_ptr      = ws_args.wei_ptr;
-            ws_args.wei_ptr = ws_m_n_dev_buf.GetDeviceBuffer();
-            const auto kargs      = Kernel::MakeKernelArgs(ws_args);
+            auto c_ptr       = ws_args.wei_ptr;
+            ws_args.wei_ptr  = ws_m_n_dev_buf.GetDeviceBuffer();
+            const auto kargs = Kernel::MakeKernelArgs(ws_args);
 
             const dim3 grids  = Kernel::GridSize(kargs);
             const dim3 blocks = Kernel::BlockSize();

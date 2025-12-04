@@ -21,10 +21,7 @@ CK_TILE_HOST index_t get_max_occupancy_for_kernel()
 
     int max_occupancy = 0;
     hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                &max_occupancy,
-                kernel_ptr,
-                BlockSize,
-                dynamic_smem_size));
+        &max_occupancy, kernel_ptr, BlockSize, dynamic_smem_size));
 
     return static_cast<index_t>(max_occupancy);
 }
@@ -32,11 +29,10 @@ CK_TILE_HOST index_t get_max_occupancy_for_kernel()
 CK_TILE_HOST index_t get_best_occupancy_k_batch_value(index_t max_occupancy, index_t grid_size)
 {
     static const index_t num_cus = get_num_cus();
-    const index_t max_capacity = max_occupancy * num_cus;
+    const index_t max_capacity   = max_occupancy * num_cus;
 
-    index_t k_batch = 1;
-    const auto optimal_split =
-        static_cast<index_t>(std::floor((1.0 * max_capacity) / grid_size));
+    index_t k_batch          = 1;
+    const auto optimal_split = static_cast<index_t>(std::floor((1.0 * max_capacity) / grid_size));
     if(optimal_split > 1)
     {
         k_batch = optimal_split;
@@ -68,14 +64,15 @@ CK_TILE_HOST index_t calculate_optimal_k_batch(const KernelArgs& kargs)
     static ActiveWorkgroupsPerCU<BlockSize, KernelArgs, KernelImpl> active_workgroups_per_cu;
 
     index_t optimal_k_batch = kargs.k_batch;
-    if (optimal_k_batch < 0)
+    if(optimal_k_batch < 0)
     {
-        const auto grid_size = TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN) * kargs.GemmBatch;
-        optimal_k_batch = get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_,
-                                                    grid_size);
+        const auto grid_size =
+            TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN) * kargs.GemmBatch;
+        optimal_k_batch =
+            get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_, grid_size);
 
         // Ensure k_batch does not exceed GemmK
-        if (optimal_k_batch > kargs.GemmK)
+        if(optimal_k_batch > kargs.GemmK)
         {
             optimal_k_batch = kargs.GemmK;
         }
@@ -83,12 +80,12 @@ CK_TILE_HOST index_t calculate_optimal_k_batch(const KernelArgs& kargs)
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << optimal_k_batch
-                        << std::endl;
+                      << std::endl;
         }
     }
-    else 
+    else
     {
-        if (ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "Using user defined k_batch: " << optimal_k_batch << std::endl;
         }
@@ -97,4 +94,4 @@ CK_TILE_HOST index_t calculate_optimal_k_batch(const KernelArgs& kargs)
     return optimal_k_batch;
 }
 
-}
+} // namespace ck_tile
