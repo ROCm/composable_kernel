@@ -141,6 +141,13 @@ concept TileOptimizationsDescriptor = requires(T t) {
 template <typename T>
 concept ConvAlgorithmDescriptor = std::is_class_v<T>;
 
+// Concept to detect reference algorithm specialization
+template <typename T>
+concept IsReferenceAlgorithm = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::REFERENCE;
+};
+
 /******************************************** */
 /* Requirements for the algorithm description */
 /******************************************** */

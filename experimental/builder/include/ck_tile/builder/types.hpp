@@ -209,7 +209,15 @@ enum class PipelineScheduler
 
 enum class ConvAlgorithmSpecialization
 {
-    LARGE_TENSOR
+    LARGE_TENSOR,
+    REFERENCE // GPU reference implementation for validation
+};
+
+// Reference algorithm struct - for GPU reference validation
+struct ConvAlgorithm_Reference
+{
+    static constexpr auto specialization = ConvAlgorithmSpecialization::REFERENCE;
+    // GPU reference uses simple algorithm, no tile configuration needed
 };
 
 // ostream operator overloads for enum classes
