@@ -139,28 +139,6 @@ struct BatchnormFwd
             return make_tile_window(tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {0, 0});
         }();
         
-        const auto gamma_window = [&]() {
-            const GammaDataType* p_gamma = static_cast<const GammaDataType*>(kargs.p_gamma);
-            const auto tmp_ = make_naive_tensor_view_packed<address_space_enum::global>(
-                p_gamma + c,
-                make_tuple(1),
-                number<1>{});
-            
-            const auto tmp2_ = pad_tensor_view(tmp_, make_tuple(number<Block_M>{}), sequence<false>{});
-            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}), {0});
-        }();
-        
-        const auto beta_window = [&]() {
-            const BetaDataType* p_beta = static_cast<const BetaDataType*>(kargs.p_beta);
-            const auto tmp_ = make_naive_tensor_view_packed<address_space_enum::global>(
-                p_beta + c,
-                make_tuple(1),
-                number<1>{});
-            
-            const auto tmp2_ = pad_tensor_view(tmp_, make_tuple(number<Block_M>{}), sequence<false>{});
-            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}), {0});
-        }();
-        
         auto y_window = [&]() {
             YDataType* p_y = static_cast<YDataType*>(kargs.p_y);
             YDataType* p_y_channel = p_y + c;  // Offset by c (NHWC)
@@ -187,10 +165,13 @@ struct BatchnormFwd
         MeanVarDataType* p_save_mean = static_cast<MeanVarDataType*>(kargs.p_save_mean);
         MeanVarDataType* p_save_inv_std = static_cast<MeanVarDataType*>(kargs.p_save_inv_std);
         
-        // Call pipeline with properly distributed tile windows
+        // Call pipeline with x/y windows and gamma/beta pointers
+        const GammaDataType* p_gamma = static_cast<const GammaDataType*>(kargs.p_gamma);
+        const BetaDataType* p_beta = static_cast<const BetaDataType*>(kargs.p_beta);
+        
         Pipeline{}(x_window,
-                   gamma_window,
-                   beta_window,
+                   p_gamma,
+                   p_beta,
                    y_window,
                    p_running_mean,
                    p_running_var,

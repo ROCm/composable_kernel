@@ -142,12 +142,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // Fill input with random data
     ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
     
-    // Set gamma=1.0 and beta=0.0 for testing (identity transform)
-    for(ck_tile::index_t c = 0; c < C; ++c)
-    {
-        gamma_host.mData[c] = static_cast<ComputeDataType>(1.0);
-        beta_host.mData[c] = static_cast<ComputeDataType>(0.0);
-    }
+    // Fill gamma and beta with random values (test scale/bias)
+    ck_tile::FillUniformDistribution<ComputeDataType>{0.8f, 1.2f}(gamma_host);  // Scale around 1
+    ck_tile::FillUniformDistribution<ComputeDataType>{-0.5f, 0.5f}(beta_host);  // Bias around 0
 
     // Allocate device memory
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
@@ -160,11 +157,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
     beta_buf.ToDevice(beta_host.data());
 
     // Define kernel configuration using Generic2dBlockShape
-    // For N=2, H=8, W=8: per-channel elements = 2×8×8 = 128
-    // Use Repeat_N=2: Block_N = Repeat_N × ThreadPerBlock_N × Vector_N = 2×64×1 = 128 ✓
-    using BlockTile = ck_tile::sequence<1, 128>;      // Block size: 1 channel, 128 spatial
-    using ThreadPerBlock = ck_tile::sequence<1, 128>;  // 64 threads (must be warp size)
-    using Vector = ck_tile::sequence<1, 1>;           // Vector size (start with 1)
+    // Vector_N controls vectorization: higher = fewer iterations, more elements per thread
+    // Block_N = ThreadPerBlock_N × Vector_N (must match tile size needed)
+    using BlockTile = ck_tile::sequence<1, 2048>;      // Block size: 1 channel, 128 spatial
+    using ThreadPerBlock = ck_tile::sequence<1, 1024>;   // 64 threads
+    using Vector = ck_tile::sequence<1, 2>;            // Vector_N=2 (try 1,2,4,8)
+    
+    // With Vector_N=2: 64 threads × 2 elements = 128 elements per tile
+    // With Vector_N=4: Need ThreadPerBlock=32 for 32×4=128
+    // Experiment to find optimal!
 
     using Shape = ck_tile::BatchnormShape<BlockTile, ThreadPerBlock, Vector>;
     

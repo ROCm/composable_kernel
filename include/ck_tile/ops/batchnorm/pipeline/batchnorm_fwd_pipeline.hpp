@@ -32,12 +32,10 @@ struct BatchnormFwdPipeline
     }
 
     template <typename XWindow,
-              typename GammaWindow,
-              typename BetaWindow,
               typename YWindow>
     CK_TILE_DEVICE void operator()(const XWindow& x_window_,
-                                   const GammaWindow& gamma_window_,
-                                   const BetaWindow& beta_window_,
+                                   const GammaDataType* p_gamma,
+                                   const BetaDataType* p_beta,
                                    YWindow& y_window_,
                                    MeanVarDataType* p_running_mean,
                                    MeanVarDataType* p_running_var,
@@ -61,9 +59,9 @@ struct BatchnormFwdPipeline
             y_window_,
             Policy::template MakeXBlockTileDistribution<Problem>());
         
-        // Gamma/beta windows passed in but not used yet (gamma=1, beta=0 in test)
-        [[maybe_unused]] const auto gamma_window = gamma_window_;
-        [[maybe_unused]] const auto beta_window = beta_window_;
+        // Load gamma and beta scalars for this channel
+        const ComputeDataType gamma_val = type_convert<ComputeDataType>(p_gamma[channel_idx]);
+        const ComputeDataType beta_val = type_convert<ComputeDataType>(p_beta[channel_idx]);
         
         // Calculate how many tiles needed (like layernorm2d two-pass)
         constexpr index_t Block_N = Problem::BlockShape::Block_N;
@@ -125,8 +123,8 @@ struct BatchnormFwdPipeline
             sweep_tile(y, [&](auto idx) {
                 ComputeDataType x_val = type_convert<ComputeDataType>(x[idx]);
                 
-                // y = (x - mean) / std  (no gamma/beta for now)
-                ComputeDataType normalized = (x_val - block_mean) * inv_std;
+                // y = gamma * (x - mean) / std + beta
+                ComputeDataType normalized = gamma_val * ((x_val - block_mean) * inv_std) + beta_val;
                 y(idx) = type_convert<YDataType>(normalized);
             });
 
