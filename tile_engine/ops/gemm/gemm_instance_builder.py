@@ -418,77 +418,76 @@ struct SelectedKernel {{
     using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
 
     static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
-        
-        const auto Run = [&](const auto memory_operation_) {{
-            constexpr auto scheduler = {scheduler_type_map.get(scheduler)};
-            [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;
+    constexpr auto scheduler = {scheduler_type_map.get(scheduler)};
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
-                ADataType,
-                BDataType,
-                AccDataType,
-                TileShape,
-                ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                                ALayout, BLayout, CLayout, TransposeC,
-                                                UseStructuredSparsity, UsePersistentKernel,
-                                                NumWaveGroups, Preshuffle>,
-                scheduler>;
-            
-            using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;
-            
-            // Epilogue
+    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+        ADataType,
+        BDataType,
+        AccDataType,
+        TileShape,
+        ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                        ALayout, BLayout, CLayout, TransposeC,
+                                        UseStructuredSparsity, UsePersistentKernel,
+                                        NumWaveGroups, Preshuffle>,
+        scheduler>;
+    
+    using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;
+
 """
 
         # Add epilogue configuration based on type
         if epilogue == "cshuffle":
-            instance_code += """            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
-                ADataType,
-                BDataType,
-                ck_tile::tuple<>,  // DsDataType
-                AccDataType,
-                CDataType,
-                ck_tile::tuple<>,  // DsLayout
-                CLayout,
-                ck_tile::element_wise::PassThrough,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
-                WarpPerBlock_M,              // MWave_
-                WarpPerBlock_N,              // NWave_
-                WarpTileM,                   // MPerXdl_
-                WarpTileN,                   // NPerXdl_
-                WarpTileK,                   // KPerXdl_
-                TransposeC,                  // isCTransposed_
-                memory_operation,            // MemoryOperation_
-                NumWaveGroups>;              // kNumWaveGroups_
-            
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
+            instance_code += """
+        using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
+            ADataType,
+            BDataType,
+            ck_tile::tuple<>,  // DsDataType
+            AccDataType,
+            CDataType,
+            ck_tile::tuple<>,  // DsLayout
+            CLayout,
+            ck_tile::element_wise::PassThrough,
+            TilePartitioner::MPerBlock,  // kM_
+            TilePartitioner::NPerBlock,  // kN_
+            WarpPerBlock_M,              // MWave_
+            WarpPerBlock_N,              // NWave_
+            WarpTileM,                   // MPerXdl_
+            WarpTileN,                   // NPerXdl_
+            WarpTileK,                   // KPerXdl_
+            TransposeC,                  // isCTransposed_
+            NumWaveGroups>;              // kNumWaveGroups_
+        
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
 """
         else:  # default epilogue
-            instance_code += """            using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
-                ADataType,
-                BDataType,
-                ck_tile::tuple<>,  // DsDataType
-                AccDataType,
-                CDataType,
-                ck_tile::tuple<>,  // DsLayout
-                CLayout,
-                ck_tile::element_wise::PassThrough,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
-                kPadM,
-                kPadN,
-                WarpTileM,  // kMPerXdl_
-                WarpTileN,  // kNPerXdl_
-                WarpTileK,  // kKPerXdl_
-                TransposeC>;  // isCTransposed_
-            
-            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;
+            instance_code += """
+        using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
+            ADataType,
+            BDataType,
+            ck_tile::tuple<>,  // DsDataType
+            AccDataType,
+            CDataType,
+            ck_tile::tuple<>,  // DsLayout
+            CLayout,
+            ck_tile::element_wise::PassThrough,
+            TilePartitioner::MPerBlock,  // kM_
+            TilePartitioner::NPerBlock,  // kN_
+            kPadM,
+            kPadN,
+            WarpTileM,  // kMPerXdl_
+            WarpTileN,  // kNPerXdl_
+            WarpTileK,  // kKPerXdl_
+            TransposeC>;  // isCTransposed_
+        
+        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;
 """
 
         instance_code += f"""
             
-            // Kernel type
-            using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        // Kernel type
+        using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            
+        const auto Run = [&]() {{
             
             // Make kernel arguments
             auto kargs = GemmKernel::MakeKernelArgs(args);
@@ -510,24 +509,12 @@ struct SelectedKernel {{
             
             // Launch kernel
             constexpr int kBlockPerCu = {k_block_per_cu};
-            float ave_time = ck_tile::launch_kernel(
+            return ck_tile::launch_kernel(
                 stream,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
-            
-            return ave_time;
         }};
 
-        float ave_time = 0.f;
-
-        if(args.k_batch == 1) {{
-            ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                        ck_tile::memory_operation_enum::set>{{}});
-        }} else {{
-            ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                        ck_tile::memory_operation_enum::atomic_add>{{}});
-        }}
-
-        return ave_time;
+        return Run();
     }}
 }};
 """

@@ -254,6 +254,8 @@ struct UniversalGemmKernel
     static_assert(DsLayout::size() == DsDataType::size(),
                   "The size of DsLayout and DsDataType should be the same");
 
+    static_assert(!GemmPipeline::BlockGemmShape::PermuteA, "Not implemented!");
+
     using KernelArgs =
         UniversalGemmKernelArgs<AsLayout::size(), BsLayout::size(), DsLayout::size()>;
 
