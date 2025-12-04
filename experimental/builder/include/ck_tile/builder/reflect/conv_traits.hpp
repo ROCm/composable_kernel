@@ -298,7 +298,10 @@ constexpr auto conv_spec()
 
 /// @brief Derives the grouped convolution layout from a device kernel `Instance` type.
 /// @tparam Instance The device kernel instance type.
-/// @return A `builder::GroupConvLayout{1D|2D|3D}` enum value corresponding to the tensor layouts.
+/// @return An std::array corresponding to the tensor layouts:
+///             index 0 -> Input layout
+///             index 1 -> Weight layout
+///             index 2 -> Output layout
 template <typename Instance>
 constexpr auto conv_layout()
 {
@@ -314,22 +317,30 @@ constexpr auto conv_layout()
         if constexpr(std::is_same_v<ALayout, ctc::GNWC> && std::is_same_v<BLayout, ctc::GKXC> &&
                      std::is_same_v<ELayout, ctc::GNWK>)
         {
-            return builder::GroupConvLayout1D::GNWC_GKXC_GNWK;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::GNWC,
+                                                        builder::TensorLayout::GKXC,
+                                                        builder::TensorLayout::GNWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NWGC> &&
                           std::is_same_v<BLayout, ctc::GKXC> && std::is_same_v<ELayout, ctc::NWGK>)
         {
-            return builder::GroupConvLayout1D::NWGC_GKXC_NWGK;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NWGC,
+                                                        builder::TensorLayout::GKXC,
+                                                        builder::TensorLayout::NWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCW> &&
                           std::is_same_v<BLayout, ctc::GKXC> && std::is_same_v<ELayout, ctc::NGKW>)
         {
-            return builder::GroupConvLayout1D::NGCW_GKXC_NGKW;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCW,
+                                                        builder::TensorLayout::GKXC,
+                                                        builder::TensorLayout::NGKW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCW> &&
                           std::is_same_v<BLayout, ctc::GKCX> && std::is_same_v<ELayout, ctc::NGKW>)
         {
-            return builder::GroupConvLayout1D::NGCW_GKCX_NGKW;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCW,
+                                                        builder::TensorLayout::GKCX,
+                                                        builder::TensorLayout::NGKW};
         }
     }
     else if constexpr(InstTraits::kSpatialDim == 2)
@@ -337,25 +348,33 @@ constexpr auto conv_layout()
         if constexpr(std::is_same_v<ALayout, ctc::GNHWC> && std::is_same_v<BLayout, ctc::GKYXC> &&
                      std::is_same_v<ELayout, ctc::GNHWK>)
         {
-            return builder::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::GNHWC,
+                                                        builder::TensorLayout::GKYXC,
+                                                        builder::TensorLayout::GNHWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NHWGC> &&
                           std::is_same_v<BLayout, ctc::GKYXC> &&
                           std::is_same_v<ELayout, ctc::NHWGK>)
         {
-            return builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NHWGC,
+                                                        builder::TensorLayout::GKYXC,
+                                                        builder::TensorLayout::NHWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCHW> &&
                           std::is_same_v<BLayout, ctc::GKYXC> &&
                           std::is_same_v<ELayout, ctc::NGKHW>)
         {
-            return builder::GroupConvLayout2D::NGCHW_GKYXC_NGKHW;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCHW,
+                                                        builder::TensorLayout::GKYXC,
+                                                        builder::TensorLayout::NGKHW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCHW> &&
                           std::is_same_v<BLayout, ctc::GKCYX> &&
                           std::is_same_v<ELayout, ctc::NGKHW>)
         {
-            return builder::GroupConvLayout2D::NGCHW_GKCYX_NGKHW;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCHW,
+                                                        builder::TensorLayout::GKCYX,
+                                                        builder::TensorLayout::NGKHW};
         }
     }
     else if constexpr(InstTraits::kSpatialDim == 3)
@@ -363,25 +382,33 @@ constexpr auto conv_layout()
         if constexpr(std::is_same_v<ALayout, ctc::GNDHWC> && std::is_same_v<BLayout, ctc::GKZYXC> &&
                      std::is_same_v<ELayout, ctc::GNDHWK>)
         {
-            return builder::GroupConvLayout3D::GNDHWC_GKZYXC_GNDHWK;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::GNDHWC,
+                                                        builder::TensorLayout::GKZYXC,
+                                                        builder::TensorLayout::GNDHWK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NDHWGC> &&
                           std::is_same_v<BLayout, ctc::GKZYXC> &&
                           std::is_same_v<ELayout, ctc::NDHWGK>)
         {
-            return builder::GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NDHWGC,
+                                                        builder::TensorLayout::GKZYXC,
+                                                        builder::TensorLayout::NDHWGK};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCDHW> &&
                           std::is_same_v<BLayout, ctc::GKZYXC> &&
                           std::is_same_v<ELayout, ctc::NGKDHW>)
         {
-            return builder::GroupConvLayout3D::NGCDHW_GKZYXC_NGKDHW;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCDHW,
+                                                        builder::TensorLayout::GKZYXC,
+                                                        builder::TensorLayout::NGKDHW};
         }
         else if constexpr(std::is_same_v<ALayout, ctc::NGCDHW> &&
                           std::is_same_v<BLayout, ctc::GKCZYX> &&
                           std::is_same_v<ELayout, ctc::NGKDHW>)
         {
-            return builder::GroupConvLayout3D::NGCDHW_GKCZYX_NGKDHW;
+            return std::array<builder::TensorLayout, 3>{builder::TensorLayout::NGCDHW,
+                                                        builder::TensorLayout::GKCZYX,
+                                                        builder::TensorLayout::NGKDHW};
         }
     }
 }
@@ -433,21 +460,9 @@ template <typename ElementwiseOp>
 constexpr builder::ElementwiseOperation elementwise_op()
 {
     constexpr std::string_view name = detail::elementwise_op_name<ElementwiseOp>();
-    if constexpr(detail::case_insensitive_equal(name, "Bias"))
-    {
-        return builder::ElementwiseOperation::BIAS;
-    }
-    else if constexpr(detail::case_insensitive_equal(name, "BiasClamp"))
-    {
-        return builder::ElementwiseOperation::BIAS_CLAMP;
-    }
-    else if constexpr(detail::case_insensitive_equal(name, "BiasBnormClamp"))
+    if constexpr(detail::case_insensitive_equal(name, "BiasBnormClamp"))
     {
         return builder::ElementwiseOperation::BIAS_BNORM_CLAMP;
-    }
-    else if constexpr(detail::case_insensitive_equal(name, "Bilinear"))
-    {
-        return builder::ElementwiseOperation::BILINEAR;
     }
     else if constexpr(detail::case_insensitive_equal(name, "Clamp"))
     {
@@ -460,6 +475,10 @@ constexpr builder::ElementwiseOperation elementwise_op()
     else if constexpr(detail::case_insensitive_equal(name, "PassThrough"))
     {
         return builder::ElementwiseOperation::PASS_THROUGH;
+    }
+    else if constexpr(detail::case_insensitive_equal(name, "ScaleAddScaleAddRelu"))
+    {
+        return builder::ElementwiseOperation::SCALEADD_SCALEADD_RELU;
     }
 }
 
