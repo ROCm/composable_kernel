@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -51,6 +51,13 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<false>();
+};
+
+struct GemmConfigPrefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
 };
 
 struct GemmConfigPreshuffleQuant : public GemmConfigBase
@@ -113,6 +120,11 @@ struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBP
     static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
 };
 
+struct GemmConfigPreshuffleBPreshuffleQuantDecode : public GemmConfigPreshuffleBDecode
+{
+    static constexpr bool PreshuffleQuant = true;
+};
+
 template <typename Tuple>
 class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGemmAQuant<Tuple>>
 {
@@ -123,6 +135,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     using typename Base::AccDataType;
     using typename Base::ADataType;
     using typename Base::ALayout;
+    using typename Base::AQLayout;
     using typename Base::BDataType;
     using typename Base::BLayout;
     using typename Base::CDataType;
@@ -140,20 +153,25 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     // AQuant-specific data generation
     void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
-        const ck_tile::index_t stride_A = K;
-        const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = N;
+        const ck_tile::index_t stride_A =
+            ck_tile::get_default_stride(M, K, 0, this->is_row_major(ALayout{}));
+        const ck_tile::index_t stride_B =
+            ck_tile::get_default_stride(K, N, 0, this->is_row_major(BLayout{}));
+        const ck_tile::index_t stride_C =
+            ck_tile::get_default_stride(M, N, 0, this->is_row_major(CLayout{}));
 
         // AQuant uses grouped quantization for A matrix
         const ck_tile::index_t AQK = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
+        // AQLayout is parameterized in the test tuple (can be RowMajor or ColumnMajor for AQuant)
         const ck_tile::index_t stride_AQ =
-            ck_tile::get_default_stride(M, AQK, 0, this->is_row_major(ALayout{}));
+            ck_tile::get_default_stride(M, AQK, 0, this->is_row_major(AQLayout{}));
 
         // Generate test data
         ck_tile::HostTensor<ADataType> a_m_k(
             ck_tile::host_tensor_descriptor(M, K, stride_A, this->is_row_major(ALayout{})));
+        // AQLayout is independently specified for each test case
         ck_tile::HostTensor<QDataType> aq_m_aqk(
-            ck_tile::host_tensor_descriptor(M, AQK, stride_AQ, this->is_row_major(ALayout{})));
+            ck_tile::host_tensor_descriptor(M, AQK, stride_AQ, this->is_row_major(AQLayout{})));
         ck_tile::HostTensor<BDataType> b_k_n(
             ck_tile::host_tensor_descriptor(K, N, stride_B, this->is_row_major(BLayout{})));
 
@@ -395,8 +413,9 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             ck_tile::host_tensor_descriptor(M, K, stride_A, this->is_row_major(ALayout{})));
         ck_tile::HostTensor<BDataType> b_k_n(
             ck_tile::host_tensor_descriptor(K, N, stride_B, this->is_row_major(BLayout{})));
+        // BQ is always ColumnMajor
         ck_tile::HostTensor<QDataType> bq_bqk_bqn(
-            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, this->is_row_major(BLayout{})));
+            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, ck_tile::bool_constant<false>{}));
 
         // Initialize data with random values
         ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
@@ -436,7 +455,13 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         {
             printf("Preshuffle BQ with TiledMMAPermuteN \n");
             ck_tile::HostTensor<QDataType> bq_shuffle_host =
-                ck_tile::shuffle_bq_permuteN<GemmConfig>(bq_bqk_bqn);
+                ck_tile::bq_permuteN<GemmConfig>(bq_bqk_bqn);
+            bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
+        }
+        else if constexpr(GemmConfig::PreshuffleQuant)
+        {
+            ck_tile::HostTensor<QDataType> bq_shuffle_host =
+                ck_tile::shuffle_bq(&bq_bqk_bqn, GemmConfig::K_Tile / QuantGroupSize::kK);
             bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
         }
         else

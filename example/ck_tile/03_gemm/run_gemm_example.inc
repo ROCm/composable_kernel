@@ -1,7 +1,10 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 #include "ck_tile/host/permute_pk_int4.hpp"
+#include "ck_tile/host/tensor_shuffle_utils.hpp"
+#include "ck_tile/ops/common/utils.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -172,69 +175,6 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename GemmConfig, typename T>
-auto shuffle_b(const ck_tile::HostTensor<T>& t)
-{
-    assert(t.get_lengths().size() == 2);
-    int n_ = t.get_lengths()[1];
-    int k_ = t.get_lengths()[0];
-
-    if(ck_tile::is_gfx12_supported())
-    {
-        constexpr int divisor      = 2;
-        constexpr int kABK1PerLane = 8;
-        constexpr int kABK0PerLane = GemmConfig::K_Warp_Tile / divisor / kABK1PerLane;
-        ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
-                                       GemmConfig::N_Warp_Tile,
-                                       k_ / GemmConfig::K_Warp_Tile,
-                                       kABK0PerLane,
-                                       divisor,
-                                       kABK1PerLane});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 4, 1, 3, 5});
-    }
-    else
-    {
-        int divisor = 1;
-        if(ck_tile::is_gfx11_supported())
-        {
-            divisor = 1;
-        }
-        else
-        {
-            assert(is_wave32() == false);
-            divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
-        }
-        ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
-                                       GemmConfig::N_Warp_Tile,
-                                       k_ / GemmConfig::K_Warp_Tile,
-                                       divisor,
-                                       GemmConfig::K_Warp_Tile / divisor});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-    }
-}
-
-template <typename GemmConfig, typename T>
-auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t)
-{
-    assert(t.get_lengths().size() == 2);
-
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
-    constexpr int NRepeat = GemmConfig::N_Tile / GemmConfig::N_Warp_Tile / GemmConfig::N_Warp;
-    ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Tile,
-                                   GemmConfig::N_Warp,
-                                   GemmConfig::N_Warp_Tile,
-                                   NRepeat,
-                                   k_ / GemmConfig::K_Warp_Tile,
-                                   divisor,
-                                   GemmConfig::K_Warp_Tile / divisor});
-    std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 5, 2, 6});
-}
-
 template <typename CDataType>
 bool do_verify(const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                const ck_tile::HostTensor<CDataType>& c_m_n_ref,
@@ -345,12 +285,12 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             if constexpr(GemmConfig::TiledMMAPermuteN)
             {
                 std::cout << "Run with PermuteN" << std::endl;
-                return shuffle_b_permuteN<GemmConfig>(b_k_n);
+                return ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
             }
             else
             {
                 std::cout << "Run without PermuteN" << std::endl;
-                return shuffle_b<GemmConfig>(b_k_n);
+                return ck_tile::shuffle_b<GemmConfig>(b_k_n);
             }
         }();
         // shuffled buffer B for device implementation
@@ -433,9 +373,10 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
     std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
               << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
               << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
-              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
-              << " B_Type=" << DataTypeTraits<BDataType>::name
-              << " C_Type=" << DataTypeTraits<CDataType>::name
+              << " C_Layout=" << CLayout::name
+              << " A_Type=" << ck_tile::DataTypeTraits<ADataType>::name
+              << " B_Type=" << ck_tile::DataTypeTraits<BDataType>::name
+              << " C_Type=" << ck_tile::DataTypeTraits<CDataType>::name
               << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
               << " Persistent=" << (persistent ? "on" : "off") << " : " << ave_time << " ms, "
               << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
@@ -503,18 +444,18 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                BDataType,
                                CDataType,
                                GemmConfig,
-                               DataTypeTraits>(arg_parser.get_str("jsonfile"),
-                                               M,
-                                               N,
-                                               K,
-                                               stride_A,
-                                               stride_B,
-                                               stride_C,
-                                               persistent,
-                                               pass,
-                                               ave_time,
-                                               tflops,
-                                               gb_per_sec);
+                               ck_tile::DataTypeTraits>(arg_parser.get_str("jsonfile"),
+                                                        M,
+                                                        N,
+                                                        K,
+                                                        stride_A,
+                                                        stride_B,
+                                                        stride_C,
+                                                        persistent,
+                                                        pass,
+                                                        ave_time,
+                                                        tflops,
+                                                        gb_per_sec);
     }
 
     return pass;

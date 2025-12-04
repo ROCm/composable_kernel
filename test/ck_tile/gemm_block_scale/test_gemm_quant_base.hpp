@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -29,13 +29,14 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     using ALayout                   = std::tuple_element_t<0, Tuple>;
     using BLayout                   = std::tuple_element_t<1, Tuple>;
     using CLayout                   = std::tuple_element_t<2, Tuple>;
-    using ADataType                 = std::tuple_element_t<3, Tuple>;
-    using BDataType                 = std::tuple_element_t<4, Tuple>;
-    using QDataType                 = std::tuple_element_t<5, Tuple>;
-    using CDataType                 = std::tuple_element_t<6, Tuple>;
-    static constexpr auto QuantType = std::tuple_element_t<7, Tuple>::value;
-    using GemmConfig                = std::tuple_element_t<8, Tuple>;
-    using QuantGroupSize            = std::tuple_element_t<9, Tuple>;
+    using AQLayout                  = std::tuple_element_t<3, Tuple>;
+    using ADataType                 = std::tuple_element_t<4, Tuple>;
+    using BDataType                 = std::tuple_element_t<5, Tuple>;
+    using QDataType                 = std::tuple_element_t<6, Tuple>;
+    using CDataType                 = std::tuple_element_t<7, Tuple>;
+    static constexpr auto QuantType = std::tuple_element_t<8, Tuple>::value;
+    using GemmConfig                = std::tuple_element_t<9, Tuple>;
+    using QuantGroupSize            = std::tuple_element_t<10, Tuple>;
     using AccDataType               = float; // accumulate always in float
 
     // Get the quant-type specific data types from traits
@@ -85,6 +86,9 @@ class TestCkTileGemmQuantBase : public ::testing::Test
 
         using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
+        // BQLayout is always ColumnMajor for BQuant
+        using BQLayout = ck_tile::tensor_layout::gemm::ColumnMajor;
+
         using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
                                                                kPadN,
                                                                kPadK,
@@ -94,8 +98,8 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                                                BLayout,
                                                                CLayout,
                                                                QuantType,
-                                                               ALayout,
-                                                               BLayout,
+                                                               AQLayout,
+                                                               BQLayout,
                                                                GemmConfig::TransposeC,
                                                                DoubleSmemBuffer,
                                                                false,

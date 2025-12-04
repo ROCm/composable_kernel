@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -33,7 +33,8 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC = false>
+          bool TransposeC = false,
+          bool BSkipLDS   = false>
 struct BlockwiseGemmWmmaops_pipeline_v3
 {
 };
@@ -78,7 +79,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                         NRepeat,
                                         KPack,
                                         KInner,
-                                        TransposeC>
+                                        TransposeC,
+                                        false>
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,

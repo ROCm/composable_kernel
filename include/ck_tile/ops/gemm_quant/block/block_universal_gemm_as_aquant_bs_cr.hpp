@@ -1,11 +1,10 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/elementwise.hpp"
@@ -156,7 +155,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
     using Base = BlockGemmAQuantBase<Problem_>;
 
-    using Loader   = remove_cvref_t<InterleavedPKTypeLoader<ComputeDataType, UnaryOpSize_>>;
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
     static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
@@ -276,7 +274,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
             int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
                 pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
-
             return Base::cvt_scale_to_fp32(gathered_scale_reg);
         }
 
@@ -370,15 +367,14 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                             static_assert(false, "WarpGemm::kM is not 16 nor 32.");
                         }
                         auto& scale_reg = aq_block_tensor.get_thread_buffer()[mIter];
-
                         return exchange_quant_value_across_lanes(scale_reg, pull_from_lane);
                     }
                     else
                     {
                         // Need to multiply aquant with accumulated C
                         //
-                        // The accumulated C tile has the standard distribution. For example
-                        // lane 0 holds elements [0,0], [1,0], [2,0], [3,0], [8,0], [9,0],
+                        // The accumulated C tile has the standard distribution. For example, a
+                        // 32x32 C lane 0 holds elements [0,0], [1,0], [2,0], [3,0], [8,0], [9,0],
                         // [10,0], [11,0], [16,0], [17,0], [18,0], [19,0], [24,0], [25,0],
                         // [26,0], [27,0].
                         //
@@ -392,35 +388,31 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         //
                         // These scales can be obtained using __builtin_amdgcn_ds_bpermute.
 
-                        // MIters per warp
-                        constexpr index_t mIters_per_warp = get_warp_size() / WarpGemm::kM;
-
                         // Reg block offset based on mIter
-                        constexpr index_t reg_block_offset =
-                            ((mIter / mIters_per_warp) * Traits::AQPerBlock);
-
-                        constexpr index_t lane_base_offset =
-                            (mIter % mIters_per_warp) * WarpGemm::kM;
-
-                        // Scale tensor offset along K
-                        constexpr index_t src_reg_offset = reg_block_offset + kQScale;
-                        // Directly index into thread buffer corresponding to
-                        // desired row coefficient
+                        // Each thread stores AQPerBlock scale values per M iteration.
+                        constexpr index_t reg_block_offset = mIter * Traits::AQPerBlock;
+                        constexpr index_t src_reg_offset   = reg_block_offset + kQScale;
                         auto& scale_reg = aq_block_tensor.get_thread_buffer()[src_reg_offset];
 
-                        constexpr uint32_t kTileRows = (get_warp_size() == 64) ? 4 : 8;
-                        ;
-                        constexpr uint32_t kTiledCMsPerWarp        = WarpGemm::kCMLane * kTileRows;
-                        constexpr uint32_t reg_offset_for_row_data = c_row * WarpGemm::kCMLane;
-                        // Multiply by 4 because output is stored in tiles of 4
-                        // x CNLane
-                        constexpr uint32_t row_base =
-                            ((reg_offset_for_row_data / kTiledCMsPerWarp) * kTiledCMsPerWarp) +
-                            ((reg_offset_for_row_data % kTiledCMsPerWarp) / WarpGemm::kCMLane);
+                        // Divide M dimension of C Warp tile into groups of
+                        // (WarpGemm::kCMLane * WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane)
+                        // m_base_offset_of_c_row indicates which group the current c_row belongs
+                        // to.
+                        constexpr index_t m_base_offset_of_c_row =
+                            (c_row / WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane) *
+                            (WarpGemm::kCMLane * WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane);
 
-                        // Lane index to source scale from
+                        // M offset of each thread within its group (see comment above)
+                        index_t m_base_offset_of_lane =
+                            (get_lane_id() / WarpGemm::kN *
+                             WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane);
+
+                        // M offset wrt. c_row in the subgroup of kCM1PerLane
+                        constexpr index_t m_offset_of_c_row =
+                            c_row & (WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane - 1);
+
                         uint32_t src_lane_idx =
-                            lane_base_offset + row_base + (__lane_id() / WarpGemm::kN * kTileRows);
+                            m_base_offset_of_c_row + m_base_offset_of_lane + m_offset_of_c_row;
 
                         return exchange_quant_value_across_lanes(scale_reg, src_lane_idx);
                     }
@@ -443,30 +435,22 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
         ALdsTile a_warp_tile_;
         BLdsTile b_warp_tile_;
 
-        template <typename ASmemBlockWindow, typename BSmemBlockWindow>
+        template <typename ASmemBlockWindow,
+                  typename BSmemBlockWindow,
+                  bool ALoadTranspose = false,
+                  bool BLoadTranspose = false>
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                          const BSmemBlockWindow& b_block_window)
+                                          const BSmemBlockWindow& b_block_window,
+                                          bool_constant<ALoadTranspose> = {},
+                                          bool_constant<BLoadTranspose> = {})
         {
-            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
-            {
-                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                              std::is_same_v<ComputeDataType, bf8_t>);
-                Loader::load_interleaved_pk_type(a_warp_tile_, a_block_window);
-            }
-            else
-            {
-                load_tile(a_warp_tile_, a_block_window);
-            }
-            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-            {
-                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                              std::is_same_v<ComputeDataType, bf8_t>);
-                Loader::load_interleaved_pk_type(b_warp_tile_, b_block_window);
-            }
-            else
-            {
-                load_tile(b_warp_tile_, b_block_window);
-            }
+            // while ADatatype might not be the same as BDataType at the time of problem
+            // initialization, we can safely use BDataType here because when A would be int4 we will
+            // ensure A is converted to BDataType prior to loading
+            load_int4_tile<BDataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
+                a_warp_tile_, a_block_window);
+            load_int4_tile<BDataType, ComputeDataType, UnaryOpSize_, BLoadTranspose>(
+                b_warp_tile_, b_block_window);
         }
 
         // C += A * B
@@ -531,6 +515,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                             [&](auto c_row) {
                                 float scale_reg_f = aq_picker.template pick<c_row>();
+
                                 c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
                                     (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
                             });
@@ -547,11 +532,16 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
             MakeCBlockTile();
     }
 
-    template <typename ASmemBlockWindow, typename BSmemBlockWindow>
+    template <typename ASmemBlockWindow,
+              typename BSmemBlockWindow,
+              bool ALoadTranspose = false,
+              bool BLoadTranspose = false>
     CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                      const BSmemBlockWindow& b_block_window)
+                                      const BSmemBlockWindow& b_block_window,
+                                      bool_constant<ALoadTranspose> a_load_tr = {},
+                                      bool_constant<BLoadTranspose> b_load_tr = {})
     {
-        block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window);
+        block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window, a_load_tr, b_load_tr);
     }
 
     // C += A * B

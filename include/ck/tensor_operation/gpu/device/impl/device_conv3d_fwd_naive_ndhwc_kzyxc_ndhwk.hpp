@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef DEVICE_CONV3D_FWD_NAIVE_HPP
 #define DEVICE_CONV3D_FWD_NAIVE_HPP
@@ -11,7 +11,7 @@
 #include "device.hpp"
 #include "device_conv_fwd.hpp"
 #include "common_header.hpp"
-#include "naive_conv_fwd.hpp"
+#include "naive_conv_fwd_gpu.hpp"
 
 namespace ck {
 namespace tensor_operation {

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -17,6 +17,10 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 using namespace ck::tensor_operation::device;
 

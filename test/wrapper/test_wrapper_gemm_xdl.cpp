@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <numeric>
 #include <cstdlib>
@@ -24,6 +24,10 @@
 #include "ck/wrapper/operations/copy.hpp"
 #include "ck/wrapper/operations/gemm.hpp"
 #include "ck/wrapper/utils/kernel_utils.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <typename DataType>
 void CheckResult(const std::vector<DataType>& a_data,

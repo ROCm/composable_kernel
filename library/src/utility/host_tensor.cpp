@@ -1,9 +1,11 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cassert>
 
 #include "ck/library/utility/host_tensor.hpp"
+
+namespace ck {
 
 std::size_t HostTensorDescriptor::GetNumOfDimension() const { return mLens.size(); }
 
@@ -56,3 +58,5 @@ std::ostream& operator<<(std::ostream& os, HostTensorDescriptor::ChosenLayout ta
     }
     return os;
 }
+
+} // namespace ck

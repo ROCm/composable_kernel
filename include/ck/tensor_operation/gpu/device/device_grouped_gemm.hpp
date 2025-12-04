@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -94,7 +94,8 @@ template <typename ALayout,
           typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
+          typename CElementwiseOperation,
+          typename ComputeDataType = ADataType>
 struct DeviceGroupedGemm : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();

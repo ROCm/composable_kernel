@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -42,10 +42,11 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& StrideAs,
                                const std::vector<int>& StrideBs,
                                const std::vector<int>& StrideCs,
-                               const std::vector<int>& kbatches = {},
-                               int n_warmup                     = 1,
-                               int n_iter                       = 10,
-                               int instance_index               = -1)
+                               const std::vector<int>& kbatches   = {},
+                               int n_warmup                       = 1,
+                               int n_iter                         = 10,
+                               int instance_index                 = -1,
+                               bool fail_if_no_supported_instance = false)
 {
     bool pass = true;
     // TODO: Fixme - we do not pass compute data type here but need it
@@ -225,6 +226,7 @@ bool profile_grouped_gemm_impl(int do_verification,
         }
     }
     // profile device GEMM instances
+    int instances_supporting_all_batch_sizes = 0;
     for(auto& gemm_ptr : op_ptrs)
     {
         auto argument_ptr =
@@ -268,6 +270,7 @@ bool profile_grouped_gemm_impl(int do_verification,
             kbatch_list = kbatches;
         }
 
+        bool all_batch_sizes_supported = true;
         for(std::size_t j = 0; j < kbatch_list.size(); j++)
         {
             auto kbatch_curr = kbatch_list[j];
@@ -367,9 +370,29 @@ bool profile_grouped_gemm_impl(int do_verification,
             }
             else
             {
+                all_batch_sizes_supported = false;
                 std::cout << "Instance: " << gemm_name << ", does not support this GEMM problem"
                           << std::endl;
             }
+        }
+
+        // If all batch sizes were supported by this instance, the instance can be marked as
+        // 'supported' for this problem
+        if(all_batch_sizes_supported)
+        {
+            ++instances_supporting_all_batch_sizes;
+        }
+    }
+
+    // Warn if not a single instance was supported
+    if(instances_supporting_all_batch_sizes == 0)
+    {
+        std::cout << "Warning! No instance found that supported all of the batch sizes."
+                  << std::endl;
+
+        if(fail_if_no_supported_instance)
+        {
+            return false;
         }
     }
 
@@ -384,6 +407,7 @@ bool profile_grouped_gemm_impl(int do_verification,
         std::cout << "grouped_gemm_instance (" << instance_index << "/" << num_kernel << "): Passed"
                   << std::endl;
     }
+
     return pass;
 }
 

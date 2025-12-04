@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -35,30 +35,48 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BQLayout       = remove_cvref_t<typename Problem::BQLayout>;
         using BlockGemmShape = typename Problem::BlockGemmShape;
 
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
-        constexpr index_t NPerBlockBQ = NPerBlock / Problem::QuantGroupSize::kN;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockBQ = KPerBlock / Problem::QuantGroupSize::kK;
-        using WarpTile                = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm                = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                                           typename Problem::ComputeDataType,
-                                                           typename Problem::CDataType,
-                                                           WarpTile::at(I0),
-                                                           WarpTile::at(I1),
-                                                           WarpTile::at(I2),
-                                                           Problem::TransposeC>;
+        constexpr index_t BlockSize    = Problem::kBlockSize;
+        constexpr index_t NPerBlock    = Problem::BlockGemmShape::kN;
+        constexpr index_t NPerBlockBQ  = NPerBlock / Problem::QuantGroupSize::kN;
+        constexpr index_t KPerBlock    = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlockBQ  = KPerBlock / Problem::QuantGroupSize::kK;
+        constexpr index_t VecLoadSize  = GetVectorSizeBQ<Problem>();
+        constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+
+        using WarpTile = typename Problem::BlockGemmShape::WarpTile;
+        using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
+                                            typename Problem::ComputeDataType,
+                                            typename Problem::CDataType,
+                                            WarpTile::at(I0),
+                                            WarpTile::at(I1),
+                                            WarpTile::at(I2),
+                                            Problem::TransposeC>;
 
         static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-        using TileEncodingPattern =
-            tile_distribution_encoding_pattern_bq<BlockGemmShape,
-                                                  WarpGemm,
-                                                  BlockSize,
-                                                  KPerBlockBQ,
-                                                  NPerBlockBQ,
-                                                  Problem::QuantGroupSize::kN>;
+        if constexpr(PreshuffleQuant)
+        {
+            using TileEncodingPattern = tile_distribution_encoding_pattern_bq<
+                BlockGemmShape,
+                WarpGemm,
+                BlockSize,
+                NPerBlock / WarpGemm::kN,
+                ck_tile::integer_least_multiple(WarpGemm::kN * KPerBlockBQ, get_warp_size()),
+                VecLoadSize,
+                PreshuffleQuant>;
+            return TileEncodingPattern::make_2d_static_tile_distribution();
+        }
+        else
+        {
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_bq<BlockGemmShape,
+                                                      WarpGemm,
+                                                      BlockSize,
+                                                      NPerBlockBQ,
+                                                      KPerBlockBQ,
+                                                      Problem::QuantGroupSize::kN>;
 
-        return TileEncodingPattern::make_2d_static_tile_distribution();
+            return TileEncodingPattern::make_2d_static_tile_distribution();
+        }
     }
 
     template <typename Problem>

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -17,10 +17,58 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data_gpu.hpp"
+#include "ck_tile/host/hip_check_error.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
+template <typename DataType, typename GemmType = DataType>
+inline __host__ __device__ constexpr double get_rtol()
+{
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
+        return 5e-3;
+    else if constexpr(std::is_same_v<DataType, float>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, double>)
+        return 1e-6;
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+        return 5e-2;
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+        return 1e-1;
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+        return 1.5e-1;
+    else
+        return 1e-3;
+}
+
+template <typename DataType, typename GemmType = DataType>
+inline __host__ __device__ constexpr double get_atol()
+{
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, float>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, double>)
+        return 1e-6;
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+        return 5e-2;
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+        return 16.1;
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+        return 16.1;
+    else
+        return 1e-3;
+}
 
 void print_helper_msg()
 {
-    std::cout << "arg1: verification (0=no, 1=yes)\n"
+    std::cout << "arg1: verification (0=no, 1=CPU, 2=GPU)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
               << "arg3: time kernel (0=no, 1=yes)\n"
               << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
@@ -34,7 +82,7 @@ template <ck::index_t NDimSpatial,
           typename WeiElementOp,
           typename OutElementOp,
           typename DeviceConvNdBwdDataInstance>
-int run_conv_bwd_data(bool do_verification,
+int run_conv_bwd_data(int do_verification,
                       int init_method,
                       bool time_kernel,
                       const ck::utils::conv::ConvParam& conv_param,
@@ -124,26 +172,30 @@ int run_conv_bwd_data(bool do_verification,
                                  wei_element_op,
                                  out_element_op);
 
+    // Check if optimized kernel supports these parameters
     if(!conv.IsSupportedArgument(argument.get()))
     {
         std::cout << "Not support,please check parameters or device";
         return 0;
     }
 
+    // Run optimized kernel
     float ave_time = invoker.Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop      = conv_param.GetFlops();
     std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
 
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
-    if(do_verification)
+    std::cout << "do_verification = " << do_verification << std::endl;
+
+    if(do_verification == 1)
     {
+        // CPU verification
         auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
                                                                          InDataType,
                                                                          WeiDataType,
@@ -170,6 +222,56 @@ int run_conv_bwd_data(bool do_verification,
         in_device_buf.FromDevice(in_device.mData.data());
 
         return ck::utils::check_err(in_device, in_host) ? 0 : 1;
+    }
+    else if(do_verification == 2)
+    {
+        // GPU verification
+        std::cout << "Running GPU verification..." << std::endl;
+
+        DeviceMem in_device_ref_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
+        in_device_ref_buf.SetZero();
+
+        // Extract dimensions using helper function
+        ck::ref::ConvDims dims = ck::utils::conv::extract_conv_dims(conv_param, NDimSpatial);
+
+        constexpr ck::index_t block_size    = 256;
+        const ck::long_index_t input_length = dims.N * dims.Di * dims.Hi * dims.Wi * dims.C;
+        const ck::index_t grid_size         = (input_length + block_size - 1) / block_size;
+
+        auto gpu_ref_kernel = ck::ref::naive_conv_bwd_data_ndhwc_kzyxc_ndhwk<InDataType,
+                                                                             WeiDataType,
+                                                                             OutDataType,
+                                                                             float,
+                                                                             InElementOp,
+                                                                             WeiElementOp,
+                                                                             OutElementOp>;
+
+        gpu_ref_kernel<<<dim3(grid_size), dim3(block_size), 0, nullptr>>>(
+            reinterpret_cast<InDataType*>(in_device_ref_buf.GetDeviceBuffer()),
+            reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
+            dims);
+
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+        std::cout << "GPU reference kernel completed, copying results..." << std::endl;
+
+        // Copy GPU reference result
+        Tensor<InDataType> in_gpu_ref(in_host.mDesc);
+        in_device_ref_buf.FromDevice(in_gpu_ref.mData.data());
+
+        // Copy optimized kernel result
+        in_device_buf.FromDevice(in_device.mData.data());
+
+        // Compare: Optimized kernel result vs GPU reference result
+        bool pass = ck::utils::check_err(in_device,
+                                         in_gpu_ref,
+                                         "Error: Incorrect results!",
+                                         get_rtol<InDataType, float>(),
+                                         get_atol<InDataType, float>());
+        std::cout << "GPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+
+        return pass ? 0 : 1;
     }
 
     return 0;
