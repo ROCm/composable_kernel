@@ -15,7 +15,7 @@ constexpr void run_test(const std::vector<std::string>& kernel_instance_componen
 {
     auto instance = typename Builder::Instance{};
 
-    const auto kernel_string = instance.GetTypeString();
+    const auto kernel_string = instance.GetInstanceString();
     std::cout << "Generated kernel: " << kernel_string << std::endl;
     EXPECT_GT(kernel_string.size(), 0);
 
