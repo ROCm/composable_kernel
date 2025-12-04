@@ -70,8 +70,6 @@ struct GroupedConvolutionForwardInvoker
         // =====================================================================
         // Regular Convolution: Simple, no split-image
         // =====================================================================
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
                 InDataType,
@@ -107,7 +105,6 @@ struct GroupedConvolutionForwardInvoker
                 ConvConfig::N_Warp_Tile,
                 ConvConfig::K_Warp_Tile,
                 GroupedConvTraitsType::FixedGemmParams::TransposeC,
-                memory_operation,
                 ConvConfig::NumWaveGroups,
                 GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
                 GroupedConvTraitsType::VectorSizeC>>;
@@ -143,18 +140,5 @@ struct GroupedConvolutionForwardInvoker
             return ck_tile::launch_kernel(
                 s,
                 ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        };
-
-        // =====================================================================
-        // Split-K dispatch
-        // =====================================================================
-        if(args.k_batch == 1)
-        {
-            return Run(MemoryOpSet{});
-        }
-        else
-        {
-            return Run(MemoryOpAtomicAdd{});
-        }
     }
 };

@@ -59,9 +59,6 @@ struct GroupedConvolutionBackwardWeightInvoker
             ConvConfig::NumWaveGroups>;
         constexpr auto scheduler = ConvConfig::Scheduler;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
-
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
                 OutDataType,
                 InDataType,
@@ -96,7 +93,6 @@ struct GroupedConvolutionBackwardWeightInvoker
                 ConvConfig::N_Warp_Tile,
                 ConvConfig::K_Warp_Tile,
                 GroupedConvTraitsType::FixedGemmParams::TransposeC,
-                memory_operation,
                 ConvConfig::NumWaveGroups,
                 GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
                 GroupedConvTraitsType::VectorSizeC>>;
@@ -144,15 +140,5 @@ struct GroupedConvolutionBackwardWeightInvoker
                 s,
                 preprocess,
                 ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        };
-
-        if(args.k_batch == 1)
-        {
-            return Run(MemoryOpSet{});
-        }
-        else
-        {
-            return Run(MemoryOpAtomicAdd{});
-        }
     }
 };

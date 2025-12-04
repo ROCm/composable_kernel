@@ -72,8 +72,6 @@ struct SplitKTwoStageInvoker
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -92,7 +90,6 @@ struct SplitKTwoStageInvoker
                                                  GemmConfig::N_Warp_Tile,
                                                  GemmConfig::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
-                                                 memory_operation,
                                                  GemmConfig::NumWaveGroups>>;
 
             using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -217,15 +214,5 @@ struct SplitKTwoStageInvoker
                                                   ck_tile::make_tuple(args.N, 1), // Output Stride
                                                   input_tensors,
                                                   static_cast<CDataType*>(c_ptr)));
-        };
-
-        if(args.k_batch == 1)
-        {
-            return Run(MemoryOpSet{});
-        }
-        else
-        {
-            return Run(MemoryOpAtomicAdd{});
-        }
     }
 };

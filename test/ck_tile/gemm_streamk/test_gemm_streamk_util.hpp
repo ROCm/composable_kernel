@@ -156,7 +156,7 @@ class TestCkTileStreamK : public ::testing::Test
 
         return kargs.tile_partitioner.estimate_num_wgs_per_tile();
     }
-}
+};
 
 public : void
          Run(ck_tile::index_t M,

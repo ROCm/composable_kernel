@@ -203,7 +203,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                        ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                                        num_groups));
     }
-}
+};
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)

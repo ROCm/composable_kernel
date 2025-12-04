@@ -62,8 +62,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
 
         constexpr auto scheduler = ConvConfig::Scheduler;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
+        
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
                 OutDataType,
@@ -99,7 +98,6 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                 ConvConfig::N_Warp_Tile,
                 ConvConfig::K_Warp_Tile,
                 GroupedConvTraitsType::FixedGemmParams::TransposeC,
-                memory_operation,
                 ConvConfig::NumWaveGroups,
                 GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
                 GroupedConvTraitsType::VectorSizeC>>;
@@ -206,15 +204,5 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                     ck_tile::make_tuple(shape[1], 1), // Output Stride
                     input_tensors,
                     static_cast<WeiDataType*>(c_ptr)));
-        };
-
-        if(args.k_batch == 1)
-        {
-            return Run(MemoryOpSet{});
-        }
-        else
-        {
-            return Run(MemoryOpAtomicAdd{});
-        }
     }
 };

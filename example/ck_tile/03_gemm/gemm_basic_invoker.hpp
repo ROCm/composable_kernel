@@ -69,8 +69,7 @@ struct BasicInvoker
 
         using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
+        
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -88,8 +87,7 @@ struct BasicInvoker
                                                  M_Warp_Tile,
                                                  N_Warp_Tile,
                                                  K_Warp_Tile,
-                                                 CodegenPipelineProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 CodegenPipelineProblem::TransposeC>>;
 
             // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
             // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
@@ -161,15 +159,5 @@ struct BasicInvoker
                 s,
                 preprocess,
                 ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        };
-
-        if(args.k_batch == 1)
-        {
-            return Run(MemoryOpSet{});
-        }
-        else
-        {
-            return Run(MemoryOpAtomicAdd{});
-        }
     }
 };

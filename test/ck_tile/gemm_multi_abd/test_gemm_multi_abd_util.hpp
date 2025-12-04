@@ -220,7 +220,7 @@ class TestCkTileGemmMultiABD : public ::testing::Test
         ck_tile::ignore = ck_tile::launch_kernel(
             s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
     }
-}
+};
 
 public : bool
          Run(const int M,
