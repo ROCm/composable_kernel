@@ -5,7 +5,7 @@
 #include <type_traits>
 
 // Include the helper file we're testing
-#include "ck_tile/builder/factory/helpers/conv_tensor_layout.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
 
 namespace {
 

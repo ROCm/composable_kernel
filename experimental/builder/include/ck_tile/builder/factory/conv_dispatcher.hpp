@@ -59,6 +59,7 @@
 #include "ck_tile/builder/factory/conv_fwd_wmma_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_dl_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_large_tensor_factory.hpp"
+#include "ck_tile/builder/factory/conv_fwd_tile_factory.hpp"
 
 namespace ck_tile::builder::factory {
 
@@ -80,6 +81,14 @@ namespace ck_tile::builder::factory {
 // clear.
 //
 // TODO: Make this dispatch logic much more robust and clear for users.
+
+// CK Tile kernel
+template <typename T>
+consteval bool IsTileAlgorithm()
+{
+    return ConvAlgorithmDescriptor<T> && SpecifiesTileThreadBlock<T> && SpecifiesTileTransfer<T> &&
+           SpecifiesFwdConcSpecialization<T> && SpecifiesTileBlockGemm<T>;
+}
 
 // XDL-based kernel with V3 pipeline structure (newer block GEMM pipeline)
 template <typename T>
@@ -141,7 +150,11 @@ constexpr auto make_conv_instance()
     {
         using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
 
-        if constexpr(IsXdlV3Algorithm<AlgoType>())
+        if constexpr(IsTileAlgorithm<AlgoType>())
+        {
+            return typename ConvFwdTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr(IsXdlV3Algorithm<AlgoType>())
         {
             return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
