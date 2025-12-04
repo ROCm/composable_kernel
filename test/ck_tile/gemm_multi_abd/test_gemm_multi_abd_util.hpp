@@ -156,7 +156,6 @@ class TestCkTileGemmMultiABD : public ::testing::Test
 
         using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
-        const auto Run = [&](const auto memory_operation_) {
             constexpr auto memory_operation = memory_operation_.value;
 
             using DefaultGemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
@@ -176,8 +175,7 @@ class TestCkTileGemmMultiABD : public ::testing::Test
                                                       N_Warp_Tile,
                                                       K_Warp_Tile,
                                                       UniversalGemmProblem::TransposeC,
-                                                      true,
-                                                      memory_operation>>;
+                                                      true>>;
 
             using CShuffleGemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<AsDataType,
@@ -195,8 +193,7 @@ class TestCkTileGemmMultiABD : public ::testing::Test
                                                  M_Warp_Tile,
                                                  N_Warp_Tile,
                                                  K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 UniversalGemmProblem::TransposeC>>;
 
             using GemmEpilogue = std::
                 conditional_t<UseCshuffleEpilog::value, CShuffleGemmEpilogue, DefaultGemmEpilogue>;
@@ -222,21 +219,8 @@ class TestCkTileGemmMultiABD : public ::testing::Test
                           << "}" << std::endl;
             }
 
-            return ck_tile::launch_kernel(
+            ck_tile::ignore = ck_tile::launch_kernel(
                 s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        };
-
-        if(args.k_batch == 1)
-        {
-            std::cout << "Run without SplitK" << std::endl;
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            std::cout << "Run using SplitK" << std::endl;
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
         }
     }
 

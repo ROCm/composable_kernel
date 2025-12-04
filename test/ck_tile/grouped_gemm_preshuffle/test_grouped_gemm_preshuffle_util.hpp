@@ -115,6 +115,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                              const ck_tile::stream_config& s,
                              void* kargs_ptr)
     {
+        EXPECT_TRUE(gemm_descs[0].k_batch == 1);
 
         using GemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -149,8 +150,6 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         using GemmPipeline =
             ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<UniversalGemmProblem>;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
             using GemmEpilogue              = ck_tile::CShuffleEpilogue<
                              ck_tile::CShuffleEpilogueProblem<ADataType,
                                                               BDataType,
@@ -167,8 +166,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                                               M_Warp_Tile,
                                                               N_Warp_Tile,
                                                               K_Warp_Tile,
-                                                              UniversalGemmProblem::TransposeC,
-                                                              memory_operation>>;
+                                                              UniversalGemmProblem::TransposeC>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
             EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
@@ -181,7 +179,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                                          hipMemcpyHostToDevice,
                                                          s.stream_id_));
 
-            return ck_tile::launch_kernel(
+            ck_tile::ignore = ck_tile::launch_kernel(
                 s,
                 ck_tile::make_kernel<kBlockPerCu>(
                     Kernel{},
@@ -190,17 +188,6 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                     0,
                     ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                     gemm_descs.size()));
-        };
-
-        if(gemm_descs[0].k_batch == 1)
-        {
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            // EXPECT TO FAIL because splitk is not supported
-            EXPECT_FALSE(true);
         }
     }
 
@@ -210,6 +197,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                         const ck_tile::stream_config& s,
                                         void* kargs_ptr)
     {
+        EXPECT_TRUE(gemm_descs[0].k_batch == 1);
         using GemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
@@ -241,8 +229,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                                   ck_tile::GemmPipelineScheduler::Default>;
         using GemmPipeline =
             ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<UniversalGemmProblem>;
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
+            
             using GemmEpilogue              = ck_tile::CShuffleEpilogue<
                              ck_tile::CShuffleEpilogueProblem<ADataType,
                                                               BDataType,
@@ -259,8 +246,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                                               M_Warp_Tile,
                                                               N_Warp_Tile,
                                                               K_Warp_Tile,
-                                                              UniversalGemmProblem::TransposeC,
-                                                              memory_operation>>;
+                                                              UniversalGemmProblem::TransposeC>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
             EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
@@ -273,7 +259,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                                          hipMemcpyHostToDevice,
                                                          s.stream_id_));
 
-            return ck_tile::launch_kernel(
+            ck_tile::ignore = ck_tile::launch_kernel(
                 s,
                 ck_tile::make_kernel<kBlockPerCu>(
                     Kernel{},
@@ -282,17 +268,6 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                     0,
                     ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                     gemm_descs.size()));
-        };
-
-        if(gemm_descs[0].k_batch == 1)
-        {
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            // EXPECT TO FAIL because splitk is not supported
-            EXPECT_FALSE(true);
         }
     }
 

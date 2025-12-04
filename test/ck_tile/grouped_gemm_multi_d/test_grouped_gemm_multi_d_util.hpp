@@ -96,7 +96,7 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                              const ck_tile::stream_config& s,
                              void* kargs_ptr)
     {
-
+        EXPECT_TRUE(gemm_descs[0].k_batch == 1);
         using GemmShape = ck_tile::TileGemmShape<
             ck_tile::sequence<Config::M_Tile_, Config::N_Tile_, Config::K_Tile_>,
             ck_tile::sequence<Config::M_Warp_, Config::N_Warp_, Config::K_Warp_>,
@@ -134,9 +134,6 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                                ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>,
                                ck_tile::GemmPipelineAgBgCrCompV4<UniversalGemmProblem>>>;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
-
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
@@ -153,8 +150,7 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                                                  Config::M_Warp_Tile_,
                                                  Config::N_Warp_Tile_,
                                                  Config::K_Warp_Tile_,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 UniversalGemmProblem::TransposeC>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
             EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
@@ -175,7 +171,7 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                                                          hipMemcpyHostToDevice,
                                                          s.stream_id_));
 
-            return ck_tile::launch_kernel(
+            ck_tile::ignore = ck_tile::launch_kernel(
                 s,
                 ck_tile::make_kernel<Config::BlockPerCu_>(
                     Kernel{},
@@ -184,24 +180,12 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                     0,
                     ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                     gemm_descs.size()));
-        };
-
-        if(gemm_descs[0].k_batch == 1)
-        {
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            // EXPECT TO FAIL because splitk is not supported
-            EXPECT_FALSE(true);
         }
     }
 
     void invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
                                         const ck_tile::index_t num_groups,
-                                        void* kargs_ptr,
-                                        bool splitk)
+                                        void* kargs_ptr)
     {
         using GemmShape = ck_tile::TileGemmShape<
             ck_tile::sequence<Config::M_Tile_, Config::N_Tile_, Config::K_Tile_>,
@@ -217,11 +201,6 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                                                        ALayout,
                                                        BLayout,
                                                        ELayout>;
-
-        float ave_time{0};
-
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
 
             // We create the GEMM pipeline without specifying hotloop or tailnumber.
             // These are automatically run inside the kernel based on the given input data.
@@ -268,7 +247,7 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                           << blocks.z << "}" << std::endl;
             }
 
-            ave_time = ck_tile::launch_kernel(
+            ck_tile::ignore = ck_tile::launch_kernel(
                 s,
                 ck_tile::make_kernel<Config::BlockPerCu_>(
                     Kernel{},
@@ -277,18 +256,6 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                     0,
                     ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                     num_groups));
-
-            return ave_time;
-        };
-        if(!splitk)
-        {
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
         }
     }
 
@@ -446,7 +413,6 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
         {
             std::vector<ck_tile::GemmTransKernelArg<DsDataType::size()>> kargs;
             void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
-            const bool splitk = gemm_descs[0].k_batch > 1;
             for(const auto& arg : gemm_descs)
             {
                 kargs.emplace_back(
@@ -471,7 +437,7 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                 hipMemcpyHostToDevice,
                 stream.stream_id_));
 
-            invoke_grouped_gemm_persistent(stream, group_count, kargs_ptr, splitk);
+            invoke_grouped_gemm_persistent(stream, group_count, kargs_ptr);
         }
         else
         {

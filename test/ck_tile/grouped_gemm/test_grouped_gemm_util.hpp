@@ -212,9 +212,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                        CLayout,
                                                        TransposeC>;
 
-        const auto Run = [&](const auto memory_operation_) {
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
-            constexpr auto memory_operation = memory_operation_.value;
 
             // We create the GEMM pipeline without specifying hotloop or tailnumber.
             // These are automatically run inside the kernel based on the given input data.
@@ -242,8 +240,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                  GroupedGemKernelParam::M_Warp_Tile,
                                                  GroupedGemKernelParam::N_Warp_Tile,
                                                  GroupedGemKernelParam::K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 UniversalGemmProblem::TransposeC>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             const dim3 blocks = Kernel::BlockSize();
             const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
@@ -256,7 +253,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
                           << blocks.z << "}" << std::endl;
             }
 
-            ck_tile::launch_kernel(s,
+            ck_tile::ignore = ck_tile::launch_kernel(s,
                                    ck_tile::make_kernel<kBlockPerCu>(
                                        Kernel{},
                                        grids,
@@ -264,19 +261,6 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                        0,
                                        ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                                        num_groups));
-        };
-
-        if(splitk)
-        {
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
-        }
-        else
-        {
-
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
     }
 
     auto calculate_rtol_atol(const ck_tile::index_t K,

@@ -103,10 +103,8 @@ class TestCkTileStreamK : public ::testing::Test
                                                                      StructuredSparsity,
                                                                      Persistent,
                                                                      NumWaveGroup,
-                                                                     preshuffle>;
+                                                                     preshuffle>; 
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
 
             // We create the GEMM pipeline without specifying has_hot_loop or tail_num.
@@ -139,8 +137,7 @@ class TestCkTileStreamK : public ::testing::Test
                                                  M_Warp_Tile,
                                                  N_Warp_Tile,
                                                  K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 UniversalGemmProblem::TransposeC>>;
 
             using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
@@ -154,18 +151,11 @@ class TestCkTileStreamK : public ::testing::Test
             dim3 grid_dims  = Kernel::GridSize(kargs.tile_partitioner);
             dim3 block_dims = Kernel::BlockSize();
 
-            ck_tile::launch_kernel(
+            ck_tile::ignore = ck_tile::launch_kernel(
                 s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grid_dims, block_dims, 0, kargs));
 
             return kargs.tile_partitioner.estimate_num_wgs_per_tile();
-        };
-
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              // Since we are doing stream K, in the case of
-                                              // atomics, multiple workgroups may write to the same
-                                              // output tile in the C tensor, so we must atomic add
-                                              // the results (not set)
-                                              ck_tile::memory_operation_enum::atomic_add>{});
+        }
     }
 
     public:

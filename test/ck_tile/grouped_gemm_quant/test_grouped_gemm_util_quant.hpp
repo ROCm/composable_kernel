@@ -132,10 +132,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                                                  TransposeC,
                                                                  DoubleSmemBuffer,
                                                                  true>;
-
-        const auto Run = [&](const auto memory_operation_) {
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
-            constexpr auto memory_operation = memory_operation_.value;
             constexpr bool transpose_c      = false;
             // We create the GEMM pipeline without specifying hotloop or tailnumber.
             // These are automatically run inside the kernel based on the given input data.
@@ -181,8 +178,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                                  GroupedGemKernelParam::M_Warp_Tile,
                                                  GroupedGemKernelParam::N_Warp_Tile,
                                                  GroupedGemKernelParam::K_Warp_Tile,
-                                                 QuantGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 QuantGemmProblem::TransposeC>>;
             using Kernel      = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
                                                                 GemmPipeline,
                                                                 GemmEpilogue,
@@ -198,7 +194,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                           << blocks.z << "}" << std::endl;
             }
 
-            ck_tile::launch_kernel(s,
+            ck_tile::ignore = ck_tile::launch_kernel(s,
                                    ck_tile::make_kernel<kBlockPerCu>(
                                        Kernel{},
                                        grids,
@@ -206,10 +202,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                        0,
                                        ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                                        num_groups));
-        };
-
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::set>{});
+        }
     }
 
     template <typename Layout>
