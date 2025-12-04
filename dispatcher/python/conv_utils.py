@@ -1080,6 +1080,16 @@ class ConvProblem:
         """Check if depthwise convolution"""
         return self.G == self.C == self.K
 
+    def compute_flops(self) -> float:
+        """
+        Compute FLOPs for this convolution problem.
+
+        Automatically handles 2D vs 3D based on problem dimensions.
+        Note: FLOPs are the same for forward, backward data, and backward weight
+        operations since they all involve the same number of multiply-accumulate ops.
+        """
+        return self.flops_3d if self.is_3d() else self.flops
+
     def is_3d(self) -> bool:
         """Check if 3D convolution"""
         return self.Di > 1 or self.Z > 1
@@ -1879,7 +1889,9 @@ class GpuConvRunner:
             result = {
                 "success": time_ms > 0,
                 "time_ms": time_ms if time_ms > 0 else 0,
-                "tflops": problem.flops / (time_ms * 1e9) if time_ms > 0 else 0,
+                "tflops": problem.compute_flops() / (time_ms * 1e9)
+                if time_ms > 0
+                else 0,
             }
 
             if output_np is not None and time_ms > 0:
@@ -2384,7 +2396,9 @@ class GpuConvBwdWeightRunner:
             result = {
                 "success": time_ms > 0,
                 "time_ms": time_ms if time_ms > 0 else 0,
-                "tflops": problem.flops / (time_ms * 1e9) if time_ms > 0 else 0,
+                "tflops": problem.compute_flops() / (time_ms * 1e9)
+                if time_ms > 0
+                else 0,
             }
 
             # Copy back if needed

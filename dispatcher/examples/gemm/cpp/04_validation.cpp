@@ -4,15 +4,21 @@
 /**
  * Example 04: GEMM Validation
  *
- * Validates GEMM output against CPU reference computation.
+ * Validates GEMM output against CK Tile reference implementations.
+ *
+ * Verification modes:
+ *   --verify 0  : No verification (benchmark only)
+ *   --verify 1  : CPU reference (slower, but always works)
+ *   --verify 2  : GPU reference (faster for large matrices)
  *
  * Build:
- *   python3 scripts/compile_gemm_examples.py examples/cpp/04_validation.cpp
+ *   cd dispatcher/build && make gemm_04_validation
  *
  * Usage:
  *   ./gemm_04_validation
  *   ./gemm_04_validation --help
- *   ./gemm_04_validation --size 512 --rtol 0.01
+ *   ./gemm_04_validation --size 1024 --verify 2
+ *   ./gemm_04_validation --size 256 --verify 1 --rtol 0.01
  *
  * Complexity: ★★☆☆☆
  */
@@ -24,6 +30,10 @@
 #include <random>
 #include <cmath>
 
+#include "ck_tile/core.hpp"
+#include "ck_tile/host.hpp"
+#include "ck_tile/host/reference/reference_gemm.hpp"
+
 #include "ck_tile/dispatcher.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
 #include "ck_tile/dispatcher/example_args.hpp"
@@ -31,6 +41,7 @@
 using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
 using namespace ck_tile::dispatcher::utils;
+using namespace ck_tile::literals;
 
 // =============================================================================
 // KERNEL SET
@@ -39,31 +50,13 @@ using namespace ck_tile::dispatcher::utils;
 DECL_KERNEL_SET(validation, .add("fp16", "rcr", 128, 128, 32));
 
 // =============================================================================
-// CPU Reference
+// Helper: Determine if layout is row-major
 // =============================================================================
 
-void gemm_reference_rcr(const std::vector<float>& A,
-                        const std::vector<float>& B,
-                        std::vector<float>& C,
-                        int M,
-                        int N,
-                        int K)
+template <typename Layout>
+constexpr auto is_row_major(Layout)
 {
-    // C = A * B^T for RCR layout (B is column-major = B^T is row-major)
-    for(int m = 0; m < M; ++m)
-    {
-        for(int n = 0; n < N; ++n)
-        {
-            float sum = 0.0f;
-            for(int k = 0; k < K; ++k)
-            {
-                // A is row-major: A[m,k] = A[m * K + k]
-                // B is col-major: B[k,n] = B[n * K + k]
-                sum += A[m * K + k] * B[n * K + k];
-            }
-            C[m * N + n] = sum;
-        }
-    }
+    return ck_tile::bool_constant<std::is_same_v<Layout, ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
 // =============================================================================
@@ -73,8 +66,10 @@ void gemm_reference_rcr(const std::vector<float>& A,
 int main(int argc, char* argv[])
 {
     // Parse command line arguments
-    ExampleArgs args("Example 04: GEMM Validation", "Validates GPU output against CPU reference");
-    args.add_option("--size", "256", "Problem size MxNxK");
+    ExampleArgs args("Example 04: GEMM Validation",
+                     "Validates GPU output against CK Tile reference (CPU or GPU)");
+    args.add_option("--size", "512", "Problem size MxNxK");
+    args.add_option("--verify", "1", "Verification mode: 0=none, 1=CPU ref, 2=GPU ref");
     args.add_option("--rtol", "0.01", "Relative tolerance");
     args.add_option("--atol", "0.01", "Absolute tolerance");
 
@@ -83,21 +78,30 @@ int main(int argc, char* argv[])
         return 0; // --help was printed
     }
 
-    int M      = args.get_int("--size", 256);
+    int M      = args.get_int("--size", 512);
     int N      = M;
-    int K      = M / 2 > 0 ? M / 2 : 128;
-    float rtol = args.get_float("--rtol", 1e-2f);
-    float atol = args.get_float("--atol", 1e-2f);
+    int K      = M;
+    int verify = args.get_int("--verify", 1);
+    float rtol = args.get_float("--rtol", 0.01f);
+    float atol = args.get_float("--atol", 0.01f);
 
-    print_header("Example 04: GEMM Validation");
+    print_header("Example 04: GEMM Validation with CK Tile Reference");
 
     std::cout << "\nConfiguration:\n";
-    std::cout << "  Problem:   " << M << " x " << N << " x " << K << "\n";
-    std::cout << "  Layout:    RCR (A=row, B=col, C=row)\n";
-    std::cout << "  Tolerance: rtol=" << rtol << ", atol=" << atol << "\n";
+    std::cout << "  Problem:      " << M << " x " << N << " x " << K << "\n";
+    std::cout << "  Layout:       RCR (A=row, B=col, C=row)\n";
+    std::cout << "  Verify mode:  " << verify;
+    if(verify == 0)
+        std::cout << " (none)";
+    else if(verify == 1)
+        std::cout << " (CPU reference)";
+    else if(verify == 2)
+        std::cout << " (GPU reference - faster)";
+    std::cout << "\n";
+    std::cout << "  Tolerance:    rtol=" << rtol << ", atol=" << atol << "\n";
 
     // =========================================================================
-    // Setup
+    // Setup Registry and Dispatcher
     // =========================================================================
     Registry registry;
     KernelConfig config =
@@ -107,7 +111,8 @@ int main(int argc, char* argv[])
                   SelectedKernel::WarpPerBlock_N,
                   SelectedKernel::WarpPerBlock_K)
             .warp_tile(
-                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
+                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK)
+            .block(SelectedKernel::BlockSize);
 
     auto kernel =
         create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
@@ -117,96 +122,168 @@ int main(int argc, char* argv[])
     Dispatcher dispatcher(&registry);
 
     // =========================================================================
-    // Initialize with random data
+    // Initialize data using proper tensor descriptors for RCR layout
     // =========================================================================
-    std::cout << "\nGenerating random test data...\n";
-    std::mt19937 rng(42);
-    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    std::cout << "\nStep 1: Initialize Data\n";
+    std::cout << "-----------------------\n";
 
-    std::vector<float> a_fp32(M * K), b_fp32(K * N), c_ref(M * N);
-    std::vector<ADataType> a_fp16(M * K);
-    std::vector<BDataType> b_fp16(K * N);
+    // Define layouts (RCR = Row-Col-Row)
+    using ALayout = ck_tile::tensor_layout::gemm::RowMajor;
+    using BLayout = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck_tile::tensor_layout::gemm::RowMajor;
 
-    for(int i = 0; i < M * K; ++i)
+    // Get default strides for each layout
+    auto stride_a = ck_tile::get_default_stride(M, K, 0_uz, is_row_major(ALayout{}));
+    auto stride_b = ck_tile::get_default_stride(K, N, 0_uz, is_row_major(BLayout{}));
+    auto stride_c = ck_tile::get_default_stride(M, N, 0_uz, is_row_major(CLayout{}));
+
+    // Create HostTensors with proper layout descriptors
+    ck_tile::HostTensor<ADataType> a_m_k(
+        ck_tile::host_tensor_descriptor(M, K, stride_a, is_row_major(ALayout{})));
+    ck_tile::HostTensor<BDataType> b_k_n(
+        ck_tile::host_tensor_descriptor(K, N, stride_b, is_row_major(BLayout{})));
+    ck_tile::HostTensor<CDataType> c_m_n_dev(
+        ck_tile::host_tensor_descriptor(M, N, stride_c, is_row_major(CLayout{})));
+    ck_tile::HostTensor<CDataType> c_m_n_ref(
+        ck_tile::host_tensor_descriptor(M, N, stride_c, is_row_major(CLayout{})));
+
+    // Initialize with random values
+    ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
+    ck_tile::FillUniformDistribution<BDataType>{-0.5f, 0.5f}(b_k_n);
+
+    std::cout << "  A: " << M << " x " << K << " (fp16, row-major, stride=" << stride_a << ")\n";
+    std::cout << "  B: " << K << " x " << N << " (fp16, col-major, stride=" << stride_b << ")\n";
+    std::cout << "  C: " << M << " x " << N << " (fp16, row-major, stride=" << stride_c << ")\n";
+
+    // =========================================================================
+    // Allocate GPU memory
+    // =========================================================================
+    ck_tile::DeviceMem a_dev(a_m_k.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem b_dev(b_k_n.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem c_dev(c_m_n_dev.get_element_space_size_in_bytes());
+
+    a_dev.ToDevice(a_m_k.data());
+    b_dev.ToDevice(b_k_n.data());
+    c_dev.SetZero();
+
+    // =========================================================================
+    // Compute Reference (if verify > 0)
+    // =========================================================================
+    if(verify > 0)
     {
-        a_fp32[i] = dist(rng);
-        a_fp16[i] = ADataType(a_fp32[i]);
-    }
-    for(int i = 0; i < K * N; ++i)
-    {
-        b_fp32[i] = dist(rng);
-        b_fp16[i] = BDataType(b_fp32[i]);
-    }
+        std::cout << "\nStep 2: Compute Reference\n";
+        std::cout << "-------------------------\n";
 
-    // =========================================================================
-    // Compute reference
-    // =========================================================================
-    std::cout << "Computing CPU reference...\n";
-    gemm_reference_rcr(a_fp32, b_fp32, c_ref, M, N, K);
+        c_m_n_ref.SetZero();
+
+        if(verify == 1)
+        {
+            std::cout << "  Using CPU reference (ck_tile::reference_gemm)...\n";
+
+            ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+                a_m_k, b_k_n, c_m_n_ref);
+
+            std::cout << "  CPU reference complete.\n";
+        }
+        else if(verify == 2)
+        {
+            std::cout << "  Using GPU reference (ck_tile::reference_gemm_gpu)...\n";
+
+            // Create a separate buffer for GPU reference output
+            ck_tile::DeviceMem c_ref_dev(c_m_n_ref.get_element_space_size_in_bytes());
+            c_ref_dev.SetZero();
+
+            ck_tile::reference_gemm_gpu<ADataType,
+                                        BDataType,
+                                        AccDataType,
+                                        CDataType,
+                                        ALayout,
+                                        BLayout,
+                                        CLayout>(
+                static_cast<ADataType*>(a_dev.GetDeviceBuffer()),
+                static_cast<BDataType*>(b_dev.GetDeviceBuffer()),
+                static_cast<CDataType*>(c_ref_dev.GetDeviceBuffer()),
+                M,
+                N,
+                K,
+                stride_a,
+                stride_b,
+                stride_c);
+
+            // Sync and copy back
+            (void)hipDeviceSynchronize();
+            c_ref_dev.FromDevice(c_m_n_ref.data());
+
+            std::cout << "  GPU reference complete.\n";
+        }
+    }
 
     // =========================================================================
     // Run GPU kernel
     // =========================================================================
-    std::cout << "Running GPU kernel...\n";
-
-    GpuBuffer<ADataType> a_dev(M * K);
-    GpuBuffer<BDataType> b_dev(K * N);
-    GpuBuffer<CDataType> c_dev(M * N);
-
-    a_dev.copy_from_host(a_fp16.data());
-    b_dev.copy_from_host(b_fp16.data());
-    c_dev.zero();
+    std::cout << "\nStep 3: Run GPU Kernel\n";
+    std::cout << "----------------------\n";
 
     Problem problem(M, N, K);
-    float time_ms = dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
+    float time_ms = dispatcher.run(static_cast<ADataType*>(a_dev.GetDeviceBuffer()),
+                                   static_cast<BDataType*>(b_dev.GetDeviceBuffer()),
+                                   static_cast<CDataType*>(c_dev.GetDeviceBuffer()),
+                                   problem,
+                                   nullptr);
 
-    std::vector<CDataType> c_gpu(M * N);
-    c_dev.copy_to_host(c_gpu.data());
+    // Copy result back
+    c_dev.FromDevice(c_m_n_dev.data());
 
-    std::cout << "  Time: " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
+    // Calculate performance
+    double flops  = 2.0 * M * N * K;
+    double tflops = flops / (time_ms * 1e9);
+
+    std::cout << "  Time:      " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
+    std::cout << "  TFLOPS:    " << std::fixed << std::setprecision(2) << tflops << "\n";
 
     // =========================================================================
     // Validate
     // =========================================================================
-    std::cout << "\nValidating...\n";
+    bool pass = true;
 
-    int errors         = 0;
-    float max_diff     = 0.0f;
-    float max_rel_diff = 0.0f;
-
-    for(int i = 0; i < M * N; ++i)
+    if(verify > 0)
     {
-        float gpu_val  = static_cast<float>(c_gpu[i]);
-        float ref_val  = c_ref[i];
-        float diff     = std::abs(gpu_val - ref_val);
-        float rel_diff = (ref_val != 0.0f) ? diff / std::abs(ref_val) : diff;
+        std::cout << "\nStep 4: Validation\n";
+        std::cout << "------------------\n";
+        std::cout << "  Tolerance: rtol=" << rtol << ", atol=" << atol << "\n";
 
-        max_diff     = std::max(max_diff, diff);
-        max_rel_diff = std::max(max_rel_diff, rel_diff);
+        // Use CK Tile's check_err for validation
+        pass = ck_tile::check_err(c_m_n_dev, c_m_n_ref, "Validation Error!", rtol, atol);
 
-        // Use combined tolerance: |gpu - ref| <= atol + rtol * |ref|
-        // This handles both small values (atol dominates) and large values (rtol dominates)
-        float threshold = atol + rtol * std::abs(ref_val);
-        if(diff > threshold)
+        // Calculate max differences for reporting
+        float max_abs_diff = 0.0f;
+        float max_rel_diff = 0.0f;
+        for(size_t i = 0; i < c_m_n_dev.get_element_space_size(); ++i)
         {
-            if(errors < 5)
-            {
-                int m = i / N, n = i % N;
-                std::cout << "  Mismatch at [" << m << "," << n << "]: " << "GPU=" << gpu_val
-                          << " REF=" << ref_val << " diff=" << diff << "\n";
-            }
-            errors++;
+            float dev_val  = static_cast<float>(c_m_n_dev.mData[i]);
+            float ref_val  = static_cast<float>(c_m_n_ref.mData[i]);
+            float abs_diff = std::abs(dev_val - ref_val);
+            float rel_diff = (ref_val != 0.0f) ? abs_diff / std::abs(ref_val) : abs_diff;
+            max_abs_diff   = std::max(max_abs_diff, abs_diff);
+            max_rel_diff   = std::max(max_rel_diff, rel_diff);
         }
+
+        std::cout << "  Max abs diff: " << max_abs_diff << "\n";
+        std::cout << "  Max rel diff: " << max_rel_diff << "\n";
     }
 
+    // =========================================================================
+    // Summary
+    // =========================================================================
     print_separator();
-    std::cout << "Validation Results:\n";
-    print_separator();
-    std::cout << "  Max absolute diff: " << max_diff << "\n";
-    std::cout << "  Max relative diff: " << max_rel_diff << "\n";
-    std::cout << "  Errors: " << errors << " / " << (M * N) << "\n";
-    std::cout << "  Status: " << (errors == 0 ? "PASS" : "FAIL") << "\n";
+    std::cout << "Result: " << (pass ? "PASS" : "FAIL") << "\n";
     print_separator();
 
-    return errors == 0 ? 0 : 1;
+    if(verify == 0)
+    {
+        std::cout << "\nNote: Verification was disabled (--verify 0)\n";
+        std::cout << "Use --verify 1 for CPU reference or --verify 2 for GPU reference.\n";
+    }
+
+    return pass ? 0 : 1;
 }

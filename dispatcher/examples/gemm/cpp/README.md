@@ -34,7 +34,7 @@ cd examples
 | [01_basic_gemm.cpp](01_basic_gemm.cpp) | Basic GEMM with declarative API | ★☆☆☆☆ |
 | [02_multi_size.cpp](02_multi_size.cpp) | Multiple problem sizes | ★★☆☆☆ |
 | [03_benchmark.cpp](03_benchmark.cpp) | Performance benchmarking | ★★☆☆☆ |
-| [04_validation.cpp](04_validation.cpp) | CPU reference validation | ★★☆☆☆ |
+| [04_validation.cpp](04_validation.cpp) | CPU/GPU reference validation | ★★☆☆☆ |
 | [05_heuristics.cpp](05_heuristics.cpp) | Heuristic kernel selection | ★★★☆☆ |
 | [06_json_export.cpp](06_json_export.cpp) | Registry JSON export | ★★☆☆☆ |
 | [07_preshuffle.cpp](07_preshuffle.cpp) | Layout optimization | ★★★☆☆ |
@@ -75,10 +75,19 @@ Demonstrates benchmark parameters (matching CK Tile `stream_config`):
 ./gemm_03_benchmark --warmup 10 --iterations 100
 ```
 
-### 04_validation.cpp - CPU Validation
-- CPU reference implementation
-- Numerical comparison with tolerance
-- Correctness verification workflow
+### 04_validation.cpp - CPU/GPU Validation
+Uses CK Tile's built-in reference implementations for validation:
+
+```bash
+./gemm_04_validation --verify 0   # No verification (benchmark only)
+./gemm_04_validation --verify 1   # CPU reference (slower, always works)
+./gemm_04_validation --verify 2   # GPU reference (faster for large matrices)
+```
+
+- **CPU reference** (`--verify 1`): Uses `ck_tile::reference_gemm` - accurate, works on any GPU
+- **GPU reference** (`--verify 2`): Uses `ck_tile::reference_gemm_gpu` - faster for large matrices
+- Configurable tolerances with `--rtol` and `--atol`
+- Uses CK Tile's `HostTensor` with proper layout descriptors
 
 ### 05_heuristics.cpp - Heuristic Selection
 - Problem size analysis

@@ -59,7 +59,7 @@ python3 examples/conv/python/01_basic_conv.py
 
 | Software | Minimum Version | Check Command |
 |----------|-----------------|---------------|
-| ROCm | 6.0+ | `rocminfo` |
+| ROCm | 6.4+ | `rocminfo` |
 | CMake | 3.16+ | `cmake --version` |
 | Python | 3.8+ | `python3 --version` |
 | NumPy | 1.20+ | `pip show numpy` |
@@ -76,15 +76,16 @@ rocminfo | grep -i "gfx"
 ```
 
 **Supported architectures:**
-- **gfx942** - MI300X, MI300A (Instinct MI300 series) - ROCm 6.0+
-- **gfx90a** - MI200 series (MI250, MI250X) - ROCm 5.0+
-- **gfx950** - MI350 series - ROCm 6.3+
-- **gfx1201** - RDNA4 series - ROCm 6.3+
+- **gfx942** - MI300X, MI300A, MI308, MI325 (Instinct MI300 series)
+- **gfx90a** - MI200 series (MI250, MI250X) 
+- **gfx950** - MI350 series 
+- **gfx1101** - RDNA3 series 
+- **gfx1201** - RDNA4 series 
 
 ### Install Dependencies
 
 ```bash
-# Install NumPy (required for Python examples)
+# Install NumPy using pip or uv pip (required for Python examples)
 pip install numpy
 ```
 
@@ -228,7 +229,8 @@ ls examples/libdispatcher_conv_bwdw_lib.so
 | `CMAKE_PREFIX_PATH` | - | ROCm installation path |
 | `CMAKE_CXX_COMPILER` | - | Path to hipcc compiler |
 
-⚠️ **Important:** Always use `-DCMAKE_BUILD_TYPE=Release`. Debug builds are ~45,000x slower!
+⚠️ **Important:** Always use `-DCMAKE_BUILD_TYPE=Release` for benchmarking. Debug builds are slower.
+⚠️ **Important:** Note that the current system provides single GPU target support for architecture-based kernel filtering, please do not use multiple GPU targets at a time (if necessary, please compile into different build directories).
 
 ---
 
@@ -500,6 +502,8 @@ When integrating, you need these include paths:
 -mllvm -enable-noalias-to-md-conversion=0
 -Wno-undefined-func-template
 -Wno-float-equal
+-Wall 
+-Werror
 ```
 
 ### Python Path Setup
