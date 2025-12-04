@@ -639,7 +639,8 @@ struct MoeFlatmmKernel
         index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
 
         // using ScaleType = std::conditional_t<MXFP4_Pipeline, e8m0_t, float>;
-        using ScaleType = std::conditional_t<MXFP4_Pipeline, bfloat16_t, float>;
+        static constexpr bool IsInt4 = std::is_same_v<BDataType, pk_int4_t>;
+        using ScaleType = std::conditional_t<MXFP4_Pipeline, std::conditional_t<IsInt4, bfloat16, e8m0_t>, float>;
 
         const auto scale_b_flat_view = make_naive_tensor_view<address_space_enum::global>(
             reinterpret_cast<const ScaleType*>(scale_n.ptr) + expert_id * kargs.N * scale_k,
