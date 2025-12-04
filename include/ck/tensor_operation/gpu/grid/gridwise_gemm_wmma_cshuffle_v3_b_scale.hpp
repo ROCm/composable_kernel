@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -123,6 +123,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
           ComputeTypeB,
           PermuteA,
           PermuteB,
+          false,
           true>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
@@ -176,6 +177,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
         ComputeTypeB,
         PermuteA,
         PermuteB,
+        false,
         true>;
 
     using Base::I0;
