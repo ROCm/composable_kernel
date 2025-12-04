@@ -321,6 +321,10 @@ struct DeviceGroupedConvBwdWeight_Explicit
         {
             if constexpr(!is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>())
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported layout." << std::endl;
+                }
                 return false;
             }
         }
@@ -328,11 +332,19 @@ struct DeviceGroupedConvBwdWeight_Explicit
         {
             if constexpr(!is_NDHWGC_GKZYXC_NDHWGK<InLayout, WeiLayout, OutLayout>())
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported layout." << std::endl;
+                }
                 return false;
             }
         }
         else
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported layout." << std::endl;
+            }
             return false;
         }
 
@@ -342,6 +354,10 @@ struct DeviceGroupedConvBwdWeight_Explicit
             if(!(arg.filter_spatial_lengths_[i] == 1 && arg.conv_filter_strides_[i] == 1 &&
                  arg.input_left_pads_[i] == 0 && arg.input_right_pads_[i] == 0))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported stride / pad." << std::endl;
+                }
                 return false;
             }
         }
@@ -349,6 +365,10 @@ struct DeviceGroupedConvBwdWeight_Explicit
         {
             if(!arg.is_filter_data_packed)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported: Filter data must be packed." << std::endl;
+                }
                 return false;
             }
             // Check this here, it allows to use other instances from factory even

@@ -1149,12 +1149,20 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
         {
             if(num_k_loop <= GridwiseGemm::BlockwiseGemmPipe::PrefetchStages)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported num K loop." << std::endl;
+                }
                 return false;
             }
         }
 
         if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported: Architecture must be gfx11/gfx12." << std::endl;
+            }
             return false;
         }
 
@@ -1177,6 +1185,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
         {
             if(ck::is_gfx11_supported())
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported f8 / bf8 on gfx11." << std::endl;
+                }
                 return false;
             }
         }
@@ -1186,6 +1198,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
             if constexpr(!(is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>() ||
                            is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>()))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported layout." << std::endl;
+                }
                 return false;
             }
         }
@@ -1194,11 +1210,19 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
             if constexpr(!(is_NDHWGC_GKZYXC_NDHWGK<InLayout, WeiLayout, OutLayout>() ||
                            is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>()))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported layout." << std::endl;
+                }
                 return false;
             }
         }
         else
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported layout." << std::endl;
+            }
             return false;
         }
 
@@ -1211,6 +1235,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
                 if(!(arg.filter_spatial_lengths_[i] == 1 && arg.conv_filter_strides_[i] == 1 &&
                      arg.input_left_pads_[i] == 0 && arg.input_right_pads_[i] == 0))
                 {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Unsupported stride / pad." << std::endl;
+                    }
                     return false;
                 }
             }
@@ -1221,14 +1249,26 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
             // support only if whole M and N can be proccessed on one block
             if(!(GemmM <= MPerBlock && GemmN <= NPerBlock))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported GemmMN for merge groups." << std::endl;
+                }
                 return false;
             }
             if(!(arg.Conv_C_ == 1 && arg.Conv_K_ == 1))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported conv CK for merge groups." << std::endl;
+                }
                 return false;
             }
             if(arg.Conv_G_ % NumGroupsToMerge != 0)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported conv G for merge groups." << std::endl;
+                }
                 return false;
             }
         }
@@ -1246,11 +1286,19 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
             if(!(arg.Conv_K_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideA_ == 1 &&
                  NumGroupsToMerge > 1))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported Conv_K_ % ABlockTransferSrcScalarPerVector" << std::endl;
+                }
                 return false;
             }
             if(!(arg.Conv_C_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideB_ == 1 &&
                  NumGroupsToMerge > 1))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported Conv_C_ % BBlockTransferSrcScalarPerVector" << std::endl;
+                }
                 return false;
             }
         }
@@ -1258,12 +1306,21 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
         // vector load A/B matrix from global memory
         if(!(ABlockTransferSrcVectorDim == 1 && BBlockTransferSrcVectorDim == 1))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported BlockTransferSrcVectorDim." << std::endl;
+            }
             return false;
         }
 
         // vector store C matrix into global memory
         if(!(arg.Conv_C_ % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported CShuffleBlockTransferScalarPerVector_NPerBlock."
+                          << std::endl;
+            }
             return false;
         }
 
@@ -1272,11 +1329,21 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
         {
             if((arg.Conv_G_ * arg.Conv_C_) % TransposeTransferDstScalarPerVector != 0)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported TransposeTransferDstScalarPerVector with GC."
+                              << std::endl;
+                }
                 return false;
             }
 
             if((arg.Conv_G_ * arg.Conv_K_) % TransposeTransferDstScalarPerVector != 0)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported TransposeTransferDstScalarPerVector with GK."
+                              << std::endl;
+                }
                 return false;
             }
 
@@ -1287,11 +1354,23 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
 
             if(input_spatial_acum % TransposeTransferSrcScalarPerVector != 0)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout
+                        << "Unsupported input_spatial_acum % TransposeTransferSrcScalarPerVector."
+                        << std::endl;
+                }
                 return false;
             }
 
             if(output_spatial_acum % TransposeTransferSrcScalarPerVector != 0)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout
+                        << "Unsupported input_spatial_acum % TransposeTransferSrcScalarPerVector."
+                        << std::endl;
+                }
                 return false;
             }
 
@@ -1299,6 +1378,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
             if(!(arg.a_out_transpose_desc_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
                  arg.b_out_transpose_desc_.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported: Problem exceeds 2GB limit." << std::endl;
+                }
                 return false;
             }
         }

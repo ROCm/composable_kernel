@@ -552,6 +552,10 @@ struct DeviceBatchedGemmMultiD_Wmma_CShuffleV3
     {
         if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported: Architecture must be gfx11/gfx12." << std::endl;
+            }
             return false;
         }
 
@@ -560,6 +564,10 @@ struct DeviceBatchedGemmMultiD_Wmma_CShuffleV3
         {
             if(arg.KBatch > 1 && ck::is_gfx11_supported())
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported splitK on gfx11." << std::endl;
+                }
                 // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
                 return false;
             }
@@ -570,6 +578,10 @@ struct DeviceBatchedGemmMultiD_Wmma_CShuffleV3
         {
             if(ck::is_gfx11_supported())
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported f8 / bf8 on gfx11." << std::endl;
+                }
                 return false;
             }
         }
@@ -579,6 +591,10 @@ struct DeviceBatchedGemmMultiD_Wmma_CShuffleV3
                                                        GemmSpec == GemmSpecialization::MNKPadding ||
                                                        GemmSpec == GemmSpecialization::KPadding))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported K dimension without padding." << std::endl;
+            }
             return false;
         }
 
