@@ -30,7 +30,6 @@ template <typename AsDataType_,
           index_t NPerXdl_,
           index_t KPerXdl_,
           bool isCTransposed_,
-          memory_operation_enum MemoryOperation_,
           index_t kNumWaveGroups_      = 1,
           bool FixedVectorSize_        = false,
           index_t VectorSizeC_         = 1,
@@ -55,7 +54,6 @@ struct CShuffleEpilogueProblem
     static constexpr index_t NPerXdl                       = NPerXdl_;
     static constexpr index_t KPerXdl                       = KPerXdl_;
     static constexpr index_t isCTransposed                 = isCTransposed_;
-    static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
     static constexpr bool FixedVectorSize                  = FixedVectorSize_;
     static constexpr index_t VectorSizeC                   = VectorSizeC_;
     static constexpr index_t BlockedXDLN_PerWarp           = BlockedXDLN_PerWarp_;
@@ -99,7 +97,6 @@ struct CShuffleEpilogue
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
     using ELayout       = remove_cvref_t<typename Problem::ELayout>;
     using CDElementwise = remove_cvref_t<typename Problem::CDElementwise>;
-    static constexpr memory_operation_enum MemoryOperation = Problem::MemoryOperation;
     static constexpr index_t kBlockSize                    = Problem::kBlockSize;
     static constexpr index_t kMPerBlock                    = Problem::kMPerBlock;
     static constexpr index_t kNPerBlock                    = Problem::kNPerBlock;
@@ -133,8 +130,7 @@ struct CShuffleEpilogue
                       concat('x', MWave, NWave),
                       concat('x', MPerXdl, NPerXdl, KPerXdl),
                       VectorSizeC,
-                      isCTransposed ? "CTransposed" : "CNotTransposed",
-                      mem_op_string<MemoryOperation>());
+                      isCTransposed ? "CTransposed" : "CNotTransposed");
         // clang-format on
     }
 
@@ -411,7 +407,7 @@ struct CShuffleEpilogue
     CK_TILE_DEVICE void store_to_dram(OutDramWindow& out_dram_window,
                                       const COutTensor& c_out_tensor)
     {
-        if constexpr(MemoryOperation == memory_operation_enum::set)
+        if constexpr(OutDramWindow::Base::BottomTensorView::DstInMemOp == memory_operation_enum::set)
         {
             store_tile(out_dram_window, c_out_tensor);
         }
@@ -583,7 +579,7 @@ struct CShuffleEpilogue
             });
 
             // store/update
-            if constexpr(MemoryOperation == memory_operation_enum::set)
+            if constexpr(ODramWindow::Base::BottomTensorView::DstInMemOp == memory_operation_enum::set)
             {
                 store_tile(out_dram_window, c_out_tensor);
             }

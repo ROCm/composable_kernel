@@ -146,6 +146,8 @@ struct tile_window_with_tile_dstr_base
     struct Traits
     {
         public:
+        static constexpr auto MemoryOperation = BottomTensorView_::DstInMemOp;
+
         static constexpr index_t PackedSize =
             ck_tile::numeric_traits<remove_cvref_t<typename TileWindowBase::DataType>>::PackedSize;
 

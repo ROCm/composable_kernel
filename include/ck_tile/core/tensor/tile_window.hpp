@@ -53,7 +53,7 @@ struct tile_window_with_static_distribution
         BottomTensorView_,
         WindowLengths_,
         StaticTileDistribution_>;
-
+        
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
     static_assert(NumCoord == 1);

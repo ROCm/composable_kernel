@@ -60,8 +60,7 @@ struct UniversalInvoker
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
+        const auto Run = [&]() {
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -80,7 +79,6 @@ struct UniversalInvoker
                                                  GemmConfig::N_Warp_Tile,
                                                  GemmConfig::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
-                                                 memory_operation,
                                                  GemmConfig::NumWaveGroups>>;
 
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -154,13 +152,6 @@ struct UniversalInvoker
                 ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         };
 
-        if(args.k_batch == 1)
-        {
-            return Run(MemoryOpSet{});
-        }
-        else
-        {
-            return Run(MemoryOpAtomicAdd{});
-        }
+        return Run();
     }
 };
