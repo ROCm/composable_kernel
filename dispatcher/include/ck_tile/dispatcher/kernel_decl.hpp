@@ -483,21 +483,23 @@ constexpr int ANY_INT     = decl::ANY_INT;
 #define CK_DECL_CAT_(a, b) CK_DECL_CAT_IMPL_(a, b)
 #define CK_DECL_CAT_IMPL_(a, b) a##b
 
-#define DECL_KERNEL(sig, algo, ...)                                                    \
-    static ::ck_tile::dispatcher::decl::Declarator CK_DECL_CAT_(_kdecl_, __COUNTER__)( \
-        sig, algo, ##__VA_ARGS__)
+// Note: __extension__ suppresses warnings about __COUNTER__ being a GCC/Clang extension
+#define DECL_KERNEL(sig, algo, ...)                                            \
+    __extension__ static ::ck_tile::dispatcher::decl::Declarator CK_DECL_CAT_( \
+        _kdecl_, __COUNTER__)(sig, algo, ##__VA_ARGS__)
 
-#define DECL_KERNEL_SIMPLE(dtype, layout, tm, tn, tk)                                  \
-    static ::ck_tile::dispatcher::decl::Declarator CK_DECL_CAT_(_kdecl_, __COUNTER__)( \
-        #dtype, #layout, tm, tn, tk)
+#define DECL_KERNEL_SIMPLE(dtype, layout, tm, tn, tk)                          \
+    __extension__ static ::ck_tile::dispatcher::decl::Declarator CK_DECL_CAT_( \
+        _kdecl_, __COUNTER__)(#dtype, #layout, tm, tn, tk)
 
-#define DECL_KERNEL_ALL(dtype, layout)                                   \
-    static ::ck_tile::dispatcher::decl::Declarator CK_DECL_CAT_(_kdecl_, \
-                                                                __COUNTER__)(#dtype, #layout, "*")
+#define DECL_KERNEL_ALL(dtype, layout)                                         \
+    __extension__ static ::ck_tile::dispatcher::decl::Declarator CK_DECL_CAT_( \
+        _kdecl_, __COUNTER__)(#dtype, #layout, "*")
 
-#define DECL_KERNEL_SET(name, ...)                                                                \
-    static ::ck_tile::dispatcher::decl::KernelSetRegistrar CK_DECL_CAT_(_kset_reg_, __COUNTER__)( \
-        #name, ::ck_tile::dispatcher::decl::KernelSet() __VA_ARGS__.tag(#name))
+#define DECL_KERNEL_SET(name, ...)                                                     \
+    __extension__ static ::ck_tile::dispatcher::decl::KernelSetRegistrar CK_DECL_CAT_( \
+        _kset_reg_, __COUNTER__)(#name,                                                \
+                                 ::ck_tile::dispatcher::decl::KernelSet() __VA_ARGS__.tag(#name))
 
 #define KERNEL_SET(name) ::ck_tile::dispatcher::decl::KernelSet name
 #define BEGIN_KERNEL_SET() ::ck_tile::dispatcher::decl::KernelSet()

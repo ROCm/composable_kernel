@@ -17,13 +17,24 @@ Based on the GEMM codegen pattern.
 import argparse
 import logging
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from dataclasses import dataclass
 from enum import Enum
 import concurrent.futures
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
+
+
+# Import architecture filter for GPU-specific validation
+try:
+    from arch_filter import ArchFilter, OperatorType
+
+    HAS_ARCH_FILTER = True
+except ImportError:
+    HAS_ARCH_FILTER = False
+    ArchFilter = None
+    OperatorType = None
 
 
 # ============================================================================
@@ -713,10 +724,63 @@ def get_arch_filter():
 class UnifiedConvCodegen:
     """Main convolution code generator"""
 
-    def __init__(self, output_dir: Path):
+    def __init__(
+        self,
+        output_dir: Path,
+        gpu_target: str = "gfx942",
+        enable_arch_filter: bool = True,
+    ):
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.generated_files: List[Path] = []
+        self.gpu_target = gpu_target
+
+        # Initialize architecture filter for GPU-specific validation
+        self.arch_filter = None
+        if enable_arch_filter and HAS_ARCH_FILTER:
+            try:
+                self.arch_filter = ArchFilter(gpu_target, strict_mode=False)
+                log.info(f"Architecture filter enabled for {gpu_target}")
+            except ValueError as e:
+                log.warning(f"Could not create arch filter: {e}")
+
+    def _get_operator_type(self, variant: "ConvVariant") -> Optional["OperatorType"]:
+        """Map ConvVariant to OperatorType for arch validation"""
+        if OperatorType is None:
+            return None
+
+        variant_to_operator = {
+            ConvVariant.FORWARD: OperatorType.CONV_FWD,
+            ConvVariant.BACKWARD_DATA: OperatorType.CONV_BWD_DATA,
+            ConvVariant.BACKWARD_WEIGHT: OperatorType.CONV_BWD_WEIGHT,
+        }
+        return variant_to_operator.get(variant, OperatorType.CONV_FWD)
+
+    def is_config_valid(self, config: ConvKernelConfig, datatype: str = "fp16") -> bool:
+        """Validate configuration against architecture constraints"""
+        if not self.arch_filter or not HAS_ARCH_FILTER:
+            return True
+
+        operator = self._get_operator_type(config.variant)
+
+        return self.arch_filter.is_kernel_valid(
+            datatype_a=datatype,
+            datatype_b=datatype,
+            datatype_c=datatype,
+            tile_m=config.tile.tile_m,
+            tile_n=config.tile.tile_n,
+            tile_k=config.tile.tile_k,
+            warp_m=config.tile.warp_m,
+            warp_n=config.tile.warp_n,
+            warp_k=1,  # Conv typically uses warp_k=1
+            warp_tile_m=config.tile.warp_tile_m,
+            warp_tile_n=config.tile.warp_tile_n,
+            warp_tile_k=config.tile.warp_tile_k,
+            pipeline=config.trait.pipeline,
+            epilogue=config.trait.epilogue,
+            scheduler=config.trait.scheduler,
+            operator=operator,
+        )
 
     def generate_kernel(
         self,
@@ -747,19 +811,37 @@ class UnifiedConvCodegen:
         datatypes: List[str],
         parallel: bool = True,
     ) -> List[Path]:
-        """Generate all kernel files (optionally in parallel)"""
+        """Generate all kernel files (optionally in parallel)
 
-        tasks = [
-            (config, datatype, config.variant)
-            for datatype in datatypes
-            for config in configs
-        ]
+        Configs are filtered using architecture validation before generation.
+        """
+        # Filter configs using arch validation
+        valid_tasks = []
+        rejected_count = 0
 
-        if parallel and len(tasks) > 1:
+        for datatype in datatypes:
+            for config in configs:
+                if self.is_config_valid(config, datatype):
+                    valid_tasks.append((config, datatype, config.variant))
+                else:
+                    rejected_count += 1
+                    log.debug(
+                        f"Rejected config for {self.gpu_target}: "
+                        f"{config.tile.tile_m}x{config.tile.tile_n}x{config.tile.tile_k} "
+                        f"variant={config.variant.value}"
+                    )
+
+        if rejected_count > 0:
+            log.info(
+                f"Filtered {rejected_count} configs for {self.gpu_target}, "
+                f"{len(valid_tasks)} remaining"
+            )
+
+        if parallel and len(valid_tasks) > 1:
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 futures = [
                     executor.submit(self.generate_kernel, config, dtype, variant)
-                    for config, dtype, variant in tasks
+                    for config, dtype, variant in valid_tasks
                 ]
                 for future in concurrent.futures.as_completed(futures):
                     try:
@@ -767,7 +849,7 @@ class UnifiedConvCodegen:
                     except Exception as e:
                         log.error(f"Failed to generate kernel: {e}")
         else:
-            for config, dtype, variant in tasks:
+            for config, dtype, variant in valid_tasks:
                 self.generate_kernel(config, dtype, variant)
 
         return self.generated_files
@@ -949,7 +1031,11 @@ def main():
         return
 
     # Generate
-    codegen = UnifiedConvCodegen(args.output)
+    codegen = UnifiedConvCodegen(
+        output_dir=args.output,
+        gpu_target=args.arch,
+        enable_arch_filter=True,
+    )
     files = codegen.generate_all(filtered_configs, args.datatype)
 
     print(

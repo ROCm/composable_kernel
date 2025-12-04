@@ -178,6 +178,9 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
     """
     Validate a KernelConfig against arch filter rules.
 
+    Validation considers the GEMM variant (standard, preshuffle, multi_d)
+    for operator-specific constraints like minimum tile sizes.
+
     Returns ValidationResult with is_valid, errors, and suggested fixes.
     """
     arch_data = get_arch_filter_data()
@@ -191,6 +194,7 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
     scheduler = config.scheduler
     dtype = config.dtype_a
     arch = config.gfx_arch
+    variant = getattr(config, "variant", "standard")
 
     wave_m = config.wave_m
     wave_n = config.wave_n
@@ -199,6 +203,24 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
     warp_m = config.warp_m
     warp_n = config.warp_n
     warp_k = config.warp_k
+
+    # Variant-specific tile constraints
+    if variant == "preshuffle":
+        # Preshuffle requires larger minimum tiles for efficiency
+        if config.tile_m < 64:
+            errors.append(f"Preshuffle requires tile_m >= 64, got {config.tile_m}")
+            suggested_fixes["tile_m"] = 64
+        if config.tile_n < 64:
+            errors.append(f"Preshuffle requires tile_n >= 64, got {config.tile_n}")
+            suggested_fixes["tile_n"] = 64
+        if config.tile_k < 32:
+            errors.append(f"Preshuffle requires tile_k >= 32, got {config.tile_k}")
+            suggested_fixes["tile_k"] = 32
+
+    elif variant == "multi_d":
+        # Multi-D has standard GEMM constraints
+        # Could add specific constraints here if needed
+        pass
 
     # Check trait combination (pipeline, epilogue, scheduler)
     combo = (pipeline, epilogue, scheduler)
@@ -1196,6 +1218,10 @@ class KernelConfig:
 
     # GPU target
     gfx_arch: str = "gfx942"
+
+    # GEMM variant (affects arch filter validation)
+    # "standard", "preshuffle", or "multi_d"
+    variant: str = "standard"
 
     @property
     def layout(self) -> str:

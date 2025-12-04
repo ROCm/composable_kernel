@@ -72,7 +72,9 @@ endif()
 
 # Optional: Codegen for tile_engine integration
 option(DISPATCHER_AUTO_GENERATE_WRAPPERS "Auto-generate wrappers from tile_engine" OFF)
-add_subdirectory(codegen)
+if(DISPATCHER_AUTO_GENERATE_WRAPPERS)
+    add_subdirectory(codegen)
+endif()
 
 # Optional: Build examples
 option(BUILD_DISPATCHER_EXAMPLES "Build dispatcher examples" OFF)

@@ -513,9 +513,10 @@ using ConvKernelSetRegistry = conv_decl::ConvKernelSetRegistry;
 #define CK_CONV_DECL_CAT_(a, b) CK_CONV_DECL_CAT_IMPL_(a, b)
 #define CK_CONV_DECL_CAT_IMPL_(a, b) a##b
 
-#define DECL_CONV_KERNEL_SET(name, ...)                                                \
-    static ::ck_tile::dispatcher::conv_decl::ConvKernelSetRegistrar CK_CONV_DECL_CAT_( \
-        _conv_kset_reg_, __COUNTER__)(                                                 \
+// Note: __extension__ suppresses warnings about __COUNTER__ being a GCC/Clang extension
+#define DECL_CONV_KERNEL_SET(name, ...)                                           \
+    __extension__ static ::ck_tile::dispatcher::conv_decl::ConvKernelSetRegistrar \
+    CK_CONV_DECL_CAT_(_conv_kset_reg_, __COUNTER__)(                              \
         #name, ::ck_tile::dispatcher::conv_decl::ConvKernelSet() __VA_ARGS__.tag(#name))
 
 #define CONV_KERNEL_SET(name) ::ck_tile::dispatcher::conv_decl::ConvKernelSet name

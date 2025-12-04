@@ -38,6 +38,73 @@ from conv_utils import (
 )
 
 
+def conv2d_bwd_data_reference(
+    grad_output: np.ndarray,
+    weight: np.ndarray,
+    input_shape: tuple,
+    stride: tuple = (1, 1),
+    padding: tuple = (0, 0),
+    dilation: tuple = (1, 1),
+) -> np.ndarray:
+    """
+    CPU reference implementation for 2D backward data convolution.
+
+    Computes dL/dInput = conv_transpose(dOutput, Weight)
+
+    Args:
+        grad_output: Gradient from next layer (N, Ho, Wo, G, K) - NHWGK layout
+        weight: Filter weights (G, K, Y, X, C) - GKYXC layout
+        input_shape: Original input shape (N, Hi, Wi, G, C)
+        stride: (stride_h, stride_w)
+        padding: (pad_h, pad_w)
+        dilation: (dilation_h, dilation_w)
+
+    Returns:
+        grad_input: Input gradient (N, Hi, Wi, G, C) - NHWGC layout
+    """
+    N, Ho, Wo, G, K = grad_output.shape
+    _, _, Y, X, C = weight.shape
+    _, Hi, Wi, _, _ = input_shape
+    pad_h, pad_w = padding
+    stride_h, stride_w = stride
+    dilation_h, dilation_w = dilation
+
+    # Use float32 for accumulation
+    grad_input = np.zeros((N, Hi, Wi, G, C), dtype=np.float32)
+
+    # Backward data: transpose convolution
+    for n in range(N):
+        for g in range(G):
+            for hi in range(Hi):
+                for wi in range(Wi):
+                    for c in range(C):
+                        acc = 0.0
+                        for k in range(K):
+                            for y in range(Y):
+                                for x in range(X):
+                                    # Compute corresponding output position
+                                    ho_f = hi + pad_h - y * dilation_h
+                                    wo_f = wi + pad_w - x * dilation_w
+
+                                    # Check if this is a valid strided position
+                                    if (
+                                        ho_f >= 0
+                                        and ho_f % stride_h == 0
+                                        and wo_f >= 0
+                                        and wo_f % stride_w == 0
+                                    ):
+                                        ho = ho_f // stride_h
+                                        wo = wo_f // stride_w
+
+                                        if 0 <= ho < Ho and 0 <= wo < Wo:
+                                            acc += float(
+                                                grad_output[n, ho, wo, g, k]
+                                            ) * float(weight[g, k, y, x, c])
+                        grad_input[n, hi, wi, g, c] = acc
+
+    return grad_input.astype(grad_output.dtype)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Backward Data Convolution Example")
     parser.add_argument(
@@ -46,6 +113,11 @@ def main():
         default="fp16",
         choices=["fp16", "bf16", "fp32"],
         help="Data type (default: fp16)",
+    )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Enable CPU reference validation",
     )
     parser.add_argument(
         "--pipeline",
@@ -120,6 +192,7 @@ def main():
         warp_k=algo.warp_k,
         dtype=sig.dtype_in,
         arch=arch.name,
+        direction=sig.direction,  # Pass direction for operator-specific validation
     )
     validation.print_result()
 
@@ -136,6 +209,7 @@ def main():
             warp_n=algo.warp_n,
             warp_k=algo.warp_k,
             dtype=sig.dtype_in,
+            direction=sig.direction,  # Pass direction for operator-specific validation
             arch=arch.name,
         )
         if was_modified:
@@ -246,6 +320,7 @@ def main():
     print("-" * 50)
 
     runner = GpuConvRunner()
+    gpu_output = None
     if runner.is_available():
         print(f"  Library: {runner.library_path}")
 
@@ -255,12 +330,48 @@ def main():
             print("\n  *** GPU EXECUTION SUCCESSFUL ***")
             print(f"  Time:   {result['time_ms']:.4f} ms")
             print(f"  TFLOPS: {result['tflops']:.2f}")
+            gpu_output = result.get("output")
         else:
             print(f"  Execution: {result.get('error', 'kernel not found')}")
 
         runner.cleanup()
     else:
         print("  GPU library not available")
+
+    # =========================================================================
+    # Step 8: CPU Reference Validation (optional)
+    # =========================================================================
+    if args.verify and gpu_output is not None:
+        print("\nStep 8: CPU Reference Validation")
+        print("-" * 50)
+
+        input_shape = (prob.N, prob.Hi, prob.Wi, prob.G, prob.C)
+        cpu_output = conv2d_bwd_data_reference(
+            doutput,
+            weight,
+            input_shape,
+            stride=(prob.stride_h, prob.stride_w),
+            padding=(prob.pad_h, prob.pad_w),
+        )
+
+        # Compare GPU and CPU results
+        gpu_flat = gpu_output.flatten().astype(np.float32)
+        cpu_flat = cpu_output.flatten().astype(np.float32)
+
+        abs_diff = np.abs(gpu_flat - cpu_flat)
+        rel_diff = np.where(cpu_flat != 0, abs_diff / np.abs(cpu_flat), abs_diff)
+
+        max_abs_diff = np.max(abs_diff)
+        max_rel_diff = np.max(rel_diff)
+
+        print(f"  GPU[0]: {gpu_flat[0]:.4f}")
+        print(f"  CPU[0]: {cpu_flat[0]:.4f}")
+        print(f"\n  Max abs diff: {max_abs_diff:.4e}")
+        print(f"  Max rel diff: {max_rel_diff:.4e}")
+
+        # FP16 tolerance
+        passed = max_rel_diff < 0.1  # 10% for FP16 with accumulation differences
+        print(f"  Status: {'PASSED' if passed else 'FAILED'}")
 
     # =========================================================================
     # Cleanup and Summary

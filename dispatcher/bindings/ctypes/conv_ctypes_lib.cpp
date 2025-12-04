@@ -278,6 +278,10 @@ static float run_bwd_data(const void* grad_output_ptr,
 
 #ifdef CONV_BWD_WEIGHT_AVAILABLE
 // Backward weight convolution (optional)
+// Parameters:
+//   input_ptr:       original forward input X (const, read-only)
+//   grad_output_ptr: gradient from next layer dY (const, read-only)
+//   grad_weight_ptr: gradient of weights dW (writable, OUTPUT)
 static float run_bwd_weight(const void* input_ptr,
                             const void* grad_output_ptr,
                             void* grad_weight_ptr,
@@ -286,8 +290,11 @@ static float run_bwd_weight(const void* input_ptr,
 {
     auto conv_param = build_conv_param(prob);
 
+    // GroupedConvBwdWeightHostArgs constructor order:
+    //   (param, in=X, wei=dW (output), ds, out=dY (input), k_batch)
+    // Note: wei_ptr is the OUTPUT (grad_weight), out_ptr is the INPUT (grad_output)
     ck_tile::GroupedConvBwdWeightHostArgs args(
-        conv_param, input_ptr, grad_output_ptr, {}, grad_weight_ptr, 1);
+        conv_param, input_ptr, grad_weight_ptr, {}, grad_output_ptr, 1);
 
     ck_tile::stream_config stream_cfg{static_cast<hipStream_t>(stream), true, 1, 3, 10};
 
@@ -336,7 +343,11 @@ float conv_dispatcher_run(const void* input_ptr,
 
 #ifdef CONV_BWD_WEIGHT_AVAILABLE
     case 2: // Backward weight
-        return run_bwd_weight(input_ptr, weight_ptr, output_ptr, prob, stream);
+        // Convention: caller passes (grad_output, input, grad_weight_buffer)
+        // in the (input_ptr, weight_ptr, output_ptr) slots respectively.
+        // This is consistent with bwd_data where grad_output goes in input_ptr slot.
+        // run_bwd_weight expects: (input, grad_output, grad_weight)
+        return run_bwd_weight(weight_ptr, input_ptr, output_ptr, prob, stream);
 #endif
 
     default: return -1.0f;

@@ -265,9 +265,9 @@ def scan_generated_headers(generated_dir: Path) -> List[KernelConfig]:
                 content,
             )
 
-            int(warp_m_match.group(1)) if warp_m_match else 2
-            int(warp_n_match.group(1)) if warp_n_match else 2
-            int(warp_k_match.group(1)) if warp_k_match else 1
+            warp_m = int(warp_m_match.group(1)) if warp_m_match else 2
+            warp_n = int(warp_n_match.group(1)) if warp_n_match else 2
+            warp_k = int(warp_k_match.group(1)) if warp_k_match else 1
 
             # Extract warp tile configuration
             warp_tile_m_match = re.search(
@@ -283,9 +283,9 @@ def scan_generated_headers(generated_dir: Path) -> List[KernelConfig]:
                 content,
             )
 
-            int(warp_tile_m_match.group(1)) if warp_tile_m_match else 32
-            int(warp_tile_n_match.group(1)) if warp_tile_n_match else 32
-            int(warp_tile_k_match.group(1)) if warp_tile_k_match else 16
+            warp_tile_m = int(warp_tile_m_match.group(1)) if warp_tile_m_match else 32
+            warp_tile_n = int(warp_tile_n_match.group(1)) if warp_tile_n_match else 32
+            warp_tile_k = int(warp_tile_k_match.group(1)) if warp_tile_k_match else 16
 
             # Extract other parameters (with defaults)
             block_size_match = re.search(
@@ -312,12 +312,12 @@ def scan_generated_headers(generated_dir: Path) -> List[KernelConfig]:
                 tile_m=tile_m,
                 tile_n=tile_n,
                 tile_k=tile_k,
-                warp_m=2,  # Would need to extract from header
-                warp_n=2,
-                warp_k=1,
-                warp_tile_m=32,
-                warp_tile_n=32,
-                warp_tile_k=16,
+                warp_m=warp_m,
+                warp_n=warp_n,
+                warp_k=warp_k,
+                warp_tile_m=warp_tile_m,
+                warp_tile_n=warp_tile_n,
+                warp_tile_k=warp_tile_k,
                 block_size=block_size,
                 pipeline="compv4",
                 epilogue="cshuffle",

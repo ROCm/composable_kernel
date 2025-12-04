@@ -166,9 +166,21 @@ def validate_conv_config(
     warp_k: int = 16,
     dtype: str = "fp16",
     arch: str = "gfx942",
+    direction: str = "forward",
 ) -> ConvValidationResult:
     """
     Validate a conv kernel configuration against arch filter rules.
+
+    Args:
+        pipeline: Pipeline type (compv3, compv4, etc.)
+        scheduler: Scheduler type (intrawave, interwave)
+        epilogue: Epilogue type (cshuffle, default)
+        wave_m, wave_n, wave_k: Wave/warp configuration
+        warp_m, warp_n, warp_k: Warp tile dimensions
+        dtype: Data type (fp16, bf16, etc.)
+        arch: Target architecture (gfx942, gfx90a, etc.)
+        direction: Convolution direction (forward, bwd_data, bwd_weight)
+                  Affects operator-specific validation constraints.
 
     Returns ConvValidationResult with is_valid, errors, and suggested fixes.
     """
@@ -1866,6 +1878,28 @@ class GpuConvRunner:
 
             output_size = output_elements * input_np.dtype.itemsize
 
+            # Create output buffer if not provided
+            if output_np is None:
+                direction = getattr(problem, "direction", "forward")
+                if direction == "bwd_data":
+                    # grad_input: (N, Hi, Wi, G, C)
+                    output_np = np.zeros(
+                        (problem.N, problem.Hi, problem.Wi, problem.G, problem.C),
+                        dtype=input_np.dtype,
+                    )
+                elif direction == "bwd_weight":
+                    # grad_weight: (G, K, Y, X, C)
+                    output_np = np.zeros(
+                        (problem.G, problem.K, problem.Y, problem.X, problem.C),
+                        dtype=input_np.dtype,
+                    )
+                else:
+                    # Forward output: (N, Ho, Wo, G, K)
+                    output_np = np.zeros(
+                        (problem.N, problem.Ho, problem.Wo, problem.G, problem.K),
+                        dtype=input_np.dtype,
+                    )
+
             # Allocate GPU memory
             input_dev = ctypes.c_void_p()
             weight_dev = ctypes.c_void_p()
@@ -1885,7 +1919,7 @@ class GpuConvRunner:
             )
             self._hip.hipDeviceSynchronize()
 
-            # Copy back if needed
+            # Copy back results
             result = {
                 "success": time_ms > 0,
                 "time_ms": time_ms if time_ms > 0 else 0,
@@ -1894,7 +1928,7 @@ class GpuConvRunner:
                 else 0,
             }
 
-            if output_np is not None and time_ms > 0:
+            if time_ms > 0:
                 self._hip.hipMemcpy(
                     output_np.ctypes.data, output_dev, output_np.nbytes, 2
                 )  # D2H
@@ -2372,6 +2406,13 @@ class GpuConvBwdWeightRunner:
             )
             grad_weight_size = grad_weight_elements * input_np.dtype.itemsize
 
+            # Create output buffer if not provided
+            if grad_weight_np is None:
+                grad_weight_np = np.zeros(
+                    (problem.G, problem.K, problem.Y, problem.X, problem.C),
+                    dtype=input_np.dtype,
+                )
+
             # Allocate GPU memory
             input_dev = ctypes.c_void_p()
             grad_output_dev = ctypes.c_void_p()
@@ -2401,8 +2442,8 @@ class GpuConvBwdWeightRunner:
                 else 0,
             }
 
-            # Copy back if needed
-            if grad_weight_np is not None and time_ms > 0:
+            # Copy back results
+            if time_ms > 0:
                 self._hip.hipMemcpy(
                     grad_weight_np.ctypes.data,
                     grad_weight_dev,
@@ -2602,10 +2643,20 @@ def auto_correct_conv_config(
     warp_k: int = 16,
     dtype: str = "fp16",
     arch: str = "gfx942",
+    direction: str = "forward",
     verbose: bool = False,
 ) -> Tuple[Dict[str, Any], bool, List[str]]:
     """
     Validate and auto-correct a conv kernel configuration.
+
+    Args:
+        pipeline, scheduler, epilogue: Trait configuration
+        wave_m, wave_n, wave_k: Wave/warp configuration
+        warp_m, warp_n, warp_k: Warp tile dimensions
+        dtype: Data type
+        arch: Target architecture
+        direction: Convolution direction (forward, bwd_data, bwd_weight)
+        verbose: Print verbose output
 
     Returns (corrected_config_dict, was_modified, corrections_list).
     If the config was valid, returns (original_config, False, []).
@@ -2623,6 +2674,7 @@ def auto_correct_conv_config(
         warp_k=warp_k,
         dtype=dtype,
         arch=arch,
+        direction=direction,
     )
 
     original = {
@@ -3116,6 +3168,7 @@ def setup_conv_dispatcher_enhanced(
         warp_k=warp_k,
         dtype=dtype,
         arch=arch,
+        direction=direction,
     )
 
     if not validation.is_valid:
@@ -3125,6 +3178,7 @@ def setup_conv_dispatcher_enhanced(
                 pipeline=pipeline,
                 scheduler=scheduler,
                 epilogue=epilogue,
+                direction=direction,
                 wave_m=wave_m,
                 wave_n=wave_n,
                 wave_k=wave_k,

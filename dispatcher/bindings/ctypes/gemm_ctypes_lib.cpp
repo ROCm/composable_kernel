@@ -106,6 +106,72 @@ int dispatcher_initialize()
 }
 
 /**
+ * Get kernel tile configuration
+ *
+ * Returns the block tile, warp tile, and wave configuration for the
+ * registered kernel. This allows callers to understand dimension
+ * requirements before attempting to run.
+ *
+ * Args:
+ *   tile_m, tile_n, tile_k: Output for block tile dimensions
+ *   warp_tile_m, warp_tile_n, warp_tile_k: Output for warp tile dimensions
+ *   warp_m, warp_n, warp_k: Output for wave/warp configuration
+ *
+ * Returns: 0 on success, -1 if not initialized
+ *
+ * Note: For problem dimensions to be supported (without padding):
+ *   - M must be divisible by tile_m
+ *   - N must be divisible by tile_n
+ *   - K must be divisible by tile_k
+ */
+int dispatcher_get_kernel_config(int* tile_m,
+                                 int* tile_n,
+                                 int* tile_k,
+                                 int* warp_tile_m,
+                                 int* warp_tile_n,
+                                 int* warp_tile_k,
+                                 int* warp_m,
+                                 int* warp_n,
+                                 int* warp_k)
+{
+    if(!g_initialized)
+    {
+        return -1;
+    }
+
+    auto kernels = Registry::instance().get_all();
+    if(kernels.empty())
+    {
+        return -1;
+    }
+
+    // Get configuration from first kernel
+    auto& key  = kernels[0]->get_key();
+    auto& algo = key.algorithm;
+
+    if(tile_m)
+        *tile_m = algo.tile_shape.m;
+    if(tile_n)
+        *tile_n = algo.tile_shape.n;
+    if(tile_k)
+        *tile_k = algo.tile_shape.k;
+    if(warp_tile_m)
+        *warp_tile_m = algo.warp_tile_shape.m;
+    if(warp_tile_n)
+        *warp_tile_n = algo.warp_tile_shape.n;
+    if(warp_tile_k)
+        *warp_tile_k = algo.warp_tile_shape.k;
+    if(warp_m)
+        *warp_m = algo.wave_shape.m;
+    if(warp_n)
+        *warp_n = algo.wave_shape.n;
+    if(warp_k)
+        *warp_k = algo.wave_shape.k;
+
+    return 0;
+}
+
+/**
  * Get the selected kernel name for a problem
  *
  * Args:
@@ -140,14 +206,35 @@ int dispatcher_select_kernel(int64_t M, int64_t N, int64_t K, char* name_buffer,
 /**
  * Check if a problem size is supported by available kernels
  *
- * Args:
- *   M, N, K: Problem dimensions
+ * A problem is considered supported if at least one registered kernel
+ * can handle the given dimensions. Support depends on:
  *
- * Returns: 1 if supported, 0 if not supported
+ * - Block tile divisibility: M, N, K must be divisible by the kernel's
+ *   block tile sizes (TileM, TileN, TileK) unless padding is enabled
+ * - Warp tile and wave configuration are internal to the kernel and
+ *   affect performance but not dimension support
+ *
+ * For kernels with padding enabled (kPadM, kPadN, kPadK), any dimension
+ * that has padding enabled does not require divisibility.
+ *
+ * Args:
+ *   M, N, K: Problem dimensions (must be positive)
+ *
+ * Returns: 1 if supported, 0 if not supported or not initialized
+ *
+ * Example: For a kernel with TileM=128, TileN=128, TileK=32:
+ *   - (1024, 1024, 512) -> supported (divisible)
+ *   - (1000, 1024, 512) -> not supported (1000 % 128 != 0, unless padM enabled)
  */
 int dispatcher_is_supported(int64_t M, int64_t N, int64_t K)
 {
     if(!g_initialized)
+    {
+        return 0;
+    }
+
+    // Basic validation
+    if(M <= 0 || N <= 0 || K <= 0)
     {
         return 0;
     }

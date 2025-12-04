@@ -26,13 +26,14 @@ import concurrent.futures
 
 # Import architecture filter for GPU-specific validation
 try:
-    from arch_filter import ArchFilter, KernelConfig as ArchKernelConfig
+    from arch_filter import ArchFilter, KernelConfig as ArchKernelConfig, OperatorType
 
     HAS_ARCH_FILTER = True
 except ImportError:
     HAS_ARCH_FILTER = False
     ArchFilter = None
     ArchKernelConfig = None
+    OperatorType = None
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -868,7 +869,14 @@ class UnifiedGemmCodegen:
             return []
 
     def _get_configs_for_variant(self, variant: GemmVariant) -> List[KernelConfig]:
-        """Get all configurations for a variant"""
+        """Get all configurations for a variant
+
+        Args:
+            variant: GEMM variant (STANDARD, PRESHUFFLE, MULTI_D)
+
+        Returns:
+            List of valid kernel configurations for the variant
+        """
         configs = []
 
         # Get base configs
@@ -876,6 +884,11 @@ class UnifiedGemmCodegen:
         trait_configs = self._get_trait_configs()
 
         for tile, trait in itertools.product(tile_configs, trait_configs):
+            # Perform variant-specific architecture validation
+            if self.arch_filter and HAS_ARCH_FILTER:
+                if not self._is_tile_arch_valid(tile, variant):
+                    continue
+
             if variant == GemmVariant.STANDARD:
                 configs.append(KernelConfig(tile=tile, trait=trait, variant=variant))
 
@@ -942,8 +955,15 @@ class UnifiedGemmCodegen:
 
         return configs
 
-    def _is_tile_arch_valid(self, tile: TileConfig) -> bool:
-        """Check if tile configuration is valid for target architecture"""
+    def _is_tile_arch_valid(
+        self, tile: TileConfig, variant: GemmVariant = None
+    ) -> bool:
+        """Check if tile configuration is valid for target architecture
+
+        Args:
+            tile: Tile configuration to validate
+            variant: GEMM variant (affects operator-specific constraints)
+        """
         if not self.arch_filter or not HAS_ARCH_FILTER:
             return True
 
@@ -959,6 +979,16 @@ class UnifiedGemmCodegen:
             self.datatype, ("fp16", "fp16", "fp16")
         )
 
+        # Map GEMM variant to operator type for validation
+        operator = None
+        if OperatorType is not None and variant is not None:
+            variant_to_operator = {
+                GemmVariant.STANDARD: OperatorType.GEMM,
+                GemmVariant.PRESHUFFLE: OperatorType.GEMM_PRESHUFFLE,
+                GemmVariant.MULTI_D: OperatorType.GEMM_MULTI_D,
+            }
+            operator = variant_to_operator.get(variant, OperatorType.GEMM)
+
         return self.arch_filter.is_kernel_valid(
             datatype_a=dtype_a,
             datatype_b=dtype_b,
@@ -973,6 +1003,7 @@ class UnifiedGemmCodegen:
             warp_tile_n=tile.warp_tile_n,
             warp_tile_k=tile.warp_tile_k,
             layout=self.layout,
+            operator=operator,
         )
 
     def _get_trait_configs(self) -> List[TraitConfig]:

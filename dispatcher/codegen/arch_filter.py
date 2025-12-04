@@ -42,6 +42,85 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+class OperatorType(Enum):
+    """Supported operator types for kernel validation"""
+
+    GEMM = "gemm"
+    GEMM_PRESHUFFLE = "gemm_preshuffle"
+    GEMM_MULTI_D = "gemm_multi_d"
+    CONV_FWD = "conv_fwd"
+    CONV_BWD_DATA = "conv_bwd_data"
+    CONV_BWD_WEIGHT = "conv_bwd_weight"
+    CONV3D_FWD = "conv3d_fwd"
+    CONV3D_BWD_DATA = "conv3d_bwd_data"
+    CONV3D_BWD_WEIGHT = "conv3d_bwd_weight"
+
+
+# Operator-specific tile constraints
+# Different operators may have different minimum tile sizes or alignment requirements
+OPERATOR_TILE_CONSTRAINTS = {
+    OperatorType.GEMM: {
+        "min_tile_m": 16,
+        "min_tile_n": 16,
+        "min_tile_k": 8,
+        "tile_m_alignment": 16,
+        "tile_n_alignment": 16,
+        "tile_k_alignment": 8,
+    },
+    OperatorType.GEMM_PRESHUFFLE: {
+        "min_tile_m": 64,
+        "min_tile_n": 64,
+        "min_tile_k": 32,
+        "tile_m_alignment": 32,
+        "tile_n_alignment": 32,
+        "tile_k_alignment": 16,
+    },
+    OperatorType.GEMM_MULTI_D: {
+        "min_tile_m": 16,
+        "min_tile_n": 16,
+        "min_tile_k": 8,
+        "tile_m_alignment": 16,
+        "tile_n_alignment": 16,
+        "tile_k_alignment": 8,
+    },
+    OperatorType.CONV_FWD: {
+        "min_tile_m": 1,  # N dimension can be 1
+        "min_tile_n": 16,  # K (output channels) should be reasonable
+        "min_tile_k": 16,  # C (input channels) should be reasonable
+        "tile_m_alignment": 1,
+        "tile_n_alignment": 16,
+        "tile_k_alignment": 16,
+    },
+    OperatorType.CONV_BWD_DATA: {
+        "min_tile_m": 1,
+        "min_tile_n": 16,  # C (input channels)
+        "min_tile_k": 16,  # K (output channels)
+        "tile_m_alignment": 1,
+        "tile_n_alignment": 16,
+        "tile_k_alignment": 16,
+    },
+    OperatorType.CONV_BWD_WEIGHT: {
+        "min_tile_m": 16,  # K (output channels)
+        "min_tile_n": 16,  # C (input channels)
+        "min_tile_k": 1,  # Spatial reduction dimension
+        "tile_m_alignment": 16,
+        "tile_n_alignment": 16,
+        "tile_k_alignment": 1,
+    },
+}
+
+# Add 3D convolution constraints (same as 2D for now)
+OPERATOR_TILE_CONSTRAINTS[OperatorType.CONV3D_FWD] = OPERATOR_TILE_CONSTRAINTS[
+    OperatorType.CONV_FWD
+]
+OPERATOR_TILE_CONSTRAINTS[OperatorType.CONV3D_BWD_DATA] = OPERATOR_TILE_CONSTRAINTS[
+    OperatorType.CONV_BWD_DATA
+]
+OPERATOR_TILE_CONSTRAINTS[OperatorType.CONV3D_BWD_WEIGHT] = OPERATOR_TILE_CONSTRAINTS[
+    OperatorType.CONV_BWD_WEIGHT
+]
+
 # =============================================================================
 # Import from Generated Module (Single Source of Truth)
 # =============================================================================
@@ -215,6 +294,9 @@ class KernelConfig:
     # Layout (for whole-workgroup cover validation)
     layout: str = "rcr"
 
+    # Operator type (affects validation rules)
+    operator: OperatorType = OperatorType.GEMM
+
     @property
     def dtype_key(self) -> str:
         """Generate data type combination key"""
@@ -270,6 +352,9 @@ class ArchFilter:
         """
         Validate a kernel configuration against architecture constraints.
 
+        Validation is performed based on the operator type, as different
+        operators (GEMM, Conv FWD, Conv BWD) have different constraints.
+
         Args:
             config: Kernel configuration to validate
 
@@ -277,6 +362,11 @@ class ArchFilter:
             ValidationResult with valid flag and error/warning messages
         """
         result = ValidationResult(valid=True)
+
+        # Operator-specific tile constraint validation
+        self._validate_operator_constraints(config, result)
+        if not result.valid and self.strict_mode:
+            return result
 
         # Basic sanity checks
         self._validate_dimensions(config, result)
@@ -300,6 +390,62 @@ class ArchFilter:
 
         return result
 
+    def _validate_operator_constraints(
+        self, config: KernelConfig, result: ValidationResult
+    ):
+        """Validate operator-specific tile constraints"""
+        constraints = OPERATOR_TILE_CONSTRAINTS.get(config.operator)
+
+        if constraints is None:
+            # Unknown operator - add warning but don't fail
+            result.add_warning(
+                f"Unknown operator type: {config.operator}. "
+                f"Skipping operator-specific validation."
+            )
+            return
+
+        # Validate minimum tile sizes
+        min_tile_m = constraints.get("min_tile_m", 1)
+        min_tile_n = constraints.get("min_tile_n", 1)
+        min_tile_k = constraints.get("min_tile_k", 1)
+
+        if config.tile_m < min_tile_m:
+            result.add_error(
+                f"Operator {config.operator.value}: tile_m ({config.tile_m}) "
+                f"< minimum ({min_tile_m})"
+            )
+        if config.tile_n < min_tile_n:
+            result.add_error(
+                f"Operator {config.operator.value}: tile_n ({config.tile_n}) "
+                f"< minimum ({min_tile_n})"
+            )
+        if config.tile_k < min_tile_k:
+            result.add_error(
+                f"Operator {config.operator.value}: tile_k ({config.tile_k}) "
+                f"< minimum ({min_tile_k})"
+            )
+
+        # Validate tile alignment
+        tile_m_align = constraints.get("tile_m_alignment", 1)
+        tile_n_align = constraints.get("tile_n_alignment", 1)
+        tile_k_align = constraints.get("tile_k_alignment", 1)
+
+        if tile_m_align > 1 and config.tile_m % tile_m_align != 0:
+            result.add_error(
+                f"Operator {config.operator.value}: tile_m ({config.tile_m}) "
+                f"must be aligned to {tile_m_align}"
+            )
+        if tile_n_align > 1 and config.tile_n % tile_n_align != 0:
+            result.add_error(
+                f"Operator {config.operator.value}: tile_n ({config.tile_n}) "
+                f"must be aligned to {tile_n_align}"
+            )
+        if tile_k_align > 1 and config.tile_k % tile_k_align != 0:
+            result.add_error(
+                f"Operator {config.operator.value}: tile_k ({config.tile_k}) "
+                f"must be aligned to {tile_k_align}"
+            )
+
     def is_kernel_valid(
         self,
         datatype_a: str = "fp16",
@@ -318,12 +464,21 @@ class ArchFilter:
         epilogue: str = "cshuffle",
         scheduler: str = "intrawave",
         layout: str = "rcr",
+        operator: Optional[OperatorType] = None,
     ) -> bool:
         """
         Quick validation check for a kernel configuration.
 
         Args:
-            All kernel configuration parameters
+            datatype_a, datatype_b, datatype_c: Data types for A, B, C matrices
+            tile_m, tile_n, tile_k: Block tile dimensions
+            warp_m, warp_n, warp_k: Warp/wave configuration
+            warp_tile_m, warp_tile_n, warp_tile_k: Warp tile dimensions
+            pipeline, epilogue, scheduler: Kernel traits
+            layout: Matrix layout (e.g., "rcr")
+            operator: Operator type (GEMM, CONV_FWD, CONV_BWD_DATA, etc.)
+                     Affects validation rules for tile constraints.
+                     Defaults to GEMM if not specified.
 
         Returns:
             True if configuration is valid for this architecture
@@ -345,6 +500,7 @@ class ArchFilter:
             epilogue=epilogue.lower(),
             scheduler=scheduler.lower(),
             layout=layout.lower(),
+            operator=operator if operator is not None else OperatorType.GEMM,
         )
         return self.validate_kernel(config).valid
 

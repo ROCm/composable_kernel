@@ -21,8 +21,9 @@ file(MAKE_DIRECTORY ${KERNEL_OUTPUT_DIR})
 set(GEMM_SENTINEL "${KERNEL_OUTPUT_DIR}/.gemm_generated")
 set(CONV_FWD_SENTINEL "${KERNEL_OUTPUT_DIR}/.conv_fwd_generated")
 set(CONV_BWD_SENTINEL "${KERNEL_OUTPUT_DIR}/.conv_bwd_generated")
+set(ALL_KERNELS_SENTINEL "${KERNEL_OUTPUT_DIR}/.all_generated")
 
-# Generate GEMM kernels (standard + multi_d)
+# Generate GEMM kernels (standard + multi_d) - runs with internal parallelism
 # Note: 4-char layout "rcrr" means A=row, B=col, C=row, D=row (for multi-d)
 add_custom_command(
     OUTPUT ${GEMM_SENTINEL}
@@ -31,7 +32,7 @@ add_custom_command(
             --output ${KERNEL_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E touch ${GEMM_SENTINEL}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Generating GEMM kernels (fp16, rcrr, standard + multi_d)..."
+    COMMENT "Generating GEMM kernels (fp16, rcrr, standard + multi_d) with internal parallelism..."
     VERBATIM
 )
 
@@ -40,7 +41,7 @@ add_custom_target(generate_gemm_kernels
     COMMENT "GEMM kernel generation target"
 )
 
-# Generate Conv forward kernels (2D and 3D)
+# Generate Conv forward kernels (2D and 3D) - runs with internal parallelism
 add_custom_command(
     OUTPUT ${CONV_FWD_SENTINEL}
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
@@ -48,7 +49,7 @@ add_custom_command(
             --output ${KERNEL_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E touch ${CONV_FWD_SENTINEL}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Generating Conv forward kernels (fp16, 2D+3D)..."
+    COMMENT "Generating Conv forward kernels (fp16, 2D+3D) with internal parallelism..."
     VERBATIM
 )
 
@@ -57,7 +58,7 @@ add_custom_target(generate_conv_fwd_kernels
     COMMENT "Conv forward kernel generation target"
 )
 
-# Generate Conv backward kernels (bwd_data and bwd_weight, 2D)
+# Generate Conv backward kernels (bwd_data and bwd_weight, 2D) - runs with internal parallelism
 add_custom_command(
     OUTPUT ${CONV_BWD_SENTINEL}
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
@@ -65,7 +66,7 @@ add_custom_command(
             --output ${KERNEL_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E touch ${CONV_BWD_SENTINEL}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Generating Conv backward kernels (fp16, 2D)..."
+    COMMENT "Generating Conv backward kernels (fp16, 2D) with internal parallelism..."
     VERBATIM
 )
 
@@ -74,13 +75,44 @@ add_custom_target(generate_conv_bwd_kernels
     COMMENT "Conv backward kernel generation target"
 )
 
-# Combined kernel generation targets
+# Combined kernel generation targets (these can run in parallel with make -j)
 add_custom_target(generate_conv_kernels 
     DEPENDS generate_conv_fwd_kernels generate_conv_bwd_kernels
 )
 
 add_custom_target(generate_all_kernels 
     DEPENDS generate_gemm_kernels generate_conv_kernels
+)
+
+# Parallel kernel generation - generates all kernels in a single parallel job
+# This is faster than running separate targets sequentially
+add_custom_command(
+    OUTPUT ${ALL_KERNELS_SENTINEL}
+    COMMAND python3 -c "
+import subprocess
+import concurrent.futures
+import os
+os.chdir('${CMAKE_CURRENT_SOURCE_DIR}/../codegen')
+cmds = [
+    ['python3', 'unified_gemm_codegen.py', '--datatype', 'fp16', '--layout', 'rcrr', '--variants', 'standard', 'multi_d', '--output', '${KERNEL_OUTPUT_DIR}'],
+    ['python3', 'unified_conv_codegen.py', '--datatype', 'fp16', '--variant', 'forward', '--ndim', '2', '3', '--output', '${KERNEL_OUTPUT_DIR}'],
+    ['python3', 'unified_conv_codegen.py', '--datatype', 'fp16', '--variant', 'bwd_data', 'bwd_weight', '--ndim', '2', '--output', '${KERNEL_OUTPUT_DIR}'],
+]
+with concurrent.futures.ProcessPoolExecutor(max_workers=3) as e:
+    futures = [e.submit(subprocess.run, cmd, check=True) for cmd in cmds]
+    for f in concurrent.futures.as_completed(futures):
+        f.result()
+print('All kernels generated in parallel')
+"
+    COMMAND ${CMAKE_COMMAND} -E touch ${GEMM_SENTINEL} ${CONV_FWD_SENTINEL} ${CONV_BWD_SENTINEL} ${ALL_KERNELS_SENTINEL}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
+    COMMENT "Generating ALL kernels in parallel (GEMM + Conv forward + Conv backward)..."
+    VERBATIM
+)
+
+add_custom_target(generate_all_kernels_parallel
+    DEPENDS ${ALL_KERNELS_SENTINEL}
+    COMMENT "Parallel kernel generation target (fastest for full builds)"
 )
 
 # =============================================================================
