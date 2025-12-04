@@ -219,26 +219,3 @@ Several fields in the signature are optional:
 - **Tensor `operation`**: Defaults to `PASS_THROUGH`, supporting both fused and non-fused operations with the same interface
 
 This design follows the principle of "make the common case simple, the complex case possible."
-
-#### Union-Based Layout Representation
-
-The `ConvLayout` type uses unions to support dimension-agnostic code:
-
-```cpp
-struct ConvLayout {
-    union {
-        ConvInputLayout _input_layout;
-        ConvWeightLayout _weight_layout;
-        ConvOutputLayout _output_layout;
-        ConvAuxiliaryTensorLayout _aux_tensor_layout;
-    };
-    // ... constructors for each type
-};
-```
-
-This allows:
-- Single type to represent all layout variants
-- Type-safe construction through overloaded constructors
-- Compile-time enforcement of valid combinations through concepts
-
----
