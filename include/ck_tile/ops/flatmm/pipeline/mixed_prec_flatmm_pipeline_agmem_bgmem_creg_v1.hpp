@@ -194,7 +194,6 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                         [[maybe_unused]] const auto& scale_tensor,
                         [[maybe_unused]] auto xdl_nIter,
                         [[maybe_unused]] auto xdl_kIter) {
-#if 0
             auto quant_idx_k = xdl_kIter % number<XDL_PerWeightK>{};
 
             auto scale_idx_n  = xdl_nIter % number<XDL_PerScaleN>{};
@@ -207,7 +206,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             constexpr int PackedCnt      = ScalarCnt / MXFP4PackedSize;
             constexpr int float_mantissa = 23;
 
-            uint32_t uscale = uint32_t(scale.data) << float_mantissa;
+            uint32_t uscale = uint32_t(scale) << float_mantissa;
 
             using ComputeV2Type =
                 std::conditional_t<std::is_same_v<ComputeType, half_t>, fp16x2_t, bf16x2_t>;
@@ -258,7 +257,6 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                             .at(i),
                         bit_cast<float>(uscale)));
             });
-#endif
 #endif
             return 0;
         }
