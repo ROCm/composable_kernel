@@ -578,8 +578,10 @@ struct UniversalGemmKernel
     }
 
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
-    CK_TILE_DEVICE static auto
-    MakeCBlockWindows(EDataType* e_ptr, const KernelArgs& kargs, const index_t i_m, const index_t i_n)
+    CK_TILE_DEVICE static auto MakeCBlockWindows(EDataType* e_ptr,
+                                                 const KernelArgs& kargs,
+                                                 const index_t i_m,
+                                                 const index_t i_n)
     {
         // Step 1: Create tensor view for E/C tensor (from MakeGemmTensorViews)
         const auto& e_tensor_view = [&]() {
@@ -630,11 +632,10 @@ struct UniversalGemmKernel
         return e_block_window;
     }
 
-    CK_TILE_DEVICE static auto
-    MakeDBlockWindows(const std::array<const void*, NumDTensor>& ds_ptr,
-                      const KernelArgs& kargs,
-                      const index_t i_m,
-                      const index_t i_n)
+    CK_TILE_DEVICE static auto MakeDBlockWindows(const std::array<const void*, NumDTensor>& ds_ptr,
+                                                 const KernelArgs& kargs,
+                                                 const index_t i_m,
+                                                 const index_t i_n)
     {
         // Step 1: Create tensor views for D tensors (from MakeGemmTensorViews)
         const auto& ds_tensor_view = generate_tuple(
@@ -978,19 +979,17 @@ struct UniversalGemmKernel
         if(UseDefaultScheduler || (get_warp_id() == 0))
         {
             // Run Epilogue Pipeline
-            if (kargs.k_batch == 1)
+            if(kargs.k_batch == 1)
             {
-                auto c_block_window =
-                    MakeCBlockWindows<memory_operation_enum::set>(
-                        e_ptr, kargs, block_idx_m, block_idx_n);
+                auto c_block_window = MakeCBlockWindows<memory_operation_enum::set>(
+                    e_ptr, kargs, block_idx_m, block_idx_n);
 
                 EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
             }
-            else 
+            else
             {
-                auto c_block_window =
-                    MakeCBlockWindows<memory_operation_enum::atomic_add>(
-                        e_ptr, kargs, block_idx_m, block_idx_n);
+                auto c_block_window = MakeCBlockWindows<memory_operation_enum::atomic_add>(
+                    e_ptr, kargs, block_idx_m, block_idx_n);
 
                 EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
             }
@@ -1045,19 +1044,17 @@ struct UniversalGemmKernel
                                                                       smem_ptr_1);
 
         // Run Epilogue Pipeline
-        if (kargs.k_batch == 1)
+        if(kargs.k_batch == 1)
         {
-            auto c_block_window =
-                MakeCBlockWindows<memory_operation_enum::set>(
-                    e_ptr, kargs, block_idx_m, block_idx_n);
+            auto c_block_window = MakeCBlockWindows<memory_operation_enum::set>(
+                e_ptr, kargs, block_idx_m, block_idx_n);
 
             EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
         }
-        else 
+        else
         {
-            auto c_block_window =
-                MakeCBlockWindows<memory_operation_enum::atomic_add>(
-                    e_ptr, kargs, block_idx_m, block_idx_n);
+            auto c_block_window = MakeCBlockWindows<memory_operation_enum::atomic_add>(
+                e_ptr, kargs, block_idx_m, block_idx_n);
 
             EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
         }

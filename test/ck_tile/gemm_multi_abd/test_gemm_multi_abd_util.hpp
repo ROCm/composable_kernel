@@ -156,74 +156,74 @@ class TestCkTileGemmMultiABD : public ::testing::Test
 
         using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
-            using DefaultGemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
-                ck_tile::DefaultGemm2DEpilogueProblem<AsDataType,
-                                                      BsDataType,
-                                                      DsDataType,
-                                                      AccDataType,
-                                                      EDataType,
-                                                      DsLayout,
-                                                      ELayout,
-                                                      CDElementWiseFn,
-                                                      TilePartitioner::MPerBlock,
-                                                      TilePartitioner::NPerBlock,
-                                                      kPadM,
-                                                      kPadN,
-                                                      M_Warp_Tile,
-                                                      N_Warp_Tile,
-                                                      K_Warp_Tile,
-                                                      UniversalGemmProblem::TransposeC,
-                                                      true>>;
+        using DefaultGemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+            ck_tile::DefaultGemm2DEpilogueProblem<AsDataType,
+                                                  BsDataType,
+                                                  DsDataType,
+                                                  AccDataType,
+                                                  EDataType,
+                                                  DsLayout,
+                                                  ELayout,
+                                                  CDElementWiseFn,
+                                                  TilePartitioner::MPerBlock,
+                                                  TilePartitioner::NPerBlock,
+                                                  kPadM,
+                                                  kPadN,
+                                                  M_Warp_Tile,
+                                                  N_Warp_Tile,
+                                                  K_Warp_Tile,
+                                                  UniversalGemmProblem::TransposeC,
+                                                  true>>;
 
-            using CShuffleGemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<AsDataType,
-                                                 BsDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 EDataType,
-                                                 DsLayout,
-                                                 ELayout,
-                                                 CDElementWiseFn,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 M_Warp,
-                                                 N_Warp,
-                                                 M_Warp_Tile,
-                                                 N_Warp_Tile,
-                                                 K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC>>;
+        using CShuffleGemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<AsDataType,
+                                             BsDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             EDataType,
+                                             DsLayout,
+                                             ELayout,
+                                             CDElementWiseFn,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC>>;
 
-            using GemmEpilogue = std::
-                conditional_t<UseCshuffleEpilog::value, CShuffleGemmEpilogue, DefaultGemmEpilogue>;
+        using GemmEpilogue =
+            std::conditional_t<UseCshuffleEpilog::value, CShuffleGemmEpilogue, DefaultGemmEpilogue>;
 
-            using Kernel = ck_tile::GemmKernelMultiABD<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
+        using Kernel = ck_tile::GemmKernelMultiABD<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
-            const dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = Kernel::BlockSize();
 
-            if(!Kernel::IsSupportedArgument(kargs))
-            {
-                throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
-            }
-
-            if(s.log_level_ > 0)
-            {
-                std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                          << "shape: " << GemmShape::GetName() << '\n'
-                          << "pipeline: " << GemmPipeline::GetName() << '\n'
-                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
-            }
-
-            ck_tile::ignore = ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        if(!Kernel::IsSupportedArgument(kargs))
+        {
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
         }
-    }
 
-    public:
-    bool Run(const int M,
+        if(s.log_level_ > 0)
+        {
+            std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
+                      << "shape: " << GemmShape::GetName() << '\n'
+                      << "pipeline: " << GemmPipeline::GetName() << '\n'
+                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << std::endl;
+        }
+
+        ck_tile::ignore = ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+    }
+}
+
+public : bool
+         Run(const int M,
              const int N,
              const int K,
              const int k_batch,
@@ -234,13 +234,11 @@ class TestCkTileGemmMultiABD : public ::testing::Test
              int StrideD0 = 0,
              int StrideD1 = 0,
              int StrideE  = 0)
-    {
-        using namespace ck_tile::literals;
+{
+    using namespace ck_tile::literals;
 
-        auto f_host_tensor_descriptor = [](std::size_t row,
-                                           std::size_t col,
-                                           std::size_t stride,
-                                           auto layout) {
+    auto f_host_tensor_descriptor =
+        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
             {
                 return ck_tile::HostTensorDescriptor({row, col}, {stride, 1_uz});
@@ -251,172 +249,172 @@ class TestCkTileGemmMultiABD : public ::testing::Test
             }
         };
 
-        auto f_get_default_stride =
-            [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-                if(stride == 0)
-                {
-                    if constexpr(std::is_same_v<decltype(layout),
-                                                ck_tile::tensor_layout::gemm::RowMajor>)
-                    {
-                        return col;
-                    }
-                    else
-                    {
-                        return row;
-                    }
-                }
-                else
-                    return stride;
-            };
+    auto f_get_default_stride = [](std::size_t row,
+                                   std::size_t col,
+                                   std::size_t stride,
+                                   auto layout) {
+        if(stride == 0)
+        {
+            if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
+            {
+                return col;
+            }
+            else
+            {
+                return row;
+            }
+        }
+        else
+            return stride;
+    };
 
-        StrideA0 = f_get_default_stride(M, K, StrideA0, A0Layout{});
-        StrideA1 = f_get_default_stride(M, K, StrideA1, A1Layout{});
+    StrideA0 = f_get_default_stride(M, K, StrideA0, A0Layout{});
+    StrideA1 = f_get_default_stride(M, K, StrideA1, A1Layout{});
 
-        StrideB0 = f_get_default_stride(K, N, StrideB0, B0Layout{});
-        StrideB1 = f_get_default_stride(K, N, StrideB1, B1Layout{});
+    StrideB0 = f_get_default_stride(K, N, StrideB0, B0Layout{});
+    StrideB1 = f_get_default_stride(K, N, StrideB1, B1Layout{});
 
-        StrideD0 = f_get_default_stride(M, N, StrideD0, D0Layout{});
-        StrideD1 = f_get_default_stride(M, N, StrideD1, D1Layout{});
+    StrideD0 = f_get_default_stride(M, N, StrideD0, D0Layout{});
+    StrideD1 = f_get_default_stride(M, N, StrideD1, D1Layout{});
 
-        StrideE = f_get_default_stride(M, N, StrideE, ELayout{});
+    StrideE = f_get_default_stride(M, N, StrideE, ELayout{});
 
-        ck_tile::HostTensor<A0DataType> a0_m_k_tesnor(
-            f_host_tensor_descriptor(M, K, StrideA0, A0Layout{}));
-        ck_tile::HostTensor<A1DataType> a1_m_k_tesnor(
-            f_host_tensor_descriptor(M, K, StrideA1, A1Layout{}));
+    ck_tile::HostTensor<A0DataType> a0_m_k_tesnor(
+        f_host_tensor_descriptor(M, K, StrideA0, A0Layout{}));
+    ck_tile::HostTensor<A1DataType> a1_m_k_tesnor(
+        f_host_tensor_descriptor(M, K, StrideA1, A1Layout{}));
 
-        ck_tile::HostTensor<B0DataType> b0_k_n_tensors(
-            f_host_tensor_descriptor(K, N, StrideB0, B0Layout{}));
-        ck_tile::HostTensor<B1DataType> b1_k_n_tensors(
-            f_host_tensor_descriptor(K, N, StrideB1, B1Layout{}));
+    ck_tile::HostTensor<B0DataType> b0_k_n_tensors(
+        f_host_tensor_descriptor(K, N, StrideB0, B0Layout{}));
+    ck_tile::HostTensor<B1DataType> b1_k_n_tensors(
+        f_host_tensor_descriptor(K, N, StrideB1, B1Layout{}));
 
-        ck_tile::HostTensor<D0DataType> d0_m_n_tensors(
-            f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
-        ck_tile::HostTensor<D1DataType> d1_m_n_tensors(
-            f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
+    ck_tile::HostTensor<D0DataType> d0_m_n_tensors(
+        f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
+    ck_tile::HostTensor<D1DataType> d1_m_n_tensors(
+        f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
 
-        ck_tile::HostTensor<EDataType> e_m_n_device_result(
-            f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    ck_tile::HostTensor<EDataType> e_m_n_device_result(
+        f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
-        ck_tile::FillUniformDistribution<A0DataType>{-1.f, 1.f}(a0_m_k_tesnor);
-        ck_tile::FillUniformDistribution<A0DataType>{-1.f, 1.f}(a1_m_k_tesnor);
+    ck_tile::FillUniformDistribution<A0DataType>{-1.f, 1.f}(a0_m_k_tesnor);
+    ck_tile::FillUniformDistribution<A0DataType>{-1.f, 1.f}(a1_m_k_tesnor);
 
-        ck_tile::FillUniformDistribution<B0DataType>{-1.f, 1.f}(b0_k_n_tensors);
-        ck_tile::FillUniformDistribution<B1DataType>{-1.f, 1.f}(b1_k_n_tensors);
+    ck_tile::FillUniformDistribution<B0DataType>{-1.f, 1.f}(b0_k_n_tensors);
+    ck_tile::FillUniformDistribution<B1DataType>{-1.f, 1.f}(b1_k_n_tensors);
 
-        ck_tile::FillUniformDistribution<D0DataType>{-1.f, 1.f}(d0_m_n_tensors);
-        ck_tile::FillUniformDistribution<D1DataType>{-1.f, 1.f}(d1_m_n_tensors);
+    ck_tile::FillUniformDistribution<D0DataType>{-1.f, 1.f}(d0_m_n_tensors);
+    ck_tile::FillUniformDistribution<D1DataType>{-1.f, 1.f}(d1_m_n_tensors);
 
-        ck_tile::DeviceMem a0_m_k_dev_buf(a0_m_k_tesnor.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem a1_m_k_dev_buf(a1_m_k_tesnor.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem a0_m_k_dev_buf(a0_m_k_tesnor.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem a1_m_k_dev_buf(a1_m_k_tesnor.get_element_space_size_in_bytes());
 
-        ck_tile::DeviceMem b0_k_n_dev_buf(b0_k_n_tensors.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem b1_k_n_dev_buf(b1_k_n_tensors.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem b0_k_n_dev_buf(b0_k_n_tensors.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem b1_k_n_dev_buf(b1_k_n_tensors.get_element_space_size_in_bytes());
 
-        ck_tile::DeviceMem d0_m_n_dev_buf(d0_m_n_tensors.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem d1_m_n_dev_buf(d1_m_n_tensors.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem d0_m_n_dev_buf(d0_m_n_tensors.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem d1_m_n_dev_buf(d1_m_n_tensors.get_element_space_size_in_bytes());
 
-        ck_tile::DeviceMem e_m_n_dev_buf(e_m_n_device_result.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem e_m_n_dev_buf(e_m_n_device_result.get_element_space_size_in_bytes());
 
-        a0_m_k_dev_buf.ToDevice(a0_m_k_tesnor.mData.data());
-        a1_m_k_dev_buf.ToDevice(a1_m_k_tesnor.mData.data());
+    a0_m_k_dev_buf.ToDevice(a0_m_k_tesnor.mData.data());
+    a1_m_k_dev_buf.ToDevice(a1_m_k_tesnor.mData.data());
 
-        b0_k_n_dev_buf.ToDevice(b0_k_n_tensors.mData.data());
-        b1_k_n_dev_buf.ToDevice(b1_k_n_tensors.mData.data());
+    b0_k_n_dev_buf.ToDevice(b0_k_n_tensors.mData.data());
+    b1_k_n_dev_buf.ToDevice(b1_k_n_tensors.mData.data());
 
-        d0_m_n_dev_buf.ToDevice(d0_m_n_tensors.mData.data());
-        d1_m_n_dev_buf.ToDevice(d1_m_n_tensors.mData.data());
+    d0_m_n_dev_buf.ToDevice(d0_m_n_tensors.mData.data());
+    d1_m_n_dev_buf.ToDevice(d1_m_n_tensors.mData.data());
 
-        e_m_n_dev_buf.SetZero();
-        e_m_n_device_result.SetZero();
+    e_m_n_dev_buf.SetZero();
+    e_m_n_device_result.SetZero();
 
-        std::array<const void*, DsDataType::size()> as_ptr_buf = {a0_m_k_dev_buf.GetDeviceBuffer(),
-                                                                  a1_m_k_dev_buf.GetDeviceBuffer()};
+    std::array<const void*, DsDataType::size()> as_ptr_buf = {a0_m_k_dev_buf.GetDeviceBuffer(),
+                                                              a1_m_k_dev_buf.GetDeviceBuffer()};
 
-        std::array<const void*, DsDataType::size()> bs_ptr_buf = {b0_k_n_dev_buf.GetDeviceBuffer(),
-                                                                  b1_k_n_dev_buf.GetDeviceBuffer()};
+    std::array<const void*, DsDataType::size()> bs_ptr_buf = {b0_k_n_dev_buf.GetDeviceBuffer(),
+                                                              b1_k_n_dev_buf.GetDeviceBuffer()};
 
-        std::array<const void*, DsDataType::size()> ds_ptr_buf = {d0_m_n_dev_buf.GetDeviceBuffer(),
-                                                                  d1_m_n_dev_buf.GetDeviceBuffer()};
+    std::array<const void*, DsDataType::size()> ds_ptr_buf = {d0_m_n_dev_buf.GetDeviceBuffer(),
+                                                              d1_m_n_dev_buf.GetDeviceBuffer()};
 
-        std::array<ck_tile::index_t, AsDataType::size()> strideAs = {StrideA0, StrideA1};
-        std::array<ck_tile::index_t, BsDataType::size()> strideBs = {StrideB0, StrideB1};
-        std::array<ck_tile::index_t, DsDataType::size()> strideDs = {StrideD0, StrideD1};
+    std::array<ck_tile::index_t, AsDataType::size()> strideAs = {StrideA0, StrideA1};
+    std::array<ck_tile::index_t, BsDataType::size()> strideBs = {StrideB0, StrideB1};
+    std::array<ck_tile::index_t, DsDataType::size()> strideDs = {StrideD0, StrideD1};
 
-        ck_tile::GemmMultiABDHostArgs<AsDataType::size(), BsDataType::size(), DsDataType::size()>
-            args({as_ptr_buf,
-                  bs_ptr_buf,
-                  ds_ptr_buf,
-                  e_m_n_dev_buf.GetDeviceBuffer(),
-                  k_batch,
-                  M,
-                  N,
-                  K,
-                  strideAs,
-                  strideBs,
-                  strideDs,
-                  StrideE});
+    ck_tile::GemmMultiABDHostArgs<AsDataType::size(), BsDataType::size(), DsDataType::size()> args(
+        {as_ptr_buf,
+         bs_ptr_buf,
+         ds_ptr_buf,
+         e_m_n_dev_buf.GetDeviceBuffer(),
+         k_batch,
+         M,
+         N,
+         K,
+         strideAs,
+         strideBs,
+         strideDs,
+         StrideE});
 
-        invoke_gemm_multi_abd<AsDataType,
-                              BsDataType,
-                              DsDataType,
-                              AccDataType,
-                              EDataType,
-                              AsLayout,
-                              BsLayout,
-                              DsLayout,
-                              ELayout,
-                              AElementWiseFn,
-                              BElementWiseFn,
-                              CDElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
+    invoke_gemm_multi_abd<AsDataType,
+                          BsDataType,
+                          DsDataType,
+                          AccDataType,
+                          EDataType,
+                          AsLayout,
+                          BsLayout,
+                          DsLayout,
+                          ELayout,
+                          AElementWiseFn,
+                          BElementWiseFn,
+                          CDElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
 
-        std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K
-                  << " StrideA0 =" << StrideA0 << " StrideA1 =" << StrideA1
-                  << " StrideB0 =" << StrideB0 << " StrideB1 =" << StrideB1
-                  << " StrideE =" << StrideE << " StrideD0 =" << StrideD0
-                  << " StrideD1 =" << StrideD1 << std::endl;
+    std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K
+              << " StrideA0 =" << StrideA0 << " StrideA1 =" << StrideA1 << " StrideB0 =" << StrideB0
+              << " StrideB1 =" << StrideB1 << " StrideE =" << StrideE << " StrideD0 =" << StrideD0
+              << " StrideD1 =" << StrideD1 << std::endl;
 
-        e_m_n_dev_buf.FromDevice(e_m_n_device_result.data());
-        bool pass = true;
+    e_m_n_dev_buf.FromDevice(e_m_n_device_result.data());
+    bool pass = true;
 
-        ck_tile::HostTensor<A0DataType> a_m_k_host_ref_element_result(
-            f_host_tensor_descriptor(M, K, StrideA0, A0Layout{}));
-        ck_tile::HostTensor<B0DataType> b_k_n_host_ref_element_result(
-            f_host_tensor_descriptor(K, N, StrideB0, B0Layout{}));
-        ck_tile::HostTensor<EDataType> e_m_n_host_ref(
-            f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
-        a_m_k_host_ref_element_result.SetZero();
-        b_k_n_host_ref_element_result.SetZero();
-        e_m_n_host_ref.SetZero();
+    ck_tile::HostTensor<A0DataType> a_m_k_host_ref_element_result(
+        f_host_tensor_descriptor(M, K, StrideA0, A0Layout{}));
+    ck_tile::HostTensor<B0DataType> b_k_n_host_ref_element_result(
+        f_host_tensor_descriptor(K, N, StrideB0, B0Layout{}));
+    ck_tile::HostTensor<EDataType> e_m_n_host_ref(
+        f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    a_m_k_host_ref_element_result.SetZero();
+    b_k_n_host_ref_element_result.SetZero();
+    e_m_n_host_ref.SetZero();
 
-        ck_tile::reference_gemm_multiple_abd<AsDataType,
-                                             BsDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             EDataType,
-                                             AElementWiseFn,
-                                             BElementWiseFn,
-                                             CDElementWiseFn>({a0_m_k_tesnor, a1_m_k_tesnor},
-                                                              {b0_k_n_tensors, b1_k_n_tensors},
-                                                              {d0_m_n_tensors, d1_m_n_tensors},
-                                                              a_m_k_host_ref_element_result,
-                                                              b_k_n_host_ref_element_result,
-                                                              e_m_n_host_ref);
+    ck_tile::reference_gemm_multiple_abd<AsDataType,
+                                         BsDataType,
+                                         DsDataType,
+                                         AccDataType,
+                                         EDataType,
+                                         AElementWiseFn,
+                                         BElementWiseFn,
+                                         CDElementWiseFn>({a0_m_k_tesnor, a1_m_k_tesnor},
+                                                          {b0_k_n_tensors, b1_k_n_tensors},
+                                                          {d0_m_n_tensors, d1_m_n_tensors},
+                                                          a_m_k_host_ref_element_result,
+                                                          b_k_n_host_ref_element_result,
+                                                          e_m_n_host_ref);
 
-        const float max_accumulated_value =
-            *std::max_element(e_m_n_host_ref.mData.begin(), e_m_n_host_ref.mData.end());
-        const auto rtol_atol =
-            calculate_rtol_atol<A0DataType, B0DataType, AccDataType, EDataType, D0DataType>(
-                K, k_batch, max_accumulated_value);
-        pass = ck_tile::check_err(e_m_n_device_result,
-                                  e_m_n_host_ref,
-                                  "Error: Incorrect results!",
-                                  rtol_atol.at(ck_tile::number<0>{}),
-                                  rtol_atol.at(ck_tile::number<1>{}));
-        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                  << std::endl;
+    const float max_accumulated_value =
+        *std::max_element(e_m_n_host_ref.mData.begin(), e_m_n_host_ref.mData.end());
+    const auto rtol_atol =
+        calculate_rtol_atol<A0DataType, B0DataType, AccDataType, EDataType, D0DataType>(
+            K, k_batch, max_accumulated_value);
+    pass = ck_tile::check_err(e_m_n_device_result,
+                              e_m_n_host_ref,
+                              "Error: Incorrect results!",
+                              rtol_atol.at(ck_tile::number<0>{}),
+                              rtol_atol.at(ck_tile::number<1>{}));
+    std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+              << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
 
-        return pass;
-    }
-};
+    return pass;
+}
+}
+;

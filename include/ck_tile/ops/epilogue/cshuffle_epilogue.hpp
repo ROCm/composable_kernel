@@ -37,29 +37,29 @@ template <typename AsDataType_,
           index_t BlockedXDLN_PerWarp_ = 1> // The number of continuous xdl_output per warp
 struct CShuffleEpilogueProblem
 {
-    using AsDataType                                       = remove_cvref_t<AsDataType_>;
-    using BsDataType                                       = remove_cvref_t<BsDataType_>;
-    using AccDataType                                      = remove_cvref_t<AccDataType_>;
-    using ODataType                                        = remove_cvref_t<ODataType_>;
-    using DsDataType                                       = remove_cvref_t<DsDataType_>;
-    using DsLayout                                         = remove_cvref_t<DsLayout_>;
-    using ELayout                                          = remove_cvref_t<ELayout_>;
-    using CDElementwise                                    = remove_cvref_t<CDElementwise_>;
-    static constexpr index_t kBlockSize                    = MWave_ * NWave_ * get_warp_size();
-    static constexpr index_t kMPerBlock                    = kM_;
-    static constexpr index_t kNPerBlock                    = kN_;
-    static constexpr index_t MWave                         = MWave_;
-    static constexpr index_t NWave                         = NWave_;
-    static constexpr index_t MPerXdl                       = MPerXdl_;
-    static constexpr index_t NPerXdl                       = NPerXdl_;
-    static constexpr index_t KPerXdl                       = KPerXdl_;
-    static constexpr index_t isCTransposed                 = isCTransposed_;
-    static constexpr bool FixedVectorSize                  = FixedVectorSize_;
-    static constexpr index_t VectorSizeC                   = VectorSizeC_;
-    static constexpr index_t BlockedXDLN_PerWarp           = BlockedXDLN_PerWarp_;
-    static constexpr bool TiledMMAPermuteN                 = TiledMMAPermuteN_;
-    static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
-    static constexpr index_t NumDTensor                    = DsDataType::size();
+    using AsDataType                             = remove_cvref_t<AsDataType_>;
+    using BsDataType                             = remove_cvref_t<BsDataType_>;
+    using AccDataType                            = remove_cvref_t<AccDataType_>;
+    using ODataType                              = remove_cvref_t<ODataType_>;
+    using DsDataType                             = remove_cvref_t<DsDataType_>;
+    using DsLayout                               = remove_cvref_t<DsLayout_>;
+    using ELayout                                = remove_cvref_t<ELayout_>;
+    using CDElementwise                          = remove_cvref_t<CDElementwise_>;
+    static constexpr index_t kBlockSize          = MWave_ * NWave_ * get_warp_size();
+    static constexpr index_t kMPerBlock          = kM_;
+    static constexpr index_t kNPerBlock          = kN_;
+    static constexpr index_t MWave               = MWave_;
+    static constexpr index_t NWave               = NWave_;
+    static constexpr index_t MPerXdl             = MPerXdl_;
+    static constexpr index_t NPerXdl             = NPerXdl_;
+    static constexpr index_t KPerXdl             = KPerXdl_;
+    static constexpr index_t isCTransposed       = isCTransposed_;
+    static constexpr bool FixedVectorSize        = FixedVectorSize_;
+    static constexpr index_t VectorSizeC         = VectorSizeC_;
+    static constexpr index_t BlockedXDLN_PerWarp = BlockedXDLN_PerWarp_;
+    static constexpr bool TiledMMAPermuteN       = TiledMMAPermuteN_;
+    static constexpr index_t kNumWaveGroups      = kNumWaveGroups_;
+    static constexpr index_t NumDTensor          = DsDataType::size();
 
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
@@ -95,26 +95,26 @@ struct CShuffleEpilogue
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
-    using ELayout       = remove_cvref_t<typename Problem::ELayout>;
-    using CDElementwise = remove_cvref_t<typename Problem::CDElementwise>;
-    static constexpr index_t kBlockSize                    = Problem::kBlockSize;
-    static constexpr index_t kMPerBlock                    = Problem::kMPerBlock;
-    static constexpr index_t kNPerBlock                    = Problem::kNPerBlock;
-    static constexpr index_t MWave                         = Problem::MWave;
-    static constexpr index_t NWave                         = Problem::NWave;
-    static constexpr index_t MPerXdl                       = Problem::MPerXdl;
-    static constexpr index_t NPerXdl                       = Problem::NPerXdl;
-    static constexpr index_t KPerXdl                       = Problem::KPerXdl;
-    static constexpr index_t isCTransposed                 = Problem::isCTransposed;
-    static constexpr bool FixedVectorSize                  = Problem::FixedVectorSize;
-    static constexpr bool TiledMMAPermuteN                 = Problem::TiledMMAPermuteN;
-    static constexpr index_t BlockedXDLN_PerWarp           = Problem::BlockedXDLN_PerWarp;
-    static constexpr index_t VectorSizeC                   = Problem::VectorSizeC;
-    static constexpr index_t MPerIteration                 = MPerXdl * MWave;
-    static constexpr index_t NPerIteration                 = NPerXdl * NWave;
-    static constexpr index_t NumDTensor                    = Problem::NumDTensor;
-    static constexpr index_t MRepeat                       = kMPerBlock / (MPerXdl * MWave);
-    static constexpr index_t NRepeat                       = kNPerBlock / (NPerXdl * NWave);
+    using ELayout                                = remove_cvref_t<typename Problem::ELayout>;
+    using CDElementwise                          = remove_cvref_t<typename Problem::CDElementwise>;
+    static constexpr index_t kBlockSize          = Problem::kBlockSize;
+    static constexpr index_t kMPerBlock          = Problem::kMPerBlock;
+    static constexpr index_t kNPerBlock          = Problem::kNPerBlock;
+    static constexpr index_t MWave               = Problem::MWave;
+    static constexpr index_t NWave               = Problem::NWave;
+    static constexpr index_t MPerXdl             = Problem::MPerXdl;
+    static constexpr index_t NPerXdl             = Problem::NPerXdl;
+    static constexpr index_t KPerXdl             = Problem::KPerXdl;
+    static constexpr index_t isCTransposed       = Problem::isCTransposed;
+    static constexpr bool FixedVectorSize        = Problem::FixedVectorSize;
+    static constexpr bool TiledMMAPermuteN       = Problem::TiledMMAPermuteN;
+    static constexpr index_t BlockedXDLN_PerWarp = Problem::BlockedXDLN_PerWarp;
+    static constexpr index_t VectorSizeC         = Problem::VectorSizeC;
+    static constexpr index_t MPerIteration       = MPerXdl * MWave;
+    static constexpr index_t NPerIteration       = NPerXdl * NWave;
+    static constexpr index_t NumDTensor          = Problem::NumDTensor;
+    static constexpr index_t MRepeat             = kMPerBlock / (MPerXdl * MWave);
+    static constexpr index_t NRepeat             = kNPerBlock / (NPerXdl * NWave);
 
     CDElementwise elfunc_;
 
@@ -407,7 +407,8 @@ struct CShuffleEpilogue
     CK_TILE_DEVICE void store_to_dram(OutDramWindow& out_dram_window,
                                       const COutTensor& c_out_tensor)
     {
-        if constexpr(OutDramWindow::Base::BottomTensorView::DstInMemOp == memory_operation_enum::set)
+        if constexpr(OutDramWindow::Base::BottomTensorView::DstInMemOp ==
+                     memory_operation_enum::set)
         {
             store_tile(out_dram_window, c_out_tensor);
         }
@@ -579,7 +580,8 @@ struct CShuffleEpilogue
             });
 
             // store/update
-            if constexpr(ODramWindow::Base::BottomTensorView::DstInMemOp == memory_operation_enum::set)
+            if constexpr(ODramWindow::Base::BottomTensorView::DstInMemOp ==
+                         memory_operation_enum::set)
             {
                 store_tile(out_dram_window, c_out_tensor);
             }

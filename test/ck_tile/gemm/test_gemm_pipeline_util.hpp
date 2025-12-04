@@ -184,21 +184,21 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                BDataType,
-                                                DsDataType,
-                                                AccDataType,
-                                                CDataType,
-                                                DsLayout,
-                                                CLayout,
-                                                ck_tile::element_wise::PassThrough,
-                                                TilePartitioner::MPerBlock,
-                                                TilePartitioner::NPerBlock,
-                                                M_Warp,
-                                                N_Warp,
-                                                M_Warp_Tile,
-                                                N_Warp_Tile,
-                                                K_Warp_Tile,
-                                                UniversalGemmProblem::TransposeC>>;
+                                             BDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             DsLayout,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC>>;
 
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
@@ -221,9 +221,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         if(s.log_level_ > 0)
         {
-            std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", "
-                        << grids.y << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", "
-                        << blocks.y << ", " << blocks.z << "}" << std::endl;
+            std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", " << grids.y
+                      << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y
+                      << ", " << blocks.z << "}" << std::endl;
         }
 
         ck_tile::ignore = ck_tile::launch_kernel(
