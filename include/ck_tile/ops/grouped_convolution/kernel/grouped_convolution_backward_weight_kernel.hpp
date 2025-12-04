@@ -537,6 +537,18 @@ struct GroupedConvolutionBackwardWeightKernel
             return false;
         }
 
+        if constexpr (EpiloguePipeline_::MemoryOperation == memory_operation_enum::atomic_add)
+        {
+            if (kargs.k_batch == 1)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Atomic add epilogue only supports k_batch > 1.");
+                }
+                return false;
+            }
+        }
+
         if constexpr((GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                       is_any_of<WeiDataType, fp16_t, bf16_t>::value))
         {
