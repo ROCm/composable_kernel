@@ -59,7 +59,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                             WarpTile::at(I1),
                                             WarpTile::at(I2),
                                             Problem::TransposeC>;
-        
+
         if constexpr(PreshuffleQuant)
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_bq<
@@ -80,8 +80,8 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                 tile_distribution_encoding_pattern_bq<BlockGemmShape,
                                                       WarpGemm,
                                                       BlockSize,
-                                                      KPerBlockBQ,  // Logical K dimension
-                                                      NPerBlockBQ,  // Logical N dimension
+                                                      KPerBlockBQ, // Logical K dimension
+                                                      NPerBlockBQ, // Logical N dimension
                                                       Problem::QuantGroupSize::kN,
                                                       BQLayout>;
 

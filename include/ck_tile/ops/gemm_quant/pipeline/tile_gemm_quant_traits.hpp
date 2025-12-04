@@ -38,7 +38,7 @@ template <bool kPadM_,
           typename CLayout_,
           QuantType QuantType_,
           typename AQLayout_ = ALayout_,
-          typename BQLayout_ = ck_tile::tensor_layout::gemm::ColumnMajor, // BQ always defaults to ColumnMajor for BQuantGrouped
+          typename BQLayout_ = BLayout_,
           bool TransposeC_          = false,
           bool DoubleSmemBuffer_    = false,
           bool UsePersistentKernel_ = false,

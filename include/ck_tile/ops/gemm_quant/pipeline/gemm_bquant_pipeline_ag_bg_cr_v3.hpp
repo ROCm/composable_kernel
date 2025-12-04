@@ -205,9 +205,11 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                 "A/B/BQ Dram block window should have the same data type as appropriate "
                 "([A|B|BQ]DataType) defined in Problem definition!");
 
-            constexpr bool is_a_col_major  = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
-            constexpr bool is_b_row_major  = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
-            constexpr bool is_bq_row_major = std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>;
+            constexpr bool is_a_col_major =
+                std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+            constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+            constexpr bool is_bq_row_major =
+                std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(is_a_col_major
                               ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
@@ -221,19 +223,22 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                               : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                                  KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "B block window has incorrect lengths for defined BLayout!");
-            static_assert(PreshuffleQuant || (is_bq_row_major
-                              ? (KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                                 NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])
-                              : (NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                                 KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])),
-                          "Bq block window has incorrect lengths for defined BqLayout!");
+            static_assert(
+                PreshuffleQuant ||
+                    (is_bq_row_major
+                         ? (KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                            NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                         : (NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                            KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])),
+                "Bq block window has incorrect lengths for defined BqLayout!");
 
             using ADramTileWindowStep  = typename ADramBlockWindowTmp::BottomTensorIndex;
             using BDramTileWindowStep  = typename BDramBlockWindowTmp::BottomTensorIndex;
             using BQDramTileWindowStep = typename BQDramBlockWindowTmp::BottomTensorIndex;
 
             // Note: BDataType gets converted to ADataType if different during loading
-            auto&& [a_lds_block, b_lds_block] = Base::template GetABLdsTensorViews<ADataType, ADataType>(p_smem);
+            auto&& [a_lds_block, b_lds_block] =
+                Base::template GetABLdsTensorViews<ADataType, ADataType>(p_smem);
 
             constexpr auto a_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
@@ -274,7 +279,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                 (PreshuffleQuant) ? make_array(ck_tile::integer_least_multiple(n, NPerBlock) /
                                                    BlockGemmShape::WarpTile::at(number<1>{}),
                                                0)
-                : is_bq_row_major ? make_array(KPerBlockBQ, 0) : make_array(0, KPerBlockBQ);
+                : is_bq_row_major ? make_array(KPerBlockBQ, 0)
+                                  : make_array(0, KPerBlockBQ);
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
@@ -317,7 +323,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
             block_sync_lds();
 
-            block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
+            block_gemm.LocalPrefetch(
+                a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
 
             __builtin_amdgcn_sched_barrier(0);
 

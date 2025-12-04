@@ -192,7 +192,7 @@ template <typename BlockGemmShape,
           index_t KPerTile,
           index_t NPerTile,
           index_t NPerQ,
-          typename BQLayout = tensor_layout::gemm::ColumnMajor,
+          typename BQLayout    = tensor_layout::gemm::ColumnMajor,
           bool PreshuffleQuant = false>
 struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
 {
@@ -238,7 +238,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
         // Preshuffle only supported for ColumnMajor currently
         static_assert(!(PreshuffleQuant && std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>),
                       "PreshuffleQuant only supported for ColumnMajor BQLayout");
-        
+
         if constexpr(PreshuffleQuant)
         {
             // ColumnMajor only for preshuffle
@@ -298,7 +298,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 constexpr auto NR = NPerQ / WarpGemm::kN; // Scale replication factor
                 constexpr auto N1 = NWarps / NR;          // Warps per unique scale
                 constexpr auto N0 = NPerTile / N1;        // Iterations to cover N dimension
-                
+
                 if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>)
                 {
                     // ColumnMajor: [(N0, N1), K] - N on Y-axis
