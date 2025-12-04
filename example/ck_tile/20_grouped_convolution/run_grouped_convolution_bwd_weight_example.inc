@@ -12,18 +12,18 @@ template <ck_tile::index_t NDimSpatial,
           typename WeiLayout,
           typename OutLayout>
 InvokerResult invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args,
-                                     int n_warmup,
-                                     int n_repeat)
+                                             int n_warmup,
+                                             int n_repeat)
 {
     auto res = Invoker::template grouped_conv_bwd_weight<NDimSpatial,
-                                                               ConvConfig,
-                                                               InDataType,
-                                                               WeiDataType,
-                                                               AccDataType,
-                                                               OutDataType,
-                                                               InLayout,
-                                                               WeiLayout,
-                                                               OutLayout>(
+                                                         ConvConfig,
+                                                         InDataType,
+                                                         WeiDataType,
+                                                         AccDataType,
+                                                         OutDataType,
+                                                         InLayout,
+                                                         WeiLayout,
+                                                         OutLayout>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     return res;
@@ -129,16 +129,16 @@ int run_grouped_conv_bwd_weight_example_with_layouts(ck_tile::ArgParser& arg_par
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
 
-    auto res = invoke_grouped_conv_bwd_weight<NDimSpatial,
-                                                    ConvConfig,
-                                                    Invoker,
-                                                    InDataType,
-                                                    WeiDataType,
-                                                    AccDataType,
-                                                    OutDataType,
-                                                    InLayout,
-                                                    WeiLayout,
-                                                    OutLayout>(args, n_warmup, n_repeat);
+    auto res             = invoke_grouped_conv_bwd_weight<NDimSpatial,
+                                                          ConvConfig,
+                                                          Invoker,
+                                                          InDataType,
+                                                          WeiDataType,
+                                                          AccDataType,
+                                                          OutDataType,
+                                                          InLayout,
+                                                          WeiLayout,
+                                                          OutLayout>(args, n_warmup, n_repeat);
     const float ave_time = res.ave_time;
 
     weight_dev_buf.FromDevice(weight.data());
@@ -172,7 +172,9 @@ int run_grouped_conv_bwd_weight_example_with_layouts(ck_tile::ArgParser& arg_par
             *std::max_element(weight_host_ref.mData.begin(), weight_host_ref.mData.end());
 
         const ck_tile::index_t split_k = res.split_k;
-        const auto rtol_atol = calculate_rtol_atol<InDataType, WeiDataType, AccDataType, OutDataType>(GemmK, split_k, max_accumulated_value);
+        const auto rtol_atol =
+            calculate_rtol_atol<InDataType, WeiDataType, AccDataType, OutDataType>(
+                GemmK, split_k, max_accumulated_value);
         pass = ck_tile::check_err(weight,
                                   weight_host_ref,
                                   "Error: Incorrect results!",
