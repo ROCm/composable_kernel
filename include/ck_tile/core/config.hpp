@@ -493,6 +493,7 @@ CK_TILE_HOST_DEVICE static constexpr uint32_t count_values_of(T search, Ts... se
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX90A,          \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX942,          \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX950,          \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1010,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1030,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1031,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1032,         \
