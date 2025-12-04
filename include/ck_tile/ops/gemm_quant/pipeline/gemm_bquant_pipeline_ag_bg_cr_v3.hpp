@@ -83,6 +83,9 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
+    static constexpr auto is_a_load_tr_v = bool_constant<PipelineImplBase::is_a_load_tr>{};
+    static constexpr auto is_b_load_tr_v = bool_constant<PipelineImplBase::is_b_load_tr>{};
+
     using Base::PrefetchStages;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
@@ -167,6 +170,16 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     {
         using Base = PipelineImplBase;
 
+        template <typename BDramWindow, typename BBlockTile_>
+        CK_TILE_DEVICE static void LoadAndConvertBTile(BBlockTile_& b_block_tile,
+                                                       const BDramWindow& b_dram_window)
+        {
+            using DestDataType            = typename BBlockTile_::DataType;
+            using SrcDataType             = typename BDramWindow::Base::TileWindowBase::DataType;
+            constexpr index_t UnaryOpSize = 8;
+            load_int4_tile<SrcDataType, DestDataType, UnaryOpSize>(b_block_tile, b_dram_window);
+        }
+
         template <bool HasHotLoop,
                   TailNumber TailNum,
                   typename ADramBlockWindowTmp,
@@ -219,7 +232,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             using BDramTileWindowStep  = typename BDramBlockWindowTmp::BottomTensorIndex;
             using BQDramTileWindowStep = typename BQDramBlockWindowTmp::BottomTensorIndex;
 
-            auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
+            // Note: BDataType gets converted to ADataType if different during loading
+            auto&& [a_lds_block, b_lds_block] = Base::template GetABLdsTensorViews<ADataType, ADataType>(p_smem);
 
             constexpr auto a_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
@@ -239,7 +253,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             using ABlockTile =
                 decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
             using BBlockTile =
-                decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
+                decltype(make_static_distributed_tensor<ADataType>(BBlockTileDistr{}));
             using BQBlockTile =
                 decltype(make_static_distributed_tensor<BQDataType>(BQBlockTileDistr{}));
 
@@ -264,13 +278,15 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            // B tile gets converted to A datatype during loading
+            LoadAndConvertBTile(b_block_tile, b_copy_dram_window);
+            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
             Base::GlobalPrefetch(
                 bq_block_tile[currIdx], bq_copy_dram_window, bq_dram_tile_window_step);
 
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
-            if constexpr(is_a_col_major)
+            if constexpr(is_a_col_major && !is_a_load_tr_v())
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                     Policy::template MakeShuffledARegTileDistribution<Problem>());
@@ -282,9 +298,10 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                 Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
             }
 
-            if constexpr(is_b_row_major)
+            if constexpr(is_b_row_major && !is_b_load_tr_v())
             {
-                auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                // B datatype is converted to A datatype during loading
+                auto b_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                     Policy::template MakeShuffledBRegTileDistribution<Problem>());
                 transpose_tile2d(b_shuffle_tmp, b_block_tile);
                 Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
@@ -295,11 +312,12 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             }
 
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            LoadAndConvertBTile(b_block_tile, b_copy_dram_window);
+            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
             block_sync_lds();
 
-            block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+            block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
 
             __builtin_amdgcn_sched_barrier(0);
 
@@ -312,7 +330,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                 {
                     block_sync_lds();
 
-                    if constexpr(is_a_col_major)
+                    if constexpr(is_a_col_major && !is_a_load_tr_v())
                     {
                         auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                             Policy::template MakeShuffledARegTileDistribution<Problem>());
@@ -323,9 +341,10 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                     {
                         Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
                     }
-                    if constexpr(is_b_row_major)
+                    if constexpr(is_b_row_major && !is_b_load_tr_v())
                     {
-                        auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                        // Note: BDataType gets converted to ADataType during loading
+                        auto b_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                             Policy::template MakeShuffledBRegTileDistribution<Problem>());
                         transpose_tile2d(b_shuffle_tmp, b_block_tile);
                         Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
@@ -336,7 +355,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                     }
 
                     Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-                    Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                    LoadAndConvertBTile(b_block_tile, b_copy_dram_window);
+                    move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
                     Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
                                          bq_copy_dram_window,
                                          bq_dram_tile_window_step);
@@ -384,7 +404,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                 }
                 if constexpr(is_b_row_major)
                 {
-                    auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                    // Note: BDataType gets converted to ADataType during loading
+                    auto b_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                         Policy::template MakeShuffledBRegTileDistribution<Problem>());
                     transpose_tile2d(b_shuffle_tmp, b_block_tile);
                     Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
@@ -416,7 +437,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             a_dram_block_window_tmp,
             [](const ADataType& a) { return a; },
             b_dram_block_window_tmp,
-            [](const BDataType& b) { return b; },
+            // Note: BDataType gets converted to ADataType during loading
+            [](const ADataType& b) { return b; },
             bq_dram_block_window_tmp,
             n,
             num_loop,
@@ -459,7 +481,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                 a_dram_block_window_tmp,
                 [](const ADataType& a) { return a; },
                 b_dram_block_window_tmp,
-                [](const BDataType& b) { return b; },
+                // Note: BDataType gets converted to ADataType during loading
+                [](const ADataType& b) { return b; },
                 bq_dram_block_window_tmp,
                 n, // dummy value, won't be used
                 num_loop,
