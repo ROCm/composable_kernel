@@ -4,14 +4,16 @@ This directory contains the builder framework for Composable Kernel, which provi
 
 ## Table of Contents
 
-- [Convolution Signature Design](#convolution-signature-design)
+- [Convolution Signature](#convolution-signature)
   - [Overview](#overview)
   - [Architecture](#architecture)
   - [Core Components](#core-components)
   - [Concepts and Validation](#concepts-and-validation)
+- [Convolution Algorithm](#convolution-algorithm)
+- [Convolution Factory](#convolution-factory)
 ---
 
-## Convolution Signature Design
+## Convolution Signature
 
 ### Overview
 
@@ -219,3 +221,10 @@ Several fields in the signature are optional:
 - **Tensor `operation`**: Defaults to `PASS_THROUGH`, supporting both fused and non-fused operations with the same interface
 
 This design follows the principle of "make the common case simple, the complex case possible."
+
+## Convolution Algorithm
+
+## Convolution Factory
+
+Convolution factory builds the instance based on the convolution signature and convolution algorithm.
+The signature and the algorithm descriptions are dispatched to the relevant algorithm specific factory for instance creation. The convolution factory design is described in a separate [Readme](factory/README.md).
