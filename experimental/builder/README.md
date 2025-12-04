@@ -10,6 +10,10 @@ The builder provides a high-level, semantically-clear interface for constructing
 
 This project is a prototype for a more general builder pattern for all of composable_kernel (CK) and CKTile, but is currently limited to formalizing the interface between MIOpen and CK.
 
+## Design descriptions
+
+- [CK Builder design description](include/ck_tile/builder/README.md) 
+
 ## Directory Structure
 
 - `include/ck_tile/builder/`  

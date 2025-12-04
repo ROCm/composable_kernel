@@ -16,40 +16,79 @@ namespace ckb = ck_tile::builder;
 namespace ckr = ck_tile::reflect;
 namespace ckt = ck_tile::test;
 
+struct TensorOp
+{
+    ckb::ElementwiseOperation elementwise_operation{ckb::ElementwiseOperation::PASS_THROUGH};
+};
+
+struct InvalidTensorOp
+{
+    int elementwise_operation = 7; // invalid value
+};
+static_assert(!ckb::TensorOperatorDescriptor<InvalidTensorOp>);
+
+struct TensorConfig
+{
+    ckb::TensorLayout layout;
+    ckb::DataType data_type{ckb::DataType::UNDEFINDED};
+    ckb::DataType compute_type{ckb::DataType::UNDEFINDED};
+};
+
+struct ConvTensorSimple
+{
+    TensorConfig config;
+};
+
+struct ConvTensorWithOp
+{
+    TensorConfig config;
+    TensorOp operation{};
+};
+
+struct ConvTensorWithInvalidOp
+{
+    TensorConfig config;
+    InvalidTensorOp operation{};
+};
+
 // Defines the signature of the convolution operation to be tested.
 // This includes dimensionality, direction, data layout, and data type.
 struct ConvSignature
 {
-    int spatial_dim             = 2;
-    ckb::GroupConvLayout layout = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
-    ckb::DataType data_type     = ckb::DataType::FP16;
-    // ckb::GroupConvDeviceOp device_operation =
-    //     ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
+    int spatial_dim                      = 2;
+    ckb::DataType data_type              = ckb::DataType::FP16;
+    ckb::DataType accumulation_data_type = ckb::DataType::FP32;
+    ConvTensorSimple input               = {.config = {ckb::TensorLayout::GNHWC}};
+    ConvTensorSimple weight              = {.config = {ckb::TensorLayout::GKYXC}};
+    ConvTensorSimple output              = {.config = {ckb::TensorLayout::GNHWK}};
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 
 // Compile time tests for concepts
 struct ConvSignatureWithOptionalParams
 {
-    int spatial_dim                                 = 2;
-    ckb::ConvDirection direction                    = ckb::ConvDirection::FORWARD;
-    ckb::GroupConvLayout layout                     = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
-    ckb::DataType data_type                         = ckb::DataType::FP16;
-    ckb::ElementwiseOperation elementwise_operation = ckb::ElementwiseOperation::PASS_THROUGH;
+    int spatial_dim                      = 2;
+    ckb::DataType data_type              = ckb::DataType::FP16;
+    ckb::DataType accumulation_data_type = ckb::DataType::FP32;
+    ckb::ConvDirection direction         = ckb::ConvDirection::FORWARD;
+    ConvTensorWithOp input               = {
+                      .config = {ckb::TensorLayout::GNHWC, ckb::DataType::FP16},
+    };
+    ConvTensorWithOp weight = {.config = {ckb::TensorLayout::GKYXC, ckb::DataType::FP16}};
+    ConvTensorWithOp output = {.config    = {ckb::TensorLayout::GNHWK, ckb::DataType::FP16},
+                               .operation = {ckb::ElementwiseOperation::SCALE}};
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignatureWithOptionalParams>);
 
 struct ConvSignatureWithInvalidOptionalParams
 {
-    int spatial_dim              = 2;
-    ckb::ConvDirection direction = ckb::ConvDirection::FORWARD;
-    ckb::GroupConvLayout layout  = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
-    ckb::DataType data_type      = ckb::DataType::FP16;
-    int elementwise_operation    = 7; // this should fail
-    // ckb::GroupConvDeviceOp device_operation =
-    //     ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
+    int spatial_dim                      = 2;
+    ckb::DataType data_type              = ckb::DataType::FP16;
+    ckb::DataType accumulation_data_type = ckb::DataType::FP32;
+    ConvTensorWithInvalidOp input        = {.config = {ckb::TensorLayout::GNHWC}};
+    ConvTensorWithInvalidOp weight       = {.config = {ckb::TensorLayout::GKYXC}};
+    ConvTensorWithInvalidOp output       = {.config = {ckb::TensorLayout::GNHWK}};
 };
-
 static_assert(!ckb::ConvSignatureDescriptor<ConvSignatureWithInvalidOptionalParams>);
 
 struct DefaultAlgorithm
@@ -123,7 +162,9 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
                     "2D Forward Convolution Kernel\n"
                     "├─ Signature\n"
                     "│  ├─ Tensor Type: FP16\n"
-                    "│  ├─ Memory Layout: GNHWC_GKYXC_GNHWK\n"
+                    "│  ├─ Input Layout: GNHWC\n"
+                    "│  ├─ Weight Layout: GKYXC\n"
+                    "│  ├─ Output Layout: GNHWK\n"
                     "│  ├─ Input elementwise operation: PASS_THROUGH\n"
                     "│  ├─ Weights elementwise operation: PASS_THROUGH\n"
                     "│  └─ Output elementwise operation: PASS_THROUGH\n"
