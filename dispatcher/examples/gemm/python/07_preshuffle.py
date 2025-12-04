@@ -103,8 +103,21 @@ can be reused for many inference calls.
     config.warp_m = 32
     config.warp_n = 32
     config.warp_k = 16
-    config.pipeline = "compv4"
     config.gfx_arch = args.arch
+
+    # Use preshuffle variant and pipeline if preshuffle is requested
+    # Note: actual preshuffle kernels require preshufflev2 pipeline
+    # For demonstration, we use standard pipeline but show the preshuffle
+    # transformation concept which can be applied to any kernel
+    if args.preshuffle:
+        config.variant = "preshuffle"  # Enable preshuffle-specific validation
+        # Note: Real preshuffle kernels would use:
+        # config.pipeline = "preshufflev2"
+        # For this demo, we use compv4 with host-side preshuffle transformation
+        config.pipeline = "compv4"
+    else:
+        config.variant = "standard"
+        config.pipeline = "compv4"
 
     setup = setup_gemm_dispatcher(config, registry_name="preshuffle_demo", verbose=True)
     if not setup.success:

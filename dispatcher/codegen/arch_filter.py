@@ -132,6 +132,8 @@ try:
         ELEMENT_SIZE_MAP,
         WARP_SUPPORTED_COMBINATIONS,
         WARP_TILE_SUPPORTED_COMBINATIONS,
+        PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS,
+        PRESHUFFLE_PIPELINES,
         LDS_CAPACITY_LIMITS,
         TRAIT_UNSUPPORTED_COMBINATIONS,
         DTYPE_COMBINATIONS,
@@ -178,6 +180,21 @@ except ImportError:
             "fp16_fp16_fp16": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32]],
         },
     }
+
+    # Preshuffle-specific warp tile combinations (no [4, 64, 16])
+    PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS = {
+        "gfx942": {
+            "fp16_fp16_fp32": [
+                [32, 32, 8],
+                [16, 16, 16],
+                [32, 32, 16],
+                [16, 16, 32],
+                [64, 4, 16],
+            ],
+        },
+    }
+
+    PRESHUFFLE_PIPELINES = ["preshufflev2"]
 
     LDS_CAPACITY_LIMITS = {"compv4": 32768, "preshufflev2": 32768, "default": 65536}
 
@@ -566,9 +583,20 @@ class ArchFilter:
 
     def _validate_warp_tile_combo(self, config: KernelConfig, result: ValidationResult):
         """Validate warp tile combination against architecture and data types"""
-        gpu_combos = WARP_TILE_SUPPORTED_COMBINATIONS.get(self.gpu_arch, {})
+        # Use preshuffle-specific warp tiles for preshuffle operator
+        if config.operator == OperatorType.GEMM_PRESHUFFLE:
+            gpu_combos = PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS.get(
+                self.gpu_arch, {}
+            )
+            combo_source = "preshuffle"
+        else:
+            gpu_combos = WARP_TILE_SUPPORTED_COMBINATIONS.get(self.gpu_arch, {})
+            combo_source = "standard"
+
         if not gpu_combos:
-            msg = f"No warp tile combinations defined for {self.gpu_arch}"
+            msg = (
+                f"No {combo_source} warp tile combinations defined for {self.gpu_arch}"
+            )
             if self.strict_mode:
                 result.add_error(msg)
             else:
@@ -579,19 +607,27 @@ class ArchFilter:
         if not dtype_combos:
             # Data type combo not explicitly listed - may still be valid
             result.add_warning(
-                f"No warp tile combinations defined for {config.dtype_key} on {self.gpu_arch}"
+                f"No {combo_source} warp tile combinations defined for {config.dtype_key} on {self.gpu_arch}"
             )
             return
 
         current = [config.warp_tile_m, config.warp_tile_n, config.warp_tile_k]
         if current not in dtype_combos:
             result.add_error(
-                f"Invalid warp tile {current} for {config.dtype_key} on {self.gpu_arch}. "
+                f"Invalid warp tile {current} for {config.dtype_key} on {self.gpu_arch} ({combo_source}). "
                 f"Allowed: {dtype_combos}"
             )
 
     def _validate_trait_combo(self, config: KernelConfig, result: ValidationResult):
         """Validate trait (pipeline, epilogue, scheduler) combination"""
+        # Preshuffle requires specific pipelines
+        if config.operator == OperatorType.GEMM_PRESHUFFLE:
+            if config.pipeline not in PRESHUFFLE_PIPELINES:
+                result.add_error(
+                    f"Preshuffle GEMM requires pipeline in {PRESHUFFLE_PIPELINES}, "
+                    f"got {config.pipeline}"
+                )
+
         combo = (config.pipeline, config.epilogue, config.scheduler)
         if combo in TRAIT_UNSUPPORTED_COMBINATIONS:
             result.add_error(
@@ -769,7 +805,7 @@ def get_supported_archs() -> List[str]:
 def get_arch_family(gpu_arch: str) -> Optional[str]:
     """Get the GPU family for an architecture"""
     family = ARCH_FAMILY_MAP.get(gpu_arch.lower())
-    return family.value if family else None
+    return family if family else None  # ARCH_FAMILY_MAP contains strings, not Enums
 
 
 def create_filter_for_current_gpu() -> Optional[ArchFilter]:

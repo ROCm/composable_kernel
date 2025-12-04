@@ -35,7 +35,7 @@ extern "C" {
 int conv_bwdw_init()
 {
     g_bwdw_initialized = true;
-    return 1;
+    return 0; // Return 0 on success (consistent with other init functions)
 }
 
 void conv_bwdw_cleanup() { g_bwdw_initialized = false; }

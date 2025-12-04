@@ -102,11 +102,27 @@ class Timer
 
 /**
  * @brief GPU timing using HIP events
+ *
+ * Times kernel execution on a specific HIP stream. Events are recorded
+ * on the provided stream to accurately measure kernel execution time.
+ *
+ * Usage:
+ *   hipStream_t stream;
+ *   hipStreamCreate(&stream);
+ *   GpuTimer timer(stream);  // or timer.set_stream(stream)
+ *   timer.start();
+ *   kernel<<<grid, block, 0, stream>>>(...);
+ *   timer.stop();
+ *   float ms = timer.elapsed_ms();
  */
 class GpuTimer
 {
     public:
-    GpuTimer()
+    /**
+     * @brief Construct timer with optional stream
+     * @param stream HIP stream to record events on (default: null stream)
+     */
+    explicit GpuTimer(hipStream_t stream = nullptr) : stream_(stream)
     {
         (void)hipEventCreate(&start_);
         (void)hipEventCreate(&stop_);
@@ -118,9 +134,64 @@ class GpuTimer
         (void)hipEventDestroy(stop_);
     }
 
-    void start() { (void)hipEventRecord(start_); }
-    void stop() { (void)hipEventRecord(stop_); }
+    // Non-copyable
+    GpuTimer(const GpuTimer&)            = delete;
+    GpuTimer& operator=(const GpuTimer&) = delete;
 
+    // Movable
+    GpuTimer(GpuTimer&& other) noexcept
+        : start_(other.start_), stop_(other.stop_), stream_(other.stream_)
+    {
+        other.start_  = nullptr;
+        other.stop_   = nullptr;
+        other.stream_ = nullptr;
+    }
+
+    GpuTimer& operator=(GpuTimer&& other) noexcept
+    {
+        if(this != &other)
+        {
+            if(start_)
+                (void)hipEventDestroy(start_);
+            if(stop_)
+                (void)hipEventDestroy(stop_);
+            start_        = other.start_;
+            stop_         = other.stop_;
+            stream_       = other.stream_;
+            other.start_  = nullptr;
+            other.stop_   = nullptr;
+            other.stream_ = nullptr;
+        }
+        return *this;
+    }
+
+    /**
+     * @brief Set the stream to record events on
+     * @param stream HIP stream (pass nullptr for default stream)
+     */
+    void set_stream(hipStream_t stream) { stream_ = stream; }
+
+    /**
+     * @brief Get the current stream
+     */
+    hipStream_t get_stream() const { return stream_; }
+
+    /**
+     * @brief Record start event on the stream
+     */
+    void start() { (void)hipEventRecord(start_, stream_); }
+
+    /**
+     * @brief Record stop event on the stream
+     */
+    void stop() { (void)hipEventRecord(stop_, stream_); }
+
+    /**
+     * @brief Get elapsed time in milliseconds
+     *
+     * Synchronizes on the stop event before calculating time.
+     * @return Elapsed time between start and stop in milliseconds
+     */
     float elapsed_ms()
     {
         (void)hipEventSynchronize(stop_);
@@ -130,7 +201,9 @@ class GpuTimer
     }
 
     private:
-    hipEvent_t start_, stop_;
+    hipEvent_t start_   = nullptr;
+    hipEvent_t stop_    = nullptr;
+    hipStream_t stream_ = nullptr;
 };
 
 // =============================================================================

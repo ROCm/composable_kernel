@@ -85,6 +85,23 @@ def generate_python_module(specs: Dict[str, Any], output_path: Path):
             dtype_combos_str += f'    "{key}": {{"acc": "{info["acc"]}", "notes": "{info["notes"]}"}},\n'
     dtype_combos_str += "}"
 
+    # Build preshuffle warp tile combos dict (operator-specific)
+    preshuffle_combos = specs.get("preshuffle_warp_tile_combos", {})
+    preshuffle_warp_tile_str = "{\n"
+    for arch, dtype_combos_dict in preshuffle_combos.items():
+        if not arch.startswith("_"):
+            preshuffle_warp_tile_str += f'    "{arch}": {{\n'
+            for dtype, combos in dtype_combos_dict.items():
+                preshuffle_warp_tile_str += f'        "{dtype}": {combos},\n'
+            preshuffle_warp_tile_str += "    },\n"
+    preshuffle_warp_tile_str += "}"
+
+    # Build preshuffle pipelines list
+    preshuffle_pipelines = specs.get("preshuffle_pipelines", {}).get(
+        "supported", ["preshufflev2"]
+    )
+    preshuffle_pipelines_str = str(preshuffle_pipelines)
+
     content = f'''# SPDX-License-Identifier: MIT
 # Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -118,6 +135,12 @@ WARP_SUPPORTED_COMBINATIONS: Dict[str, List[List[int]]] = {warp_configs_str}
 
 # Supported warp tile combinations: arch -> dtype_key -> [[warp_tile_m, n, k], ...]
 WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {warp_tile_str}
+
+# Preshuffle-specific warp tile combinations (subset of standard GEMM)
+PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {preshuffle_warp_tile_str}
+
+# Preshuffle-supported pipelines
+PRESHUFFLE_PIPELINES: List[str] = {preshuffle_pipelines_str}
 
 # LDS capacity limits per pipeline type (in bytes)
 LDS_CAPACITY_LIMITS: Dict[str, int] = {pipeline_limits_clean}

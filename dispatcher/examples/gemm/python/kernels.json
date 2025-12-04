@@ -38,7 +38,7 @@
   ],
   "cpp_registry": {
     "metadata": {
-      "timestamp": "Dec  2 2025 03:43:27",
+      "timestamp": "Dec  4 2025 06:23:15",
       "total_kernels": 1,
       "export_version": "1.0",
       "dispatcher_version": "1.0.0"
@@ -51,7 +51,7 @@
     "kernels": [
       {
         "identifier": "128x128x32_2x2x1_32x32x16_nopers",
-        "name": "gemm_fp16_rcr_compv4_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_16x16x16",
+        "name": "gemm_fp16_rcrr_compv4_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_32x32x16",
         "algorithm": {
           "tile_shape": {
             "m": 128,

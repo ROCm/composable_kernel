@@ -143,8 +143,8 @@ int main(int argc, char* argv[])
     int iterations     = args.get_int("--iterations", 100);
     bool flush_cache   = args.has("--flush-cache");
     int rotating_count = args.get_int("--rotating-count", 1);
-    std::string timer  = args.get_str("--timer", "gpu");
-    std::string init   = args.get_str("--init", "random");
+    std::string timer  = args.get("--timer", "gpu");
+    std::string init   = args.get("--init", "random");
     bool use_gpu_timer = (timer == "gpu");
 
     std::cout << "======================================================================\n";

@@ -129,6 +129,7 @@ Examples:
         tile_k=32,
         pipeline="compv4",
         gfx_arch=args.arch,
+        variant="multi_d",  # Enable multi-d specific validation
     )
 
     setup = setup_gemm_dispatcher(config, registry_name="multi_d", verbose=True)

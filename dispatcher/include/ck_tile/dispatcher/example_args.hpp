@@ -122,6 +122,13 @@ class ExampleArgs
         return it != options_.end() ? it->second : "";
     }
 
+    // Get an option value as string with default
+    std::string get(const std::string& name, const std::string& default_val) const
+    {
+        auto it = options_.find(name);
+        return it != options_.end() ? it->second : default_val;
+    }
+
     // Get an option value as int
     int get_int(const std::string& name, int default_val = 0) const
     {

@@ -144,6 +144,11 @@ int main(int argc, char* argv[])
         {"Latency-opt", &latency_dispatcher, 512, 512, 512},
     };
 
+    // Tolerance parameters for correctness check
+    // With A=1, B=1: C[i,j] = K (exact for FP16 when K < 2048)
+    constexpr float atol = 0.0f; // Absolute tolerance (exact match expected)
+    constexpr float rtol = 0.0f; // Relative tolerance (exact match expected)
+
     bool all_passed = true;
 
     for(const auto& test : tests)
@@ -168,21 +173,31 @@ int main(int argc, char* argv[])
         std::cout << "  Time:   " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
         std::cout << "  TFLOPS: " << std::setprecision(2) << tflops << "\n";
 
-        // Verify
+        // Verify ALL elements using configurable tolerances
         std::vector<CDataType> c_host(test.M * test.N);
         c_dev.copy_to_host(c_host.data());
-        float expected = static_cast<float>(test.K);
-        // Use 1% relative tolerance for FP16 accumulation over K elements
-        if(std::abs(static_cast<float>(c_host[0]) - expected) > (0.01f * expected + 1.0f))
+        const float expected = static_cast<float>(test.K);
+        const float tol      = atol + rtol * std::abs(expected);
+
+        int num_errors  = 0;
+        float max_error = 0.0f;
+        for(int i = 0; i < test.M * test.N; ++i)
         {
-            std::cout << "  Status: FAIL\n";
+            float actual = static_cast<float>(c_host[i]);
+            float error  = std::abs(actual - expected);
+            if(error > max_error)
+                max_error = error;
+            if(error > tol)
+                ++num_errors;
+        }
+
+        bool test_passed = (num_errors == 0);
+        std::cout << "  Verify: " << (test.M * test.N) << " elements, " << "errors=" << num_errors
+                  << ", max_err=" << max_error << "\n";
+        std::cout << "  Status: " << (test_passed ? "PASS" : "FAIL") << "\n\n";
+
+        if(!test_passed)
             all_passed = false;
-        }
-        else
-        {
-            std::cout << "  Status: PASS\n";
-        }
-        std::cout << "\n";
     }
 
     print_separator();

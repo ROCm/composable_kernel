@@ -342,7 +342,8 @@ class KernelSetRegistry
 
     bool has(const std::string& name) const { return sets_.find(name) != sets_.end(); }
 
-    std::vector<std::string> names() const { return order_; }
+    // Return const reference to avoid deep copy
+    const std::vector<std::string>& names() const { return order_; }
     size_t size() const { return sets_.size(); }
 
     void print() const

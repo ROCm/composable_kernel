@@ -152,18 +152,47 @@ int main(int argc, char* argv[])
               << "\n";
 
     // =========================================================================
-    // Step 4: Verify
+    // Step 4: Verify (check ALL elements)
     // =========================================================================
     std::cout << "\nStep 4: Verify\n";
     std::vector<CDataType> c_host(M * N);
     c_dev.copy_to_host(c_host.data());
 
-    float expected = static_cast<float>(K);
-    float actual   = static_cast<float>(c_host[0]);
-    bool passed    = std::abs(actual - expected) < 1.0f;
+    // With A=1, B=1: C[i,j] = sum(A[i,:] * B[:,j]) = K
+    // For FP16 with K=1024, result should be exactly K (no accumulation error for 1's)
+    const float expected = static_cast<float>(K);
+    int num_errors       = 0;
+    float max_error      = 0.0f;
+    int first_error_idx  = -1;
 
-    std::cout << "  C[0,0] = " << actual << " (expected " << expected << ")\n";
-    std::cout << "  Status: " << (passed ? "PASS" : "FAIL") << "\n";
+    for(int i = 0; i < M * N; ++i)
+    {
+        float actual = static_cast<float>(c_host[i]);
+        float error  = std::abs(actual - expected);
+        if(error > max_error)
+        {
+            max_error = error;
+        }
+        // Exact comparison for this case (A=1, B=1)
+        // FP16 can exactly represent integers up to 2048
+        if(actual != expected)
+        {
+            if(first_error_idx < 0)
+                first_error_idx = i;
+            ++num_errors;
+        }
+    }
+
+    bool passed = (num_errors == 0);
+
+    std::cout << "  Expected: C[i,j] = " << expected << " for all elements\n";
+    std::cout << "  Checked:  " << (M * N) << " elements\n";
+    std::cout << "  Errors:   " << num_errors << "\n";
+    if(num_errors > 0)
+    {
+        std::cout << "  Max error: " << max_error << " at index " << first_error_idx << "\n";
+    }
+    std::cout << "  Status:   " << (passed ? "PASS" : "FAIL") << "\n";
 
     // =========================================================================
     // Summary

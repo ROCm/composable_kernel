@@ -5,7 +5,7 @@
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
 
 Generated from: arch_specs.json
-Generated at: 2025-12-02T06:12:48.095014
+Generated at: 2025-12-04T05:22:31.156906
 
 To update this file:
 1. Edit arch_specs.json
@@ -179,6 +179,82 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
         "int8_int8_int32": [[16, 16, 16]],
     },
 }
+
+# Preshuffle-specific warp tile combinations (subset of standard GEMM)
+PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
+    "gfx90a": {
+        "fp16_fp16_fp32": [
+            [32, 32, 8],
+            [16, 16, 16],
+            [32, 32, 16],
+            [16, 16, 32],
+            [64, 4, 16],
+        ],
+        "bf16_bf16_fp32": [
+            [32, 32, 8],
+            [16, 16, 16],
+            [32, 32, 16],
+            [16, 16, 32],
+            [64, 4, 16],
+        ],
+        "fp8_fp8_fp32": [[32, 32, 16], [32, 32, 32]],
+        "bf8_bf8_fp32": [[32, 32, 16], [32, 32, 32]],
+    },
+    "gfx942": {
+        "fp16_fp16_fp32": [
+            [32, 32, 8],
+            [16, 16, 16],
+            [32, 32, 16],
+            [16, 16, 32],
+            [64, 4, 16],
+        ],
+        "bf16_bf16_fp32": [
+            [32, 32, 8],
+            [16, 16, 16],
+            [32, 32, 16],
+            [16, 16, 32],
+            [64, 4, 16],
+        ],
+        "fp8_fp8_fp32": [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64]],
+        "bf8_bf8_fp32": [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32]],
+        "int8_int8_int32": [[16, 16, 32], [32, 32, 16]],
+    },
+    "gfx950": {
+        "fp16_fp16_fp32": [
+            [32, 32, 8],
+            [16, 16, 16],
+            [32, 32, 16],
+            [16, 16, 32],
+            [64, 4, 16],
+        ],
+        "bf16_bf16_fp32": [
+            [32, 32, 8],
+            [16, 16, 16],
+            [32, 32, 16],
+            [16, 16, 32],
+            [64, 4, 16],
+        ],
+        "fp8_fp8_fp32": [
+            [32, 32, 16],
+            [32, 32, 32],
+            [16, 16, 32],
+            [16, 16, 64],
+            [16, 16, 128],
+            [32, 32, 64],
+        ],
+        "bf8_bf8_fp32": [
+            [32, 32, 16],
+            [32, 32, 32],
+            [16, 16, 64],
+            [16, 16, 32],
+            [16, 16, 128],
+            [32, 32, 64],
+        ],
+    },
+}
+
+# Preshuffle-supported pipelines
+PRESHUFFLE_PIPELINES: List[str] = ["preshufflev2"]
 
 # LDS capacity limits per pipeline type (in bytes)
 LDS_CAPACITY_LIMITS: Dict[str, int] = {

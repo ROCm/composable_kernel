@@ -17,6 +17,7 @@
  */
 
 #include <cstring>
+#include <memory>
 #include <vector>
 #include <hip/hip_runtime.h>
 
@@ -26,9 +27,9 @@
 
 using namespace ck_tile::dispatcher;
 
-// Global state
-static ConvRegistry* g_registry     = nullptr;
-static ConvDispatcher* g_dispatcher = nullptr;
+// Global state (using shared_ptr for safe memory management)
+static std::shared_ptr<ConvRegistry> g_registry     = nullptr;
+static std::shared_ptr<ConvDispatcher> g_dispatcher = nullptr;
 static std::vector<const ConvKernelInstance*> g_kernels;
 
 extern "C" {
@@ -42,8 +43,8 @@ int conv_dispatcher_init()
     if(g_registry)
         return 0; // Already initialized
 
-    g_registry   = new ConvRegistry();
-    g_dispatcher = new ConvDispatcher(g_registry);
+    g_registry   = std::make_shared<ConvRegistry>();
+    g_dispatcher = std::make_shared<ConvDispatcher>(g_registry.get());
 
     // Register kernel configurations
     using namespace ck_tile::dispatcher::conv_decl;
@@ -94,10 +95,9 @@ int conv_dispatcher_init()
 
 int conv_dispatcher_cleanup()
 {
-    delete g_dispatcher;
-    delete g_registry;
-    g_dispatcher = nullptr;
-    g_registry   = nullptr;
+    // shared_ptr automatically handles cleanup when reset
+    g_dispatcher.reset();
+    g_registry.reset();
     g_kernels.clear();
     return 0;
 }
@@ -343,11 +343,10 @@ float conv_dispatcher_run(const void* input_ptr,
 
 #ifdef CONV_BWD_WEIGHT_AVAILABLE
     case 2: // Backward weight
-        // Convention: caller passes (grad_output, input, grad_weight_buffer)
+        // Convention: caller passes (input, grad_output, grad_weight_buffer)
         // in the (input_ptr, weight_ptr, output_ptr) slots respectively.
-        // This is consistent with bwd_data where grad_output goes in input_ptr slot.
         // run_bwd_weight expects: (input, grad_output, grad_weight)
-        return run_bwd_weight(weight_ptr, input_ptr, output_ptr, prob, stream);
+        return run_bwd_weight(input_ptr, weight_ptr, output_ptr, prob, stream);
 #endif
 
     default: return -1.0f;

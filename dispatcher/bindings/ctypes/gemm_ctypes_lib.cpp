@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 
@@ -31,9 +32,9 @@ using namespace ck_tile::dispatcher;
 using namespace ck_tile::dispatcher::backends;
 using Priority = ck_tile::dispatcher::Registry::Priority;
 
-// Global dispatcher (initialized once)
-static Dispatcher* g_dispatcher = nullptr;
-static bool g_initialized       = false;
+// Global dispatcher (initialized once, managed via shared_ptr for safe cleanup)
+static std::shared_ptr<Dispatcher> g_dispatcher = nullptr;
+static bool g_initialized                       = false;
 
 #define HIP_CHECK(call)        \
     {                          \
@@ -98,8 +99,8 @@ int dispatcher_initialize()
     Registry::instance().clear();
     Registry::instance().register_kernel(kernel, Priority::High);
 
-    // Create dispatcher
-    g_dispatcher  = new Dispatcher();
+    // Create dispatcher (using shared_ptr for safe memory management)
+    g_dispatcher  = std::make_shared<Dispatcher>();
     g_initialized = true;
 
     return 0;
@@ -294,19 +295,53 @@ int dispatcher_run_gemm(const void* A, // Host pointer
     const BDataType* B_host = static_cast<const BDataType*>(B);
     CDataType* C_host       = static_cast<CDataType*>(C);
 
-    // Allocate GPU memory
+    // Allocate GPU memory with proper cleanup on failure
     ADataType* A_dev = nullptr;
     BDataType* B_dev = nullptr;
     CDataType* C_dev = nullptr;
 
-    HIP_CHECK(hipMalloc(&A_dev, M * K * sizeof(ADataType)));
-    HIP_CHECK(hipMalloc(&B_dev, K * N * sizeof(BDataType)));
-    HIP_CHECK(hipMalloc(&C_dev, M * N * sizeof(CDataType)));
+    // Helper lambda for cleanup
+    auto cleanup_gpu_mem = [&]() {
+        if(A_dev)
+            (void)hipFree(A_dev);
+        if(B_dev)
+            (void)hipFree(B_dev);
+        if(C_dev)
+            (void)hipFree(C_dev);
+    };
+
+    if(hipMalloc(&A_dev, M * K * sizeof(ADataType)) != hipSuccess)
+    {
+        cleanup_gpu_mem();
+        return -1;
+    }
+    if(hipMalloc(&B_dev, K * N * sizeof(BDataType)) != hipSuccess)
+    {
+        cleanup_gpu_mem();
+        return -1;
+    }
+    if(hipMalloc(&C_dev, M * N * sizeof(CDataType)) != hipSuccess)
+    {
+        cleanup_gpu_mem();
+        return -1;
+    }
 
     // Copy input data to GPU
-    HIP_CHECK(hipMemcpy(A_dev, A_host, M * K * sizeof(ADataType), hipMemcpyHostToDevice));
-    HIP_CHECK(hipMemcpy(B_dev, B_host, K * N * sizeof(BDataType), hipMemcpyHostToDevice));
-    HIP_CHECK(hipMemset(C_dev, 0, M * N * sizeof(CDataType)));
+    if(hipMemcpy(A_dev, A_host, M * K * sizeof(ADataType), hipMemcpyHostToDevice) != hipSuccess)
+    {
+        cleanup_gpu_mem();
+        return -1;
+    }
+    if(hipMemcpy(B_dev, B_host, K * N * sizeof(BDataType), hipMemcpyHostToDevice) != hipSuccess)
+    {
+        cleanup_gpu_mem();
+        return -1;
+    }
+    if(hipMemset(C_dev, 0, M * N * sizeof(CDataType)) != hipSuccess)
+    {
+        cleanup_gpu_mem();
+        return -1;
+    }
 
     // Run GEMM via dispatcher (kernel already selected, shouldn't throw)
     float exec_time;
@@ -317,14 +352,16 @@ int dispatcher_run_gemm(const void* A, // Host pointer
     catch(const std::exception& e)
     {
         // Unexpected error during execution
-        (void)hipFree(A_dev);
-        (void)hipFree(B_dev);
-        (void)hipFree(C_dev);
+        cleanup_gpu_mem();
         return -1;
     }
 
     // Copy result back to host
-    HIP_CHECK(hipMemcpy(C_host, C_dev, M * N * sizeof(CDataType), hipMemcpyDeviceToHost));
+    if(hipMemcpy(C_host, C_dev, M * N * sizeof(CDataType), hipMemcpyDeviceToHost) != hipSuccess)
+    {
+        cleanup_gpu_mem();
+        return -1;
+    }
 
     // Store timing if requested
     if(time_ms)
@@ -333,9 +370,7 @@ int dispatcher_run_gemm(const void* A, // Host pointer
     }
 
     // Cleanup GPU memory
-    (void)hipFree(A_dev);
-    (void)hipFree(B_dev);
-    (void)hipFree(C_dev);
+    cleanup_gpu_mem();
 
     return 0;
 }
@@ -434,11 +469,8 @@ const char* dispatcher_export_registry_json()
  */
 void dispatcher_cleanup()
 {
-    if(g_dispatcher)
-    {
-        delete g_dispatcher;
-        g_dispatcher = nullptr;
-    }
+    // shared_ptr automatically handles cleanup when reset
+    g_dispatcher.reset();
     g_initialized = false;
 }
 
