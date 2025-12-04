@@ -103,7 +103,7 @@ struct ConvFwdWmmaFactory
         B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
         static_cast<ck::index_t>(B_BLOCK_TRANSFER.lds_padding),
         C_BLOCK_TRANSFER.m_xdl_per_wave_per_shuffle,
-        C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
+        C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
         C_BLOCK_TRANSFER.scalar_per_vector,
         LOOP_SCHEDULER,

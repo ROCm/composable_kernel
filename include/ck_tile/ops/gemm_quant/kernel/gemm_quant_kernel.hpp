@@ -414,7 +414,6 @@ struct QuantGemmKernel
 
         if constexpr(kQuantType == QuantType::AQuantGrouped)
         {
-            static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
             if(kargs.QK_A % GemmPipeline::GetVectorSizeAQ() != 0)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
@@ -655,13 +654,24 @@ struct QuantGemmKernel
             }
             else if constexpr(kQuantType == QuantType::AQuantGrouped && !PreshuffleQuant)
             {
-                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-                return make_naive_tensor_view<address_space_enum::global>(
-                    aq_ptr,
-                    make_tuple(kargs.M, kargs.QK_A),
-                    make_tuple(kargs.stride_AQ, 1),
-                    number<GemmPipeline::GetVectorSizeAQ()>{},
-                    number<1>{});
+                if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        aq_ptr,
+                        make_tuple(kargs.M, kargs.QK_A),
+                        make_tuple(kargs.stride_AQ, 1),
+                        number<GemmPipeline::GetVectorSizeAQ()>{},
+                        number<1>{});
+                }
+                else // Column major AQ
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        aq_ptr,
+                        make_tuple(kargs.QK_A, kargs.M), // Swapped dimensions
+                        make_tuple(kargs.stride_AQ, 1),  // Same stride pattern
+                        number<GemmPipeline::GetVectorSizeAQ()>{},
+                        number<1>{});
+                }
             }
             else if constexpr(kQuantType == QuantType::RowColQuant)
             {
@@ -946,14 +956,21 @@ struct QuantGemmKernel
             }
             else if constexpr(kQuantType == QuantType::AQuantGrouped && !PreshuffleQuant)
             {
-                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-                using QuantGroupSize   = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
-                constexpr auto block_m = TilePartitioner::MPerBlock;
-                constexpr auto block_k = TilePartitioner::KPerBlock;
-                return make_tile_window(
-                    aq_pad_view,
-                    make_tuple(number<block_m>{}, number<block_k / QuantGroupSize::kK>{}),
-                    {i_m, 0});
+                using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
+                constexpr auto aqk_per_block = TilePartitioner::KPerBlock / QuantGroupSize::kK;
+                constexpr auto block_m       = TilePartitioner::MPerBlock;
+                if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return make_tile_window(aq_pad_view,
+                                            make_tuple(number<block_m>{}, number<aqk_per_block>{}),
+                                            {i_m, 0});
+                }
+                else // Column major AQ
+                {
+                    return make_tile_window(aq_pad_view,
+                                            make_tuple(number<aqk_per_block>{}, number<block_m>{}),
+                                            {0, i_m});
+                }
             }
             else if constexpr(kQuantType == QuantType::RowColQuant)
             {

@@ -7,6 +7,7 @@
 #include <ck_tile/builder/conv_builder.hpp>
 #include <ck_tile/builder/conv_signature_concepts.hpp>
 #include <ck_tile/builder/reflect/instance_traits.hpp>
+#include <ck_tile/builder/reflect/instance_traits_util.hpp>
 #include <ck_tile/builder/types.hpp>
 #include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
 #include <ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp>
@@ -550,8 +551,7 @@ struct ConvTraits;
 /// @details This is the primary specialization used to extract a comprehensive
 /// set of traits directly from a fully-formed device kernel `Instance` type.
 /// It uses `InstanceTraits` to access the kernel's template parameters.
-template <typename Instance>
-    requires requires { typename InstanceTraits<Instance>; }
+template <HasInstanceTraits Instance>
 struct ConvTraits<Instance>
 {
     using InstTraits = InstanceTraits<Instance>;
