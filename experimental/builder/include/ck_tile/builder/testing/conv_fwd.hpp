@@ -11,7 +11,6 @@
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
-
 /// This file implements common functionality for invoking/testing grouped
 /// forward convolutions created through the CK Builder API. The main item
 /// of it is the ConvArgs structure - which contains a complete description
@@ -59,9 +58,15 @@ struct Args<SIGNATURE>
     constexpr static auto WEIGHT_TYPE = SIGNATURE.data_type;
     constexpr static auto OUTPUT_TYPE = SIGNATURE.data_type;
 
-    using Ops = factory::internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    // TODO: We shouldn't need to call into an internal namespace here.
+    using Ops = factory::internal::ElementwiseOps<SIGNATURE>;
+
+    // TODO: We shouldn't need to call into an internal namespace here.
+    using Layouts =
+        factory::internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>;
 
     ConvTensorLengths<SPATIAL_DIM> lengths;
+
     // TODO: Tensor strides. This needs a new structure as well as some
     // reworking of the make_*_descriptor() functions, as the current
     // implementation (based on ConvParam in old CK / CK Tile) does not
@@ -75,11 +80,6 @@ struct Args<SIGNATURE>
     Ops::AElementwiseOp a_elementwise_op;
     Ops::BElementwiseOp b_elementwise_op;
     Ops::CDEElementwiseOp cde_elementwise_op;
-
-    // TODO: We shouldn't need to call into an internal namespace here.
-    using Layouts = decltype(factory::internal::GetTensorLayout<SIGNATURE.layout,
-                                                                SPATIAL_DIM,
-                                                                ConvDirection::FORWARD>());
 
     /// This function returns the `TensorDescriptor` corresponding to
     /// the input-tensor of the convolution problem. This can then
