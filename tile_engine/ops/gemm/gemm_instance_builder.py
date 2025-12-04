@@ -447,8 +447,8 @@ struct SelectedKernel {{
             ck_tile::tuple<>,  // DsLayout
             CLayout,
             ck_tile::element_wise::PassThrough,
-            TilePartitioner::MPerBlock,  // kM_
-            TilePartitioner::NPerBlock,  // kN_
+            TileM,                       // kM_
+            TileN,                       // kN_
             WarpPerBlock_M,              // MWave_
             WarpPerBlock_N,              // NWave_
             WarpTileM,                   // MPerXdl_
@@ -487,34 +487,29 @@ struct SelectedKernel {{
         // Kernel type
         using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             
-        const auto Run = [&]() {{
-            
-            // Make kernel arguments
-            auto kargs = GemmKernel::MakeKernelArgs(args);
-            
-            if (!GemmKernel::IsSupportedArgument(kargs)) {{
-                throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
-            }}
-            
-            // Get grid and block sizes
-            const dim3 grids = {"GemmKernel::MaxOccupancyGridSize(stream)" if persistent in [True, "true"] else "GemmKernel::GridSize(args.M, args.N, args.k_batch)"};
-            const dim3 blocks = GemmKernel::BlockSize();
-            
-            if(stream.log_level_ > 0) {{
-                std::cout << "Launching kernel with args: " << GemmKernel::GetName() << '\\n'
-                          << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
-                          << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
-                          << std::endl;
-            }}
-            
-            // Launch kernel
-            constexpr int kBlockPerCu = {k_block_per_cu};
-            return ck_tile::launch_kernel(
-                stream,
-                ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
-        }};
-
-        return Run();
+        // Make kernel arguments
+        auto kargs = GemmKernel::MakeKernelArgs(args);
+        
+        if (!GemmKernel::IsSupportedArgument(kargs)) {{
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
+        }}
+        
+        // Get grid and block sizes
+        const dim3 grids = {"GemmKernel::MaxOccupancyGridSize(stream)" if persistent in [True, "true"] else "GemmKernel::GridSize(args.M, args.N, args.k_batch)"};
+        const dim3 blocks = GemmKernel::BlockSize();
+        
+        if(stream.log_level_ > 0) {{
+            std::cout << "Launching kernel with args: " << GemmKernel::GetName() << '\\n'
+                        << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
+                        << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
+                        << std::endl;
+        }}
+        
+        // Launch kernel
+        constexpr int kBlockPerCu = {k_block_per_cu};
+        return ck_tile::launch_kernel(
+            stream,
+            ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
     }}
 }};
 """
