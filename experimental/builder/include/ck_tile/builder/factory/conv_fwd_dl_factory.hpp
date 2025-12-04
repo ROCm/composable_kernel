@@ -7,7 +7,6 @@
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/builder_utils.hpp"
-#include "ck_tile/builder/conv_signature_utils.hpp"
 #include "ck_tile/builder/factory/helpers/conv_tensor_layout.hpp"
 #include "ck_tile/builder/factory/helpers/conv_tensor_type.hpp"
 #include "ck_tile/builder/factory/helpers/conv_elementwise_op.hpp"
@@ -25,11 +24,9 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdDlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts                       = decltype(internal::GetTensorLayout<SIGNATURE.layout,
-                                                                             SPATIAL_DIM,
-                                                                             ConvDirection::FORWARD>());
-    using Types                         = internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>;
+    using Types   = internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Ops     = internal::ElementwiseOps<SIGNATURE>;
     using AlgorithmType = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
