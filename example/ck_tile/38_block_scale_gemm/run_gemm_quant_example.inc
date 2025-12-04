@@ -431,7 +431,10 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
         stride_AQ = 0; // No A quantization
-        stride_BQ = ck_tile::get_default_stride(BQK, N, stride_BQ, is_row_major(bq_layout));
+        stride_BQ = ck_tile::get_default_stride(BQK,
+                                                ck_tile::integer_divide_ceil(N, QuantGroupSize::kN),
+                                                stride_BQ,
+                                                is_row_major(bq_layout));
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
     {
