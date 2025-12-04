@@ -85,7 +85,10 @@ TEST_F(ConvTraitsTest, ConvFwdTraitsExtraction)
     // Verify signature information
     EXPECT_EQ(Traits::spatial_dim, 2);
     EXPECT_EQ(Traits::direction, ck_tile::builder::ConvDirection::FORWARD);
-    EXPECT_EQ(Traits::layout, ck_tile::builder::GroupConvLayout2D::GNHWC_GKYXC_GNHWK);
+    EXPECT_THAT(Traits::layout,
+                ::testing::ElementsAre(ck_tile::builder::TensorLayout::GNHWC,
+                                       ck_tile::builder::TensorLayout::GKYXC,
+                                       ck_tile::builder::TensorLayout::GNHWK));
     EXPECT_EQ(Traits::data_type, ck_tile::builder::DataType::FP16);
     EXPECT_EQ(Traits::input_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
     EXPECT_EQ(Traits::weight_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
@@ -212,7 +215,10 @@ TEST_F(ConvTraitsTest, ConvFwdBaseTraitsExtraction)
     // Verify signature information
     EXPECT_EQ(Traits::spatial_dim, 2);
     EXPECT_EQ(Traits::direction, ck_tile::builder::ConvDirection::FORWARD);
-    EXPECT_EQ(Traits::layout, ck_tile::builder::GroupConvLayout2D::GNHWC_GKYXC_GNHWK);
+    EXPECT_THAT(Traits::layout,
+                ::testing::ElementsAre(ck_tile::builder::TensorLayout::GNHWC,
+                                       ck_tile::builder::TensorLayout::GKYXC,
+                                       ck_tile::builder::TensorLayout::GNHWK));
     EXPECT_EQ(Traits::data_type, ck_tile::builder::DataType::FP16);
     EXPECT_EQ(Traits::input_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
     EXPECT_EQ(Traits::weight_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
@@ -295,7 +301,10 @@ TEST_F(ConvTraitsTest, ConvFwdLargeTensorTraitsExtraction)
     // Verify signature information
     EXPECT_EQ(Traits::spatial_dim, 2);
     EXPECT_EQ(Traits::direction, ck_tile::builder::ConvDirection::FORWARD);
-    EXPECT_EQ(Traits::layout, ck_tile::builder::GroupConvLayout2D::GNHWC_GKYXC_GNHWK);
+    EXPECT_THAT(Traits::layout,
+                ::testing::ElementsAre(ck_tile::builder::TensorLayout::GNHWC,
+                                       ck_tile::builder::TensorLayout::GKYXC,
+                                       ck_tile::builder::TensorLayout::GNHWK));
     EXPECT_EQ(Traits::data_type, ck_tile::builder::DataType::FP16);
     EXPECT_EQ(Traits::input_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
     EXPECT_EQ(Traits::weight_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
