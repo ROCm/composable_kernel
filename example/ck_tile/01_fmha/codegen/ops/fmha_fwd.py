@@ -30,7 +30,15 @@ from codegen.cpp_symbol_map import (
 from codegen.utils import check_duplicates_and_paddings, if_, indent, update_file
 
 
-DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "bf8": 8}
+DTYPE_BITS = {
+    "fp32": 32,
+    "fp16": 16,
+    "bf16": 16,
+    "fp8": 8,
+    "fp8bf16": 8,
+    "fp8fp32": 8,
+    "bf8": 8,
+}
 
 K0_MAX_SUBMAX_MAP = {32: 32, 48: 48, 64: 64, 96: 128, 128: 128, 192: 192, 256: 256}
 
@@ -926,6 +934,7 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
             return {
                 ( 64,  64) : [FmhaFwdTileSize(128,  64,  32,  64,  32,  64,  2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
                 (128, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
+                (192, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
                 (256, 256) : [FmhaFwdTileSize(128, 128,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
             }  # fmt: skip
         elif dtype in cls._DT_FP8FP32:
@@ -992,8 +1001,8 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                 get_mask_map(mask_impl).keys(),
                 ["no"],
             ):
-                pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
-                pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
         elif dtype in ["fp8", "fp8fp16", "bf8"]:
             # TODO
             pass
@@ -1187,7 +1196,7 @@ def get_product(receipt: int) -> Product:
             cond &= problem_ctx.mode == "batch"
             cond &= kernel_ctx.pipeline.F_vlayout == "row"
             if problem_ctx.dtype == "fp8bf16":
-                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 256
+                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 192
             return cond
 
         return Product(name="Aiter(mha_fwd) integration", rule=fit)
@@ -1199,7 +1208,7 @@ def get_product(receipt: int) -> Product:
             cond &= problem_ctx.mode == "group"
             cond &= kernel_ctx.pipeline.F_vlayout == "row"
             if problem_ctx.dtype == "fp8bf16":
-                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 256
+                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 192
             return cond
 
         return Product(name="Aiter(mha_varlen_fwd) integration", rule=fit)
@@ -1210,7 +1219,7 @@ def get_product(receipt: int) -> Product:
             cond = problem_ctx.dtype in ["fp16", "bf16", "fp8bf16"]
             cond &= kernel_ctx.pipeline.F_vlayout == "row"
             if problem_ctx.dtype == "fp8bf16":
-                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 256
+                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 192
             return cond
 
         return Product(name="aiter::mha_fwd C++ api integration", rule=fit)
@@ -1219,7 +1228,7 @@ def get_product(receipt: int) -> Product:
         def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
             cond = problem_ctx.dtype in ["fp8bf16", "fp8fp32"]
             cond &= kernel_ctx.pipeline.F_vlayout == "row"
-            cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 256
+            cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 192
             return cond
 
         return Product(name="receipt = 888", rule=fit)
