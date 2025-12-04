@@ -1050,9 +1050,10 @@ struct FmhaFwdJengaKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()+256*sizeof(int)];
+        __shared__ char smem_ptr[GetSmemSize() + 256 * sizeof(int)];
 
-        // if (threadIdx.x==0 && blockIdx.x==0 && blockIdx.z ==0) printf("smem size: %d", int(GetSmemSize()));
+        // if (threadIdx.x==0 && blockIdx.x==0 && blockIdx.z ==0) printf("smem size: %d",
+        // int(GetSmemSize()));
 
         // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
@@ -1160,11 +1161,14 @@ struct FmhaFwdJengaKernel
             reinterpret_cast<const VDataType*>(kargs.v_ptr) +
             static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_v +
             batch_offset_v;
-        
+
         // sparse mask
-        const bool* block_relation_onehot_ptr = reinterpret_cast<const bool*>(kargs.block_relation_onehot_ptr) + 
-            static_cast<long_index_t>(i_batch * kargs.num_head_q + i_nhead) * ck_tile::integer_divide_ceil(kargs.seqlen_q, FmhaPipeline::kM0)
-            * ck_tile::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0) + i_tile_m * ck_tile::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0);
+        const bool* block_relation_onehot_ptr =
+            reinterpret_cast<const bool*>(kargs.block_relation_onehot_ptr) +
+            static_cast<long_index_t>(i_batch * kargs.num_head_q + i_nhead) *
+                ck_tile::integer_divide_ceil(kargs.seqlen_q, FmhaPipeline::kM0) *
+                ck_tile::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0) +
+            i_tile_m * ck_tile::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0);
 
         ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr) +
                            static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_o +
@@ -1254,14 +1258,13 @@ struct FmhaFwdJengaKernel
         //         make_tuple(1, 1),
         //         number<1>{},
         //         number<1>{});
-        
+
         // const auto valid_block_num_dram = make_naive_tensor_view<address_space_enum::global>(
         //         valid_block_num_ptr,
         //         make_tuple(kargs.seqlen_q/number<FmhaPipeline::kM0>{}),
         //         make_tuple(1),
         //         number<1>{},
         //         number<1>{});
-
 
         auto q_dram_window = make_tile_window(
             q_dram,
@@ -1286,7 +1289,7 @@ struct FmhaFwdJengaKernel
         //     lut_dram, make_tuple(1,1), {0,0});
         // auto valid_block_num_window = make_tile_window(
         //     valid_block_num_dram, make_tuple(1), {i_tile_m});
-        
+
         /// FIXME: Before C++20, capturing structured binding variables are not supported. Remove
         /// following copy capture of the 'i_nhead' if in C++20
         const auto bias_dram_window = [&, i_nhead_ = i_nhead]() {
@@ -1464,20 +1467,20 @@ struct FmhaFwdJengaKernel
         auto o_acc_tile = [&]() {
             // TODO: constexpr(kDoFp8StaticQuant)
             return FmhaPipeline{}(q_dram_window,
-                                    k_dram_window,
-                                    v_dram_window,
-                                    block_relation_onehot_ptr,
-                                    bias_dram_window,
-                                    randval_dram_window,
-                                    lse_dram_window,
-                                    mask,
-                                    position_encoding,
-                                    kargs.scale_s,
-                                    variant,
-                                    variant_params,
-                                    block_indices,
-                                    smem_ptr,
-                                    dropout);
+                                  k_dram_window,
+                                  v_dram_window,
+                                  block_relation_onehot_ptr,
+                                  bias_dram_window,
+                                  randval_dram_window,
+                                  lse_dram_window,
+                                  mask,
+                                  position_encoding,
+                                  kargs.scale_s,
+                                  variant,
+                                  variant_params,
+                                  block_indices,
+                                  smem_ptr,
+                                  dropout);
         }();
 
         // O DRAM and O DRAM window

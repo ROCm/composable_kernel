@@ -170,7 +170,7 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
                const KElementFunction& /*k_element_func*/,
                const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                const VElementFunction& v_element_func,
-               const bool *block_relation_onehot_ptr,
+               const bool* block_relation_onehot_ptr,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
                RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
@@ -237,7 +237,12 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
 
         bool* block_relation_onehot = reinterpret_cast<bool*>(smem_ptr) + GetSmemSize();
-        amd_direct_load_global_to_lds<bool, 4>(block_relation_onehot_ptr, 4*threadIdx.x, block_relation_onehot, 4*threadIdx.x, threadIdx.x/64==0, 256);
+        amd_direct_load_global_to_lds<bool, 4>(block_relation_onehot_ptr,
+                                               4 * threadIdx.x,
+                                               block_relation_onehot,
+                                               4 * threadIdx.x,
+                                               threadIdx.x / 64 == 0,
+                                               256);
 
         auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                                               q_dram_block_window_tmp.get_window_lengths(),
@@ -284,7 +289,8 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
             mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
         const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
         // if (threadIdx.x==0 && blockIdx.y==0) {
-        //     printf("\nblockIdx.x : %d, seqlen_k_start: %d, seqlen_k_end: %d\n", blockIdx.x, seqlen_k_start, seqlen_k_end);
+        //     printf("\nblockIdx.x : %d, seqlen_k_start: %d, seqlen_k_end: %d\n", blockIdx.x,
+        //     seqlen_k_start, seqlen_k_end);
         // }
 
         // check early exit if no work to do
@@ -352,10 +358,14 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
         __builtin_amdgcn_s_barrier();
         __builtin_amdgcn_sched_barrier(0);
 
-        if (block_relation_onehot[0]) {
+        if(block_relation_onehot[0])
+        {
             // prefetch K tile
-            async_load_tile_raw(
-                k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, number<-1>{}, k_oob_ck, k_pre_np);
+            async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})),
+                                k_dram_window,
+                                number<-1>{},
+                                k_oob_ck,
+                                k_pre_np);
             move_tile_window(k_dram_window, {0, kK0});
             __builtin_amdgcn_sched_barrier(0);
         }
@@ -374,7 +384,7 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
         // main loop
         do
         {
-            if (!block_relation_onehot[i_total_loops])
+            if(!block_relation_onehot[i_total_loops])
             {
                 i_total_loops++;
                 if(i_total_loops < num_total_loop)
@@ -383,7 +393,8 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
                     move_tile_window(k_dram_block_window, {kN0, 0});
                     k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
-                    if (block_relation_onehot[i_total_loops]) {
+                    if(block_relation_onehot[i_total_loops])
+                    {
                         async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})),
                                             k_dram_window,
                                             number<-1>{},
@@ -393,10 +404,10 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
                     move_tile_window(k_dram_window, {0, kK0});
                     move_tile_window(v_dram_window, {0, kN0});
                     continue;
-                } 
+                }
                 break;
             }
-            
+
             // STAGE 1, QK gemm
             clear_tile(s_acc); // initialize C
             if constexpr(k0_loops > 1)
@@ -421,9 +432,10 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
                                           sequence<(LdsSeq.at(number<i_k0>{}) + 1) * kN0, kK0>{}));
                 });
                 __shared__ int printed_flag;
-		if (blockIdx.x == 0 && threadIdx.x == 0 && i_total_loops==1000) {
-		    	    printed_flag = 100;
-		}
+                if(blockIdx.x == 0 && threadIdx.x == 0 && i_total_loops == 1000)
+                {
+                    printed_flag = 100;
+                }
             }
 
             // TODO: this to fix a bug when loop smaller than 2,
@@ -842,10 +854,10 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
               typename AttentionVariantParams,
               typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
-               const bool *block_relation_onehot_ptr,
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+               const bool* block_relation_onehot_ptr,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
                LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile

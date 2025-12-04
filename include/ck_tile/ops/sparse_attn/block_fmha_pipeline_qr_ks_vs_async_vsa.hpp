@@ -170,7 +170,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
                const KElementFunction& /*k_element_func*/,
                const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                const VElementFunction& v_element_func,
-               const int *kv_block_idx_ptr,
+               const int* kv_block_idx_ptr,
                int kv_blocks,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
@@ -284,7 +284,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
         // const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
         const auto num_total_loop = kv_blocks;
- 
+
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
         {
@@ -389,10 +389,9 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
                                           sequence<(LdsSeq.at(number<i_k0>{})) * kN0, 0>{},
                                           sequence<(LdsSeq.at(number<i_k0>{}) + 1) * kN0, kK0>{}));
                 });
-                
             }
             //__shared__ int printed_flag;
-            //if (blockIdx.x == 0 && threadIdx.x == 0 && i_total_loops==1000) {
+            // if (blockIdx.x == 0 && threadIdx.x == 0 && i_total_loops==1000) {
             //    printed_flag = 100;
             //}
 
@@ -403,10 +402,11 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
 
             async_load_fence();
             __builtin_amdgcn_s_barrier();
-            
-	    int block_idx = kv_block_idx_ptr[i_total_loops+1];
-	    //if (threadIdx.x==0 && blockIdx.x==0 && blockIdx.z == 101) printf("%d %d %d\n", i_total_loops, num_total_loop, block_idx);
-	    const auto bias_tile = load_tile(bias_dram_window); // load bias tile
+
+            int block_idx = kv_block_idx_ptr[i_total_loops + 1];
+            // if (threadIdx.x==0 && blockIdx.x==0 && blockIdx.z == 101) printf("%d %d %d\n",
+            // i_total_loops, num_total_loop, block_idx);
+            const auto bias_tile = load_tile(bias_dram_window); // load bias tile
             auto v_buf           = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
             __builtin_amdgcn_sched_barrier(0);
             { // tail
@@ -720,7 +720,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
             i_total_loops++;
             if(i_total_loops < num_total_loop)
             {
-                move_tile_window(v_dram_window, {0, kN0*(block_idx-1)});
+                move_tile_window(v_dram_window, {0, kN0 * (block_idx - 1)});
                 // v_dram_window =
                 //    make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
                 //                    v_dram_block_window_tmp.get_window_lengths(),
@@ -729,11 +729,11 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
                 // move K tile windows
                 move_tile_window(k_dram_block_window, {kN0 * block_idx, 0});
                 k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
-                //k_dram_block_window =
-                //    make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
-                //                    k_dram_block_window_tmp.get_window_lengths(),
-                //                    {kv_block_idx[i_total_loops], 0});
-                //k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
+                // k_dram_block_window =
+                //     make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
+                //                     k_dram_block_window_tmp.get_window_lengths(),
+                //                     {kv_block_idx[i_total_loops], 0});
+                // k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
@@ -825,10 +825,10 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
               typename AttentionVariantParams,
               typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
-               const int *kv_block_idx_ptr,
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+               const int* kv_block_idx_ptr,
                int kv_blocks,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
