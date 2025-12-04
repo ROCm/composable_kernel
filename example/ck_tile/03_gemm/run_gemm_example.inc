@@ -63,14 +63,17 @@ void permute_tensor_b(Tensor& tensor)
                                                                  GemmConfig::TransposeC,
                                                                  GemmConfig::UseStructuredSparsity>;
 
-    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                       BDataType,
-                                                                       AccDataType,
-                                                                       GemmShape,
-                                                                       GemmUniversalTraits,
-                                                                       GemmConfig::Scheduler,
-                                                                       true,
-                                                                       ck_tile::TailNumber::Full>;
+    using UniversalGemmProblem =
+        ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                              BDataType,
+                                              AccDataType,
+                                              GemmShape,
+                                              GemmUniversalTraits,
+                                              GemmConfig::Scheduler,
+                                              ck_tile::element_wise::PassThrough,
+                                              ck_tile::element_wise::PassThrough,
+                                              ADataType,
+                                              true>;
 
     using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
         UniversalGemmProblem>;
