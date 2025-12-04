@@ -32,7 +32,7 @@ void add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_comp_mnkpadding_i
         PassThrough,
         PassThrough,
         PassThrough,
-        device_gemm_wmma_universal_km_kn_mn_GemmMNKPadding_instances<F16>>(instances);
+        device_gemm_wmma_universal_km_kn_mn_GemmMNKPadding_f16_instances>(instances);
 }
 
 void add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_comp_mnkpadding_instances(
@@ -58,7 +58,7 @@ void add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_comp_mnkpadding_i
         PassThrough,
         PassThrough,
         PassThrough,
-        device_gemm_wmma_universal_km_kn_mn_GemmMNKPadding_instances<F16>>(instances);
+        device_gemm_wmma_universal_km_kn_mn_GemmMNKPadding_f16_instances>(instances);
 }
 
 } // namespace instance

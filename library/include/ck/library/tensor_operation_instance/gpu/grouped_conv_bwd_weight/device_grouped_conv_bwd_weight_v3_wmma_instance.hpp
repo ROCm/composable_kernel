@@ -45,7 +45,7 @@ template <ck::index_t NDimSpatial,
           typename BLayout,
           typename ELayout,
           ConvolutionBackwardWeightSpecialization ConvSpec,
-          BlockGemmPipelineScheduler Scheduler = BlockGemmPipelineScheduler::Intrawave,
+          BlockGemmPipelineScheduler Scheduler     = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion PipelineVersion = BlockGemmPipelineVersion::v1>
 using device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_f16_instances = std::tuple<
     // clang-format off
@@ -60,10 +60,10 @@ using device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_f16_instances = std::tupl
     DeviceGroupedConvBwdWeight_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,   128,    48,    64,   128,    8,   16,   16,       3,       1,       S<16, 8, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              6,              8,         1,       S<16, 8, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              8,              8,         0,           1,           1,        S<1, 16, 1, 8>,                      8, Scheduler, PipelineVersion>,
     DeviceGroupedConvBwdWeight_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,   128,    96,   128,    64,    8,   16,   16,       6,       2,       S<8, 16, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              6,              8,         1,       S<8, 16, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              8,              8,         0,           1,           1,        S<1, 16, 1, 8>,                      8, Scheduler, PipelineVersion>,
     DeviceGroupedConvBwdWeight_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,   128,    64,    64,   128,    8,   16,   16,       4,       1,       S<16, 8, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              8,              8,         0,       S<16, 8, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              8,              8,         0,           1,           1,        S<1, 16, 1, 8>,                      8, Scheduler, PipelineVersion>,
-    DeviceGroupedConvBwdWeight_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,   256,    96,   128,   128,    8,   16,   16,       6,       1,      S<16, 16, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              6,              8,         1,      S<16, 16, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              8,              8,         0,           1,           1,       S<1, 16, 1, 16>,                      8, Scheduler, PipelineVersion>,
-    DeviceGroupedConvBwdWeight_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,    96,    96,    96,    48,    8,   16,   16,       6,       2,       S<6, 16, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              6,              8,         0,       S<6, 16, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              6,              8,         0,           1,           1,        S<1, 16, 1, 6>,                      8, Scheduler, PipelineVersion>,
-    DeviceGroupedConvBwdWeight_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,    96,    96,    96,    48,    8,   16,   16,       6,       2,       S<6, 16, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              6,              8,         1,       S<6, 16, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              6,              8,         0,           1,           1,        S<1, 16, 1, 6>,                      8, Scheduler, PipelineVersion>
-   // clang-format on
+    DeviceGroupedConvBwdWeight_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,   256,    96,   128,   128,    8,   16,   16,       6,       1,      S<16, 16, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              6,              8,         1,      S<16, 16, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              8,              8,         0,           1,           1,       S<1, 16, 1, 16>,                      8, Scheduler, PipelineVersion>
+    // DeviceGroupedConvBwdWeight_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,    96,    96,    96,    48,    8,   16,   16,       6,       2,       S<6, 16, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              6,              8,         0,       S<6, 16, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              6,              8,         0,           1,           1,        S<1, 16, 1, 6>,                      8, Scheduler, PipelineVersion>, // Incorrect results for at least GemmDefault
+    // DeviceGroupedConvBwdWeight_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,    96,    96,    96,    48,    8,   16,   16,       6,       2,       S<6, 16, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              6,              8,         1,       S<6, 16, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              6,              8,         0,           1,           1,        S<1, 16, 1, 6>,                      8, Scheduler, PipelineVersion>  // Incorrect results for at least GemmDefault
+    // clang-format on
     >;
 
 template <ck::index_t NDimSpatial,
@@ -71,7 +71,7 @@ template <ck::index_t NDimSpatial,
           typename BLayout,
           typename ELayout,
           ConvolutionBackwardWeightSpecialization ConvSpec,
-          BlockGemmPipelineScheduler Scheduler = BlockGemmPipelineScheduler::Intrawave,
+          BlockGemmPipelineScheduler Scheduler     = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion PipelineVersion = BlockGemmPipelineVersion::v1>
 using device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_instances = std::tuple<
     // clang-format off
