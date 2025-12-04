@@ -177,6 +177,7 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
             else if constexpr(std::is_same_v<BDataType, fp8_t>)
             {
                 v_b = fp8_to_float_raw(b_element_op(b_k_n(k, n)));
+<<<<<<< HEAD
             }
             else
             {
@@ -306,6 +307,8 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
                 v_b = fp8_to_float_raw(b_element_op(b_k_n(k, n)));
                 // printf("B %f k=%d n=%d\n", static_cast<float>(v_b),static_cast<int>(k)
                 // ,static_cast<int>(n));
+=======
+>>>>>>> 198c21436 (Support A/B Quantization in Blockscale GEMM)
             }
             else
             {
