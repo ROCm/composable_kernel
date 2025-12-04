@@ -15,6 +15,11 @@ concept InputVectorTransferLimits = requires {
                      Value.lds_dst_scalar_per_vector > 0;
 };
 
+// Limits for input and output vector transfer (CK Tile).
+template <auto Value>
+concept TileInputOutputVectorTransferLimits =
+    requires { requires Value.a > 0 && Value.b > 0 && Value.c > 0; };
+
 // Limits for output vector transfer.
 template <auto Value>
 concept OutputVectorTransferLimits = requires {
