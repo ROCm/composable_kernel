@@ -99,9 +99,7 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                                            scheduler>;
 
         using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
-        const auto Run     = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
-
+        
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                     ck_tile::CShuffleEpilogueProblem<ADataType,
                                                      BDataType,
@@ -118,8 +116,7 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                      M_Warp_Tile,
                                                      N_Warp_Tile,
                                                      K_Warp_Tile,
-                                                     UniversalGemmProblem::TransposeC,
-                                                     memory_operation>>;
+                                                     UniversalGemmProblem::TransposeC>>;
             using Kernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
@@ -141,19 +138,8 @@ class TestCkTileBatchedGemm : public ::testing::Test
                           << "}" << std::endl;
             }
 
-            return ck_tile::launch_kernel(
+            ck_tile::ignore = ck_tile::launch_kernel(
                 s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        };
-
-        if(args.k_batch == 1)
-        {
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
         }
     }
 

@@ -156,8 +156,6 @@ class TestCkTileGemmMultiABD : public ::testing::Test
 
         using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
-            constexpr auto memory_operation = memory_operation_.value;
-
             using DefaultGemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
                 ck_tile::DefaultGemm2DEpilogueProblem<AsDataType,
                                                       BsDataType,

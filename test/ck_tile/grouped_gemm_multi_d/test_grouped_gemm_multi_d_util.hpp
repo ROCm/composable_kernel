@@ -233,8 +233,8 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                                                  Config::M_Warp_Tile_,
                                                  Config::N_Warp_Tile_,
                                                  Config::K_Warp_Tile_,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 UniversalGemmProblem::TransposeC
+                                                 >>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             const dim3 blocks = Kernel::BlockSize();
             const dim3 grids  = Kernel::MaxOccupancyGridSize(s);

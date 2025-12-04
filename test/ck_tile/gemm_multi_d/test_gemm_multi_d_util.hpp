@@ -206,8 +206,8 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                  M_Warp_Tile,
                                                  N_Warp_Tile,
                                                  K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 UniversalGemmProblem::TransposeC
+                                                 >>;
 
             using GemmEpilogue = std::
                 conditional_t<UseCshuffleEpilog::value, CShuffleGemmEpilogue, DefaultGemmEpilogue>;
