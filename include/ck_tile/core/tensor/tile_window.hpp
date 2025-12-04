@@ -293,6 +293,15 @@ struct tile_window_with_static_distribution
             0, dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
     }
 
+    template <typename offset_t>
+    CK_TILE_DEVICE constexpr auto get_load_offset(offset_t = {}) const
+    {
+        constexpr auto bottom_tensor_idx_off = to_multi_index(offset_t{});
+        const auto bottom_tensor_coord_off   = make_tensor_coordinate(
+            this->bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_idx_off);
+        return amd_wave_read_first_lane(bottom_tensor_coord_off.get_offset());
+    }
+
     template <typename DataType,
               typename StaticTileDistribution,
               index_t i_access_unsupport_ = -1,
@@ -316,12 +325,7 @@ struct tile_window_with_static_distribution
             else if constexpr(is_constant_v<offset_t>)
                 return offset_t::value;
             else
-            {
-                auto bottom_tensor_idx_off   = to_multi_index(offset_t{});
-                auto bottom_tensor_coord_off = make_tensor_coordinate(
-                    this->bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_idx_off);
-                return bottom_tensor_coord_off.get_offset();
-            }
+                return get_load_offset(offset_t{});
         }();
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
