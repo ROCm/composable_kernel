@@ -15,15 +15,15 @@ template <typename AccDataType_,
           typename ODataType_,
           bool kPadM_,
           bool kPadN_,
-          bool UseRawStore_                      = true>
+          bool UseRawStore_ = true>
 struct Default2DEpilogueProblem
 {
-    using AccDataType                                      = remove_cvref_t<AccDataType_>;
-    using ODataType                                        = remove_cvref_t<ODataType_>;
-    static constexpr bool kPadM                            = kPadM_;
-    static constexpr bool kPadN                            = kPadN_;
-    static constexpr bool UseRawStore                      = UseRawStore_;
-    static constexpr index_t NumDTensor                    = 0;
+    using AccDataType                   = remove_cvref_t<AccDataType_>;
+    using ODataType                     = remove_cvref_t<ODataType_>;
+    static constexpr bool kPadM         = kPadM_;
+    static constexpr bool kPadN         = kPadN_;
+    static constexpr bool UseRawStore   = UseRawStore_;
+    static constexpr index_t NumDTensor = 0;
 };
 
 template <typename AsDataType_,
@@ -42,12 +42,9 @@ template <typename AsDataType_,
           index_t kNPerXdl_,
           index_t kKPerXdl_,
           bool isCTransposed_,
-          bool UseRawStore_                      = true>
-struct DefaultGemm2DEpilogueProblem : public Default2DEpilogueProblem<AccDataType_,
-                                                                      ODataType_,
-                                                                      kPadM_,
-                                                                      kPadN_,
-                                                                      UseRawStore_>
+          bool UseRawStore_ = true>
+struct DefaultGemm2DEpilogueProblem
+    : public Default2DEpilogueProblem<AccDataType_, ODataType_, kPadM_, kPadN_, UseRawStore_>
 {
     using AsDataType                       = remove_cvref_t<AsDataType_>;
     using BsDataType                       = remove_cvref_t<BsDataType_>;
@@ -98,7 +95,8 @@ struct Default2DEpilogue
             if constexpr(UseRawStore && (kPadM || kPadN))
             {
                 // FIXME?
-                // if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp == memory_operation_enum::set)
+                // if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp ==
+                // memory_operation_enum::set)
                 if constexpr(true)
                 {
                     if constexpr(is_partition_index)
@@ -121,7 +119,8 @@ struct Default2DEpilogue
             else
             {
                 // FIXME?
-                // if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp == memory_operation_enum::set)
+                // if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp ==
+                // memory_operation_enum::set)
                 if constexpr(true)
                 {
                     if constexpr(is_partition_index)
