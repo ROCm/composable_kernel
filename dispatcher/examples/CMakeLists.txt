@@ -454,18 +454,16 @@ add_declarative_gpu_example(gemm_08_multi_d         gemm/cpp/08_multi_d.cpp)
 add_declarative_gpu_example(gemm_09_multi_registry  gemm/cpp/09_multi_registry.cpp)
 
 # GEMM dynamic library for Python (from bindings)
-# Uses the global registration header for all generated kernels
-set(GEMM_REGISTRATION_HEADER "${KERNEL_OUTPUT_DIR}/dispatcher_wrappers/register_all_kernels.hpp")
+# This is a MINIMAL library - Python examples do JIT compilation for specific kernels
+# No pre-compiled kernels included - just the dispatcher infrastructure
 add_library(dispatcher_gemm_lib SHARED ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/gemm_ctypes_lib.cpp)
 target_link_libraries(dispatcher_gemm_lib PRIVATE ck_tile_dispatcher)
 target_include_directories(dispatcher_gemm_lib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    ${KERNEL_OUTPUT_DIR}
-    ${KERNEL_OUTPUT_DIR}/dispatcher_wrappers
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ck_tile/dispatcher
 )
 target_compile_options(dispatcher_gemm_lib PRIVATE
-    -include ${GEMM_REGISTRATION_HEADER}
     -mllvm -enable-noalias-to-md-conversion=0
     -Wno-undefined-func-template
     -Wno-float-equal
@@ -474,7 +472,7 @@ target_compile_options(dispatcher_gemm_lib PRIVATE
 if(hip_FOUND)
     target_link_libraries(dispatcher_gemm_lib PRIVATE hip::device hip::host)
 endif()
-add_dependencies(dispatcher_gemm_lib generate_gemm_kernels)
+# No dependency on generate_gemm_kernels - this is a minimal JIT-focused library
 
 message(STATUS "GEMM examples configured - kernels will be generated during 'make'")
 

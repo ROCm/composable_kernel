@@ -2,10 +2,11 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * GEMM Dispatcher ctypes Library
+ * GEMM Dispatcher ctypes Library (Minimal JIT Version)
  *
  * Provides C API for Python ctypes integration.
- * Kernel header included via -include at compile time.
+ * This is a MINIMAL library - no pre-compiled kernels.
+ * Python examples do JIT compilation for specific kernels.
  *
  * Usage from Python:
  *   lib = ctypes.CDLL("libdispatcher_gemm.so")
@@ -21,16 +22,18 @@
 #include <sstream>
 #include <string>
 
+#include "ck_tile/core.hpp"
 #include "ck_tile/dispatcher/dispatcher.hpp"
 #include "ck_tile/dispatcher/registry.hpp"
-#include "ck_tile/dispatcher/backends/generated_tile_backend.hpp"
-
-// Kernel header included via -include compiler flag
-// Defines: ADataType, BDataType, CDataType, AccDataType, SelectedKernel, KERNEL_NAME
 
 using namespace ck_tile::dispatcher;
-using namespace ck_tile::dispatcher::backends;
 using Priority = ck_tile::dispatcher::Registry::Priority;
+
+// Type aliases for GEMM (fp16 default, but Python can specify)
+using ADataType   = ck_tile::fp16_t;
+using BDataType   = ck_tile::fp16_t;
+using CDataType   = ck_tile::fp16_t;
+using AccDataType = float;
 
 // Global dispatcher (initialized once, managed via shared_ptr for safe cleanup)
 static std::shared_ptr<Dispatcher> g_dispatcher = nullptr;
@@ -60,44 +63,9 @@ int dispatcher_initialize()
         return 0; // Already initialized
     }
 
-    // Create kernel key
-    KernelKey key;
-    key.signature.dtype_a             = DataType::FP16;
-    key.signature.dtype_b             = DataType::FP16;
-    key.signature.dtype_c             = DataType::FP16;
-    key.signature.dtype_acc           = DataType::FP32;
-    key.signature.layout_a            = LayoutTag::RowMajor;
-    key.signature.layout_b            = LayoutTag::ColMajor;
-    key.signature.layout_c            = LayoutTag::RowMajor;
-    key.signature.transpose_a         = false;
-    key.signature.transpose_b         = false;
-    key.signature.grouped             = false;
-    key.signature.split_k             = 1;
-    key.signature.elementwise_op      = "PassThrough";
-    key.signature.num_d_tensors       = 0;
-    key.signature.structured_sparsity = false;
-
-    key.algorithm.tile_shape      = {128, 128, 32};
-    key.algorithm.wave_shape      = {2, 2, 1};
-    key.algorithm.warp_tile_shape = {32, 32, 16};
-    key.algorithm.pipeline        = Pipeline::CompV4;
-    key.algorithm.scheduler       = Scheduler::Intrawave;
-    key.algorithm.epilogue        = Epilogue::CShuffle;
-    key.algorithm.block_size      = 256;
-    key.algorithm.double_buffer   = true;
-    key.algorithm.persistent      = false;
-    key.algorithm.preshuffle      = false;
-    key.algorithm.transpose_c     = false;
-    key.algorithm.num_wave_groups = 1;
-    key.gfx_arch                  = "gfx942";
-
-    // Register kernel
-    auto kernel =
-        create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            key, KERNEL_NAME);
-
+    // Minimal JIT library - no pre-registered kernels
+    // Python will JIT compile and register specific kernels as needed
     Registry::instance().clear();
-    Registry::instance().register_kernel(kernel, Priority::High);
 
     // Create dispatcher (using shared_ptr for safe memory management)
     g_dispatcher  = std::make_shared<Dispatcher>();
@@ -380,7 +348,19 @@ int dispatcher_run_gemm(const void* A, // Host pointer
  *
  * Returns: Pointer to null-terminated kernel name string
  */
-const char* dispatcher_get_kernel_name() { return KERNEL_NAME; }
+const char* dispatcher_get_kernel_name()
+{
+    // JIT library - return name of first registered kernel or "jit_pending"
+    auto kernels = Registry::instance().get_all();
+    if(kernels.empty())
+    {
+        static const char* jit_name = "jit_pending";
+        return jit_name;
+    }
+    static std::string kernel_name;
+    kernel_name = kernels[0]->get_name();
+    return kernel_name.c_str();
+}
 
 /**
  * Initialize dispatcher (alias for dispatcher_initialize)

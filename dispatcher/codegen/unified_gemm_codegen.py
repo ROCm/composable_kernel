@@ -425,7 +425,15 @@ class KernelNaming:
         t = config.tile
         tr = config.trait
 
-        name = f"gemm_{datatype}_{layout}_{tr.pipeline}_{tr.epilogue}_{tr.scheduler}"
+        # For multi-d, use 4-char layout (abcd), otherwise use 3-char layout (abc)
+        if config.variant == GemmVariant.MULTI_D:
+            full_layout = layout + config.d_layout  # e.g., "rcr" + "r" = "rcrr"
+        else:
+            full_layout = layout
+
+        name = (
+            f"gemm_{datatype}_{full_layout}_{tr.pipeline}_{tr.epilogue}_{tr.scheduler}"
+        )
         name += f"_{str(tr.pad_m).capitalize()}_{str(tr.pad_n).capitalize()}"
         name += f"_{str(tr.pad_k).capitalize()}_{str(tr.persistent).capitalize()}"
         name += f"_{t.tile_m}x{t.tile_n}x{t.tile_k}"
@@ -436,7 +444,6 @@ class KernelNaming:
         if config.variant == GemmVariant.PRESHUFFLE:
             name += "_preshuffle"
         elif config.variant == GemmVariant.MULTI_D:
-            # Include D layout in name (use full layout: abc + d)
             name += f"_multid_{config.elementwise_op}_d{config.num_d_tensors}"
 
         return name
@@ -1014,9 +1021,9 @@ class UnifiedGemmCodegen:
             except ValueError as e:
                 log.warning(f"Could not create arch filter: {e}")
 
-        # Initialize generators
-        self.ck_gen = CKTileKernelGenerator(datatype, layout)
-        self.disp_gen = DispatcherWrapperGenerator(datatype, layout)
+        # Initialize generators (use self.layout which is the 3-char A,B,C layout)
+        self.ck_gen = CKTileKernelGenerator(datatype, self.layout)
+        self.disp_gen = DispatcherWrapperGenerator(datatype, self.layout)
 
     def _load_config(self, config_file: Optional[Path]) -> Dict:
         """Load or create default configuration"""
