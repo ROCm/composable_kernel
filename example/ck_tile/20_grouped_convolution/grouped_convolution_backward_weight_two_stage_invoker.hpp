@@ -192,7 +192,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                        s.stream_id_));
             };
 
-            return ck_tile::launch_kernel_time_mask(
+            const auto ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 preprocess,
                 ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs),
@@ -207,21 +207,18 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                     input_tensors,
                     static_cast<WeiDataType*>(c_ptr)));
 
-            split_k = kargs.k_batch;
+            const auto split_k = kargs.k_batch;
+
+            return InvokerResult{ave_time, split_k};
         };
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(args.k_batch == 1)
-            {
-                Run(has_hot_loop_, tail_number_, MemoryOpSet{});
-            }
-            else
-            {
-                Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
-            }
-        };
-
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-        return {ave_time, split_k};
+        if(args.k_batch == 1)
+        {
+            return Run(MemoryOpSet{});
+        }
+        else
+        {
+            return Run(MemoryOpAtomicAdd{});
+        }
     }
 };
