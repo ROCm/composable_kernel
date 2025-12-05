@@ -272,7 +272,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
             {
                 /// NOTICE: in order to use load_tile_transpose() later for V tile, we cannot use
                 /// WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution here
-                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
+                return WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution<>{};
                 // return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
             }
         }();
