@@ -136,14 +136,6 @@ concept TileOptimizationsDescriptor = requires(T t) {
     { t.explicit_gemm } -> std::convertible_to<bool>;
 };
 
-// Concept to check if struct specifies launch config (CK Tile).
-template <typename T>
-concept TileLaunchConfigDescriptor = requires(T t) {
-    { t.has_hot_loop } -> std::convertible_to<bool>;
-    { t.tail_number } -> std::convertible_to<TailNumber>;
-    { t.memory_operation } -> std::convertible_to<MemoryOperation>;
-};
-
 // Base requirement for all ConvAlgorithm concepts, i.e., all conv algorithm concepts must meet this
 // concept.
 template <typename T>
@@ -248,13 +240,6 @@ concept SpecifiesTileOptimizations = requires {
 template <typename T>
 concept SpecifiesTileConvSpecialization = requires {
     { T::specialization } -> std::convertible_to<TileConvSpecialization>;
-};
-
-template <typename T>
-concept SpecifiesTileLaunchConfig = requires {
-    { T::launch_config.has_hot_loop } -> std::convertible_to<bool>;
-    { T::launch_config.tail_number } -> std::convertible_to<TailNumber>;
-    { T::launch_config.memory_operation } -> std::convertible_to<MemoryOperation>;
 };
 
 template <typename T>

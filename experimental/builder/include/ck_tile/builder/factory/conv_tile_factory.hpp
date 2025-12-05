@@ -12,7 +12,6 @@
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_limits.hpp"
 #include "ck_tile/builder/builder_utils.hpp"
-#include "ck_tile/builder/conv_signature_utils.hpp"
 #include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_tensor_layout.hpp"
 #include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_tensor_type.hpp"
 #include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_elementwise_op.hpp"
@@ -20,7 +19,6 @@
 #include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_block_transfer.hpp"
 #include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_thread_block.hpp"
 #include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_kernel_directions.hpp"
-#include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_launch_config.hpp"
 
 namespace ck_tile::builder::factory {
 
@@ -31,12 +29,10 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvTileFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts                       = decltype(internal::GetTileTensorLayout<SIGNATURE.layout,
-                                                                                 SPATIAL_DIM,
-                                                                                 ConvDirection::FORWARD>());
+    using Layouts                       = internal::TileConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
     using Types                         = internal::TileConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
-    using AlgorithmType = decltype(ALGORITHM);
+    using Ops                           = internal::TileElementwiseOps<SIGNATURE>;
+    using AlgorithmType                 = decltype(ALGORITHM);
 
     static constexpr auto CONV_SPECIALIZATION = internal::SetTileConvSpecialization<ALGORITHM>();
     static constexpr auto BLOCK               = internal::SetTileThreadBlockInfo<ALGORITHM>();
@@ -44,7 +40,6 @@ struct ConvTileFactory
     static constexpr auto OPTIMIZATIONS       = internal::SetTileOptimizations<ALGORITHM>();
     static constexpr auto SCALAR_PER_VECTOR   = internal::SetTileBlockTransfer<ALGORITHM>();
     static constexpr auto CONV_DIRECTION      = internal::SetTileConvDirection<SIGNATURE>();
-    static constexpr auto LAUNCH_CONFIG       = internal::SetTileLaunchConfig<ALGORITHM>();
 
     // Check limits for the algorithm parameters.
     // TODO: Add more limits checks as needed.
@@ -93,8 +88,6 @@ struct ConvTileFactory
         GemmShape,
         GemmUniversalTraits,
         BLOCK_GEMM.scheduler,
-        LAUNCH_CONFIG.has_hot_loop,
-        LAUNCH_CONFIG.tail_number,
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
         typename Types::EDataType,
@@ -105,27 +98,28 @@ struct ConvTileFactory
     using GemmPipeline = typename internal::TilePipelineType<
         BLOCK_GEMM.pipeline_version>::template GemmPipeline<UniversalGemmProblem>;
 
-    using ConvEpilogue = ck_tile::CShuffleEpilogue<
-        ck_tile::CShuffleEpilogueProblem<typename Types::ADataType,
-                                         typename Types::BDataType,
-                                         typename Types::DsDataTypes,
-                                         typename Types::AccDataType,
-                                         typename Types::EDataType,
-                                         typename GroupedConvTraitsType::ImplicitGemmDsLayout,
-                                         typename GroupedConvTraitsType::FixedGemmParams::ELayout,
-                                         typename Ops::CDEElementwiseOp,
-                                         BLOCK.per_block.m,
-                                         BLOCK.per_block.n,
-                                         BLOCK_GEMM.warps.m,
-                                         BLOCK_GEMM.warps.n,
-                                         BLOCK_GEMM.warp_tile.m,
-                                         BLOCK_GEMM.warp_tile.n,
-                                         BLOCK_GEMM.warp_tile.k,
-                                         GroupedConvTraitsType::FixedGemmParams::TransposeC,
-                                         LAUNCH_CONFIG.memory_operation,
-                                         BLOCK_GEMM.num_wave_groups,
-                                         GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
-                                         SCALAR_PER_VECTOR.c>>;
+    using ConvEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+        typename Types::ADataType,
+        typename Types::BDataType,
+        typename Types::DsDataTypes,
+        typename Types::AccDataType,
+        typename Types::EDataType,
+        typename GroupedConvTraitsType::ImplicitGemmDsLayout,
+        typename GroupedConvTraitsType::FixedGemmParams::ELayout,
+        typename Ops::CDEElementwiseOp,
+        BLOCK.per_block.m,
+        BLOCK.per_block.n,
+        BLOCK_GEMM.warps.m,
+        BLOCK_GEMM.warps.n,
+        BLOCK_GEMM.warp_tile.m,
+        BLOCK_GEMM.warp_tile.n,
+        BLOCK_GEMM.warp_tile.k,
+        GroupedConvTraitsType::FixedGemmParams::TransposeC,
+        // TODO:: This template parameter will be moved inside the kernel
+        ck_tile::memory_operation_enum::set,
+        BLOCK_GEMM.num_wave_groups,
+        GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
+        SCALAR_PER_VECTOR.c>>;
 
     using Instance = typename internal::GroupedConvolutionTileKernel<SIGNATURE,
                                                                      GroupedConvTraitsType,

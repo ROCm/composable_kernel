@@ -88,7 +88,7 @@ consteval bool IsTileAlgorithm()
 {
     return ConvAlgorithmDescriptor<T> && SpecifiesTileThreadBlock<T> && SpecifiesTileTransfer<T> &&
            SpecifiesTileConvSpecialization<T> && SpecifiesTileBlockGemm<T> &&
-           SpecifiesTileOptimizations<T> && SpecifiesTileLaunchConfig<T>;
+           SpecifiesTileOptimizations<T>;
 }
 
 // XDL-based kernel with V3 pipeline structure (newer block GEMM pipeline)

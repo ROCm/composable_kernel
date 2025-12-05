@@ -285,14 +285,6 @@ struct TileOptimizations
 };
 static_assert(ckb::TileOptimizationsDescriptor<TileOptimizations>);
 
-struct TileLaunchConfig
-{
-    bool has_hot_loop;
-    TailNumber tail_number;
-    MemoryOperation memory_operation;
-};
-static_assert(ckb::TileLaunchConfigDescriptor<TileLaunchConfig>);
-
 struct TileConvSpecialization_
 {
     TileConvSpecialization specialization;
@@ -316,11 +308,6 @@ struct TileBlockGemm_
 struct TileOptimizations_
 {
     TileOptimizations optimizations;
-};
-
-struct TileLaunchConfig_
-{
-    TileLaunchConfig launch_config;
 };
 
 // Factory
@@ -464,15 +451,6 @@ struct ConvAlgorithmTemplate : Components...
         result.optimizations = o;
         return result;
     }
-
-    template <typename C>
-    constexpr auto with_tile_launch_config(const C& c) const
-    {
-        static_assert(std::is_base_of_v<TileLaunchConfig_, ConvAlgorithmTemplate>);
-        auto result          = *this;
-        result.launch_config = c;
-        return result;
-    }
 };
 
 // Algorithm types
@@ -499,7 +477,6 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileTh
                                                                           TileBlockGemm_,
                                                                           TileTransfer_,
                                                                           TileConvSpecialization_,
-                                                                          TileOptimizations_,
-                                                                          TileLaunchConfig_>;
+                                                                          TileOptimizations_>;
 
 } // namespace ck_tile::builder::test

@@ -10,12 +10,13 @@ using namespace ck_tile::builder::test_utils;
 
 TEST(FwdConvInstances, Create_ConvAlgorithm_Tile_GroupedConvolutionKernel_2D_FP16_NHWGC)
 {
-    constexpr ConvSignature FwdConvSignature{.spatial_dim = 2,
-                                             .direction   = ConvDirection::BACKWARD_DATA,
-                                             .layout      = GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
-                                             .data_type   = DataType::FP16,
-                                             .elementwise_operation =
-                                                 ElementwiseOperation::PASS_THROUGH};
+    constexpr ConvSignature FwdConvSignature{.spatial_dim            = 2,
+                                             .direction              = ConvDirection::BACKWARD_DATA,
+                                             .data_type              = DataType::FP16,
+                                             .accumulation_data_type = DataType::FP32,
+                                             .input  = {.config = {.layout = TensorLayout::NHWGC}},
+                                             .weight = {.config = {.layout = TensorLayout::GKYXC}},
+                                             .output = {.config = {.layout = TensorLayout::NHWGK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_Tile_GroupedConvolutionKernel{}
@@ -24,10 +25,7 @@ TEST(FwdConvInstances, Create_ConvAlgorithm_Tile_GroupedConvolutionKernel_2D_FP1
             .with_tile_block_gemm(TileBlockGemmDesc_16x16_v3_intrawave)
             .with_tile_transfer(FwdTileTransfer_4x4x4)
             .with_tile_optimizations(TileOptimizations{
-                .num_groups_to_merge = 1, .split_image = false, .explicit_gemm = false})
-            .with_tile_launch_config(TileLaunchConfig{.has_hot_loop     = true,
-                                                      .tail_number      = TailNumber::FULL,
-                                                      .memory_operation = MemoryOperation::SET});
+                .num_groups_to_merge = 1, .split_image = false, .explicit_gemm = false});
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_ck_tile_test<Builder>({
@@ -43,8 +41,6 @@ TEST(FwdConvInstances, Create_ConvAlgorithm_Tile_GroupedConvolutionKernel_2D_FP1
         "CShuffleEpilogue",
         "set",
         "pipeline_AgBgCrCompV3",
-        "HasHotLoop_1",
-        "TailNum_Full",
         "DoubleSmemBuffer_0",
         "NumWaveGroups_1",
         "MergedGroups_1",

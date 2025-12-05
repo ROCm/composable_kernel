@@ -304,12 +304,8 @@ struct UniversalGemmPipelineProblem
                       Scheduler,
                       "NumWaveGroups",
                       NumWaveGroups,
-                      "HasHotLoop",
-                      HasHotLoop,
                       "DoubleSmemBuffer",
-                      DoubleSmemBuffer,
-                      "TailNum",
-                      TailNum
+                      DoubleSmemBuffer
                     );
         // clang-format on
     }

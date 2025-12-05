@@ -8,94 +8,193 @@
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 
 namespace ck_tile::builder::factory::internal {
+using ALayout = ck_tile::tensor_layout::convolution::NWGC;
+template <TensorLayout Layout>
+struct LayoutToCKTile
+{
+    static_assert(sizeof(UnsupportedEnumValue<Layout>) == 0,
+                  "Unsupported layout conversion to CK.");
+};
 
-// Type mappings from the builder FwdGroupConvLayout enum classes to the CK Tile tensor data types.
-template <auto LayoutValue, size_t SPATIAL_DIM, ConvDirection DIR>
-    requires(ConvSpatialDim<SPATIAL_DIM> && ValidConvLayoutForSpatialDim<LayoutValue, SPATIAL_DIM>)
+// Bias layouts
+template <>
+struct LayoutToCKTile<TensorLayout::G_K_strided>
+{
+    using type = ck_tile::tensor_layout::convolution::G_K;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::GC>
+{
+    using type = ck_tile::tensor_layout::convolution::GC;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::G_C_strided>
+{
+    using type = ck_tile::tensor_layout::convolution::G_C;
+};
+
+// Input 1D
+template <>
+struct LayoutToCKTile<TensorLayout::NWGC>
+{
+    using type = ck_tile::tensor_layout::convolution::NWGC;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::GNWC>
+{
+    using type = ck_tile::tensor_layout::convolution::GNWC;
+};
+
+// Input 2D
+template <>
+struct LayoutToCKTile<TensorLayout::NHWGC>
+{
+    using type = ck_tile::tensor_layout::convolution::NHWGC;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::GNHWC>
+{
+    using type = ck_tile::tensor_layout::convolution::GNHWC;
+};
+
+// Input 3D
+template <>
+struct LayoutToCKTile<TensorLayout::NDHWGC>
+{
+    using type = ck_tile::tensor_layout::convolution::NDHWGC;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::GNDHWC>
+{
+    using type = ck_tile::tensor_layout::convolution::GNDHWC;
+};
+
+// Weight 1D
+template <>
+struct LayoutToCKTile<TensorLayout::GKXC>
+{
+    using type = ck_tile::tensor_layout::convolution::GKXC;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::GKCX>
+{
+    using type = ck_tile::tensor_layout::convolution::GKCX;
+};
+
+// Weight 2D
+template <>
+struct LayoutToCKTile<TensorLayout::GKYXC>
+{
+    using type = ck_tile::tensor_layout::convolution::GKYXC;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::GKCYX>
+{
+    using type = ck_tile::tensor_layout::convolution::GKCYX;
+};
+
+// Weight 3D
+template <>
+struct LayoutToCKTile<TensorLayout::GKCZYX>
+{
+    using type = ck_tile::tensor_layout::convolution::GKCZYX;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::GKZYXC>
+{
+    using type = ck_tile::tensor_layout::convolution::GKZYXC;
+};
+
+// Output 1D
+template <>
+struct LayoutToCKTile<TensorLayout::NWGK>
+{
+    using type = ck_tile::tensor_layout::convolution::NWGK;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::GNWK>
+{
+    using type = ck_tile::tensor_layout::convolution::GNWK;
+};
+
+// Output 2D
+template <>
+struct LayoutToCKTile<TensorLayout::NHWGK>
+{
+    using type = ck_tile::tensor_layout::convolution::NHWGK;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::GNHWK>
+{
+    using type = ck_tile::tensor_layout::convolution::GNHWK;
+};
+
+// Output 3D
+template <>
+struct LayoutToCKTile<TensorLayout::NDHWGK>
+{
+    using type = ck_tile::tensor_layout::convolution::NDHWGK;
+};
+template <>
+struct LayoutToCKTile<TensorLayout::GNDHWK>
+{
+    using type = ck_tile::tensor_layout::convolution::GNDHWK;
+};
+
+template <TensorLayout Layout>
+consteval auto TensorLayoutToCKTile()
+{
+    return typename LayoutToCKTile<Layout>::type{};
+}
+
+struct EmptyAuxiliaryTileTensorLayout
+{
+    using type = ck_tile::tuple<>;
+};
+
+template <auto AuxiliaryTileTensorConfigsArray, size_t... Indices>
+consteval auto GetAuxiliaryTileTensorLayoutTuple(std::index_sequence<Indices...>)
+{
+    return ck_tile::tuple<
+        decltype(TensorLayoutToCKTile<AuxiliaryTileTensorConfigsArray[Indices].layout>())...>{};
+}
+
+template <auto AuxiliaryTileTensorConfigsValue, size_t SPATIAL_DIM>
+    requires(ConvSpatialDim<SPATIAL_DIM>)
+struct AuxiliaryTileTensorLayouts
+{
+    static constexpr auto Size = AuxiliaryTileTensorConfigsValue.size();
+    using type = decltype(GetAuxiliaryTileTensorLayoutTuple<AuxiliaryTileTensorConfigsValue>(
+        std::make_index_sequence<Size>{}));
+};
+
+// TODO: Currently only the ouput tensor can have auxiliary tensors (e.g., bias).
+template <auto Signature, size_t SPATIAL_DIM>
+    requires(HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
+consteval auto GetAuxiliaryTileTensorLayouts()
+{
+    return AuxiliaryTileTensorLayouts<Signature.output.operation.auxiliary_operand_configs,
+                                      SPATIAL_DIM>{};
+}
+
+template <auto Signature, size_t SPATIAL_DIM>
+    requires(!HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
+consteval auto GetAuxiliaryTileTensorLayouts()
+{
+    return EmptyAuxiliaryTileTensorLayout{};
+}
+
+template <auto Signature, size_t SPATIAL_DIM>
+    requires(ConvSpatialDim<SPATIAL_DIM> &&
+             ValidConvInputLayoutForSpatialDim<Signature.input.config.layout, SPATIAL_DIM> &&
+             ValidConvWeightLayoutForSpatialDim<Signature.weight.config.layout, SPATIAL_DIM> &&
+             ValidConvOutputLayoutForSpatialDim<Signature.output.config.layout, SPATIAL_DIM>)
 struct TileConvTensorLayouts
 {
-    // This will trigger if a specialization for the given layout is not found.
-    // We should always catch this in an earlier validation check.
-    using Layout = decltype(LayoutValue);
-    static_assert(sizeof(Layout) == 0,
-                  "Internal error. Unsupported layout for convolution factory.");
+    using ALayout  = decltype(TensorLayoutToCKTile<Signature.input.config.layout>());
+    using BLayout  = decltype(TensorLayoutToCKTile<Signature.weight.config.layout>());
+    using ELayout  = decltype(TensorLayoutToCKTile<Signature.output.config.layout>());
+    using DsLayout = decltype(GetAuxiliaryTileTensorLayouts<Signature, SPATIAL_DIM>())::type;
 };
-
-// 1D Forward Convolution Layout Specializations
-template <>
-struct TileConvTensorLayouts<GroupConvLayout1D::NWGC_GKXC_NWGK, 1, ConvDirection::FORWARD>
-{
-    using ALayout  = ck_tile::tensor_layout::convolution::NWGC;
-    using BLayout  = ck_tile::tensor_layout::convolution::GKXC;
-    using DsLayout = ck_tile::tuple<>;
-    using ELayout  = ck_tile::tensor_layout::convolution::NWGK;
-};
-
-template <>
-struct TileConvTensorLayouts<GroupConvLayout1D::GNWC_GKXC_GNWK, 1, ConvDirection::FORWARD>
-{
-    using ALayout  = ck_tile::tensor_layout::convolution::GNWC;
-    using BLayout  = ck_tile::tensor_layout::convolution::GKXC;
-    using DsLayout = ck_tile::tuple<>;
-    using ELayout  = ck_tile::tensor_layout::convolution::GNWK;
-};
-
-template <>
-struct TileConvTensorLayouts<GroupConvLayout2D::NHWGC_GKYXC_NHWGK, 2, ConvDirection::FORWARD>
-{
-    using ALayout  = ck_tile::tensor_layout::convolution::NHWGC;
-    using BLayout  = ck_tile::tensor_layout::convolution::GKYXC;
-    using DsLayout = ck_tile::tuple<>;
-    using ELayout  = ck_tile::tensor_layout::convolution::NHWGK;
-};
-
-template <>
-struct TileConvTensorLayouts<GroupConvLayout2D::GNHWC_GKYXC_GNHWK, 2, ConvDirection::FORWARD>
-{
-    using ALayout  = ck_tile::tensor_layout::convolution::GNHWC;
-    using BLayout  = ck_tile::tensor_layout::convolution::GKYXC;
-    using DsLayout = ck_tile::tuple<>;
-    using ELayout  = ck_tile::tensor_layout::convolution::GNHWK;
-};
-
-template <>
-struct TileConvTensorLayouts<GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK, 3, ConvDirection::FORWARD>
-{
-    using ALayout  = ck_tile::tensor_layout::convolution::NDHWGC;
-    using BLayout  = ck_tile::tensor_layout::convolution::GKZYXC;
-    using DsLayout = ck_tile::tuple<>;
-    using ELayout  = ck_tile::tensor_layout::convolution::NDHWGK;
-};
-
-template <>
-struct TileConvTensorLayouts<GroupConvLayout3D::GNDHWC_GKZYXC_GNDHWK, 3, ConvDirection::FORWARD>
-{
-    using ALayout  = ck_tile::tensor_layout::convolution::GNDHWC;
-    using BLayout  = ck_tile::tensor_layout::convolution::GKZYXC;
-    using DsLayout = ck_tile::tuple<>;
-    using ELayout  = ck_tile::tensor_layout::convolution::GNDHWK;
-};
-
-template <GroupConvLayout Layout, size_t SPATIAL_DIM, ConvDirection DIR>
-consteval auto GetTileTensorLayout()
-{
-
-    if constexpr(SPATIAL_DIM == 1)
-    {
-        return internal::TileConvTensorLayouts<Layout._1d, 1, DIR>{};
-    }
-    else if constexpr(SPATIAL_DIM == 2)
-    {
-        return internal::TileConvTensorLayouts<Layout._2d, 2, DIR>{};
-    }
-    else if constexpr(SPATIAL_DIM == 3)
-    {
-        return internal::TileConvTensorLayouts<Layout._3d, 3, DIR>{};
-    }
-    else
-    {
-        static_assert(false, "Unsupported spatial dimension for convolution layout.");
-    }
-}
 
 } // namespace ck_tile::builder::factory::internal
