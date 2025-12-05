@@ -96,7 +96,6 @@ float invoke_gemm(int n_warmup,
     {
         std::vector<ck_tile::GemmTransKernelArg<NumDTensor>> kargs;
         void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
-        const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
         {
             kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<1, 1, NumDTensor>{{arg.a_ptr},
@@ -130,7 +129,7 @@ float invoke_gemm(int n_warmup,
                                           BLayout,
                                           DsLayout,
                                           ELayout,
-                                          CDEElementWise>(stream, group_count, kargs_ptr, splitk);
+                                          CDEElementWise>(stream, group_count, kargs_ptr);
     }
     return ave_time;
 }

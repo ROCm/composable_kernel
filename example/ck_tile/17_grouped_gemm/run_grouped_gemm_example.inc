@@ -80,7 +80,6 @@ float invoke_gemm(int n_warmup,
 
         std::vector<ck_tile::GemmTransKernelArg<>> kargs;
         void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
-        const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
         {
             kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<>{{arg.a_ptr},
@@ -109,7 +108,7 @@ float invoke_gemm(int n_warmup,
                                          ADataType,
                                          BDataType,
                                          AccDataType,
-                                         CDataType>(stream, group_count, kargs_ptr, splitk);
+                                         CDataType>(stream, group_count, kargs_ptr);
     }
 
     return ave_time;

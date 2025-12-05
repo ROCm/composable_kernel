@@ -127,8 +127,7 @@ template <typename GemmConfig,
           typename CDEElementWise>
 float grouped_gemm_multi_d_tileloop(const ck_tile::stream_config& s,
                                     const ck_tile::index_t num_groups,
-                                    void* kargs_ptr,
-                                    bool splitk)
+                                    void* kargs_ptr)
 {
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
