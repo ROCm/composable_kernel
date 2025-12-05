@@ -549,8 +549,8 @@ struct GroupedConvolutionBackwardWeightKernel
             }
         }
 
-        if constexpr (!std::is_same_v<typename EpiloguePipeline::ODataType, float> && 
-                      !std::is_same_v<typename EpiloguePipeline::ODataType, double>)
+        if constexpr(!std::is_same_v<typename EpiloguePipeline::ODataType, float> &&
+                     !std::is_same_v<typename EpiloguePipeline::ODataType, double>)
         {
             // The epilogue performs atomic add related to split-K using the ODataType.
             // If the type is less accurate than float, large split-K values may lead to
@@ -559,7 +559,8 @@ struct GroupedConvolutionBackwardWeightKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    CK_TILE_ERROR("Epilogue output data type that is not float/double we must have k_batch <= 128.");
+                    CK_TILE_ERROR("Epilogue output data type that is not float/double we must have "
+                                  "k_batch <= 128.");
                 }
                 return false;
             }
