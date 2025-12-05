@@ -260,6 +260,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             std::cout << "grouped_conv_bwd_weight_instance (" << instance_index << "/" << num_kernel
                       << "): Passed" << std::endl;
         }
+        printf("\033[36mvalids: %d\033[0m\n", num_kernel);
         return passed;
     }
 

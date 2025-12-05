@@ -156,6 +156,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
             DeviceOp>::GetInstances();
 
+        int num_kernel = 0;
+
         for(std::size_t i = 0; i < op_ptrs.size(); ++i)
         {
             auto& op_ptr      = op_ptrs[i];
@@ -189,6 +191,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
+                num_kernel++;
                 float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr});
                 wei_device_buf.FromDevice(wei_device.mData.data());
 
@@ -237,6 +240,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 std::cerr << op_name << " does not support this problem" << std::endl;
             }
         }
+
+        printf("\033[36mvalids: %d\033[0m\n", num_kernel);
         return passed;
     }
 
