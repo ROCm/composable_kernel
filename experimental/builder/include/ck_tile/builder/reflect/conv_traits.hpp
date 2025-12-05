@@ -4,20 +4,20 @@
 #pragma once
 
 #include <concepts>
-#include <ck_tile/builder/conv_builder.hpp>
-#include <ck_tile/builder/conv_signature_concepts.hpp>
-#include <ck_tile/builder/reflect/instance_traits.hpp>
-#include <ck_tile/builder/reflect/instance_traits_util.hpp>
-#include <ck_tile/builder/types.hpp>
-#include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
-#include <ck/utility/loop_scheduler.hpp>
-#include <ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp>
-#include <ck_tile/ops/gemm.hpp>
+#include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/utility/pipeline_enum.hpp"
+#include "ck/utility/scheduler_enum.hpp"
+#include "ck_tile/builder/conv_builder.hpp"
+#include "ck_tile/builder/conv_signature_concepts.hpp"
+#include "ck_tile/builder/reflect/instance_traits.hpp"
+#include "ck_tile/builder/reflect/instance_traits_util.hpp"
+#include "ck_tile/builder/types.hpp"
 #include "ck_tile/ops/epilogue.hpp"
-#include <ck_tile/ops/grouped_convolution.hpp>
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/ops/grouped_convolution.hpp"
 
 namespace ck_tile::reflect::conv {
 

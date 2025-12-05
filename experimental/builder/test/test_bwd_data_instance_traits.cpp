@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 #include <gtest/gtest.h>
-#include <ck/ck.hpp>
-#include <ck_tile/builder/reflect/instance_traits.hpp>
-#include <ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_backward_data.hpp>
+#include "ck/ck.hpp"
+#include "ck_tile/builder/reflect/instance_traits.hpp"
+#include "ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_backward_data.hpp"
+#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
 
 namespace {
 
