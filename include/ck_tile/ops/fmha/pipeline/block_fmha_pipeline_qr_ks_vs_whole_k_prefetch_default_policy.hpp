@@ -525,15 +525,9 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
                 constexpr index_t WarpGemmK =
                     Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{});
 
-#ifdef __gfx950__
-                static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
-                                  (WarpGemmM == 32 && WarpGemmK == 16),
-                              "Not supported WarpGemm sizes!");
-#else
                 static_assert((WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32)) ||
                                   (WarpGemmM == 32 && (WarpGemmK == 8 || WarpGemmK == 16)),
                               "Not supported WarpGemm sizes!");
-#endif
 
                 if constexpr((WarpGemmM == 16 && WarpGemmK == 32) ||
                              (WarpGemmM == 32 && WarpGemmK == 16))
