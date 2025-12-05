@@ -348,6 +348,16 @@ class TypeMappings:
         "int8": "int8_t",
     }
 
+    # Fully-qualified types for use outside of 'using namespace ck_tile' scope
+    DTYPE_TO_CK_QUALIFIED = {
+        "fp16": "ck_tile::fp16_t",
+        "bf16": "ck_tile::bf16_t",
+        "fp32": "float",  # Built-in type, no namespace
+        "fp8": "ck_tile::fp8_t",
+        "bf8": "ck_tile::bf8_t",
+        "int8": "int8_t",  # Built-in type
+    }
+
     DTYPE_TO_DISPATCHER = {
         "fp16": "DataType::FP16",
         "bf16": "DataType::BF16",
@@ -601,10 +611,17 @@ using SelectedKernel = {struct_name};
 using SelectedKernelLauncher = {struct_name};
 }} // namespace {ns_name}
 
-// Export to global namespace for single-kernel includes
+// Export to global namespace ONLY for single-kernel includes
+// Define CK_TILE_SINGLE_KERNEL_INCLUDE before including this header to enable these aliases
+#ifdef CK_TILE_SINGLE_KERNEL_INCLUDE
 using {struct_name} = {ns_name}::{struct_name};
 using SelectedKernel = {ns_name}::{struct_name};
 constexpr const char* KERNEL_NAME = {ns_name}::KERNEL_NAME;
+using ADataType = {self.tm.DTYPE_TO_CK_QUALIFIED[self.datatype]};
+using BDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[self.datatype]};
+using CDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[self.tm.get_output_dtype(self.datatype)]};
+using AccDataType = float;
+#endif // CK_TILE_SINGLE_KERNEL_INCLUDE
 """
 
     def _tile_types(self, config: KernelConfig) -> str:

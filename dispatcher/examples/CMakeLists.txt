@@ -488,6 +488,7 @@ target_include_directories(dispatcher_gemm_lib PRIVATE
     ${GEMM_FALLBACK_KERNEL_DIR}
 )
 target_compile_options(dispatcher_gemm_lib PRIVATE
+    -DCK_TILE_SINGLE_KERNEL_INCLUDE
     -include ${GEMM_FALLBACK_KERNEL}
     -DGFX_ARCH="${GPU_TARGETS}"
     -mllvm -enable-noalias-to-md-conversion=0
