@@ -88,12 +88,14 @@ add_ck_builder_test(test_ckb_conv_builder
     # Tests the inline diff utility used for comparing strings in tests assertions
     add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
 
-    # Test reference algorithm integration
-    add_ck_builder_test(test_ckb_reference_algorithm test_reference_algorithm.cpp)
+    # GPU reference validation tests (in validation/ folder)
+    add_ck_builder_test(test_ckb_reference_algorithm validation/test_reference_algorithm.cpp)
     
-    # Test reference validation with execution (needs utility library for DeviceMem)
-    add_ck_builder_test(test_ckb_reference_validation test_reference_validation.cpp)
+    add_ck_builder_test(test_ckb_reference_validation validation/test_reference_validation.cpp)
     target_link_libraries(test_ckb_reference_validation PRIVATE utility)
+    
+    add_ck_builder_test(test_ckb_builder_kernel_execution validation/test_builder_kernel_execution.cpp)
+    target_link_libraries(test_ckb_builder_kernel_execution PRIVATE utility)
 
     # Tests convolution trait selection and configuration
     add_ck_builder_test(test_ckb_conv_traits
