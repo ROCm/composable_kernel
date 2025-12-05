@@ -25,28 +25,28 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_gndhwc_gkzyxc_gndhwk_bf16_ins
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_gnhwc_instances<3,
-                                                                     GNDHWC,
-                                                                     GKZYXC,
-                                                                     Empty_Tuple,
-                                                                     GNDHWK,
-                                                                     ConvFwdDefault>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<3,
+                                                                       GNDHWC,
+                                                                       GKZYXC,
+                                                                       Empty_Tuple,
+                                                                       GNDHWK,
+                                                                       ConvFwdDefault>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_gnhwc_instances<3,
-                                                                     GNDHWC,
-                                                                     GKZYXC,
-                                                                     Empty_Tuple,
-                                                                     GNDHWK,
-                                                                     ConvFwd1x1P0>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<3,
+                                                                       GNDHWC,
+                                                                       GKZYXC,
+                                                                       Empty_Tuple,
+                                                                       GNDHWK,
+                                                                       ConvFwd1x1P0>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_gnhwc_instances<3,
-                                                                     GNDHWC,
-                                                                     GKZYXC,
-                                                                     Empty_Tuple,
-                                                                     GNDHWK,
-                                                                     ConvFwd1x1S1P0>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<3,
+                                                                       GNDHWC,
+                                                                       GKZYXC,
+                                                                       Empty_Tuple,
+                                                                       GNDHWK,
+                                                                       ConvFwd1x1S1P0>{});
 }
 
 } // namespace instance

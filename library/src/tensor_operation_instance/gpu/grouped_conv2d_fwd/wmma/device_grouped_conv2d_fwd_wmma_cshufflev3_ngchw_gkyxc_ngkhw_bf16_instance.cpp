@@ -24,36 +24,36 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkyxc_ngkhw_bf16_instan
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<2,
-                                                                     NGCHW,
-                                                                     GKYXC,
-                                                                     Empty_Tuple,
-                                                                     NGKHW,
-                                                                     ConvFwdDefault>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<2,
+                                                                       NGCHW,
+                                                                       GKYXC,
+                                                                       Empty_Tuple,
+                                                                       NGKHW,
+                                                                       ConvFwdDefault>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<2,
-                                                                     NGCHW,
-                                                                     GKYXC,
-                                                                     Empty_Tuple,
-                                                                     NGKHW,
-                                                                     ConvFwd1x1P0>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<2,
+                                                                       NGCHW,
+                                                                       GKYXC,
+                                                                       Empty_Tuple,
+                                                                       NGKHW,
+                                                                       ConvFwd1x1P0>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<2,
-                                                                     NGCHW,
-                                                                     GKYXC,
-                                                                     Empty_Tuple,
-                                                                     NGKHW,
-                                                                     ConvFwd1x1S1P0>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<2,
+                                                                       NGCHW,
+                                                                       GKYXC,
+                                                                       Empty_Tuple,
+                                                                       NGKHW,
+                                                                       ConvFwd1x1S1P0>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<2,
-                                                                     NGCHW,
-                                                                     GKYXC,
-                                                                     Empty_Tuple,
-                                                                     NGKHW,
-                                                                     ConvFwdOddC>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<2,
+                                                                       NGCHW,
+                                                                       GKYXC,
+                                                                       Empty_Tuple,
+                                                                       NGKHW,
+                                                                       ConvFwdOddC>{});
 }
 
 } // namespace instance

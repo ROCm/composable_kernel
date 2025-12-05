@@ -24,39 +24,39 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_gnhwc_gkyxc_gnhwk_bf16_instan
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_gnhwc_instances<2,
-                                                                     GNHWC,
-                                                                     GKYXC,
-                                                                     Empty_Tuple,
-                                                                     GNHWK,
-                                                                     ConvFwdDefault>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<2,
+                                                                       GNHWC,
+                                                                       GKYXC,
+                                                                       Empty_Tuple,
+                                                                       GNHWK,
+                                                                       ConvFwdDefault>{});
 
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_gnhwc_instances<2,
-                                                                     GNHWC,
-                                                                     GKYXC,
-                                                                     Empty_Tuple,
-                                                                     GNHWK,
-                                                                     ConvFwd1x1P0>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<2,
+                                                                       GNHWC,
+                                                                       GKYXC,
+                                                                       Empty_Tuple,
+                                                                       GNHWK,
+                                                                       ConvFwd1x1P0>{});
 
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_gnhwc_instances<2,
-                                                                     GNHWC,
-                                                                     GKYXC,
-                                                                     Empty_Tuple,
-                                                                     GNHWK,
-                                                                     ConvFwd1x1S1P0>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<2,
+                                                                       GNHWC,
+                                                                       GKYXC,
+                                                                       Empty_Tuple,
+                                                                       GNHWK,
+                                                                       ConvFwd1x1S1P0>{});
 
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_bf16_gnhwc_instances<2,
-                                                                     GNHWC,
-                                                                     GKYXC,
-                                                                     Empty_Tuple,
-                                                                     GNHWK,
-                                                                     ConvFwdOddC>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<2,
+                                                                       GNHWC,
+                                                                       GKYXC,
+                                                                       Empty_Tuple,
+                                                                       GNHWK,
+                                                                       ConvFwdOddC>{});
 }
 
 } // namespace instance
