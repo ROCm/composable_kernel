@@ -212,29 +212,6 @@ enum class ConvAlgorithmSpecialization
     LARGE_TENSOR
 };
 
-enum class TailNumber
-{
-    ODD,
-    EVEN,
-    ONE,
-    TWO,
-    THREE,
-    FOUR,
-    FIVE,
-    SIX,
-    SEVEN,
-    EMPTY,
-    FULL,
-};
-
-enum class MemoryOperation
-{
-    SET,
-    ATOMIC_ADD,
-    ATOMIC_MAX,
-    ADD
-};
-
 // ostream operator overloads for enum classes
 inline std::ostream& operator<<(std::ostream& os, DataType dt)
 {
