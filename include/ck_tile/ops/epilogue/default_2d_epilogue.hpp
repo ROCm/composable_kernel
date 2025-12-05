@@ -97,7 +97,9 @@ struct Default2DEpilogue
             // TODO: this is ugly
             if constexpr(UseRawStore && (kPadM || kPadN))
             {
-                if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp == memory_operation_enum::set)
+                // FIXME?
+                // if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp == memory_operation_enum::set)
+                if constexpr(true)
                 {
                     if constexpr(is_partition_index)
                     {
@@ -118,7 +120,9 @@ struct Default2DEpilogue
             }
             else
             {
-                if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp == memory_operation_enum::set)
+                // FIXME?
+                // if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp == memory_operation_enum::set)
+                if constexpr(true)
                 {
                     if constexpr(is_partition_index)
                     {
