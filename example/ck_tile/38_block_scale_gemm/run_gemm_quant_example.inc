@@ -382,7 +382,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 "K must be aligned with QuantGroupSize for AQuantGrouped/BQuantGrouped mode");
         }
     }
-    ck_tile::index_t AQK, BQK;
+    ck_tile::index_t AQK, BQK, BQN = 0;
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
     {
         AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
@@ -392,6 +392,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     {
         AQK = 0;                      // No A quantization
         BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
+        BQN = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
                       QuantMode == ck_tile::QuantType::TensorQuant)
@@ -431,10 +432,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
         stride_AQ = 0; // No A quantization
-        stride_BQ = ck_tile::get_default_stride(BQK,
-                                                ck_tile::integer_divide_ceil(N, QuantGroupSize::kN),
-                                                stride_BQ,
-                                                is_row_major(bq_layout));
+        stride_BQ = ck_tile::get_default_stride(BQK, BQN, stride_BQ, is_row_major(bq_layout));
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
     {
@@ -474,7 +472,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                  QuantMode == ck_tile::QuantType::RowColQuant)
     {
         bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
-            ck_tile::host_tensor_descriptor(BQK, N, stride_BQ, is_row_major(bq_layout)));
+            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, is_row_major(bq_layout)));
     }
     else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
     {
