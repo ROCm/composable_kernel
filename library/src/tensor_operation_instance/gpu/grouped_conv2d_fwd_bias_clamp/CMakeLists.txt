@@ -39,7 +39,6 @@ add_instance_library(device_grouped_conv2d_fwd_bias_clamp_instance
 
    # WMMA CSHUFFLE V3
    wmma/device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
-   wmma/merged_groups/device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
 
    wmma/device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_fp16_instance.cpp
    wmma/device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_fp16_16x16_instance.cpp

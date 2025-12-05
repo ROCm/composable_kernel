@@ -34,7 +34,6 @@ set(GROUPED_CONV3D_FWD
 
    # WMMA CSHUFFLE V3
    wmma/device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
-   wmma/merged_groups/device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_merged_groups_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
 
    wmma/device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_fp16_instance.cpp
    wmma/device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_fp16_16x16_instance.cpp
