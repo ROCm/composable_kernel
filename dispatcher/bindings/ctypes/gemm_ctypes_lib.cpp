@@ -2,11 +2,10 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * GEMM Dispatcher ctypes Library (Minimal JIT Version)
+ * GEMM Dispatcher ctypes Library
  *
  * Provides C API for Python ctypes integration.
- * This is a MINIMAL library - no pre-compiled kernels.
- * Python examples do JIT compilation for specific kernels.
+ * Kernel header included via -include at compile time.
  *
  * Usage from Python:
  *   lib = ctypes.CDLL("libdispatcher_gemm.so")
@@ -22,18 +21,21 @@
 #include <sstream>
 #include <string>
 
-#include "ck_tile/core.hpp"
 #include "ck_tile/dispatcher/dispatcher.hpp"
 #include "ck_tile/dispatcher/registry.hpp"
+#include "ck_tile/dispatcher/backends/generated_tile_backend.hpp"
+
+// Kernel header included via -include compiler flag
+// Defines: ADataType, BDataType, CDataType, AccDataType, SelectedKernel, KERNEL_NAME
+
+// GPU architecture - can be overridden via -DGFX_ARCH="gfx90a" at compile time
+#ifndef GFX_ARCH
+#define GFX_ARCH "gfx942"
+#endif
 
 using namespace ck_tile::dispatcher;
+using namespace ck_tile::dispatcher::backends;
 using Priority = ck_tile::dispatcher::Registry::Priority;
-
-// Type aliases for GEMM (fp16 default, but Python can specify)
-using ADataType   = ck_tile::fp16_t;
-using BDataType   = ck_tile::fp16_t;
-using CDataType   = ck_tile::fp16_t;
-using AccDataType = float;
 
 // Global dispatcher (initialized once, managed via shared_ptr for safe cleanup)
 static std::shared_ptr<Dispatcher> g_dispatcher = nullptr;
@@ -63,9 +65,44 @@ int dispatcher_initialize()
         return 0; // Already initialized
     }
 
-    // Minimal JIT library - no pre-registered kernels
-    // Python will JIT compile and register specific kernels as needed
+    // Create kernel key from the force-included kernel header
+    KernelKey key;
+    key.signature.dtype_a             = DataType::FP16;
+    key.signature.dtype_b             = DataType::FP16;
+    key.signature.dtype_c             = DataType::FP16;
+    key.signature.dtype_acc           = DataType::FP32;
+    key.signature.layout_a            = LayoutTag::RowMajor;
+    key.signature.layout_b            = LayoutTag::ColMajor;
+    key.signature.layout_c            = LayoutTag::RowMajor;
+    key.signature.transpose_a         = false;
+    key.signature.transpose_b         = false;
+    key.signature.grouped             = false;
+    key.signature.split_k             = 1;
+    key.signature.elementwise_op      = "PassThrough";
+    key.signature.num_d_tensors       = 0;
+    key.signature.structured_sparsity = false;
+
+    key.algorithm.tile_shape      = {128, 128, 32};
+    key.algorithm.wave_shape      = {2, 2, 1};
+    key.algorithm.warp_tile_shape = {32, 32, 16};
+    key.algorithm.pipeline        = Pipeline::CompV4;
+    key.algorithm.scheduler       = Scheduler::Intrawave;
+    key.algorithm.epilogue        = Epilogue::CShuffle;
+    key.algorithm.block_size      = 256;
+    key.algorithm.double_buffer   = true;
+    key.algorithm.persistent      = false;
+    key.algorithm.preshuffle      = false;
+    key.algorithm.transpose_c     = false;
+    key.algorithm.num_wave_groups = 1;
+    key.gfx_arch                  = GFX_ARCH;
+
+    // Register kernel using types from force-included header
+    auto kernel =
+        create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
+            key, KERNEL_NAME);
+
     Registry::instance().clear();
+    Registry::instance().register_kernel(kernel, Priority::High);
 
     // Create dispatcher (using shared_ptr for safe memory management)
     g_dispatcher  = std::make_shared<Dispatcher>();
@@ -76,22 +113,6 @@ int dispatcher_initialize()
 
 /**
  * Get kernel tile configuration
- *
- * Returns the block tile, warp tile, and wave configuration for the
- * registered kernel. This allows callers to understand dimension
- * requirements before attempting to run.
- *
- * Args:
- *   tile_m, tile_n, tile_k: Output for block tile dimensions
- *   warp_tile_m, warp_tile_n, warp_tile_k: Output for warp tile dimensions
- *   warp_m, warp_n, warp_k: Output for wave/warp configuration
- *
- * Returns: 0 on success, -1 if not initialized
- *
- * Note: For problem dimensions to be supported (without padding):
- *   - M must be divisible by tile_m
- *   - N must be divisible by tile_n
- *   - K must be divisible by tile_k
  */
 int dispatcher_get_kernel_config(int* tile_m,
                                  int* tile_n,
@@ -142,13 +163,6 @@ int dispatcher_get_kernel_config(int* tile_m,
 
 /**
  * Get the selected kernel name for a problem
- *
- * Args:
- *   M, N, K: Problem dimensions
- *   name_buffer: Output buffer for kernel name (at least 256 bytes)
- *   buffer_size: Size of name_buffer
- *
- * Returns: 0 on success, -1 on error
  */
 int dispatcher_select_kernel(int64_t M, int64_t N, int64_t K, char* name_buffer, int buffer_size)
 {
@@ -174,26 +188,6 @@ int dispatcher_select_kernel(int64_t M, int64_t N, int64_t K, char* name_buffer,
 
 /**
  * Check if a problem size is supported by available kernels
- *
- * A problem is considered supported if at least one registered kernel
- * can handle the given dimensions. Support depends on:
- *
- * - Block tile divisibility: M, N, K must be divisible by the kernel's
- *   block tile sizes (TileM, TileN, TileK) unless padding is enabled
- * - Warp tile and wave configuration are internal to the kernel and
- *   affect performance but not dimension support
- *
- * For kernels with padding enabled (kPadM, kPadN, kPadK), any dimension
- * that has padding enabled does not require divisibility.
- *
- * Args:
- *   M, N, K: Problem dimensions (must be positive)
- *
- * Returns: 1 if supported, 0 if not supported or not initialized
- *
- * Example: For a kernel with TileM=128, TileN=128, TileK=32:
- *   - (1024, 1024, 512) -> supported (divisible)
- *   - (1000, 1024, 512) -> not supported (1000 % 128 != 0, unless padM enabled)
  */
 int dispatcher_is_supported(int64_t M, int64_t N, int64_t K)
 {
@@ -202,7 +196,6 @@ int dispatcher_is_supported(int64_t M, int64_t N, int64_t K)
         return 0;
     }
 
-    // Basic validation
     if(M <= 0 || N <= 0 || K <= 0)
     {
         return 0;
@@ -215,30 +208,9 @@ int dispatcher_is_supported(int64_t M, int64_t N, int64_t K)
 
 /**
  * Run GEMM on GPU via dispatcher
- *
- * Args:
- *   A: Pointer to A matrix (M x K, row-major, float16)
- *   B: Pointer to B matrix (K x N, column-major, float16)
- *   C: Pointer to C matrix (M x N, row-major, float16) - OUTPUT
- *   M, N, K: Problem dimensions
- *   time_ms: Output pointer for execution time
- *
- * Returns: 0 on success, -1 on error, -2 if no kernel supports this size
- *
- * Note: This function:
- * 1. Allocates GPU memory
- * 2. Copies A, B to GPU
- * 3. Runs dispatcher GEMM
- * 4. Copies C back to CPU
- * 5. Frees GPU memory
  */
-int dispatcher_run_gemm(const void* A, // Host pointer
-                        const void* B, // Host pointer
-                        void* C,       // Host pointer (output)
-                        int64_t M,
-                        int64_t N,
-                        int64_t K,
-                        float* time_ms) // Output
+int dispatcher_run_gemm(
+    const void* A, const void* B, void* C, int64_t M, int64_t N, int64_t K, float* time_ms)
 {
     if(!g_initialized || !A || !B || !C)
     {
@@ -250,25 +222,23 @@ int dispatcher_run_gemm(const void* A, // Host pointer
     auto kernel = g_dispatcher->select_kernel(problem);
     if(!kernel)
     {
-        // No kernel supports this problem size - return error code
         if(time_ms)
         {
             *time_ms = -1.0f;
         }
-        return -2; // Special code for "no suitable kernel"
+        return -2; // No suitable kernel
     }
 
-    // Cast to correct types
+    // Cast to correct types (from force-included header)
     const ADataType* A_host = static_cast<const ADataType*>(A);
     const BDataType* B_host = static_cast<const BDataType*>(B);
     CDataType* C_host       = static_cast<CDataType*>(C);
 
-    // Allocate GPU memory with proper cleanup on failure
+    // Allocate GPU memory
     ADataType* A_dev = nullptr;
     BDataType* B_dev = nullptr;
     CDataType* C_dev = nullptr;
 
-    // Helper lambda for cleanup
     auto cleanup_gpu_mem = [&]() {
         if(A_dev)
             (void)hipFree(A_dev);
@@ -311,7 +281,7 @@ int dispatcher_run_gemm(const void* A, // Host pointer
         return -1;
     }
 
-    // Run GEMM via dispatcher (kernel already selected, shouldn't throw)
+    // Run GEMM via dispatcher
     float exec_time;
     try
     {
@@ -319,7 +289,6 @@ int dispatcher_run_gemm(const void* A, // Host pointer
     }
     catch(const std::exception& e)
     {
-        // Unexpected error during execution
         cleanup_gpu_mem();
         return -1;
     }
@@ -331,55 +300,32 @@ int dispatcher_run_gemm(const void* A, // Host pointer
         return -1;
     }
 
-    // Store timing if requested
     if(time_ms)
     {
         *time_ms = exec_time;
     }
 
-    // Cleanup GPU memory
     cleanup_gpu_mem();
-
     return 0;
 }
 
 /**
  * Get kernel information
- *
- * Returns: Pointer to null-terminated kernel name string
  */
-const char* dispatcher_get_kernel_name()
-{
-    // JIT library - return name of first registered kernel or "jit_pending"
-    auto kernels = Registry::instance().get_all();
-    if(kernels.empty())
-    {
-        static const char* jit_name = "jit_pending";
-        return jit_name;
-    }
-    static std::string kernel_name;
-    kernel_name = kernels[0]->get_name();
-    return kernel_name.c_str();
-}
+const char* dispatcher_get_kernel_name() { return KERNEL_NAME; }
 
 /**
- * Initialize dispatcher (alias for dispatcher_initialize)
- *
- * Returns: 0 on success, -1 on error
+ * Initialize dispatcher (alias)
  */
 int dispatcher_init() { return dispatcher_initialize(); }
 
 /**
  * Get the number of registered kernels
- *
- * Returns: Number of kernels in the registry
  */
 int dispatcher_get_kernel_count() { return static_cast<int>(Registry::instance().size()); }
 
 /**
  * Export registry to JSON string
- *
- * Returns: Pointer to static JSON string buffer (valid until next call)
  */
 static std::string g_json_buffer;
 
@@ -387,7 +333,6 @@ const char* dispatcher_export_registry_json()
 {
     auto& registry = Registry::instance();
 
-    // Build JSON manually for simplicity
     std::ostringstream json;
     json << "{\n";
     json << "  \"metadata\": {\n";
@@ -449,7 +394,6 @@ const char* dispatcher_export_registry_json()
  */
 void dispatcher_cleanup()
 {
-    // shared_ptr automatically handles cleanup when reset
     g_dispatcher.reset();
     g_initialized = false;
 }

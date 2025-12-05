@@ -453,17 +453,43 @@ add_declarative_gpu_example(gemm_07_preshuffle      gemm/cpp/07_preshuffle.cpp)
 add_declarative_gpu_example(gemm_08_multi_d         gemm/cpp/08_multi_d.cpp)
 add_declarative_gpu_example(gemm_09_multi_registry  gemm/cpp/09_multi_registry.cpp)
 
-# GEMM dynamic library for Python (from bindings)
-# This is a MINIMAL library - Python examples do JIT compilation for specific kernels
-# No pre-compiled kernels included - just the dispatcher infrastructure
+# =============================================================================
+# GEMM Python Library - Single Fallback Kernel
+# =============================================================================
+
+# Generate a single fallback kernel for the Python library (fp16, rcr, compv4)
+set(GEMM_FALLBACK_KERNEL_DIR "${CMAKE_CURRENT_BINARY_DIR}/gemm_python_fallback")
+set(GEMM_FALLBACK_KERNEL "${GEMM_FALLBACK_KERNEL_DIR}/gemm_fp16_rcr_compv4_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_32x32x16.hpp")
+
+# Tile config JSON for single kernel generation
+set(GEMM_FALLBACK_TILE_CONFIG "{\"tile_m\":[128],\"tile_n\":[128],\"tile_k\":[32],\"warp_m\":[2],\"warp_n\":[2],\"warp_k\":[1],\"warp_tile_m\":[32],\"warp_tile_n\":[32],\"warp_tile_k\":[16],\"pipeline\":[\"compv4\"],\"scheduler\":[\"intrawave\"],\"epilogue\":[\"cshuffle\"]}")
+
+# Generate single fallback kernel (not all 6000+ kernels)
+add_custom_command(
+    OUTPUT ${GEMM_FALLBACK_KERNEL}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${GEMM_FALLBACK_KERNEL_DIR}
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_gemm_codegen.py 
+            --datatype fp16 --layout rcr --variants standard
+            --gpu-target ${GPU_TARGETS}
+            --output-dir ${GEMM_FALLBACK_KERNEL_DIR}
+            --tile-config-json "${GEMM_FALLBACK_TILE_CONFIG}"
+    COMMENT "Generating single fallback GEMM kernel for Python library"
+    VERBATIM
+)
+
+add_custom_target(generate_gemm_fallback_kernel DEPENDS ${GEMM_FALLBACK_KERNEL})
+
+# GEMM dynamic library for Python
 add_library(dispatcher_gemm_lib SHARED ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/gemm_ctypes_lib.cpp)
 target_link_libraries(dispatcher_gemm_lib PRIVATE ck_tile_dispatcher)
 target_include_directories(dispatcher_gemm_lib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ck_tile/dispatcher
+    ${GEMM_FALLBACK_KERNEL_DIR}
 )
 target_compile_options(dispatcher_gemm_lib PRIVATE
+    -include ${GEMM_FALLBACK_KERNEL}
+    -DGFX_ARCH="${GPU_TARGETS}"
     -mllvm -enable-noalias-to-md-conversion=0
     -Wno-undefined-func-template
     -Wno-float-equal
@@ -472,7 +498,7 @@ target_compile_options(dispatcher_gemm_lib PRIVATE
 if(hip_FOUND)
     target_link_libraries(dispatcher_gemm_lib PRIVATE hip::device hip::host)
 endif()
-# No dependency on generate_gemm_kernels - this is a minimal JIT-focused library
+add_dependencies(dispatcher_gemm_lib generate_gemm_fallback_kernel)
 
 message(STATUS "GEMM examples configured - kernels will be generated during 'make'")
 

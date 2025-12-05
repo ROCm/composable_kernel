@@ -603,6 +603,8 @@ using SelectedKernelLauncher = {struct_name};
 
 // Export to global namespace for single-kernel includes
 using {struct_name} = {ns_name}::{struct_name};
+using SelectedKernel = {ns_name}::{struct_name};
+constexpr const char* KERNEL_NAME = {ns_name}::KERNEL_NAME;
 """
 
     def _tile_types(self, config: KernelConfig) -> str:
