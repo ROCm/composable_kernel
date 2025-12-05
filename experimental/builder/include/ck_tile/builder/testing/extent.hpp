@@ -33,8 +33,4 @@ struct Extent<3>
     size_t depth  = 1;
 };
 
-using Extent1D = Extent<1>;
-using Extent2D = Extent<2>;
-using Extent3D = Extent<3>;
-
 } // namespace ck_tile::builder::test
