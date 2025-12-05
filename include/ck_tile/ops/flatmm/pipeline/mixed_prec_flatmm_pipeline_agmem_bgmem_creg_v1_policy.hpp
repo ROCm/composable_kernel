@@ -248,7 +248,7 @@ struct F8xMXF4MoeFlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
 
     template <typename Problem, typename NativeADramTensorView>
     CK_TILE_HOST_DEVICE static constexpr auto
-    TransformF16xF4_ATensorView(const NativeADramTensorView& a_dram_view)
+    TransformF8_ATensorView(const NativeADramTensorView& a_dram_view)
     {
 #if CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
         constexpr int DynamicTileOffsetFlag = 0;
@@ -262,7 +262,7 @@ struct F8xMXF4MoeFlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t KPack     = GetSmemPackA<Problem>();
 
-        constexpr int ContiguousThreadsCntInDS_READ_16B = 4;
+        constexpr int ContiguousThreadsCntInDS_READ_16B = 2;
 
         // implement swizzle pattern on global side
         // because we can't adjust the ds_write pattern of BUFFER_LOAD_LDS.
@@ -305,7 +305,7 @@ struct F8xMXF4MoeFlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeF16xF4_ReadALdsBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeF8_ReadALdsBlockDescriptor()
     {
         constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
         constexpr index_t NPerXdl = Problem::BlockGemmShape::WarpTile::at(I1);
@@ -323,7 +323,7 @@ struct F8xMXF4MoeFlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
             number<KPack>{},
             number<1>{});
 
-        constexpr int ContiguousThreadsCntInDS_READ_16B = 4;
+        constexpr int ContiguousThreadsCntInDS_READ_16B = 2;
 
         constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
             a_lds_block_desc_0,
@@ -345,7 +345,7 @@ struct F8xMXF4MoeFlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeF16xF4_WriteALdsBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeF8_WriteALdsBlockDescriptor()
     {
 #if CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
@@ -361,7 +361,7 @@ struct F8xMXF4MoeFlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeF16xF4_ALDS_TileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeF8_ALDS_TileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape;
 
@@ -384,72 +384,6 @@ struct F8xMXF4MoeFlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
                                        tuple<sequence<0>, sequence<0, 0>>,
                                        sequence<2>,
                                        sequence<2>>{});
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeFp4BFlatDramTileDistribution()
-    {
-        using TileShape = typename Problem::BlockGemmShape;
-
-        static_assert(TileShape::WarpTile::at(I1) == 16, "only for XDL_N == 16");
-
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t WaveSize  = get_warp_size();
-        constexpr index_t WaveNum   = BlockSize / WaveSize;
-
-        constexpr index_t KThdPerWave = WaveSize; // threads cnt in K dim
-        constexpr index_t KWavePerBlk = 1;
-
-        constexpr index_t NWavePerBlk = TileShape::BlockWarps::at(number<1>{}); // N_Warp
-
-        constexpr index_t WaveRepeat = WaveNum / TileShape::flatNPerWarp;
-
-        return make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<WaveRepeat>,                                 // ?
-                tuple<sequence<NWavePerBlk, N_Pack>,                  // second
-                                                                      // direction
-                      sequence<KWavePerBlk, KThdPerWave, KBPerLoad>>, // first  direction
-                // wave in blk,     // thd in wave
-                // <M, K>           // <M, K>
-                tuple<sequence<0, 1, 2>, sequence<2>>, // which direction
-                tuple<sequence<0, 0, 0>, sequence<1>>, // which index
-                // <repeat, vec_load>
-                sequence<2>,
-                sequence<2>>{});
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeFp4ScaleBFlatDramTileDistribution()
-    {
-        using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
-
-        constexpr index_t BlockSize                = Problem::kBlockSize;
-        constexpr index_t WaveSize                 = get_warp_size();
-        [[maybe_unused]] constexpr index_t WaveNum = BlockSize / WaveSize;
-
-        constexpr index_t N_Warp = TileShape::BlockWarps::at(number<1>{});
-
-        [[maybe_unused]] constexpr index_t XDLPerBlock =
-            TileShape::kK / TileShape::WarpTile::at(I2);
-        constexpr index_t K_Lane = 64 / TileShape::WarpTile::at(I1);
-        constexpr index_t N_Lane = TileShape::WarpTile::at(I1);
-
-        constexpr index_t NWavePerBlk = N_Warp;
-
-        return make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<>,                                       // ?
-                tuple<sequence<NWavePerBlk>,                      // second direction
-                      sequence<K_Lane, N_Lane, N_Pack * K_Pack>>, // first
-                                                                  // direction
-                // wave in blk,     // thd in wave
-                // <M, K>           // <M, K>
-                tuple<sequence<1>, sequence<2, 2>>, // which direction
-                tuple<sequence<0>, sequence<0, 1>>, // which index
-                // <repeat, vec_load>
-                sequence<2>,
-                sequence<2>>{});
     }
 };
 
