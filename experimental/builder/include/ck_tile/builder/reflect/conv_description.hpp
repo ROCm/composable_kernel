@@ -251,14 +251,10 @@ class ConvDescription : public Description
 };
 } // namespace conv
 
-/// @brief Helper concept to detect if a type has ConvTraits specialization
-template <typename T>
-concept HasConvTraits = requires { typename conv::ConvTraits<T>; };
-
 /// @brief Factory function to create ConvDescription from a convolution instance type
-/// @tparam Instance The convolution instance type (must have InstanceTraits specialization)
+/// @tparam Instance The convolution instance type (must have ConvTraits specialization)
 /// @return A ConvDescription object populated with the instance's configuration details
-template <HasConvTraits Instance>
+template <conv::HasConvTraits Instance>
 conv::ConvDescription describe()
 {
     using Traits = conv::ConvTraits<Instance>;
