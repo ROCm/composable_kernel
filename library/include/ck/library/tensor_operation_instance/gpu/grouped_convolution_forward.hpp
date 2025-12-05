@@ -29,7 +29,6 @@
 #include "grouped_convolution_forward_wmma.inc"
 #endif
 #include "grouped_convolution_forward_wmma_cshufflev3.inc"
-#include "grouped_convolution_forward_wmma_cshufflev3_merged_groups.inc"
 #include "grouped_convolution_forward_comp_wmma_cshufflev3.inc"
 #include "grouped_convolution_forward_mem_inter_wmma_cshufflev3.inc"
 #include "grouped_convolution_forward_mem_intra_wmma_cshufflev3.inc"
@@ -881,8 +880,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_int8_instances(
                 //     op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_int8_instances(
-                    op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_comp_instances(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances(

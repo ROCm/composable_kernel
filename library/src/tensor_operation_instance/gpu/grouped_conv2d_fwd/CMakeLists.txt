@@ -128,7 +128,6 @@ set(GROUPED_CONV2D_FWD
 
   # merged groups
   # NHWGC, GKYXC, NHWGK
-  wmma/merged_groups/device_grouped_conv2d_fwd_wmma_cshufflev3_merged_groups_nhwgc_gkyxc_nhwgk_int8_instance.cpp
   # NGCHW, GKCYX, NGKHW
 
   #mem
