@@ -137,6 +137,7 @@ struct FmhaFwdV3Kernel
 
     struct FmhaFwdGroupModeKargs
         : FmhaFwdCommonKargs,
+          std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<0>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<2>>
     {
