@@ -43,6 +43,11 @@ __device__ inline int32_t amd_wave_read_first_lane(int32_t value)
     return __builtin_amdgcn_readfirstlane(value);
 }
 
+__device__ inline int32_t amd_wave_read_first_lane(uintptr_t value)
+{
+    return __builtin_amdgcn_readfirstlane(value);
+}
+
 template <typename Object, std::enable_if_t<std::is_trivially_copyable_v<Object>, int> = 0>
 __device__ inline auto amd_wave_read_first_lane(const Object& obj)
 {

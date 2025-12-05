@@ -431,11 +431,6 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
                                           sequence<(LdsSeq.at(number<i_k0>{})) * kN0, 0>{},
                                           sequence<(LdsSeq.at(number<i_k0>{}) + 1) * kN0, kK0>{}));
                 });
-                __shared__ int printed_flag;
-                if(blockIdx.x == 0 && threadIdx.x == 0 && i_total_loops == 1000)
-                {
-                    printed_flag = 100;
-                }
             }
 
             // TODO: this to fix a bug when loop smaller than 2,
@@ -704,14 +699,8 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
                     randval_dram_window);
             }
 
-            const auto p = [&]() {
-                if constexpr(std::is_same_v<PDataType, fp16_t>)
-                    return impl::cast_tile_pk_fp16_fp32<PDataType>(
-                        tile_elementwise_in(p_compute_element_func, p_compute));
-                else
-                    return cast_tile<PDataType>(
-                        tile_elementwise_in(p_compute_element_func, p_compute));
-            }();
+            const auto p =
+                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)

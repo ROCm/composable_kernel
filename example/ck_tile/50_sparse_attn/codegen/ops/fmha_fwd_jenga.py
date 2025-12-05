@@ -20,6 +20,7 @@ from codegen.cpp_symbol_map import (
     MODE_MAP,
     PIPELINE_ENUM_MAP,
     PIPELINE_MAP,
+    SQUANT_MAP,
     get_mask_check_map,
     get_mask_map,
 )
@@ -78,7 +79,7 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     false,
                                                     {F_lse},
                                                     {F_dropout},
-                                                    {F_squant},
+                                                    {F_squant_enum},
                                                     {F_occupancy},
                                                     {F_skip}>;
 
@@ -596,6 +597,7 @@ class FmhaFwdKernel:
             F_lse=BOOL_MAP[self.F_pipeline.F_lse],
             F_dropout=BOOL_MAP[self.F_pipeline.F_dropout],
             F_squant=BOOL_MAP[self.F_pipeline.F_squant],
+            F_squant_enum=SQUANT_MAP[self.F_pipeline.F_squant],
             F_skip=BOOL_MAP[self.F_pipeline.F_skip],
             F_occupancy=self.F_tile.F_occupancy,
             F_pipeline_enum=PIPELINE_ENUM_MAP[self.F_pipeline.tag],

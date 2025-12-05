@@ -5,6 +5,7 @@
 #include "fmha_fwd_trek.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
+#include "ck_tile/host/device_memory.hpp"
 
 ck_tile::HostTensor<DataType>
 jenga_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
@@ -12,36 +13,32 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
                        ck_tile::HostTensor<DataType>& TV,
                        ck_tile::HostTensor<DataType>& Tblock_relation_onehot,
                        ck_tile::HostTensor<DataType>& Y,
-                       std::optional<ck_tile::HostTensor<DataType>> bias       = std::nullopt,
-                       std::optional<ck_tile::HostTensor<DataType>> lse        = std::nullopt,
-                       std::optional<ck_tile::HostTensor<DataType>> seqstart_q = std::nullopt,
-                       std::optional<ck_tile::HostTensor<DataType>> seqstart_k = std::nullopt,
-                       int bias_type                                           = 0,
-                       int batch                                               = 0,
-                       int nhead                                               = 0,
-                       int nhead_k                                             = 0,
-                       int seqlen_q                                            = 0,
-                       int seqlen_k                                            = 0,
-                       int hdim_q                                              = 0,
-                       int hdim_v                                              = 0,
-                       int mode                                                = 0,
-                       bool i_perm                                             = true,
-                       bool o_perm                                             = true,
-                       int max_seqlen_q                                        = 0,
-                       int max_seqlen_k                                        = 0)
+                       std::optional<ck_tile::HostTensor<DataType>> bias,
+                       std::optional<ck_tile::HostTensor<DataType>> lse,
+                       std::optional<ck_tile::HostTensor<DataType>> seqstart_q,
+                       std::optional<ck_tile::HostTensor<DataType>> seqstart_k,
+                       int bias_type,
+                       int batch,
+                       int nhead,
+                       int nhead_k,
+                       int seqlen_q,
+                       int seqlen_k,
+                       int hdim_q,
+                       int hdim_v,
+                       int mode,
+                       bool i_perm,
+                       bool o_perm,
+                       int max_seqlen_q,
+                       int max_seqlen_k)
 {
     std::string data_type = "fp16";
-    if(TQ.dtype() == ck_tile::bf16_t)
-    {
-        data_type = "bf16";
-    }
+    // DataType is determined at compile time via template
 
     if(max_seqlen_q == 0)
         max_seqlen_q = seqlen_q;
     if(max_seqlen_k == 0)
         max_seqlen_k = seqlen_k;
     bool is_v_rowmajor          = true;
-    int seqlen_knew             = 0;
     float scale_s               = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q));
     float scale_p               = 1.f;
     float scale_o               = 1.f;
@@ -50,7 +47,6 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
     std::string msk_str = "0";
     mask_info mask      = mask_info::decode(msk_str, seqlen_q, seqlen_k);
 
-    const ck_tile::index_t shape_batch    = (mode == 0 ? batch : 1);
     const ck_tile::index_t shape_seqlen_q = (mode == 0 ? seqlen_q : max_seqlen_q);
     const ck_tile::index_t shape_seqlen_k = (mode == 0 ? seqlen_k : max_seqlen_k);
 
@@ -61,71 +57,74 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
                                          1,
                                          false};
 
+    // Create device memory and copy data to device
+    ck_tile::DeviceMem q_buf(TQ.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem k_buf(TK.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem v_buf(TV.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem block_relation_buf(Tblock_relation_onehot.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem o_buf(Y.get_element_space_size_in_bytes());
+
+    q_buf.ToDevice(TQ.data());
+    k_buf.ToDevice(TK.data());
+    v_buf.ToDevice(TV.data());
+    block_relation_buf.ToDevice(Tblock_relation_onehot.data());
+
+    // Optional buffers
+    ck_tile::DeviceMem bias_buf(bias ? bias->get_element_space_size_in_bytes() : 0);
+    ck_tile::DeviceMem lse_buf(lse ? lse->get_element_space_size_in_bytes() : 0);
+    ck_tile::DeviceMem seqstart_q_buf(seqstart_q ? seqstart_q->get_element_space_size_in_bytes() : 0);
+    ck_tile::DeviceMem seqstart_k_buf(seqstart_k ? seqstart_k->get_element_space_size_in_bytes() : 0);
+
+    if(bias)
+        bias_buf.ToDevice(bias->data());
+    if(lse)
+        lse_buf.ToDevice(lse->data());
+    if(seqstart_q)
+        seqstart_q_buf.ToDevice(seqstart_q->data());
+    if(seqstart_k)
+        seqstart_k_buf.ToDevice(seqstart_k->data());
+
     const auto init_args = [&](auto& args) {
         assert(nhead % nhead_k == 0);
-        const ck_tile::index_t stride_q    = (i_perm ? hdim_q : nhead * hdim_q);
-        const ck_tile::index_t stride_k    = (i_perm ? hdim_q : nhead_k * hdim_q);
-        const ck_tile::index_t stride_knew = (i_perm ? hdim_q : nhead_k * hdim_q);
-        const ck_tile::index_t stride_v    = [&]() {
+        const ck_tile::index_t stride_q = (i_perm ? hdim_q : nhead * hdim_q);
+        const ck_tile::index_t stride_k = (i_perm ? hdim_q : nhead_k * hdim_q);
+        const ck_tile::index_t stride_v = [&]() {
             if(is_v_rowmajor)
                 return i_perm ? hdim_v : nhead_k * hdim_v;
             else
                 return (i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k);
         }();
-        const ck_tile::index_t stride_vnew = [&]() {
-            if(is_v_rowmajor)
-                return i_perm ? hdim_v : nhead_k * hdim_v;
-            else
-                return i_perm ? seqlen_knew : nhead_k * seqlen_knew;
-        }();
         const ck_tile::index_t stride_bias    = (i_perm ? max_seqlen_k : 1 * max_seqlen_k);
         const ck_tile::index_t stride_randval = (max_seqlen_k);
-        const ck_tile::index_t stride_o_acc   = (hdim_v);
         const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
-        const ck_tile::index_t nhead_stride_q    = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
-        const ck_tile::index_t nhead_stride_k    = i_perm ? shape_seqlen_k * hdim_q : hdim_q;
-        const ck_tile::index_t nhead_stride_knew = (i_perm ? seqlen_knew * hdim_q : hdim_q);
-        const ck_tile::index_t nhead_stride_v    = [&]() {
+        const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
+        const ck_tile::index_t nhead_stride_k = i_perm ? shape_seqlen_k * hdim_q : hdim_q;
+        const ck_tile::index_t nhead_stride_v = [&]() {
             if(is_v_rowmajor)
                 return i_perm ? shape_seqlen_k * hdim_v : hdim_v;
             else
                 return i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k;
         }();
-        const ck_tile::index_t nhead_stride_vnew = [&]() {
-            if(is_v_rowmajor)
-                return i_perm ? seqlen_knew * hdim_v : hdim_v;
-            else
-                return i_perm ? hdim_v * seqlen_knew : seqlen_knew;
-        }();
         const ck_tile::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * max_seqlen_k : 0 * max_seqlen_k);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
-        const ck_tile::index_t nhead_stride_lse_acc = (shape_seqlen_q);
-        const ck_tile::index_t nhead_stride_o_acc   = (shape_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
         const ck_tile::index_t batch_stride_k       = nhead_k * shape_seqlen_k * hdim_q;
-        const ck_tile::index_t batch_stride_knew    = (nhead_k * seqlen_knew * hdim_q);
         const ck_tile::index_t batch_stride_v       = nhead_k * hdim_v * shape_seqlen_k;
-        const ck_tile::index_t batch_stride_vnew    = (nhead_k * hdim_v * seqlen_knew);
         const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_lse_acc = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_o_acc   = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
-        // const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
-        // setup split_stride_* arguments (only used in split-kv kernel)
-        const ck_tile::index_t split_stride_lse_acc = (shape_seqlen_q);
-        const ck_tile::index_t split_stride_o_acc   = (shape_seqlen_q * hdim_v);
 
-        args.q_ptr                     = TQ.data_ptr();
-        args.k_ptr                     = TK.data_ptr();
-        args.v_ptr                     = TV.data_ptr();
-        args.block_relation_onehot_ptr = Tblock_relation_onehot.data_ptr();
+        // Use device buffer pointers instead of host tensor data pointers
+        args.q_ptr                     = q_buf.GetDeviceBuffer();
+        args.k_ptr                     = k_buf.GetDeviceBuffer();
+        args.v_ptr                     = v_buf.GetDeviceBuffer();
+        args.block_relation_onehot_ptr = block_relation_buf.GetDeviceBuffer();
 
         args.batch    = batch;
         args.seqlen_q = shape_seqlen_q; // unused in group mode
@@ -144,14 +143,12 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
         args.batch_stride_k = batch_stride_k;
         args.batch_stride_v = batch_stride_v;
 
-        // args.bias_ptr = bias.type == bias_enum::alibi ? alibi_slope_buf.GetDeviceBuffer()
-        //                                                 : bias_buf.GetDeviceBuffer();
-        args.bias_ptr = bias ? bias->data_ptr() : nullptr;
-        args.lse_ptr  = lse ? lse->data_ptr() : nullptr;
-        args.o_ptr    = Y.data_ptr();
+        args.bias_ptr = bias ? bias_buf.GetDeviceBuffer() : nullptr;
+        args.lse_ptr  = lse ? lse_buf.GetDeviceBuffer() : nullptr;
+        args.o_ptr    = o_buf.GetDeviceBuffer();
 
-        args.seqstart_q_ptr = (mode == 1 ? seqstart_q->data_ptr() : nullptr);
-        args.seqstart_k_ptr = (mode == 1 ? seqstart_k->data_ptr() : nullptr);
+        args.seqstart_q_ptr = (mode == 1 ? seqstart_q_buf.GetDeviceBuffer() : nullptr);
+        args.seqstart_k_ptr = (mode == 1 ? seqstart_k_buf.GetDeviceBuffer() : nullptr);
         args.seqlen_k_ptr   = nullptr;
 
         args.seqlen_k     = shape_seqlen_k; // unused in group mode (or kvcache enabled)
@@ -209,6 +206,9 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
     init_args(args);
 
     fmha_jenga_fwd(fmha_traits, args, stream_config);
+
+    // Copy output back to host
+    Y = o_buf.ToHost<DataType>();
 
     return Y;
 }
