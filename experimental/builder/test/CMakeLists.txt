@@ -90,6 +90,10 @@ add_ck_builder_test(test_ckb_conv_builder
 
     # Test reference algorithm integration
     add_ck_builder_test(test_ckb_reference_algorithm test_reference_algorithm.cpp)
+    
+    # Test reference validation with execution (needs utility library for DeviceMem)
+    add_ck_builder_test(test_ckb_reference_validation test_reference_validation.cpp)
+    target_link_libraries(test_ckb_reference_validation PRIVATE utility)
 
     # Tests convolution trait selection and configuration
     add_ck_builder_test(test_ckb_conv_traits
