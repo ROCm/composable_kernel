@@ -52,9 +52,6 @@ CK_TILE_DEVICE static void wait_chunk_signal(const uint32_t* chunk_signals, inde
             signal_value = __builtin_nontemporal_load(signal_ptr);
             __builtin_amdgcn_s_sleep(1); // Brief sleep to reduce contention
         } while(signal_value == 0);
-
-        // Memory fence with acquire semantics
-        __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "agent");
     }
 
     // Barrier to release all threads in the workgroup
