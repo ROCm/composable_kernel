@@ -326,11 +326,10 @@ struct QuantGemmKernel
         return c_block_window;
     }
 
-    CK_TILE_DEVICE static auto
-    MakeABlockWindows(const ADataType* a_ptr,
-                      const QuantGemmKernelArgs& kargs,
-                      const index_t k_size,
-                      const index_t i_m)
+    CK_TILE_DEVICE static auto MakeABlockWindows(const ADataType* a_ptr,
+                                                 const QuantGemmKernelArgs& kargs,
+                                                 const index_t k_size,
+                                                 const index_t i_m)
     {
         // Step 1: Create tensor view for A tensor
         const auto& a_tensor_view = [&]() {
@@ -393,11 +392,10 @@ struct QuantGemmKernel
         return a_block_window;
     }
 
-    CK_TILE_DEVICE static auto
-    MakeBBlockWindows(const BDataType* b_ptr,
-                      const QuantGemmKernelArgs& kargs,
-                      const index_t k_size,
-                      const index_t i_n)
+    CK_TILE_DEVICE static auto MakeBBlockWindows(const BDataType* b_ptr,
+                                                 const QuantGemmKernelArgs& kargs,
+                                                 const index_t k_size,
+                                                 const index_t i_n)
     {
         // Step 1: Create tensor view for B tensor
         const auto& b_tensor_view = [&]() {
@@ -455,9 +453,9 @@ struct QuantGemmKernel
                 {
                     if constexpr(PreshuffleB)
                     {
-                        index_t kFlatK = GemmPipeline::flatKPerWarp *
-                                         (k_size /
-                                          GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{}));
+                        index_t kFlatK =
+                            GemmPipeline::flatKPerWarp *
+                            (k_size / GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{}));
                         index_t kFlatN = kargs.N * kargs.K / kFlatK;
                         return make_naive_tensor_view<address_space_enum::global>(
                             b_ptr,
@@ -1591,8 +1589,10 @@ struct QuantGemmKernel
                                        const index_t block_idx_n)
     {
         // Create block windows using specialized helper methods
-        const auto& a_block_window = MakeABlockWindows(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
-        const auto& b_block_window = MakeBBlockWindows(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
+        const auto& a_block_window =
+            MakeABlockWindows(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& b_block_window =
+            MakeBBlockWindows(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
         const auto& aq_block_window = MakeAQBlockWindows(aq_ptr, kargs, block_idx_m, block_idx_n);
         const auto& bq_block_window = MakeBQBlockWindows(bq_ptr, kargs, block_idx_m, block_idx_n);
 
@@ -1716,12 +1716,14 @@ struct QuantGemmKernel
                                            const index_t block_idx_n)
     {
         // Create block windows using specialized helper methods
-        const auto& a_block_window = MakeABlockWindows(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
-        const auto& b_block_window = MakeBBlockWindows(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
+        const auto& a_block_window =
+            MakeABlockWindows(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& b_block_window =
+            MakeBBlockWindows(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
         const auto& bq_block_window = MakeBQBlockWindows(bq_ptr, kargs, block_idx_m, block_idx_n);
 
-        const index_t num_loop = amd_wave_read_first_lane(
-            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+        const index_t num_loop =
+            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& c_block_tile = [&]() {
@@ -1786,10 +1788,10 @@ struct QuantGemmKernel
         const SplitKBatchOffset splitk_batch_offset(kargs);
 
         // options
-        const ADataType* a_ptr   = static_cast<const ADataType*>(kargs.a_ptr) +
-                                   splitk_batch_offset.a_k_split_offset;
-        const BDataType* b_ptr   = static_cast<const BDataType*>(kargs.b_ptr) +
-                                   splitk_batch_offset.b_k_split_offset;
+        const ADataType* a_ptr =
+            static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
+        const BDataType* b_ptr =
+            static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
         const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
         const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
         CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);

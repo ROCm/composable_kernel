@@ -312,10 +312,10 @@ struct QuantGroupedGemmKernel
         const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, block_idx_z);
 
         // options - apply k_split_offset for split-K support
-        const ADataType* a_ptr   = static_cast<const ADataType*>(kargs.a_ptr) +
-                                   splitk_batch_offset.a_k_split_offset;
-        const BDataType* b_ptr   = static_cast<const BDataType*>(kargs.b_ptr) +
-                                   splitk_batch_offset.b_k_split_offset;
+        const ADataType* a_ptr =
+            static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
+        const BDataType* b_ptr =
+            static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
         const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
         const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
         CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
@@ -371,14 +371,17 @@ struct QuantGroupedGemmKernel
                                      const index_t block_idx_n)
     {
         static_assert(kQuantType == QuantType::BQuantGrouped, "kQuantType must be BQuantGrouped");
-        
-        // Create block windows using specialized helper methods from Base
-        const auto& a_block_window = Base::MakeABlockWindows(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
-        const auto& b_block_window = Base::MakeBBlockWindows(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
-        const auto& bq_block_window = Base::MakeBQBlockWindows(bq_ptr, kargs, block_idx_m, block_idx_n);
 
-        const index_t num_loop = amd_wave_read_first_lane(
-            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+        // Create block windows using specialized helper methods from Base
+        const auto& a_block_window =
+            Base::MakeABlockWindows(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& b_block_window =
+            Base::MakeBBlockWindows(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
+        const auto& bq_block_window =
+            Base::MakeBQBlockWindows(bq_ptr, kargs, block_idx_m, block_idx_n);
+
+        const index_t num_loop =
+            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
         // Run GEMM cooperatively by whole workgroup.
@@ -406,8 +409,9 @@ struct QuantGroupedGemmKernel
         }
         else
         {
-            auto c_block_window = Base::template MakeCBlockWindows<memory_operation_enum::atomic_add>(
-                c_ptr, kargs, block_idx_m, block_idx_n);
+            auto c_block_window =
+                Base::template MakeCBlockWindows<memory_operation_enum::atomic_add>(
+                    c_ptr, kargs, block_idx_m, block_idx_n);
 
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
@@ -445,14 +449,18 @@ struct QuantGroupedGemmKernel
                                  const index_t block_idx_n)
     {
         // Create block windows using specialized helper methods from Base
-        const auto& a_block_window = Base::MakeABlockWindows(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
-        const auto& b_block_window = Base::MakeBBlockWindows(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
-        const auto& aq_block_window = Base::MakeAQBlockWindows(aq_ptr, kargs, block_idx_m, block_idx_n);
-        const auto& bq_block_window = Base::MakeBQBlockWindows(bq_ptr, kargs, block_idx_m, block_idx_n);
+        const auto& a_block_window =
+            Base::MakeABlockWindows(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& b_block_window =
+            Base::MakeBBlockWindows(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
+        const auto& aq_block_window =
+            Base::MakeAQBlockWindows(aq_ptr, kargs, block_idx_m, block_idx_n);
+        const auto& bq_block_window =
+            Base::MakeBQBlockWindows(bq_ptr, kargs, block_idx_m, block_idx_n);
 
         // Get hot-loop and tail configuration
-        const index_t num_loop = amd_wave_read_first_lane(
-            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+        const index_t num_loop =
+            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
         const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
@@ -529,8 +537,9 @@ struct QuantGroupedGemmKernel
         }
         else
         {
-            auto c_block_window = Base::template MakeCBlockWindows<memory_operation_enum::atomic_add>(
-                c_ptr, kargs, block_idx_m, block_idx_n);
+            auto c_block_window =
+                Base::template MakeCBlockWindows<memory_operation_enum::atomic_add>(
+                    c_ptr, kargs, block_idx_m, block_idx_n);
 
             if constexpr(kQuantType == QuantType::AQuantGrouped ||
                          kQuantType == QuantType::BQuantGrouped)
