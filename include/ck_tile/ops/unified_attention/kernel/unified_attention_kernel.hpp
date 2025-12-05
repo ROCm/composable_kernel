@@ -218,7 +218,6 @@ struct UnifiedAttentionKernel
                      num_head_q,
                      num_queries_per_kv,
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
-                     scale_s,
                      total_num_q_blocks,
                      query_stride_0,
                      query_stride_1,
