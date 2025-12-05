@@ -41,8 +41,9 @@ struct ConvSignatureInfo
 {
     int spatial_dim;
     builder::ConvDirection direction;
-    std::variant<builder::GroupConvLayout1D, builder::GroupConvLayout2D, builder::GroupConvLayout3D>
-        layout;
+    builder::TensorLayout input_layout;
+    builder::TensorLayout weight_layout;
+    builder::TensorLayout output_layout;
     builder::DataType data_type;
     builder::ElementwiseOperation input_element_op;
     builder::ElementwiseOperation weight_element_op;
@@ -106,7 +107,9 @@ class ConvDescription : public Description
         f.writeLine(0, signature_.spatial_dim, "D ", signature_.direction, " Convolution Kernel");
         f.writeLine(1, "Signature");
         f.writeLine(2, "Tensor Type: ", signature_.data_type);
-        f.writeLine(2, "Memory Layout: ", signature_.layout);
+        f.writeLine(2, "Input Layout: ", signature_.input_layout);
+        f.writeLine(2, "Weight Layout: ", signature_.weight_layout);
+        f.writeLine(2, "Output Layout: ", signature_.output_layout);
         f.writeLine(2, "Input elementwise operation: ", signature_.input_element_op);
         f.writeLine(2, "Weights elementwise operation: ", signature_.weight_element_op);
         f.writeLast(2, "Output elementwise operation: ", signature_.output_element_op);
@@ -248,14 +251,10 @@ class ConvDescription : public Description
 };
 } // namespace conv
 
-/// @brief Helper concept to detect if a type has ConvTraits specialization
-template <typename T>
-concept HasConvTraits = requires { typename conv::ConvTraits<T>; };
-
 /// @brief Factory function to create ConvDescription from a convolution instance type
-/// @tparam Instance The convolution instance type (must have InstanceTraits specialization)
+/// @tparam Instance The convolution instance type (must have ConvTraits specialization)
 /// @return A ConvDescription object populated with the instance's configuration details
-template <HasConvTraits Instance>
+template <conv::HasConvTraits Instance>
 conv::ConvDescription describe()
 {
     using Traits = conv::ConvTraits<Instance>;
@@ -264,7 +263,9 @@ conv::ConvDescription describe()
         conv::ConvSignatureInfo{
             .spatial_dim       = Traits::spatial_dim,
             .direction         = Traits::direction,
-            .layout            = Traits::layout,
+            .input_layout      = Traits::layout[0],
+            .weight_layout     = Traits::layout[1],
+            .output_layout     = Traits::layout[2],
             .data_type         = Traits::data_type,
             .input_element_op  = Traits::input_element_op,
             .weight_element_op = Traits::weight_element_op,

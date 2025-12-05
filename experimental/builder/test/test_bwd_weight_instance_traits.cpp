@@ -156,8 +156,6 @@ TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
         GemmShape,
         GemmUniversalTraits,
         ck_tile::GemmPipelineScheduler::Intrawave /*scheduler*/,
-        true /*has_hot_loop_v*/,
-        ck_tile::TailNumber::Full /*tail_number_v*/,
         ck_tile::element_wise::PassThrough /*AElementwiseOperation*/,
         ck_tile::element_wise::PassThrough /*BElementwiseOperation*/,
         ck_tile::bf16_t /*WeiDataType*/,
