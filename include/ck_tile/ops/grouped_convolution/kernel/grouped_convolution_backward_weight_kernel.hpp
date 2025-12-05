@@ -559,8 +559,9 @@ struct GroupedConvolutionBackwardWeightKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    CK_TILE_ERROR("For epilogue output data type that is not float/double, we must have "
-                                  "k_batch <= 128.");
+                    CK_TILE_ERROR(
+                        "For epilogue output data type that is not float/double, we must have "
+                        "k_batch <= 128.");
                 }
                 return false;
             }
