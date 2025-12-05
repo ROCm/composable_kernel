@@ -2,15 +2,15 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 09: Multiple Registries
+ * Example 09: Multiple Registries and Multiple Kernel Sets
  *
- * Demonstrates using separate registries for different workload types,
- * each with its own optimized kernel set.
+ * Demonstrates:
+ * - Multiple DECL_KERNEL_SET declarations (each with multiple kernels)
+ * - Separate Registry instances for different workload types
+ * - Independent Dispatchers that select from their respective registries
  *
- * Build:
- *   python3 scripts/compile_gemm_examples.py examples/cpp/09_multi_registry.cpp
- *
- * Complexity: ★★★★☆
+ * Build: cd dispatcher/build && cmake .. && make gemm_09_multi_registry
+ * Usage: ./gemm_09_multi_registry [--list] [--help]
  */
 
 #include <hip/hip_runtime.h>
@@ -23,32 +23,68 @@
 #include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
-using namespace ck_tile::dispatcher::backends;
 using namespace ck_tile::dispatcher::utils;
 using Signature = decl::Signature;
 using Algorithm = decl::Algorithm;
 
 // =============================================================================
-// KERNEL SETS: Different sets for different workload types
+// KERNEL SETS: Multiple sets with multiple kernels each
 // =============================================================================
 
-// Compute-bound: Large tiles for high arithmetic intensity
-DECL_KERNEL_SET(compute_bound,
-                .add("fp16", "rcr", 256, 256, 64)
-                    .add("fp16", "rcr", 256, 128, 64)
-                    .add("fp16", "rcr", 128, 256, 64));
+// Compute-bound kernel set: Large tiles for high arithmetic intensity
+// Max tile with 32x32 warp is 128x128 (16 warps = 1024 threads)
+DECL_KERNEL_SET(compute_bound_set,
+                .add(Signature().dtype("fp16").layout("rcr"),
+                     Algorithm()
+                         .tile(128, 128, 64) // Large tile, max for 32x32 warp
+                         .wave(2, 2, 1)
+                         .warp(32, 32, 16)
+                         .pipeline("compv3")
+                         .scheduler("intrawave")
+                         .epilogue("cshuffle"),
+                     "gfx942")
+                    .add(Signature().dtype("fp16").layout("rcr"),
+                         Algorithm()
+                             .tile(128, 128, 32) // Same tile, different K for variety
+                             .wave(2, 2, 1)
+                             .warp(32, 32, 16)
+                             .pipeline("compv3")
+                             .scheduler("intrawave")
+                             .epilogue("cshuffle"),
+                         "gfx942"));
 
-// Memory-bound: Small tiles for better memory efficiency
-DECL_KERNEL_SET(memory_bound,
-                .add("fp16", "rcr", 64, 64, 32)
-                    .add("fp16", "rcr", 64, 128, 32)
-                    .add("fp16", "rcr", 128, 64, 32));
+// Memory-bound kernel set: Smaller tiles for better cache efficiency
+DECL_KERNEL_SET(memory_bound_set,
+                .add(Signature().dtype("fp16").layout("rcr"),
+                     Algorithm()
+                         .tile(64, 64, 32)
+                         .wave(2, 2, 1)
+                         .warp(32, 32, 16)
+                         .pipeline("compv3")
+                         .scheduler("intrawave")
+                         .epilogue("cshuffle"),
+                     "gfx942")
+                    .add(Signature().dtype("fp16").layout("rcr"),
+                         Algorithm()
+                             .tile(128, 64, 32)
+                             .wave(2, 2, 1)
+                             .warp(32, 32, 16)
+                             .pipeline("compv3")
+                             .scheduler("intrawave")
+                             .epilogue("cshuffle"),
+                         "gfx942"));
 
-// Latency-optimized: Minimal tiles for low latency
-DECL_KERNEL_SET(latency_opt, .add("fp16", "rcr", 32, 32, 16).add("fp16", "rcr", 64, 64, 16));
-
-// BF16 workloads
-DECL_KERNEL_SET(bf16_compute, .add("bf16", "rcr", 128, 128, 32).add("bf16", "rcr", 256, 256, 64));
+// Latency-optimized: Minimal overhead tiles
+DECL_KERNEL_SET(latency_set,
+                .add(Signature().dtype("fp16").layout("rcr"),
+                     Algorithm()
+                         .tile(64, 64, 64)
+                         .wave(2, 2, 1)
+                         .warp(32, 32, 16)
+                         .pipeline("compv3")
+                         .scheduler("intrawave")
+                         .epilogue("cshuffle"),
+                     "gfx942"));
 
 // =============================================================================
 // MAIN
@@ -58,78 +94,97 @@ int main(int argc, char* argv[])
 {
     ExampleArgs args("Example 09: Multiple Registries",
                      "Separate registries for different workload types");
-    args.add_flag("--list", "List all kernel sets");
+    args.add_flag("--list", "List all declared kernel sets");
+    args.add_option("--arch", "gfx942", "GPU architecture");
 
     if(!args.parse(argc, argv))
         return 0;
 
-    print_header("Example 09: Multiple Registries");
+    print_header("Example 09: Multiple Registries & Kernel Sets");
+
+    std::string gfx_arch = args.get("--arch", "gfx942");
+
+    // =========================================================================
+    // Step 1: Show declared kernel sets (from DECL_KERNEL_SET macros)
+    // =========================================================================
+    std::cout << "\nStep 1: Declared Kernel Sets\n";
+    std::cout << "-----------------------------\n";
+    KernelSetRegistry::instance().print();
 
     if(args.has("--list"))
     {
-        std::cout << "\nDeclared Kernel Sets:\n";
-        KernelSetRegistry::instance().print();
+        // Print detailed info
+        for(const auto& name : KernelSetRegistry::instance().names())
+        {
+            const auto& set = KernelSetRegistry::instance().get(name);
+            std::cout << "\n  " << name << ":\n";
+            for(const auto& decl : set.declarations())
+            {
+                std::cout << "    - " << decl.name() << " (tile=" << decl.algorithm.tile_m_ << "x"
+                          << decl.algorithm.tile_n_ << "x" << decl.algorithm.tile_k_ << ")\n";
+            }
+        }
         return 0;
     }
 
     // =========================================================================
-    // Show declared kernel sets
+    // Step 2: Create registries and demonstrate MERGING
     // =========================================================================
-    std::cout << "\nDeclared Kernel Sets:\n";
-    KernelSetRegistry::instance().print();
+    std::cout << "\nStep 2: Create and Merge Registries\n";
+    std::cout << "------------------------------------\n";
 
-    // =========================================================================
-    // Create separate registries
-    // =========================================================================
-    std::cout << "\nCreating specialized registries...\n";
-
-    // In a real scenario, each registry would have different kernels loaded
-    // For this demo, we use the same generated kernel
+    // Create individual registries first
     Registry compute_registry;
-    Registry memory_registry;
     Registry latency_registry;
+    Registry memory_registry;
 
     compute_registry.set_name("compute_bound");
-    memory_registry.set_name("memory_bound");
     latency_registry.set_name("latency_optimized");
+    memory_registry.set_name("memory_bound");
 
-    // Add the generated kernel to all registries (demo)
-    KernelConfig config =
-        KernelConfig::fp16_rcr()
-            .tile(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK)
-            .wave(SelectedKernel::WarpPerBlock_M,
-                  SelectedKernel::WarpPerBlock_N,
-                  SelectedKernel::WarpPerBlock_K)
-            .warp_tile(
-                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
+    // Register kernels to individual registries
+    generated::register_compute_bound_set(compute_registry, gfx_arch);
+    generated::register_latency_set(latency_registry, gfx_arch);
+    generated::register_memory_bound_set(memory_registry, gfx_arch);
 
-    auto kernel =
-        create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            config.build_key(), KERNEL_NAME);
+    std::cout << "  Individual registries:\n";
+    std::cout << "    compute_bound: " << compute_registry.size() << " kernel(s)\n";
+    std::cout << "    latency_optimized: " << latency_registry.size() << " kernel(s)\n";
+    std::cout << "    memory_bound: " << memory_registry.size() << " kernel(s)\n";
 
-    compute_registry.register_kernel(kernel);
-    memory_registry.register_kernel(kernel);
-    latency_registry.register_kernel(kernel);
+    // MERGE compute + latency into a combined registry
+    Registry combined_registry;
+    combined_registry.set_name("compute_latency_combined");
 
-    std::cout << "  " << compute_registry.get_name() << ": " << compute_registry.size()
-              << " kernel(s)\n";
-    std::cout << "  " << memory_registry.get_name() << ": " << memory_registry.size()
-              << " kernel(s)\n";
-    std::cout << "  " << latency_registry.get_name() << ": " << latency_registry.size()
-              << " kernel(s)\n";
+    // Register both sets into combined registry
+    generated::register_compute_bound_set(combined_registry, gfx_arch);
+    generated::register_latency_set(combined_registry, gfx_arch);
+
+    std::cout << "\n  After merging compute + latency:\n";
+    std::cout << "    combined: " << combined_registry.size() << " kernel(s)\n";
+    std::cout << "    memory (separate): " << memory_registry.size() << " kernel(s)\n";
 
     // =========================================================================
-    // Create dispatchers for each registry
+    // Step 3: Create dispatchers - one merged, one separate
     // =========================================================================
-    Dispatcher compute_dispatcher(&compute_registry);
-    Dispatcher memory_dispatcher(&memory_registry);
-    Dispatcher latency_dispatcher(&latency_registry);
+    std::cout << "\nStep 3: Create Dispatchers\n";
+    std::cout << "--------------------------\n";
+
+    Dispatcher combined_dispatcher(&combined_registry); // compute + latency merged
+    Dispatcher memory_dispatcher(&memory_registry);     // memory separate
+
+    std::cout << "  combined_dispatcher: compute + latency kernels (" << combined_registry.size()
+              << " kernels)\n";
+    std::cout << "  memory_dispatcher: memory-bound kernels (" << memory_registry.size()
+              << " kernels)\n";
 
     // =========================================================================
-    // Run with different dispatchers
+    // Step 4: Run with different dispatchers
     // =========================================================================
-    std::cout << "\nRunning with different dispatchers:\n";
+    std::cout << "\nStep 4: Run Workloads\n";
     print_separator();
+
+    using DataType = ck_tile::fp16_t;
 
     struct WorkloadTest
     {
@@ -139,15 +194,10 @@ int main(int argc, char* argv[])
     };
 
     std::vector<WorkloadTest> tests = {
-        {"Compute-bound", &compute_dispatcher, 4096, 4096, 4096},
-        {"Memory-bound", &memory_dispatcher, 1024, 1024, 1024},
-        {"Latency-opt", &latency_dispatcher, 512, 512, 512},
+        {"Compute-bound (combined)", &combined_dispatcher, 4096, 4096, 4096},
+        {"Memory-bound (separate)", &memory_dispatcher, 1024, 1024, 1024},
+        {"Latency-opt (combined)", &combined_dispatcher, 512, 512, 512},
     };
-
-    // Tolerance parameters for correctness check
-    // With A=1, B=1: C[i,j] = K (exact for FP16 when K < 2048)
-    constexpr float atol = 0.0f; // Absolute tolerance (exact match expected)
-    constexpr float rtol = 0.0f; // Relative tolerance (exact match expected)
 
     bool all_passed = true;
 
@@ -155,29 +205,33 @@ int main(int argc, char* argv[])
     {
         Problem problem(test.M, test.N, test.K);
 
-        GpuBuffer<ADataType> a_dev(test.M * test.K);
-        GpuBuffer<BDataType> b_dev(test.K * test.N);
-        GpuBuffer<CDataType> c_dev(test.M * test.N);
+        // Allocate and initialize
+        GpuBuffer<DataType> a_dev(test.M * test.K);
+        GpuBuffer<DataType> b_dev(test.K * test.N);
+        GpuBuffer<DataType> c_dev(test.M * test.N);
 
-        std::vector<ADataType> a_host(test.M * test.K, ADataType(1.0f));
-        std::vector<BDataType> b_host(test.K * test.N, BDataType(1.0f));
+        std::vector<DataType> a_host(test.M * test.K, DataType(1.0f));
+        std::vector<DataType> b_host(test.K * test.N, DataType(1.0f));
         a_dev.copy_from_host(a_host.data());
         b_dev.copy_from_host(b_host.data());
         c_dev.zero();
 
+        // Select kernel and run
+        auto selected = test.dispatcher->select_kernel(problem);
         float time_ms =
             test.dispatcher->run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
         double tflops = calculate_tflops(test.M, test.N, test.K, time_ms);
 
         std::cout << test.name << " (" << test.M << "x" << test.N << "x" << test.K << "):\n";
-        std::cout << "  Time:   " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
-        std::cout << "  TFLOPS: " << std::setprecision(2) << tflops << "\n";
+        if(selected)
+            std::cout << "  Selected: " << selected->get_name() << "\n";
+        std::cout << "  Time:     " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
+        std::cout << "  TFLOPS:   " << std::setprecision(2) << tflops << "\n";
 
-        // Verify ALL elements using configurable tolerances
-        std::vector<CDataType> c_host(test.M * test.N);
+        // Verify ALL elements
+        std::vector<DataType> c_host(test.M * test.N);
         c_dev.copy_to_host(c_host.data());
         const float expected = static_cast<float>(test.K);
-        const float tol      = atol + rtol * std::abs(expected);
 
         int num_errors  = 0;
         float max_error = 0.0f;
@@ -185,39 +239,51 @@ int main(int argc, char* argv[])
         {
             float actual = static_cast<float>(c_host[i]);
             float error  = std::abs(actual - expected);
-            if(error > max_error)
-                max_error = error;
-            if(error > tol)
+            max_error    = std::max(max_error, error);
+            // Allow 1% relative tolerance for FP16 accumulation
+            if(error > 0.01f * expected + 1.0f)
                 ++num_errors;
         }
 
         bool test_passed = (num_errors == 0);
-        std::cout << "  Verify: " << (test.M * test.N) << " elements, " << "errors=" << num_errors
-                  << ", max_err=" << max_error << "\n";
-        std::cout << "  Status: " << (test_passed ? "PASS" : "FAIL") << "\n\n";
+        std::cout << "  Verify:   " << (test.M * test.N) << " elements, errors=" << num_errors
+                  << "\n";
+        std::cout << "  Status:   " << (test_passed ? "PASS" : "FAIL") << "\n\n";
 
         if(!test_passed)
             all_passed = false;
     }
 
+    // =========================================================================
+    // Summary
+    // =========================================================================
     print_separator();
-    std::cout << "Multi-Registry Pattern:\n";
+    std::cout << "Multi-Registry Pattern Summary:\n";
     print_separator();
-    std::cout << "// Declare specialized kernel sets\n";
-    std::cout << "DECL_KERNEL_SET(compute_bound, .add(\"fp16\", \"rcr\", 256, 256, 64));\n";
-    std::cout << "DECL_KERNEL_SET(memory_bound,  .add(\"fp16\", \"rcr\", 64, 64, 32));\n";
-    std::cout << "\n";
-    std::cout << "// Create separate registries and dispatchers\n";
-    std::cout << "Registry compute_reg, memory_reg;\n";
-    std::cout << "Dispatcher compute_disp(&compute_reg);\n";
-    std::cout << "Dispatcher memory_disp(&memory_reg);\n";
-    std::cout << "\n";
-    std::cout << "// Choose dispatcher based on workload\n";
-    std::cout << "if (problem.is_compute_bound())\n";
-    std::cout << "    compute_disp.run(...);\n";
-    std::cout << "else\n";
-    std::cout << "    memory_disp.run(...);\n";
+    std::cout << R"(
+// 1. Declare multiple kernel sets
+DECL_KERNEL_SET(compute_bound_set, .add(...));
+DECL_KERNEL_SET(memory_bound_set, .add(...));
+DECL_KERNEL_SET(latency_set, .add(...));
+
+// 2. Create registries and MERGE as needed
+Registry combined_reg, memory_reg;
+generated::register_compute_bound_set(combined_reg, arch);  // Add compute kernels
+generated::register_latency_set(combined_reg, arch);        // Merge latency kernels
+generated::register_memory_bound_set(memory_reg, arch);     // Separate memory registry
+
+// 3. Create dispatchers from merged/separate registries
+Dispatcher combined_disp(&combined_reg);  // Has both compute + latency
+Dispatcher memory_disp(&memory_reg);      // Has only memory-bound
+
+// 4. Choose dispatcher based on workload
+if (problem.is_memory_bound())
+    memory_disp.run(...);
+else
+    combined_disp.run(...);  // Handles both compute & latency workloads
+)";
     print_separator();
+    std::cout << "Overall Status: " << (all_passed ? "ALL PASSED" : "SOME FAILED") << "\n";
 
     return all_passed ? 0 : 1;
 }

@@ -6,10 +6,7 @@
  *
  * Demonstrates custom kernel selection heuristics for different workloads.
  *
- * Build:
- *   python3 scripts/compile_gemm_examples.py examples/cpp/05_heuristics.cpp
- *
- * Complexity: ★★★☆☆
+ * Build: cd dispatcher/build && cmake .. && make gemm_05_heuristics
  */
 
 #include <hip/hip_runtime.h>
@@ -23,46 +20,53 @@
 #include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
-using namespace ck_tile::dispatcher::backends;
 using namespace ck_tile::dispatcher::utils;
+using Signature = decl::Signature;
+using Algorithm = decl::Algorithm;
 
 // =============================================================================
-// KERNEL SET: Variety of tile sizes for heuristic selection
+// KERNEL SET: Multiple tile sizes for heuristic-based selection
 // =============================================================================
 
-DECL_KERNEL_SET(heuristics,
-                .add("fp16", "rcr", 64, 64, 32)       // Small tile - low latency
-                    .add("fp16", "rcr", 128, 128, 32) // Medium tile - balanced
-                    .add("fp16", "rcr", 256, 256, 64) // Large tile - high throughput
-);
+DECL_KERNEL_SET(heuristics_kernels,
+                // Small tile - low latency
+                .add(Signature().dtype("fp16").layout("rcr"),
+                     Algorithm()
+                         .tile(64, 64, 32)
+                         .wave(2, 2, 1)
+                         .warp(32, 32, 16)
+                         .pipeline("compv3")
+                         .scheduler("intrawave")
+                         .epilogue("cshuffle"),
+                     "gfx942")
+                    // Medium tile - balanced
+                    .add(Signature().dtype("fp16").layout("rcr"),
+                         Algorithm()
+                             .tile(128, 128, 64)
+                             .wave(2, 2, 1)
+                             .warp(32, 32, 16)
+                             .pipeline("compv3")
+                             .scheduler("intrawave")
+                             .epilogue("cshuffle"),
+                         "gfx942"));
 
 // =============================================================================
-// Custom Heuristic: Returns kernel names ranked by expected performance
+// Custom Heuristic
 // =============================================================================
 
-// Heuristic: Size-based selection - returns kernels ranked for problem size
 std::vector<std::string> size_based_heuristic(const Problem& problem)
 {
     std::vector<std::string> ranked_kernels;
     int64_t total_elements = problem.M * problem.N;
 
-    // Classify problem size and return appropriate kernels
-    if(total_elements < 10000)
+    if(total_elements < 100000)
     {
-        // Small problems: prefer small tiles for low latency
-        ranked_kernels = {"gemm_64x64", "gemm_128x128", "gemm_256x256"};
-    }
-    else if(total_elements < 1000000)
-    {
-        // Medium problems: balanced approach
-        ranked_kernels = {"gemm_128x128", "gemm_64x64", "gemm_256x256"};
+        ranked_kernels = {"gemm_64x64", "gemm_128x128"};
     }
     else
     {
-        // Large problems: prefer large tiles for throughput
-        ranked_kernels = {"gemm_256x256", "gemm_128x128", "gemm_64x64"};
+        ranked_kernels = {"gemm_128x128", "gemm_64x64"};
     }
-
     return ranked_kernels;
 }
 
@@ -72,37 +76,23 @@ std::vector<std::string> size_based_heuristic(const Problem& problem)
 
 int main(int argc, char* argv[])
 {
-    // Parse command line arguments
     ExampleArgs args("Example 05: Custom Heuristics",
                      "Demonstrates custom kernel selection heuristics");
+    args.add_option("--arch", "gfx942", "GPU architecture");
 
     if(!args.parse(argc, argv))
-    {
-        return 0; // --help was printed
-    }
+        return 0;
 
     print_header("Example 05: Custom Heuristics");
 
+    std::string gfx_arch = args.get("--arch", "gfx942");
+
     // =========================================================================
-    // Setup
+    // Setup Registry and Dispatcher
     // =========================================================================
     Registry registry;
-    KernelConfig config =
-        KernelConfig::fp16_rcr()
-            .tile(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK)
-            .wave(SelectedKernel::WarpPerBlock_M,
-                  SelectedKernel::WarpPerBlock_N,
-                  SelectedKernel::WarpPerBlock_K)
-            .warp_tile(
-                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
+    generated::register_05_heuristics_kernels(registry, gfx_arch);
 
-    auto kernel =
-        create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            config.build_key(), KERNEL_NAME);
-
-    registry.register_kernel(kernel);
-
-    // Create dispatcher with heuristic selection
     Dispatcher dispatcher(&registry);
     dispatcher.set_strategy(Dispatcher::SelectionStrategy::Heuristic);
     dispatcher.set_heuristic(size_based_heuristic);
@@ -117,11 +107,15 @@ int main(int argc, char* argv[])
     std::cout << "\nTesting heuristic selection:\n";
     print_separator();
 
+    using DataType = ck_tile::fp16_t;
+
     std::vector<std::tuple<int, int, int>> sizes = {
-        {128, 128, 64},     // Small
-        {512, 512, 256},    // Medium
-        {2048, 2048, 1024}, // Large
+        {128, 128, 64},
+        {512, 512, 256},
+        {2048, 2048, 1024},
     };
+
+    bool all_passed = true;
 
     for(const auto& [M, N, K] : sizes)
     {
@@ -131,46 +125,44 @@ int main(int argc, char* argv[])
         std::cout << "Problem " << M << "x" << N << "x" << K << ":\n";
         if(selected)
         {
-            const auto& key = selected->get_key();
-            std::cout << "  Selected tile: " << key.algorithm.tile_shape.m << "x"
-                      << key.algorithm.tile_shape.n << "x" << key.algorithm.tile_shape.k << "\n";
+            std::cout << "  Selected: " << selected->get_name() << "\n";
         }
 
-        // Actually run it
-        GpuBuffer<ADataType> a_dev(M * K);
-        GpuBuffer<BDataType> b_dev(K * N);
-        GpuBuffer<CDataType> c_dev(M * N);
+        GpuBuffer<DataType> a_dev(M * K);
+        GpuBuffer<DataType> b_dev(K * N);
+        GpuBuffer<DataType> c_dev(M * N);
 
-        std::vector<ADataType> a_host(M * K, ADataType(1.0f));
-        std::vector<BDataType> b_host(K * N, BDataType(1.0f));
+        std::vector<DataType> a_host(M * K, DataType(1.0f));
+        std::vector<DataType> b_host(K * N, DataType(1.0f));
         a_dev.copy_from_host(a_host.data());
         b_dev.copy_from_host(b_host.data());
         c_dev.zero();
 
         float time_ms = dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
+        double tflops = calculate_tflops(M, N, K, time_ms);
+
         std::cout << "  Time: " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
-        std::cout << "  TFLOPS: " << std::setprecision(2) << calculate_tflops(M, N, K, time_ms)
-                  << "\n";
+        std::cout << "  TFLOPS: " << std::setprecision(2) << tflops << "\n";
+
+        // Verify
+        std::vector<DataType> c_host(M * N);
+        c_dev.copy_to_host(c_host.data());
+        float expected = static_cast<float>(K);
+        int errors     = 0;
+        for(int i = 0; i < M * N; ++i)
+        {
+            float actual = static_cast<float>(c_host[i]);
+            if(std::abs(actual - expected) > 0.01f * expected + 1.0f)
+                ++errors;
+        }
+        bool pass = (errors == 0);
+        std::cout << "  Verify: " << (pass ? "PASS" : "FAIL") << "\n";
+        if(!pass)
+            all_passed = false;
         print_separator();
     }
 
-    // =========================================================================
-    // Demonstrate manual heuristic logic
-    // =========================================================================
-    std::cout << "\nHeuristic Decision Logic:\n";
-    print_separator();
+    std::cout << "Overall: " << (all_passed ? "ALL PASSED" : "SOME FAILED") << "\n";
 
-    std::cout << "Problem Size Classification:\n";
-    std::cout << "  Small  (<10K elements):  Prefer 64x64   tiles for low latency\n";
-    std::cout << "  Medium (<1M elements):   Prefer 128x128 tiles for balance\n";
-    std::cout << "  Large  (>1M elements):   Prefer 256x256 tiles for throughput\n";
-
-    print_separator();
-    std::cout << "Heuristics enable adaptive kernel selection based on:\n";
-    std::cout << "  - Problem size and shape\n";
-    std::cout << "  - Hardware characteristics\n";
-    std::cout << "  - Memory bandwidth requirements\n";
-    std::cout << "  - Compute vs memory bound workloads\n";
-
-    return 0;
+    return all_passed ? 0 : 1;
 }

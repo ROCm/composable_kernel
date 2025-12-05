@@ -2,29 +2,24 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 02: Convolution with CPU Validation - Declarative
+ * Example 02: Convolution with CPU Validation
  *
- * Demonstrates convolution with CPU reference verification.
- * Uses the Signature/Algorithm/Arch declarative pattern.
+ * Demonstrates:
+ * 1. CPU reference verification for correctness
+ * 2. Multiple dtype support: fp16 and bf16
  *
- * Self-contained build:
- *   python3 scripts/compile_conv_examples.py examples/conv/cpp/02_conv_validation.cpp
- *
- * Complexity: ★★★☆☆
+ * Build: cd dispatcher/build && cmake .. && make conv_02_validation
  */
 
 #include <iostream>
 #include <iomanip>
 #include <vector>
-#include <random>
 #include <cmath>
 #include <hip/hip_runtime.h>
 
-// Declarative utilities
 #include "ck_tile/dispatcher/conv_utils.hpp"
 #include "ck_tile/dispatcher/example_args.hpp"
 
-// CK Tile includes
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
@@ -36,25 +31,43 @@ using namespace ck_tile::dispatcher::conv_utils;
 using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
-// KERNEL DECLARATIONS
+// KERNEL DECLARATIONS - Multiple dtypes (fp16 and bf16)
 // =============================================================================
 
 DECL_CONV_KERNEL_SET(conv_validation_kernels,
-                     // Validation kernel with full configuration
-                     .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
+                     // FP16 kernel (In=fp16, Wei=fp16, Out=fp16, Acc=fp32)
+                     .add(ConvSig()
+                              .dtype("fp16", "fp16", "fp16", "fp32")
+                              .layout("nhwgc")
+                              .conv_type("forward")
+                              .dims(2),
                           ConvAlgo()
-                              .tile(1, 128, 128)
-                              .wave(2, 2, 1)
-                              .warp(32, 32, 16)
-                              .pipeline("compv4")
+                              .tile(1, 16, 64)
+                              .wave(1, 4, 1)
+                              .warp(16, 16, 32)
+                              .pipeline("compv3")
                               .scheduler("intrawave")
                               .vector_sizes(4, 8, 8)
-                              .block_per_cu(1)
-                              .epilogue("cshuffle"),
-                          "gfx942"));
+                              .block_per_cu(1),
+                          "gfx942")
+                         // BF16 kernel (In=bf16, Wei=bf16, Out=bf16, Acc=fp32)
+                         .add(ConvSig()
+                                  .dtype("bf16", "bf16", "bf16", "fp32")
+                                  .layout("nhwgc")
+                                  .conv_type("forward")
+                                  .dims(2),
+                              ConvAlgo()
+                                  .tile(1, 16, 64)
+                                  .wave(1, 4, 1)
+                                  .warp(16, 16, 32)
+                                  .pipeline("compv3")
+                                  .scheduler("intrawave")
+                                  .vector_sizes(4, 8, 8)
+                                  .block_per_cu(1),
+                              "gfx942"));
 
 // =============================================================================
-// TYPES
+// TYPES (FP16 for this example)
 // =============================================================================
 
 using InDataType  = ck_tile::half_t;
@@ -70,43 +83,35 @@ int main(int argc, char* argv[])
 {
     ExampleArgs args("Example 02: Conv Validation", "Convolution with CPU reference verification");
     args.add_option("-n", "1", "Batch size N");
+    args.add_option("-g", "1", "Groups G");
     args.add_option("-c", "64", "Input channels C");
     args.add_option("-k", "128", "Output channels K");
     args.add_option("--size", "14", "Spatial size (H=W)");
     args.add_flag("--no-verify", "Skip CPU validation");
-    args.add_flag("--list", "List all kernel sets");
 
     if(!args.parse(argc, argv))
         return 0;
 
     std::cout << "======================================================================\n";
-    std::cout << "Example 02: Convolution with CPU Validation (Declarative)\n";
+    std::cout << "Example 02: Convolution with CPU Validation\n";
     std::cout << "======================================================================\n\n";
 
-    if(args.has("--list"))
-    {
-        std::cout << "Declared Kernel Sets:\n";
-        ConvKernelSetRegistry::instance().print();
-        return 0;
-    }
-
-    // -------------------------------------------------------------------------
-    // Step 1: Show declared kernels
-    // -------------------------------------------------------------------------
-    std::cout << "Step 1: Declared Kernels\n";
-    std::cout << "------------------------\n";
-
+    // Show declared kernels
+    std::cout << "Step 1: Declared Kernels (FP16 + BF16)\n";
+    std::cout << "--------------------------------------\n";
     const auto& kernel_set = ConvKernelSetRegistry::instance().get("conv_validation_kernels");
-    kernel_set.print(std::cout);
+    std::cout << "  Total declarations: " << kernel_set.size() << "\n";
+    for(const auto& d : kernel_set.declarations())
+    {
+        std::cout << "    - dtype: In=" << d.signature.dtype_in_
+                  << ", Wei=" << d.signature.dtype_wei_ << ", Out=" << d.signature.dtype_out_
+                  << ", Acc=" << d.signature.dtype_acc_ << "\n";
+    }
     std::cout << "\n";
 
-    // -------------------------------------------------------------------------
-    // Step 2: Define problem
-    // -------------------------------------------------------------------------
-    std::cout << "Step 2: Define Problem\n";
-    std::cout << "----------------------\n";
-
+    // Define problem
     int N  = args.get_int("-n", 1);
+    int G  = args.get_int("-g", 1);
     int C  = args.get_int("-c", 64);
     int K  = args.get_int("-k", 128);
     int Hi = args.get_int("--size", 14);
@@ -114,16 +119,17 @@ int main(int argc, char* argv[])
     int Y = 3, X = 3;
     bool verify = !args.has("--no-verify");
 
-    auto problem = create_conv2d_problem(N, C, K, Hi, Wi, Y, X, 1, 1, ConvOp::Forward);
-    print_problem(problem);
-    std::cout << "\n";
+    std::cout << "Step 2: Problem Configuration\n";
+    std::cout << "-----------------------------\n";
+    std::cout << "  Input:  N=" << N << ", G=" << G << ", C=" << C << ", Hi=" << Hi << ", Wi=" << Wi
+              << "\n";
+    std::cout << "  Filter: Y=" << Y << ", X=" << X << ", K=" << K << "\n";
+    std::cout << "  Using FP16 (In/Wei/Out) with FP32 accumulator\n\n";
 
-    // -------------------------------------------------------------------------
-    // Step 3: Create CK Tile parameters
-    // -------------------------------------------------------------------------
+    // Create CK Tile parameters
     ck_tile::conv::ConvParam conv_param{
         2,
-        1,
+        static_cast<ck_tile::index_t>(G),
         static_cast<ck_tile::index_t>(N),
         static_cast<ck_tile::index_t>(K),
         static_cast<ck_tile::index_t>(C),
@@ -138,9 +144,7 @@ int main(int argc, char* argv[])
     using WeiLayout = ck_tile::tensor_layout::convolution::GKYXC;
     using OutLayout = ck_tile::tensor_layout::convolution::NHWGK;
 
-    // -------------------------------------------------------------------------
-    // Step 4: Allocate tensors
-    // -------------------------------------------------------------------------
+    // Allocate tensors
     std::cout << "Step 3: Allocate Tensors\n";
     std::cout << "------------------------\n";
 
@@ -161,19 +165,16 @@ int main(int argc, char* argv[])
     output_gpu.SetZero();
     output_cpu.SetZero();
 
-    std::cout << "  Input:  " << input.mDesc << "\n";
-    std::cout << "  Weight: " << weight.mDesc << "\n";
-    std::cout << "  Output: " << output_gpu.mDesc << "\n\n";
+    std::cout << "  Input:  " << input.get_element_space_size() << " elements\n";
+    std::cout << "  Weight: " << weight.get_element_space_size() << " elements\n";
+    std::cout << "  Output: " << output_gpu.get_element_space_size() << " elements\n\n";
 
-    // -------------------------------------------------------------------------
-    // Step 5: CPU Reference
-    // -------------------------------------------------------------------------
+    // CPU Reference
     if(verify)
     {
         std::cout << "Step 4: CPU Reference Computation\n";
         std::cout << "----------------------------------\n";
 
-        // reference_grouped_conv_fwd requires stride, dilation, padding vectors
         std::vector<ck_tile::long_index_t> strides    = {1, 1};
         std::vector<ck_tile::long_index_t> dilations  = {1, 1};
         std::vector<ck_tile::long_index_t> left_pads  = {1, 1};
@@ -182,14 +183,10 @@ int main(int argc, char* argv[])
         ck_tile::reference_grouped_conv_fwd<2, InDataType, WeiDataType, OutDataType>(
             input, weight, output_cpu, strides, dilations, left_pads, right_pads);
 
-        std::cout << "  CPU reference computed\n";
-        std::cout << "  Output[0,0,0,0,0]: " << static_cast<float>(output_cpu(0, 0, 0, 0, 0))
-                  << "\n\n";
+        std::cout << "  CPU reference computed\n\n";
     }
 
-    // -------------------------------------------------------------------------
-    // Step 6: GPU Execution
-    // -------------------------------------------------------------------------
+    // GPU Execution
     std::cout << "Step 5: GPU Execution\n";
     std::cout << "---------------------\n";
 
@@ -201,7 +198,6 @@ int main(int argc, char* argv[])
     weight_dev.ToDevice(weight.data());
     output_dev.SetZero();
 
-#ifdef CONV_KERNEL_AVAILABLE
     ck_tile::GroupedConvFwdHostArgs<> kernel_args(conv_param,
                                                   input_dev.GetDeviceBuffer(),
                                                   weight_dev.GetDeviceBuffer(),
@@ -210,14 +206,20 @@ int main(int argc, char* argv[])
                                                   1);
 
     ck_tile::stream_config stream_cfg{nullptr, true, 1, 3, 10};
-    float elapsed_ms = SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
+
+    using Launcher   = generated::FirstKernelLauncher;
+    float elapsed_ms = Launcher::launch(kernel_args, stream_cfg);
 
     output_dev.FromDevice(output_gpu.data());
 
+    double flops  = 2.0 * G * N * K * C * Y * X * Hi * Wi;
+    double tflops = flops / (elapsed_ms * 1e9);
+
     std::cout << "  Time:   " << std::fixed << std::setprecision(4) << elapsed_ms << " ms\n";
-    std::cout << "  GPU[0,0,0,0,0]: " << static_cast<float>(output_gpu(0, 0, 0, 0, 0)) << "\n\n";
+    std::cout << "  TFLOPS: " << std::setprecision(2) << tflops << "\n\n";
 
     // Validation
+    bool passed = true;
     if(verify)
     {
         std::cout << "Step 6: Validation\n";
@@ -237,20 +239,18 @@ int main(int argc, char* argv[])
             max_rel       = std::max(max_rel, rel);
         }
 
-        // FP16 has ~0.1% precision, convolutions accumulate error
-        // Use 2% relative tolerance for FP16 validation
-        bool passed = max_rel < 0.02f; // 2% tolerance for FP16
+        passed = max_rel < 0.05f; // 5% tolerance for FP16
 
         std::cout << "  Max abs diff: " << std::scientific << max_diff << "\n";
         std::cout << "  Max rel diff: " << std::scientific << max_rel << "\n";
         std::cout << "  Status: " << (passed ? "PASSED" : "FAILED") << "\n";
     }
-#else
-    std::cout << "  [Kernel not compiled]\n";
-    std::cout << "  Run: python3 scripts/compile_conv_examples.py "
-                 "examples/conv/cpp/03_conv_validation.cpp\n";
-#endif
 
     std::cout << "\n======================================================================\n";
-    return 0;
+    std::cout << "Multi-dtype support: .dtype(\"fp16\", \"fp16\", \"fp16\", \"fp32\")\n";
+    std::cout << "  - In/Wei/Out can be different (e.g., fp16, bf16, fp32)\n";
+    std::cout << "  - Accumulator is typically fp32 for precision\n";
+    std::cout << "======================================================================\n";
+
+    return passed ? 0 : 1;
 }

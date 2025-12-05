@@ -2,17 +2,18 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 06: Convolution JSON Export with GPU Execution
+ * Example 06: Convolution JSON Export
  *
  * Exports kernel configurations to JSON and runs on GPU.
  *
- * Complexity: ★★☆☆☆
+ * Build: cd dispatcher/build && cmake .. && make conv_06_json_export
  */
 
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <cmath>
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
@@ -33,20 +34,14 @@ using namespace ck_tile::dispatcher::utils;
 DECL_CONV_KERNEL_SET(conv_json_kernels,
                      .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
                           ConvAlgo()
-                              .tile(1, 128, 128)
-                              .wave(2, 2, 1)
-                              .warp(32, 32, 16)
+                              .tile(1, 16, 64)
+                              .wave(1, 4, 1)
+                              .warp(16, 16, 32)
                               .pipeline("compv3")
-                              .scheduler("intrawave"),
-                          "gfx942")
-                         .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
-                              ConvAlgo()
-                                  .tile(1, 64, 64)
-                                  .wave(2, 2, 1)
-                                  .warp(16, 16, 32)
-                                  .pipeline("compv3")
-                                  .scheduler("intrawave"),
-                              "gfx942"));
+                              .scheduler("intrawave")
+                              .vector_sizes(4, 8, 8)
+                              .block_per_cu(1),
+                          "gfx942"));
 
 // =============================================================================
 // JSON EXPORT HELPER
@@ -55,8 +50,7 @@ DECL_CONV_KERNEL_SET(conv_json_kernels,
 std::string to_json(const ConvKernelSet& kernel_set)
 {
     std::ostringstream json;
-    json << "{\n";
-    json << "  \"kernels\": [\n";
+    json << "{\n  \"kernels\": [\n";
 
     const auto& decls = kernel_set.declarations();
     for(size_t i = 0; i < decls.size(); ++i)
@@ -65,8 +59,7 @@ std::string to_json(const ConvKernelSet& kernel_set)
         json << "    {\n";
         json << "      \"name\": \"" << d.name() << "\",\n";
         json << "      \"signature\": {\n";
-        json << "        \"dtype_in\": \"" << d.signature.dtype_in_ << "\",\n";
-        json << "        \"dtype_out\": \"" << d.signature.dtype_out_ << "\",\n";
+        json << "        \"dtype\": \"" << d.signature.dtype_in_ << "\",\n";
         json << "        \"layout\": \"" << d.signature.layout_ << "\",\n";
         json << "        \"direction\": \"" << d.signature.conv_op_ << "\",\n";
         json << "        \"dims\": " << d.signature.num_dims_ << "\n";
@@ -85,8 +78,7 @@ std::string to_json(const ConvKernelSet& kernel_set)
         json << "\n";
     }
 
-    json << "  ]\n";
-    json << "}\n";
+    json << "  ]\n}\n";
     return json.str();
 }
 
@@ -106,25 +98,15 @@ int main(int argc, char* argv[])
 {
     ExampleArgs args("Example 06: Conv JSON Export", "Export kernel configurations to JSON");
     args.add_option("--output", "conv_kernels.json", "Output JSON file path");
-    args.add_flag("--list", "List all kernel sets");
 
     if(!args.parse(argc, argv))
         return 0;
 
     std::cout << "======================================================================\n";
-    std::cout << "Example 06: Convolution JSON Export with GPU Execution\n";
+    std::cout << "Example 06: Convolution JSON Export\n";
     std::cout << "======================================================================\n\n";
 
-    if(args.has("--list"))
-    {
-        std::cout << "Declared Kernel Sets:\n";
-        ConvKernelSetRegistry::instance().print();
-        return 0;
-    }
-
-    // -------------------------------------------------------------------------
     // Export to JSON
-    // -------------------------------------------------------------------------
     std::cout << "Step 1: Export Kernel Set to JSON\n";
     std::cout << "----------------------------------\n\n";
 
@@ -133,8 +115,7 @@ int main(int argc, char* argv[])
 
     std::cout << json << "\n";
 
-    // Write to file
-    std::string output_file = args.get("--output");
+    std::string output_file = args.get("--output", "conv_kernels.json");
     std::ofstream file(output_file);
     if(file)
     {
@@ -143,31 +124,20 @@ int main(int argc, char* argv[])
         std::cout << "[Saved to " << output_file << "]\n\n";
     }
 
-    // -------------------------------------------------------------------------
-    // Setup and run on GPU
-    // -------------------------------------------------------------------------
+    // Run on GPU
     std::cout << "Step 2: GPU Execution\n";
     std::cout << "---------------------\n";
 
-    ConvRegistry registry;
-    registry.register_set(kernel_set, ConvRegistry::Priority::High);
-    ConvDispatcher dispatcher(&registry);
+    int N = 1, C = 64, K = 128, H = 28, W = 28, Y = 3, X = 3;
 
-    auto problem         = create_conv2d_problem(1, 64, 128, 28, 28, 3, 3, 1, 1);
-    const auto* selected = dispatcher.select(problem);
-
-    std::cout << "  Problem: N=1 C=64 K=128 28x28\n";
-    std::cout << "  Selected: " << (selected ? selected->name() : "(none)") << "\n";
-
-#ifdef CONV_KERNEL_AVAILABLE
     ck_tile::conv::ConvParam conv_param{
         2,
         1,
-        static_cast<ck_tile::index_t>(1),
-        static_cast<ck_tile::index_t>(128),
-        static_cast<ck_tile::index_t>(64),
-        {static_cast<ck_tile::index_t>(3), static_cast<ck_tile::index_t>(3)},
-        {static_cast<ck_tile::index_t>(28), static_cast<ck_tile::index_t>(28)},
+        static_cast<ck_tile::index_t>(N),
+        static_cast<ck_tile::index_t>(K),
+        static_cast<ck_tile::index_t>(C),
+        {static_cast<ck_tile::index_t>(Y), static_cast<ck_tile::index_t>(X)},
+        {static_cast<ck_tile::index_t>(H), static_cast<ck_tile::index_t>(W)},
         {1, 1},
         {1, 1},
         {1, 1},
@@ -206,17 +176,17 @@ int main(int argc, char* argv[])
                                                   output_dev.GetDeviceBuffer(),
                                                   1);
 
-    ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
-    float elapsed_ms = SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
+    ck_tile::stream_config stream_cfg{nullptr, true, 1, 3, 10};
 
-    double flops  = problem.get_flops();
+    using Launcher   = generated::FirstKernelLauncher;
+    float elapsed_ms = Launcher::launch(kernel_args, stream_cfg);
+
+    double flops  = 2.0 * N * K * C * Y * X * H * W;
     double tflops = flops / (elapsed_ms * 1e9);
 
-    std::cout << "  GPU Time: " << std::fixed << std::setprecision(4) << elapsed_ms << " ms\n";
-    std::cout << "  TFLOPS:   " << std::fixed << std::setprecision(2) << tflops << "\n";
-#else
-    std::cout << "  [GPU execution requires compiled kernels]\n";
-#endif
+    std::cout << "  Problem: N=" << N << " C=" << C << " K=" << K << " " << H << "x" << W << "\n";
+    std::cout << "  Time:    " << std::fixed << std::setprecision(4) << elapsed_ms << " ms\n";
+    std::cout << "  TFLOPS:  " << std::setprecision(2) << tflops << "\n";
 
     std::cout << "\n======================================================================\n";
     return 0;

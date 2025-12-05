@@ -518,7 +518,7 @@ export PYTHONPATH="/path/to/composable_kernel/dispatcher/examples/conv/python:$P
 # Option 2: In your Python script
 import sys
 sys.path.insert(0, "/path/to/composable_kernel/dispatcher/examples/gemm/python")
-sys.path.insert(0, "/path/to/composable_kernel/dispatcher/examples/conv/python")
+sys.path.insert(0, "/path/to/composable_kernel/dispatcher/examples/conv/python")cmake
 ```
 
 ### Library Search Paths

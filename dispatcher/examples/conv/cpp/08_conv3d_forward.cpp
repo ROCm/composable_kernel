@@ -2,15 +2,16 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 08: 3D Convolution Forward with GPU Execution
+ * Example 08: 3D Convolution Forward
  *
- * Demonstrates 3D convolution (e.g., for video or volumetric data).
+ * Demonstrates 3D convolution (for video or volumetric data).
  *
- * Complexity: ★★★☆☆
+ * Build: cd dispatcher/build && cmake .. && make conv_08_conv3d
  */
 
 #include <iostream>
 #include <iomanip>
+#include <cmath>
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
@@ -31,20 +32,14 @@ using namespace ck_tile::dispatcher::utils;
 DECL_CONV_KERNEL_SET(conv3d_fwd_kernels,
                      .add(ConvSig().dtype("fp16").layout("ndhwgc").conv_type("forward").dims(3),
                           ConvAlgo()
-                              .tile(1, 128, 128)
-                              .wave(2, 2, 1)
-                              .warp(32, 32, 16)
+                              .tile(1, 16, 64)
+                              .wave(1, 4, 1)
+                              .warp(16, 16, 32)
                               .pipeline("compv3")
-                              .scheduler("intrawave"),
-                          "gfx942")
-                         .add(ConvSig().dtype("fp16").layout("ndhwgc").conv_type("forward").dims(3),
-                              ConvAlgo()
-                                  .tile(1, 64, 64)
-                                  .wave(2, 2, 1)
-                                  .warp(16, 16, 32)
-                                  .pipeline("compv3")
-                                  .scheduler("intrawave"),
-                              "gfx942"));
+                              .scheduler("intrawave")
+                              .vector_sizes(4, 8, 8)
+                              .block_per_cu(1),
+                          "gfx942"));
 
 // =============================================================================
 // DATA TYPES
@@ -66,39 +61,21 @@ int main(int argc, char* argv[])
     args.add_option("-k", "64", "Output channels K");
     args.add_option("--depth", "8", "Depth D");
     args.add_option("--size", "16", "Spatial size (H=W)");
-    args.add_flag("--list", "List all kernel sets");
 
     if(!args.parse(argc, argv))
         return 0;
 
     std::cout << "======================================================================\n";
-    std::cout << "Example 08: 3D Convolution Forward with GPU Execution\n";
+    std::cout << "Example 08: 3D Convolution Forward\n";
     std::cout << "======================================================================\n\n";
 
-    if(args.has("--list"))
-    {
-        std::cout << "Declared Kernel Sets:\n";
-        ConvKernelSetRegistry::instance().print();
-        return 0;
-    }
-
-    // -------------------------------------------------------------------------
-    // Step 1: Show declared kernels
-    // -------------------------------------------------------------------------
-    std::cout << "Step 1: Declared 3D Kernels\n";
-    std::cout << "---------------------------\n";
-
-    const auto& kernel_set = ConvKernelSetRegistry::instance().get("conv3d_fwd_kernels");
-    kernel_set.print(std::cout);
+    // Show declared kernels
+    std::cout << "Step 1: Declared Kernels\n";
+    std::cout << "------------------------\n";
+    ConvKernelSetRegistry::instance().print();
     std::cout << "\n";
 
-    // -------------------------------------------------------------------------
-    // Step 2: Define 3D problem
-    // -------------------------------------------------------------------------
-    std::cout << "Step 2: Define 3D Problem\n";
-    std::cout << "-------------------------\n";
-
-    // 3D problem from args
+    // Problem setup
     int N  = args.get_int("-n", 1);
     int C  = args.get_int("-c", 32);
     int K  = args.get_int("-k", 64);
@@ -107,30 +84,15 @@ int main(int argc, char* argv[])
     int Wi = Hi;
     int Z = 3, Y = 3, X = 3;
 
-    auto problem = create_conv3d_problem(N, C, K, Di, Hi, Wi, Z, Y, X, 1, 1, ConvOp::Forward);
-    print_problem(problem);
-    std::cout << "\n";
+    std::cout << "Step 2: Problem\n";
+    std::cout << "---------------\n";
+    std::cout << "  Input:  N=" << N << ", D=" << Di << ", H=" << Hi << ", W=" << Wi << ", C=" << C
+              << "\n";
+    std::cout << "  Filter: Z=" << Z << ", Y=" << Y << ", X=" << X << ", K=" << K << "\n\n";
 
-    // -------------------------------------------------------------------------
-    // Step 3: Create registry
-    // -------------------------------------------------------------------------
-    std::cout << "Step 3: Create Registry\n";
-    std::cout << "-----------------------\n";
-
-    ConvRegistry registry;
-    registry.register_set(kernel_set, ConvRegistry::Priority::High);
-    std::cout << "  Registered " << registry.size() << " kernels\n\n";
-
-    // -------------------------------------------------------------------------
-    // Step 4: GPU Execution
-    // -------------------------------------------------------------------------
-    std::cout << "Step 4: GPU Execution\n";
-    std::cout << "---------------------\n";
-
-#ifdef CONV_KERNEL_AVAILABLE
     // Create 3D conv param
     ck_tile::conv::ConvParam conv_param{3,
-                                        1, // 3D, 1 group
+                                        1,
                                         static_cast<ck_tile::index_t>(N),
                                         static_cast<ck_tile::index_t>(K),
                                         static_cast<ck_tile::index_t>(C),
@@ -164,9 +126,8 @@ int main(int argc, char* argv[])
     ck_tile::FillUniformDistribution<WeiDataType>{-0.5f, 0.5f}(weight);
     output.SetZero();
 
-    std::cout << "  Input (3D):  " << input.mDesc << "\n";
-    std::cout << "  Weight:      " << weight.mDesc << "\n";
-    std::cout << "  Output (3D): " << output.mDesc << "\n";
+    std::cout << "Step 3: GPU Execution\n";
+    std::cout << "---------------------\n";
 
     ck_tile::DeviceMem input_dev(input.get_element_space_size_in_bytes());
     ck_tile::DeviceMem weight_dev(weight.get_element_space_size_in_bytes());
@@ -183,23 +144,32 @@ int main(int argc, char* argv[])
                                                   output_dev.GetDeviceBuffer(),
                                                   1);
 
-    ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
-    float elapsed_ms = SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
+    ck_tile::stream_config stream_cfg{nullptr, true, 1, 3, 10};
 
-    double flops  = problem.get_flops();
+    using Launcher   = generated::FirstKernelLauncher;
+    float elapsed_ms = Launcher::launch(kernel_args, stream_cfg);
+
+    double flops  = 2.0 * N * K * C * Z * Y * X * Di * Hi * Wi;
     double tflops = flops / (elapsed_ms * 1e9);
 
-    std::cout << "\n  *** 3D CONV GPU EXECUTION ***\n";
+    // Basic output check
+    output_dev.FromDevice(output.data());
+    size_t non_zero = 0;
+    for(size_t i = 0; i < output.get_element_space_size(); ++i)
+        if(std::abs(static_cast<float>(output.data()[i])) > 1e-6f)
+            ++non_zero;
+    bool passed = (non_zero > 0);
+
+    std::cout << "  Input:  " << input.get_element_space_size() << " elements\n";
+    std::cout << "  Weight: " << weight.get_element_space_size() << " elements\n";
+    std::cout << "  Output: " << output.get_element_space_size() << " elements\n";
     std::cout << "  Time:   " << std::fixed << std::setprecision(4) << elapsed_ms << " ms\n";
-    std::cout << "  TFLOPS: " << std::fixed << std::setprecision(2) << tflops << "\n";
-#else
-    std::cout << "  [Kernel not compiled]\n";
-    std::cout << "  Generate with: python3 codegen/unified_conv_codegen.py --ndim 3\n";
-#endif
+    std::cout << "  TFLOPS: " << std::setprecision(2) << tflops << "\n";
+    std::cout << "  Status: " << (passed ? "PASS" : "FAIL") << "\n";
 
     std::cout << "\n======================================================================\n";
     std::cout << "3D Convolution: Used for video, medical imaging, volumetric data\n";
     std::cout << "======================================================================\n";
 
-    return 0;
+    return passed ? 0 : 1;
 }

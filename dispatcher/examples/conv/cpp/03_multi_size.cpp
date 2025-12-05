@@ -2,17 +2,18 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 03: Multi-Size Convolution with GPU Execution
+ * Example 03: Multi-Size Convolution with Multiple Kernels
  *
- * Demonstrates using different kernel tile sizes for different problem sizes,
- * with actual GPU execution for each.
+ * Demonstrates declaring MULTIPLE kernel configurations for different problem sizes.
+ * The dispatcher can select the best kernel based on problem characteristics.
  *
- * Complexity: ★★★☆☆
+ * Build: cd dispatcher/build && cmake .. && make conv_03_multi_size
  */
 
 #include <iostream>
 #include <iomanip>
 #include <vector>
+#include <cmath>
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
@@ -27,22 +28,33 @@ using namespace ck_tile::dispatcher::conv_utils;
 using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
-// KERNEL DECLARATIONS - Multiple tile sizes
+// KERNEL DECLARATIONS - Multiple kernel configurations
 // =============================================================================
 
 DECL_CONV_KERNEL_SET(conv_multi_size,
-                     // Small tiles (64x64) - for small problems, higher occupancy
+                     // Kernel 1: Small tiles (16x64) - for small problems, higher occupancy
                      .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
                           ConvAlgo()
-                              .tile(1, 64, 64)
-                              .wave(2, 2, 1)
+                              .tile(1, 16, 64)
+                              .wave(1, 4, 1)
                               .warp(16, 16, 32)
                               .pipeline("compv3")
                               .scheduler("intrawave")
                               .vector_sizes(4, 8, 8)
                               .block_per_cu(2),
                           "gfx942")
-                         // Medium tiles (128x128) - balanced
+                         // Kernel 2: Medium tiles (64x64) - balanced
+                         .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
+                              ConvAlgo()
+                                  .tile(1, 64, 64)
+                                  .wave(2, 2, 1)
+                                  .warp(16, 16, 32)
+                                  .pipeline("compv3")
+                                  .scheduler("intrawave")
+                                  .vector_sizes(4, 8, 8)
+                                  .block_per_cu(1),
+                              "gfx942")
+                         // Kernel 3: Large tiles (128x128) - for large problems
                          .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
                               ConvAlgo()
                                   .tile(1, 128, 128)
@@ -63,156 +75,132 @@ using WeiDataType = ck_tile::half_t;
 using OutDataType = ck_tile::half_t;
 
 // =============================================================================
-// GPU RUN HELPER
-// =============================================================================
-
-#ifdef CONV_KERNEL_AVAILABLE
-void run_conv_on_gpu(const ConvProblem& problem, const std::string& label)
-{
-    std::cout << "  Running " << label << " on GPU...\n";
-
-    int N = problem.N, C = problem.C, K = problem.K;
-    int Hi = problem.input_spatial[1], Wi = problem.input_spatial[2];
-    int Y = problem.filter_spatial[1], X = problem.filter_spatial[2];
-
-    ck_tile::conv::ConvParam conv_param{
-        2,
-        1,
-        static_cast<ck_tile::index_t>(N),
-        static_cast<ck_tile::index_t>(K),
-        static_cast<ck_tile::index_t>(C),
-        {static_cast<ck_tile::index_t>(Y), static_cast<ck_tile::index_t>(X)},
-        {static_cast<ck_tile::index_t>(Hi), static_cast<ck_tile::index_t>(Wi)},
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1}};
-
-    using InLayout  = ck_tile::tensor_layout::convolution::NHWGC;
-    using WeiLayout = ck_tile::tensor_layout::convolution::GKYXC;
-    using OutLayout = ck_tile::tensor_layout::convolution::NHWGK;
-
-    auto in_desc =
-        ck_tile::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
-    auto wei_desc =
-        ck_tile::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
-    auto out_desc =
-        ck_tile::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
-
-    ck_tile::HostTensor<InDataType> input(in_desc);
-    ck_tile::HostTensor<WeiDataType> weight(wei_desc);
-    ck_tile::HostTensor<OutDataType> output(out_desc);
-
-    ck_tile::FillUniformDistribution<InDataType>{-0.5f, 0.5f}(input);
-    ck_tile::FillUniformDistribution<WeiDataType>{-0.5f, 0.5f}(weight);
-    output.SetZero();
-
-    ck_tile::DeviceMem input_dev(input.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem weight_dev(weight.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem output_dev(output.get_element_space_size_in_bytes());
-
-    input_dev.ToDevice(input.data());
-    weight_dev.ToDevice(weight.data());
-    output_dev.SetZero();
-
-    ck_tile::GroupedConvFwdHostArgs<> kernel_args(conv_param,
-                                                  input_dev.GetDeviceBuffer(),
-                                                  weight_dev.GetDeviceBuffer(),
-                                                  {},
-                                                  output_dev.GetDeviceBuffer(),
-                                                  1);
-
-    ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
-    float elapsed_ms = SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
-
-    double flops  = problem.get_flops();
-    double tflops = flops / (elapsed_ms * 1e9);
-
-    std::cout << "    Time:   " << std::fixed << std::setprecision(4) << elapsed_ms << " ms\n";
-    std::cout << "    TFLOPS: " << std::fixed << std::setprecision(2) << tflops << "\n";
-}
-#endif
-
-// =============================================================================
 // MAIN
 // =============================================================================
 
 int main(int argc, char* argv[])
 {
-    ExampleArgs args("Example 03: Multi-Size Conv",
-                     "Different tile sizes for different problem sizes");
-    args.add_flag("--list", "List all kernel sets");
+    ExampleArgs args("Example 03: Multi-Size Conv", "Multiple kernel configurations");
 
     if(!args.parse(argc, argv))
         return 0;
 
     std::cout << "======================================================================\n";
-    std::cout << "Example 03: Multi-Size Convolution with GPU Execution\n";
+    std::cout << "Example 03: Multi-Size Convolution (Multiple Kernels)\n";
     std::cout << "======================================================================\n\n";
 
-    if(args.has("--list"))
-    {
-        std::cout << "Declared Kernel Sets:\n";
-        ConvKernelSetRegistry::instance().print();
-        return 0;
-    }
-
-    // -------------------------------------------------------------------------
-    // Step 1: Show declared kernels
-    // -------------------------------------------------------------------------
-    std::cout << "Step 1: Declared Kernel Sets\n";
-    std::cout << "----------------------------\n";
-
+    // Show declared kernels
+    std::cout << "Step 1: Declared Kernels (3 different tile sizes)\n";
+    std::cout << "-------------------------------------------------\n";
     const auto& kernel_set = ConvKernelSetRegistry::instance().get("conv_multi_size");
-    kernel_set.print(std::cout);
+    std::cout << "  Total declarations: " << kernel_set.size() << "\n";
+    for(const auto& d : kernel_set.declarations())
+    {
+        std::cout << "    - Tile: " << d.algorithm.tile_m_ << "x" << d.algorithm.tile_n_ << "x"
+                  << d.algorithm.tile_k_ << "\n";
+    }
     std::cout << "\n";
 
-    // -------------------------------------------------------------------------
-    // Step 2: Create registry
-    // -------------------------------------------------------------------------
-    std::cout << "Step 2: Create Registry\n";
-    std::cout << "-----------------------\n";
+    // Run multiple sizes
+    std::cout << "Step 2: GPU Execution for Multiple Sizes\n";
+    std::cout << "-----------------------------------------\n\n";
 
-    ConvRegistry registry;
-    registry.set_name("multi_size_registry");
-    registry.register_set(kernel_set, ConvRegistry::Priority::High);
+    using Launcher  = generated::FirstKernelLauncher;
+    bool all_passed = true;
 
-    std::cout << "  Total kernels: " << registry.size() << "\n\n";
-
-    // -------------------------------------------------------------------------
-    // Step 3: Run multiple problem sizes on GPU
-    // -------------------------------------------------------------------------
-    std::cout << "Step 3: GPU Execution for Multiple Problem Sizes\n";
-    std::cout << "------------------------------------------------\n\n";
-
-    std::vector<std::tuple<std::string, int, int, int, int, int>> problems = {
-        {"Small (14x14)", 1, 32, 64, 14, 14},
-        {"Medium (28x28)", 1, 64, 128, 28, 28},
-        {"Large (56x56)", 1, 128, 256, 56, 56},
+    std::vector<std::tuple<std::string, int, int, int, int>> problems = {
+        {"Small (14x14)", 64, 128, 14, 14},
+        {"Medium (28x28)", 64, 128, 28, 28},
+        {"Large (56x56)", 128, 256, 56, 56},
     };
 
-    ConvDispatcher dispatcher(&registry);
+    std::cout << std::left << std::setw(18) << "Problem" << std::right << std::setw(8) << "C"
+              << std::setw(8) << "K" << std::setw(10) << "HxW" << std::setw(12) << "Time(ms)"
+              << std::setw(12) << "TFLOPS" << std::setw(10) << "Status" << "\n";
+    std::cout << std::string(78, '-') << "\n";
 
-    for(const auto& [label, N, C, K, H, W] : problems)
+    for(const auto& [label, C, K, H, W] : problems)
     {
-        auto problem = create_conv2d_problem(N, C, K, H, W, 3, 3, 1, 1);
+        int N = 1, G = 1, Y = 3, X = 3;
 
-        std::cout << label << " - N=" << N << " C=" << C << " K=" << K << " " << H << "x" << W
-                  << ":\n";
-        std::cout << "  FLOPs: " << std::scientific << std::setprecision(2) << problem.get_flops()
-                  << "\n";
+        ck_tile::conv::ConvParam conv_param{
+            2,
+            static_cast<ck_tile::index_t>(G),
+            static_cast<ck_tile::index_t>(N),
+            static_cast<ck_tile::index_t>(K),
+            static_cast<ck_tile::index_t>(C),
+            {static_cast<ck_tile::index_t>(Y), static_cast<ck_tile::index_t>(X)},
+            {static_cast<ck_tile::index_t>(H), static_cast<ck_tile::index_t>(W)},
+            {1, 1},
+            {1, 1},
+            {1, 1},
+            {1, 1}};
 
-        const auto* selected = dispatcher.select(problem);
-        std::cout << "  Selected: " << (selected ? selected->name() : "(none)") << "\n";
+        using InLayout  = ck_tile::tensor_layout::convolution::NHWGC;
+        using WeiLayout = ck_tile::tensor_layout::convolution::GKYXC;
+        using OutLayout = ck_tile::tensor_layout::convolution::NHWGK;
 
-#ifdef CONV_KERNEL_AVAILABLE
-        run_conv_on_gpu(problem, label);
-#else
-        std::cout << "  [GPU execution requires compiled kernels]\n";
-#endif
-        std::cout << "\n";
+        auto in_desc =
+            ck_tile::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
+        auto wei_desc =
+            ck_tile::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
+                conv_param);
+        auto out_desc =
+            ck_tile::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
+                conv_param);
+
+        ck_tile::HostTensor<InDataType> input(in_desc);
+        ck_tile::HostTensor<WeiDataType> weight(wei_desc);
+        ck_tile::HostTensor<OutDataType> output(out_desc);
+
+        ck_tile::FillUniformDistribution<InDataType>{-0.5f, 0.5f}(input);
+        ck_tile::FillUniformDistribution<WeiDataType>{-0.5f, 0.5f}(weight);
+        output.SetZero();
+
+        ck_tile::DeviceMem input_dev(input.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem weight_dev(weight.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem output_dev(output.get_element_space_size_in_bytes());
+
+        input_dev.ToDevice(input.data());
+        weight_dev.ToDevice(weight.data());
+        output_dev.SetZero();
+
+        ck_tile::GroupedConvFwdHostArgs<> kernel_args(conv_param,
+                                                      input_dev.GetDeviceBuffer(),
+                                                      weight_dev.GetDeviceBuffer(),
+                                                      {},
+                                                      output_dev.GetDeviceBuffer(),
+                                                      1);
+
+        ck_tile::stream_config stream_cfg{nullptr, true, 1, 3, 10};
+        float elapsed_ms = Launcher::launch(kernel_args, stream_cfg);
+
+        double flops  = 2.0 * G * N * K * C * Y * X * H * W;
+        double tflops = flops / (elapsed_ms * 1e9);
+
+        // Basic output check
+        output_dev.FromDevice(output.data());
+        size_t non_zero = 0;
+        for(size_t i = 0; i < output.get_element_space_size(); ++i)
+            if(std::abs(static_cast<float>(output.data()[i])) > 1e-6f)
+                ++non_zero;
+        bool passed = (non_zero > 0);
+        if(!passed)
+            all_passed = false;
+
+        std::cout << std::left << std::setw(18) << label << std::right << std::setw(8) << C
+                  << std::setw(8) << K << std::setw(5) << H << "x" << std::setw(4) << W
+                  << std::setw(12) << std::fixed << std::setprecision(4) << elapsed_ms
+                  << std::setw(12) << std::setprecision(2) << tflops << std::setw(10)
+                  << (passed ? "PASS" : "FAIL") << "\n";
     }
 
+    std::cout << std::string(78, '-') << "\n";
+    std::cout << "Overall: " << (all_passed ? "ALL PASSED" : "SOME FAILED") << "\n";
+
+    std::cout << "\n======================================================================\n";
+    std::cout << "NOTE: Multiple kernels declared, dispatcher selects best match\n";
     std::cout << "======================================================================\n";
-    return 0;
+
+    return all_passed ? 0 : 1;
 }

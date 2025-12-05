@@ -97,15 +97,15 @@ class TileConfig:
 
 @dataclass
 class TraitConfig:
-    """Kernel trait configuration"""
+    """Kernel trait configuration (same order as GEMM for consistency)"""
 
     pipeline: str  # mem, compv3, compv4, compv5
+    epilogue: str  # cshuffle, default
     scheduler: str  # intrawave, interwave
-    epilogue: str = "cshuffle"  # cshuffle, default
-    double_smem_buffer: bool = False
     pad_m: bool = True  # Padding for M dimension
     pad_n: bool = True  # Padding for N dimension
     pad_k: bool = True  # Padding for K dimension
+    double_smem_buffer: bool = False
     num_groups_to_merge: int = 1
 
     def is_valid(self) -> bool:
@@ -129,6 +129,7 @@ class ConvKernelConfig:
     variant: ConvVariant = ConvVariant.FORWARD
     ndim_spatial: int = 2  # 1D, 2D, or 3D
     arch: str = "gfx942"  # Target architecture
+    layout: str = "nhwgc"  # Data layout (e.g., "nhwgc", "nchw", "ndhwgc")
 
     # Vector sizes
     vector_size_a: int = 4
@@ -147,12 +148,21 @@ class ConvKernelConfig:
         """
         Generate kernel name that uniquely identifies the kernel configuration.
 
-        Format: conv_{variant}_{dtype}_{ndim}d_{pipeline}_{epilogue}_{scheduler}
+        Format: conv_{variant}_{dtype}_{layout}_{ndim}d_{pipeline}_{epilogue}_{scheduler}
                 _{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}
                 _{warp_tile_m}x{warp_tile_n}x{warp_tile_k}
                 [_vec{a}_{b}_{c}][_bpc{n}][_wg{n}][_gm{n}][_dsb][_pad{mnk}]
 
-        All parameters that affect kernel behavior are included.
+        All parameters that affect kernel behavior MUST be included to ensure
+        unique names for unique configurations:
+        - Variant (fwd/bwdd/bwdw)
+        - Data type
+        - Layout (nhwgc, nchw, ndhwgc, etc.)
+        - Spatial dimensions (2d/3d)
+        - Pipeline, epilogue, scheduler
+        - Tile, warp, warp_tile dimensions
+        - Vector sizes, occupancy hints (if non-default)
+        - Double SMEM buffer, padding flags
         """
         t = self.tile
         tr = self.trait
@@ -163,8 +173,8 @@ class ConvKernelConfig:
             ConvVariant.BACKWARD_WEIGHT: "bwdw",
         }[self.variant]
 
-        # Core identity: variant, dtype, dims
-        name = f"conv_{variant_str}_{datatype}_{self.ndim_spatial}d"
+        # Core identity: variant, dtype, layout, dims
+        name = f"conv_{variant_str}_{datatype}_{self.layout}_{self.ndim_spatial}d"
 
         # Pipeline configuration
         name += f"_{tr.pipeline}_{tr.epilogue}_{tr.scheduler}"
@@ -209,6 +219,14 @@ class ConvKernelConfig:
         # Check trait validity
         if not self.trait.is_valid():
             return False
+
+        # Backward operations have stricter pipeline requirements:
+        # - Backward weight: compv4/compv5 have transpose_tile2d issues
+        # - Backward data: compv4 has get_length issues in bwd_data kernel
+        # Both backward operations ONLY support compv3 and mem pipelines
+        if self.variant in (ConvVariant.BACKWARD_WEIGHT, ConvVariant.BACKWARD_DATA):
+            if self.trait.pipeline not in ("compv3", "mem"):
+                return False
 
         # Check warp configuration (from arch_specs)
         try:
@@ -427,19 +445,28 @@ struct {kernel_name}_Config {{
             direction_prefix = "FWD"
             launcher_alias = "SelectedConvKernelLauncher"
 
+        # Create valid C++ namespace name
+        ns_name = "ns_" + kernel_name.replace("-", "_")
+
         return f"""
+// Unique namespace for this kernel to avoid conflicts when including multiple kernels
+namespace {ns_name} {{
+
+// Bring Config into namespace
+using Config = {kernel_name}_Config;
+
 // Kernel name for identification
 constexpr const char* CONV_{direction_prefix}_KERNEL_NAME = "{kernel_name}";
 
 // Selected kernel alias
-using SelectedConv{direction_prefix.title()}Kernel = {kernel_name}_Config;
+using SelectedConv{direction_prefix.title()}Kernel = Config;
 
 // =============================================================================
 // Kernel Launch Implementation ({self.variant.value})
 // =============================================================================
 
 struct {kernel_name}_Launcher {{
-    using Config = {kernel_name}_Config;
+    using KernelConfig = Config; // Use the Config alias from namespace
     using InDataType = typename Config::InDataType;
     using WeiDataType = typename Config::WeiDataType;
     using OutDataType = typename Config::OutDataType;
@@ -569,6 +596,13 @@ struct {kernel_name}_Launcher {{
 
 // Launcher alias for examples
 using {launcher_alias} = {kernel_name}_Launcher;
+// Launcher alias
+using {launcher_alias} = {kernel_name}_Launcher;
+
+}} // namespace {ns_name}
+
+// Export specific launcher to global namespace
+using {kernel_name}_Launcher = {ns_name}::{kernel_name}_Launcher;
 """
 
     def _get_pipeline(self, pipeline: str) -> str:
@@ -598,16 +632,119 @@ using {launcher_alias} = {kernel_name}_Launcher;
 
 
 class DispatcherWrapperGenerator:
-    """Generates dispatcher integration wrapper"""
+    """Generates dispatcher integration wrapper following GEMM pattern"""
 
-    def __init__(self, datatype: str):
+    # Static mappings for pipeline and scheduler enum names (matches kernel_key.hpp)
+    PIPELINE_TO_DISPATCHER = {
+        "mem": "Pipeline::Mem",
+        "compv3": "Pipeline::CompV3",
+        "compv4": "Pipeline::CompV4",
+        "compv5": "Pipeline::CompV5",
+        "preshufflev1": "Pipeline::PreShuffleV1",
+        "preshufflev2": "Pipeline::PreShuffleV2",
+    }
+
+    SCHEDULER_TO_DISPATCHER = {
+        "default": "Scheduler::Default",
+        "intrawave": "Scheduler::Intrawave",
+        "interwave": "Scheduler::Interwave",
+    }
+
+    def __init__(self, datatype: str, variant: ConvVariant):
         self.datatype = datatype
+        self.variant = variant
 
-    def generate(self, config: ConvKernelConfig) -> str:
-        """Generate dispatcher wrapper - empty for now, launcher is sufficient"""
-        # The launcher struct already provides all needed functionality
-        # Dispatcher integration can be added later if needed
-        return ""
+    def _pipeline_to_dispatcher(self, pipeline: str) -> str:
+        """Convert pipeline string to dispatcher enum value"""
+        return self.PIPELINE_TO_DISPATCHER.get(
+            pipeline.lower(), f"Pipeline::{pipeline.capitalize()}"
+        )
+
+    def _scheduler_to_dispatcher(self, scheduler: str) -> str:
+        """Convert scheduler string to dispatcher enum value"""
+        return self.SCHEDULER_TO_DISPATCHER.get(
+            scheduler.lower(), f"Scheduler::{scheduler.capitalize()}"
+        )
+
+    def generate(
+        self, config: ConvKernelConfig, kernel_path: Path, output_dir: Path
+    ) -> str:
+        """Generate dispatcher wrapper with factory function for registry"""
+        kernel_name = config.name(self.datatype)
+        rel_path = kernel_path.relative_to(output_dir)
+
+        # Determine launcher type based on variant
+        if self.variant == ConvVariant.FORWARD:
+            launcher_alias = "SelectedConvKernelLauncher"
+            host_args_type = "GroupedConvFwdHostArgs<>"
+            conv_type_str = "forward"
+        elif self.variant == ConvVariant.BACKWARD_DATA:
+            launcher_alias = "SelectedConvBwdDataLauncher"
+            host_args_type = "GroupedConvBwdDataHostArgs"
+            conv_type_str = "bwd_data"
+        else:  # BACKWARD_WEIGHT
+            launcher_alias = "SelectedConvBwdWeightLauncher"
+            host_args_type = "GroupedConvBwdWeightHostArgs"
+            conv_type_str = "bwd_weight"
+
+        return f"""// SPDX-License-Identifier: MIT
+// Auto-generated dispatcher wrapper for: {kernel_name}
+#pragma once
+
+#include "ck_tile/dispatcher.hpp"
+#include "ck_tile/dispatcher/conv_utils.hpp"
+#include "../{rel_path}"
+
+namespace ck_tile {{
+namespace dispatcher {{
+namespace generated {{
+
+using ::ck_tile::dispatcher::ConvKernelInstancePtr;
+using ::ck_tile::dispatcher::ConvKernelKey;
+using ::ck_tile::dispatcher::DataType;
+using ::ck_tile::dispatcher::LayoutTag;
+using ::ck_tile::dispatcher::Pipeline;
+using ::ck_tile::dispatcher::Scheduler;
+using ::ck_tile::dispatcher::Epilogue;
+using Priority = ::ck_tile::dispatcher::ConvRegistry::Priority;
+
+// Factory function to create kernel instance for registry
+inline ConvKernelInstancePtr make_{kernel_name}(const std::string& gfx_arch = "gfx942") {{
+    ConvKernelKey key;
+    key.signature.dtype_in = DataType::FP16;
+    key.signature.dtype_wei = DataType::FP16;
+    key.signature.dtype_out = DataType::FP16;
+    key.signature.dtype_acc = DataType::FP32;
+    key.signature.layout = "nhwgc";
+    key.signature.conv_type = "{conv_type_str}";
+    key.signature.num_dims = {config.ndim_spatial};
+    key.signature.groups = 1;
+    
+    key.algorithm.tile_shape = {{{config.tile.tile_m}, {config.tile.tile_n}, {config.tile.tile_k}}};
+    key.algorithm.wave_shape = {{{config.tile.warp_m}, {config.tile.warp_n}, 1}};
+    key.algorithm.warp_tile_shape = {{{config.tile.warp_tile_m}, {config.tile.warp_tile_n}, {config.tile.warp_tile_k}}};
+    key.algorithm.pipeline = {self._pipeline_to_dispatcher(config.trait.pipeline)};
+    key.algorithm.scheduler = {self._scheduler_to_dispatcher(config.trait.scheduler)};
+    key.algorithm.epilogue = Epilogue::CShuffle;
+    key.gfx_arch = gfx_arch;
+    
+    // Create kernel instance that wraps the launcher
+    return std::make_shared<ConvKernelInstance>(
+        key,
+        "{kernel_name}",
+        []({host_args_type}& args, const stream_config& cfg) -> float {{
+            return {kernel_name}_Launcher::launch(args, cfg);
+        }}
+    );
+}}
+
+}}  // namespace generated
+}}  // namespace dispatcher
+}}  // namespace ck_tile
+
+// Export launcher alias to global namespace for direct use
+using {launcher_alias} = {kernel_name}_Launcher;
+"""
 
 
 # ============================================================================
@@ -637,23 +774,34 @@ def get_default_configs(
         (16, 64, 64, 1, 4, 16, 16, 32),  # Tall and narrow
     ]
 
-    # Backward Weight: specific tile configs that work with CK Tile's bwd_weight kernel
-    # Based on ConvConfigComputeV3 from CK Tile examples
+    # Backward Weight: VERY specific tile configs that work with CK Tile's bwd_weight kernel
+    # Based on ConvConfigComputeV3 from CK Tile examples (example/ck_tile/20_grouped_convolution/)
+    # Note: Backward weight has strict constraints on warp configurations due to transpose_tile2d
+    # Only specific warp configs work: (1, 4, 1) and (4, 1, 1) are known to work
     bwd_weight_tiles = [
         # (tile_m, tile_n, tile_k, warp_m, warp_n, warp_tile_m, warp_tile_n, warp_tile_k)
-        (16, 64, 64, 1, 4, 16, 16, 32),  # ConvConfigComputeV3 compatible
-        (32, 64, 64, 2, 2, 16, 16, 32),  # Alternative small
-        (64, 128, 32, 2, 2, 32, 32, 16),  # Medium
+        # ConvConfigComputeV3: The primary working config for backward weight
+        (16, 64, 64, 1, 4, 16, 16, 32),
+        # ConvConfigMem style - uses mem pipeline (handled separately)
+        # (128, 32, 64, 4, 1, 32, 32, 16) - for mem pipeline only
     ]
 
     for variant in variants:
         # Select tile configs based on variant
         if variant == ConvVariant.BACKWARD_WEIGHT:
             tile_configs = bwd_weight_tiles
+            # Backward weight ONLY supports compv3 (compv4/compv5 have transpose_tile2d issues)
+            pipelines = [("compv3", "cshuffle")]
+        elif variant == ConvVariant.BACKWARD_DATA:
+            tile_configs = fwd_bwd_data_tiles
+            # Backward data ONLY supports compv3 (compv4 has get_length issues in bwd_data kernel)
+            pipelines = [("compv3", "cshuffle")]
         else:
             tile_configs = fwd_bwd_data_tiles
+            # Only forward convolution supports both compv3 and compv4
+            pipelines = [("compv3", "cshuffle"), ("compv4", "cshuffle")]
         for ndim in ndims:
-            for pipeline, epilogue in [("compv3", "cshuffle"), ("compv4", "cshuffle")]:
+            for pipeline, epilogue in pipelines:
                 for (
                     tile_m,
                     tile_n,
@@ -732,7 +880,13 @@ class UnifiedConvCodegen:
     ):
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create wrapper directory for dispatcher integration
+        self.wrapper_dir = self.output_dir / "dispatcher_wrappers"
+        self.wrapper_dir.mkdir(parents=True, exist_ok=True)
+
         self.generated_files: List[Path] = []
+        self.generated_wrappers: List[Path] = []
         self.gpu_target = gpu_target
 
         # Initialize architecture filter for GPU-specific validation
@@ -788,19 +942,39 @@ class UnifiedConvCodegen:
         datatype: str,
         variant: ConvVariant = ConvVariant.FORWARD,
     ) -> Path:
-        """Generate a single kernel file"""
+        """Generate a single kernel file and dispatcher wrapper"""
         kernel_gen = CKTileConvKernelGenerator(datatype, variant)
-        wrapper_gen = DispatcherWrapperGenerator(datatype)
+        wrapper_gen = DispatcherWrapperGenerator(datatype, variant)
 
         kernel_name = config.name(datatype)
         filename = f"{kernel_name}.hpp"
         filepath = self.output_dir / filename
 
+        # Generate kernel header
         content = kernel_gen.generate(config)
-        content += wrapper_gen.generate(config)
-
         filepath.write_text(content)
         self.generated_files.append(filepath)
+
+        # Generate dispatcher wrapper
+        wrapper_content = wrapper_gen.generate(config, filepath, self.output_dir)
+        wrapper_path = self.wrapper_dir / f"dispatcher_wrapper_{kernel_name}.hpp"
+        wrapper_path.write_text(wrapper_content)
+        self.generated_wrappers.append(wrapper_path)
+
+        # Generate .cpp compilation unit for per-kernel parallel builds
+        cpp_filename = f"{kernel_name}.cpp"
+        cpp_filepath = self.output_dir / cpp_filename
+        cpp_content = f'''// SPDX-License-Identifier: MIT
+// Auto-generated compilation unit for: {kernel_name}
+// Enables per-kernel parallel compilation with make -j
+
+#include "{filename}"
+
+namespace ck_tile {{ namespace generated {{
+    volatile bool _{kernel_name.replace("-", "_")}_loaded = true;
+}} }}
+'''
+        cpp_filepath.write_text(cpp_content)
 
         log.info(f"Generated: {filename}")
         return filepath
@@ -852,7 +1026,163 @@ class UnifiedConvCodegen:
             for config, dtype, variant in valid_tasks:
                 self.generate_kernel(config, dtype, variant)
 
+        # Generate include_all_*.hpp headers for Python ctypes libraries
+        self._generate_include_all_headers()
+
         return self.generated_files
+
+    def _generate_include_all_headers(self):
+        """Generate include_all_conv_*.hpp headers and registration header"""
+        # Scan output directory for ALL kernel files (not just this run's generated_files)
+        # This handles the case where fwd and bwd kernels are generated in separate make targets
+        fwd_headers = []
+        bwdd_headers = []
+        bwdw_headers = []
+        fwd_kernels = []
+        bwdd_kernels = []
+        bwdw_kernels = []
+
+        for filepath in self.output_dir.glob("conv_*.hpp"):
+            name = filepath.name
+            kernel_name = name[:-4]  # Remove .hpp
+            if name.startswith("conv_fwd_"):
+                fwd_headers.append(name)
+                fwd_kernels.append(kernel_name)
+            elif name.startswith("conv_bwdd_"):
+                bwdd_headers.append(name)
+                bwdd_kernels.append(kernel_name)
+            elif name.startswith("conv_bwdw_"):
+                bwdw_headers.append(name)
+                bwdw_kernels.append(kernel_name)
+
+        # Generate include_all headers (for simple include-all usage)
+        headers_to_generate = [
+            ("include_all_conv_fwd_kernels.hpp", fwd_headers, "forward"),
+            ("include_all_conv_bwdd_kernels.hpp", bwdd_headers, "backward data"),
+            ("include_all_conv_bwdw_kernels.hpp", bwdw_headers, "backward weight"),
+        ]
+
+        for header_name, kernel_headers, variant_desc in headers_to_generate:
+            header_path = self.output_dir / header_name
+            includes = "\n".join(f'#include "{h}"' for h in sorted(kernel_headers))
+
+            # Pick the first kernel as the default Selected*Launcher
+            if kernel_headers:
+                first_kernel = sorted(kernel_headers)[0][:-4]  # Remove .hpp
+                if variant_desc == "forward":
+                    launcher_alias = (
+                        f"using SelectedConvKernelLauncher = {first_kernel}_Launcher;"
+                    )
+                elif variant_desc == "backward data":
+                    launcher_alias = (
+                        f"using SelectedConvBwdDataLauncher = {first_kernel}_Launcher;"
+                    )
+                else:  # backward weight
+                    launcher_alias = f"using SelectedConvBwdWeightLauncher = {first_kernel}_Launcher;"
+            else:
+                launcher_alias = "// No kernels generated for this variant"
+
+            content = f"""// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Auto-generated header for conv {variant_desc} kernels
+#pragma once
+
+{includes}
+
+// Default launcher alias (uses first kernel)
+{launcher_alias}
+"""
+            header_path.write_text(content)
+            if kernel_headers:
+                log.info(f"Generated: {header_name} ({len(kernel_headers)} kernels)")
+
+        # Generate registration header (following GEMM pattern)
+        self._generate_registration_header(fwd_kernels, bwdd_kernels, bwdw_kernels)
+
+    def _generate_registration_header(
+        self, fwd_kernels: List[str], bwdd_kernels: List[str], bwdw_kernels: List[str]
+    ):
+        """Generate master registration header for all conv kernels"""
+        # Scan wrapper directory for ALL wrapper files
+        all_wrappers = []
+        for wrapper_path in self.wrapper_dir.glob("dispatcher_wrapper_conv_*.hpp"):
+            all_wrappers.append(wrapper_path.name)
+
+        wrapper_includes = "\n".join(f'#include "{w}"' for w in sorted(all_wrappers))
+
+        # Generate registration calls
+        fwd_registrations = "\n        ".join(
+            f"registry.register_kernel(generated::make_{k}(gfx_arch), priority);"
+            for k in sorted(fwd_kernels)
+        )
+        bwdd_registrations = "\n        ".join(
+            f"registry.register_kernel(generated::make_{k}(gfx_arch), priority);"
+            for k in sorted(bwdd_kernels)
+        )
+        bwdw_registrations = "\n        ".join(
+            f"registry.register_kernel(generated::make_{k}(gfx_arch), priority);"
+            for k in sorted(bwdw_kernels)
+        )
+
+        content = f"""// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Auto-generated master registration header for conv kernels
+#pragma once
+
+#include "ck_tile/dispatcher.hpp"
+#include "ck_tile/dispatcher/conv_utils.hpp"
+
+{wrapper_includes}
+
+namespace ck_tile {{
+namespace dispatcher {{
+
+using Priority = ConvRegistry::Priority;
+
+inline void register_all_conv_fwd_kernels(
+    const std::string& gfx_arch = "gfx942",
+    Priority priority = Priority::Normal)
+{{
+    auto& registry = ConvRegistry::instance();
+    {fwd_registrations if fwd_registrations else "// No forward kernels"}
+}}
+
+inline void register_all_conv_bwdd_kernels(
+    const std::string& gfx_arch = "gfx942",
+    Priority priority = Priority::Normal)
+{{
+    auto& registry = ConvRegistry::instance();
+    {bwdd_registrations if bwdd_registrations else "// No backward data kernels"}
+}}
+
+inline void register_all_conv_bwdw_kernels(
+    const std::string& gfx_arch = "gfx942",
+    Priority priority = Priority::Normal)
+{{
+    auto& registry = ConvRegistry::instance();
+    {bwdw_registrations if bwdw_registrations else "// No backward weight kernels"}
+}}
+
+inline void register_all_conv_kernels(
+    const std::string& gfx_arch = "gfx942",
+    Priority priority = Priority::Normal)
+{{
+    register_all_conv_fwd_kernels(gfx_arch, priority);
+    register_all_conv_bwdd_kernels(gfx_arch, priority);
+    register_all_conv_bwdw_kernels(gfx_arch, priority);
+}}
+
+inline std::size_t get_conv_fwd_kernel_count() {{ return {len(fwd_kernels)}; }}
+inline std::size_t get_conv_bwdd_kernel_count() {{ return {len(bwdd_kernels)}; }}
+inline std::size_t get_conv_bwdw_kernel_count() {{ return {len(bwdw_kernels)}; }}
+inline std::size_t get_conv_kernel_count() {{ return {len(fwd_kernels) + len(bwdd_kernels) + len(bwdw_kernels)}; }}
+
+}}  // namespace dispatcher
+}}  // namespace ck_tile
+"""
+        reg_path = self.wrapper_dir / "register_all_conv_kernels.hpp"
+        reg_path.write_text(content)
+        log.info(f"Generated registration header: {reg_path}")
 
 
 # ============================================================================
@@ -948,6 +1278,15 @@ def main():
     parser.add_argument("--vector-c", type=int, default=8, help="Vector size C")
     parser.add_argument("--block-per-cu", type=int, default=1, help="Blocks per CU")
     parser.add_argument("--num-wave-groups", type=int, default=1, help="Wave groups")
+    parser.add_argument(
+        "--num-groups-to-merge", type=int, default=1, help="Groups to merge"
+    )
+    parser.add_argument(
+        "--double-smem-buffer",
+        type=str,
+        default=None,
+        help="Double SMEM buffer (true/false)",
+    )
 
     args = parser.parse_args()
 
@@ -980,13 +1319,22 @@ def main():
             warp_tile_n=args.warp_tile_n or 32,
             warp_tile_k=args.warp_tile_k or 16,
         )
+        pipeline = args.pipeline or "compv4"
+        # Determine double_smem_buffer: use CLI arg if given, else default based on pipeline
+        if args.double_smem_buffer is not None:
+            dsb = args.double_smem_buffer.lower() == "true"
+        else:
+            dsb = pipeline == "compv4"  # compv4 requires double buffer
+
         trait = TraitConfig(
-            pipeline=args.pipeline or "compv4",
+            pipeline=pipeline,
             scheduler=args.scheduler or "intrawave",
             epilogue=args.epilogue or "cshuffle",
+            double_smem_buffer=dsb,
             pad_m=args.pad_m,
             pad_n=args.pad_n,
             pad_k=args.pad_k,
+            num_groups_to_merge=args.num_groups_to_merge,
         )
         config = ConvKernelConfig(
             tile=tile,

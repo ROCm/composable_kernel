@@ -48,11 +48,11 @@ class TileConfig:
 
 @dataclass
 class TraitConfig:
-    """Trait configuration for a kernel"""
+    """Trait configuration for a kernel (order matches GEMM/Conv TraitConfig)"""
 
     pipeline: str = "compv4"
-    scheduler: str = "intrawave"
     epilogue: str = "cshuffle"
+    scheduler: str = "intrawave"
     pad_m: bool = False
     pad_n: bool = False
     pad_k: bool = False

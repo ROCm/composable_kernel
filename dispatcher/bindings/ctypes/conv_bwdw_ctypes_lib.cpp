@@ -21,6 +21,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
+#include "ck_tile/ops/gemm.hpp" // Must be before grouped_convolution for TileGemmTraits
 #include "ck_tile/ops/grouped_convolution.hpp"
 
 // Global state - minimal, no registry needed for direct launch
@@ -123,8 +124,11 @@ float conv_bwdw_run(const void* input_ptr,
                     void* stream)
 {
 #ifdef CONV_BWD_WEIGHT_AVAILABLE
+    // Validate all required pointers before kernel launch
     if(!g_bwdw_initialized || !prob)
         return -1.0f;
+    if(!input_ptr || !grad_output_ptr || !grad_weight_ptr)
+        return -1.0f; // Null data pointer would cause kernel crash
     return run_bwd_weight_impl(input_ptr, grad_output_ptr, grad_weight_ptr, prob, stream);
 #else
     return -1.0f;

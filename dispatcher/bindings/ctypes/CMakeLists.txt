@@ -8,9 +8,10 @@
 # Provides shared libraries with C API for Python ctypes integration.
 #
 # Targets:
-#   - dispatcher_gemm_lib  : GEMM dispatcher library
-#   - dispatcher_conv_lib  : Convolution dispatcher library
-#   - gpu_helper           : GPU helper executable for Python
+#   - dispatcher_gemm_lib      : GEMM dispatcher library
+#   - dispatcher_conv_lib      : Convolution dispatcher library (forward + bwd_data)
+#   - dispatcher_conv_bwdw_lib : Convolution backward weight library
+#   - gpu_helper               : GPU helper executable for Python
 #
 
 cmake_minimum_required(VERSION 3.16)
@@ -71,27 +72,86 @@ else()
 endif()
 
 # =============================================================================
-# Convolution ctypes Library
+# Convolution ctypes Library (supports forward + bwd_data)
 # =============================================================================
 
+# Look for forward kernels
+file(GLOB CONV_FWD_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/conv_fwd_*.hpp")
+# Look for backward data kernels  
+file(GLOB CONV_BWDD_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/conv_bwdd_*.hpp")
+# Fallback: any conv kernel (for backwards compatibility)
 file(GLOB CONV_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/conv_*.hpp")
-if(CONV_KERNEL_HEADERS)
+
+add_library(dispatcher_conv_lib SHARED conv_ctypes_lib.cpp)
+target_include_directories(dispatcher_conv_lib PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/dispatcher/include
+)
+target_link_libraries(dispatcher_conv_lib PRIVATE hip::device)
+set_target_properties(dispatcher_conv_lib PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    CXX_STANDARD 17
+)
+
+# Add forward kernel if available
+if(CONV_FWD_KERNEL_HEADERS)
+    list(GET CONV_FWD_KERNEL_HEADERS 0 CONV_FWD_KERNEL_HEADER)
+    message(STATUS "Found Conv FWD kernel for ctypes lib: ${CONV_FWD_KERNEL_HEADER}")
+    target_compile_options(dispatcher_conv_lib PRIVATE -include ${CONV_FWD_KERNEL_HEADER})
+    target_compile_definitions(dispatcher_conv_lib PRIVATE CONV_KERNEL_AVAILABLE)
+elseif(CONV_KERNEL_HEADERS)
+    # Fallback to any conv kernel
     list(GET CONV_KERNEL_HEADERS 0 CONV_KERNEL_HEADER)
     message(STATUS "Found Conv kernel for ctypes lib: ${CONV_KERNEL_HEADER}")
-    
-    add_ctypes_library(dispatcher_conv_lib 
-        conv_ctypes_lib.cpp 
-        CONV
-        KERNEL_HEADER ${CONV_KERNEL_HEADER}
-    )
+    target_compile_options(dispatcher_conv_lib PRIVATE -include ${CONV_KERNEL_HEADER})
+    target_compile_definitions(dispatcher_conv_lib PRIVATE CONV_KERNEL_AVAILABLE)
 else()
-    message(STATUS "No Conv kernel found for ctypes lib - building without kernel")
-    add_library(dispatcher_conv_lib SHARED conv_ctypes_lib.cpp)
-    target_include_directories(dispatcher_conv_lib PRIVATE
+    message(STATUS "No Conv FWD kernel found for ctypes lib - building without kernel")
+endif()
+
+# Add backward data kernel if available
+if(CONV_BWDD_KERNEL_HEADERS)
+    list(GET CONV_BWDD_KERNEL_HEADERS 0 CONV_BWDD_KERNEL_HEADER)
+    message(STATUS "Found Conv BWD_DATA kernel for ctypes lib: ${CONV_BWDD_KERNEL_HEADER}")
+    target_compile_options(dispatcher_conv_lib PRIVATE -include ${CONV_BWDD_KERNEL_HEADER})
+    target_compile_definitions(dispatcher_conv_lib PRIVATE CONV_BWD_DATA_AVAILABLE)
+endif()
+
+# =============================================================================
+# Convolution Backward Weight ctypes Library (separate lib for bwd_weight)
+# =============================================================================
+
+file(GLOB CONV_BWDW_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/conv_*bwd_weight*.hpp")
+if(CONV_BWDW_KERNEL_HEADERS)
+    list(GET CONV_BWDW_KERNEL_HEADERS 0 CONV_BWDW_KERNEL_HEADER)
+    message(STATUS "Found Conv BwdWeight kernel for ctypes lib: ${CONV_BWDW_KERNEL_HEADER}")
+    
+    add_library(dispatcher_conv_bwdw_lib SHARED conv_bwdw_ctypes_lib.cpp)
+    target_include_directories(dispatcher_conv_bwdw_lib PRIVATE
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/dispatcher/include
     )
-    target_link_libraries(dispatcher_conv_lib PRIVATE hip::device)
+    target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE hip::device)
+    target_compile_options(dispatcher_conv_bwdw_lib PRIVATE
+        -include ${CONV_BWDW_KERNEL_HEADER}
+    )
+    target_compile_definitions(dispatcher_conv_bwdw_lib PRIVATE CONV_BWD_WEIGHT_AVAILABLE)
+    set_target_properties(dispatcher_conv_bwdw_lib PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_STANDARD 17
+    )
+else()
+    message(STATUS "No Conv BwdWeight kernel found for ctypes lib - building without kernel")
+    add_library(dispatcher_conv_bwdw_lib SHARED conv_bwdw_ctypes_lib.cpp)
+    target_include_directories(dispatcher_conv_bwdw_lib PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/dispatcher/include
+    )
+    target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE hip::device)
+    set_target_properties(dispatcher_conv_bwdw_lib PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_STANDARD 17
+    )
 endif()
 
 # =============================================================================

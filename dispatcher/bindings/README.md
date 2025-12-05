@@ -7,9 +7,10 @@ This directory contains language bindings for the CK Tile Dispatcher.
 ```
 bindings/
 ├── ctypes/              # Python ctypes bindings (C API)
-│   ├── gemm_ctypes_lib.cpp    # GEMM dispatcher C API
-│   ├── conv_ctypes_lib.cpp    # Convolution dispatcher C API
-│   ├── gpu_helper.cpp         # CLI helper for Python
+│   ├── gemm_ctypes_lib.cpp      # GEMM dispatcher C API
+│   ├── conv_ctypes_lib.cpp      # Convolution dispatcher C API (fwd + bwd_data)
+│   ├── conv_bwdw_ctypes_lib.cpp # Convolution backward weight C API
+│   ├── gpu_helper.cpp           # CLI helper for Python
 │   └── CMakeLists.txt
 └── README.md
 ```

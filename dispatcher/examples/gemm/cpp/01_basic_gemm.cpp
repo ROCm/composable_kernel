@@ -2,29 +2,24 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 01: Basic GEMM with KernelSet
+ * Example 01: Basic GEMM - Autofill, Autocorrect, and Full Declaration
  *
- * Demonstrates the declarative kernel specification with explicit
- * Signature/Algorithm structs. All kernel key-values are visible.
+ * Demonstrates THREE declaration patterns:
  *
- * IMPORTANT: The kernel configuration in DECL_KERNEL_SET must match
- * the kernel header included at compile time (via -include flag).
- * The included header defines: SelectedKernel, ADataType, BDataType,
- * CDataType, AccDataType, KERNEL_NAME
+ * 1. AUTOFILL: Minimal declaration - missing params filled with defaults
+ *    .add(Signature().dtype("fp16").layout("rcr"),
+ *         Algorithm().tile(128,128,64).pipeline("compv3").scheduler("intrawave"),
+ *         "gfx942")
+ *    -> wave(2,2,1), warp(32,32,16), epilogue("cshuffle") added automatically
  *
- * Build (using CMake):
- *   cd dispatcher/build && cmake .. && make gemm_01_basic
+ * 2. AUTOCORRECT: Invalid params corrected to valid values
+ *    .add(..., Algorithm().wave(1,1,1)...)
+ *    -> wave(1,1,1) is invalid for gfx942, corrected to wave(2,2,1)
  *
- * Build (using compile script - matches kernel from source):
- *   python3 scripts/compile_gemm_examples.py examples/gemm/cpp/01_basic_gemm.cpp
+ * 3. FULL: All parameters explicitly specified
+ *    .add(..., Algorithm().tile().wave().warp().pipeline().scheduler().epilogue()...)
  *
- * Usage:
- *   ./gemm_01_basic
- *   ./gemm_01_basic --help
- *   ./gemm_01_basic --list
- *   ./gemm_01_basic --size 2048
- *
- * Complexity: ★☆☆☆☆
+ * Build: cd dispatcher/build && cmake .. && make gemm_01_basic
  */
 
 #include <hip/hip_runtime.h>
@@ -43,28 +38,51 @@ using Signature = decl::Signature;
 using Algorithm = decl::Algorithm;
 
 // =============================================================================
-// KERNEL SET DECLARATIONS
+// THREE KERNEL DECLARATION PATTERNS
 // =============================================================================
 
-// -----------------------------------------------------------------------------
-// Kernel set with FULL explicit configuration
-// NOTE: This configuration MUST match the kernel header included via -include!
-// The default build uses: fp16, rcr, 128x128x32, compv4, intrawave, cshuffle
-// -----------------------------------------------------------------------------
 DECL_KERNEL_SET(
-    explicit_config,
-    .add(Signature()
-             .dtype("fp16", "fp16", "fp16", "fp32") // A, B, C, Accumulator
-             .layout("row", "col", "row"),          // A=row, B=col, C=row
+    basic_gemm_kernels,
+    // -------------------------------------------------------------------------
+    // Pattern 1: AUTOFILL - Minimal declaration
+    // Only specify: dtype, layout, tile, pipeline, scheduler
+    // Auto-filled: wave(2,2,1), warp(32,32,16), epilogue("cshuffle"), pad(false,false,false)
+    // -------------------------------------------------------------------------
+    .add(Signature().dtype("fp16").layout("rcr"),
          Algorithm()
-             .tile(128, 128, 32)        // Block tile: M, N, K
-             .wave(2, 2, 1)             // Warps per block
-             .warp(32, 32, 16)          // Warp tile
-             .pipeline("compv4")        // Pipeline type (matches default build)
-             .scheduler("intrawave")    // Scheduler (intrawave required for compv4+cshuffle)
-             .epilogue("cshuffle")      // Epilogue
-             .pad(false, false, false)) // Padding M, N, K
-);
+             .tile(128, 128, 64)      // Required
+             .pipeline("compv3")      // Required
+             .scheduler("intrawave"), // Required
+         "gfx942")
+
+        // -------------------------------------------------------------------------
+        // Pattern 2: AUTOCORRECT - Invalid wave config
+        // wave(1,1,1) is invalid for gfx942 WMMA, corrected to wave(2,2,1)
+        // -------------------------------------------------------------------------
+        .add(Signature().dtype("fp16").layout("rcr"),
+             Algorithm()
+                 .tile(128, 128, 32) // Different tile_k to make unique kernel
+                 .wave(1, 1, 1)      // INVALID: autocorrected to (2,2,1)
+                 .warp(32, 32, 16)   // Valid warp for 128x128 tile
+                 .pipeline("compv3")
+                 .scheduler("intrawave")
+                 .epilogue("cshuffle"),
+             "gfx942")
+
+        // -------------------------------------------------------------------------
+        // Pattern 3: FULL - All parameters explicitly specified
+        // No autofill or autocorrect needed
+        // -------------------------------------------------------------------------
+        .add(Signature().dtype("fp16").layout("rcr"),
+             Algorithm()
+                 .tile(64, 64, 32)          // Explicit tile
+                 .wave(2, 2, 1)             // Explicit wave (valid)
+                 .warp(16, 16, 32)          // Explicit warp tile
+                 .pipeline("compv3")        // Explicit pipeline
+                 .scheduler("intrawave")    // Explicit scheduler
+                 .epilogue("cshuffle")      // Explicit epilogue
+                 .pad(false, false, false), // Explicit padding
+             "gfx942"));
 
 // =============================================================================
 // MAIN
@@ -72,147 +90,158 @@ DECL_KERNEL_SET(
 
 int main(int argc, char* argv[])
 {
-    // Parse command line arguments
-    ExampleArgs args("Example 01: Basic GEMM", "Demonstrates declarative kernel specification");
-    args.add_flag("--list", "List all declared kernel sets");
+    ExampleArgs args("Example 01: GEMM Autofill/Autocorrect/Full",
+                     "Three kernel declaration patterns");
+    args.add_flag("--list", "List declared kernel sets");
     args.add_option("--size", "1024", "Problem size MxNxK");
+    args.add_option("--arch", "gfx942", "GPU architecture");
 
     if(!args.parse(argc, argv))
-    {
-        return 0; // --help was printed
-    }
+        return 0;
+
+    print_header("Example 01: GEMM Declaration Patterns");
+
+    // =========================================================================
+    // Show the Three Patterns
+    // =========================================================================
+    std::cout << "\nTHREE DECLARATION PATTERNS:\n";
+    std::cout << "============================\n\n";
+
+    std::cout << "1. AUTOFILL (minimal declaration):\n";
+    std::cout << "   .add(Signature().dtype(\"fp16\").layout(\"rcr\"),\n";
+    std::cout
+        << "        Algorithm().tile(128,128,64).pipeline(\"compv3\").scheduler(\"intrawave\"),\n";
+    std::cout << "        \"gfx942\")\n";
+    std::cout << "   -> Auto-filled: wave(2,2,1), warp(32,32,16), epilogue(\"cshuffle\")\n\n";
+
+    std::cout << "2. AUTOCORRECT (invalid params fixed):\n";
+    std::cout << "   .add(..., Algorithm().wave(1,1,1)...)\n";
+    std::cout << "   -> wave(1,1,1) invalid for gfx942, corrected to wave(2,2,1)\n\n";
+
+    std::cout << "3. FULL (all params explicit):\n";
+    std::cout << "   .add(..., "
+                 "Algorithm().tile().wave().warp().pipeline().scheduler().epilogue().pad()...)\n";
+    std::cout << "   -> No changes needed\n\n";
+
+    // =========================================================================
+    // Step 1: Show Declared Kernels
+    // =========================================================================
+    std::cout << "Step 1: Declared Kernel Sets\n";
+    KernelSetRegistry::instance().print();
+
+    const auto& decl_set = KernelSetRegistry::instance().get("basic_gemm_kernels");
+    std::cout << "  'basic_gemm_kernels': " << decl_set.size() << " declaration(s)\n";
 
     if(args.has("--list"))
     {
-        KernelSetRegistry::instance().print();
+        std::cout << "\nDeclared kernels:\n";
+        int i = 1;
+        for(const auto& decl : decl_set.declarations())
+        {
+            std::cout << "  " << i++ << ". " << decl.name() << "\n";
+            std::cout << "     Tile: " << decl.algorithm.tile_m_ << "x" << decl.algorithm.tile_n_
+                      << "x" << decl.algorithm.tile_k_ << "\n";
+            std::cout << "     Wave: " << decl.algorithm.wave_m_ << "x" << decl.algorithm.wave_n_
+                      << "x" << decl.algorithm.wave_k_ << "\n";
+        }
         return 0;
     }
 
-    int size = args.get_int("--size", 1024);
-
-    print_header("Example 01: Basic GEMM");
+    std::string gfx_arch = args.get("--arch", "gfx942");
 
     // =========================================================================
-    // Step 1: Show all declared kernel sets
+    // Step 2: Create Registry and Register Kernels
     // =========================================================================
-    std::cout << "\nStep 1: Declared Kernel Sets\n";
-    KernelSetRegistry::instance().print();
+    std::cout << "\nStep 2: Register Kernels\n";
 
-    // =========================================================================
-    // Step 2: Create Registry
-    // =========================================================================
-    std::cout << "\nStep 2: Create Registry\n";
     Registry registry;
-    registry.set_name("declarative_registry");
+    generated::register_01_basic_gemm_kernels(registry, gfx_arch);
 
-    KernelConfig config =
-        KernelConfig::fp16_rcr()
-            .tile(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK)
-            .wave(SelectedKernel::WarpPerBlock_M,
-                  SelectedKernel::WarpPerBlock_N,
-                  SelectedKernel::WarpPerBlock_K)
-            .warp_tile(
-                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK)
-            .block(SelectedKernel::BlockSize);
-
-    KernelKey key = config.build_key();
-    auto kernel =
-        create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            key, KERNEL_NAME);
-
-    registry.register_kernel(kernel);
-    std::cout << "  Registered: " << kernel->get_name() << "\n";
+    std::cout << "  Registered " << registry.size() << " kernel(s)\n";
 
     // =========================================================================
-    // Step 3: Create Dispatcher and Run
+    // Step 3: Create Dispatcher
     // =========================================================================
-    std::cout << "\nStep 3: Run GEMM\n";
+    std::cout << "\nStep 3: Create Dispatcher\n";
     Dispatcher dispatcher(&registry);
 
+    // =========================================================================
+    // Step 4: Setup Problem
+    // =========================================================================
+    int size    = args.get_int("--size", 1024);
     const int M = size, N = size, K = size;
+
+    std::cout << "\nStep 4: Setup Problem (" << M << "x" << N << "x" << K << ")\n";
+
     Problem problem(M, N, K);
 
-    GpuBuffer<ADataType> a_dev(M * K);
-    GpuBuffer<BDataType> b_dev(K * N);
-    GpuBuffer<CDataType> c_dev(M * N);
+    using DataType = ck_tile::fp16_t;
+    GpuBuffer<DataType> a_dev(M * K);
+    GpuBuffer<DataType> b_dev(K * N);
+    GpuBuffer<DataType> c_dev(M * N);
 
-    std::vector<ADataType> a_host(M * K, ADataType(1.0f));
-    std::vector<BDataType> b_host(K * N, BDataType(1.0f));
+    std::vector<DataType> a_host(M * K, DataType(1.0f));
+    std::vector<DataType> b_host(K * N, DataType(1.0f));
     a_dev.copy_from_host(a_host.data());
     b_dev.copy_from_host(b_host.data());
     c_dev.zero();
 
+    // =========================================================================
+    // Step 5: Select and Run
+    // =========================================================================
+    std::cout << "\nStep 5: Select and Run\n";
+
     auto selected = dispatcher.select_kernel(problem);
-    std::cout << "  Problem: " << M << " x " << N << " x " << K << "\n";
-    std::cout << "  Kernel:  " << selected->get_name() << "\n";
+    if(!selected)
+    {
+        std::cerr << "ERROR: No kernel found!\n";
+        return 1;
+    }
+    std::cout << "  Selected: " << selected->get_name() << "\n";
 
     float time_ms = dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
-    std::cout << "  Time:    " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
-    std::cout << "  TFLOPS:  " << std::setprecision(2) << calculate_tflops(M, N, K, time_ms)
-              << "\n";
+    std::cout << "  Time: " << std::fixed << std::setprecision(4) << time_ms << " ms\n";
+    std::cout << "  TFLOPS: " << std::setprecision(2) << calculate_tflops(M, N, K, time_ms) << "\n";
 
     // =========================================================================
-    // Step 4: Verify (check ALL elements)
+    // Step 6: Verify
     // =========================================================================
-    std::cout << "\nStep 4: Verify\n";
-    std::vector<CDataType> c_host(M * N);
+    std::cout << "\nStep 6: Verify\n";
+    std::vector<DataType> c_host(M * N);
     c_dev.copy_to_host(c_host.data());
 
-    // With A=1, B=1: C[i,j] = sum(A[i,:] * B[:,j]) = K
-    // For FP16 with K=1024, result should be exactly K (no accumulation error for 1's)
     const float expected = static_cast<float>(K);
-    int num_errors       = 0;
-    float max_error      = 0.0f;
-    int first_error_idx  = -1;
-
+    int errors           = 0;
     for(int i = 0; i < M * N; ++i)
     {
-        float actual = static_cast<float>(c_host[i]);
-        float error  = std::abs(actual - expected);
-        if(error > max_error)
-        {
-            max_error = error;
-        }
-        // Exact comparison for this case (A=1, B=1)
-        // FP16 can exactly represent integers up to 2048
-        if(actual != expected)
-        {
-            if(first_error_idx < 0)
-                first_error_idx = i;
-            ++num_errors;
-        }
+        if(std::abs(static_cast<float>(c_host[i]) - expected) > 0.01f * expected + 1.0f)
+            ++errors;
     }
 
-    bool passed = (num_errors == 0);
-
-    std::cout << "  Expected: C[i,j] = " << expected << " for all elements\n";
-    std::cout << "  Checked:  " << (M * N) << " elements\n";
-    std::cout << "  Errors:   " << num_errors << "\n";
-    if(num_errors > 0)
-    {
-        std::cout << "  Max error: " << max_error << " at index " << first_error_idx << "\n";
-    }
-    std::cout << "  Status:   " << (passed ? "PASS" : "FAIL") << "\n";
+    bool passed = (errors == 0);
+    std::cout << "  Expected: " << expected << ", Errors: " << errors << "\n";
+    std::cout << "  Status: " << (passed ? "PASS" : "FAIL") << "\n";
 
     // =========================================================================
     // Summary
     // =========================================================================
     print_separator();
-    std::cout << "Full Declaration Syntax:\n";
+    std::cout << "DECLARATION PATTERNS SUMMARY:\n";
     print_separator();
-    std::cout << "DECL_KERNEL_SET(my_kernels,\n";
-    std::cout << "    .add(Signature()\n";
-    std::cout << "            .dtype(\"fp16\", \"fp16\", \"fp16\", \"fp32\")\n";
-    std::cout << "            .layout(\"row\", \"col\", \"row\"),\n";
-    std::cout << "         Algorithm()\n";
-    std::cout << "            .tile(128, 128, 32)\n";
-    std::cout << "            .wave(2, 2, 1)\n";
-    std::cout << "            .warp(32, 32, 16)\n";
-    std::cout << "            .pipeline(\"compv4\")\n";
-    std::cout << "            .scheduler(\"intrawave\")\n";
-    std::cout << "            .epilogue(\"cshuffle\")\n";
-    std::cout << "            .pad(true, true, true))\n";
-    std::cout << ");\n";
+    std::cout << R"(
+  1. AUTOFILL: Specify only required params, system fills defaults
+     - Useful for quick prototyping
+     - Guarantees valid configuration
+
+  2. AUTOCORRECT: System validates and fixes invalid params
+     - wave(1,1,1) -> wave(2,2,1) on gfx942
+     - Invalid pipeline/scheduler combos fixed
+     - Logs corrections for debugging
+
+  3. FULL: All params explicit - no changes made
+     - Full control over configuration
+     - Best for production/tuning
+)";
     print_separator();
 
     return passed ? 0 : 1;

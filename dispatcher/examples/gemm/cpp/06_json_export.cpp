@@ -6,10 +6,7 @@
  *
  * Demonstrates exporting registry information to JSON format.
  *
- * Build:
- *   python3 scripts/compile_gemm_examples.py examples/cpp/06_json_export.cpp
- *
- * Complexity: ★★☆☆☆
+ * Build: cd dispatcher/build && cmake .. && make gemm_06_json_export
  */
 
 #include <hip/hip_runtime.h>
@@ -21,17 +18,33 @@
 #include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
-using namespace ck_tile::dispatcher::backends;
 using namespace ck_tile::dispatcher::utils;
+using Signature = decl::Signature;
+using Algorithm = decl::Algorithm;
 
 // =============================================================================
-// KERNEL SET
+// KERNEL SET: Multiple kernels for JSON export demo
 // =============================================================================
 
-DECL_KERNEL_SET(json_export,
-                .add("fp16", "rcr", 64, 64, 32)
-                    .add("fp16", "rcr", 128, 128, 32)
-                    .add("fp16", "rcr", 256, 256, 64));
+DECL_KERNEL_SET(json_export_kernels,
+                .add(Signature().dtype("fp16").layout("rcr"),
+                     Algorithm()
+                         .tile(64, 64, 32)
+                         .wave(2, 2, 1)
+                         .warp(32, 32, 16)
+                         .pipeline("compv3")
+                         .scheduler("intrawave")
+                         .epilogue("cshuffle"),
+                     "gfx942")
+                    .add(Signature().dtype("fp16").layout("rcr"),
+                         Algorithm()
+                             .tile(128, 128, 64)
+                             .wave(2, 2, 1)
+                             .warp(32, 32, 16)
+                             .pipeline("compv3")
+                             .scheduler("intrawave")
+                             .epilogue("cshuffle"),
+                         "gfx942"));
 
 // =============================================================================
 // MAIN
@@ -41,12 +54,15 @@ int main(int argc, char* argv[])
 {
     ExampleArgs args("Example 06: JSON Export", "Export registry information to JSON format");
     args.add_option("--output", "registry.json", "Output JSON file path");
+    args.add_option("--arch", "gfx942", "GPU architecture");
     args.add_flag("--list", "List all kernel sets");
 
     if(!args.parse(argc, argv))
         return 0;
 
     print_header("Example 06: JSON Export");
+
+    std::string gfx_arch = args.get("--arch", "gfx942");
 
     if(args.has("--list"))
     {
@@ -55,7 +71,7 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    std::string output_file = args.get("--output");
+    std::string output_file = args.get("--output", "registry.json");
 
     // =========================================================================
     // Setup Registry
@@ -64,20 +80,7 @@ int main(int argc, char* argv[])
     Registry registry;
     registry.set_name("json_export_registry");
 
-    KernelConfig config =
-        KernelConfig::fp16_rcr()
-            .tile(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK)
-            .wave(SelectedKernel::WarpPerBlock_M,
-                  SelectedKernel::WarpPerBlock_N,
-                  SelectedKernel::WarpPerBlock_K)
-            .warp_tile(
-                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
-
-    auto kernel =
-        create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            config.build_key(), KERNEL_NAME);
-
-    registry.register_kernel(kernel);
+    generated::register_06_json_export_kernels(registry, gfx_arch);
 
     std::cout << "  Registry: " << registry.get_name() << "\n";
     std::cout << "  Kernels:  " << registry.size() << "\n";
@@ -113,15 +116,11 @@ int main(int argc, char* argv[])
     }
 
     // =========================================================================
-    // Also export kernel set declarations
+    // Also show kernel set declarations
     // =========================================================================
     std::cout << "\nKernel Set Declarations:\n";
     print_separator();
-    const auto& kernel_set = KernelSetRegistry::instance().get("json_export");
-    for(const auto& decl : kernel_set.declarations())
-    {
-        std::cout << "  " << decl.name() << "\n";
-    }
+    KernelSetRegistry::instance().print();
     print_separator();
 
     return 0;

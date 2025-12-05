@@ -7,17 +7,9 @@
  * Demonstrates all available benchmark parameters matching CK Tile stream_config:
  *   - warmup: Number of warmup iterations (default: 5)
  *   - iterations: Number of benchmark iterations (default: 100)
- *   - (Note: flush_cache, rotating_count available via stream_config in advanced usage)
  *
- * Build:
- *   cd dispatcher/build && cmake .. -DBUILD_DISPATCHER_EXAMPLES=ON && make gemm_03_benchmark
- *
- * Usage:
- *   ./gemm_03_benchmark
- *   ./gemm_03_benchmark --help
- *   ./gemm_03_benchmark --size 4096 --warmup 10 --iterations 100
- *
- * Complexity: ★★☆☆☆
+ * Build: cd dispatcher/build && cmake .. && make gemm_03_benchmark
+ * Usage: ./gemm_03_benchmark [--size N] [--warmup N] [--iterations N]
  */
 
 #include <hip/hip_runtime.h>
@@ -32,14 +24,33 @@
 #include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
-using namespace ck_tile::dispatcher::backends;
 using namespace ck_tile::dispatcher::utils;
+using Signature = decl::Signature;
+using Algorithm = decl::Algorithm;
 
 // =============================================================================
 // KERNEL SET: High-performance kernels for benchmarking
 // =============================================================================
 
-DECL_KERNEL_SET(benchmark, .add("bf16", "rcr", 128, 128, 32).add("fp16", "rcr", 256, 256, 64));
+DECL_KERNEL_SET(benchmark_kernels,
+                .add(Signature().dtype("fp16").layout("rcr"),
+                     Algorithm()
+                         .tile(128, 128, 64)
+                         .wave(2, 2, 1)
+                         .warp(32, 32, 16)
+                         .pipeline("compv3")
+                         .scheduler("intrawave")
+                         .epilogue("cshuffle"),
+                     "gfx942")
+                    .add(Signature().dtype("fp16").layout("rcr"),
+                         Algorithm()
+                             .tile(256, 128, 64)
+                             .wave(2, 2, 1)
+                             .warp(32, 32, 16)
+                             .pipeline("compv3")
+                             .scheduler("intrawave")
+                             .epilogue("cshuffle"),
+                         "gfx942"));
 
 // =============================================================================
 // MAIN
@@ -47,23 +58,24 @@ DECL_KERNEL_SET(benchmark, .add("bf16", "rcr", 128, 128, 32).add("fp16", "rcr", 
 
 int main(int argc, char* argv[])
 {
-    // Parse command line arguments
     ExampleArgs args("Example 03: GEMM Benchmarking",
                      "Runs GEMM multiple times for accurate timing");
     args.add_option("--size", "4096", "Problem size MxNxK");
     args.add_option("--warmup", "5", "Warmup iterations");
     args.add_option("--iterations", "100", "Benchmark iterations");
+    args.add_option("--arch", "gfx942", "GPU architecture");
 
     if(!args.parse(argc, argv))
     {
-        return 0; // --help was printed
+        return 0;
     }
 
-    int M          = args.get_int("--size", 4096);
-    int N          = M;
-    int K          = M;
-    int warmup     = args.get_int("--warmup", 5);
-    int iterations = args.get_int("--iterations", 100);
+    int M                = args.get_int("--size", 4096);
+    int N                = M;
+    int K                = M;
+    int warmup           = args.get_int("--warmup", 5);
+    int iterations       = args.get_int("--iterations", 100);
+    std::string gfx_arch = args.get("--arch", "gfx942");
 
     print_header("Example 03: GEMM Benchmarking");
 
@@ -73,38 +85,35 @@ int main(int argc, char* argv[])
     std::cout << "  Benchmark:  " << iterations << " iterations\n";
 
     // =========================================================================
-    // Setup
+    // Setup Registry and Dispatcher
     // =========================================================================
     Registry registry;
-    KernelConfig config =
-        KernelConfig::fp16_rcr()
-            .tile(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK)
-            .wave(SelectedKernel::WarpPerBlock_M,
-                  SelectedKernel::WarpPerBlock_N,
-                  SelectedKernel::WarpPerBlock_K)
-            .warp_tile(
-                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
-
-    auto kernel =
-        create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            config.build_key(), KERNEL_NAME);
-
-    registry.register_kernel(kernel);
+    generated::register_03_benchmark_kernels(registry, gfx_arch);
     Dispatcher dispatcher(&registry);
 
-    std::cout << "  Kernel:     " << kernel->get_name() << "\n";
+    std::cout << "  Kernels:    " << registry.size() << " registered\n";
 
-    // Allocate
-    GpuBuffer<ADataType> a_dev(M * K);
-    GpuBuffer<BDataType> b_dev(K * N);
-    GpuBuffer<CDataType> c_dev(M * N);
+    // Select kernel and print its name
+    Problem problem(M, N, K);
+    auto selected = dispatcher.select_kernel(problem);
+    if(selected)
+    {
+        std::cout << "  Selected:   " << selected->get_name() << "\n";
+    }
 
-    std::vector<ADataType> a_host(M * K, ADataType(0.5f));
-    std::vector<BDataType> b_host(K * N, BDataType(0.5f));
+    // =========================================================================
+    // Allocate and initialize
+    // =========================================================================
+    using DataType = ck_tile::fp16_t;
+
+    GpuBuffer<DataType> a_dev(M * K);
+    GpuBuffer<DataType> b_dev(K * N);
+    GpuBuffer<DataType> c_dev(M * N);
+
+    std::vector<DataType> a_host(M * K, DataType(0.5f));
+    std::vector<DataType> b_host(K * N, DataType(0.5f));
     a_dev.copy_from_host(a_host.data());
     b_dev.copy_from_host(b_host.data());
-
-    Problem problem(M, N, K);
 
     // =========================================================================
     // Warmup
@@ -113,7 +122,7 @@ int main(int argc, char* argv[])
     for(int i = 0; i < warmup; ++i)
     {
         c_dev.zero();
-        dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
+        (void)dispatcher.run(a_dev.get(), b_dev.get(), c_dev.get(), problem, nullptr);
     }
 
     // =========================================================================
@@ -141,7 +150,7 @@ int main(int argc, char* argv[])
     float mean_time   = std::accumulate(times.begin(), times.end(), 0.0f) / times.size();
 
     // Remove outliers for stable mean
-    size_t trim = times.size() / 10; // 10% from each end
+    size_t trim = times.size() / 10;
     float trimmed_mean =
         std::accumulate(times.begin() + trim, times.end() - trim, 0.0f) / (times.size() - 2 * trim);
 

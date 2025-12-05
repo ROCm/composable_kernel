@@ -115,7 +115,7 @@ int conv_dispatcher_get_kernel_count()
 
 int conv_dispatcher_get_kernel_name(int index, char* buffer, int buffer_size)
 {
-    if(!g_registry || index < 0)
+    if(!g_registry || index < 0 || !buffer || buffer_size <= 0)
         return -1;
 
     const auto& kernels = g_registry->all_kernels();
@@ -172,7 +172,7 @@ int conv_dispatcher_is_supported(const ConvProblemC* prob)
 
 int conv_dispatcher_select_kernel(const ConvProblemC* prob, char* kernel_name, int buffer_size)
 {
-    if(!g_registry || !prob)
+    if(!g_registry || !prob || !kernel_name || buffer_size <= 0)
         return -1;
 
     ConvProblem problem;
@@ -302,14 +302,36 @@ static float run_bwd_weight(const void* input_ptr,
 }
 #endif
 
+/**
+ * @brief Execute convolution based on direction specified in prob
+ *
+ * Parameter mapping varies by direction:
+ *   Forward (direction=0):
+ *     input_ptr  = X (input tensor)
+ *     weight_ptr = W (weight tensor)
+ *     output_ptr = Y (output buffer)
+ *
+ *   Backward Data (direction=1):
+ *     input_ptr  = dY (grad_output - gradient from next layer)
+ *     weight_ptr = W  (weight tensor, frozen)
+ *     output_ptr = dX (grad_input buffer)
+ *
+ *   Backward Weight (direction=2):
+ *     input_ptr  = X  (forward input tensor)
+ *     weight_ptr = dY (grad_output - gradient from next layer)
+ *     output_ptr = dW (grad_weight buffer)
+ */
 float conv_dispatcher_run(const void* input_ptr,
                           const void* weight_ptr,
                           void* output_ptr,
                           const ConvProblemC* prob,
                           void* stream)
 {
+    // Validate all required pointers before kernel launch
     if(!g_dispatcher || !prob)
         return -1.0f;
+    if(!input_ptr || !weight_ptr || !output_ptr)
+        return -1.0f; // Null data pointer would cause kernel crash
 
     // Build problem for kernel selection
     ConvProblem problem;
@@ -338,6 +360,9 @@ float conv_dispatcher_run(const void* input_ptr,
 
 #ifdef CONV_BWD_DATA_AVAILABLE
     case 1: // Backward data
+        // Convention: caller passes (grad_output, weight, grad_input_buffer)
+        // in the (input_ptr, weight_ptr, output_ptr) slots respectively.
+        // run_bwd_data expects: (grad_output, weight, grad_input)
         return run_bwd_data(input_ptr, weight_ptr, output_ptr, prob, stream);
 #endif
 

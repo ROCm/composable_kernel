@@ -184,7 +184,7 @@ int dispatcher_get_kernel_config(int* tile_m,
  */
 int dispatcher_select_kernel(int64_t M, int64_t N, int64_t K, char* name_buffer, int buffer_size)
 {
-    if(!g_initialized)
+    if(!g_initialized || !name_buffer || buffer_size <= 0)
     {
         return -1;
     }

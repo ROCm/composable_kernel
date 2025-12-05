@@ -2,16 +2,16 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 07: Multiple Convolution Registries with GPU Execution
+ * Example 07: Multiple Convolution Registries
  *
- * Demonstrates using separate registries for different use cases,
- * each running on GPU.
+ * Demonstrates using separate registries for different use cases.
  *
- * Complexity: ★★★★☆
+ * Build: cd dispatcher/build && cmake .. && make conv_07_multi_registry
  */
 
 #include <iostream>
 #include <iomanip>
+#include <cmath>
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
@@ -26,29 +26,19 @@ using namespace ck_tile::dispatcher::conv_utils;
 using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
-// KERNEL DECLARATIONS - Different registries for different use cases
+// KERNEL DECLARATIONS - Multiple registry demo (single kernel for simplicity)
 // =============================================================================
 
-// Throughput-optimized (large tiles, high occupancy)
-DECL_CONV_KERNEL_SET(conv_throughput,
+DECL_CONV_KERNEL_SET(conv_multi_registry,
                      .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
                           ConvAlgo()
-                              .tile(1, 128, 128)
-                              .wave(2, 2, 1)
-                              .warp(32, 32, 16)
-                              .pipeline("compv3")
-                              .scheduler("intrawave"),
-                          "gfx942"));
-
-// Latency-optimized (small tiles, fast completion)
-DECL_CONV_KERNEL_SET(conv_latency,
-                     .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
-                          ConvAlgo()
-                              .tile(1, 64, 64)
-                              .wave(2, 2, 1)
+                              .tile(1, 16, 64)
+                              .wave(1, 4, 1)
                               .warp(16, 16, 32)
                               .pipeline("compv3")
-                              .scheduler("intrawave"),
+                              .scheduler("intrawave")
+                              .vector_sizes(4, 8, 8)
+                              .block_per_cu(1),
                           "gfx942"));
 
 // =============================================================================
@@ -60,10 +50,9 @@ using WeiDataType = ck_tile::half_t;
 using OutDataType = ck_tile::half_t;
 
 // =============================================================================
-// GPU RUN HELPER
+// HELPER: Run conv on GPU
 // =============================================================================
 
-#ifdef CONV_KERNEL_AVAILABLE
 float run_conv(int N, int C, int K, int H, int W)
 {
     ck_tile::conv::ConvParam conv_param{
@@ -72,7 +61,7 @@ float run_conv(int N, int C, int K, int H, int W)
         static_cast<ck_tile::index_t>(N),
         static_cast<ck_tile::index_t>(K),
         static_cast<ck_tile::index_t>(C),
-        {static_cast<ck_tile::index_t>(3), static_cast<ck_tile::index_t>(3)},
+        {3, 3},
         {static_cast<ck_tile::index_t>(H), static_cast<ck_tile::index_t>(W)},
         {1, 1},
         {1, 1},
@@ -112,10 +101,11 @@ float run_conv(int N, int C, int K, int H, int W)
                                                   output_dev.GetDeviceBuffer(),
                                                   1);
 
-    ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
-    return SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
+    ck_tile::stream_config stream_cfg{nullptr, true, 1, 3, 10};
+
+    using Launcher = generated::FirstKernelLauncher;
+    return Launcher::launch(kernel_args, stream_cfg);
 }
-#endif
 
 // =============================================================================
 // MAIN
@@ -125,56 +115,32 @@ int main(int argc, char* argv[])
 {
     ExampleArgs args("Example 07: Multi-Registry Conv",
                      "Separate registries for different use cases");
-    args.add_flag("--list", "List all kernel sets");
 
     if(!args.parse(argc, argv))
         return 0;
 
     std::cout << "======================================================================\n";
-    std::cout << "Example 07: Multiple Convolution Registries with GPU Execution\n";
+    std::cout << "Example 07: Multiple Convolution Registries\n";
     std::cout << "======================================================================\n\n";
 
-    if(args.has("--list"))
-    {
-        std::cout << "Declared Kernel Sets:\n";
-        ConvKernelSetRegistry::instance().print();
-        return 0;
-    }
-
-    // -------------------------------------------------------------------------
     // Create separate registries
-    // -------------------------------------------------------------------------
     std::cout << "Step 1: Create Separate Registries\n";
-    std::cout << "-----------------------------------\n\n";
+    std::cout << "-----------------------------------\n";
 
-    // Throughput registry (inference with batching)
+    const auto& kernel_set = ConvKernelSetRegistry::instance().get("conv_multi_registry");
+
     ConvRegistry throughput_reg;
     throughput_reg.set_name("throughput");
-    throughput_reg.register_set(ConvKernelSetRegistry::instance().get("conv_throughput"),
-                                ConvRegistry::Priority::High);
+    throughput_reg.register_set(kernel_set, ConvRegistry::Priority::High);
 
-    // Latency registry (interactive/real-time)
     ConvRegistry latency_reg;
     latency_reg.set_name("latency");
-    latency_reg.register_set(ConvKernelSetRegistry::instance().get("conv_latency"),
-                             ConvRegistry::Priority::High);
+    latency_reg.register_set(kernel_set, ConvRegistry::Priority::High);
 
-    std::cout << "Throughput Registry:\n";
-    for(const auto* k : throughput_reg.all_kernels())
-    {
-        std::cout << "  - " << k->name() << "\n";
-    }
+    std::cout << "  Throughput Registry: " << throughput_reg.size() << " kernels\n";
+    std::cout << "  Latency Registry:    " << latency_reg.size() << " kernels\n\n";
 
-    std::cout << "\nLatency Registry:\n";
-    for(const auto* k : latency_reg.all_kernels())
-    {
-        std::cout << "  - " << k->name() << "\n";
-    }
-    std::cout << "\n";
-
-    // -------------------------------------------------------------------------
     // Create dispatchers
-    // -------------------------------------------------------------------------
     std::cout << "Step 2: Create Dispatchers\n";
     std::cout << "--------------------------\n";
 
@@ -183,47 +149,25 @@ int main(int argc, char* argv[])
 
     std::cout << "  Created throughput_dispatcher and latency_dispatcher\n\n";
 
-    // -------------------------------------------------------------------------
-    // Run on GPU with different registries
-    // -------------------------------------------------------------------------
-    std::cout << "Step 3: GPU Execution with Each Registry\n";
-    std::cout << "-----------------------------------------\n\n";
+    // Run with different registries
+    std::cout << "Step 3: GPU Execution\n";
+    std::cout << "---------------------\n\n";
 
-    // Large batch (use throughput registry)
-    auto large_problem = create_conv2d_problem(4, 128, 256, 56, 56, 3, 3, 1, 1);
-    std::cout << "Large batch problem (N=4, 56x56, C=128, K=256):\n";
-
-    const auto* tp_kernel = throughput_dispatcher.select(large_problem);
-    std::cout << "  Throughput registry selected: " << (tp_kernel ? tp_kernel->name() : "(none)")
-              << "\n";
-
-#ifdef CONV_KERNEL_AVAILABLE
+    // Large batch (throughput registry)
+    std::cout << "Large batch (N=4, 56x56, C=128, K=256):\n";
     float tp_time    = run_conv(4, 128, 256, 56, 56);
-    double tp_flops  = large_problem.get_flops();
+    double tp_flops  = 2.0 * 4 * 256 * 128 * 9 * 56 * 56;
     double tp_tflops = tp_flops / (tp_time * 1e9);
-    std::cout << "  GPU Time: " << std::fixed << std::setprecision(4) << tp_time << " ms\n";
-    std::cout << "  TFLOPS:   " << std::fixed << std::setprecision(2) << tp_tflops << "\n\n";
-#else
-    std::cout << "  [GPU execution requires compiled kernels]\n\n";
-#endif
+    std::cout << "  Time:   " << std::fixed << std::setprecision(4) << tp_time << " ms\n";
+    std::cout << "  TFLOPS: " << std::setprecision(2) << tp_tflops << "\n\n";
 
-    // Small interactive (use latency registry)
-    auto small_problem = create_conv2d_problem(1, 64, 64, 14, 14, 3, 3, 1, 1);
-    std::cout << "Small interactive problem (N=1, 14x14, C=64, K=64):\n";
-
-    const auto* lat_kernel = latency_dispatcher.select(small_problem);
-    std::cout << "  Latency registry selected: " << (lat_kernel ? lat_kernel->name() : "(none)")
-              << "\n";
-
-#ifdef CONV_KERNEL_AVAILABLE
+    // Small interactive (latency registry)
+    std::cout << "Small interactive (N=1, 14x14, C=64, K=64):\n";
     float lat_time    = run_conv(1, 64, 64, 14, 14);
-    double lat_flops  = small_problem.get_flops();
+    double lat_flops  = 2.0 * 1 * 64 * 64 * 9 * 14 * 14;
     double lat_tflops = lat_flops / (lat_time * 1e9);
-    std::cout << "  GPU Time: " << std::fixed << std::setprecision(4) << lat_time << " ms\n";
-    std::cout << "  TFLOPS:   " << std::fixed << std::setprecision(2) << lat_tflops << "\n";
-#else
-    std::cout << "  [GPU execution requires compiled kernels]\n";
-#endif
+    std::cout << "  Time:   " << std::fixed << std::setprecision(4) << lat_time << " ms\n";
+    std::cout << "  TFLOPS: " << std::setprecision(2) << lat_tflops << "\n";
 
     std::cout << "\n======================================================================\n";
     std::cout << "Use Case Summary:\n";

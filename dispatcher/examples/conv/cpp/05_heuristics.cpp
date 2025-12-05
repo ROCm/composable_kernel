@@ -2,15 +2,20 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
- * Example 05: Convolution Heuristics with GPU Execution
+ * Example 05: Convolution with Autocorrect/Auto-fill
  *
- * Demonstrates heuristic-based kernel selection with GPU execution.
+ * Demonstrates the autocorrect functionality where kernels declared with
+ * minimal parameters are automatically filled with sensible defaults.
  *
- * Complexity: ★★★☆☆
+ * You can declare a kernel with just dtype, layout, conv_type and tile size,
+ * and the system will fill in wave, warp, pipeline, etc. with defaults.
+ *
+ * Build: cd dispatcher/build && cmake .. && make conv_05_heuristics
  */
 
 #include <iostream>
 #include <iomanip>
+#include <cmath>
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/dispatcher/conv_utils.hpp"
@@ -25,56 +30,22 @@ using namespace ck_tile::dispatcher::conv_utils;
 using namespace ck_tile::dispatcher::utils;
 
 // =============================================================================
-// KERNEL DECLARATIONS
+// KERNEL DECLARATIONS - Minimal specification (autocorrect fills the rest)
 // =============================================================================
 
+// This declaration uses minimal parameters - the build system will auto-fill:
+// - wave(1, 4, 1) - default wave distribution
+// - warp(16, 16, 32) - default warp tile sizes
+// - vector_sizes(4, 8, 8) - default vector sizes
+// - block_per_cu(1) - default occupancy hint
 DECL_CONV_KERNEL_SET(conv_heuristic_kernels,
-                     // Small tile for latency-sensitive workloads
+                     // Minimal declaration: just dtype, layout, conv_type, tile, pipeline
                      .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
                           ConvAlgo()
-                              .tile(1, 64, 64)
-                              .wave(2, 2, 1)
-                              .warp(16, 16, 32)
-                              .pipeline("compv3")
-                              .scheduler("intrawave")
-                              .vector_sizes(4, 8, 8)
-                              .block_per_cu(2),
-                          "gfx942")
-                         // Large tile for throughput-bound workloads
-                         .add(ConvSig().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
-                              ConvAlgo()
-                                  .tile(1, 128, 128)
-                                  .wave(2, 2, 1)
-                                  .warp(32, 32, 16)
-                                  .pipeline("compv3")
-                                  .scheduler("intrawave")
-                                  .vector_sizes(4, 8, 8)
-                                  .block_per_cu(1),
-                              "gfx942"));
-
-// =============================================================================
-// HEURISTIC FUNCTION
-// =============================================================================
-
-std::string select_tile_size(const ConvProblem& p)
-{
-    // Heuristic: Use smaller tiles for small spatial dimensions
-    int spatial  = p.input_spatial[1] * p.input_spatial[2];
-    int channels = p.C * p.K;
-
-    if(spatial < 256)
-    {
-        return "small"; // 64x64 tiles for small images
-    }
-    else if(channels > 10000)
-    {
-        return "large"; // 128x128 tiles for many channels
-    }
-    else
-    {
-        return "medium"; // Default
-    }
-}
+                              .tile(1, 16, 64)         // Required: tile size
+                              .pipeline("compv3")      // Required: pipeline
+                              .scheduler("intrawave"), // Required: scheduler
+                          "gfx942"));
 
 // =============================================================================
 // DATA TYPES
@@ -85,81 +56,91 @@ using WeiDataType = ck_tile::half_t;
 using OutDataType = ck_tile::half_t;
 
 // =============================================================================
+// HEURISTIC FUNCTION
+// =============================================================================
+
+std::string select_tile_heuristic(int C, int K, int spatial)
+{
+    // Simple heuristic based on problem characteristics
+    if(spatial < 256)
+        return "small_tile"; // Small spatial: use smaller tiles
+    else if(C * K > 20000)
+        return "large_tile"; // Many channels: use larger tiles
+    else
+        return "medium_tile"; // Balanced
+}
+
+// =============================================================================
 // MAIN
 // =============================================================================
 
 int main(int argc, char* argv[])
 {
-    ExampleArgs args("Example 05: Conv Heuristics", "Heuristic-based kernel selection");
-    args.add_flag("--list", "List all kernel sets");
+    ExampleArgs args("Example 05: Conv Autocorrect", "Demonstrates auto-fill of kernel parameters");
 
     if(!args.parse(argc, argv))
         return 0;
 
     std::cout << "======================================================================\n";
-    std::cout << "Example 05: Convolution Heuristics with GPU Execution\n";
+    std::cout << "Example 05: Convolution with Autocorrect\n";
     std::cout << "======================================================================\n\n";
 
-    if(args.has("--list"))
-    {
-        std::cout << "Declared Kernel Sets:\n";
-        ConvKernelSetRegistry::instance().print();
-        return 0;
-    }
+    // Show autocorrect concept
+    std::cout << "AUTOCORRECT FUNCTIONALITY:\n";
+    std::cout << "--------------------------\n";
+    std::cout << "Minimal declaration:\n";
+    std::cout
+        << "  .add(ConvSig().dtype(\"fp16\").layout(\"nhwgc\").conv_type(\"forward\").dims(2),\n";
+    std::cout
+        << "       ConvAlgo().tile(1, 16, 64).pipeline(\"compv3\").scheduler(\"intrawave\"),\n";
+    std::cout << "       \"gfx942\")\n\n";
+    std::cout << "Auto-filled parameters:\n";
+    std::cout << "  - wave(1, 4, 1)        <- default wave distribution\n";
+    std::cout << "  - warp(16, 16, 32)     <- default warp tile sizes\n";
+    std::cout << "  - vector_sizes(4,8,8)  <- default vector sizes\n";
+    std::cout << "  - block_per_cu(1)      <- default occupancy\n\n";
 
-    // -------------------------------------------------------------------------
-    // Setup
-    // -------------------------------------------------------------------------
-    const auto& kernel_set = ConvKernelSetRegistry::instance().get("conv_heuristic_kernels");
-
-    std::cout << "Available kernels:\n";
-    kernel_set.print(std::cout);
+    // Show declared kernels
+    std::cout << "Step 1: Declared Kernels\n";
+    std::cout << "------------------------\n";
+    ConvKernelSetRegistry::instance().print();
     std::cout << "\n";
 
-    ConvRegistry registry;
-    registry.register_set(kernel_set, ConvRegistry::Priority::High);
-    ConvDispatcher dispatcher(&registry);
+    // Run GPU test
+    std::cout << "Step 2: GPU Execution with Heuristic Selection\n";
+    std::cout << "-----------------------------------------------\n\n";
 
-    // -------------------------------------------------------------------------
-    // Test heuristics with different problems
-    // -------------------------------------------------------------------------
-    std::cout << "Heuristic Selection + GPU Execution:\n";
-    std::cout << std::string(60, '-') << "\n\n";
+    using Launcher  = generated::FirstKernelLauncher;
+    bool all_passed = true;
 
     struct TestCase
     {
         std::string name;
-        int N, C, K, H, W;
+        int C, K, H, W;
     };
-
     std::vector<TestCase> cases = {
-        {"Small image (7x7)", 1, 512, 512, 7, 7},
-        {"Medium image (28x28)", 1, 128, 256, 28, 28},
-        {"Large channels", 1, 256, 512, 14, 14},
+        {"Small spatial (7x7)", 256, 256, 7, 7},
+        {"Medium (28x28)", 128, 256, 28, 28},
+        {"Large channels", 256, 512, 14, 14},
     };
 
-#ifdef CONV_KERNEL_AVAILABLE
     for(const auto& tc : cases)
     {
-        auto problem = create_conv2d_problem(tc.N, tc.C, tc.K, tc.H, tc.W, 3, 3, 1, 1);
-
-        std::string heuristic_result = select_tile_size(problem);
-        const auto* selected         = dispatcher.select(problem);
+        std::string heuristic = select_tile_heuristic(tc.C, tc.K, tc.H * tc.W);
 
         std::cout << tc.name << ":\n";
-        std::cout << "  Problem: N=" << tc.N << " C=" << tc.C << " K=" << tc.K << " " << tc.H << "x"
-                  << tc.W << "\n";
-        std::cout << "  Heuristic says: " << heuristic_result << "\n";
-        std::cout << "  Dispatcher selected: " << (selected ? selected->name() : "(none)") << "\n";
+        std::cout << "  Problem: C=" << tc.C << " K=" << tc.K << " " << tc.H << "x" << tc.W << "\n";
+        std::cout << "  Heuristic suggests: " << heuristic << "\n";
 
-        // Run on GPU
+        int N = 1, G = 1, Y = 3, X = 3;
+
         ck_tile::conv::ConvParam conv_param{
             2,
-            1,
-            static_cast<ck_tile::index_t>(tc.N),
+            static_cast<ck_tile::index_t>(G),
+            static_cast<ck_tile::index_t>(N),
             static_cast<ck_tile::index_t>(tc.K),
             static_cast<ck_tile::index_t>(tc.C),
-            {static_cast<ck_tile::index_t>(3), static_cast<ck_tile::index_t>(3)},
+            {3, 3},
             {static_cast<ck_tile::index_t>(tc.H), static_cast<ck_tile::index_t>(tc.W)},
             {1, 1},
             {1, 1},
@@ -201,27 +182,28 @@ int main(int argc, char* argv[])
                                                       output_dev.GetDeviceBuffer(),
                                                       1);
 
-        ck_tile::stream_config stream_cfg{nullptr, true, 1, 5, 20};
-        float elapsed_ms = SelectedConvKernelLauncher::launch(kernel_args, stream_cfg);
+        ck_tile::stream_config stream_cfg{nullptr, true, 1, 3, 10};
+        float elapsed_ms = Launcher::launch(kernel_args, stream_cfg);
 
-        double flops  = problem.get_flops();
+        double flops  = 2.0 * G * N * tc.K * tc.C * Y * X * tc.H * tc.W;
         double tflops = flops / (elapsed_ms * 1e9);
 
-        std::cout << "  GPU Time: " << std::fixed << std::setprecision(4) << elapsed_ms << " ms\n";
-        std::cout << "  TFLOPS:   " << std::fixed << std::setprecision(2) << tflops << "\n\n";
-    }
-#else
-    for(const auto& tc : cases)
-    {
-        auto problem = create_conv2d_problem(tc.N, tc.C, tc.K, tc.H, tc.W, 3, 3, 1, 1);
-        std::string heuristic_result = select_tile_size(problem);
+        // Output check
+        output_dev.FromDevice(output.data());
+        size_t non_zero = 0;
+        for(size_t i = 0; i < output.get_element_space_size(); ++i)
+            if(std::abs(static_cast<float>(output.data()[i])) > 1e-6f)
+                ++non_zero;
+        bool passed = (non_zero > 0);
+        if(!passed)
+            all_passed = false;
 
-        std::cout << tc.name << ":\n";
-        std::cout << "  Heuristic says: " << heuristic_result << "\n";
-        std::cout << "  [GPU execution requires compiled kernels]\n\n";
+        std::cout << "  Time:   " << std::fixed << std::setprecision(4) << elapsed_ms << " ms\n";
+        std::cout << "  TFLOPS: " << std::setprecision(2) << tflops << "\n";
+        std::cout << "  Status: " << (passed ? "PASS" : "FAIL") << "\n\n";
     }
-#endif
 
+    std::cout << "Overall: " << (all_passed ? "ALL PASSED" : "SOME FAILED") << "\n";
     std::cout << "======================================================================\n";
-    return 0;
+    return all_passed ? 0 : 1;
 }

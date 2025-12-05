@@ -3,6 +3,26 @@
 
 cmake_minimum_required(VERSION 3.16)
 
+# Get processor count for parallel builds
+include(ProcessorCount)
+ProcessorCount(NPROC)
+if(NPROC EQUAL 0)
+    set(NPROC 4)
+endif()
+
+# GPU target architecture (passed from command line or default to gfx942)
+if(NOT DEFINED GPU_TARGETS OR GPU_TARGETS STREQUAL "")
+    set(GPU_TARGETS "gfx942" CACHE STRING "GPU architecture target")
+endif()
+# Extract first target if multiple are provided (we only support single target builds)
+string(REPLACE ";" " " GPU_TARGETS_SPACE "${GPU_TARGETS}")
+string(REPLACE " " ";" GPU_TARGETS_LIST "${GPU_TARGETS_SPACE}")
+list(GET GPU_TARGETS_LIST 0 GPU_TARGET)
+message(STATUS "Building for GPU target: ${GPU_TARGET}")
+
+# NOTE: Per-kernel compilation is now automatic via declarative examples
+# Each example generates only its declared kernels (from DECL_KERNEL_SET)
+
 # Link to dispatcher library
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../build)
 
@@ -23,16 +43,16 @@ set(CONV_FWD_SENTINEL "${KERNEL_OUTPUT_DIR}/.conv_fwd_generated")
 set(CONV_BWD_SENTINEL "${KERNEL_OUTPUT_DIR}/.conv_bwd_generated")
 set(ALL_KERNELS_SENTINEL "${KERNEL_OUTPUT_DIR}/.all_generated")
 
-# Generate GEMM kernels (standard + multi_d) - runs with internal parallelism
+# Generate GEMM kernels (standard + preshuffle + multi_d) - runs with internal parallelism
 # Note: 4-char layout "rcrr" means A=row, B=col, C=row, D=row (for multi-d)
 add_custom_command(
     OUTPUT ${GEMM_SENTINEL}
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_gemm_codegen.py 
-            --datatype fp16 --layout rcrr --variants standard multi_d
+            --datatype fp16 --layout rcrr --variants standard preshuffle multi_d
             --output ${KERNEL_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E touch ${GEMM_SENTINEL}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Generating GEMM kernels (fp16, rcrr, standard + multi_d) with internal parallelism..."
+    COMMENT "Generating GEMM kernels (fp16, rcrr, standard + preshuffle + multi_d) with internal parallelism..."
     VERBATIM
 )
 
@@ -86,33 +106,93 @@ add_custom_target(generate_all_kernels
 
 # Parallel kernel generation - generates all kernels in a single parallel job
 # This is faster than running separate targets sequentially
+# Uses separate commands that can run in parallel via make -j
 add_custom_command(
     OUTPUT ${ALL_KERNELS_SENTINEL}
-    COMMAND python3 -c "
-import subprocess
-import concurrent.futures
-import os
-os.chdir('${CMAKE_CURRENT_SOURCE_DIR}/../codegen')
-cmds = [
-    ['python3', 'unified_gemm_codegen.py', '--datatype', 'fp16', '--layout', 'rcrr', '--variants', 'standard', 'multi_d', '--output', '${KERNEL_OUTPUT_DIR}'],
-    ['python3', 'unified_conv_codegen.py', '--datatype', 'fp16', '--variant', 'forward', '--ndim', '2', '3', '--output', '${KERNEL_OUTPUT_DIR}'],
-    ['python3', 'unified_conv_codegen.py', '--datatype', 'fp16', '--variant', 'bwd_data', 'bwd_weight', '--ndim', '2', '--output', '${KERNEL_OUTPUT_DIR}'],
-]
-with concurrent.futures.ProcessPoolExecutor(max_workers=3) as e:
-    futures = [e.submit(subprocess.run, cmd, check=True) for cmd in cmds]
-    for f in concurrent.futures.as_completed(futures):
-        f.result()
-print('All kernels generated in parallel')
-"
+    COMMAND python3 unified_gemm_codegen.py --datatype fp16 --layout rcrr --variants standard preshuffle multi_d --output ${KERNEL_OUTPUT_DIR}
+    COMMAND python3 unified_conv_codegen.py --datatype fp16 --variant forward --ndim 2 3 --output ${KERNEL_OUTPUT_DIR}
+    COMMAND python3 unified_conv_codegen.py --datatype fp16 --variant bwd_data bwd_weight --ndim 2 --output ${KERNEL_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E touch ${GEMM_SENTINEL} ${CONV_FWD_SENTINEL} ${CONV_BWD_SENTINEL} ${ALL_KERNELS_SENTINEL}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Generating ALL kernels in parallel (GEMM + Conv forward + Conv backward)..."
-    VERBATIM
+    COMMENT "Generating ALL kernels (GEMM + Conv forward + Conv backward)..."
 )
 
 add_custom_target(generate_all_kernels_parallel
     DEPENDS ${ALL_KERNELS_SENTINEL}
     COMMENT "Parallel kernel generation target (fastest for full builds)"
+)
+
+# =============================================================================
+# Per-Kernel Compilation (Maximum Parallelism)
+# =============================================================================
+# Enable with: cmake -DPER_KERNEL_COMPILATION=ON
+#
+# This creates ONE translation unit per kernel, enabling:
+#   1. Maximum parallelism with make -j$(nproc)
+#   2. Per-kernel build progress: "[1/128] Building kernel: gemm_fp16_128x128"
+#   3. Incremental rebuilds (only changed kernels recompile)
+#   4. Fine-grained build time analysis
+#
+# Build process:
+#   1. Generate kernel headers (.hpp)
+#   2. Generate wrapper files (.cpp) - one per kernel
+#   3. Compile each wrapper in parallel
+#   4. Link all objects into libdispatcher_kernels.so
+#
+# Example output:
+#   [  1/128] Building kernel: gemm_fp16_rcr_128x128x32
+#   [  2/128] Building kernel: gemm_fp16_rcr_256x256x64
+#   [  3/128] Building kernel: conv_fwd_fp16_2d_128x128
+#   ...
+#   [128/128] Linking: libdispatcher_kernels.so
+# =============================================================================
+
+set(WRAPPER_DIR "${CMAKE_BINARY_DIR}/kernel_wrappers")
+set(WRAPPER_SENTINEL "${WRAPPER_DIR}/.wrappers_generated")
+
+# Target: Generate wrapper .cpp files (one per kernel)
+add_custom_command(
+    OUTPUT ${WRAPPER_SENTINEL}
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/generate_kernel_wrappers.py
+            --kernel-dir ${KERNEL_OUTPUT_DIR}
+            --output-dir ${WRAPPER_DIR}
+            --generate-makefile
+            --generate-cmake
+    COMMAND ${CMAKE_COMMAND} -E touch ${WRAPPER_SENTINEL}
+    DEPENDS ${GEMM_SENTINEL} ${CONV_FWD_SENTINEL} ${CONV_BWD_SENTINEL}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
+    COMMENT "Generating per-kernel wrapper .cpp files..."
+    VERBATIM
+)
+
+add_custom_target(generate_kernel_wrappers
+    DEPENDS ${WRAPPER_SENTINEL}
+    COMMENT "Kernel wrapper generation target"
+)
+
+# Target: Build kernels using generated Makefile (true per-kernel progress)
+add_custom_target(build_kernels_parallel
+    COMMAND ${CMAKE_COMMAND} -E echo "Building kernels with per-kernel progress..."
+    COMMAND make -C ${WRAPPER_DIR} -j${NPROC} 2>&1 | grep -E "^\\[|Built|Linking|Error"
+    DEPENDS generate_kernel_wrappers
+    WORKING_DIRECTORY ${WRAPPER_DIR}
+    COMMENT "Compiling kernels in parallel (one translation unit per kernel)..."
+    VERBATIM
+)
+
+# Global kernel build (optional - prefer per-example builds for minimal compilation)
+# This builds ALL kernels into a shared library - use for Python bindings or full library
+# For C++ examples, use declarative approach which builds only needed kernels
+add_custom_target(dispatcher_kernels
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/parallel_kernel_builder.py
+            --kernel-dir ${KERNEL_OUTPUT_DIR}
+            --output-dir ${CMAKE_BINARY_DIR}
+            --include-dirs "${CMAKE_CURRENT_SOURCE_DIR}/../../include,${CMAKE_CURRENT_SOURCE_DIR}/../include"
+            --jobs ${NPROC}
+    DEPENDS generate_all_kernels
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../scripts
+    COMMENT "Building ALL kernels in parallel (prefer per-example builds for minimal compilation)..."
+    VERBATIM
 )
 
 # =============================================================================
@@ -122,11 +202,11 @@ add_custom_target(generate_all_kernels_parallel
 add_custom_target(regenerate_gemm_kernels
     COMMAND ${CMAKE_COMMAND} -E remove -f ${GEMM_SENTINEL}
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_gemm_codegen.py 
-            --datatype fp16 --layout rcr --variants standard multi_d
+            --datatype fp16 --layout rcr --variants standard preshuffle multi_d
             --output ${KERNEL_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E touch ${GEMM_SENTINEL}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Force regenerating GEMM kernels (standard + multi_d)..."
+    COMMENT "Force regenerating GEMM kernels (standard + preshuffle + multi_d)..."
     VERBATIM
 )
 
@@ -145,10 +225,22 @@ add_custom_target(regenerate_all_kernels
     DEPENDS regenerate_gemm_kernels regenerate_conv_kernels
 )
 
+# Clean all per-example kernel directories
+add_custom_target(clean_example_kernels
+    COMMAND ${CMAKE_COMMAND} -E echo "Removing per-example kernel directories..."
+    COMMAND find ${CMAKE_BINARY_DIR} -maxdepth 1 -type d -name "*_kernels" -exec rm -rf {} +
+    COMMENT "Cleaning all per-example kernel directories..."
+    VERBATIM
+)
+
 # =============================================================================
 # Helper function to add a GPU example with force-included kernel
 # =============================================================================
 
+# Helper for GPU examples that use the dispatcher registry
+# KERNEL_HEADER can be:
+#   - A registration header (register_all_kernels.hpp) - included directly in source
+#   - A specific kernel header - force-included via compiler flag
 function(add_gpu_example NAME SOURCE KERNEL_HEADER)
     add_executable(${NAME} ${SOURCE})
     
@@ -158,16 +250,32 @@ function(add_gpu_example NAME SOURCE KERNEL_HEADER)
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include              # CK root include
         ${CMAKE_CURRENT_SOURCE_DIR}/../include                 # Dispatcher include
         ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels # Generated kernels
+        ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels/dispatcher_wrappers # Wrapper headers
     )
     
-    target_compile_options(${NAME} PRIVATE
-        -include ${KERNEL_HEADER}
-        -DCONV_KERNEL_AVAILABLE=1
-        -mllvm -enable-noalias-to-md-conversion=0
-        -Wno-undefined-func-template
-        -Wno-float-equal
-        --offload-compress
-    )
+    # Check if using registration header (no force-include needed)
+    get_filename_component(HEADER_NAME ${KERNEL_HEADER} NAME)
+    if(HEADER_NAME STREQUAL "register_all_kernels.hpp")
+        # Registration header - examples include it directly
+        target_compile_options(${NAME} PRIVATE
+            -DCONV_KERNEL_AVAILABLE=1
+            -DGEMM_KERNEL_AVAILABLE=1
+            -mllvm -enable-noalias-to-md-conversion=0
+            -Wno-undefined-func-template
+            -Wno-float-equal
+            --offload-compress
+        )
+    else()
+        # Specific kernel header - force-include it
+        target_compile_options(${NAME} PRIVATE
+            -include ${KERNEL_HEADER}
+            -DCONV_KERNEL_AVAILABLE=1
+            -mllvm -enable-noalias-to-md-conversion=0
+            -Wno-undefined-func-template
+            -Wno-float-equal
+            --offload-compress
+        )
+    endif()
     
     if(hip_FOUND)
         target_link_libraries(${NAME} PRIVATE hip::device hip::host)
@@ -187,6 +295,36 @@ function(add_standalone_gpu_example NAME SOURCE)
     )
     
     target_compile_options(${NAME} PRIVATE
+        -mllvm -enable-noalias-to-md-conversion=0
+        -Wno-undefined-func-template
+        -Wno-float-equal
+        --offload-compress
+    )
+    
+    if(hip_FOUND)
+        target_link_libraries(${NAME} PRIVATE hip::device hip::host)
+    endif()
+endfunction()
+
+# Helper for conv GPU examples - uses include_all_conv_kernels.hpp 
+# This header is generated during make and includes all conv kernel headers
+function(add_conv_gpu_example NAME SOURCE KERNEL_TYPE)
+    add_executable(${NAME} ${SOURCE})
+    
+    target_link_libraries(${NAME} PRIVATE ck_tile_dispatcher)
+    
+    target_include_directories(${NAME} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../include              # CK root include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include                 # Dispatcher include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels # Generated kernels
+    )
+    
+    # Force include the appropriate conv registration header
+    set(CONV_REG_HEADER "${KERNEL_OUTPUT_DIR}/include_all_${KERNEL_TYPE}_kernels.hpp")
+    
+    target_compile_options(${NAME} PRIVATE
+        -include ${CONV_REG_HEADER}
+        -DCONV_KERNEL_AVAILABLE=1
         -mllvm -enable-noalias-to-md-conversion=0
         -Wno-undefined-func-template
         -Wno-float-equal
@@ -225,45 +363,109 @@ endfunction()
 # GEMM Examples
 # =============================================================================
 
-# Set default kernel header path (will be found after generation)
-# Naming convention: gemm_<dtype>_<layout>_<pipeline>_<epilogue>_<scheduler>_<pad_m>_<pad_n>_<pad_k>_<preshuffle>_<tile>_<wave>_<warp>.hpp
-# Note: standard kernels use 3-char layout (rcr), multi-d uses 4-char (rcrr)
-set(GEMM_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/gemm_fp16_rcr_compv4_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_32x32x16.hpp")
+# Per-example kernel directories are created from DECL_KERNEL_SET declarations
+# Each example gets its own: build/<name>_kernels/
+# This prevents clashes during parallel compilation of multiple examples.
 
-# GEMM C++ examples - these depend on generate_gemm_kernels
-add_gpu_example(gemm_01_basic           gemm/cpp/01_basic_gemm.cpp       ${GEMM_KERNEL_HEADER})
-add_gpu_example(gemm_02_multi_size      gemm/cpp/02_multi_size.cpp       ${GEMM_KERNEL_HEADER})
-add_gpu_example(gemm_03_benchmark       gemm/cpp/03_benchmark.cpp        ${GEMM_KERNEL_HEADER})
-add_gpu_example(gemm_04_validation      gemm/cpp/04_validation.cpp       ${GEMM_KERNEL_HEADER})
-add_gpu_example(gemm_05_heuristics      gemm/cpp/05_heuristics.cpp       ${GEMM_KERNEL_HEADER})
-add_gpu_example(gemm_06_json_export     gemm/cpp/06_json_export.cpp      ${GEMM_KERNEL_HEADER})
-add_gpu_example(gemm_07_preshuffle      gemm/cpp/07_preshuffle.cpp       ${GEMM_KERNEL_HEADER})
-# Multi-D example uses a generated multi-d kernel
-set(GEMM_MULTI_D_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/gemm_fp16_rcr_compv3_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_32x32x16_multid_MultiDMultiply_d2.hpp")
-add_gpu_example(gemm_08_multi_d         gemm/cpp/08_multi_d.cpp          ${GEMM_MULTI_D_KERNEL_HEADER})
-add_gpu_example(gemm_09_multi_registry  gemm/cpp/09_multi_registry.cpp   ${GEMM_KERNEL_HEADER})
+# Helper function to add example with declarative kernel support
+# Parses DECL_KERNEL_SET from source and generates ONLY the declared kernels
+# This enables minimal builds: only kernels needed by this example are generated
+#
+# Key features:
+# - Per-example kernel directories: build/<name>_kernels/ (no clashes)
+# - Automatic header inclusion: No hardcoded #include needed in source
+# - Minimal builds: Only declared kernels are generated
+# - Auto-regeneration: Kernels regenerated if directory missing
+# - Parallel compilation: Each kernel is a separate translation unit
+function(add_declarative_gpu_example NAME SOURCE)
+    set(EXAMPLE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/${SOURCE}")
+    get_filename_component(EXAMPLE_STEM ${SOURCE} NAME_WE)
+    
+    # Per-example kernel directories
+    set(EXAMPLE_KERNEL_DIR "${CMAKE_BINARY_DIR}/${NAME}_kernels")
+    set(EXAMPLE_HEADER "${EXAMPLE_KERNEL_DIR}/${EXAMPLE_STEM}_kernels.hpp")
+    set(EXAMPLE_LIB "${EXAMPLE_KERNEL_DIR}/lib${NAME}_kernels.a")
+    set(EXAMPLE_SENTINEL "${EXAMPLE_KERNEL_DIR}/.generated")
+    
+    # Generate AND compile kernels in parallel at make time
+    # This avoids slow cmake and gets per-kernel progress
+    add_custom_command(
+        OUTPUT ${EXAMPLE_SENTINEL} ${EXAMPLE_LIB}
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/example_kernel_builder.py
+                ${EXAMPLE_SOURCE}
+                --output-dir ${EXAMPLE_KERNEL_DIR}
+                --include-dirs "${CMAKE_CURRENT_SOURCE_DIR}/../../include,${CMAKE_CURRENT_SOURCE_DIR}/../include"
+                --gpu-target ${GPU_TARGET}
+                --jobs ${NPROC}
+                --target-name ${NAME}
+        COMMAND ${CMAKE_COMMAND} -E touch ${EXAMPLE_SENTINEL}
+        DEPENDS ${EXAMPLE_SOURCE}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../scripts
+        COMMENT "[${NAME}] Generating and compiling kernels from DECL_KERNEL_SET..."
+        VERBATIM
+    )
+    
+    add_custom_target(generate_${NAME}_kernels DEPENDS ${EXAMPLE_SENTINEL})
+    
+    # Add the executable
+    add_executable(${NAME} ${SOURCE})
+    
+    target_link_libraries(${NAME} PRIVATE ck_tile_dispatcher)
+    
+    # Link against the per-example kernel library
+    target_link_libraries(${NAME} PRIVATE ${EXAMPLE_LIB})
+    
+    target_include_directories(${NAME} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+        ${EXAMPLE_KERNEL_DIR}
+        ${EXAMPLE_KERNEL_DIR}/dispatcher_wrappers
+    )
+    
+    # Force-include the generated registration header
+    target_compile_options(${NAME} PRIVATE
+        -include ${EXAMPLE_HEADER}
+        -DCONV_KERNEL_AVAILABLE=1
+        -DGEMM_KERNEL_AVAILABLE=1
+        -mllvm -enable-noalias-to-md-conversion=0
+        -Wno-undefined-func-template
+        -Wno-float-equal
+        --offload-compress
+    )
+    
+    if(hip_FOUND)
+        target_link_libraries(${NAME} PRIVATE hip::device hip::host)
+    endif()
+    
+    # Only depends on generating THIS example's kernels
+    add_dependencies(${NAME} generate_${NAME}_kernels)
+endfunction()
 
-# Make GEMM examples depend on kernel generation
-add_dependencies(gemm_01_basic          generate_gemm_kernels)
-add_dependencies(gemm_02_multi_size     generate_gemm_kernels)
-add_dependencies(gemm_03_benchmark      generate_gemm_kernels)
-add_dependencies(gemm_04_validation     generate_gemm_kernels)
-add_dependencies(gemm_05_heuristics     generate_gemm_kernels)
-add_dependencies(gemm_06_json_export    generate_gemm_kernels)
-add_dependencies(gemm_07_preshuffle     generate_gemm_kernels)
-add_dependencies(gemm_08_multi_d        generate_gemm_kernels)
-add_dependencies(gemm_09_multi_registry generate_gemm_kernels)
+# GEMM C++ examples with declarative kernel support
+# Each example's C++ code contains DECL_KERNEL_SET which declares needed kernels
+add_declarative_gpu_example(gemm_01_basic           gemm/cpp/01_basic_gemm.cpp)
+add_declarative_gpu_example(gemm_02_multi_size      gemm/cpp/02_multi_size.cpp)
+add_declarative_gpu_example(gemm_03_benchmark       gemm/cpp/03_benchmark.cpp)
+add_declarative_gpu_example(gemm_04_validation      gemm/cpp/04_validation.cpp)
+add_declarative_gpu_example(gemm_05_heuristics      gemm/cpp/05_heuristics.cpp)
+add_declarative_gpu_example(gemm_06_json_export     gemm/cpp/06_json_export.cpp)
+add_declarative_gpu_example(gemm_07_preshuffle      gemm/cpp/07_preshuffle.cpp)
+add_declarative_gpu_example(gemm_08_multi_d         gemm/cpp/08_multi_d.cpp)
+add_declarative_gpu_example(gemm_09_multi_registry  gemm/cpp/09_multi_registry.cpp)
 
 # GEMM dynamic library for Python (from bindings)
+# Uses the global registration header for all generated kernels
+set(GEMM_REGISTRATION_HEADER "${KERNEL_OUTPUT_DIR}/dispatcher_wrappers/register_all_kernels.hpp")
 add_library(dispatcher_gemm_lib SHARED ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/gemm_ctypes_lib.cpp)
 target_link_libraries(dispatcher_gemm_lib PRIVATE ck_tile_dispatcher)
 target_include_directories(dispatcher_gemm_lib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels
+    ${KERNEL_OUTPUT_DIR}
+    ${KERNEL_OUTPUT_DIR}/dispatcher_wrappers
 )
 target_compile_options(dispatcher_gemm_lib PRIVATE
-    -include ${GEMM_KERNEL_HEADER}
+    -include ${GEMM_REGISTRATION_HEADER}
     -mllvm -enable-noalias-to-md-conversion=0
     -Wno-undefined-func-template
     -Wno-float-equal
@@ -277,56 +479,34 @@ add_dependencies(dispatcher_gemm_lib generate_gemm_kernels)
 message(STATUS "GEMM examples configured - kernels will be generated during 'make'")
 
 # =============================================================================
-# Convolution Examples
+# Convolution Examples - Declarative kernel generation
 # =============================================================================
 
-# Set default kernel header paths (will be found after generation)
-# These use compv3 with tile_k=32 which are the first configs generated
-set(CONV_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/conv_fwd_fp16_2d_compv3_cshuffle_intrawave_128x128x32_2x2x1_32x32x16.hpp")
-set(CONV_3D_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/conv_fwd_fp16_3d_compv3_cshuffle_intrawave_128x128x32_2x2x1_32x32x16.hpp")
-# Backward data: ConvConfigComputeV3 validated config M=16, N=64, K=64
-set(CONV_BWDD_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/conv_bwdd_fp16_2d_compv3_cshuffle_intrawave_16x64x64_1x4x1_16x16x32.hpp")
-# Backward weight: ConvConfigComputeV3 validated config M=16, N=64, K=64
-set(CONV_BWDW_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/conv_bwdw_fp16_2d_compv3_cshuffle_intrawave_16x64x64_1x4x1_16x16x32.hpp")
+# Conv examples use DECL_CONV_KERNEL_SET - declarative kernel specification
+# No hardcoded paths - kernels are generated and compiled at make time
 
-# 2D forward examples
-add_gpu_example(conv_01_forward         conv/cpp/01_conv_forward.cpp     ${CONV_KERNEL_HEADER})
-add_gpu_example(conv_02_validation      conv/cpp/02_conv_validation.cpp  ${CONV_KERNEL_HEADER})
-add_gpu_example(conv_03_multi_size      conv/cpp/03_multi_size.cpp       ${CONV_KERNEL_HEADER})
-add_gpu_example(conv_04_benchmark       conv/cpp/04_benchmark.cpp        ${CONV_KERNEL_HEADER})
-add_gpu_example(conv_05_heuristics      conv/cpp/05_heuristics.cpp       ${CONV_KERNEL_HEADER})
-add_gpu_example(conv_06_json_export     conv/cpp/06_json_export.cpp      ${CONV_KERNEL_HEADER})
-add_gpu_example(conv_07_multi_registry  conv/cpp/07_multi_registry.cpp   ${CONV_KERNEL_HEADER})
-
-# 3D forward example
-add_gpu_example(conv_08_conv3d_forward  conv/cpp/08_conv3d_forward.cpp   ${CONV_3D_KERNEL_HEADER})
-
-# Backward data example
-add_gpu_example(conv_09_bwd_data        conv/cpp/09_bwd_data.cpp         ${CONV_BWDD_KERNEL_HEADER})
-
-# Backward weight example
-add_gpu_example(conv_10_bwd_weight      conv/cpp/10_bwd_weight.cpp       ${CONV_BWDW_KERNEL_HEADER})
-
-# Advanced benchmark example
-add_gpu_example(conv_11_advanced_benchmark conv/cpp/11_advanced_benchmark.cpp ${CONV_KERNEL_HEADER})
-
-# Make Conv examples depend on kernel generation
-add_dependencies(conv_01_forward        generate_conv_fwd_kernels)
-add_dependencies(conv_02_validation     generate_conv_fwd_kernels)
-add_dependencies(conv_03_multi_size     generate_conv_fwd_kernels)
-add_dependencies(conv_04_benchmark      generate_conv_fwd_kernels)
-add_dependencies(conv_05_heuristics     generate_conv_fwd_kernels)
-add_dependencies(conv_06_json_export    generate_conv_fwd_kernels)
-add_dependencies(conv_07_multi_registry generate_conv_fwd_kernels)
-add_dependencies(conv_08_conv3d_forward generate_conv_fwd_kernels)
-add_dependencies(conv_09_bwd_data       generate_conv_bwd_kernels)
-add_dependencies(conv_10_bwd_weight     generate_conv_bwd_kernels)
+add_declarative_gpu_example(conv_01_forward         conv/cpp/01_conv_forward.cpp)
+add_declarative_gpu_example(conv_02_validation      conv/cpp/02_conv_validation.cpp)
+add_declarative_gpu_example(conv_03_multi_size      conv/cpp/03_multi_size.cpp)
+add_declarative_gpu_example(conv_04_benchmark       conv/cpp/04_benchmark.cpp)
+add_declarative_gpu_example(conv_05_heuristics      conv/cpp/05_heuristics.cpp)
+add_declarative_gpu_example(conv_06_json_export     conv/cpp/06_json_export.cpp)
+add_declarative_gpu_example(conv_07_multi_registry  conv/cpp/07_multi_registry.cpp)
+add_declarative_gpu_example(conv_08_conv3d_forward  conv/cpp/08_conv3d_forward.cpp)
+add_declarative_gpu_example(conv_09_bwd_data        conv/cpp/09_bwd_data.cpp)
+add_declarative_gpu_example(conv_10_bwd_weight      conv/cpp/10_bwd_weight.cpp)
+add_declarative_gpu_example(conv_11_advanced_benchmark conv/cpp/11_advanced_benchmark.cpp)
 
 message(STATUS "Conv examples configured - kernels will be generated during 'make'")
 
 # =============================================================================
 # Python helper libraries for conv (from bindings)
 # =============================================================================
+
+# Define conv kernel header paths (using include_all headers with default launcher aliases)
+set(CONV_FWD_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/include_all_conv_fwd_kernels.hpp")
+set(CONV_BWDD_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/include_all_conv_bwdd_kernels.hpp")
+set(CONV_BWDW_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/include_all_conv_bwdw_kernels.hpp")
 
 # Forward + backward data library
 add_library(dispatcher_conv_lib SHARED ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/conv_ctypes_lib.cpp)
@@ -337,7 +517,7 @@ target_include_directories(dispatcher_conv_lib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels
 )
 target_compile_options(dispatcher_conv_lib PRIVATE
-    -include ${CONV_KERNEL_HEADER}
+    "SHELL:-include ${CONV_FWD_KERNEL_HEADER}"
     "SHELL:-include ${CONV_BWDD_KERNEL_HEADER}"
     -DCONV_KERNEL_AVAILABLE=1
     -DCONV_BWD_DATA_AVAILABLE=1
@@ -361,7 +541,7 @@ target_include_directories(dispatcher_conv_bwdw_lib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels
 )
 target_compile_options(dispatcher_conv_bwdw_lib PRIVATE
-    -include ${CONV_BWDW_KERNEL_HEADER}
+    "SHELL:-include ${CONV_BWDW_KERNEL_HEADER}"
     -DCONV_KERNEL_AVAILABLE=1
     -DCONV_BWD_WEIGHT_AVAILABLE=1
     -mllvm -enable-noalias-to-md-conversion=0

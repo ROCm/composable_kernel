@@ -19,8 +19,6 @@
  *   ./gemm_04_validation --help
  *   ./gemm_04_validation --size 1024 --verify 2
  *   ./gemm_04_validation --size 256 --verify 1 --rtol 0.01
- *
- * Complexity: ★★☆☆☆
  */
 
 #include <hip/hip_runtime.h>
@@ -39,15 +37,25 @@
 #include "ck_tile/dispatcher/example_args.hpp"
 
 using namespace ck_tile::dispatcher;
-using namespace ck_tile::dispatcher::backends;
 using namespace ck_tile::dispatcher::utils;
 using namespace ck_tile::literals;
+using Signature = decl::Signature;
+using Algorithm = decl::Algorithm;
 
 // =============================================================================
-// KERNEL SET
+// KERNEL SET: Multiple kernels for validation testing
 // =============================================================================
 
-DECL_KERNEL_SET(validation, .add("fp16", "rcr", 128, 128, 32));
+DECL_KERNEL_SET(validation_kernels,
+                .add(Signature().dtype("fp16").layout("rcr"),
+                     Algorithm()
+                         .tile(128, 128, 32)
+                         .wave(2, 2, 1)
+                         .warp(32, 32, 16)
+                         .pipeline("compv3")
+                         .scheduler("intrawave")
+                         .epilogue("cshuffle"),
+                     "gfx942"));
 
 // =============================================================================
 // Helper: Determine if layout is row-major
@@ -72,18 +80,20 @@ int main(int argc, char* argv[])
     args.add_option("--verify", "1", "Verification mode: 0=none, 1=CPU ref, 2=GPU ref");
     args.add_option("--rtol", "0.01", "Relative tolerance");
     args.add_option("--atol", "0.01", "Absolute tolerance");
+    args.add_option("--arch", "gfx942", "GPU architecture");
 
     if(!args.parse(argc, argv))
     {
         return 0; // --help was printed
     }
 
-    int M      = args.get_int("--size", 512);
-    int N      = M;
-    int K      = M;
-    int verify = args.get_int("--verify", 1);
-    float rtol = args.get_float("--rtol", 0.01f);
-    float atol = args.get_float("--atol", 0.01f);
+    int M                = args.get_int("--size", 512);
+    int N                = M;
+    int K                = M;
+    int verify           = args.get_int("--verify", 1);
+    float rtol           = args.get_float("--rtol", 0.01f);
+    float atol           = args.get_float("--atol", 0.01f);
+    std::string gfx_arch = args.get("--arch", "gfx942");
 
     print_header("Example 04: GEMM Validation with CK Tile Reference");
 
@@ -104,22 +114,10 @@ int main(int argc, char* argv[])
     // Setup Registry and Dispatcher
     // =========================================================================
     Registry registry;
-    KernelConfig config =
-        KernelConfig::fp16_rcr()
-            .tile(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK)
-            .wave(SelectedKernel::WarpPerBlock_M,
-                  SelectedKernel::WarpPerBlock_N,
-                  SelectedKernel::WarpPerBlock_K)
-            .warp_tile(
-                SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK)
-            .block(SelectedKernel::BlockSize);
-
-    auto kernel =
-        create_generated_tile_kernel<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
-            config.build_key(), KERNEL_NAME);
-
-    registry.register_kernel(kernel);
+    generated::register_04_validation_kernels(registry, gfx_arch);
     Dispatcher dispatcher(&registry);
+
+    std::cout << "  Kernels:      " << registry.size() << " registered\n";
 
     // =========================================================================
     // Initialize data using proper tensor descriptors for RCR layout
@@ -131,6 +129,11 @@ int main(int argc, char* argv[])
     using ALayout = ck_tile::tensor_layout::gemm::RowMajor;
     using BLayout = ck_tile::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck_tile::tensor_layout::gemm::RowMajor;
+
+    using ADataType   = ck_tile::fp16_t;
+    using BDataType   = ck_tile::fp16_t;
+    using CDataType   = ck_tile::fp16_t;
+    using AccDataType = float;
 
     // Get default strides for each layout
     auto stride_a = ck_tile::get_default_stride(M, K, 0_uz, is_row_major(ALayout{}));
@@ -225,6 +228,14 @@ int main(int argc, char* argv[])
     std::cout << "----------------------\n";
 
     Problem problem(M, N, K);
+
+    // Show selected kernel
+    auto selected = dispatcher.select_kernel(problem);
+    if(selected)
+    {
+        std::cout << "  Selected: " << selected->get_name() << "\n";
+    }
+
     float time_ms = dispatcher.run(static_cast<ADataType*>(a_dev.GetDeviceBuffer()),
                                    static_cast<BDataType*>(b_dev.GetDeviceBuffer()),
                                    static_cast<CDataType*>(c_dev.GetDeviceBuffer()),

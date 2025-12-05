@@ -708,13 +708,14 @@ def extract_kernel_declarations(source_file: Path) -> list:
     # -------------------------------------------------------------------------
     # Pattern 5: DECL_KERNEL_SET(name, .add(...).add(...))
     # Named kernel sets for multiple registries
+    # Match only DECL_KERNEL_SET at start of line (not in comments)
     # -------------------------------------------------------------------------
-    set_pattern = r"DECL_KERNEL_SET\s*\(\s*(\w+)\s*,([^;]+)\)"
-    for match in re.finditer(set_pattern, content, re.DOTALL):
+    set_pattern = r"^DECL_KERNEL_SET\s*\(\s*(\w+)\s*,([\s\S]*?)\)\s*;"
+    for match in re.finditer(set_pattern, content, re.MULTILINE):
         set_name = match.group(1)
         set_body = match.group(2)
 
-        # Parse .add("dtype", "layout", tm, tn, tk) calls
+        # Parse .add("dtype", "layout", tm, tn, tk) calls - simple form
         add_simple = r'\.add\s*\(\s*"(\w+)"\s*,\s*"(\w+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)'
         for add_match in re.findall(add_simple, set_body):
             dtype, layout, tm, tn, tk = add_match
@@ -745,32 +746,56 @@ def extract_kernel_declarations(source_file: Path) -> list:
                     }
                 )
 
-        # Parse .add(Signature()..., Algorithm()...) fluent calls
-        # Match the entire .add(...) block, handling nested parentheses
-        # Use greedy match to capture full Algorithm chain until the closing )
-        # The closing ) is followed by nothing, or another .add, or ;
-        add_blocks = re.findall(
-            r"\.add\s*\((Signature\(\)[\s\S]*?Algorithm\(\)[\s\S]*?\.(?:pad|epilogue|scheduler|pipeline|warp|wave|tile)\s*\([^)]*\))\s*\)",
-            set_body,
-        )
+        # Parse .add(Signature()..., Algorithm()..., "arch") fluent calls
+        # Robust approach: find each .add( block and parse methods individually
+        # This handles any method order and optional methods
+
+        # Split set_body into .add() blocks
+        add_blocks = []
+        add_starts = [m.start() for m in re.finditer(r"\.add\s*\(", set_body)]
+
+        for i, start in enumerate(add_starts):
+            # Find the matching closing paren by counting parens
+            depth = 0
+            end = start
+            in_string = False
+            escape_next = False
+
+            for j, ch in enumerate(set_body[start:], start):
+                if escape_next:
+                    escape_next = False
+                    continue
+                if ch == "\\":
+                    escape_next = True
+                    continue
+                if ch == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                    if depth == 0:
+                        end = j + 1
+                        break
+
+            if end > start:
+                add_blocks.append(set_body[start:end])
 
         for add_block in add_blocks:
-            # Split on Algorithm() to separate Signature and Algorithm parts
-            # Handle C++ comments (// ...) between comma and Algorithm()
-            # Pattern: comma, optional comment, whitespace, Algorithm()
-            parts = re.split(r",\s*(?://[^\n]*)?\s*Algorithm\(\)", add_block)
-            if len(parts) < 2:
-                # Try alternative: just split on Algorithm() regardless of comma
-                algo_idx = add_block.find("Algorithm()")
-                if algo_idx != -1:
-                    sig_part = add_block[:algo_idx]
-                    algo_part = add_block[algo_idx + len("Algorithm()") :]
-                    parts = [sig_part, algo_part]
-                else:
-                    continue
+            # Skip if doesn't have both Signature() and Algorithm()
+            if "Signature()" not in add_block or "Algorithm()" not in add_block:
+                continue
 
-            sig_str = parts[0]  # Contains Signature()...
-            algo_str = parts[1]  # Contains the Algorithm chain
+            # Split on Algorithm() to separate Signature and Algorithm parts
+            algo_idx = add_block.find("Algorithm()")
+            if algo_idx == -1:
+                continue
+
+            sig_str = add_block[:algo_idx]
+            algo_str = add_block[algo_idx:]  # Include Algorithm() and everything after
 
             # Parse dtype from Signature - handles .dtype("fp16", "fp16", "fp16", "fp32")
             dtype = "fp16"
@@ -856,7 +881,20 @@ def extract_kernel_declarations(source_file: Path) -> list:
                 pad_n = pad_match.group(2).lower() == "true"
                 pad_k = pad_match.group(3).lower() == "true"
 
+            # Parse elementwise from Signature - for Multi-D kernels
+            elementwise_op = "PassThrough"
+            num_d_tensors = 0
+            elem_match = re.search(
+                r'\.elementwise\s*\(\s*"([^"]+)"\s*,\s*(\d+)\s*\)',
+                sig_str,
+            )
+            if elem_match:
+                elementwise_op = elem_match.group(1)
+                num_d_tensors = int(elem_match.group(2))
+
             name = f"{set_name}:{dtype}_{layout}_{pipeline}_{scheduler}_{tm}x{tn}x{tk}_{wave_m}x{wave_n}x{wave_k}"
+            if elementwise_op != "PassThrough":
+                name += f"_{elementwise_op}_d{num_d_tensors}"
             if name not in seen:
                 seen.add(name)
                 declarations.append(
@@ -880,6 +918,8 @@ def extract_kernel_declarations(source_file: Path) -> list:
                         "pad_m": pad_m,
                         "pad_n": pad_n,
                         "pad_k": pad_k,
+                        "elementwise_op": elementwise_op,
+                        "num_d_tensors": num_d_tensors,
                         "name": name,
                         "wildcard": False,
                         "set": set_name,
@@ -1268,11 +1308,11 @@ def validate_kernel_config(decl: dict, arch: str = "gfx942") -> tuple:
 def build_exact_kernel_filename(decl: dict) -> str:
     """Build the exact kernel filename from a fully-specified declaration.
 
-    Filename format:
+    Standard format:
     gemm_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}_{pad_m}_{pad_n}_{pad_k}_{preshuffle}_{tile}_{wave}_{warp}.hpp
 
-    Example:
-    gemm_fp16_rcr_compv4_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_32x32x16.hpp
+    Multi-D format:
+    gemm_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}_{pad_m}_{pad_n}_{pad_k}_{preshuffle}_{tile}_{wave}_{warp}_multid_{op}_d{num}.hpp
     """
     dtype = decl.get("dtype_a", decl.get("dtype", "fp16"))
     layout = decl.get("layout", "rcr")
@@ -1301,7 +1341,15 @@ def build_exact_kernel_filename(decl: dict) -> str:
     wave_str = f"{wave_m}x{wave_n}x{wave_k}"
     warp_str = f"{warp_m}x{warp_n}x{warp_k}"
 
-    return f"gemm_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}_{pad_m}_{pad_n}_{pad_k}_{preshuffle}_{tile_str}_{wave_str}_{warp_str}.hpp"
+    base = f"gemm_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}_{pad_m}_{pad_n}_{pad_k}_{preshuffle}_{tile_str}_{wave_str}_{warp_str}"
+
+    # Handle Multi-D kernels
+    elementwise_op = decl.get("elementwise_op", "PassThrough")
+    num_d_tensors = decl.get("num_d_tensors", 0)
+    if elementwise_op != "PassThrough" and num_d_tensors > 0:
+        base += f"_multid_{elementwise_op}_d{num_d_tensors}"
+
+    return f"{base}.hpp"
 
 
 def generate_specific_kernel(decl: dict, gpu_target: str = "gfx942") -> bool:
