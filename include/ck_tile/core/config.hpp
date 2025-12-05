@@ -357,6 +357,12 @@ struct amdgcn_compiler_target_state
 #endif // __gfx950__
 
     // GFX10
+#if defined(__gfx1010__)
+    static constexpr bool CK_TILE_ARCH_GFX1010 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1010 = false;
+#endif
+
 #if defined(__gfx1030__)
     static constexpr bool CK_TILE_ARCH_GFX1030 = true;
 #else
