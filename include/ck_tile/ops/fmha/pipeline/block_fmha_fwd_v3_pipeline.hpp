@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_v3_pipeline_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
@@ -246,6 +248,8 @@ CK_TILE_DEVICE fp32x2_t pk_mul_f32(fp32x2_t lhs, fp32x2_t rhs)
 }
 } // namespace detail
 
+/// NOTICE: This pipeline is a work in progress and is awaiting upcoming compiler fixes and
+/// instruction scheduling optimizations.
 template <typename Problem_, typename Policy_ = BlockFmhaV3PipelineDefaultPolicy>
 struct BlockFmhaFwdV3Pipeline
 {
@@ -261,11 +265,15 @@ struct BlockFmhaFwdV3Pipeline
     using OaccDataType        = ck_tile::remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType           = ck_tile::remove_cvref_t<typename Problem::ODataType>;
     using FmhaMask            = ck_tile::remove_cvref_t<typename Problem::FmhaMask>;
+    static_assert(is_generic_attention_mask_v<FmhaMask>);
 
     static_assert(std::is_same_v<SaccDataType, SMPLComputeDataType>,
                   "we will the same dist tensor 'sp_compute' for both gemm0 & softmax");
 
     using BlockFmhaShape = ck_tile::remove_cvref_t<typename Problem::BlockFmhaShape>;
+
+    using VLayout = remove_cvref_t<typename BlockFmhaShape::VLayout>;
+    static_assert(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
     static constexpr ck_tile::index_t kBlockSize = Problem::kBlockSize;
 
@@ -277,14 +285,24 @@ struct BlockFmhaFwdV3Pipeline
     static constexpr ck_tile::index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
     static constexpr ck_tile::index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
 
-    static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
+    static_assert(kQKHeaddim == 128 && kSubQKHeaddim == 128, "only supports hdim=hdim_v=128");
 
-    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
-    static constexpr bool kStoreLSE    = Problem::kStoreLSE;
+    static constexpr bool kIsGroupMode      = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ       = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK       = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
+    static constexpr auto BiasEnum          = Problem::BiasEnum;
+    static constexpr bool kStoreLSE         = Problem::kStoreLSE;
+    static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr auto QScaleEnum        = Problem::QScaleEnum;
+    static constexpr bool kSkipMinSeqlenQ   = Problem::kSkipMinSeqlenQ;
+    static_assert((!kHasLogitsSoftCap && BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
+                   !kStoreLSE && !kHasDropout &&
+                   (QScaleEnum == ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE) &&
+                   !kSkipMinSeqlenQ),
+                  "enable unsupported features");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
