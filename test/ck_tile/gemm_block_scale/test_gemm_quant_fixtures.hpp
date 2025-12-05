@@ -42,7 +42,7 @@ struct GemmConfigBase
     // Default GEMM tile sizes for tests
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 256;
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -59,6 +59,14 @@ struct GemmConfigPrefill : public GemmConfigBase
     static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 128;
 };
+
+struct GemmConfigMxFp4 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
+};
+
 
 struct GemmConfigPreshuffleQuant : public GemmConfigBase
 {

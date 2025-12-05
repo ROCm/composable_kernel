@@ -40,15 +40,15 @@ using BQuantTypes = ::testing::Types<
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, BF8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, PkInt4, FP8,   Half, BQuantGrouped, GemmConfigBase, GroupSize>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, PkInt4, BF8,   Half, BQuantGrouped, GemmConfigBase, GroupSize>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF16, UInt8, UInt8, BF16, BQuantGrouped, GemmConfigBase, GroupSize>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF16, UInt8, UInt8, BF16, BQuantGrouped, GemmConfigMxFp4, GroupSize>,
 
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, BF8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, PkInt4, FP8,   Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, PkInt4, BF8,   Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF16, UInt8, UInt8, BF16, BQuantGrouped, GemmConfigBase, GroupSize64>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF16, UInt8, UInt8, BF16, BQuantGrouped, GemmConfigMxFp4, GroupSize64>,
 
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF16, UInt8, UInt8, BF16, BQuantGrouped, GemmConfigBase, GroupSize32>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF16, UInt8, UInt8, BF16, BQuantGrouped, GemmConfigMxFp4, GroupSize32>,
 
     // 2d cases with grouping also on the n axis
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D8N>,
