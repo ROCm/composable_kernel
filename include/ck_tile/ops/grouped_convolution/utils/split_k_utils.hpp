@@ -71,16 +71,12 @@ CK_TILE_HOST index_t calculate_optimal_k_batch(const KernelArgs& kargs)
         optimal_k_batch =
             get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_, grid_size);
 
-        // Ensure k_batch does not exceed GemmK
-        if(optimal_k_batch > kargs.GemmK)
-        {
-            optimal_k_batch = kargs.GemmK;
-        }
+        const auto max_allowed_k_batch = kargs.GemmK;
+        optimal_k_batch = std::min(optimal_k_batch, max_allowed_k_batch);
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
-            std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << optimal_k_batch
-                      << std::endl;
+            std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << optimal_k_batch << std::endl;
         }
     }
     else

@@ -549,6 +549,22 @@ struct GroupedConvolutionBackwardWeightKernel
             }
         }
 
+        if constexpr (!std::is_same_v<typename EpiloguePipeline::ODataType, float> && 
+                      !std::is_same_v<typename EpiloguePipeline::ODataType, double>)
+        {
+            // The epilogue performs atomic add related to split-K using the ODataType.
+            // If the type is less accurate than float, large split-K values may lead to
+            // accuracy issues. Hence, we limit the maximum split-K value to 128 in such cases.
+            if(kargs.k_batch > 128)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Epilogue output data type that is not float/double we must have k_batch <= 128.");
+                }
+                return false;
+            }
+        }
+
         if constexpr((GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                       is_any_of<WeiDataType, fp16_t, bf16_t>::value))
         {
