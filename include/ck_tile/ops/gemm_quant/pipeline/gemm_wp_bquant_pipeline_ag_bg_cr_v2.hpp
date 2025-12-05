@@ -135,7 +135,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         constexpr index_t buffer_load_rep =
             min(mfma_inst / buffer_load_inst, 4); // 1 buffer_load cover 4 mfma
 
-        static_for<0, nloop, 1>{}([](auto) {
+        static_for<0, nloop, 1>{}([&](auto) {
             static_for<0, mfma_inst, 1>{}([&](auto i_inst) {
                 __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0); // MFMA
 
