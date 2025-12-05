@@ -871,10 +871,10 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& c_tensor_view = make_tensor_view<address_space_enum::global, DstInMemOp>(
             c_ptr, kargs.c_grid_descs_m_n[group_id]);
 
-        const auto& c_pad_view = pad_tensor_view(c_tensor_view,
-                                                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                            number<TilePartitioner::NPerBlock>{}),
-                                                 sequence<true, true>{});
+        const auto& c_pad_view = pad_tensor_view(
+            c_tensor_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            sequence<true, true>{});
 
         return make_tile_window(
             c_pad_view,
@@ -929,13 +929,13 @@ struct GroupedConvolutionBackwardDataKernel
                      const index_t group_id)
     {
         static_assert(!GemmPipeline::BlockGemmShape::PermuteB, "Not implemented!");
-        const auto& b_tensor_view = make_tensor_view<address_space_enum::global>(
-            b_ptr, kargs.b_grid_descs_n_k[group_id]);
+        const auto& b_tensor_view =
+            make_tensor_view<address_space_enum::global>(b_ptr, kargs.b_grid_descs_n_k[group_id]);
 
-        const auto& b_pad_view = pad_tensor_view(b_tensor_view,
-                                                 make_tuple(number<TilePartitioner::KPerBlock>{},
-                                                            number<TilePartitioner::NPerBlock>{}),
-                                                 sequence<true, true>{});
+        const auto& b_pad_view = pad_tensor_view(
+            b_tensor_view,
+            make_tuple(number<TilePartitioner::KPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            sequence<true, true>{});
 
         return make_tile_window(
             b_pad_view,
@@ -950,13 +950,13 @@ struct GroupedConvolutionBackwardDataKernel
                      const index_t group_id)
     {
         static_assert(!GemmPipeline::BlockGemmShape::PermuteA, "Not implemented!");
-        const auto& a_tensor_view = make_tensor_view<address_space_enum::global>(
-            a_ptr, kargs.a_grid_descs_m_k[group_id]);
+        const auto& a_tensor_view =
+            make_tensor_view<address_space_enum::global>(a_ptr, kargs.a_grid_descs_m_k[group_id]);
 
-        const auto& a_pad_view = pad_tensor_view(a_tensor_view,
-                                                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                            number<TilePartitioner::KPerBlock>{}),
-                                                 sequence<true, true>{});
+        const auto& a_pad_view = pad_tensor_view(
+            a_tensor_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
+            sequence<true, true>{});
 
         return make_tile_window(
             a_pad_view,
@@ -989,7 +989,8 @@ struct GroupedConvolutionBackwardDataKernel
         // Create block windows using helper methods
         const auto& a_block_window = MakeABlockWindow(a_ptr, kargs, block_idx_m, group_id);
         const auto& b_block_window = MakeBBlockWindow(b_ptr, kargs, block_idx_n, group_id);
-        const auto& d_block_window = MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n, group_id);
+        const auto& d_block_window =
+            MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n, group_id);
 
         const index_t num_loop = amd_wave_read_first_lane(
             TilePartitioner::GetLoopNum(kargs.a_grid_descs_m_k[group_id].get_length(I1)));
@@ -1044,7 +1045,8 @@ struct GroupedConvolutionBackwardDataKernel
         // Create block windows using helper methods
         const auto& a_block_window = MakeABlockWindow(a_ptr, kargs, block_idx_m, group_id);
         const auto& b_block_window = MakeBBlockWindow(b_ptr, kargs, block_idx_n, group_id);
-        const auto& d_block_window = MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n, group_id);
+        const auto& d_block_window =
+            MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n, group_id);
 
         const index_t num_loop = amd_wave_read_first_lane(
             TilePartitioner::GetLoopNum(kargs.a_grid_descs_m_k[group_id].get_length(I1)));

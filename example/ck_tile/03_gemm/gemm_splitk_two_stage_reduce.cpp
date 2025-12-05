@@ -167,27 +167,27 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                                                                        GemmUniversalTraits,
                                                                        scheduler>;
 
-    using GemmPipeline = typename PipelineTypeTraits<
-        GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+    using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
+        UniversalGemmProblem>;
 
-    using GemmEpilogue = ck_tile::CShuffleEpilogue<
-        ck_tile::CShuffleEpilogueProblem<ADataType,
-                                         BDataType,
-                                         DsDataType,
-                                         AccDataType,
-                                         CDataType,
-                                         DsLayout,
-                                         ELayout,
-                                         CDEElementWise,
-                                         TilePartitioner::MPerBlock,
-                                         TilePartitioner::NPerBlock,
-                                         GemmConfig::M_Warp,
-                                         GemmConfig::N_Warp,
-                                         GemmConfig::M_Warp_Tile,
-                                         GemmConfig::N_Warp_Tile,
-                                         GemmConfig::K_Warp_Tile,
-                                         UniversalGemmProblem::TransposeC,
-                                         GemmConfig::NumWaveGroups>>;
+    using GemmEpilogue =
+        ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                                   BDataType,
+                                                                   DsDataType,
+                                                                   AccDataType,
+                                                                   CDataType,
+                                                                   DsLayout,
+                                                                   ELayout,
+                                                                   CDEElementWise,
+                                                                   TilePartitioner::MPerBlock,
+                                                                   TilePartitioner::NPerBlock,
+                                                                   GemmConfig::M_Warp,
+                                                                   GemmConfig::N_Warp,
+                                                                   GemmConfig::M_Warp_Tile,
+                                                                   GemmConfig::N_Warp_Tile,
+                                                                   GemmConfig::K_Warp_Tile,
+                                                                   UniversalGemmProblem::TransposeC,
+                                                                   GemmConfig::NumWaveGroups>>;
 
     using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
     auto kargs   = Kernel::MakeKernelArgs(base_args);
@@ -253,8 +253,7 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
     else
     {
         return ck_tile::launch_kernel(
-            s,
-            ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            s, ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
     }
 }
 

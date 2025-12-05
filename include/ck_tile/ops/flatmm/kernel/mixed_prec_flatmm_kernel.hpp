@@ -414,20 +414,20 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
         index_t kFlatK = kargs.K * BlockGemmShape::WarpTile::at(I1);
         index_t kFlatN = kargs.N * kargs.K / kFlatK;
 
-        const auto& b_flat_tensor_view =
-            make_naive_tensor_view<address_space_enum::global>(
-                b_flat_ptr,
-                make_tuple(kFlatN, kFlatK),
-                make_tuple(kFlatK, 1),
-                number<FlatmmPipeline::GetVectorSizeB()>{},
-                number<1>{});
+        const auto& b_flat_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+            b_flat_ptr,
+            make_tuple(kFlatN, kFlatK),
+            make_tuple(kFlatK, 1),
+            number<FlatmmPipeline::GetVectorSizeB()>{},
+            number<1>{});
 
         // Step 2: No padding needed for b_flat
         // Step 3: Create tile window
-        return make_tile_window(b_flat_tensor_view,
-                                make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                                           number<FlatmmPipeline::flatKPerWarp>{}),
-                                {static_cast<int>(block_idx_n / BlockGemmShape::WarpTile::at(I1)), 0});
+        return make_tile_window(
+            b_flat_tensor_view,
+            make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                       number<FlatmmPipeline::flatKPerWarp>{}),
+            {static_cast<int>(block_idx_n / BlockGemmShape::WarpTile::at(I1)), 0});
     }
 
     template <typename KernelArgs>
@@ -577,10 +577,11 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
             number<1>{});
 
         // Step 2: Create tile window
-        return make_tile_window(scale_b_flat_view,
-                                make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                                           number<FlatmmPipeline::flatKPerWarp * N_Pack * 4 / 32>{}),
-                                {block_idx_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
+        return make_tile_window(
+            scale_b_flat_view,
+            make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                       number<FlatmmPipeline::flatKPerWarp * N_Pack * 4 / 32>{}),
+            {block_idx_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
     }
 
     template <class ScaleM, class ScaleN, bool UseDefaultScheduler = true>
@@ -597,10 +598,10 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
               const index_t block_idx_n)
     {
         // Create block windows using specialized methods
-        const auto& a_block_window = MakeABlockWindow(
-            a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& a_block_window =
+            MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
         const auto& b_flat_block_window = MakeBFlatBlockWindow(b_flat_ptr, kargs, block_idx_n);
-        const auto& ds_block_window = MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
+        const auto& ds_block_window    = MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
         const auto& scale_block_window = MakeScaleBBlockWindow(kargs, block_idx_n);
 
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);

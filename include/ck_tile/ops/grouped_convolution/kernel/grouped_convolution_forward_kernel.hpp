@@ -918,47 +918,43 @@ struct GroupedConvolutionForwardKernel
     }
 
     template <typename ADescType>
-    CK_TILE_DEVICE static auto MakeABlockWindow(const InDataType* a_ptr,
-                                                const ADescType& a_desc,
-                                                const index_t block_idx_m)
+    CK_TILE_DEVICE static auto
+    MakeABlockWindow(const InDataType* a_ptr, const ADescType& a_desc, const index_t block_idx_m)
     {
         // Step 1: Create tensor view
-        const auto& a_tensor_view =
-            make_tensor_view<address_space_enum::global>(a_ptr, a_desc);
+        const auto& a_tensor_view = make_tensor_view<address_space_enum::global>(a_ptr, a_desc);
 
         // Step 2: Create padded view
-        const auto& a_pad_view = pad_tensor_view(a_tensor_view,
-                                                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                            number<TilePartitioner::KPerBlock>{}),
-                                                 sequence<true, true>{});
+        const auto& a_pad_view = pad_tensor_view(
+            a_tensor_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
+            sequence<true, true>{});
 
         // Step 3: Create tile window
-        return make_tile_window(a_pad_view,
-                                make_tuple(number<TilePartitioner::MPerBlock>{},
-                                           number<TilePartitioner::KPerBlock>{}),
-                                {block_idx_m, 0});
+        return make_tile_window(
+            a_pad_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
+            {block_idx_m, 0});
     }
 
     template <typename BDescType>
-    CK_TILE_DEVICE static auto MakeBBlockWindow(const WeiDataType* b_ptr,
-                                                const BDescType& b_desc,
-                                                const index_t block_idx_n)
+    CK_TILE_DEVICE static auto
+    MakeBBlockWindow(const WeiDataType* b_ptr, const BDescType& b_desc, const index_t block_idx_n)
     {
         // Step 1: Create tensor view
-        const auto& b_tensor_view =
-            make_tensor_view<address_space_enum::global>(b_ptr, b_desc);
+        const auto& b_tensor_view = make_tensor_view<address_space_enum::global>(b_ptr, b_desc);
 
         // Step 2: Create padded view
-        const auto& b_pad_view = pad_tensor_view(b_tensor_view,
-                                                 make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                            number<TilePartitioner::KPerBlock>{}),
-                                                 sequence<true, true>{});
+        const auto& b_pad_view = pad_tensor_view(
+            b_tensor_view,
+            make_tuple(number<TilePartitioner::NPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
+            sequence<true, true>{});
 
         // Step 3: Create tile window
-        return make_tile_window(b_pad_view,
-                                make_tuple(number<TilePartitioner::NPerBlock>{},
-                                           number<TilePartitioner::KPerBlock>{}),
-                                {block_idx_n, 0});
+        return make_tile_window(
+            b_pad_view,
+            make_tuple(number<TilePartitioner::NPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
+            {block_idx_n, 0});
     }
 
     template <typename CDescType>
@@ -1014,16 +1010,16 @@ struct GroupedConvolutionForwardKernel
             make_tensor_view<address_space_enum::global, DstInMemOp>(c_ptr, c_desc);
 
         // Step 2: Create padded view
-        const auto& c_pad_view = pad_tensor_view(c_tensor_view,
-                                                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                            number<TilePartitioner::NPerBlock>{}),
-                                                 sequence<true, true>{});
+        const auto& c_pad_view = pad_tensor_view(
+            c_tensor_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            sequence<true, true>{});
 
         // Step 3: Create tile window
-        return make_tile_window(c_pad_view,
-                                make_tuple(number<TilePartitioner::MPerBlock>{},
-                                           number<TilePartitioner::NPerBlock>{}),
-                                {block_idx_m, block_idx_n});
+        return make_tile_window(
+            c_pad_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            {block_idx_m, block_idx_n});
     }
 
     /**
@@ -1059,8 +1055,8 @@ struct GroupedConvolutionForwardKernel
                                        const CDElementwise& elfunc)
     {
         // Create block windows using specialized methods
-        const auto& a_block_window = MakeABlockWindow(a_ptr, a_desc, block_idx_m);
-        const auto& b_block_window = MakeBBlockWindow(b_ptr, b_desc, block_idx_n);
+        const auto& a_block_window  = MakeABlockWindow(a_ptr, a_desc, block_idx_m);
+        const auto& b_block_window  = MakeBBlockWindow(b_ptr, b_desc, block_idx_n);
         const auto& ds_block_window = MakeDBlockWindows(ds_ptr, c_desc, block_idx_m, block_idx_n);
 
         const index_t num_loop = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(gemm_k));
@@ -1127,8 +1123,8 @@ struct GroupedConvolutionForwardKernel
                                            const CDElementwise& elfunc)
     {
         // Create block windows using specialized methods
-        const auto& a_block_window = MakeABlockWindow(a_ptr, a_desc, block_idx_m);
-        const auto& b_block_window = MakeBBlockWindow(b_ptr, b_desc, block_idx_n);
+        const auto& a_block_window  = MakeABlockWindow(a_ptr, a_desc, block_idx_m);
+        const auto& b_block_window  = MakeBBlockWindow(b_ptr, b_desc, block_idx_n);
         const auto& ds_block_window = MakeDBlockWindows(ds_ptr, c_desc, block_idx_m, block_idx_n);
 
         const index_t num_loop = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(gemm_k));

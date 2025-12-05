@@ -105,9 +105,8 @@ struct WeightPreshuffleInvoker
                       << "problem: " << UniversalGemmProblem::GetName() << '\n'
                       << "pipeline: " << GemmPipeline::GetName() << '\n'
                       << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                      << "}" << ", kBlockPerCu: {" << GemmConfig::kBlockPerCu << "}"
-                      << std::endl;
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << ", kBlockPerCu: {" << GemmConfig::kBlockPerCu << "}" << std::endl;
         }
         float ave_time = 0.f;
         if(s.flush_cache_)
@@ -122,11 +121,8 @@ struct WeightPreshuffleInvoker
             auto size_a_buffer = a_m.get_element_space_size_in_bytes();
             auto size_b_buffer = b_n.get_element_space_size_in_bytes();
 
-            ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(kargs.as_ptr[0],
-                                                                           kargs.bs_ptr[0],
-                                                                           s.rotating_count_,
-                                                                           size_a_buffer,
-                                                                           size_b_buffer);
+            ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+                kargs.as_ptr[0], kargs.bs_ptr[0], s.rotating_count_, size_a_buffer, size_b_buffer);
             rotating_mem.Print();
 
             auto run_flush_cache = [&]() {
@@ -139,17 +135,16 @@ struct WeightPreshuffleInvoker
                     hipGetErrorString(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
             };
-            ave_time =
-                ck_tile::launch_kernel_time_mask(s,
-                                                 run_flush_cache,
-                                                 ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                                     Kernel{}, grids, blocks, 0, kargs));
+            ave_time = ck_tile::launch_kernel_time_mask(
+                s,
+                run_flush_cache,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time = ck_tile::launch_kernel(s,
-                                              ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                                  Kernel{}, grids, blocks, 0, kargs));
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         return ave_time;
     }

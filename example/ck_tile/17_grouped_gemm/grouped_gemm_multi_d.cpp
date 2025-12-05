@@ -103,15 +103,14 @@ float grouped_gemm_multi_d(const std::vector<grouped_gemm_multi_d_kargs>& gemm_d
                   << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
     }
 
-    return ck_tile::launch_kernel(
-        s,
-        ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-            Kernel{},
-            grids,
-            blocks,
-            0,
-            ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-            gemm_descs.size()));
+    return ck_tile::launch_kernel(s,
+                                  ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                                      Kernel{},
+                                      grids,
+                                      blocks,
+                                      0,
+                                      ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                                      gemm_descs.size()));
 }
 
 template <typename GemmConfig,
@@ -158,8 +157,8 @@ float grouped_gemm_multi_d_tileloop(const ck_tile::stream_config& s,
                                                                        GemmUniversalTraits,
                                                                        scheduler>;
 
-    using GemmPipeline = typename PipelineTypeTraits<
-        GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+    using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
+        UniversalGemmProblem>;
     using GemmEpilogue = ck_tile::CShuffleEpilogue<
         ck_tile::CShuffleEpilogueProblem<ADataType,
                                          BDataType,
@@ -189,13 +188,13 @@ float grouped_gemm_multi_d_tileloop(const ck_tile::stream_config& s,
     }
 
     return ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                       Kernel{},
-                                       grids,
-                                       blocks,
-                                       0,
-                                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                                       num_groups));
+                                  ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                                      Kernel{},
+                                      grids,
+                                      blocks,
+                                      0,
+                                      ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                                      num_groups));
 }
 
 #include "run_grouped_gemm_multi_d_example.inc"

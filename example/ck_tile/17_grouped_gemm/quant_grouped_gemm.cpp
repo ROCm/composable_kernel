@@ -64,24 +64,24 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
     constexpr auto scheduler   = GemmConfig::Scheduler;
     constexpr bool transpose_c = false;
 
-    using QuantGemmProblem = typename std::conditional<
-        QuantMode == ck_tile::QuantType::BQuantGrouped,
-        ck_tile::GemmBQuantPipelineProblem<ADataType,
-                                           BDataType,
-                                           BQDataType,
-                                           AccDataType,
-                                           GemmShape,
-                                           GemmUniversalTraits,
-                                           QuantGroupSize>,
-        ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
-                                                      BDataType,
-                                                      AccDataType,
-                                                      AccDataType,
-                                                      GemmShape,
-                                                      GemmUniversalTraits,
-                                                      transpose_c,
-                                                      BDataType,
-                                                      scheduler>>::type;
+    using QuantGemmProblem =
+        typename std::conditional<QuantMode == ck_tile::QuantType::BQuantGrouped,
+                                  ck_tile::GemmBQuantPipelineProblem<ADataType,
+                                                                     BDataType,
+                                                                     BQDataType,
+                                                                     AccDataType,
+                                                                     GemmShape,
+                                                                     GemmUniversalTraits,
+                                                                     QuantGroupSize>,
+                                  ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
+                                                                                BDataType,
+                                                                                AccDataType,
+                                                                                AccDataType,
+                                                                                GemmShape,
+                                                                                GemmUniversalTraits,
+                                                                                transpose_c,
+                                                                                BDataType,
+                                                                                scheduler>>::type;
 
     using GemmPipeline = std::conditional_t<
         QuantMode == ck_tile::QuantType::RowColQuant ||
@@ -122,15 +122,14 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                   << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
     }
 
-    return ck_tile::launch_kernel(
-        s,
-        ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-            Kernel{},
-            grids,
-            blocks,
-            0,
-            ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-            num_groups));
+    return ck_tile::launch_kernel(s,
+                                  ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                                      Kernel{},
+                                      grids,
+                                      blocks,
+                                      0,
+                                      ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                                      num_groups));
 }
 
 #include "quant_run_grouped_gemm_example.inc"

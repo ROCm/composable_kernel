@@ -789,13 +789,13 @@ struct GroupedConvolutionBackwardWeightKernel
                      const index_t block_idx_m,
                      const index_t block_idx_n)
     {
-        const auto& c_tensor_view = make_tensor_view<address_space_enum::global, DstInMemOp>(
-            c_ptr, kargs.c_grid_desc_m_n);
+        const auto& c_tensor_view =
+            make_tensor_view<address_space_enum::global, DstInMemOp>(c_ptr, kargs.c_grid_desc_m_n);
 
-        const auto& c_pad_view = pad_tensor_view(c_tensor_view,
-                                                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                            number<TilePartitioner::NPerBlock>{}),
-                                                 sequence<true, true>{});
+        const auto& c_pad_view = pad_tensor_view(
+            c_tensor_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            sequence<true, true>{});
 
         return make_tile_window(
             c_pad_view,

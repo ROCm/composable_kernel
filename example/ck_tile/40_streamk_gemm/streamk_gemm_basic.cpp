@@ -56,24 +56,24 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
 
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
-    using GemmEpilogue = ck_tile::CShuffleEpilogue<
-        ck_tile::CShuffleEpilogueProblem<ADataType,
-                                         BDataType,
-                                         DsDataType,
-                                         AccDataType,
-                                         CDataType,
-                                         DsLayout,
-                                         ELayout,
-                                         CDEElementWise,
-                                         TilePartitioner::MPerBlock,
-                                         TilePartitioner::NPerBlock,
-                                         GemmConfig::M_Warp,
-                                         GemmConfig::N_Warp,
-                                         GemmConfig::M_Warp_Tile,
-                                         GemmConfig::N_Warp_Tile,
-                                         GemmConfig::K_Warp_Tile,
-                                         UniversalGemmProblem::TransposeC,
-                                         GemmConfig::NumWaveGroups>>;
+    using GemmEpilogue =
+        ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                                   BDataType,
+                                                                   DsDataType,
+                                                                   AccDataType,
+                                                                   CDataType,
+                                                                   DsLayout,
+                                                                   ELayout,
+                                                                   CDEElementWise,
+                                                                   TilePartitioner::MPerBlock,
+                                                                   TilePartitioner::NPerBlock,
+                                                                   GemmConfig::M_Warp,
+                                                                   GemmConfig::N_Warp,
+                                                                   GemmConfig::M_Warp_Tile,
+                                                                   GemmConfig::N_Warp_Tile,
+                                                                   GemmConfig::K_Warp_Tile,
+                                                                   UniversalGemmProblem::TransposeC,
+                                                                   GemmConfig::NumWaveGroups>>;
 
     using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
@@ -106,8 +106,8 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
         if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic)
         {
             // Clear the output C tensor results after each repetition of the kernel
-            hipGetErrorString(hipMemsetAsync(
-                args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+            hipGetErrorString(
+                hipMemsetAsync(args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
         }
         else if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Reduction)
         {

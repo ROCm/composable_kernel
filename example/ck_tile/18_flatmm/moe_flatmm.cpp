@@ -145,11 +145,10 @@ float moe_gemm(const ck_tile::MoeFlatmmHostArgs<ScaleM, ScaleN>& args,
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
-    const auto Run = [&](const auto has_hot_loop_,
-                         const auto tail_number_) {
-        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-        constexpr auto tail_number_v    = tail_number_.value;
-        constexpr auto scheduler        = FlatmmConfig::Scheduler;
+    const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
+        constexpr bool has_hot_loop_v = has_hot_loop_.value;
+        constexpr auto tail_number_v  = tail_number_.value;
+        constexpr auto scheduler      = FlatmmConfig::Scheduler;
 
         using CodegenPipelineProblem = ck_tile::FlatmmPipelineProblem<ADataType,
                                                                       BDataType,

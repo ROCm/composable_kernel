@@ -114,8 +114,8 @@ auto gemm_multi_d(const gemm_multi_d_kargs& args, const ck_tile::stream_config& 
     if(s.log_level_ > 0)
     {
         std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", " << grids.y
-                  << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y
-                  << ", " << blocks.z << "}" << std::endl;
+                  << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
+                  << blocks.z << "}" << std::endl;
     }
 
     return ck_tile::launch_kernel(

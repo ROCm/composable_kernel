@@ -495,10 +495,11 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
 
         // Step 2: No padding needed for b_flat
         // Step 3: Create tile window
-        return make_tile_window(b_flat_tensor_view,
-                                make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                                           number<FlatmmPipeline::flatKPerWarp>{}),
-                                {static_cast<int>(block_idx_n / BlockGemmShape::WarpTile::at(I1)), 0});
+        return make_tile_window(
+            b_flat_tensor_view,
+            make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                       number<FlatmmPipeline::flatKPerWarp>{}),
+            {static_cast<int>(block_idx_n / BlockGemmShape::WarpTile::at(I1)), 0});
     }
 
     template <typename KernelArgs>
@@ -705,8 +706,8 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
               const index_t block_idx_n)
     {
         // Create block windows using specialized methods
-        const auto& a_block_window = MakeABlockWindow(
-            a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& a_block_window =
+            MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
         const auto& b_flat_block_window = MakeBFlatBlockWindow(b_flat_ptr, kargs, block_idx_n);
         const auto& ds_block_window = MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
         const auto& scale_a_block_window = MakeScaleABlockWindow(kargs, block_idx_m);

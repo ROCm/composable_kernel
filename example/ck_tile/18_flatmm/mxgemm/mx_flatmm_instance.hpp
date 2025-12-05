@@ -61,7 +61,7 @@ float mx_flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
                   "mixed_prec_flatmm requires ADataType is a wider type than BDataType");
 
     constexpr auto scheduler = FlatmmConfig::Scheduler;
-    ck_tile::ignore = Splitk;
+    ck_tile::ignore          = Splitk;
 
     constexpr int BlockedXDLN_PerWarp = 2; // determined by scale shuffle pattern
 

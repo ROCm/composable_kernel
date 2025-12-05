@@ -79,7 +79,7 @@ float invoke_gemm(int n_warmup,
         // earlier stage.
 
         std::vector<ck_tile::GemmTransKernelArg<>> kargs;
-        void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
+        void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
         for(const auto& arg : args)
         {
             kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<>{{arg.a_ptr},

@@ -662,9 +662,10 @@ struct FlatmmKernel
 
         const auto scale_m_view = make_naive_tensor_view<address_space_enum::global>(
             kargs.scale_m_ptr.ptr,
-            make_tuple(
-                kargs.M / ScaleGranularityM,
-                ScaleGranularityKA == 0 ? 1 : (splitk_batch_offset.splitted_k / ScaleGranularityKA)),
+            make_tuple(kargs.M / ScaleGranularityM,
+                       ScaleGranularityKA == 0
+                           ? 1
+                           : (splitk_batch_offset.splitted_k / ScaleGranularityKA)),
             make_tuple(scale_stride_m, 0),
             number < ScaleGranularityM == 1 ? FlatmmPipeline::GetVectorSizeA() : 1 > {},
             number<1>{});
@@ -906,23 +907,24 @@ struct FlatmmKernel
                                                     const index_t block_idx_n)
     {
         // Step 1: Create tensor view
-        index_t kFlatK = FlatmmPipeline::flatKPerWarp * (kargs.K / BlockGemmShape::WarpTile::at(I2));
+        index_t kFlatK =
+            FlatmmPipeline::flatKPerWarp * (kargs.K / BlockGemmShape::WarpTile::at(I2));
         index_t kFlatN = kargs.N * kargs.K / kFlatK;
 
-        const auto& b_flat_tensor_view =
-            make_naive_tensor_view<address_space_enum::global>(
-                b_flat_ptr,
-                make_tuple(kFlatN, kFlatK),
-                make_tuple(kFlatK, 1),
-                number<FlatmmPipeline::GetVectorSizeB()>{},
-                number<1>{});
+        const auto& b_flat_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+            b_flat_ptr,
+            make_tuple(kFlatN, kFlatK),
+            make_tuple(kFlatK, 1),
+            number<FlatmmPipeline::GetVectorSizeB()>{},
+            number<1>{});
 
         // Step 2: No padding needed for b_flat
         // Step 3: Create tile window
-        return make_tile_window(b_flat_tensor_view,
-                                make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                                           number<FlatmmPipeline::flatKPerWarp>{}),
-                                {static_cast<int>(block_idx_n / BlockGemmShape::WarpTile::at(I1)), 0});
+        return make_tile_window(
+            b_flat_tensor_view,
+            make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                       number<FlatmmPipeline::flatKPerWarp>{}),
+            {static_cast<int>(block_idx_n / BlockGemmShape::WarpTile::at(I1)), 0});
     }
 
     template <typename KernelArgs>
@@ -1067,9 +1069,10 @@ struct FlatmmKernel
         // Step 1: Create tensor view
         const auto scale_m_view = make_naive_tensor_view<address_space_enum::global>(
             kargs.scale_m_ptr.ptr,
-            make_tuple(
-                kargs.M / ScaleGranularityM,
-                ScaleGranularityKA == 0 ? 1 : (splitk_batch_offset.splitted_k / ScaleGranularityKA)),
+            make_tuple(kargs.M / ScaleGranularityM,
+                       ScaleGranularityKA == 0
+                           ? 1
+                           : (splitk_batch_offset.splitted_k / ScaleGranularityKA)),
             make_tuple(scale_stride_m, 0),
             number < ScaleGranularityM == 1 ? FlatmmPipeline::GetVectorSizeA() : 1 > {},
             number<1>{});
@@ -1127,12 +1130,12 @@ struct FlatmmKernel
               const index_t block_idx_n)
     {
         // Create block windows using specialized methods
-        const auto& a_block_window = MakeABlockWindow(
-            a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& a_block_window =
+            MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
         const auto& b_flat_block_window = MakeBFlatBlockWindow(b_flat_ptr, kargs, block_idx_n);
         const auto& ds_block_window = MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
-        const auto& scale_m_window = MakeScaleMWindow(kargs, splitk_batch_offset, block_idx_m);
-        const auto& scale_n_window = MakeScaleNWindow(kargs, splitk_batch_offset, block_idx_n);
+        const auto& scale_m_window  = MakeScaleMWindow(kargs, splitk_batch_offset, block_idx_m);
+        const auto& scale_n_window  = MakeScaleNWindow(kargs, splitk_batch_offset, block_idx_n);
 
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
 
@@ -1147,27 +1150,29 @@ struct FlatmmKernel
             {
                 auto e_block_window = MakeEBlockWindow<memory_operation_enum::set>(
                     e_ptr, kargs, block_idx_m, block_idx_n);
-                EpiloguePipeline{}.template
-                operator()<decltype(e_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
-                    e_block_window,
-                    c_block_tile,
-                    ds_block_window,
-                    smem_ptr_ping,
-                    scale_m_window,
-                    scale_n_window);
+                EpiloguePipeline{}
+                    .template operator()<decltype(e_block_window),
+                                         decltype(c_block_tile),
+                                         decltype(ds_block_window)>(e_block_window,
+                                                                    c_block_tile,
+                                                                    ds_block_window,
+                                                                    smem_ptr_ping,
+                                                                    scale_m_window,
+                                                                    scale_n_window);
             }
             else
             {
                 auto e_block_window = MakeEBlockWindow<memory_operation_enum::atomic_add>(
                     e_ptr, kargs, block_idx_m, block_idx_n);
-                EpiloguePipeline{}.template
-                operator()<decltype(e_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
-                    e_block_window,
-                    c_block_tile,
-                    ds_block_window,
-                    smem_ptr_ping,
-                    scale_m_window,
-                    scale_n_window);
+                EpiloguePipeline{}
+                    .template operator()<decltype(e_block_window),
+                                         decltype(c_block_tile),
+                                         decltype(ds_block_window)>(e_block_window,
+                                                                    c_block_tile,
+                                                                    ds_block_window,
+                                                                    smem_ptr_ping,
+                                                                    scale_m_window,
+                                                                    scale_n_window);
             }
         }
         else if(UseDefaultScheduler || (get_warp_id() == 0))
@@ -1176,17 +1181,21 @@ struct FlatmmKernel
             {
                 auto e_block_window = MakeEBlockWindow<memory_operation_enum::set>(
                     e_ptr, kargs, block_idx_m, block_idx_n);
-                EpiloguePipeline{}.template
-                operator()<decltype(e_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
-                    e_block_window, c_block_tile, ds_block_window, smem_ptr_ping);
+                EpiloguePipeline{}
+                    .template operator()<decltype(e_block_window),
+                                         decltype(c_block_tile),
+                                         decltype(ds_block_window)>(
+                        e_block_window, c_block_tile, ds_block_window, smem_ptr_ping);
             }
             else
             {
                 auto e_block_window = MakeEBlockWindow<memory_operation_enum::atomic_add>(
                     e_ptr, kargs, block_idx_m, block_idx_n);
-                EpiloguePipeline{}.template
-                operator()<decltype(e_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
-                    e_block_window, c_block_tile, ds_block_window, smem_ptr_ping);
+                EpiloguePipeline{}
+                    .template operator()<decltype(e_block_window),
+                                         decltype(c_block_tile),
+                                         decltype(ds_block_window)>(
+                        e_block_window, c_block_tile, ds_block_window, smem_ptr_ping);
             }
         }
     }
