@@ -3,6 +3,16 @@
 
 #pragma once
 
+#include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_one_warp_v1.hpp"
+
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2_custom_policy.hpp"
@@ -229,9 +239,10 @@ struct UnifiedAttentionPipelineDefaultPolicy
     {
         using namespace ck_tile;
 
+        // Follow the q type for this gemm
         using GemmProblem =
             BlockGemmProblem<typename Problem::QDataType,
-                             typename Problem::KDataType,
+                             typename Problem::QDataType,
                              typename Problem::SaccDataType,
                              Problem::kBlockSize,
                              TileGemmShape<sequence<Problem::UnifiedAttentionShape::BLOCK_M,
@@ -242,7 +253,6 @@ struct UnifiedAttentionPipelineDefaultPolicy
 
         constexpr auto warp_gemm = []() {
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
-                         std::is_same_v<typename Problem::KDataType, half_t> &&
                          std::is_same_v<typename Problem::SaccDataType, float>)
             {
                 /// NOTICE: in order to use load_tile_transpose() later for V tile, we cannot use
@@ -250,18 +260,26 @@ struct UnifiedAttentionPipelineDefaultPolicy
                 return WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution<>{};
             }
             else if constexpr(std::is_same_v<typename Problem::QDataType, bf16_t> &&
-                              std::is_same_v<typename Problem::KDataType, bf16_t> &&
                               std::is_same_v<typename Problem::SaccDataType, float>)
             {
                 /// NOTICE: in order to use load_tile_transpose() later for V tile, we cannot use
                 /// WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution here
                 return WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution<>{};
             }
+            else if constexpr(std::is_same_v<typename Problem::QDataType, fp8_t> &&
+                              std::is_same_v<typename Problem::KDataType, fp8_t> &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                /// NOTICE: in order to use load_tile_transpose() later for V tile, we cannot use
+                /// WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution here
+                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
+                // return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
+            }
         }();
 
         using BlockGemmPolicy = BlockGemmARegBRegCRegV2CustomPolicy<
             typename Problem::QDataType,
-            typename Problem::KDataType,
+            typename Problem::QDataType,
             typename Problem::SaccDataType,
             typename Problem::UnifiedAttentionShape::Gemm0BlockWarps,
             decltype(warp_gemm),
@@ -275,8 +293,9 @@ struct UnifiedAttentionPipelineDefaultPolicy
     {
         using namespace ck_tile;
 
+        // Follow the V type for this gemm
         using GemmProblem =
-            BlockGemmProblem<typename Problem::PDataType,
+            BlockGemmProblem<typename Problem::VDataType,
                              typename Problem::VDataType,
                              typename Problem::OaccDataType,
                              Problem::kBlockSize,
@@ -288,7 +307,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         /// NOTICE: in order to use load_tile_transpose() later for V tiles, we have to pass
         /// WGAttrNumAccessEnum::Double instead of WGAttrNumAccessEnum::Single
         using WarpGemm =
-            WarpGemmDispatcher<typename Problem::PDataType,
+            WarpGemmDispatcher<typename Problem::VDataType,
                                typename Problem::VDataType,
                                typename Problem::OaccDataType,
                                Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
@@ -300,7 +319,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                WGAttrNumAccessEnum::Double>;
 
         using BlockGemmPolicy = BlockGemmARegBRegCRegV2CustomPolicy<
-            typename Problem::PDataType,
+            typename Problem::VDataType,
             typename Problem::VDataType,
             typename Problem::OaccDataType,
             typename Problem::UnifiedAttentionShape::Gemm1BlockWarps,

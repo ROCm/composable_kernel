@@ -46,6 +46,8 @@ struct UnifiedAttentionPipelineProblem
     static constexpr index_t kNumGemm1Warps = UnifiedAttentionShape::NumGemm1Warps;
     static constexpr index_t kBlockSize     = UnifiedAttentionShape::NumWarps * get_warp_size();
 
+    static constexpr auto QuantEnum = Traits::QuantEnum;
+
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
     static constexpr bool kPadHeadDim       = Traits::kPadHeadDim;

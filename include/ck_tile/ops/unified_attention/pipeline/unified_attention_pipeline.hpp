@@ -273,6 +273,7 @@ struct UnifiedAttentionPipeline
     static constexpr ck_tile::index_t BLOCK_SIZE       = UnifiedAttentionShape::BLOCK_SIZE;
     static constexpr ck_tile::index_t HEAD_SIZE        = UnifiedAttentionShape::HEAD_SIZE;
     static constexpr ck_tile::index_t HEAD_SIZE_PADDED = UnifiedAttentionShape::HEAD_SIZE_PADDED;
+    static constexpr auto QuantEnum                    = Problem::QuantEnum;
 
     static_assert(HEAD_SIZE_PADDED <= 256,
                   "hdim bigger than 256 is not suitable for this pipeline!");
@@ -393,6 +394,10 @@ struct UnifiedAttentionPipeline
                                    const OAccElementFunction& o_acc_element_func,
                                    FmhaMask mask,
                                    float scale_s,
+                                   [[maybe_unused]] float scale_q,
+                                   [[maybe_unused]] float scale_k,
+                                   [[maybe_unused]] float scale_v,
+                                   [[maybe_unused]] float scale_out,
                                    void* smem_ptr) const
     {
         using namespace ck_tile;
@@ -401,6 +406,13 @@ struct UnifiedAttentionPipeline
                 std::is_same_v<KDataType, remove_cvref_t<typename KDramBlockWindowTmp::DataType>> &&
                 std::is_same_v<VDataType, remove_cvref_t<typename VDramBlockWindowTmp::DataType>>,
             "wrong!");
+
+        static_assert(!(std::is_same_v<QDataType, fp8_t> && !std::is_same_v<QDataType, fp8_t>));
+
+        static_assert((std::is_same_v<KDataType, VDataType>));
+
+        const bool dequantkv = QuantEnum == UnifiedAttentionQuantScaleEnum::NO_SCALE &&
+                               !std::is_same_v<QDataType, KDataType>;
 
         static_assert(
             BLOCK_M == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
@@ -563,7 +575,7 @@ struct UnifiedAttentionPipeline
         index_t i_total_loops = num_blocks_start;
         const ck_tile::index_t* block_tables_ptr_ =
             reinterpret_cast<const ck_tile::index_t*>(block_tables_ptr);
-        index_t kv_blk_idx_intial      = block_tables_ptr_[block_table_offset + k_block_table_off];
+        index_t kv_blk_idx_intial = block_tables_ptr_[block_table_offset + k_block_table_off];
 
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -813,23 +825,59 @@ struct UnifiedAttentionPipeline
             if constexpr(gemm_idx == 0)
             {
                 clear_tile(sp(sp_reg_idx).sp_compute); // initialize C
-                gemm_0(sp(sp_reg_idx).sp_compute,
-                       get_slice_tile(q_tile,
-                                      sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
-                                      sequence<BLOCK_M, k0_loops * HEAD_SIZE_PADDED>{}),
-                       get_slice_tile(kv_tile.k_tile,
-                                      sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
-                                      sequence<BLOCK_SIZE, k0_loops * HEAD_SIZE_PADDED>{}));
+                if constexpr(dequantkv)
+                {
+                    // Dequantize k_tile to match q_tile type before GEMM
+                    auto dequantized_k_tile = tile_elementwise_in(
+                        [&](const auto& x) { return type_convert<QDataType>(x); },
+                        get_slice_tile(kv_tile.k_tile,
+                                       sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                       sequence<BLOCK_SIZE, k0_loops * HEAD_SIZE_PADDED>{}));
+
+                    gemm_0(sp(sp_reg_idx).sp_compute,
+                           get_slice_tile(q_tile,
+                                          sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                          sequence<BLOCK_M, k0_loops * HEAD_SIZE_PADDED>{}),
+                           dequantized_k_tile);
+                }
+                else
+                {
+                    gemm_0(sp(sp_reg_idx).sp_compute,
+                           get_slice_tile(q_tile,
+                                          sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                          sequence<BLOCK_M, k0_loops * HEAD_SIZE_PADDED>{}),
+                           get_slice_tile(kv_tile.k_tile,
+                                          sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                          sequence<BLOCK_SIZE, k0_loops * HEAD_SIZE_PADDED>{}));
+                }
             }
             else
             {
-                gemm_1(o_acc,
-                       get_slice_tile(sp(sp_reg_idx).p,
-                                      sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
-                                      sequence<BLOCK_M, k1_loops * BLOCK_SIZE>{}),
-                       get_slice_tile(kv_tile.v_tile,
-                                      sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
-                                      sequence<HEAD_SIZE_PADDED, k1_loops * BLOCK_SIZE>{}));
+                if constexpr(dequantkv)
+                {
+                    // Dequantize v_tile to match q_tile type before GEMM
+                    auto dequantized_v_tile = tile_elementwise_in(
+                        [&](const auto& x) { return type_convert<QDataType>(x); },
+                        get_slice_tile(kv_tile.v_tile,
+                                       sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                       sequence<HEAD_SIZE_PADDED, k1_loops * BLOCK_SIZE>{}));
+
+                    gemm_1(o_acc,
+                           get_slice_tile(sp(sp_reg_idx).p,
+                                          sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                          sequence<BLOCK_M, k1_loops * BLOCK_SIZE>{}),
+                           dequantized_v_tile);
+                }
+                else
+                {
+                    gemm_1(o_acc,
+                           get_slice_tile(sp(sp_reg_idx).p,
+                                          sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                          sequence<BLOCK_M, k1_loops * BLOCK_SIZE>{}),
+                           get_slice_tile(kv_tile.v_tile,
+                                          sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                          sequence<HEAD_SIZE_PADDED, k1_loops * BLOCK_SIZE>{}));
+                }
             }
         };
 
@@ -837,23 +885,60 @@ struct UnifiedAttentionPipeline
             if constexpr(gemm_idx == 0)
             {
                 clear_tile(sp(sp_reg_idx).sp_compute); // initialize C
-                gemm_0(sp(sp_reg_idx).sp_compute,
-                       get_slice_tile(q_tile,
-                                      sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
-                                      sequence<BLOCK_M, k0_loops * HEAD_SIZE_PADDED>{}),
-                       get_slice_tile(kv_tile.k_tile,
-                                      sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
-                                      sequence<BLOCK_SIZE, k0_loops * HEAD_SIZE_PADDED>{}));
+                if constexpr(dequantkv)
+                {
+                    // Dequantize k_tile to match q_tile type before GEMM
+                    auto dequantized_k_tile = tile_elementwise_in(
+                        [&](const auto& x) { return type_convert<QDataType>(x); },
+                        get_slice_tile(kv_tile.k_tile,
+                                       sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                       sequence<BLOCK_SIZE, k0_loops * HEAD_SIZE_PADDED>{}));
+
+                    gemm_0(sp(sp_reg_idx).sp_compute,
+                           get_slice_tile(q_tile,
+                                          sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                          sequence<BLOCK_M, k0_loops * HEAD_SIZE_PADDED>{}),
+                           dequantized_k_tile);
+                }
+                else
+                {
+                    gemm_0(sp(sp_reg_idx).sp_compute,
+                           get_slice_tile(q_tile,
+                                          sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                          sequence<BLOCK_M, k0_loops * HEAD_SIZE_PADDED>{}),
+                           get_slice_tile(kv_tile.k_tile,
+                                          sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                          sequence<BLOCK_SIZE, k0_loops * HEAD_SIZE_PADDED>{}));
+                }
             }
             else
             {
-                gemm_1(o_acc,
-                       get_slice_tile(sp(sp_reg_idx).p,
-                                      sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
-                                      sequence<BLOCK_M, k1_loops * BLOCK_SIZE>{}),
-                       get_slice_tile(kv_tile.v_tile,
-                                      sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
-                                      sequence<HEAD_SIZE_PADDED, k1_loops * BLOCK_SIZE>{}));
+                if constexpr(dequantkv)
+                {
+                    // Dequantize v_tile to match q_tile type before GEMM
+                    auto dequantized_v_tile = tile_elementwise_in(
+                        [&](const auto& x) { return type_convert<QDataType>(x); },
+                        get_slice_tile(kv_tile.v_tile,
+                                       sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                       sequence<HEAD_SIZE_PADDED, k1_loops * BLOCK_SIZE>{}));
+
+                    gemm_1(o_acc,
+                           get_slice_tile(sp(sp_reg_idx).p,
+                                          sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                          sequence<BLOCK_M, k1_loops * BLOCK_SIZE>{}),
+                           dequantized_v_tile);
+                    fmha_alu0(number<1>{} - sp_reg_idx);
+                }
+                else
+                {
+                    gemm_1(o_acc,
+                           get_slice_tile(sp(sp_reg_idx).p,
+                                          sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                          sequence<BLOCK_M, k1_loops * BLOCK_SIZE>{}),
+                           get_slice_tile(kv_tile.v_tile,
+                                          sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                          sequence<HEAD_SIZE_PADDED, k1_loops * BLOCK_SIZE>{}));
+                }
                 fmha_alu0(number<1>{} - sp_reg_idx);
             }
         };
@@ -1237,6 +1322,52 @@ struct UnifiedAttentionPipeline
                           identity{},
                           mask,
                           scale_s,
+                          1, // scale_q
+                          1, // scale_k
+                          1, // scale_v,
+                          1, // scale_out
+                          smem_ptr);
+    }
+
+    template <typename QDramBlockWindowTmp,
+              typename KDramBlockWindowTmp,
+              typename VDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
+                                   const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+                                   const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+                                   const index_t num_blocks,
+                                   const index_t num_blocks_start,
+                                   const void* block_tables_ptr,
+                                   index_t block_table_offset,
+                                   FmhaMask mask,
+                                   float scale_s,
+                                   float scale_q,
+                                   float scale_k,
+                                   float scale_v,
+                                   float scale_out,
+                                   void* smem_ptr) const
+    {
+        using namespace ck_tile;
+
+        return operator()(q_dram_block_window_tmp,
+                          identity{},
+                          k_dram_block_window_tmp,
+                          identity{},
+                          v_dram_block_window_tmp,
+                          identity{},
+                          num_blocks,
+                          num_blocks_start,
+                          block_tables_ptr,
+                          block_table_offset,
+                          identity{},
+                          identity{},
+                          identity{},
+                          mask,
+                          scale_s,
+                          scale_q,
+                          scale_k,
+                          scale_v,
+                          scale_out,
                           smem_ptr);
     }
 };

@@ -34,10 +34,11 @@ struct unified_attention_args
     index_t hdim;
     // TODO window
     float scale_s;
-    float scale;
+    float scale_q;
     float scale_k;
     float scale_v;
     float scale_out;
+    index_t fp8_mode;
 
     const void* q_ptr;
     index_t query_stride_0;

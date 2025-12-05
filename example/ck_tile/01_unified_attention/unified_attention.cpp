@@ -18,8 +18,9 @@ std::ostream& operator<<(std::ostream& stream,
     }
 }
 
-std::pair<bool, float> unified_attention(const unified_attention_args& args,
-                                         const stream_config& config)
+template <int Fp8Mode>
+std::pair<bool, float> unified_attention_impl(const unified_attention_args& args,
+                                              const stream_config& config)
 {
     if(args.data_type == unified_attention_args::data_type_enum::fp16)
     {
@@ -27,6 +28,7 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
         {
             using kernel_traits =
                 unified_attention_kernel_traits<unified_attention_args::data_type_enum::fp16,
+                                                Fp8Mode,
                                                 false>;
 
             return unified_attention_kernel_dispatch<kernel_traits>(args, config);
@@ -34,7 +36,9 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
         else
         {
             using kernel_traits =
-                unified_attention_kernel_traits<unified_attention_args::data_type_enum::fp16, true>;
+                unified_attention_kernel_traits<unified_attention_args::data_type_enum::fp16,
+                                                Fp8Mode,
+                                                true>;
 
             return unified_attention_kernel_dispatch<kernel_traits>(args, config);
         }
@@ -45,6 +49,7 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
         {
             using kernel_traits =
                 unified_attention_kernel_traits<unified_attention_args::data_type_enum::bf16,
+                                                Fp8Mode,
                                                 false>;
 
             return unified_attention_kernel_dispatch<kernel_traits>(args, config);
@@ -52,13 +57,28 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
         else
         {
             using kernel_traits =
-                unified_attention_kernel_traits<unified_attention_args::data_type_enum::bf16, true>;
+                unified_attention_kernel_traits<unified_attention_args::data_type_enum::bf16,
+                                                Fp8Mode,
+                                                true>;
 
             return unified_attention_kernel_dispatch<kernel_traits>(args, config);
         }
     }
 
     return std::make_pair(false, -1.f);
+}
+
+std::pair<bool, float> unified_attention(const unified_attention_args& args,
+                                         const stream_config& config)
+{
+    // Dispatch based on fp8_mode at runtime
+    switch(args.fp8_mode)
+    {
+    case 0: return unified_attention_impl<0>(args, config);
+    case 1: return unified_attention_impl<1>(args, config);
+    case 2: return unified_attention_impl<2>(args, config);
+    default: return std::make_pair(false, -1.f);
+    }
 }
 
 } // namespace ck_tile

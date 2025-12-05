@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/unified_attention/block/block_masking.hpp"
+#include "ck_tile/ops/unified_attention/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 
 #include <string>
@@ -36,6 +37,7 @@ struct UnifiedAttentionKernel
     static constexpr bool kPadSeqLenQ  = UnifiedAttentionPipeline::kPadSeqLenQ;
     static constexpr bool kPadHeadDimQ = UnifiedAttentionPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = UnifiedAttentionPipeline::kPadHeadDimV;
+    static constexpr auto QuantEnum    = UnifiedAttentionPipeline::Problem::QuantEnum;
 
     // TODO add yjese
     static constexpr index_t HEAD_SIZE        = UnifiedAttentionPipeline::HEAD_SIZE;
@@ -48,6 +50,12 @@ struct UnifiedAttentionKernel
     static constexpr index_t BLOCK_Q = UnifiedAttentionPipeline::BLOCK_Q;
     // BLOCK size for K seqlen
     static constexpr index_t BLOCK_SIZE = UnifiedAttentionPipeline::BLOCK_SIZE;
+
+    template <ck_tile::index_t I> // to avoid duplicated base class prblem, introduce an template
+                                  // arg
+    struct UnifiedAttentionEmptyKargs
+    {
+    };
 
     // kargs use aggregate initializer, so no constructor will provided
     // use inheritance to minimize karg size
@@ -65,12 +73,9 @@ struct UnifiedAttentionKernel
         // for MQA/GQA, nhead could be different. This parameter is nhead_q / nhead_k
         // if this param is larger than 1, indicate MQA/GQA case
         const ck_tile::index_t num_queries_per_kv;
-        // scales
+
+        // softmax scale
         float scale_s;
-        float scale;
-        float scale_k;
-        float scale_v;
-        float scale_out;
 
         ck_tile::index_t total_num_q_blocks;
         ck_tile::index_t query_stride_0;
@@ -87,7 +92,19 @@ struct UnifiedAttentionKernel
         ck_tile::index_t output_stride_1;
     };
 
-    struct UnifiedAttentionVarlenKargs : UnifiedAttentionCommonKargs
+    struct UnifiedAttentionQuantKargs
+    {
+        float scale_q;
+        float scale_k;
+        float scale_v;
+        float scale_out;
+    };
+
+    struct UnifiedAttentionVarlenKargs
+        : UnifiedAttentionCommonKargs,
+          std::conditional_t<QuantEnum != UnifiedAttentionQuantScaleEnum::NO_SCALE,
+                             UnifiedAttentionQuantKargs,
+                             UnifiedAttentionEmptyKargs<0>>
     {
         const int32_t* block_tables_ptr;
         ck_tile::index_t block_table_stride;
@@ -99,36 +116,34 @@ struct UnifiedAttentionKernel
 
     using Kargs = UnifiedAttentionVarlenKargs;
 
-    CK_TILE_HOST static constexpr Kargs MakeKargs(const void* q_ptr,
-                                                  const void* k_ptr,
-                                                  const void* v_ptr,
-                                                  void* o_ptr,
-                                                  ck_tile::index_t num_blks,
-                                                  ck_tile::index_t num_head_q,
-                                                  const ck_tile::index_t num_queries_per_kv,
-                                                  float scale_s,
-                                                  float scale,
-                                                  float scale_k,
-                                                  float scale_v,
-                                                  float scale_out,
-                                                  ck_tile::index_t total_num_q_blocks,
-                                                  ck_tile::index_t query_stride_0,
-                                                  ck_tile::index_t query_stride_1,
-                                                  ck_tile::index_t stride_k_cache_0,
-                                                  ck_tile::index_t stride_k_cache_1,
-                                                  ck_tile::index_t stride_k_cache_2,
-                                                  ck_tile::index_t stride_k_cache_3,
-                                                  ck_tile::index_t stride_v_cache_0,
-                                                  ck_tile::index_t stride_v_cache_1,
-                                                  ck_tile::index_t stride_v_cache_2,
-                                                  ck_tile::index_t stride_v_cache_3,
-                                                  ck_tile::index_t output_stride_0,
-                                                  ck_tile::index_t output_stride_1,
-                                                  const int32_t* block_tables_ptr,
-                                                  ck_tile::index_t block_table_stride,
-                                                  const int32_t* seq_lens_ptr,
-                                                  const int32_t* query_start_len_ptr,
-                                                  ck_tile::index_t num_seqs)
+    template <bool Cond = QuantEnum == UnifiedAttentionQuantScaleEnum::NO_SCALE>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              void* o_ptr,
+              ck_tile::index_t num_blks,
+              ck_tile::index_t num_head_q,
+              const ck_tile::index_t num_queries_per_kv,
+              float scale_s,
+              ck_tile::index_t total_num_q_blocks,
+              ck_tile::index_t query_stride_0,
+              ck_tile::index_t query_stride_1,
+              ck_tile::index_t stride_k_cache_0,
+              ck_tile::index_t stride_k_cache_1,
+              ck_tile::index_t stride_k_cache_2,
+              ck_tile::index_t stride_k_cache_3,
+              ck_tile::index_t stride_v_cache_0,
+              ck_tile::index_t stride_v_cache_1,
+              ck_tile::index_t stride_v_cache_2,
+              ck_tile::index_t stride_v_cache_3,
+              ck_tile::index_t output_stride_0,
+              ck_tile::index_t output_stride_1,
+              const int32_t* block_tables_ptr,
+              ck_tile::index_t block_table_stride,
+              const int32_t* seq_lens_ptr,
+              const int32_t* query_start_len_ptr,
+              ck_tile::index_t num_seqs)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -138,10 +153,7 @@ struct UnifiedAttentionKernel
                      num_head_q,
                      num_queries_per_kv,
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
-                     scale,
-                     scale_k,
-                     scale_v,
-                     scale_out,
+                     scale_s,
                      total_num_q_blocks,
                      query_stride_0,
                      query_stride_1,
@@ -155,6 +167,71 @@ struct UnifiedAttentionKernel
                      stride_v_cache_3,
                      output_stride_0,
                      output_stride_1},
+                    block_tables_ptr,
+                    block_table_stride,
+                    seq_lens_ptr,
+                    query_start_len_ptr,
+                    num_seqs};
+
+        return kargs;
+    }
+
+    template <bool Cond = QuantEnum != UnifiedAttentionQuantScaleEnum::NO_SCALE>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              void* o_ptr,
+              ck_tile::index_t num_blks,
+              ck_tile::index_t num_head_q,
+              const ck_tile::index_t num_queries_per_kv,
+              float scale_s,
+              float scale_q,
+              float scale_k,
+              float scale_v,
+              float scale_out,
+              ck_tile::index_t total_num_q_blocks,
+              ck_tile::index_t query_stride_0,
+              ck_tile::index_t query_stride_1,
+              ck_tile::index_t stride_k_cache_0,
+              ck_tile::index_t stride_k_cache_1,
+              ck_tile::index_t stride_k_cache_2,
+              ck_tile::index_t stride_k_cache_3,
+              ck_tile::index_t stride_v_cache_0,
+              ck_tile::index_t stride_v_cache_1,
+              ck_tile::index_t stride_v_cache_2,
+              ck_tile::index_t stride_v_cache_3,
+              ck_tile::index_t output_stride_0,
+              ck_tile::index_t output_stride_1,
+              const int32_t* block_tables_ptr,
+              ck_tile::index_t block_table_stride,
+              const int32_t* seq_lens_ptr,
+              const int32_t* query_start_len_ptr,
+              ck_tile::index_t num_seqs)
+    {
+        Kargs kargs{{q_ptr,
+                     k_ptr,
+                     v_ptr,
+                     o_ptr,
+                     num_blks,
+                     num_head_q,
+                     num_queries_per_kv,
+                     static_cast<float>(scale_s * ck_tile::log2e_v<>),
+                     scale_s,
+                     total_num_q_blocks,
+                     query_stride_0,
+                     query_stride_1,
+                     stride_k_cache_0,
+                     stride_k_cache_1,
+                     stride_k_cache_2,
+                     stride_k_cache_3,
+                     stride_v_cache_0,
+                     stride_v_cache_1,
+                     stride_v_cache_2,
+                     stride_v_cache_3,
+                     output_stride_0,
+                     output_stride_1},
+                    {scale_q, scale_k, scale_v, scale_out},
                     block_tables_ptr,
                     block_table_stride,
                     seq_lens_ptr,
@@ -200,7 +277,6 @@ struct UnifiedAttentionKernel
         return left - 1;
     }
 
-
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const ck_tile::index_t pid,
                                                       const Kargs& kargs)
     {
@@ -222,6 +298,9 @@ struct UnifiedAttentionKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         using namespace ck_tile;
+
+        // TODO fast exp
+        float scale_s = kargs.scale_s;
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
@@ -255,13 +334,14 @@ struct UnifiedAttentionKernel
 
         const index_t q_block_start_idx = kargs.query_start_len_ptr[seq_idx] / BLOCK_Q + seq_idx;
 
-        const index_t q_block_local_idx = amd_wave_read_first_lane(q_block_global_idx - q_block_start_idx);
+        const index_t q_block_local_idx =
+            amd_wave_read_first_lane(q_block_global_idx - q_block_start_idx);
 
         const index_t cur_batch_in_all_start_index = kargs.query_start_len_ptr[seq_idx];
-        const index_t cur_batch_in_all_stop_index = kargs.query_start_len_ptr[seq_idx + 1];
+        const index_t cur_batch_in_all_stop_index  = kargs.query_start_len_ptr[seq_idx + 1];
 
         const index_t cur_batch_query_len =
-             amd_wave_read_first_lane(cur_batch_in_all_stop_index - cur_batch_in_all_start_index);
+            amd_wave_read_first_lane(cur_batch_in_all_stop_index - cur_batch_in_all_start_index);
 
         // TODO check if we get the block size info from pipeline
         if(q_block_local_idx * BLOCK_Q >= cur_batch_query_len)
@@ -272,11 +352,10 @@ struct UnifiedAttentionKernel
         const index_t query_pos = amd_wave_read_first_lane(q_block_local_idx * BLOCK_Q);
         const index_t seq_len   = kargs.seq_lens_ptr[seq_idx];
 
-        const index_t context_len =  amd_wave_read_first_lane(seq_len - cur_batch_query_len);
+        const index_t context_len = amd_wave_read_first_lane(seq_len - cur_batch_query_len);
 
-        index_t _max_seq_prefix_len =
-             amd_wave_read_first_lane((context_len + q_block_local_idx * BLOCK_Q + (BLOCK_M - 1)
-             + 1));
+        index_t _max_seq_prefix_len = amd_wave_read_first_lane(
+            (context_len + q_block_local_idx * BLOCK_Q + (BLOCK_M - 1) + 1));
 
         if(seq_len < _max_seq_prefix_len)
         {
@@ -284,7 +363,8 @@ struct UnifiedAttentionKernel
         }
 
         const auto max_seq_prefix_len = _max_seq_prefix_len;
-        const index_t num_blocks      =  amd_wave_read_first_lane((max_seq_prefix_len + BLOCK_SIZE - 1) / BLOCK_SIZE);
+        const index_t num_blocks =
+            amd_wave_read_first_lane((max_seq_prefix_len + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
         // TODO sliding window
         const index_t num_blocks_start = 0;
@@ -311,7 +391,8 @@ struct UnifiedAttentionKernel
         const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.v_ptr) + kv_head_offset;
         ODataType* o_ptr       = reinterpret_cast<ODataType*>(kargs.o_ptr) + o_ptr_offset;
 
-        index_t query_len_padded =  amd_wave_read_first_lane(integer_divide_ceil(cur_batch_query_len, BLOCK_Q) * BLOCK_Q);
+        index_t query_len_padded =
+            amd_wave_read_first_lane(integer_divide_ceil(cur_batch_query_len, BLOCK_Q) * BLOCK_Q);
         // const bool is_query_len_padded = (cur_batch_query_len % BLOCK_Q == 0);
 
         // Q/K/V DRAM and DRAM window
@@ -393,29 +474,55 @@ struct UnifiedAttentionKernel
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
-                    -1, 
+                    -1,
                     0,
                     cur_batch_query_len, // y_total
-                    seq_len,           // x_total
-                    num_queries_per_kv, // the same sequence index is repeated num_queries_per_kv
-                                       // times along x dim of the tile
-                    false
-                );
+                    seq_len,             // x_total
+                    num_queries_per_kv,  // the same sequence index is repeated num_queries_per_kv
+                                         // times along x dim of the tile
+                    false);
             else
                 return FmhaMask{cur_batch_query_len, seq_len};
         }();
 
+        // both quantized
+
         auto o_acc_tile = [&]() {
-            return UnifiedAttentionPipeline{}(q_dram_window,
-                                              k_dram_window,
-                                              v_dram_window,
-                                              num_blocks,
-                                              num_blocks_start,
-                                              kargs.block_tables_ptr,
-                                              block_table_offset,
-                                              mask,
-                                              kargs.scale_s,
-                                              smem_ptr);
+            if(QuantEnum != UnifiedAttentionQuantScaleEnum::NO_SCALE)
+            {
+                if(std::is_same_v<QDataType, KDataType>)
+                {
+                    scale_s = scale_s * kargs.scale_q * kargs.scale_k;
+                }
+
+                return UnifiedAttentionPipeline{}(q_dram_window,
+                                                  k_dram_window,
+                                                  v_dram_window,
+                                                  num_blocks,
+                                                  num_blocks_start,
+                                                  kargs.block_tables_ptr,
+                                                  block_table_offset,
+                                                  mask,
+                                                  scale_s,
+                                                  kargs.scale_q,
+                                                  kargs.scale_k,
+                                                  kargs.scale_v,
+                                                  kargs.scale_out,
+                                                  smem_ptr);
+            }
+            else
+            {
+                return UnifiedAttentionPipeline{}(q_dram_window,
+                                                  k_dram_window,
+                                                  v_dram_window,
+                                                  num_blocks,
+                                                  num_blocks_start,
+                                                  kargs.block_tables_ptr,
+                                                  block_table_offset,
+                                                  mask,
+                                                  scale_s,
+                                                  smem_ptr);
+            }
         }();
 
         // O DRAM and O DRAM window

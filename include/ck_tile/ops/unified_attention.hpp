@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/ops/unified_attention/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/unified_attention/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/unified_attention/block/block_dropout.hpp"
 #include "ck_tile/ops/unified_attention/block/block_masking.hpp"
 #include "ck_tile/ops/unified_attention/block/block_position_encoding.hpp"

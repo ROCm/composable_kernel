@@ -31,31 +31,76 @@
 
 namespace ck_tile {
 
-template <unified_attention_args::data_type_enum DataType>
+template <unified_attention_args::data_type_enum DataType, int FP8Mode>
 struct unified_attention_problem_traits;
 
 template <>
-struct unified_attention_problem_traits<unified_attention_args::data_type_enum::fp16>
+struct unified_attention_problem_traits<unified_attention_args::data_type_enum::fp16, 0>
 {
-    using qkvp_dtype = ck_tile::half_t;
-    using acc_dtype  = float;
-    using o_dtype    = ck_tile::half_t;
-    using lse_dtype  = float;
+    using q_dtype   = ck_tile::half_t;
+    using kvp_dtype = ck_tile::half_t;
+    using acc_dtype = float;
+    using o_dtype   = ck_tile::half_t;
+    using lse_dtype = float;
 };
 
 template <>
-struct unified_attention_problem_traits<unified_attention_args::data_type_enum::bf16>
+struct unified_attention_problem_traits<unified_attention_args::data_type_enum::bf16, 0>
 {
-    using qkvp_dtype = ck_tile::bf16_t;
-    using acc_dtype  = float;
-    using o_dtype    = ck_tile::bf16_t;
-    using lse_dtype  = float;
+    using q_dtype   = ck_tile::bf16_t;
+    using kvp_dtype = ck_tile::bf16_t;
+    using acc_dtype = float;
+    using o_dtype   = ck_tile::bf16_t;
+    using lse_dtype = float;
 };
 
-template <unified_attention_args::data_type_enum DataType, bool IsMasking>
+// quantized
+template <>
+struct unified_attention_problem_traits<unified_attention_args::data_type_enum::bf16, 1>
+{
+    using q_dtype   = ck_tile::fp8_t;
+    using kvp_dtype = ck_tile::fp8_t;
+    using acc_dtype = float;
+    using o_dtype   = ck_tile::bf16_t;
+    using lse_dtype = float;
+};
+
+template <>
+struct unified_attention_problem_traits<unified_attention_args::data_type_enum::fp16, 1>
+{
+    using q_dtype   = ck_tile::fp8_t;
+    using kvp_dtype = ck_tile::fp8_t;
+    using acc_dtype = float;
+    using o_dtype   = ck_tile::half_t;
+    using lse_dtype = float;
+};
+
+// q not quantized, kv quantized
+template <>
+struct unified_attention_problem_traits<unified_attention_args::data_type_enum::bf16, 2>
+{
+    using q_dtype   = ck_tile::bf16_t;
+    using kvp_dtype = ck_tile::fp8_t;
+    using acc_dtype = float;
+    using o_dtype   = ck_tile::bf16_t;
+    using lse_dtype = float;
+};
+
+// q not quantized, kv quantized
+template <>
+struct unified_attention_problem_traits<unified_attention_args::data_type_enum::fp16, 2>
+{
+    using q_dtype   = ck_tile::half_t;
+    using kvp_dtype = ck_tile::fp8_t;
+    using acc_dtype = float;
+    using o_dtype   = ck_tile::half_t;
+    using lse_dtype = float;
+};
+
+template <unified_attention_args::data_type_enum DataType, int FP8Mode, bool IsMasking>
 struct unified_attention_kernel_traits
 {
-    static constexpr auto date_type  = DataType;
+    static constexpr auto data_type  = DataType;
     static constexpr bool is_masking = IsMasking;
 
     static constexpr index_t BLOCK_M    = 256;
@@ -80,37 +125,42 @@ struct unified_attention_kernel_traits
                                                               true // IsVLayoutRowMajor
                                                               >;
 
+    static constexpr UnifiedAttentionQuantScaleEnum quant_scale_mode =
+        (FP8Mode == 0) ? UnifiedAttentionQuantScaleEnum::NO_SCALE
+                       : UnifiedAttentionQuantScaleEnum::FP8;
+
     using unified_attention_traits = TileUnifiedAttentionTraits<true,  // kPadSeqLenQ_
                                                                 false, // kPadHeadDimQ
-                                                                -1     // kBlockPerCu
+                                                                quant_scale_mode,
+                                                                -1 // kBlockPerCu
                                                                 >;
 
     using unified_attention_mask = GenericAttentionMask<IsMasking, /*IsLocal=*/false>;
 
     using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::lse_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::o_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::q_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::kvp_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::kvp_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::acc_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::acc_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::acc_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::lse_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::kvp_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::acc_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::o_dtype,
         unified_attention_shape,
         unified_attention_mask,
         unified_attention_traits>;
 
     using unified_attention_pipeline = UnifiedAttentionPipeline<unified_attention_pipeline_problem>;
 
-    using epilogue = Default2DEpilogue<
-        Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,
-                                 typename unified_attention_problem_traits<date_type>::o_dtype,
-                                 true, // kPadM
-                                 true, // kPadM
-                                 true  // UseRawStore
-                                 >>;
+    using epilogue = Default2DEpilogue<Default2DEpilogueProblem<
+        typename unified_attention_problem_traits<data_type, FP8Mode>::acc_dtype,
+        typename unified_attention_problem_traits<data_type, FP8Mode>::o_dtype,
+        true, // kPadM
+        true, // kPadM
+        true  // UseRawStore
+        >>;
 
     using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
 };
@@ -127,38 +177,72 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
     assert(BLOCK_Q == BLOCK_M / args.num_queries_per_kv &&
            "BLOCK_Q must equal BLOCK_M / num_queries_per_kv");
     index_t total_num_q_blocks = args.num_tokens / BLOCK_Q + args.num_seqs;
-    auto kargs                 = Kernel::MakeKargs(args.q_ptr,
-                                   args.k_ptr,
-                                   args.v_ptr,
-                                   args.o_ptr,
-                                   args.num_blks,
-                                   args.num_head_q,
-                                   args.num_queries_per_kv,
-                                   args.scale_s,
-                                   args.scale,
-                                   args.scale_k,
-                                   args.scale_v,
-                                   args.scale_out,
-                                   total_num_q_blocks,
-                                   args.query_stride_0,
-                                   args.query_stride_1,
-                                   args.stride_k_cache_0,
-                                   args.stride_k_cache_1,
-                                   args.stride_k_cache_2,
-                                   args.stride_k_cache_3,
-                                   args.stride_v_cache_0,
-                                   args.stride_v_cache_1,
-                                   args.stride_v_cache_2,
-                                   args.stride_v_cache_3,
-                                   args.output_stride_0,
-                                   args.output_stride_1,
-                                   args.block_tables_ptr,
-                                   args.block_table_stride,
-                                   args.seq_lens_ptr,
-                                   args.query_start_len_ptr,
-                                   args.num_seqs);
-
-    dim3 grids = Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv, total_num_q_blocks);
+    auto kargs =
+        [&]() {
+            if(Kernel::QuantEnum == UnifiedAttentionQuantScaleEnum::NO_SCALE)
+            {
+                return Kernel::MakeKargs(args.q_ptr,
+                                         args.k_ptr,
+                                         args.v_ptr,
+                                         args.o_ptr,
+                                         args.num_blks,
+                                         args.num_head_q,
+                                         args.num_queries_per_kv,
+                                         args.scale_s,
+                                         total_num_q_blocks,
+                                         args.query_stride_0,
+                                         args.query_stride_1,
+                                         args.stride_k_cache_0,
+                                         args.stride_k_cache_1,
+                                         args.stride_k_cache_2,
+                                         args.stride_k_cache_3,
+                                         args.stride_v_cache_0,
+                                         args.stride_v_cache_1,
+                                         args.stride_v_cache_2,
+                                         args.stride_v_cache_3,
+                                         args.output_stride_0,
+                                         args.output_stride_1,
+                                         args.block_tables_ptr,
+                                         args.block_table_stride,
+                                         args.seq_lens_ptr,
+                                         args.query_start_len_ptr,
+                                         args.num_seqs);
+            }
+            else
+            {
+                return Kernel::MakeKargs(args.q_ptr,
+                                         args.k_ptr,
+                                         args.v_ptr,
+                                         args.o_ptr,
+                                         args.num_blks,
+                                         args.num_head_q,
+                                         args.num_queries_per_kv,
+                                         args.scale_s,
+                                         args.scale_q,
+                                         args.scale_k,
+                                         args.scale_v,
+                                         args.scale_out,
+                                         total_num_q_blocks,
+                                         args.query_stride_0,
+                                         args.query_stride_1,
+                                         args.stride_k_cache_0,
+                                         args.stride_k_cache_1,
+                                         args.stride_k_cache_2,
+                                         args.stride_k_cache_3,
+                                         args.stride_v_cache_0,
+                                         args.stride_v_cache_1,
+                                         args.stride_v_cache_2,
+                                         args.stride_v_cache_3,
+                                         args.output_stride_0,
+                                         args.output_stride_1,
+                                         args.block_tables_ptr,
+                                         args.block_table_stride,
+                                         args.seq_lens_ptr,
+                                         args.query_start_len_ptr,
+                                         args.num_seqs);
+            }
+        } dim3 grids =
+            Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv, total_num_q_blocks);
     constexpr dim3 blocks         = Kernel::BlockSize();
     constexpr index_t kBlockPerCu = Kernel::kBlockPerCu;
 
