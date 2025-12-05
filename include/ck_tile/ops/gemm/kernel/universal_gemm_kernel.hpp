@@ -976,23 +976,19 @@ struct UniversalGemmKernel
         const auto& c_block_tile = GemmPipeline{}.template operator()(
             as_block_window, AElementWise{}, bs_block_window, BElementWise{}, num_loop, smem_ptr_0);
 
-        if(UseDefaultScheduler || (get_warp_id() == 0))
+        const index_t k_batch = amd_wave_read_first_lane(kargs.k_batch);
+        // Run Epilogue Pipeline
+        if(k_batch == 1)
         {
-            // Run Epilogue Pipeline
-            if(kargs.k_batch == 1)
-            {
-                auto c_block_window = MakeCBlockWindows<memory_operation_enum::set>(
-                    e_ptr, kargs, block_idx_m, block_idx_n);
-
-                EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
-            }
-            else
-            {
-                auto c_block_window = MakeCBlockWindows<memory_operation_enum::atomic_add>(
-                    e_ptr, kargs, block_idx_m, block_idx_n);
-
-                EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
-            }
+            auto c_block_window = MakeCBlockWindows<memory_operation_enum::set>(
+                e_ptr, kargs, block_idx_m, block_idx_n);
+            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
+        }
+        else
+        {
+            auto c_block_window = MakeCBlockWindows<memory_operation_enum::atomic_add>(
+                e_ptr, kargs, block_idx_m, block_idx_n);
+            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
         }
     }
 
@@ -1098,37 +1094,30 @@ struct UniversalGemmKernel
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
             __shared__ char smem_ptr_1[GetSmemSize()];
-            if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                           is_any_of<EDataType, fp16_t, bf16_t>::value))
-            {
-                RunGemm2LDS(as_ptr,
-                            bs_ptr,
-                            kargs.ds_ptr,
-                            e_ptr,
-                            smem_ptr_0,
-                            smem_ptr_1,
-                            kargs,
-                            splitk_batch_offset,
-                            i_m,
-                            i_n);
-            }
+            RunGemm2LDS(as_ptr,
+                        bs_ptr,
+                        kargs.ds_ptr,
+                        e_ptr,
+                        smem_ptr_0,
+                        smem_ptr_1,
+                        kargs,
+                        splitk_batch_offset,
+                        i_m,
+                        i_n);
         }
         else
         {
-            if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                           is_any_of<EDataType, fp16_t, bf16_t>::value))
-            {
-                constexpr auto scheduler_type = (GemmPipeline::NumWaveGroups == 1);
-                RunGemm<scheduler_type>(as_ptr,
-                                        bs_ptr,
-                                        kargs.ds_ptr,
-                                        e_ptr,
-                                        smem_ptr_0,
-                                        kargs,
-                                        splitk_batch_offset,
-                                        i_m,
-                                        i_n);
-            }
+
+            constexpr auto scheduler_type = (GemmPipeline::NumWaveGroups == 1);
+            RunGemm<scheduler_type>(as_ptr,
+                                    bs_ptr,
+                                    kargs.ds_ptr,
+                                    e_ptr,
+                                    smem_ptr_0,
+                                    kargs,
+                                    splitk_batch_offset,
+                                    i_m,
+                                    i_n);
         }
     }
 
@@ -1181,36 +1170,28 @@ struct UniversalGemmKernel
             if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
                 __shared__ char smem_ptr_1[GetSmemSize()];
-                if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                               is_any_of<EDataType, fp16_t, bf16_t>::value))
-                {
-                    RunGemm2LDS(as_ptr,
-                                bs_ptr,
-                                kargs.ds_ptr,
-                                e_ptr,
-                                smem_ptr_0,
-                                smem_ptr_1,
-                                kargs,
-                                splitk_batch_offset,
-                                i_m,
-                                i_n);
-                }
-            }
-            else
-            {
-                if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                               is_any_of<EDataType, fp16_t, bf16_t>::value))
-                {
-                    RunGemm(as_ptr,
+                RunGemm2LDS(as_ptr,
                             bs_ptr,
                             kargs.ds_ptr,
                             e_ptr,
                             smem_ptr_0,
+                            smem_ptr_1,
                             kargs,
                             splitk_batch_offset,
                             i_m,
                             i_n);
-                }
+            }
+            else
+            {
+                RunGemm(as_ptr,
+                        bs_ptr,
+                        kargs.ds_ptr,
+                        e_ptr,
+                        smem_ptr_0,
+                        kargs,
+                        splitk_batch_offset,
+                        i_m,
+                        i_n);
             }
             // Advance to the next work item
             block_id += grid_size;
