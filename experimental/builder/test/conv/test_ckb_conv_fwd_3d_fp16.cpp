@@ -12,12 +12,14 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP16_NDHWGC_ChannelsLast)
 {
-    constexpr ConvSignature FwdConvSignature{.spatial_dim = 3,
-                                             .direction   = ConvDirection::FORWARD,
-                                             .layout      = GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK,
-                                             .data_type   = DataType::FP16,
-                                             .elementwise_operation =
-                                                 ElementwiseOperation::PASS_THROUGH};
+    constexpr ConvSignature FwdConvSignature{
+        .spatial_dim            = 3,
+        .direction              = ConvDirection::FORWARD,
+        .data_type              = DataType::FP16,
+        .accumulation_data_type = DataType::FP32,
+        .input                  = {.config = {.layout = TensorLayout::NDHWGC}},
+        .weight                 = {.config = {.layout = TensorLayout::GKZYXC}},
+        .output                 = {.config = {.layout = TensorLayout::NDHWGK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
@@ -30,10 +32,13 @@ TEST(FwdConvInstances,
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-                       "256, 128, 128, 32",
+                       "256,128,128,32",
                        "Filter1x1Pad0",
-                       "BlkGemmPipelineScheduler: Intrawave",
-                       "BlkGemmPipelineVersion: v4"});
+                       "Intrawave",
+                       "v4",
+                       "NDHWGC,GKZYXC,EmptyTuple,NDHWGK",
+                       "PassThrough,PassThrough,PassThrough",
+                       "MNKPadding"});
 }
 
 } // namespace
