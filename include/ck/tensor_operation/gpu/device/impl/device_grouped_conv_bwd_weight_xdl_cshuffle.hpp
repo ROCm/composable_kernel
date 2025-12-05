@@ -21,7 +21,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
-#include "ck/tensor_operation/gpu/device/impl/split_k_descriptor_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_offset_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
