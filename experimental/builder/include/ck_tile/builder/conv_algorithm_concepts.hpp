@@ -116,9 +116,9 @@ concept TileTransferDescriptor = requires(T t) {
 // Concept to check if struct specifies block GEMM (CK Tile).
 template <typename T>
 concept TileBlockGemmDescriptor = requires(T t) {
-    { t.warp.m } -> std::convertible_to<int>;
-    { t.warp.n } -> std::convertible_to<int>;
-    { t.warp.k } -> std::convertible_to<int>;
+    { t.warps.m } -> std::convertible_to<int>;
+    { t.warps.n } -> std::convertible_to<int>;
+    { t.warps.k } -> std::convertible_to<int>;
     { t.warp_tile.m } -> std::convertible_to<int>;
     { t.warp_tile.n } -> std::convertible_to<int>;
     { t.warp_tile.k } -> std::convertible_to<int>;
@@ -126,6 +126,22 @@ concept TileBlockGemmDescriptor = requires(T t) {
     { t.num_wave_groups } -> std::convertible_to<int>;
     { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
     { t.scheduler } -> std::convertible_to<PipelineScheduler>;
+};
+
+// Concept to check if struct specifies optimizations (CK Tile).
+template <typename T>
+concept TileOptimizationsDescriptor = requires(T t) {
+    { t.num_groups_to_merge } -> std::convertible_to<int>;
+    { t.split_image } -> std::convertible_to<bool>;
+    { t.explicit_gemm } -> std::convertible_to<bool>;
+};
+
+// Concept to check if struct specifies launch config (CK Tile).
+template <typename T>
+concept TileLaunchConfigDescriptor = requires(T t) {
+    { t.has_hot_loop } -> std::convertible_to<bool>;
+    { t.tail_number } -> std::convertible_to<TailNumber>;
+    { t.memory_operation } -> std::convertible_to<MemoryOperation>;
 };
 
 // Base requirement for all ConvAlgorithm concepts, i.e., all conv algorithm concepts must meet this
@@ -221,8 +237,28 @@ concept SpecifiesTileBlockGemm = requires {
     { T::block_gemm.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
+// Concept to check if struct specifies block GEMM (CK Tile).
 template <typename T>
-concept SpecifiesFwdConcSpecialization = requires {
+concept SpecifiesTileOptimizations = requires {
+    { T::optimizations.num_groups_to_merge } -> std::convertible_to<int>;
+    { T::optimizations.split_image } -> std::convertible_to<bool>;
+    { T::optimizations.explicit_gemm } -> std::convertible_to<bool>;
+};
+
+template <typename T>
+concept SpecifiesTileConvSpecialization = requires {
+    { T::specialization } -> std::convertible_to<TileConvSpecialization>;
+};
+
+template <typename T>
+concept SpecifiesTileLaunchConfig = requires {
+    { T::launch_config.has_hot_loop } -> std::convertible_to<bool>;
+    { T::launch_config.tail_number } -> std::convertible_to<TailNumber>;
+    { T::launch_config.memory_operation } -> std::convertible_to<MemoryOperation>;
+};
+
+template <typename T>
+concept SpecifiesFwdConvSpecialization = requires {
     { T::fwd_specialization } -> std::convertible_to<ConvFwdSpecialization>;
 };
 

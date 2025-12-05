@@ -305,7 +305,16 @@ struct UniversalGemmPipelineProblem
         return concat('_', "gemm_problem", 
                       concat('x', kBlockSize),
                       concat('x', kPadM, kPadN, kPadK),
-                      Scheduler);
+                      Scheduler,
+                      "NumWaveGroups",
+                      NumWaveGroups,
+                      "HasHotLoop",
+                      HasHotLoop,
+                      "DoubleSmemBuffer",
+                      DoubleSmemBuffer,
+                      "TailNum",
+                      TailNum
+                    );
         // clang-format on
     }
 };

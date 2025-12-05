@@ -120,6 +120,15 @@ enum struct GemmSpecialization
     MNKOPadding
 };
 
+// Enums for the CK Tile convolution specialization.
+enum class TileConvSpecialization
+{
+    DEFAULT,
+    FILTER_1X1_PAD0,
+    FILTER_1X1_STRIDE1_PAD0,
+    FILTER_3x3
+};
+
 // Enums for the forward convolution specialization.
 enum class ConvFwdSpecialization
 {
@@ -176,6 +185,29 @@ enum class PipelineScheduler
 enum class ConvAlgorithmSpecialization
 {
     LARGE_TENSOR
+};
+
+enum class TailNumber
+{
+    ODD,
+    EVEN,
+    ONE,
+    TWO,
+    THREE,
+    FOUR,
+    FIVE,
+    SIX,
+    SEVEN,
+    EMPTY,
+    FULL,
+};
+
+enum class MemoryOperation
+{
+    SET,
+    ATOMIC_ADD,
+    ATOMIC_MAX,
+    ADD
 };
 
 // ostream operator overloads for enum classes

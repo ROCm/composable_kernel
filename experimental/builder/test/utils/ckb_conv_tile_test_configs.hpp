@@ -43,7 +43,7 @@ constexpr TileThreadBlock FwdTileThreadBlock_64x32x32{.tile_size = {.m = 64, .n 
 constexpr TileThreadBlock FwdTileThreadBlock_64x64x64{.tile_size = {.m = 64, .n = 64, .k = 64}};
 
 constexpr TileBlockGemm TileBlockGemmDesc_16x16_v1_intrawave = {
-    .warp               = {.m = 2, .n = 2, .k = 1},
+    .warps              = {.m = 2, .n = 2, .k = 1},
     .warp_tile          = {.m = 16, .n = 16, .k = 16},
     .double_smem_buffer = false,
     .num_wave_groups    = 1,
@@ -51,7 +51,7 @@ constexpr TileBlockGemm TileBlockGemmDesc_16x16_v1_intrawave = {
     .scheduler          = PipelineScheduler::INTRAWAVE};
 
 constexpr TileBlockGemm TileBlockGemmDesc_16x16_v2_intrawave = {
-    .warp               = {.m = 2, .n = 2, .k = 1},
+    .warps              = {.m = 2, .n = 2, .k = 1},
     .warp_tile          = {.m = 16, .n = 16, .k = 16},
     .double_smem_buffer = false,
     .num_wave_groups    = 1,
@@ -59,7 +59,7 @@ constexpr TileBlockGemm TileBlockGemmDesc_16x16_v2_intrawave = {
     .scheduler          = PipelineScheduler::INTRAWAVE};
 
 constexpr TileBlockGemm TileBlockGemmDesc_16x16_v3_intrawave = {
-    .warp               = {.m = 2, .n = 2, .k = 1},
+    .warps              = {.m = 2, .n = 2, .k = 1},
     .warp_tile          = {.m = 16, .n = 16, .k = 16},
     .double_smem_buffer = false,
     .num_wave_groups    = 1,
@@ -67,7 +67,7 @@ constexpr TileBlockGemm TileBlockGemmDesc_16x16_v3_intrawave = {
     .scheduler          = PipelineScheduler::INTRAWAVE};
 
 constexpr TileBlockGemm TileBlockGemmDesc_16x16_v4_intrawave = {
-    .warp               = {.m = 2, .n = 2, .k = 1},
+    .warps              = {.m = 2, .n = 2, .k = 1},
     .warp_tile          = {.m = 16, .n = 16, .k = 16},
     .double_smem_buffer = false,
     .num_wave_groups    = 1,
@@ -75,7 +75,7 @@ constexpr TileBlockGemm TileBlockGemmDesc_16x16_v4_intrawave = {
     .scheduler          = PipelineScheduler::INTRAWAVE};
 
 constexpr TileBlockGemm TileBlockGemmDesc_16x16_v5_intrawave = {
-    .warp               = {.m = 2, .n = 2, .k = 1},
+    .warps              = {.m = 2, .n = 2, .k = 1},
     .warp_tile          = {.m = 16, .n = 16, .k = 16},
     .double_smem_buffer = false,
     .num_wave_groups    = 1,

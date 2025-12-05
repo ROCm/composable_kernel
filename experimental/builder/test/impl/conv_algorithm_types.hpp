@@ -262,7 +262,7 @@ static_assert(ckb::TileTransferDescriptor<TileTransfer>);
 struct TileBlockGemm
 {
     // Number of warps per each dimension.
-    MNK<int> warp;
+    MNK<int> warps;
     // Number of data processed per each dimension for each XDL/WMMA instruction.
     MNK<int> warp_tile;
     // Double LDS buffer.
@@ -273,6 +273,30 @@ struct TileBlockGemm
     PipelineScheduler scheduler;
 };
 static_assert(ckb::TileBlockGemmDescriptor<TileBlockGemm>);
+
+struct TileOptimizations
+{
+    // Number of convolution groups processed per one workgroup
+    int num_groups_to_merge;
+    // Split image for large tensors
+    bool split_image;
+    // Explicit gemm for 1x1, stride=0, pad=0 cases
+    bool explicit_gemm;
+};
+static_assert(ckb::TileOptimizationsDescriptor<TileOptimizations>);
+
+struct TileLaunchConfig
+{
+    bool has_hot_loop;
+    TailNumber tail_number;
+    MemoryOperation memory_operation;
+};
+static_assert(ckb::TileLaunchConfigDescriptor<TileLaunchConfig>);
+
+struct TileConvSpecialization_
+{
+    TileConvSpecialization specialization;
+};
 
 struct TileThreadBlock_
 {
@@ -287,6 +311,16 @@ struct TileTransfer_
 struct TileBlockGemm_
 {
     TileBlockGemm block_gemm;
+};
+
+struct TileOptimizations_
+{
+    TileOptimizations optimizations;
+};
+
+struct TileLaunchConfig_
+{
+    TileLaunchConfig launch_config;
 };
 
 // Factory
@@ -386,6 +420,15 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
+    template <typename S>
+    constexpr auto with_tile_specializations(const S& s) const
+    {
+        static_assert(std::is_base_of_v<TileConvSpecialization_, ConvAlgorithmTemplate>);
+        auto result           = *this;
+        result.specialization = s;
+        return result;
+    }
+
     template <typename TB>
     constexpr auto with_tile_thread_block(const TB& tb) const
     {
@@ -412,6 +455,24 @@ struct ConvAlgorithmTemplate : Components...
         result.transfer = t;
         return result;
     }
+
+    template <typename O>
+    constexpr auto with_tile_optimizations(const O& o) const
+    {
+        static_assert(std::is_base_of_v<TileOptimizations_, ConvAlgorithmTemplate>);
+        auto result          = *this;
+        result.optimizations = o;
+        return result;
+    }
+
+    template <typename C>
+    constexpr auto with_tile_launch_config(const C& c) const
+    {
+        static_assert(std::is_base_of_v<TileLaunchConfig_, ConvAlgorithmTemplate>);
+        auto result          = *this;
+        result.launch_config = c;
+        return result;
+    }
 };
 
 // Algorithm types
@@ -434,7 +495,11 @@ using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
     LargeTensorWrapper<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>;
 
-using ConvAlgorithm_Tile_GroupedConvolutionForwardKernel =
-    ConvAlgorithmTemplate<TileThreadBlock_, TileBlockGemm_, TileTransfer_, ConvSpecialization_>;
+using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileThreadBlock_,
+                                                                          TileBlockGemm_,
+                                                                          TileTransfer_,
+                                                                          TileConvSpecialization_,
+                                                                          TileOptimizations_,
+                                                                          TileLaunchConfig_>;
 
 } // namespace ck_tile::builder::test

@@ -25,20 +25,27 @@ struct TileBlockGemmSpec
     bool double_smem_buffer = false;
     int num_wave_groups     = 1;
 
-    ck_tile::GemmPipelineScheduler pipeline_version;
-    ck_tile::GemmPipeline loop_scheduler;
+    ck_tile::GemmPipeline pipeline_version;
+    ck_tile::GemmPipelineScheduler scheduler;
+};
+
+struct TileOptimizations
+{
+    int num_groups_to_merge = 1;
+    bool split_image        = false;
+    bool explicit_gemm      = false;
 };
 
 template <ConvAlgorithmDescriptor auto ALGORITHM>
-consteval ck_tile::GemmPipelineScheduler SetTileLoopScheduler()
+consteval ck_tile::GemmPipelineScheduler SetTileScheduler()
 {
-    constexpr auto loop_scheduler = ALGORITHM.loop_scheduler;
-    using ck_tile_loop_sched      = ck_tile::GemmPipelineScheduler;
-    switch(loop_scheduler)
+    constexpr auto scheduler = ALGORITHM.block_gemm.scheduler;
+    using ck_tile_sched      = ck_tile::GemmPipelineScheduler;
+    switch(scheduler)
     {
-    case PipelineScheduler::DEFAULT: return ck_tile_loop_sched::Default;
-    case PipelineScheduler::INTERWAVE: return ck_tile_loop_sched::Interwave;
-    case PipelineScheduler::INTRAWAVE: return ck_tile_loop_sched::Intrawave;
+    case PipelineScheduler::DEFAULT: return ck_tile_sched::Default;
+    case PipelineScheduler::INTERWAVE: return ck_tile_sched::Interwave;
+    case PipelineScheduler::INTRAWAVE: return ck_tile_sched::Intrawave;
     default: throw "Unknown PipelineScheduler";
     }
 }
@@ -47,6 +54,13 @@ template <ck_tile::GemmPipeline PipelineId>
 struct TilePipelineType
 {
     static_assert(false, "Unknown PipelineScheduler");
+};
+
+template <>
+struct TilePipelineType<ck_tile::GemmPipeline::BASIC_V1>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<PipelineProblem>;
 };
 
 template <>
@@ -80,7 +94,7 @@ struct TilePipelineType<ck_tile::GemmPipeline::COMPUTE_V5>
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck_tile::GemmPipeline SetTileBlockGemmPipelineVersion()
 {
-    constexpr auto version = ALGORITHM.pipeline_version;
+    constexpr auto version = ALGORITHM.block_gemm.pipeline_version;
     using ck_tile_pipeline = ck_tile::GemmPipeline;
     switch(version)
     {
@@ -96,17 +110,17 @@ consteval ck_tile::GemmPipeline SetTileBlockGemmPipelineVersion()
 }
 
 template <ConvAlgorithmDescriptor auto ALGORITHM>
-consteval ck_tile::ConvolutionSpecialization SetTileFwdConvSpecialization()
+consteval ck_tile::ConvolutionSpecialization SetTileConvSpecialization()
 {
-    constexpr auto specialization = ALGORITHM.fwd_specialization;
+    constexpr auto specialization = ALGORITHM.specialization;
     using ck_tile_conv_spec       = ck_tile::ConvolutionSpecialization;
     switch(specialization)
     {
-    case ConvFwdSpecialization::DEFAULT: return ck_tile_conv_spec::Default;
-    case ConvFwdSpecialization::FILTER_1X1_PAD0: return ck_tile_conv_spec::Filter1x1Pad0;
-    case ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0:
+    case TileConvSpecialization::DEFAULT: return ck_tile_conv_spec::Default;
+    case TileConvSpecialization::FILTER_1X1_PAD0: return ck_tile_conv_spec::Filter1x1Pad0;
+    case TileConvSpecialization::FILTER_1X1_STRIDE1_PAD0:
         return ck_tile_conv_spec::Filter1x1Stride1Pad0;
-    case ConvFwdSpecialization::FILTER_3x3: return ck_tile_conv_spec::Filter3x3;
+    case TileConvSpecialization::FILTER_3x3: return ck_tile_conv_spec::Filter3x3;
     default: throw "Unknown ConvFwdSpecialization";
     }
 }
@@ -116,22 +130,29 @@ consteval TileBlockGemmSpec SetTileBlockGemm()
 {
     constexpr auto& BG = ALGORITHM.block_gemm;
 
-    constexpr TileBlockGemmMNK warps     = BG.warps;
-    constexpr TileBlockGemmMNK warp_tile = BG.warp_tile;
-
     constexpr bool double_smem_buffer = BG.double_smem_buffer;
     constexpr int num_wave_groups     = BG.num_wave_groups;
 
-    constexpr ck_tile::GemmPipelineScheduler pipeline_version =
-        SetTileBlockGemmPipelineVersion<ALGORITHM>();
-    constexpr ck_tile::GemmPipeline loop_scheduler = SetTileLoopScheduler<ALGORITHM>();
+    constexpr ck_tile::GemmPipeline pipeline_version = SetTileBlockGemmPipelineVersion<ALGORITHM>();
+    constexpr ck_tile::GemmPipelineScheduler scheduler = SetTileScheduler<ALGORITHM>();
 
-    return TileBlockGemmSpec{.warps              = warps,
-                             .warp_tile          = warp_tile,
-                             .double_smem_buffer = double_smem_buffer,
-                             .num_wave_groups    = num_wave_groups,
-                             .pipeline_version   = pipeline_version,
-                             .loop_scheduler     = loop_scheduler};
+    return TileBlockGemmSpec{
+        .warps              = {.m = BG.warps.m, .n = BG.warps.n, .k = BG.warps.k},
+        .warp_tile          = {.m = BG.warp_tile.m, .n = BG.warp_tile.n, .k = BG.warp_tile.k},
+        .double_smem_buffer = double_smem_buffer,
+        .num_wave_groups    = num_wave_groups,
+        .pipeline_version   = pipeline_version,
+        .scheduler          = scheduler};
+}
+
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+consteval TileOptimizations SetTileOptimizations()
+{
+    constexpr auto& OPT = ALGORITHM.optimizations;
+
+    return TileOptimizations{.num_groups_to_merge = OPT.num_groups_to_merge,
+                             .split_image         = OPT.split_image,
+                             .explicit_gemm       = OPT.explicit_gemm};
 }
 
 } // namespace ck_tile::builder::factory::internal

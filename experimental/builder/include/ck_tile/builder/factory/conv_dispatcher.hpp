@@ -59,7 +59,7 @@
 #include "ck_tile/builder/factory/conv_fwd_wmma_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_dl_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_large_tensor_factory.hpp"
-#include "ck_tile/builder/factory/conv_fwd_tile_factory.hpp"
+#include "ck_tile/builder/factory/conv_tile_factory.hpp"
 
 namespace ck_tile::builder::factory {
 
@@ -87,7 +87,8 @@ template <typename T>
 consteval bool IsTileAlgorithm()
 {
     return ConvAlgorithmDescriptor<T> && SpecifiesTileThreadBlock<T> && SpecifiesTileTransfer<T> &&
-           SpecifiesFwdConcSpecialization<T> && SpecifiesTileBlockGemm<T>;
+           SpecifiesTileConvSpecialization<T> && SpecifiesTileBlockGemm<T> &&
+           SpecifiesTileOptimizations<T> && SpecifiesTileLaunchConfig<T>;
 }
 
 // XDL-based kernel with V3 pipeline structure (newer block GEMM pipeline)
@@ -97,7 +98,7 @@ consteval bool IsXdlV3Algorithm()
     return ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
            SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> &&
            SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T> &&
-           SpecifiesFwdConcSpecialization<T> && SpecifiesGemmSpecialization<T> &&
+           SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
            SpecifiesBlockGemm<T>;
 }
 
@@ -108,7 +109,7 @@ consteval bool IsXdlAlgorithm()
     return ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
            SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> &&
            SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T> &&
-           SpecifiesFwdConcSpecialization<T> && SpecifiesGemmSpecialization<T> &&
+           SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
            SpecifiesNumPrefetchStages<T> && SpecifiesNumGroupsToMerge<T> &&
            SpecifiesLoopScheduler<T>;
 }
@@ -120,7 +121,7 @@ consteval bool IsWmmaAlgorithm()
     return ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
            SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> &&
            SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T> &&
-           SpecifiesFwdConcSpecialization<T> && SpecifiesGemmSpecialization<T> &&
+           SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
            SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
 }
 
@@ -129,7 +130,7 @@ template <typename T>
 consteval bool IsDlAlgorithm()
 {
     return ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> &&
-           SpecifiesFwdConcSpecialization<T> && SpecifiesGemmSpecialization<T> &&
+           SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
            SpecifiesDlThreadConfig<T> && SpecifiesDlThreadCluster<T> &&
            SpecifiesDlBlockTransfer<T> && SpecifiesDlEpilogue<T>;
 }
@@ -146,15 +147,16 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           StringLiteral VERSION>
 constexpr auto make_conv_instance()
 {
-    if constexpr(ConvDirectionIsForward<SIGNATURE>)
-    {
-        using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
+    using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
 
-        if constexpr(IsTileAlgorithm<AlgoType>())
-        {
-            return typename ConvFwdTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(IsXdlV3Algorithm<AlgoType>())
+    // CK Tile supports common factory for each direction
+    if constexpr(IsTileAlgorithm<AlgoType>())
+    {
+        return typename ConvTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+    }
+    else if constexpr(ConvDirectionIsForward<SIGNATURE>)
+    {
+        if constexpr(IsXdlV3Algorithm<AlgoType>())
         {
             return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }

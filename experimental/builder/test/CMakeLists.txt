@@ -131,7 +131,9 @@ add_ck_builder_test(test_ckb_build_fwd_instances
     conv/ck/test_ckb_conv_fwd_3d_bf16.cpp
     conv/ck/test_ckb_conv_fwd_3d_fp16.cpp
     conv/ck/test_ckb_conv_fwd_3d_fp32.cpp
-    conv/ck_tile/test_ckb_conv_fwd_2d_fp16.cpp
+    conv/ck_tile/test_ckb_conv_fwd_2d_fp16_v3.cpp
+    conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
+    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp
     )
 
 

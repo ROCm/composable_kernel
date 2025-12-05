@@ -19,37 +19,39 @@
 #include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_tuning_params.hpp"
 #include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_block_transfer.hpp"
 #include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_thread_block.hpp"
+#include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_kernel_directions.hpp"
+#include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_launch_config.hpp"
 
 namespace ck_tile::builder::factory {
 
-// Factory for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle instance
-// of a grouped forward convolution kernel.
+// Factory for CK Tile Grouped Convolution kernels.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE>
-struct ConvFwdTileFactory
+struct ConvTileFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = decltype(internal::GetTileTensorLayout<SIGNATURE.layout,
                                                                                  SPATIAL_DIM,
                                                                                  ConvDirection::FORWARD>());
-    using Types                         = internal::ConvTensorTypes<SIGNATURE.data_type>;
+    using Types                         = internal::TileConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
     using AlgorithmType = decltype(ALGORITHM);
 
-    static constexpr auto FWD_CONV_SPECIALIZATION =
-        internal::SetTileFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto BLOCK             = internal::SetTileThreadBlockInfo<ALGORITHM>();
-    static constexpr auto BLOCK_GEMM        = internal::SetTileBlockGemm<ALGORITHM>();
-    static constexpr auto SCALAR_PER_VECTOR = internal::SetTileBlockTransfer<ALGORITHM.transfer>();
+    static constexpr auto CONV_SPECIALIZATION = internal::SetTileConvSpecialization<ALGORITHM>();
+    static constexpr auto BLOCK               = internal::SetTileThreadBlockInfo<ALGORITHM>();
+    static constexpr auto BLOCK_GEMM          = internal::SetTileBlockGemm<ALGORITHM>();
+    static constexpr auto OPTIMIZATIONS       = internal::SetTileOptimizations<ALGORITHM>();
+    static constexpr auto SCALAR_PER_VECTOR   = internal::SetTileBlockTransfer<ALGORITHM>();
+    static constexpr auto CONV_DIRECTION      = internal::SetTileConvDirection<SIGNATURE>();
+    static constexpr auto LAUNCH_CONFIG       = internal::SetTileLaunchConfig<ALGORITHM>();
 
     // Check limits for the algorithm parameters.
     // TODO: Add more limits checks as needed.
     static_assert(TileInputOutputVectorTransferLimits<SCALAR_PER_VECTOR>);
 
     using GroupedConvTraitsType = ck_tile::GroupedConvTraits<SPATIAL_DIM,
-                                                             FWD_CONV_SPECIALIZATION,
+                                                             CONV_SPECIALIZATION,
                                                              typename Layouts::ALayout,
                                                              typename Layouts::BLayout,
                                                              typename Layouts::DsLayout,
@@ -57,9 +59,9 @@ struct ConvFwdTileFactory
                                                              SCALAR_PER_VECTOR.a,
                                                              SCALAR_PER_VECTOR.b,
                                                              SCALAR_PER_VECTOR.c,
-                                                             ALGORITHM.num_groups_to_merge,
-                                                             ALGORITHM.split_image,
-                                                             ALGORITHM.explicit_gemm>;
+                                                             OPTIMIZATIONS.num_groups_to_merge,
+                                                             OPTIMIZATIONS.split_image,
+                                                             OPTIMIZATIONS.explicit_gemm>;
 
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<BLOCK.per_block.m, BLOCK.per_block.n, BLOCK.per_block.k>,
@@ -76,24 +78,23 @@ struct ConvFwdTileFactory
         GroupedConvTraitsType::FixedGemmParams::kPadN,
         GroupedConvTraitsType::FixedGemmParams::kPadK,
         BLOCK_GEMM.double_smem_buffer,
-        typename GroupedConvTraitsType::AsLayoutFwd,
-        typename GroupedConvTraitsType::BsLayoutFwd,
-        typename GroupedConvTraitsType::CLayoutFwd,
+        typename GroupedConvTraitsType::template GemmLayouts<CONV_DIRECTION>::AsLayout,
+        typename GroupedConvTraitsType::template GemmLayouts<CONV_DIRECTION>::BsLayout,
+        typename GroupedConvTraitsType::template GemmLayouts<CONV_DIRECTION>::CLayout,
         GroupedConvTraitsType::FixedGemmParams::TransposeC,
         GroupedConvTraitsType::FixedGemmParams::UseStructuredSparsity,
         GroupedConvTraitsType::FixedGemmParams::Persistent,
         BLOCK_GEMM.num_wave_groups>;
 
-    template <bool has_hot_loop, ck_tile::TailNumber tail_number>
     using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
         typename Types::ADataType,
         typename Types::BDataType,
         typename Types::AccDataType,
         GemmShape,
         GemmUniversalTraits,
-        BLOCK_GEMM.loop_scheduler,
-        has_hot_loop,
-        tail_number,
+        BLOCK_GEMM.scheduler,
+        LAUNCH_CONFIG.has_hot_loop,
+        LAUNCH_CONFIG.tail_number,
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
         typename Types::EDataType,
@@ -101,12 +102,9 @@ struct ConvFwdTileFactory
         GroupedConvTraitsType::VectorSizeA,
         GroupedConvTraitsType::VectorSizeB>;
 
-    template <bool has_hot_loop, ck_tile::TailNumber tail_number>
-    using GemmPipeline =
-        typename internal::TilePipelineType<BLOCK_GEMM.pipeline_version>::template GemmPipeline<
-            UniversalGemmProblem<has_hot_loop, tail_number>>;
+    using GemmPipeline = typename internal::TilePipelineType<
+        BLOCK_GEMM.pipeline_version>::template GemmPipeline<UniversalGemmProblem>;
 
-    template <ck_tile::memory_operation_enum memory_operation>
     using ConvEpilogue = ck_tile::CShuffleEpilogue<
         ck_tile::CShuffleEpilogueProblem<typename Types::ADataType,
                                          typename Types::BDataType,
@@ -124,19 +122,16 @@ struct ConvFwdTileFactory
                                          BLOCK_GEMM.warp_tile.n,
                                          BLOCK_GEMM.warp_tile.k,
                                          GroupedConvTraitsType::FixedGemmParams::TransposeC,
-                                         memory_operation,
+                                         LAUNCH_CONFIG.memory_operation,
                                          BLOCK_GEMM.num_wave_groups,
                                          GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
                                          SCALAR_PER_VECTOR.c>>;
 
-    template <bool has_hot_loop,
-              ck_tile::TailNumber tail_number,
-              ck_tile::memory_operation_enum memory_operation>
-    using Instance =
-        ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
-                                                 TilePartitioner,
-                                                 GemmPipeline<has_hot_loop, tail_number>,
-                                                 ConvEpilogue<memory_operation>>;
+    using Instance = typename internal::GroupedConvolutionTileKernel<SIGNATURE,
+                                                                     GroupedConvTraitsType,
+                                                                     TilePartitioner,
+                                                                     GemmPipeline,
+                                                                     ConvEpilogue>::Instance;
 };
 
 } // namespace ck_tile::builder::factory

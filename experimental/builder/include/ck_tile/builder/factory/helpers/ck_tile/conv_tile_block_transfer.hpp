@@ -17,9 +17,9 @@ struct TileScalarPerVector
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr TileScalarPerVector SetTileBlockTransfer()
 {
-    return TileScalarPerVector{.a = ALGORITHM.transfer.a.scalar_per_vector,
-                               .b = ALGORITHM.transfer.b.scalar_per_vector,
-                               .c = ALGORITHM.transfer.c.scalar_per_vector};
+    return TileScalarPerVector{.a = ALGORITHM.transfer.a_scalar_per_vector,
+                               .b = ALGORITHM.transfer.b_scalar_per_vector,
+                               .c = ALGORITHM.transfer.c_scalar_per_vector};
 }
 
 } // namespace ck_tile::builder::factory::internal
