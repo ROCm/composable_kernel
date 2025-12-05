@@ -407,7 +407,7 @@ struct CShuffleEpilogue
     CK_TILE_DEVICE void store_to_dram(OutDramWindow& out_dram_window,
                                       const COutTensor& c_out_tensor)
     {
-        if constexpr(OutDramWindow::Base::BottomTensorView::DstInMemOp ==
+        if constexpr(decltype(out_dram_window.get_bottom_tensor_view())::DstInMemOp ==
                      memory_operation_enum::set)
         {
             store_tile(out_dram_window, c_out_tensor);
@@ -580,7 +580,7 @@ struct CShuffleEpilogue
             });
 
             // store/update
-            if constexpr(ODramWindow::Base::BottomTensorView::DstInMemOp ==
+            if constexpr(decltype(out_dram_window.get_bottom_tensor_view())::DstInMemOp ==
                          memory_operation_enum::set)
             {
                 store_tile(out_dram_window, c_out_tensor);

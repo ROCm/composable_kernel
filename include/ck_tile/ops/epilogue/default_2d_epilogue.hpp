@@ -15,8 +15,7 @@ template <typename AccDataType_,
           typename ODataType_,
           bool kPadM_,
           bool kPadN_,
-          bool UseRawStore_                      = true,
-          memory_operation_enum MemoryOperation_ = memory_operation_enum::set>
+          bool UseRawStore_                      = true>
 struct Default2DEpilogueProblem
 {
     using AccDataType                                      = remove_cvref_t<AccDataType_>;
@@ -24,7 +23,6 @@ struct Default2DEpilogueProblem
     static constexpr bool kPadM                            = kPadM_;
     static constexpr bool kPadN                            = kPadN_;
     static constexpr bool UseRawStore                      = UseRawStore_;
-    static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
     static constexpr index_t NumDTensor                    = 0;
 };
 
@@ -44,14 +42,12 @@ template <typename AsDataType_,
           index_t kNPerXdl_,
           index_t kKPerXdl_,
           bool isCTransposed_,
-          bool UseRawStore_                      = true,
-          memory_operation_enum MemoryOperation_ = memory_operation_enum::set>
+          bool UseRawStore_                      = true>
 struct DefaultGemm2DEpilogueProblem : public Default2DEpilogueProblem<AccDataType_,
                                                                       ODataType_,
                                                                       kPadM_,
                                                                       kPadN_,
-                                                                      UseRawStore_,
-                                                                      MemoryOperation_>
+                                                                      UseRawStore_>
 {
     using AsDataType                       = remove_cvref_t<AsDataType_>;
     using BsDataType                       = remove_cvref_t<BsDataType_>;
@@ -81,7 +77,6 @@ struct Default2DEpilogue
     static constexpr bool kPadM       = Problem::kPadM;
     static constexpr bool kPadN       = Problem::kPadN;
     static constexpr bool UseRawStore = Problem::UseRawStore;
-    static constexpr memory_operation_enum MemoryOperation = Problem::MemoryOperation;
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 0; }
 
@@ -102,7 +97,7 @@ struct Default2DEpilogue
             // TODO: this is ugly
             if constexpr(UseRawStore && (kPadM || kPadN))
             {
-                if constexpr(MemoryOperation == memory_operation_enum::set)
+                if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp == memory_operation_enum::set)
                 {
                     if constexpr(is_partition_index)
                     {
@@ -123,7 +118,7 @@ struct Default2DEpilogue
             }
             else
             {
-                if constexpr(MemoryOperation == memory_operation_enum::set)
+                if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp == memory_operation_enum::set)
                 {
                     if constexpr(is_partition_index)
                     {
