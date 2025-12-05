@@ -1255,7 +1255,7 @@ struct tile_window_with_static_lengths
                 using ThreadBuf = thread_buffer<DataType, 2>;
                 auto buf        = tensor_view.template get_vectorized_elements<ThreadBuf>(coord, 0);
                 auto value      = buf.at(number<0>{}); // Extract first element from thread buffer
-                printf("  %s[%d,%d] = %f", label, i, j, type_convert<float>(value));
+                printf("  %s[%d,%d] = %f\n", label, i, j, type_convert<float>(value));
             }
             printf("\n");
         }

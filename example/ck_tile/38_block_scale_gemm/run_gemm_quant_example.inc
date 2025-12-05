@@ -382,7 +382,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 "K must be aligned with QuantGroupSize for AQuantGrouped/BQuantGrouped mode");
         }
     }
-    ck_tile::index_t AQK, BQK;
+    ck_tile::index_t AQK, BQK, BQN = 0;
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
     {
         AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
@@ -390,8 +390,10 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
-        AQK = 0;                      // No A quantization
-        BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
+        AQK = 0; // No A quantization
+        BQK = ck_tile::integer_divide_ceil(
+            K, QuantGroupSize::kK); // Group quantization: BQK = K / GroupSize
+        BQN = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
                       QuantMode == ck_tile::QuantType::TensorQuant)
@@ -431,10 +433,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
         stride_AQ = 0; // No A quantization
-        stride_BQ = ck_tile::get_default_stride(BQK,
-                                                ck_tile::integer_divide_ceil(N, QuantGroupSize::kN),
-                                                stride_BQ,
-                                                is_row_major(bq_layout));
+        stride_BQ = ck_tile::get_default_stride(BQK, N, stride_BQ, is_row_major(bq_layout));
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
     {
@@ -474,7 +473,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                  QuantMode == ck_tile::QuantType::RowColQuant)
     {
         bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
-            ck_tile::host_tensor_descriptor(BQK, N, stride_BQ, is_row_major(bq_layout)));
+            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, is_row_major(bq_layout)));
     }
     else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
     {
@@ -539,7 +538,27 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         {
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
             ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x22)}(b_k_n);
-            ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
+            // ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
+            if(bq_tensor_ptr)
+            {
+                BQDataType value = 0;
+                for(int i = 0; i < BQK; i++)
+                {
+                    for(int j = 0; j < BQN; j++)
+                    {
+                        (*bq_tensor_ptr)(i, j) = value;
+                        value += static_cast<BQDataType>(1.0f);
+                    }
+                }
+            }
+            // for(int i = 0; i < BQK; i++)
+            // {
+            //     for(int j = 0; j < N; j++)
+            //     {
+            //         printf("bq_tensor_ptr[%d][%d]: %.0f\n ", i, j, (*bq_tensor_ptr)(i, j));
+            //     }
+            //     printf("\n");
+            // }
         }
         else
         {
@@ -658,6 +677,18 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         {
             ck_tile::HostTensor<BQDataType> bq_shuffle_host =
                 ck_tile::shuffle_bq(bq_tensor_ptr.get(), GemmConfig::K_Tile / QuantGroupSize::kK);
+            printf("Preshuffle BQ tensor\n");
+            for(int i = 0; i < static_cast<int>(bq_shuffle_host.get_lengths()[0]); i++)
+            {
+                for(int j = 0; j < static_cast<int>(bq_shuffle_host.get_lengths()[1]); j++)
+                {
+                    for(int k = 0; k < static_cast<int>(bq_shuffle_host.get_lengths()[2]); k++)
+                    {
+                        printf(
+                            "bq_shuffle_host[%d][%d][%d]: %f\n", i, j, k, bq_shuffle_host(i, j, k));
+                    }
+                }
+            }
             bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
         }
         else
