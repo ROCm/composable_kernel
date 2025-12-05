@@ -89,7 +89,11 @@ float invoke_gemm(int n_warmup,
         // written by e.g. another kernel from earlier stage.
         std::vector<ck_tile::QuantGemmTransKernelArg> kargs;
         void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
-        assert(args[0].k_batch == 1);
+        if(args[0].k_batch != 1)
+        {
+            throw std::runtime_error("Split-K not supported yet for persistent kernel");
+        }
+
         for(const auto& arg : args)
         {
             kargs.emplace_back(ck_tile::QuantGroupedGemmKernelArgs{arg.a_ptr,
@@ -288,7 +292,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
             BQK = 0;                      // No B quantization
             if(K % QuantGroupSize::kK != 0)
             {
-                throw std::runtime_error("K must be divisible by 128 for AQuantGrouped mode");
+                throw std::runtime_error(
+                    "K must be divisible by QuantGroupSize::kK for AQuantGrouped mode");
             }
         }
         else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
@@ -297,7 +302,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
             BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
             if(K % QuantGroupSize::kK != 0)
             {
-                throw std::runtime_error("K must be divisible by 128 for BQuantGrouped mode");
+                throw std::runtime_error(
+                    "K must be divisible by QuantGroupSize::kK for BQuantGrouped mode");
             }
         }
 

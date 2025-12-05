@@ -40,47 +40,13 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
     template <typename PrecType, ck_tile::index_t M_Warp_Tile>
     static constexpr ck_tile::index_t get_k_warp_tile()
     {
-        if constexpr(QuantType == ck_tile::QuantType::BQuantGrouped)
-        {
-            return get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
-        }
-        else
-        {
-            return get_k_from_regular_warp_tile<PrecType, M_Warp_Tile>();
-        }
-    }
-
-    template <typename PrecType, ck_tile::index_t M_Warp_Tile>
-    static constexpr ck_tile::index_t get_k_from_regular_warp_tile()
-    {
-#if defined(CK_GFX950_SUPPORT)
-        constexpr bool is_8bit_float =
-            std::is_same_v<PrecType, ck_tile::fp8_t> || std::is_same_v<PrecType, ck_tile::bf8_t>;
-        if constexpr(M_Warp_Tile == 32)
-            return is_8bit_float ? 64 : 16;
-        else
-            return is_8bit_float ? 128 : 32;
+#if CK_TILE_USE_WMMA
+        return 16;
 #else
-        if constexpr(M_Warp_Tile == 32)
-            return 16;
-        else
-            return 32;
-#endif
-    }
-
-    template <typename PrecType, ck_tile::index_t M_Warp_Tile>
-    static constexpr ck_tile::index_t get_k_from_preshuffled_warp_tile()
-    {
-#if defined(CK_GFX950_SUPPORT)
-        if constexpr(M_Warp_Tile == 32)
-            return sizeof(PrecType) == 2 ? 16 : 64;
-        else
-            return sizeof(PrecType) == 2 ? 32 : 128;
-#else
-        if constexpr(M_Warp_Tile == 32)
-            return sizeof(PrecType) == 2 ? 16 : 32;
-        else
-            return sizeof(PrecType) == 2 ? 32 : 64;
+        if(M_Warp_Tile == 32)
+            return sizeof(PrecType) == 1 ? 64 : 32;
+        else // if M_Warp_Tile == 16
+            return sizeof(PrecType) == 1 ? 128 : 64;
 #endif
     }
 
@@ -99,8 +65,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         static const ck_tile::index_t N_Warp = 2;
         static const ck_tile::index_t K_Warp = 1;
 
-        static const ck_tile::index_t M_Warp_Tile = 32;
-        static const ck_tile::index_t N_Warp_Tile = 32;
+        static const ck_tile::index_t M_Warp_Tile = 16;
+        static const ck_tile::index_t N_Warp_Tile = 16;
         static const ck_tile::index_t K_Warp_Tile =
             TestCkTileGroupedGemmQuant::template get_k_warp_tile<BDataType, M_Warp_Tile>();
     };
@@ -524,20 +490,22 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             }
             else if constexpr(QuantType == ck_tile::QuantType::AQuantGrouped)
             {
-                AQK = K / 128; // Group quantization: AQK = K / GroupSize
-                BQK = 0;       // No B quantization
-                if(K % 128 != 0)
+                AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
+                BQK = 0;                      // No B quantization
+                if(K % QuantGroupSize::kK != 0)
                 {
-                    throw std::runtime_error("K must be divisible by 128 for AQuantGrouped mode");
+                    throw std::runtime_error(
+                        "K must be divisible by QuantGroupSize::kK for AQuantGrouped mode");
                 }
             }
             else if constexpr(QuantType == ck_tile::QuantType::BQuantGrouped)
             {
-                AQK = 0;       // No A quantization
-                BQK = K / 128; // Group quantization: BQK = K / GroupSize
-                if(K % 128 != 0)
+                AQK = 0;                      // No A quantization
+                BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
+                if(K % QuantGroupSize::kK != 0)
                 {
-                    throw std::runtime_error("K must be divisible by 128 for BQuantGrouped mode");
+                    throw std::runtime_error(
+                        "K must be divisible by QuantGroupSize::kK for BQuantGrouped mode");
                 }
             }
 
