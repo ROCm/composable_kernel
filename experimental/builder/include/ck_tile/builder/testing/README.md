@@ -2,6 +2,8 @@
 
 This directory contains testing utilities designed to simplify the process of writing unit tests for GPU kernels built with `ck_tile::builder`. These utilities enable a clean, expressive **Given-When-Then** (Given-When-Then) testing pattern that separates test setup, execution, and validation.
 
+See the [main builder documentation](../README.md) for an overview of the CK-Builder API components.
+
 ## Overview
 
 Testing GPU kernels typically involves significant boilerplate: allocating device memory, initializing test data, launching kernels, and validating results. The utilities in this directory abstract away these repetitive tasks, allowing you to focus on defining test cases and verifying correctness.
@@ -38,9 +40,10 @@ The "signature" defines the **mathematical contract** that the kernel must satis
 - Data types (FP32, FP16, BF16, etc.)
 - Fused element-wise operations (e.g., Bias, ReLU)
 
-The signature is enforced at compile time using C++20 concepts, ensuring type safety and enabling compile-time optimizations.
+The format of the signature struct is enforced at compile time using C++20 concepts by the CK-Builder API, ensuring type safety and enabling compile-time optimizations. The design of these concepts and the required constraints are discussed in the [CK Builder design description](../include/ck_tile/builder/README.md).
 
 ```cpp
+// Define our custom signature struct.
 struct ConvSignature {
     int spatial_dim = 2;
     ck_tile::builder::ConvDirection direction =
@@ -52,7 +55,12 @@ struct ConvSignature {
     ck_tile::builder::ElementwiseOperation elementwise_operation =
         ck_tile::builder::ElementwiseOperation::NONE;
 };
+
+// Double-check that out structure is well-defined according to the CK-Builder API.
 static_assert(ck_tile::builder::ConvSignatureDescriptor<ConvSignature>);
+
+// Instantiate the signature with a configuration. These values are again checked
+// by the CK-Builder API when a device operation is built.
 constexpr auto SIGNATURE = ConvSignature{
     .spatial_dim = 2,
     .direction = ck_tile::builder::ConvDirection::FORWARD,
@@ -67,7 +75,7 @@ constexpr auto SIGNATURE = ConvSignature{
 The `Args` struct template provides the **runtime parameters** for your test case. It is parameterized by the `SIGNATURE` and contains fields for tensor dimensions, strides, dilations, and other dynamic properties. Note that the exact parameters required for each `Args` depends on the `SIGNATURE`: For example, a `SIGNATURE` that represents a forward convolution requires specifying the number of batches, groups, input- and output-channels, filter dimensions, filter strides, and so on. A `SIGNATURE` that represents a simple GEMM operation may instead require only the dimensions of the A-, B- and C-matrices.
 
 ```cpp
-ck_tile::test::Args<SIGNATURE> args = {
+    ck_tile::builder::test::Args<SIGNATURE> args = {
     .lengths = {
         .batch_size      = 128,
         .groups          = 1,
@@ -85,20 +93,20 @@ ck_tile::test::Args<SIGNATURE> args = {
 
 #### Tensor Memory Management
 
-Tensor memory is passed around using the `Inputs<SIGNATURE>` and `Outputs<SIGNATURE>` structures. These group all inputs and outputs for an operation. Note that these structures do not "own" the memory inside: They only logically group the inputs so that they can be passed around as a common type. The amount of inputs and outputs may differ depending on the `SIGNATURE`, and this avoids having to pass around additional values and accept additional parameters in those situations.
+Tensor memory is passed using the `Inputs<SIGNATURE>` and `Outputs<SIGNATURE>` structures. These group all inputs and outputs for an operation. Note that these structures do not "own" the memory inside: They only logically group the inputs so that they can be passed as a common type. The amount of inputs and outputs may differ depending on the `SIGNATURE`, and this avoids having to pass additional values and accept additional parameters in those situations.
 
 The exact fields in `Inputs` and `Outputs` depend again on the particular `SIGNATURE` that they are constructed with. In general, these structures are intended to be freely constructible from external data and only serve to group relevant information. Automatic memory management can be performed using the `UniqueInputs<SIGNATURE>` and `UniqueOutputs<SIGNATURE>` structures instead. The `alloc_inputs` and `alloc_outputs` functions are used to initialize these types: They take an `Args` structure and allocate the appropriate amounts of memory. `.get()` is used to return an instance of the appropriate `Input` or `Output`.
 
 ```cpp
-auto inputs = ck_tile::test::allocate_inputs(args);
-auto outputs = ck_tile::test::allocate_outputs(args);
+auto inputs = ck_tile::builder::test::allocate_inputs(args);
+auto outputs = ck_tile::builder::test::allocate_outputs(args);
 ```
 
-Note that these functions merely _allocate_ memory: After allocation, the memory is yet uninitialized.
+Note that these functions merely _allocate_ memory: After allocation, the memory is still uninitialized.
 
 #### Tensor Memory Initialization
 
-Operation inputs can be initialized by using `ck_tile::test::init_inputs()`. Crucially, this operation accepts _all_ inputs, as well as the `args` structure. This is because initializing tensor memory is a context-dependent operation: We need to understand the operation in detail in order to generate inputs which do not overflow, do not generate NaNs or all zeros, etc. Passing the `args` allows `init_inputs` to generate a good test for the operation at hand.
+Operation inputs can be initialized by using `ck_tile::builder::test::init_inputs()`. Crucially, this operation accepts _all_ inputs, as well as the `args` structure. This is because initializing tensor memory is a context-dependent operation: We need to understand the operation in detail in order to generate inputs which do not overflow, do not generate NaNs or all zeros, etc. Passing the `args` allows `init_inputs` to generate a good test for the operation at hand.
 
 ### When: Executing the Kernel
 
@@ -113,7 +121,11 @@ The "algorithm" defines the **implementation strategy** for the kernel. It speci
 - Data transfer vectorization
 - Pipeline scheduling
 
+As with the signature struct, the format of the algorithm struct is enforced at compile time using C++20 concepts by the CK-Builder API. The design of these concepts and the required constraints are discussed in the [CK Builder factory design description](../include/ck_tile/builder/factory/README.md).
+
+
 ```cpp
+// Define our custom algorithm struct.
 struct ConvAlgorithm {
     // Thread block configuration
     ThreadBlock thread_block;
@@ -127,7 +139,13 @@ struct ConvAlgorithm {
     // Additional tuning parameters
     // ...
 };
+
+// Double-check that our algorithm is well-defined according to the CK-Builder API.
 static_assert(ck_tile::builder::ConvAlgorithmDescriptor<ConvAlgorithm>);
+
+// Instantiate the algorithm with a configuration. Like with the signature struct
+// the CK-Builder API will check that the values are correct when a device
+// operation is built.
 constexpr auto ALGORITHM = ConvAlgorithm{
     .thread_block = /* ... */;
     .gridwise_gem = /* ... */;
@@ -150,7 +168,7 @@ auto conv = Conv{};
 After creating the kernel instance, it can be invoked by passing the instance, the arguments, the inputs, and the outputs to `run()`. This operation writes results into the buffers in `outputs`.
 
 ```cpp
-ck_tile::test::run(conv, args, inputs.get(), outputs.get());
+ck_tile::builder::test::run(conv, args, inputs.get(), outputs.get());
 ```
 
 ### Then: Verifying the Results
@@ -175,11 +193,11 @@ using ReferenceConv = ck_tile::builder::ConvBuilder<SIGNATURE, REFERENCE_ALGORIT
 auto reference_conv = ReferenceConv{};
 ```
 
-This instance can then be invoked using `ck_tile::testing::run()`, the same as the kernel to be tested. Note that another instance of the `Outputs` structure needs to be passed here in order to store the results.
+This instance can then be invoked using `ck_tile::builder::test::run()`, the same as the kernel to be tested. Note that another instance of the `Outputs` structure needs to be passed here in order to store the results.
 
 ```cpp
-auto reference_outputs = ck_tile::test::allocate_outputs(args);
-ck_tile::test::run(conv, args, inputs.get(), reference_outputs.get());
+auto reference_outputs = ck_tile::builder::test::allocate_outputs(args);
+ck_tile::builder::test::run(conv, args, inputs.get(), reference_outputs.get());
 ```
 
 #### `Validator<SIGNATURE>`
@@ -187,16 +205,16 @@ ck_tile::test::run(conv, args, inputs.get(), reference_outputs.get());
 The `Validator` class encapsulates the validation logic. It performs on-GPU correctness checks by comparing two instances of the `Outputs` structure.
 
 ```cpp
-ck_tile::test::Validator<SIGNATURE> validator(outputs.get(), reference_outputs.get());
+ck_tile::builder::test::Validator<SIGNATURE> validator(outputs.get(), reference_outputs.get());
 ```
 
 The `Validator` provides methods that return GoogleMock matchers, enabling clean integration with GoogleTest:
 
 ```cpp
-EXPECT_THAT(validator.result(), validator.is_ok());
+EXPECT_THAT(validator.result(), validator.matches_reference_output());
 ```
 
-The `is_ok()` matcher checks that the output is numerically correct within acceptable tolerances. The `Validator` can also provide more detailed diagnostics, such as:
+The `matches_reference_output()` matcher checks that the output is numerically correct within acceptable tolerances. The `Validator` can also provide more detailed diagnostics, such as:
 
 - Maximum absolute error
 - Maximum relative error
@@ -258,7 +276,7 @@ TEST(ConvolutionTest, Forward2D_FP16) {
     // ===== GIVEN: Set up the test case =====
 
     // Define runtime parameters
-    ck_tile::test::Args<ConvSignature> args = {
+    ck_tile::builder::test::Args<ConvSignature> args = {
         .lengths = {
             .batch_size      = 128,
             .groups          = 1,
@@ -274,12 +292,12 @@ TEST(ConvolutionTest, Forward2D_FP16) {
     };
 
     // Allocate GPU memory
-    auto inputs = ck_tile::test::allocate_inputs(args);
-    auto outputs = ck_tile::test::allocate_outputs(args);
-    auto reference_outputs = ck_tile::testing::allocate_outputs(args);
+    auto inputs = ck_tile::builder::test::allocate_inputs(args);
+    auto outputs = ck_tile::builder::test::allocate_outputs(args);
+    auto reference_outputs = ck_tile::builder::test::allocate_outputs(args);
 
     // Initialize inputs
-    ck_tile::test::init_inputs(args, inputs);
+    ck_tile::builder::test::init_inputs(args, inputs);
 
     // ===== WHEN: Execute the kernel =====
 
@@ -288,7 +306,7 @@ TEST(ConvolutionTest, Forward2D_FP16) {
     auto conv = Conv{};
 
     // Compute actual results
-    ck_tile::test::run(conv, args, inputs.get(), outputs.get());
+    ck_tile::builder::test::run(conv, args, inputs.get(), outputs.get());
 
     // ===== THEN: Verify the results =====
 
@@ -297,10 +315,10 @@ TEST(ConvolutionTest, Forward2D_FP16) {
     auto reference_conv = ReferenceConv{};
 
     // Compute reference results
-    ck_tile::test::run(conv, args, inputs.get(), reference_outputs.get());
+    ck_tile::builder::test::run(conv, args, inputs.get(), reference_outputs.get());
 
     // Check the results
-    ck_tile::test::Validator<SIGNATURE> validator(outputs.get(), reference_outputs.get());
+    ck_tile::builder::test::Validator<SIGNATURE> validator(outputs.get(), reference_outputs.get());
     EXPECT_THAT(validator.result(), validator.is_ok());
 }
 ```
