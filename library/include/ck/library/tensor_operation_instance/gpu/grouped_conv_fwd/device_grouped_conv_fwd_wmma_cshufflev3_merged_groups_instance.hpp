@@ -13,10 +13,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using BF16 = ck::bhalf_t;
-using F16  = ck::half_t;
-using F32  = float;
-using I8   = int8_t;
+using I8 = int8_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -35,35 +32,6 @@ static constexpr auto ConvFwdDefault =
 static constexpr auto ConvFwd3x3 = ConvolutionForwardSpecialization::Filter3x3;
 
 static constexpr auto GemmMNKPadding = GemmSpecialization::MNKPadding;
-
-template <index_t NDimSpatial,
-          typename ALayout,
-          typename BLayout,
-          typename DsLayout,
-          typename ELayout,
-          ConvolutionForwardSpecialization ConvSpec,
-          typename DsDataTypes  = Tuple<>,
-          typename OutElementOp = PassThrough>
-using device_grouped_conv_fwd_wmma_cshufflev3_merged_groups_f16_instances = std::tuple<
-    // clang-format off
-          //########################################|     NumDim|       A|       B|          Ds|       E| AData| BData| AccData| CShuffle|             Ds| EData|           A|           B|          CDE|    ConvForward|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MWmma| NWmma|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|     CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|                   Pipeline scheduler |            Pipeline version | AComp | BComp | Merge  |
-          //########################################|    Spatial|  Layout|  Layout|      Layout|  Layout|  Type|  Type|    Type| DataType|       DataType|  Type| Elementwise| Elementwise|  Elementwise| Specialization| Specialization|  Size| Block| Block| Block|    |    | WMMA| WMMA|   Per|   Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MWmmaPerWave| NWmmaPerWave|        _MBlock_MWaveMPerWmma| ScalarPerVector|                                      |                             |  Type |  Type | Groups |
-          //########################################|           |        |        |            |        |      |      |        |         |               |      |   Operation|   Operation|    Operation|               |               |      |      |      |      |    |    |     |     |  Wave|  Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |   PerShuffle|   PerShuffle|        _NBlock_NWaveNPerWmma|  _NWaveNPerWmma|                                      |                             |       |       |        |
-          //########################################|           |        |        |            |        |      |      |        |         |               |      |            |            |             |               |               |      |      |      |      |    |    |     |     |      |      |                |               |               |               |               |               |          |                |               |               |              |               |               |          |             |             |                             |                |                                      |                             |       |       |        |
-    // Instances with NumGroupsPerBatch > 1
-    DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16,    DsDataTypes,   F16, PassThrough, PassThrough, OutElementOp,       ConvSpec, GemmMNKPadding,    64,    64,    16,    16,   4,   4,   16,   16,     2,     1,    S<4, 16,  1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         1,    S<4, 16,  1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,         1,            1,            1,               S<1, 16, 1, 4>,               1, BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1,    F16,    F16,      8>
-#ifndef ONE_INSTANCE_PER_LIST
-    ,
-    DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16,    DsDataTypes,   F16, PassThrough, PassThrough, OutElementOp,       ConvSpec, GemmMNKPadding,    64,    64,    16,    16,   4,   4,   16,   16,     2,     1,    S<4, 16,  1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         1,    S<4, 16,  1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,         1,            1,            1,               S<1, 16, 1, 4>,               1, BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1,    F16,    F16,     16>,
-    DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16,    DsDataTypes,   F16, PassThrough, PassThrough, OutElementOp,       ConvSpec, GemmMNKPadding,    64,    64,    16,    16,   4,   4,   16,   16,     2,     1,    S<4, 16,  1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         1,    S<4, 16,  1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,         1,            1,            1,               S<1, 16, 1, 4>,               1, BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1,    F16,    F16,     32>,
-    // "2x" instances
-    // TODO: I had to double BK1 from 4 to 8 for these instances to make them give correct results. Figure out why.
-    DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16,    DsDataTypes,   F16, PassThrough, PassThrough, OutElementOp,       ConvSpec, GemmMNKPadding,    64,    64,    16,    32,   8,   8,   16,   16,     2,     1,    S<4, 16,  1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         1,    S<4, 16,  1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,         1,            1,            1,               S<1, 16, 1, 4>,               1, BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1,    F16,    F16,      8>,
-    DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16,    DsDataTypes,   F16, PassThrough, PassThrough, OutElementOp,       ConvSpec, GemmMNKPadding,    64,    64,    16,    32,   8,   8,   16,   16,     2,     1,    S<4, 16,  1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         1,    S<4, 16,  1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,         1,            1,            1,               S<1, 16, 1, 4>,               1, BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1,    F16,    F16,     16>,
-    DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16,    DsDataTypes,   F16, PassThrough, PassThrough, OutElementOp,       ConvSpec, GemmMNKPadding,    64,    64,    16,    32,   8,   8,   16,   16,     2,     1,    S<4, 16,  1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         1,    S<4, 16,  1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,         1,            1,            1,               S<1, 16, 1, 4>,               1, BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1,    F16,    F16,     32>
-#endif
-    // clang-format on
-    >;
 
 template <index_t NDimSpatial,
           typename ALayout,
