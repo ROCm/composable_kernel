@@ -208,13 +208,14 @@ struct CShuffleEpilogue
      */
     static constexpr auto shuffle_tile_tuple = [] {
         constexpr index_t elem_per_thread = MPerXdl * NPerXdl / get_warp_size();
-        if constexpr(elem_per_thread >= GetVectorSizeC())
+        if constexpr(elem_per_thread <= GetVectorSizeC())
         {
             return std::make_tuple(1, 1);
         }
         else
         {
-            constexpr index_t num_xdl_shuffles = GetVectorSizeC() / elem_per_thread;
+            constexpr index_t num_xdl_shuffles = elem_per_thread / GetVectorSizeC();
+            static_assert(elem_per_thread % GetVectorSizeC() == 0);
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 static_assert((kMPerBlock % (MPerXdl * MWave) == 0) &&
