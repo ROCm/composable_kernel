@@ -259,6 +259,12 @@ static float run_forward(const void* input_ptr,
 
 #ifdef CONV_BWD_DATA_AVAILABLE
 // Backward data convolution (optional)
+// Computes: grad_input = conv_bwd_data(weight, grad_output)
+//
+// Parameters:
+//   grad_output_ptr: dY - gradient from next layer (const, read-only INPUT)
+//   weight_ptr:      W  - frozen weights (const, read-only INPUT)
+//   grad_input_ptr:  dX - gradient for input (writable, OUTPUT)
 static float run_bwd_data(const void* grad_output_ptr,
                           const void* weight_ptr,
                           void* grad_input_ptr,
@@ -267,6 +273,10 @@ static float run_bwd_data(const void* grad_output_ptr,
 {
     auto conv_param = build_conv_param(prob);
 
+    // CK Tile API uses tensor POSITION names (from forward pass), not data flow:
+    //   in_ptr  = input tensor position  = grad_input_ptr (dX, OUTPUT of bwd_data)
+    //   wei_ptr = weight tensor          = weight_ptr (W, const)
+    //   out_ptr = output tensor position = grad_output_ptr (dY, INPUT to bwd_data)
     ck_tile::GroupedConvBwdDataHostArgs args(
         conv_param, grad_input_ptr, weight_ptr, {}, grad_output_ptr, 1);
 

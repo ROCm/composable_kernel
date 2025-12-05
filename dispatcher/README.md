@@ -9,13 +9,14 @@ A unified kernel dispatch system for AMD GPUs with C++ and Python frontends.
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [Prerequisites](#prerequisites)
-3. [Step-by-Step Build Guide](#step-by-step-build-guide)
-4. [Running Examples](#running-examples)
-5. [External Integration](#external-integration)
-6. [Core Concepts](#core-concepts)
-7. [Troubleshooting](#troubleshooting)
-8. [File Structure](#file-structure)
+2. [Docker Setup](#docker-setup-recommended)
+3. [Prerequisites](#prerequisites)
+4. [Step-by-Step Build Guide](#step-by-step-build-guide)
+5. [Running Examples](#running-examples)
+6. [External Integration](#external-integration)
+7. [Core Concepts](#core-concepts)
+8. [Troubleshooting](#troubleshooting)
+9. [File Structure](#file-structure)
 
 ---
 
@@ -49,6 +50,72 @@ make -j$(nproc)
 cd ..
 python3 examples/gemm/python/01_basic_gemm.py
 python3 examples/conv/python/01_basic_conv.py
+```
+
+---
+
+## Docker Setup (Recommended)
+
+For a reproducible build environment, use the official ROCm Docker image:
+
+### Step 1: Pull and Run Container
+
+```bash
+# Pull the CK Docker image
+docker pull rocm/composable_kernel:ck_ub24.04_rocm7.0.1
+
+# Run container with GPU access
+docker run \
+  -it \
+  --privileged \
+  --device=/dev/kfd \
+  --device=/dev/dri \
+  --group-add video \
+  --group-add render \
+  -w /root/workspace \
+  -v $(pwd):/root/workspace \
+  rocm/composable_kernel:ck_ub24.04_rocm7.0.1 \
+  /bin/bash
+```
+
+> **Note:** Omit `--device` flags if building without GPU access.
+
+### Step 2: Clone and Build
+
+```bash
+# Inside the container
+git clone https://github.com/ROCm/composable_kernel.git
+cd composable_kernel
+git checkout builder-dispatch-tile-gemm
+
+# Set up Python environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install numpy
+
+# Build dispatcher
+cd dispatcher
+mkdir -p build && cd build
+cmake .. \
+  -DCMAKE_PREFIX_PATH=/opt/rocm \
+  -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DGPU_TARGETS="gfx942" \
+  -DBUILD_DISPATCHER_EXAMPLES=ON
+
+make -j$(nproc)
+```
+
+### One-Liner Build (inside container)
+
+```bash
+git clone https://github.com/ROCm/composable_kernel.git && \
+cd composable_kernel && git checkout builder-dispatch-tile-gemm && \
+python3 -m venv .venv && source .venv/bin/activate && pip install numpy && \
+cd dispatcher && mkdir -p build && cd build && \
+cmake .. -DCMAKE_PREFIX_PATH=/opt/rocm -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
+  -DCMAKE_BUILD_TYPE=Release -DGPU_TARGETS="gfx942" -DBUILD_DISPATCHER_EXAMPLES=ON && \
+make -j$(nproc)
 ```
 
 ---
@@ -282,11 +349,11 @@ cd build/examples
 ./gemm_05_heuristics     # Custom kernel selection
 
 # Convolution Examples
-./conv_01_basic          # Basic 2D convolution
-./conv_02_forward        # Forward convolution details
-./conv_03_validation     # CPU validation (add --verify)
-./conv_10_bwd_data       # Backward data (add --verify for validation)
-./conv_11_bwd_weight     # Backward weight (add --verify for validation)
+./conv_01_forward        # Basic 2D convolution
+./conv_02_validation     # Forward with CPU validation (add --verify)
+./conv_03_multi_size     # Multiple problem sizes
+./conv_09_bwd_data       # Backward data (add --verify for validation)
+./conv_10_bwd_weight     # Backward weight (add --verify for validation)
 ```
 
 ### Python Examples
@@ -645,7 +712,8 @@ auto problem = ProblemBuilder()
 | `hip not found` | Set `-DCMAKE_PREFIX_PATH=/opt/rocm` |
 | Very slow performance | Use `-DCMAKE_BUILD_TYPE=Release` |
 | `gfx942 not supported` | Check ROCm version (need 6.0+) |
-| Kernel generation fails | Ensure Python 3.8+ with NumPy installed |
+| Kernel generation fails | Ensure Python 3.8+ with NumPy installed in active venv |
+| Build errors | First verify CK builds without dispatcher (see main CK README) |
 
 ### Runtime Issues
 
