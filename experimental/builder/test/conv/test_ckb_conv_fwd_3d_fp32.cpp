@@ -3,6 +3,7 @@
 
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
+#include "utils/conv_algorithm_type_utils.hpp"
 
 namespace {
 
@@ -31,8 +32,10 @@ TEST(FwdConvInstances,
             .with_block_gemm(BlockGemmDesc_v1_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+
+    const auto expected_transfer_parameters = to_string(FwdConvAlgorithm);
     run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-                       "256,256,256,32",
+                       expected_transfer_parameters,
                        "Filter1x1Pad0",
                        "Intrawave",
                        "v1",

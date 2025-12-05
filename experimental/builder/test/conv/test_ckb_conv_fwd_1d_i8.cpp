@@ -3,6 +3,7 @@
 
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
+#include "utils/conv_algorithm_type_utils.hpp"
 
 namespace {
 
@@ -31,8 +32,10 @@ TEST(FwdConvInstances,
             .with_prefetch_config(1, 0, PipelineScheduler::DEFAULT);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+
+    const auto expected_transfer_parameters = to_string(FwdConvAlgorithm);
     run_test<Builder>({"DeviceGroupedConvFwdMultipleD_Wmma_CShuffle",
-                       "128,64,64,64",
+                       expected_transfer_parameters,
                        "GNWC,GKXC,EmptyTuple,GNWK",
                        "PassThrough,PassThrough,PassThrough",
                        "Default"});

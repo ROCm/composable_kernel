@@ -3,6 +3,7 @@
 
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
+#include "utils/conv_algorithm_type_utils.hpp"
 
 namespace {
 
@@ -27,8 +28,10 @@ TEST(FwdConvInstances, Create_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK_Ins
             .with_dl_transfer(DlFwdTransfer);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+
+    const auto expected_transfer_parameters = to_string(FwdConvAlgorithm);
     run_test<Builder>({"DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK",
-                       "256,128,128,16",
+                       expected_transfer_parameters,
                        "Default",
                        "MNKPadding",
                        "GNHWC,GKYXC,EmptyTuple,GNHWK",
@@ -56,8 +59,10 @@ TEST(FwdConvInstances,
             .with_dl_transfer(DlFwdTransfer);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+
+    const auto expected_transfer_parameters = to_string(FwdConvAlgorithm);
     run_test<Builder>({"DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK",
-                       "256,128,128,16",
+                       expected_transfer_parameters,
                        "Filter1x1Pad0",
                        "MNKPadding",
                        "GNHWC,GKYXC,EmptyTuple,GNHWK",
