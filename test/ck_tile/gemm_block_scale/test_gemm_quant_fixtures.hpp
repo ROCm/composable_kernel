@@ -67,7 +67,6 @@ struct GemmConfigMxFp4 : public GemmConfigBase
     static constexpr ck_tile::index_t K_Tile = 128;
 };
 
-
 struct GemmConfigPreshuffleQuant : public GemmConfigBase
 {
     static constexpr bool PreshuffleQuant = true;
