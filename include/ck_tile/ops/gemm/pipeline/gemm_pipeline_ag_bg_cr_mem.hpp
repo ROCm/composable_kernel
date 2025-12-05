@@ -36,17 +36,13 @@ struct BaseGemmPipelineAgBgCrMem
     // TODO: Is this 32K value gfx9 arch specific?
     static constexpr index_t MinMemInFlyBytes = 32768;
 
-    static constexpr index_t WgpPerCU =
-        (4 * get_warp_size() / BlockSize) >= 1 ? 4 * get_warp_size() / BlockSize : 1;
+    static constexpr index_t WgpPerCU = ck_tile::max(4 * get_warp_size() / BlockSize, 1);
     static constexpr index_t FullMemBandPrefetchStages =
         integer_divide_ceil(MinMemInFlyBytes / WgpPerCU,
                             (MPerBlock * sizeof(ADataType) / APackedSize +
                              NPerBlock * sizeof(BDataType) / BPackedSize) *
                                 KPerBlock);
-    static constexpr index_t PrefetchStages =
-        FullMemBandPrefetchStages >= 2
-            ? FullMemBandPrefetchStages <= 8 ? FullMemBandPrefetchStages : 8
-            : 2;
+    static constexpr index_t PrefetchStages = ck_tile::clamp(FullMemBandPrefetchStages, 2, 8);
 
     static constexpr index_t LocalPrefillStages = 1;
     static constexpr index_t GlobalBufferNum    = PrefetchStages;
