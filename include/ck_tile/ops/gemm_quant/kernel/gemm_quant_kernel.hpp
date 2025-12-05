@@ -781,8 +781,6 @@ struct QuantGemmKernel
             {
                 if constexpr(PreshuffleQuant)
                 {
-                    // PreshuffleQuant currently assumes ColumnMajor layout
-                    // For RowMajor, the preshuffle logic would need adjustment
                     static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>,
                                   "PreshuffleQuant with BQuantGrouped currently only supports "
                                   "ColumnMajor BQ layout");
