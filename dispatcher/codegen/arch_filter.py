@@ -336,8 +336,14 @@ class KernelConfig:
 
     @property
     def dtype_key(self) -> str:
-        """Generate data type combination key"""
-        return f"{self.datatype_a}_{self.datatype_b}_{self.datatype_c}"
+        """Generate data type combination key for warp tile lookup.
+        
+        Uses accumulator dtype (not output C type) to match the format
+        used in WARP_TILE_SUPPORTED_COMBINATIONS dictionaries which are
+        keyed as {datatype_a}_{datatype_b}_{accumulator_dtype}.
+        """
+        acc_dtype = get_dtype_acc(self.datatype_a, self.datatype_b)
+        return f"{self.datatype_a}_{self.datatype_b}_{acc_dtype}"
 
 
 # =============================================================================
