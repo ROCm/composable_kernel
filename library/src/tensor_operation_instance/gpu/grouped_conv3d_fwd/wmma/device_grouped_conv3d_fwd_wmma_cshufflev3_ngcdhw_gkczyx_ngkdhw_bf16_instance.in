@@ -56,6 +56,16 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_ins
                                                                                   ConvFwd1x1S1P0>,
                                        Shards,
                                        ShardIndex>{});
+    add_device_operation_instances(
+        instances,
+        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_wmma_cshufflev3_bf16_ngchw_instances<3,
+                                                                                  NGCDHW,
+                                                                                  GKCZYX,
+                                                                                  Empty_Tuple,
+                                                                                  NGKDHW,
+                                                                                  ConvFwdOddC>,
+                                       Shards,
+                                       ShardIndex>{});
 }
 
 } // namespace ck::tensor_operation::device::instance
