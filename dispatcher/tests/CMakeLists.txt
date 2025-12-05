@@ -343,7 +343,7 @@ endif()
 # Custom Targets
 # =============================================================================
 
-add_custom_target(test_dispatcher
+add_custom_target(run_dispatcher_tests
     COMMAND ${CMAKE_CTEST_COMMAND} -L dispatcher --output-on-failure
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running all dispatcher tests"

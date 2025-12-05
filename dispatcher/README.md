@@ -82,12 +82,43 @@ rocminfo | grep -i "gfx"
 - **gfx1101** - RDNA3 series 
 - **gfx1201** - RDNA4 series 
 
-### Install Dependencies
+### Install Python Dependencies
 
+NumPy is required for Python examples and kernel generation. We recommend using a virtual environment:
+
+**Option 1: Using standard venv**
 ```bash
-# Install NumPy using pip or uv pip (required for Python examples)
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate   # Windows
+
+# Install NumPy
 pip install numpy
 ```
+
+**Option 2: Using uv (faster alternative)**
+```bash
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create and activate virtual environment
+uv venv .venv
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate   # Windows
+
+# Install NumPy
+uv pip install numpy
+```
+
+**Option 3: System-wide install (not recommended)**
+```bash
+pip install numpy
+```
+
+> **Note:** Always activate your virtual environment before running CMake or Python examples.
 
 ### Supported Data Types
 
