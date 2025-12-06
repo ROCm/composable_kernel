@@ -276,6 +276,23 @@ def main():
     runner = GpuConvRunner()
     if runner.is_available():
         print(f"  Library: {runner.library_path}")
+        
+        # Show compiled kernel info
+        lib = runner._lib if hasattr(runner, '_lib') else None
+        if lib and hasattr(lib, 'get_kernel_count'):
+            kernel_count = lib.get_kernel_count()
+            print(f"  Kernel count: {kernel_count}")
+            if kernel_count > 0:
+                for i in range(kernel_count):
+                    kernel_name = lib.get_kernel_name(i) if hasattr(lib, 'get_kernel_name') else None
+                    if kernel_name:
+                        print(f"  Compiled kernel: {kernel_name}")
+                        # Check pipeline mismatch
+                        if "compv4" in kernel_name and args.pipeline != "compv4":
+                            print(f"    ⚠ Library has compv4, you requested {args.pipeline}")
+                        elif "compv3" in kernel_name and args.pipeline != "compv3":
+                            print(f"    ⚠ Library has compv3, you requested {args.pipeline}")
+        
         print(f"  Input:  {input_np.shape} -> GPU")
         print(f"  Weight: {weight_np.shape} -> GPU")
 
@@ -288,8 +305,15 @@ def main():
         else:
             print(f"  Execution returned: {result.get('error', 'unknown')}")
 
+        # Get actual kernel name (before cleanup)
+        actual_kernel = "unknown"
+        lib = runner._lib if hasattr(runner, '_lib') else None
+        if lib and hasattr(lib, 'get_kernel_name'):
+            actual_kernel = lib.get_kernel_name(0) or "unknown"
+
         runner.cleanup()
     else:
+        actual_kernel = "unavailable"
         print("  GPU library not available")
         print(
             "  Build with: cd dispatcher/build && cmake .. && make dispatcher_conv_lib"
@@ -303,10 +327,11 @@ def main():
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
-    print(f"  Kernel:  {args.dtype} {sig.direction} {sig.num_dims}D")
-    print(f"  Config:  tile={args.tile_k}x{args.tile_c}, pipeline={args.pipeline}")
+    print(f"  Kernel type: {args.dtype} {sig.direction} {sig.num_dims}D")
+    print(f"  Requested:   tile={args.tile_k}x{args.tile_c}, pipeline={args.pipeline}")
+    print(f"  Actual:      {actual_kernel}")
     print(
-        f"  Problem: N={problem.N}, C={problem.C}, K={problem.K}, {problem.Hi}x{problem.Wi}"
+        f"  Problem:     N={problem.N}, C={problem.C}, K={problem.K}, {problem.Hi}x{problem.Wi}"
     )
     print("=" * 70)
 

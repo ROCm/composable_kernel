@@ -162,7 +162,7 @@ TEST_F(DispatcherTest, RunNoKernel)
 
     float a[1], b[1], c[1];
 
-    EXPECT_THROW(dispatcher.run(a, b, c, problem), std::runtime_error);
+    EXPECT_THROW((void)dispatcher.run(a, b, c, problem), std::runtime_error);
 }
 
 TEST_F(DispatcherTest, RunExplicit)
@@ -193,7 +193,7 @@ TEST_F(DispatcherTest, RunExplicitNotFound)
 
     float a[1], b[1], c[1];
 
-    EXPECT_THROW(dispatcher.run_explicit("nonexistent", a, b, c, nullptr, problem),
+    EXPECT_THROW((void)dispatcher.run_explicit("nonexistent", a, b, c, nullptr, problem),
                  std::runtime_error);
 }
 
@@ -211,7 +211,7 @@ TEST_F(DispatcherTest, RunExplicitNotSupported)
 
     float a[1], b[1], c[1];
 
-    EXPECT_THROW(dispatcher.run_explicit(kernel_id, a, b, c, nullptr, problem), std::runtime_error);
+    EXPECT_THROW((void)dispatcher.run_explicit(kernel_id, a, b, c, nullptr, problem), std::runtime_error);
 }
 
 TEST_F(DispatcherTest, Validate)

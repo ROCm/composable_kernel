@@ -46,48 +46,36 @@ int conv_dispatcher_init()
     g_registry   = std::make_shared<ConvRegistry>();
     g_dispatcher = std::make_shared<ConvDispatcher>(g_registry.get());
 
-    // Register kernel configurations
+    // Register kernel configurations using simple ConvKernelSet
+    // (actual kernel launch uses the force-included SelectedConvKernelLauncher)
     using namespace ck_tile::dispatcher::conv_decl;
 
     // Forward kernels (required - must be force-included)
+    // Must match: conv_fwd_fp16_nhwgc_2d_compv4_cshuffle_intrawave_128x128x64_2x2x1_32x32x16_dsb
     ConvKernelSet fwd_set;
     fwd_set.add(ConvSignature().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
                 ConvAlgorithm()
-                    .tile(1, 128, 128)
+                    .tile(128, 128, 64)  // tile_m x tile_n x tile_k
                     .wave(2, 2, 1)
                     .warp(32, 32, 16)
-                    .pipeline("compv3")
+                    .pipeline("compv4")
                     .scheduler("intrawave"),
                 "gfx942");
     g_registry->register_set(fwd_set, ConvRegistry::Priority::High);
 
 #ifdef CONV_BWD_DATA_AVAILABLE
     // Backward data kernels
+    // Must match: conv_bwdd_fp16_nhwgc_2d_compv3_cshuffle_intrawave_128x128x64_2x2x1_32x32x16
     ConvKernelSet bwd_data_set;
     bwd_data_set.add(ConvSignature().dtype("fp16").layout("nhwgc").conv_type("bwd_data").dims(2),
                      ConvAlgorithm()
-                         .tile(1, 128, 128)
+                         .tile(128, 128, 64)  // tile_m x tile_n x tile_k
                          .wave(2, 2, 1)
                          .warp(32, 32, 16)
                          .pipeline("compv3")
                          .scheduler("intrawave"),
                      "gfx942");
     g_registry->register_set(bwd_data_set, ConvRegistry::Priority::High);
-#endif
-
-#ifdef CONV_BWD_WEIGHT_AVAILABLE
-    // Backward weight kernels
-    ConvKernelSet bwd_weight_set;
-    bwd_weight_set.add(
-        ConvSignature().dtype("fp16").layout("nhwgc").conv_type("bwd_weight").dims(2),
-        ConvAlgorithm()
-            .tile(1, 64, 64)
-            .wave(2, 2, 1)
-            .warp(16, 16, 32)
-            .pipeline("compv3")
-            .scheduler("intrawave"),
-        "gfx942");
-    g_registry->register_set(bwd_weight_set, ConvRegistry::Priority::High);
 #endif
 
     return 0;
@@ -115,9 +103,13 @@ int conv_dispatcher_get_kernel_count()
 
 int conv_dispatcher_get_kernel_name(int index, char* buffer, int buffer_size)
 {
-    if(!g_registry || index < 0 || !buffer || buffer_size <= 0)
+    if(index < 0 || !buffer || buffer_size <= 0)
         return -1;
 
+    if(!g_registry)
+        return -1;
+
+    // Use registry to get kernel names (they are registered with full names)
     const auto& kernels = g_registry->all_kernels();
     if(static_cast<size_t>(index) >= kernels.size())
         return -1;
@@ -125,7 +117,6 @@ int conv_dispatcher_get_kernel_name(int index, char* buffer, int buffer_size)
     const auto* kernel = kernels[index];
     std::strncpy(buffer, kernel->name().c_str(), buffer_size - 1);
     buffer[buffer_size - 1] = '\0';
-
     return 0;
 }
 

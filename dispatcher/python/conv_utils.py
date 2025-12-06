@@ -1428,6 +1428,14 @@ class ConvDispatcherLib:
         ]
         self._lib.conv_dispatcher_run.restype = ctypes.c_float
 
+        # Get kernel name by index
+        self._lib.conv_dispatcher_get_kernel_name.argtypes = [
+            ctypes.c_int,  # index
+            ctypes.c_char_p,  # buffer
+            ctypes.c_int,  # buffer_size
+        ]
+        self._lib.conv_dispatcher_get_kernel_name.restype = ctypes.c_int
+
     @property
     def path(self) -> Path:
         return self._path
@@ -1452,6 +1460,24 @@ class ConvDispatcherLib:
     def has_kernels(self) -> bool:
         """Check if library was compiled with kernels"""
         return self._lib.conv_dispatcher_has_kernels() == 1
+
+    def get_kernel_name(self, index: int = 0) -> Optional[str]:
+        """Get kernel name by index (default: first kernel)"""
+        buffer = ctypes.create_string_buffer(512)
+        result = self._lib.conv_dispatcher_get_kernel_name(index, buffer, 512)
+        if result == 0:
+            return buffer.value.decode("utf-8")
+        return None
+
+    def get_all_kernel_names(self) -> List[str]:
+        """Get names of all registered kernels"""
+        names = []
+        count = self.get_kernel_count()
+        for i in range(count):
+            name = self.get_kernel_name(i)
+            if name:
+                names.append(name)
+        return names
 
     def run(
         self,

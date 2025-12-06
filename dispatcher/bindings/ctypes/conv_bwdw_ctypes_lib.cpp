@@ -159,4 +159,17 @@ int conv_bwdw_get_kernel_count()
 #endif
 }
 
+int conv_bwdw_get_kernel_name(int index, char* buffer, int buffer_size)
+{
+#ifdef CONV_BWD_WEIGHT_AVAILABLE
+    if(index != 0 || !buffer || buffer_size <= 0)
+        return -1;
+    std::strncpy(buffer, CONV_BWD_WEIGHT_KERNEL_NAME, buffer_size - 1);
+    buffer[buffer_size - 1] = '\0';
+    return 0;
+#else
+    return -1;
+#endif
+}
+
 } // extern "C"

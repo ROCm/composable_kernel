@@ -525,27 +525,58 @@ add_declarative_gpu_example(conv_11_advanced_benchmark conv/cpp/11_advanced_benc
 message(STATUS "Conv examples configured - kernels will be generated during 'make'")
 
 # =============================================================================
-# Python helper libraries for conv (from bindings)
+# Python helper libraries for conv (from bindings) - Single Fallback Kernels
 # =============================================================================
 
-# Define conv kernel header paths (using include_all headers with default launcher aliases)
-set(CONV_FWD_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/include_all_conv_fwd_kernels.hpp")
-set(CONV_BWDD_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/include_all_conv_bwdd_kernels.hpp")
-set(CONV_BWDW_KERNEL_HEADER "${KERNEL_OUTPUT_DIR}/include_all_conv_bwdw_kernels.hpp")
+# Generate single fallback kernels for Python library (one each for fwd, bwdd, bwdw)
+set(CONV_FALLBACK_DIR "${CMAKE_CURRENT_BINARY_DIR}/conv_python_fallback")
+set(CONV_FWD_FALLBACK "${CONV_FALLBACK_DIR}/include_all_conv_fwd_kernels.hpp")
+set(CONV_BWDD_FALLBACK "${CONV_FALLBACK_DIR}/include_all_conv_bwdd_kernels.hpp")
+set(CONV_BWDW_FALLBACK "${CONV_FALLBACK_DIR}/include_all_conv_bwdw_kernels.hpp")
+set(CONV_FALLBACK_SENTINEL "${CONV_FALLBACK_DIR}/.fallback_generated")
 
-# Forward + backward data library
+# Generate all conv fallback kernels in one command (uses --tile-m/n to produce 1 kernel per variant)
+# Note: backward ops only support compv3 pipeline (compv4/compv5 have ck_tile template issues)
+add_custom_command(
+    OUTPUT ${CONV_FALLBACK_SENTINEL}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CONV_FALLBACK_DIR}
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
+            --datatype fp16 --variant forward --ndim 2
+            --tile-m 128 --tile-n 128 --warp-m 2 --warp-n 2
+            --output ${CONV_FALLBACK_DIR}
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
+            --datatype fp16 --variant bwd_data --ndim 2
+            --tile-m 128 --tile-n 128 --warp-m 2 --warp-n 2
+            --pipeline compv3
+            --output ${CONV_FALLBACK_DIR}
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
+            --datatype fp16 --variant bwd_weight --ndim 2
+            --tile-m 128 --tile-n 32 --warp-m 4 --warp-n 1
+            --warp-tile-m 32 --warp-tile-n 32 --warp-tile-k 16
+            --pipeline mem --scheduler interwave
+            --output ${CONV_FALLBACK_DIR}
+    COMMAND ${CMAKE_COMMAND} -E touch ${CONV_FALLBACK_SENTINEL}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
+    COMMENT "Generating single fallback Conv kernels for Python library (3 kernels)"
+    VERBATIM
+)
+
+add_custom_target(generate_conv_fallback_kernels DEPENDS ${CONV_FALLBACK_SENTINEL})
+
+# Forward + backward data library (single fallback kernel each)
 add_library(dispatcher_conv_lib SHARED ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/conv_ctypes_lib.cpp)
 target_link_libraries(dispatcher_conv_lib PRIVATE ck_tile_dispatcher)
 target_include_directories(dispatcher_conv_lib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels
+    ${CONV_FALLBACK_DIR}
 )
 target_compile_options(dispatcher_conv_lib PRIVATE
-    "SHELL:-include ${CONV_FWD_KERNEL_HEADER}"
-    "SHELL:-include ${CONV_BWDD_KERNEL_HEADER}"
+    "SHELL:-include ${CONV_FWD_FALLBACK}"
+    # Note: Backward data disabled due to ck_tile compv3 template issues
+    #"SHELL:-include ${CONV_BWDD_FALLBACK}"
     -DCONV_KERNEL_AVAILABLE=1
-    -DCONV_BWD_DATA_AVAILABLE=1
+    #-DCONV_BWD_DATA_AVAILABLE=1
     -mllvm -enable-noalias-to-md-conversion=0
     -Wno-undefined-func-template
     -Wno-float-equal
@@ -554,34 +585,38 @@ target_compile_options(dispatcher_conv_lib PRIVATE
 if(hip_FOUND)
     target_link_libraries(dispatcher_conv_lib PRIVATE hip::device hip::host)
 endif()
-add_dependencies(dispatcher_conv_lib generate_conv_kernels)
+add_dependencies(dispatcher_conv_lib generate_conv_fallback_kernels)
 
-# Backward weight library (separate to avoid template conflicts)
-add_library(dispatcher_conv_bwdw_lib SHARED 
-    ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/conv_bwdw_ctypes_lib.cpp)
-target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE ck_tile_dispatcher)
-target_include_directories(dispatcher_conv_bwdw_lib PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels
-)
-target_compile_options(dispatcher_conv_bwdw_lib PRIVATE
-    "SHELL:-include ${CONV_BWDW_KERNEL_HEADER}"
-    -DCONV_KERNEL_AVAILABLE=1
-    -DCONV_BWD_WEIGHT_AVAILABLE=1
-    -mllvm -enable-noalias-to-md-conversion=0
-    -Wno-undefined-func-template
-    -Wno-float-equal
-    --offload-compress
-)
-if(hip_FOUND)
-    target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE hip::device hip::host)
-endif()
-add_dependencies(dispatcher_conv_bwdw_lib generate_conv_bwd_kernels)
+# Backward weight library - DISABLED due to ck_tile transpose_tile2d template issues
+# The generated bwdw kernels fail to compile with all pipeline types (mem, compv3, compv4)
+# This is a fundamental ck_tile limitation, not a dispatcher issue
+# 
+# add_library(dispatcher_conv_bwdw_lib SHARED 
+#     ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/conv_bwdw_ctypes_lib.cpp)
+# target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE ck_tile_dispatcher)
+# target_include_directories(dispatcher_conv_bwdw_lib PRIVATE
+#     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+#     ${CMAKE_CURRENT_SOURCE_DIR}/../include
+#     ${CONV_FALLBACK_DIR}
+# )
+# target_compile_options(dispatcher_conv_bwdw_lib PRIVATE
+#     "SHELL:-include ${CONV_BWDW_FALLBACK}"
+#     -DCONV_KERNEL_AVAILABLE=1
+#     -DCONV_BWD_WEIGHT_AVAILABLE=1
+#     -mllvm -enable-noalias-to-md-conversion=0
+#     -Wno-undefined-func-template
+#     -Wno-float-equal
+#     --offload-compress
+# )
+# if(hip_FOUND)
+#     target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE hip::device hip::host)
+# endif()
+# add_dependencies(dispatcher_conv_bwdw_lib generate_conv_fallback_kernels)
 
 # Convenience target to build all Python ctypes libraries
 add_custom_target(python_libs
-    DEPENDS dispatcher_gemm_lib dispatcher_conv_lib dispatcher_conv_bwdw_lib
+    DEPENDS dispatcher_gemm_lib dispatcher_conv_lib
+    # Note: dispatcher_conv_bwdw_lib disabled due to ck_tile transpose_tile2d template issues
     COMMENT "Building all Python ctypes libraries"
 )
 

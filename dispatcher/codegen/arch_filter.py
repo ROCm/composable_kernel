@@ -654,6 +654,24 @@ class ArchFilter:
                     f"got {config.pipeline}"
                 )
 
+        # Conv backward operations only support compv3/mem pipelines
+        # (compv4/compv5 have template issues: transpose_tile2d for bwd_weight,
+        #  get_length for bwd_data in ck_tile kernels)
+        conv_bwd_operators = {
+            OperatorType.CONV_BWD_DATA,
+            OperatorType.CONV_BWD_WEIGHT,
+            OperatorType.CONV3D_BWD_DATA,
+            OperatorType.CONV3D_BWD_WEIGHT,
+        }
+        conv_bwd_supported_pipelines = {"compv3", "mem"}
+        if config.operator in conv_bwd_operators:
+            if config.pipeline not in conv_bwd_supported_pipelines:
+                result.add_error(
+                    f"Conv backward operations require pipeline in "
+                    f"{conv_bwd_supported_pipelines}, got {config.pipeline}. "
+                    f"(compv4/compv5 have ck_tile template compatibility issues)"
+                )
+
         combo = (config.pipeline, config.epilogue, config.scheduler)
         if combo in TRAIT_UNSUPPORTED_COMBINATIONS:
             result.add_error(

@@ -85,6 +85,10 @@ struct ConvKernelKeyHash
 // ConvKernelInstance - Runtime representation of a kernel
 // =============================================================================
 
+// Forward declaration for shared_ptr type alias
+class ConvKernelInstance;
+using ConvKernelInstancePtr = std::shared_ptr<ConvKernelInstance>;
+
 class ConvKernelInstance
 {
     public:
@@ -130,6 +134,13 @@ class ConvRegistry
     };
 
     ConvRegistry() = default;
+
+    /// Singleton instance for global kernel registration
+    static ConvRegistry& instance()
+    {
+        static ConvRegistry registry;
+        return registry;
+    }
 
     void set_name(const std::string& name) { name_ = name; }
     const std::string& name() const { return name_; }

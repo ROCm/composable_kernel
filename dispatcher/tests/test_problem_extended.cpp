@@ -384,7 +384,7 @@ class ProblemDimensionErrorTest : public ::testing::Test
 
 TEST_F(ProblemDimensionErrorTest, KMismatchThrows)
 {
-    EXPECT_THROW(Problem::from_ab(1024, 512, 256, 2048), // K mismatch: 512 vs 256
+    EXPECT_THROW((void)Problem::from_ab(1024, 512, 256, 2048), // K mismatch: 512 vs 256
                  std::invalid_argument);
 }
 
@@ -394,7 +394,7 @@ TEST_F(ProblemDimensionErrorTest, MDimensionMismatchThrows)
     TensorShape B{512, 2048, false};
     TensorShape C{512, 2048, false}; // M mismatch: A says M=1024, C says M=512
 
-    EXPECT_THROW(Problem::from_shapes(A, B, C), std::invalid_argument);
+    EXPECT_THROW((void)Problem::from_shapes(A, B, C), std::invalid_argument);
 }
 
 TEST_F(ProblemDimensionErrorTest, NDimensionMismatchThrows)
@@ -403,7 +403,7 @@ TEST_F(ProblemDimensionErrorTest, NDimensionMismatchThrows)
     TensorShape B{512, 2048, false};
     TensorShape C{1024, 1024, false}; // N mismatch: B says N=2048, C says N=1024
 
-    EXPECT_THROW(Problem::from_shapes(A, B, C), std::invalid_argument);
+    EXPECT_THROW((void)Problem::from_shapes(A, B, C), std::invalid_argument);
 }
 
 // =============================================================================

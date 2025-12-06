@@ -481,7 +481,7 @@ TEST_F(DispatcherRunTest, MultipleRuns)
 
     for(int i = 0; i < 10; i++)
     {
-        dispatcher.run(nullptr, nullptr, nullptr, problem);
+        (void)dispatcher.run(nullptr, nullptr, nullptr, problem);
     }
 
     EXPECT_EQ(kernel_->get_execution_count(), 10);
@@ -495,5 +495,5 @@ TEST_F(DispatcherRunTest, RunWithNoKernelThrows)
     Problem problem(1024, 1024, 1024);
 
     // Should throw when no kernel found
-    EXPECT_THROW(dispatcher.run(nullptr, nullptr, nullptr, problem), std::runtime_error);
+    EXPECT_THROW((void)dispatcher.run(nullptr, nullptr, nullptr, problem), std::runtime_error);
 }

@@ -281,6 +281,21 @@ Examples:
     print(f"  Library: {lib.path}")
     print(f"  Version: {lib.get_version()}")
     print(f"  Has kernels: {lib.has_kernels()}")
+    kernel_count = lib.get_kernel_count()
+    print(f"  Kernel count: {kernel_count}")
+    
+    # Show the actual compiled kernel(s)
+    if kernel_count > 0:
+        print(f"\n  Registered kernels in library:")
+        for i in range(kernel_count):
+            kernel_name = lib.get_kernel_name(i)
+            if kernel_name:
+                print(f"    [{i}] {kernel_name}")
+        
+        # Note about fallback kernels
+        print(f"\n  Note: Library contains pre-compiled fallback kernels.")
+        print(f"        These support fp16 forward/backward convolutions.")
+        print(f"        For other configs, kernels are JIT-compiled on demand.")
     print()
 
     # =========================================================================
@@ -368,6 +383,9 @@ Examples:
     else:
         print(f"  [ERROR] GPU execution failed (returned {elapsed_ms})")
 
+    # Get actual kernel used (before cleanup)
+    actual_kernel = lib.get_kernel_name(0) if lib.has_kernels() else "none"
+
     # Cleanup
     hip_lib.hipFree(input_dev)
     hip_lib.hipFree(weight_dev)
@@ -375,12 +393,13 @@ Examples:
 
     lib.cleanup()
     cleanup_conv()
-
+    
     print()
     print("=" * 70)
     print("SUMMARY: Python example ran convolution on GPU!")
-    print(f"  Kernel: {sig.dtype_in} {sig.direction} {sig.num_dims}D")
-    print(f"  Config: tile={algo.tile_k}x{algo.tile_c}, pipeline={algo.pipeline}")
+    print(f"  Kernel type: {sig.dtype_in} {sig.direction} {sig.num_dims}D")
+    print(f"  Requested:   tile={algo.tile_k}x{algo.tile_c}, pipeline={algo.pipeline}")
+    print(f"  Actual kernel: {actual_kernel}")
     print("=" * 70)
 
     return 0

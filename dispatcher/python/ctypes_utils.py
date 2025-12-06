@@ -675,6 +675,7 @@ class DispatcherLib:
             )
             return None
 
+        # CK_TILE_SINGLE_KERNEL_INCLUDE exports types to global namespace for ctypes binding
         compile_cmd = [
             "/opt/rocm/bin/hipcc",
             "-shared",
@@ -684,6 +685,7 @@ class DispatcherLib:
             f"-I{ck_root / 'include'}",
             f"-I{ck_root}",
             f"-I{root / 'build/generated_kernels'}",
+            "-DCK_TILE_SINGLE_KERNEL_INCLUDE",  # Enable global namespace exports
             f"-include{kernel_header}",
             "-D__HIP_PLATFORM_AMD__",
             "--offload-arch=gfx942",
@@ -1758,6 +1760,22 @@ class CodegenRunner:
         This compiles a new library with exactly the kernel specified.
         Builds to a UNIQUE filename to avoid conflicts with loaded libraries.
 
+        Architecture Note - C++ vs Python Paths:
+        -----------------------------------------
+        C++ Multi-Kernel Path:
+          - Each kernel is in its own namespace (ns_gemm_...)
+          - Multiple kernel headers can be included together
+          - Uses namespace-qualified types: ns_...:SelectedKernel
+          - Does NOT define CK_TILE_SINGLE_KERNEL_INCLUDE
+          - Registration code uses block-scoped type aliases
+
+        Python Single-Kernel JIT Path (this function):
+          - Each library contains exactly ONE kernel
+          - Uses -DCK_TILE_SINGLE_KERNEL_INCLUDE to export types to global namespace
+          - gemm_ctypes_lib.cpp expects: SelectedKernel, KERNEL_NAME, ADataType, etc.
+          - Different configs get different library files (by dtype/layout)
+          - This enables Python to use any kernel config without pre-building all
+
         Returns: Path to new library, or None on failure
         """
         build_dir = get_build_dir()
@@ -1787,6 +1805,8 @@ class CodegenRunner:
         obj_file = lib_path.with_suffix(".o")
 
         # Step 1: Compile source to object
+        # CK_TILE_SINGLE_KERNEL_INCLUDE enables global namespace exports in the kernel header
+        # This exports: SelectedKernel, KERNEL_NAME, ADataType, BDataType, CDataType, AccDataType
         compile_cmd = [
             "/opt/rocm/bin/hipcc",
             "-c",  # Compile only
@@ -1796,10 +1816,11 @@ class CodegenRunner:
             f"-I{ck_root / 'include'}",
             f"-I{ck_root}",
             f"-I{root / 'build/generated_kernels'}",
+            "-DCK_TILE_SINGLE_KERNEL_INCLUDE",  # Enable global namespace exports
             f"-include{kernel_header}",
             "-D__HIP_PLATFORM_AMD__",
             f"--offload-arch={config.gfx_arch}",
-            f"-DAMDGPU_ARCH={config.gfx_arch}",
+            f"-DGFX_ARCH=\"{config.gfx_arch}\"",  # Pass arch as string for gemm_ctypes_lib.cpp
             "-mllvm",
             "-enable-noalias-to-md-conversion=0",
             "-Wno-undefined-func-template",
@@ -2279,7 +2300,7 @@ def setup_gemm_dispatcher(
         if not kernel_header:
             # Generate kernel for the exact config
             log("  Generating kernel for config...")
-            codegen_result = codegen.generate_from_config(config, rebuild_lib=True)
+            codegen_result = codegen.generate_from_config(config, force=True)
             kernel_header = find_matching_kernel_header(config)
             result.kernel_header = kernel_header
 
