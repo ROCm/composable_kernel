@@ -258,9 +258,23 @@ def find_matching_conv_kernel_header(
     """
     Find a conv kernel header that matches the config.
 
-    Uses flexible matching strategies.
+    Kernel filename format:
+    conv_{fwd|bwdd|bwdw}_{dtype}_{layout}_{ndim}d_{pipeline}_{epilogue}_{scheduler}_{tile_m}x{tile_n}x{tile_k}_{wave}_{warp}[_dsb].hpp
+
+    Searches in:
+    - build/generated_kernels/ (JIT-generated kernels)
+    - build/examples/conv_python_fallback/ (pre-compiled fallback kernels)
     """
-    kernel_dir = get_generated_kernels_dir()
+    build_dir = get_build_dir()
+    
+    # Kernel directories to search
+    kernel_dirs = []
+    gen_dir = build_dir / "generated_kernels"
+    if gen_dir.exists():
+        kernel_dirs.append(gen_dir)
+    fallback_dir = build_dir / "examples" / "conv_python_fallback"
+    if fallback_dir.exists():
+        kernel_dirs.append(fallback_dir)
 
     # Map conv_type to prefix
     if conv_type == "forward":
@@ -272,34 +286,25 @@ def find_matching_conv_kernel_header(
     else:
         type_prefix = conv_type
 
-    tile_str = f"{tile_k}x{tile_c}"
     wave_str = f"{wave_m}x{wave_n}x{wave_k}"
 
-    # Strategy 1: Exact match
-    pattern = f"conv_{type_prefix}_{dtype}_{ndim}d_{pipeline}_*_{scheduler}_*{tile_str}*_{wave_str}.hpp"
-    matches = list(kernel_dir.glob(pattern))
-    if matches:
-        return matches[0]
+    # Search patterns in priority order
+    patterns = [
+        # Strategy 1: Match with pipeline, scheduler, wave config
+        f"conv_{type_prefix}_{dtype}_*_{ndim}d_{pipeline}_*_{scheduler}_{tile_k}x{tile_c}*_{wave_str}_*.hpp",
+        # Strategy 2: Match with pipeline and scheduler
+        f"conv_{type_prefix}_{dtype}_*_{ndim}d_{pipeline}_*_{scheduler}_*.hpp",
+        # Strategy 3: Match with just pipeline
+        f"conv_{type_prefix}_{dtype}_*_{ndim}d_{pipeline}_*.hpp",
+        # Strategy 4: Any kernel with matching type/dtype/ndim
+        f"conv_{type_prefix}_{dtype}_*_{ndim}d_*.hpp",
+    ]
 
-    # Strategy 2: Match with just tile
-    pattern = (
-        f"conv_{type_prefix}_{dtype}_{ndim}d_{pipeline}_*_{scheduler}_*{tile_str}*.hpp"
-    )
-    matches = list(kernel_dir.glob(pattern))
-    if matches:
-        return matches[0]
-
-    # Strategy 3: Match with intrawave
-    pattern = f"conv_{type_prefix}_{dtype}_{ndim}d_*_intrawave_*{tile_str}*.hpp"
-    matches = list(kernel_dir.glob(pattern))
-    if matches:
-        return matches[0]
-
-    # Strategy 4: Any kernel with matching type/dtype/ndim
-    pattern = f"conv_{type_prefix}_{dtype}_{ndim}d_*.hpp"
-    matches = list(kernel_dir.glob(pattern))
-    if matches:
-        return matches[0]
+    for pattern in patterns:
+        for kernel_dir in kernel_dirs:
+            matches = list(kernel_dir.glob(pattern))
+            if matches:
+                return matches[0]
 
     return None
 

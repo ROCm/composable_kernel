@@ -224,7 +224,7 @@ Examples:
     if kernel_header:
         print(f"  ✓ Found: {kernel_header.name}")
     else:
-        print("  ⚠ No matching kernel found - library may have different params")
+        print("  ⚠ No matching kernel found in generated_kernels/")
     print()
 
     # =========================================================================
