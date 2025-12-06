@@ -323,6 +323,260 @@ struct UniversalGemmKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
+    struct SplitKBatchOffset
+    {
+        __device__ SplitKBatchOffset(const KernelArgs& kargs, const std::size_t k_id = blockIdx.z)
+        {
+            constexpr auto K1   = GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{});
+            const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
+            const index_t KRead = amd_wave_read_first_lane((kargs.K + K_t - 1) / K_t * K1);
+
+            static_for<0, NumATensor, 1>{}([&](auto index) {
+                using AiLayout = remove_cvref_t<std::tuple_element_t<index.value, AsLayout>>;
+                if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, AiLayout>)
+                {
+                    as_k_split_offset[index] = amd_wave_read_first_lane(k_id * KRead);
+                }
+                else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, AiLayout>)
+                {
+                    as_k_split_offset[index] =
+                        amd_wave_read_first_lane(k_id * KRead * kargs.stride_As[index]);
+                }
+            });
+
+            static_for<0, NumBTensor, 1>{}([&](auto index) {
+                using BiLayout = remove_cvref_t<std::tuple_element_t<index.value, BsLayout>>;
+                if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BiLayout>)
+                {
+                    bs_k_split_offset[index] =
+                        amd_wave_read_first_lane(k_id * KRead * kargs.stride_Bs[index]);
+                }
+                else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BiLayout>)
+                {
+                    bs_k_split_offset[index] = amd_wave_read_first_lane(k_id * KRead);
+                }
+            });
+
+            if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
+            {
+                splitted_k = amd_wave_read_first_lane(KRead);
+            }
+            else
+            {
+                splitted_k = amd_wave_read_first_lane(kargs.K - KRead * (kargs.k_batch - 1));
+            }
+        }
+
+        std::array<index_t, NumATensor> as_k_split_offset;
+        std::array<index_t, NumBTensor> bs_k_split_offset;
+        index_t splitted_k;
+    };
+
+    CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
+    {
+        if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                     is_any_of<EDataType, fp16_t, bf16_t>::value)
+        {
+            if(kargs.k_batch != 1)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Conditions not met for Kbatch >1 !");
+                }
+                return false;
+            }
+        }
+
+        const auto vectorSizeA = is_wave32() ? GemmPipeline::template GetVectorSizeA<true>()
+                                             : GemmPipeline::template GetVectorSizeA<false>();
+        bool AsTesnorIsValid   = {true};
+        static_for<0, NumATensor, 1>{}([&](auto index) {
+            using AiLayout = remove_cvref_t<std::tuple_element_t<index.value, AsLayout>>;
+            if constexpr(std::is_same_v<AiLayout, tensor_layout::gemm::RowMajor>)
+            {
+                if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
+                   GemmPipeline::kPadK == false)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR(
+                            "Can't support K that is not a multiple of k_batch * KPerBlock "
+                            "without padding!");
+                    }
+                    AsTesnorIsValid = false;
+                }
+                if(kargs.K % vectorSizeA != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
+                    }
+                    AsTesnorIsValid = false;
+                }
+            }
+            else
+            {
+                if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR(
+                            "Can't support M that is not a multiple of MPerBlock without padding!");
+                    }
+                    AsTesnorIsValid = false;
+                }
+                if(kargs.M % vectorSizeA != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("M is not a multiple of vector load size for A tensor!");
+                    }
+                    AsTesnorIsValid = false;
+                }
+            }
+        });
+
+        bool BsTesnorIsValid   = {true};
+        const auto vectorSizeB = is_wave32() ? GemmPipeline::template GetVectorSizeB<true>()
+                                             : GemmPipeline::template GetVectorSizeB<false>();
+        static_for<0, NumBTensor, 1>{}([&](auto index) {
+            using BiLayout = remove_cvref_t<std::tuple_element_t<index.value, BsLayout>>;
+            if constexpr(std::is_same_v<BiLayout, tensor_layout::gemm::RowMajor>)
+            {
+                if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR(
+                            "Can't support N that is not a multiple of NPerBlock without padding!");
+                    }
+                    BsTesnorIsValid = false;
+                }
+                if(kargs.N % vectorSizeB != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("N is not a multiple of vector load size for B tensor!");
+                    }
+                    BsTesnorIsValid = false;
+                }
+            }
+            else
+            {
+                if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
+                   GemmPipeline::kPadK == false)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR(
+                            "Can't support K that is not a multiple of k_batch * KPerBlock "
+                            "without padding!");
+                    }
+                    BsTesnorIsValid = false;
+                }
+                if(kargs.K % vectorSizeB != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("K is not a multiple of vector load size for B tensor!");
+                    }
+                    BsTesnorIsValid = false;
+                }
+            }
+        });
+
+        bool DTesnorIsValid = {true};
+        static_for<0, NumDTensor, 1>{}([&](auto index) {
+            using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
+            if(std::is_same_v<DiLayout, CLayout> == false)
+            {
+                DTesnorIsValid = false;
+            }
+            if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+            {
+                if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("Can't support N for tensor D that is not a multiple of "
+                                      "NPerBlock without padding!");
+                    }
+                    DTesnorIsValid = false;
+                }
+                if(kargs.N % EpiloguePipeline::GetVectorSizeD(index) != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("N is not a multiple of vector load size for D tensor!");
+                    }
+                    DTesnorIsValid = false;
+                }
+            }
+            else
+            {
+                if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
+                                      "MPerBlock without padding!");
+                    }
+                    DTesnorIsValid = false;
+                }
+                if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
+                    }
+                    DTesnorIsValid = false;
+                }
+            }
+        });
+
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        {
+            if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR(
+                        "Can't support N that is not a multiple of NPerBlock without padding!");
+                }
+                return false;
+            }
+            if(kargs.N % EpiloguePipeline::GetVectorSizeC() != 0)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("N is not a multiple of vector load size for C tensor!");
+                }
+                return false;
+            }
+        }
+        else
+        {
+            if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR(
+                        "Can't support M that is not a multiple of MPerBlock without padding!");
+                }
+                return false;
+            }
+            if(kargs.M % EpiloguePipeline::GetVectorSizeC() != 0)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("M is not a multiple of vector load size for C tensor!");
+                }
+                return false;
+            }
+        }
+        return AsTesnorIsValid && BsTesnorIsValid && DTesnorIsValid;
+    }
+
     CK_TILE_DEVICE static auto
     MakeABlockWindows(const std::array<const ADataType*, NumATensor>& as_ptr,
                       const KernelArgs& kargs,
@@ -681,260 +935,6 @@ struct UniversalGemmKernel
             {i_m, i_n});
 
         return e_block_window;
-    }
-
-    struct SplitKBatchOffset
-    {
-        __device__ SplitKBatchOffset(const KernelArgs& kargs, const std::size_t k_id = blockIdx.z)
-        {
-            constexpr auto K1   = GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{});
-            const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
-            const index_t KRead = amd_wave_read_first_lane((kargs.K + K_t - 1) / K_t * K1);
-
-            static_for<0, NumATensor, 1>{}([&](auto index) {
-                using AiLayout = remove_cvref_t<std::tuple_element_t<index.value, AsLayout>>;
-                if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, AiLayout>)
-                {
-                    as_k_split_offset[index] = amd_wave_read_first_lane(k_id * KRead);
-                }
-                else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, AiLayout>)
-                {
-                    as_k_split_offset[index] =
-                        amd_wave_read_first_lane(k_id * KRead * kargs.stride_As[index]);
-                }
-            });
-
-            static_for<0, NumBTensor, 1>{}([&](auto index) {
-                using BiLayout = remove_cvref_t<std::tuple_element_t<index.value, BsLayout>>;
-                if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BiLayout>)
-                {
-                    bs_k_split_offset[index] =
-                        amd_wave_read_first_lane(k_id * KRead * kargs.stride_Bs[index]);
-                }
-                else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BiLayout>)
-                {
-                    bs_k_split_offset[index] = amd_wave_read_first_lane(k_id * KRead);
-                }
-            });
-
-            if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
-            {
-                splitted_k = amd_wave_read_first_lane(KRead);
-            }
-            else
-            {
-                splitted_k = amd_wave_read_first_lane(kargs.K - KRead * (kargs.k_batch - 1));
-            }
-        }
-
-        std::array<index_t, NumATensor> as_k_split_offset;
-        std::array<index_t, NumBTensor> bs_k_split_offset;
-        index_t splitted_k;
-    };
-
-    CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
-    {
-        if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                     is_any_of<EDataType, fp16_t, bf16_t>::value)
-        {
-            if(kargs.k_batch != 1)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("Conditions not met for Kbatch >1 !");
-                }
-                return false;
-            }
-        }
-
-        const auto vectorSizeA = is_wave32() ? GemmPipeline::template GetVectorSizeA<true>()
-                                             : GemmPipeline::template GetVectorSizeA<false>();
-        bool AsTesnorIsValid   = {true};
-        static_for<0, NumATensor, 1>{}([&](auto index) {
-            using AiLayout = remove_cvref_t<std::tuple_element_t<index.value, AsLayout>>;
-            if constexpr(std::is_same_v<AiLayout, tensor_layout::gemm::RowMajor>)
-            {
-                if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
-                   GemmPipeline::kPadK == false)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR(
-                            "Can't support K that is not a multiple of k_batch * KPerBlock "
-                            "without padding!");
-                    }
-                    AsTesnorIsValid = false;
-                }
-                if(kargs.K % vectorSizeA != 0)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
-                    }
-                    AsTesnorIsValid = false;
-                }
-            }
-            else
-            {
-                if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR(
-                            "Can't support M that is not a multiple of MPerBlock without padding!");
-                    }
-                    AsTesnorIsValid = false;
-                }
-                if(kargs.M % vectorSizeA != 0)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("M is not a multiple of vector load size for A tensor!");
-                    }
-                    AsTesnorIsValid = false;
-                }
-            }
-        });
-
-        bool BsTesnorIsValid   = {true};
-        const auto vectorSizeB = is_wave32() ? GemmPipeline::template GetVectorSizeB<true>()
-                                             : GemmPipeline::template GetVectorSizeB<false>();
-        static_for<0, NumBTensor, 1>{}([&](auto index) {
-            using BiLayout = remove_cvref_t<std::tuple_element_t<index.value, BsLayout>>;
-            if constexpr(std::is_same_v<BiLayout, tensor_layout::gemm::RowMajor>)
-            {
-                if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR(
-                            "Can't support N that is not a multiple of NPerBlock without padding!");
-                    }
-                    BsTesnorIsValid = false;
-                }
-                if(kargs.N % vectorSizeB != 0)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("N is not a multiple of vector load size for B tensor!");
-                    }
-                    BsTesnorIsValid = false;
-                }
-            }
-            else
-            {
-                if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
-                   GemmPipeline::kPadK == false)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR(
-                            "Can't support K that is not a multiple of k_batch * KPerBlock "
-                            "without padding!");
-                    }
-                    BsTesnorIsValid = false;
-                }
-                if(kargs.K % vectorSizeB != 0)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("K is not a multiple of vector load size for B tensor!");
-                    }
-                    BsTesnorIsValid = false;
-                }
-            }
-        });
-
-        bool DTesnorIsValid = {true};
-        static_for<0, NumDTensor, 1>{}([&](auto index) {
-            using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
-            if(std::is_same_v<DiLayout, CLayout> == false)
-            {
-                DTesnorIsValid = false;
-            }
-            if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
-            {
-                if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("Can't support N for tensor D that is not a multiple of "
-                                      "NPerBlock without padding!");
-                    }
-                    DTesnorIsValid = false;
-                }
-                if(kargs.N % EpiloguePipeline::GetVectorSizeD(index) != 0)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("N is not a multiple of vector load size for D tensor!");
-                    }
-                    DTesnorIsValid = false;
-                }
-            }
-            else
-            {
-                if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
-                                      "MPerBlock without padding!");
-                    }
-                    DTesnorIsValid = false;
-                }
-                if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
-                    }
-                    DTesnorIsValid = false;
-                }
-            }
-        });
-
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-        {
-            if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR(
-                        "Can't support N that is not a multiple of NPerBlock without padding!");
-                }
-                return false;
-            }
-            if(kargs.N % EpiloguePipeline::GetVectorSizeC() != 0)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("N is not a multiple of vector load size for C tensor!");
-                }
-                return false;
-            }
-        }
-        else
-        {
-            if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR(
-                        "Can't support M that is not a multiple of MPerBlock without padding!");
-                }
-                return false;
-            }
-            if(kargs.M % EpiloguePipeline::GetVectorSizeC() != 0)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("M is not a multiple of vector load size for C tensor!");
-                }
-                return false;
-            }
-        }
-        return AsTesnorIsValid && BsTesnorIsValid && DTesnorIsValid;
     }
 
     /**
