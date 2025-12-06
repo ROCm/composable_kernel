@@ -677,18 +677,19 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         {
             ck_tile::HostTensor<BQDataType> bq_shuffle_host =
                 ck_tile::shuffle_bq(bq_tensor_ptr.get(), GemmConfig::K_Tile / QuantGroupSize::kK);
-            printf("Preshuffle BQ tensor\n");
-            for(int i = 0; i < static_cast<int>(bq_shuffle_host.get_lengths()[0]); i++)
-            {
-                for(int j = 0; j < static_cast<int>(bq_shuffle_host.get_lengths()[1]); j++)
-                {
-                    for(int k = 0; k < static_cast<int>(bq_shuffle_host.get_lengths()[2]); k++)
-                    {
-                        printf(
-                            "bq_shuffle_host[%d][%d][%d]: %f\n", i, j, k, bq_shuffle_host(i, j, k));
-                    }
-                }
-            }
+            // printf("Preshuffle BQ tensor\n");
+            // for(int i = 0; i < static_cast<int>(bq_shuffle_host.get_lengths()[0]); i++)
+            // {
+            //     for(int j = 0; j < static_cast<int>(bq_shuffle_host.get_lengths()[1]); j++)
+            //     {
+            //         for(int k = 0; k < static_cast<int>(bq_shuffle_host.get_lengths()[2]); k++)
+            //         {
+            //             printf(
+            //                 "bq_shuffle_host[%d][%d][%d]: %f\n", i, j, k, bq_shuffle_host(i, j,
+            //                 k));
+            //         }
+            //     }
+            // }
             bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
         }
         else

@@ -63,22 +63,22 @@ auto shuffle_bq(const ck_tile::HostTensor<T>* t, int block_bq_k)
         int n_ = lengths[1];
         ck_tile::HostTensor<T> t_view({n_, bqk_dim / block_bq_k, block_bq_k});
         std::copy(t->begin(), t->end(), t_view.begin());
-        printf("I am inside shuffle_bq\n");
-        printf("t_view.get_lengths(): %lu, %lu, %lu\n",
-               t_view.get_lengths()[0],
-               t_view.get_lengths()[1],
-               t_view.get_lengths()[2]);
-        for(int i = 0; i < static_cast<int>(t_view.get_lengths()[0]); i++)
-        {
-            for(int j = 0; j < static_cast<int>(t_view.get_lengths()[1]); j++)
-            {
-                for(int k = 0; k < static_cast<int>(t_view.get_lengths()[2]); k++)
-                {
-                    printf("t_view[%d][%d][%d]: %f\n", i, j, k, t_view(i, j, k));
-                }
-            }
-        }
-        printf("I am inside shuffle_bq\n");
+        // printf("I am inside shuffle_bq\n");
+        // printf("t_view.get_lengths(): %lu, %lu, %lu\n",
+        //        t_view.get_lengths()[0],
+        //        t_view.get_lengths()[1],
+        //        t_view.get_lengths()[2]);
+        // for(int i = 0; i < static_cast<int>(t_view.get_lengths()[0]); i++)
+        // {
+        //     for(int j = 0; j < static_cast<int>(t_view.get_lengths()[1]); j++)
+        //     {
+        //         for(int k = 0; k < static_cast<int>(t_view.get_lengths()[2]); k++)
+        //         {
+        //             printf("t_view[%d][%d][%d]: %f\n", i, j, k, t_view(i, j, k));
+        //         }
+        //     }
+        // }
+        // printf("I am inside shuffle_bq\n");
         return ck_tile::reference_permute(t_view, {1, 0, 2});
     }
 }

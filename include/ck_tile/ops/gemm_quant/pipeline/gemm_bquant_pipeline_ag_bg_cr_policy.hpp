@@ -35,12 +35,12 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BQLayout       = remove_cvref_t<typename Problem::BQLayout>;
         using BlockGemmShape = typename Problem::BlockGemmShape;
 
-        constexpr index_t BlockSize    = Problem::kBlockSize;
-        constexpr index_t NPerBlock    = Problem::BlockGemmShape::kN;
-        constexpr index_t NPerBlockBQ  = NPerBlock / Problem::QuantGroupSize::kN;
-        constexpr index_t KPerBlock    = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockBQ  = KPerBlock / Problem::QuantGroupSize::kK;
-        constexpr index_t VecLoadSize  = GetVectorSizeBQ<Problem>();
+        constexpr index_t BlockSize   = Problem::kBlockSize;
+        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
+        constexpr index_t NPerBlockBQ = NPerBlock / Problem::QuantGroupSize::kN;
+        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlockBQ = KPerBlock / Problem::QuantGroupSize::kK;
+        // constexpr index_t VecLoadSize  = GetVectorSizeBQ<Problem>();
         constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
 
         using WarpTile = typename Problem::BlockGemmShape::WarpTile;
@@ -61,7 +61,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                 BlockSize,
                 NPerBlock / WarpGemm::kN,
                 ck_tile::integer_least_multiple(WarpGemm::kN * KPerBlockBQ, get_warp_size()),
-                VecLoadSize,
+                Problem::QuantGroupSize::kN,
                 PreshuffleQuant>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }

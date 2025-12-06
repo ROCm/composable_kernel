@@ -189,8 +189,8 @@ struct tile_distribution_encoding_pattern_aq_transposed_c
 template <typename BlockGemmShape,
           typename WarpGemm,
           index_t BlockSize,
-          index_t YPerTile,
-          index_t XPerTile,
+          index_t YPerTile, // 4
+          index_t XPerTile, // 64
           index_t YPerQ,
           bool PreshuffleQuant = false>
 struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
@@ -236,41 +236,65 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     {
         if constexpr(PreshuffleQuant)
         {
-            constexpr index_t X1 = warp_size;
-            constexpr index_t X0 = XPerTile / warp_size;
-            constexpr index_t Y1 = NWarps;
-            constexpr index_t Y0 = YPerTile / Y1;
+            // constexpr index_t X1 = warp_size;
+            // constexpr index_t X0 = XPerTile / warp_size;
+            // constexpr index_t Y1 = NWarps;
+            // constexpr index_t Y0 = YPerTile / Y1;
+
+            // return make_static_tile_distribution(
+            //     tile_distribution_encoding<sequence<MWarps>,
+            //                                tuple<sequence<Y0, Y1>, sequence<X0, X1>>,
+            //                                tuple<sequence<0, 1>, sequence<2>>, // (Mwarp, Nwarp),
+            //                                (X1 = warp_size(64)) tuple<sequence<0, 1>,
+            //                                sequence<1>>, sequence<1, 2>,       //(NiterPerWarp,
+            //                                X(threads in x dimension, 1)) sequence<0, 0>>{});
+
+            // constexpr index_t X1 = warp_size; //64
+            constexpr index_t X0 = XPerTile / warp_size;    // 64/64 = 1
+            constexpr index_t X1 = XPerTile / WarpGemm::kN; // 64/16 = 4
+            constexpr index_t X2 = WarpGemm::kN / YPerQ;    // 16/8=2
+            constexpr index_t XR = YPerQ;                   // 8
+            constexpr index_t Y1 = NWarps;                  // 4
+            constexpr index_t Y0 = YPerTile / Y1;           // 1
+            constexpr index_t YR = 1;
 
             return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<MWarps>,
-                                           tuple<sequence<Y0, Y1>, sequence<X0, X1>>,
-                                           tuple<sequence<0, 1>, sequence<2>>,
-                                           tuple<sequence<0, 1>, sequence<1>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 0>>{});
+                tile_distribution_encoding<
+                    sequence<MWarps, XR, YR>,
+                    tuple<sequence<Y0, Y1>, sequence<X0, X1, X2>>,
+                    tuple<sequence<0, 1>, sequence<0, 2, 0>>, // (Mwarp, Nwarp),
+                    tuple<sequence<0, 1>,
+                          sequence<1, 2, 2>>, //(repeat for 8 threads in X direction, X2(no of
+                                              // scales per warp), X1(warp_size/quant_group_size),
+                                              // YR)(8, 2, 4, 1)
+                    sequence<1, 2>,
+                    sequence<0, 0>>{});
         }
         else
         {
             if constexpr(YPerQ < WarpGemm::kN)
             {
                 // Case 1: Fine-grained - multiple quantization scales within a single warp
-                constexpr index_t X  = XPerTile;             // Full X dimension of tile
-                constexpr index_t XR = 1;                    // No Y replication needed
-                constexpr index_t Y0 = NIterPerWarp;         // Iterations per warp in N-dim
-                constexpr index_t Y1 = NWarps;               // Number of warps in N-dim
-                constexpr index_t Y2 = WarpGemm::kN / YPerQ; // Number of scales per warp
-                constexpr index_t YR = YPerQ;                // Elements per quantization group
+                constexpr index_t X  = XPerTile;     // Full X dimension of tile
+                constexpr index_t XR = 1;            // No Y replication needed
+                constexpr index_t Y0 = NIterPerWarp; // Iterations per warp in N-dim
+                constexpr index_t Y1 = NWarps;       // Number of warps in N-dim
+                constexpr index_t Y2 =
+                    WarpGemm::kN / YPerQ;     // Number of scales per warp        16/ 8 = 2
+                constexpr index_t YR = YPerQ; // Elements per quantization group     8
 
                 static_assert(Y0 * Y1 * Y2 == YPerTile,
                               "Y0, Y1, Y2 must cover the blocktile along Y.");
 
                 return make_static_tile_distribution(
-                    tile_distribution_encoding<sequence<MWarps, XR, YR>,
-                                               tuple<sequence<Y0, Y1, Y2>, sequence<X>>,
-                                               tuple<sequence<0, 1>, sequence<0, 1, 0>>,
-                                               tuple<sequence<0, 1>, sequence<1, 2, 2>>,
-                                               sequence<1, 2>,
-                                               sequence<0, 0>>{});
+                    tile_distribution_encoding<
+                        sequence<MWarps, XR, YR>,
+                        tuple<sequence<Y0, Y1, Y2>, sequence<X>>,
+                        tuple<sequence<0, 1>, sequence<0, 1, 0>>, //(Mwarp, Nwarp), (XR, Y2[no of
+                                                                  // scales per warp], YR)
+                        tuple<sequence<0, 1>, sequence<1, 2, 2>>,
+                        sequence<1, 2>, //(NiterPerWarp, X(threads in x dimension))
+                        sequence<0, 0>>{});
             }
             else if constexpr(YPerQ <= WarpGemm::kN * NWarps)
             {
