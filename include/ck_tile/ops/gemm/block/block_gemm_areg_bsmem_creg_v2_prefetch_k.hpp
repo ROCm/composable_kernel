@@ -141,7 +141,7 @@ struct BlockGemmARegBSmemCRegV2PrefetchK
                              {nIter * NPerBlockPerIter, 0 * KPerBlockPerIter});
             b_warp_tensors[I0] = load_tile(b_warp_windows(nIter)(I0));
 
-            __builtin_amdgcn_sched_barrier(0);
+            __builtin_amdgcn_sched_barrier(0x00000001);
 
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 if constexpr(kIter < KIterPerWarp - 1)
@@ -154,7 +154,7 @@ struct BlockGemmARegBSmemCRegV2PrefetchK
                         load_tile(b_warp_windows(nIter)(number<kIter + 1>{}));
                 };
 
-                __builtin_amdgcn_sched_barrier(0);
+                __builtin_amdgcn_sched_barrier(0x00000001);
 
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block tensor
