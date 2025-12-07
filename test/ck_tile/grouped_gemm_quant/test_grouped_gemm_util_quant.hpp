@@ -37,19 +37,6 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
     static constexpr bool Persistent  = std::tuple_element_t<11, Tuple>::value;
     static constexpr bool TransposeC  = std::tuple_element_t<12, Tuple>::value;
 
-    template <typename PrecType, ck_tile::index_t M_Warp_Tile>
-    static constexpr ck_tile::index_t get_k_warp_tile()
-    {
-#if CK_TILE_USE_WMMA
-        return 16;
-#else
-        if(M_Warp_Tile == 32)
-            return sizeof(PrecType) == 1 ? 64 : 32;
-        else // if M_Warp_Tile == 16
-            return sizeof(PrecType) == 1 ? 128 : 64;
-#endif
-    }
-
     struct GroupedGemKernelParam_Mfma
     {
         static const bool kPadM = false;
@@ -67,8 +54,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
 
         static const ck_tile::index_t M_Warp_Tile = 16;
         static const ck_tile::index_t N_Warp_Tile = 16;
-        static const ck_tile::index_t K_Warp_Tile =
-            TestCkTileGroupedGemmQuant::template get_k_warp_tile<BDataType, M_Warp_Tile>();
+        static const ck_tile::index_t K_Warp_Tile = 32;
     };
 
     struct GroupedGemKernelParam_Wmma : public GroupedGemKernelParam_Mfma
