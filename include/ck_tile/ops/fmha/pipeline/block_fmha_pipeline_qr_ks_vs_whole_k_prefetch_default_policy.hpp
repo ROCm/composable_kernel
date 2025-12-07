@@ -24,6 +24,17 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
     };
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetNumPrefetchV()
+    {
+        constexpr index_t k1_loops = Problem::BlockFmhaShape::kN0 / Problem::BlockFmhaShape::kK1;
+
+        // usually kN0 is 128, kK1 is 32/16
+        static_assert(k1_loops >= 2, "Check failed!");
+
+        return 2;
+    };
+
+    template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumKVLdsBuffers()
     {
         return 4;
