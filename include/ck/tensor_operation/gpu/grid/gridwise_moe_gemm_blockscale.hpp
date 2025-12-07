@@ -51,11 +51,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
-        // printf("splitk_batch_offset.a_k_split_offset: %d\n", splitk_batch_offset.a_k_split_offset);
-        // printf("splitk_batch_offset.b_k_split_offset: %d\n", splitk_batch_offset.b_k_split_offset);
-        // printf("splitk_batch_offset.ascale_k_split_offset: %d\n", splitk_batch_offset.ascale_k_split_offset);
-        // printf("splitk_batch_offset.bscale_k_split_offset: %d\n", splitk_batch_offset.bscale_k_split_offset);
-
+        
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             karg.p_sorted_token_ids,
             karg.p_sorted_expert_ids,
@@ -752,23 +748,27 @@ struct GridwiseMoeGemmBlockScale
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
                 a_k_split_offset = k_id * karg.KRead / APackedSize;
+                ascale_k_split_offset = math::integer_divide_floor(a_k_split_offset, ScaleBlockK);
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
                 a_k_split_offset = k_id * karg.KRead * karg.StrideA;
+                ascale_k_split_offset = math::integer_divide_floor(a_k_split_offset, ScaleBlockK);
             }
 
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
                 b_k_split_offset = k_id * karg.KRead * karg.StrideB;
+                bscale_k_split_offset = math::integer_divide_floor(b_k_split_offset, ScaleBlockK);
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
                 // KPack * NLane * KLane * K0 * N0
                 b_k_split_offset = k_id * karg.KRead * NLane / BPackedSize;
+                bscale_k_split_offset = k_id * karg.KRead / ScaleBlockK + k_id * NLane / ScaleBlockN;
             }
-            ascale_k_split_offset = math::integer_divide_ceil(a_k_split_offset, ScaleBlockK);
-            bscale_k_split_offset = math::integer_divide_ceil(b_k_split_offset, ScaleBlockK);
+            
+            
             // if(k_id < karg.KBatch - 1)
             // {
             //     karg.K = karg.KRead;
@@ -1203,7 +1203,7 @@ struct GridwiseMoeGemmBlockScale
                                CElementwiseOperation c_element_op)
     {
         ignore                           = b_element_op;
-        index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N);
+        index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N * (IsInputGemm && IsSplitK ? 2 : 1));
         index_t BK0Shuffled              = CalculateBK0Shuffled(problem.K);
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
@@ -1228,7 +1228,7 @@ struct GridwiseMoeGemmBlockScale
                        math::integer_divide_ceil(problem.K, ScaleBlockK)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
+            make_tuple(math::integer_divide_ceil(problem.N * (IsInputGemm && IsSplitK ? 2 : 1), ScaleBlockN),
                        math::integer_divide_ceil(problem.K, ScaleBlockK)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
 
@@ -1756,7 +1756,7 @@ struct GridwiseMoeGemmBlockScale
             using EDataType = CDataType;
 
             const auto ds_grid_desc_m_n = MakeDsGridDescriptor_M_N(
-                problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideDs);
+                problem.M, problem.MPadded, problem.N * (IsInputGemm && IsSplitK ? 2 : 1), problem.NPadded  * (IsInputGemm && IsSplitK ? 2 : 1), problem.StrideDs);
 
             const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
                 MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
