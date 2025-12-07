@@ -601,7 +601,8 @@ struct MoeFlatmmKernel
         const auto& b_flat_tensor_view = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
                 b_flat_ptr,
-                make_tuple(kFlatN - kargs.n_padded_zeros / NPerXdl, kFlatK),
+                // make_tuple(kFlatN - kargs.n_padded_zeros / NPerXdl, kFlatK),
+                make_tuple(kFlatN, kFlatK),
                 make_tuple(kFlatK, 1),
                 number<FlatmmPipeline::GetVectorSizeB()>{},
                 number<1>{});
