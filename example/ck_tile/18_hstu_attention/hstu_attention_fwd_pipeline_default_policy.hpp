@@ -145,7 +145,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
         using KDataType = remove_cvref_t<typename Problem::QKVDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kK1;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
@@ -199,7 +199,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetKSingleSmemElementSpaceSize()
     {
-        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kK1;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
         constexpr index_t kKPack     = GetSmemKPackK<Problem>();
         constexpr index_t kKVector   = GetAlignmentK<Problem>();
@@ -401,7 +401,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t NumKLdsBuffers = GetNumKVLdsBuffers<Problem>();
-        constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kK1;
+        constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
         constexpr index_t kKPack         = GetSmemKPackK<Problem>();
         constexpr index_t kKVector       = GetAlignmentK<Problem>();
@@ -508,7 +508,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
         using QKVDataType = remove_cvref_t<typename Problem::QKVDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kK1;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(QKVDataType);
@@ -719,7 +719,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
             typename Problem::GemmAccDataType,
             Problem::kNumGemm0Warps * get_warp_size(),
             TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kM0,
-                                   Problem::HstuAttentionTileSetting::kK1,
+                                   Problem::HstuAttentionTileSetting::kN0Sub,
                                    Problem::HstuAttentionTileSetting::kQKHeaddim>,
                           typename Problem::HstuAttentionTileSetting::Gemm0BlockWarps,
                           typename Problem::HstuAttentionTileSetting::Gemm0WarpTile>>;
