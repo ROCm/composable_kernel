@@ -73,9 +73,19 @@ __global__ void naive_conv_bwd_data_ndhwc_kzyxc_ndhwk(TIn* __restrict__ p_in_gra
 
         const TOut* out_n = p_out_grad + static_cast<long_index_t>(n) * out_strides[0];
 
-        // Loop over output channels
-        for(index_t k = 0; k < dims.K; ++k)
+        // For grouped convolutions: determine which group this input channel belongs to
+        // and only sum over output channels in the same group
+        const index_t C_per_group = dims.C / dims.G;
+        const index_t K_per_group = dims.K / dims.G;
+        const index_t group       = c / C_per_group;
+        const index_t k_start     = group * K_per_group;
+        const index_t k_end       = k_start + K_per_group;
+
+        // Loop over output channels in this group
+        for(index_t k_flat = k_start; k_flat < k_end; ++k_flat)
         {
+            // Decompose flat k into per-group k for weight indexing
+            index_t k         = k_flat % K_per_group;
             const TWei* wei_k = p_wei + static_cast<long_index_t>(k) * wei_strides[0];
 
             // Loop over filter dimensions
@@ -117,8 +127,10 @@ __global__ void naive_conv_bwd_data_ndhwc_kzyxc_ndhwk(TIn* __restrict__ p_in_gra
                         const TWei* wei_k_z_y_x    = wei_k_z_y + x * wei_strides[3];
 
                         // Load values from memory
-                        TOut out_loaded = out_n_do_ho_wo[k];
-                        TWei wei_loaded = wei_k_z_y_x[c];
+                        TOut out_loaded = out_n_do_ho_wo[k_flat];
+                        // Weight layout is KZYXGC: need to offset by group*C_per_group + local_c
+                        index_t c_local = c - group * C_per_group;
+                        TWei wei_loaded = wei_k_z_y_x[group * C_per_group + c_local];
 
                         // Apply element-wise operations (like forward does)
                         out_op(out_val, out_loaded);

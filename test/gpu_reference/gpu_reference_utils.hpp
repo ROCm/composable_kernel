@@ -471,6 +471,7 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
     dims.N          = N;
     dims.K          = K;
     dims.C          = C;
+    dims.G          = G;
     dims.Di         = Di;
     dims.Hi         = Hi;
     dims.Wi         = Wi;

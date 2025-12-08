@@ -57,16 +57,26 @@ __global__ void naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ 
 
     for(long_index_t ii = tid; ii < weight_length; ii += num_threads)
     {
-        // Decode linear index to (k, z, y, x, c)
-        const index_t k = ii / wei_strides[0];
-        index_t tmp     = ii - k * wei_strides[0];
+        // Weight layout is KZYXGC: [K_per_group, Z, Y, X, G, C_per_group]
+        // Decode linear index to (k_local, z, y, x, g, c_local)
+        const index_t C_per_group = dims.C / dims.G;
+        const index_t K_per_group = dims.K / dims.G;
+
+        index_t tmp     = ii;
+        const index_t k = tmp / wei_strides[0]; // k_local in [0, K_per_group)
+        tmp -= k * wei_strides[0];
         const index_t z = tmp / wei_strides[1];
         tmp -= z * wei_strides[1];
         const index_t y = tmp / wei_strides[2];
         tmp -= y * wei_strides[2];
         const index_t x = tmp / wei_strides[3];
         tmp -= x * wei_strides[3];
-        const index_t c = tmp;
+        const index_t g = tmp / C_per_group; // Group index
+        const index_t c = tmp % C_per_group; // c_local in [0, C_per_group)
+
+        // Convert to flat indices for input/output access
+        const index_t k_flat = g * K_per_group + k;
+        const index_t c_flat = g * C_per_group + c;
 
         // Always accumulate in float
         float acc_float = 0.0f;
@@ -107,8 +117,8 @@ __global__ void naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ 
                         const TIn* in_ptr   = in_n_di_hi + wi * in_strides[3];
                         const TOut* out_ptr = out_n_do_ho + wo * out_strides[3];
 
-                        TIn in_loaded   = in_ptr[c];
-                        TOut out_loaded = out_ptr[k];
+                        TIn in_loaded   = in_ptr[c_flat];
+                        TOut out_loaded = out_ptr[k_flat];
 
                         // Apply element-wise operations
                         in_op(in_val, in_loaded);

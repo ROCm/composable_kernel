@@ -14,7 +14,7 @@ namespace ref {
 // Replaces passing 24 individual parameters
 struct ConvDims
 {
-    index_t N, K, C;
+    index_t N, K, C, G; // Added G for grouped convolutions
     index_t Di, Hi, Wi;
     index_t Z, Y, X;
     index_t Do, Ho, Wo;

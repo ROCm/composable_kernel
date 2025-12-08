@@ -56,18 +56,29 @@ __global__ void naive_conv_fwd_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
     for(long_index_t ii = tid; ii < output_length; ii += num_threads)
     {
         const index_t n  = ii / out_strides[0];
-        index_t k        = ii - n * out_strides[0];
-        const index_t dO = k / out_strides[1];
-        k -= dO * out_strides[1];
-        const index_t ho = k / out_strides[2];
-        k -= ho * out_strides[2];
-        const index_t wo = k / out_strides[3];
-        k -= wo * out_strides[3];
+        index_t k_flat   = ii - n * out_strides[0];
+        const index_t dO = k_flat / out_strides[1];
+        k_flat -= dO * out_strides[1];
+        const index_t ho = k_flat / out_strides[2];
+        k_flat -= ho * out_strides[2];
+        const index_t wo = k_flat / out_strides[3];
+        k_flat -= wo * out_strides[3];
 
         // Always accumulate in float (FP8/BF8 don't support arithmetic)
         float acc_float = 0.0f;
 
-        const TIn* in_n   = p_in + static_cast<long_index_t>(n) * in_strides[0];
+        const TIn* in_n = p_in + static_cast<long_index_t>(n) * in_strides[0];
+
+        // For grouped convolutions: decompose flat output channel into group and per-group channel
+        const index_t K_per_group = dims.K / dims.G;
+        const index_t C_per_group = dims.C / dims.G;
+        const index_t group       = k_flat / K_per_group;
+        const index_t k           = k_flat % K_per_group;
+        const index_t c_start     = group * C_per_group;
+        const index_t c_end       = c_start + C_per_group;
+
+        // Weight layout is KZYXGC: k*(Z*Y*X*G*C) + z*(Y*X*G*C) + y*(X*G*C) + x*(G*C) + g*C + c
+        // Stride for k is Z*Y*X*G*C_per_group = Z*Y*X*C_total
         const TWei* wei_k = p_wei + static_cast<long_index_t>(k) * wei_strides[0];
 
         for(index_t z = 0; z < dims.Z; ++z)
@@ -91,11 +102,15 @@ __global__ void naive_conv_fwd_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
                     if(di >= 0 && di < dims.Di && hi >= 0 && hi < dims.Hi && wi >= 0 &&
                        wi < dims.Wi)
                     {
-                        for(index_t c = 0; c < dims.C; ++c)
+                        // Only iterate over channels in this group
+                        for(index_t c = c_start; c < c_end; ++c)
                         {
                             // Load values from memory
-                            TIn in_loaded   = in_n_di_hi_wi[c];
-                            TWei wei_loaded = wei_k_z_y_x[c];
+                            TIn in_loaded = in_n_di_hi_wi[c];
+                            // Weight layout is KZYXGC: need to offset by group*C_per_group +
+                            // local_c
+                            index_t c_local = c - c_start;
+                            TWei wei_loaded = wei_k_z_y_x[group * C_per_group + c_local];
 
                             // Apply element-wise operations
                             in_op(in_val, in_loaded);
