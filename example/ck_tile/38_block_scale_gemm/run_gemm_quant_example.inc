@@ -136,12 +136,13 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                 std::conditional_t<GemmConfig::PreshuffleQuant == true,
                                    ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
                                    ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>>,
-                std::conditional_t<GemmConfig::PreshuffleB == true,
-                                   ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
+                std::conditional_t<
+                    GemmConfig::PreshuffleB == true,
+                    ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
                     std::conditional_t<
                         std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>,
-                                       ck_tile::MxFp4GemmPipelineAgBgCrCompV3<PipelineProblem>,
-                                       ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>>;
+                        ck_tile::MxFp4GemmPipelineAgBgCrCompV3<PipelineProblem>,
+                        ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>>;
 
         constexpr bool TiledPermuteN =
             (QuantGroupSize::kN > 1) ? false : GemmConfig::TiledMMAPermuteN;
@@ -150,31 +151,31 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             printf(
                 "TiledPermuteN: %d (QuantGroupSize::kN=%d)\n", TiledPermuteN, QuantGroupSize::kN);
         }
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<typename TypeConfig::ADataType,
-                                             std::conditional_t<
-                                                    std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>,
-                                                    typename TypeConfig::ADataType,
-                                                    typename TypeConfig::BDataType>,
-                                             ck_tile::tuple<>,
-                                             typename TypeConfig::AccDataType,
-                                             typename TypeConfig::CDataType,
-                                             ck_tile::tuple<>,
-                                             CLayout,
-                                             CDEElementWise,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             transpose_c,
-                                             ck_tile::memory_operation_enum::set,
-                                             1,
-                                             false,
-                                             1,
-                                             TiledPermuteN>>;
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+            typename TypeConfig::ADataType,
+            std::conditional_t<
+                std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>,
+                typename TypeConfig::ADataType,
+                typename TypeConfig::BDataType>,
+            ck_tile::tuple<>,
+            typename TypeConfig::AccDataType,
+            typename TypeConfig::CDataType,
+            ck_tile::tuple<>,
+            CLayout,
+            CDEElementWise,
+            TilePartitioner::MPerBlock,
+            TilePartitioner::NPerBlock,
+            GemmConfig::M_Warp,
+            GemmConfig::N_Warp,
+            GemmConfig::M_Warp_Tile,
+            GemmConfig::N_Warp_Tile,
+            GemmConfig::K_Warp_Tile,
+            transpose_c,
+            ck_tile::memory_operation_enum::set,
+            1,
+            false,
+            1,
+            TiledPermuteN>>;
         using Kernel =
             ck_tile::QuantGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, QuantMode>;
 
