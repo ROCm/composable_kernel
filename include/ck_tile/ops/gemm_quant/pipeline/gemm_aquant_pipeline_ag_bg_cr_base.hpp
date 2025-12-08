@@ -20,8 +20,6 @@ struct GemmAQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     using BlockGemmShape = typename Base::BlockGemmShape;
     using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
 
-    using AQLayout = remove_cvref_t<typename Problem::AQLayout>;
-
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
@@ -36,8 +34,6 @@ struct GemmAQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     CK_TILE_DEVICE constexpr auto
     GetAQDramLoadWindow(const AQDramBlockWindowTmp& aq_dram_block_window_tmp) const
     {
-        static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-
         auto aq_copy_dram_window =
             make_tile_window(aq_dram_block_window_tmp.get_bottom_tensor_view(),
                              aq_dram_block_window_tmp.get_window_lengths(),
