@@ -90,6 +90,22 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_gnhwc_gkyxc_gnhwk_f16_instanc
                                                                 PassThrough>>>& instances);
 #endif
 
+#ifdef CK_ENABLE_INT8
+void add_device_grouped_conv2d_fwd_wmma_cshufflev3_gnhwc_gkyxc_gnhwk_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                GNHWC,
+                                                                GKYXC,
+                                                                Empty_Tuple,
+                                                                GNHWK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                Empty_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
+#endif
+
 // grouped conv2d forward, NHWGC/GKYXC/NHWGK
 #ifdef CK_ENABLE_BF16
 void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances(
@@ -334,6 +350,22 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f8_insta
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 F8>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_INT8
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NGCDHW,
+                                                                GKCZYX,
+                                                                Empty_Tuple,
+                                                                NGKDHW,
+                                                                int8_t,
+                                                                int8_t,
+                                                                Empty_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_INT8

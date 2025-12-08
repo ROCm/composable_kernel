@@ -2,12 +2,12 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_wmma_cshufflev3_mem_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_wmma_cshufflev3_instance.hpp"
 #include "ck/utility/filter_tuple.hpp"
 
 namespace ck::tensor_operation::device::instance {
 
-using device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances =
+using device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_intra_instances =
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
@@ -22,58 +22,54 @@ using device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter
                                                                 PassThrough>>>;
 
 template <int Shards, int ShardIndex>
-void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances_shard(
-    device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances& instances)
+void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_intra_instances_shard(
+    device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_intra_instances& instances)
 {
     add_device_operation_instances(
         instances,
         ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_wmma_cshufflev3_int8_mem_instances<2,
+            device_grouped_conv_fwd_wmma_cshufflev3_int8_generic_instances<2,
                                                                        NHWGC,
                                                                        GKYXC,
                                                                        Empty_Tuple,
                                                                        NHWGK,
-                                                                       ConvFwdDefault,
-                                                                       Interwave>,
+                                                                       ConvFwdDefault>,
             Shards,
             ShardIndex>{});
 
     add_device_operation_instances(
         instances,
         ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_wmma_cshufflev3_int8_mem_instances<2,
+            device_grouped_conv_fwd_wmma_cshufflev3_int8_generic_instances<2,
                                                                        NHWGC,
                                                                        GKYXC,
                                                                        Empty_Tuple,
                                                                        NHWGK,
-                                                                       ConvFwd1x1P0,
-                                                                       Interwave>,
+                                                                       ConvFwd1x1P0>,
             Shards,
             ShardIndex>{});
 
     add_device_operation_instances(
         instances,
         ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_wmma_cshufflev3_int8_mem_instances<2,
+            device_grouped_conv_fwd_wmma_cshufflev3_int8_generic_instances<2,
                                                                        NHWGC,
                                                                        GKYXC,
                                                                        Empty_Tuple,
                                                                        NHWGK,
-                                                                       ConvFwd1x1S1P0,
-                                                                       Interwave>,
+                                                                       ConvFwd1x1S1P0>,
             Shards,
             ShardIndex>{});
 
     add_device_operation_instances(
         instances,
         ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_wmma_cshufflev3_int8_mem_instances<2,
+            device_grouped_conv_fwd_wmma_cshufflev3_int8_generic_instances<2,
                                                                        NHWGC,
                                                                        GKYXC,
                                                                        Empty_Tuple,
                                                                        NHWGK,
-                                                                       ConvFwdOddC,
-                                                                       Interwave>,
+                                                                       ConvFwdOddC>,
             Shards,
             ShardIndex>{});
 }

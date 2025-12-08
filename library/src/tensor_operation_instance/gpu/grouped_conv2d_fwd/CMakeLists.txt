@@ -114,6 +114,7 @@ set(GROUPED_CONV2D_FWD
   # GNHWC, GKYXC, GNHWK
   wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_gnhwc_gkyxc_gnhwk_bf16_instance.cpp
   wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_gnhwc_gkyxc_gnhwk_f16_instance.cpp
+  wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_gnhwc_gkyxc_gnhwk_int8_instance.cpp
   # NHWGC, GKYXC, NHWGK
   wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
   wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instance.cpp
@@ -122,9 +123,6 @@ set(GROUPED_CONV2D_FWD
   wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkyxc_ngkhw_bf16_instance.cpp
   wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkyxc_ngkhw_f16_instance.cpp
   wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkyxc_ngkhw_int8_instance.cpp
-
-  #comp
-  wmma/comp/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_comp_instance.cpp
 )
 # Add generated files for sharded instantiations.
 include(ShardInstantiation)
@@ -179,14 +177,6 @@ generate_sharded_instantiations(
 )
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
-  INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances
-  TEMPLATE_FILE wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instance.in
-  NUM_SHARDS 16
-  SRC_LIST GROUPED_CONV2D_FWD
-  OUTPUT_DIR ${GENERATED_DIR}/wmma/mem
-)
-set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_intra_instance.in
   NUM_SHARDS 21
@@ -195,8 +185,8 @@ generate_sharded_instantiations(
 )
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
-  INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances
-  TEMPLATE_FILE wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instance.in
+  INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_intra_instances
+  TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_instance.in
   NUM_SHARDS 16
   SRC_LIST GROUPED_CONV2D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/wmma/mem

@@ -29,7 +29,6 @@
 #include "grouped_convolution_forward_wmma.inc"
 #endif
 #include "grouped_convolution_forward_wmma_cshufflev3.inc"
-#include "grouped_convolution_forward_comp_wmma_cshufflev3.inc"
 #include "grouped_convolution_forward_mem_inter_wmma_cshufflev3.inc"
 #include "grouped_convolution_forward_mem_intra_wmma_cshufflev3.inc"
 #endif
@@ -833,6 +832,15 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
             }
 #endif
+#ifdef CK_ENABLE_INT8
+            if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+                         is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
+                         is_same_v<BComputeType, int8_t>)
+            {
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_gnhwc_gkyxc_gnhwk_int8_instances(
+                    op_ptrs);
+            }
+#endif
         }
 
         // layout NHWGC/GKYXC/NHWGK
@@ -872,12 +880,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 // add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_int8_instances(
                 //     op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_comp_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances(
-                    op_ptrs);
             }
 #endif
         }
@@ -1077,6 +1079,15 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<BComputeType, ck::bhalf_t>)
             {
                 add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_bf16_instances(
+                    op_ptrs);
+            }
+#endif
+#ifdef CK_ENABLE_INT8
+            if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+                         is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
+                         is_same_v<BComputeType, int8_t>)
+            {
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_int8_instances(
                     op_ptrs);
             }
 #endif

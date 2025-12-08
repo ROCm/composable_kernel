@@ -74,6 +74,7 @@ set(GROUPED_CONV3D_FWD
   wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
   wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
   wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_int8_instance.cpp
+  wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_int8_instance.cpp
 )
 # Add generated files for sharded instantiations.
 include(ShardInstantiation)
@@ -183,37 +184,6 @@ generate_sharded_instantiations(
   NUM_SHARDS 16
   SRC_LIST GROUPED_CONV3D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/wmma
-)
-
-generate_sharded_instantiations(
-  INSTANCES_NAME device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_f16_mem_inter_instances
-  TEMPLATE_FILE wmma/mem/device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_f16_mem_inter_instance.in
-  NUM_SHARDS 16
-  SRC_LIST GROUPED_CONV3D_FWD
-  OUTPUT_DIR ${GENERATED_DIR}/wmma/mem
-)
-
-generate_sharded_instantiations(
-  INSTANCES_NAME device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_f16_mem_intra_instances
-  TEMPLATE_FILE wmma/mem/device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_f16_mem_intra_instance.in
-  NUM_SHARDS 16
-  SRC_LIST GROUPED_CONV3D_FWD
-  OUTPUT_DIR ${GENERATED_DIR}/wmma/mem
-)
-
-generate_sharded_instantiations(
-  INSTANCES_NAME device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances
-  TEMPLATE_FILE wmma/comp/device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_comp_instance.in
-  NUM_SHARDS 16
-  SRC_LIST GROUPED_CONV3D_FWD
-  OUTPUT_DIR ${GENERATED_DIR}/wmma/comp
-)
-generate_sharded_instantiations(
-  INSTANCES_NAME device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_f16_comp_instances
-  TEMPLATE_FILE wmma/comp/device_grouped_conv3d_fwd_wmma_cshufflev3_ngcdhw_gkczyx_ngkdhw_f16_comp_instance.in
-  NUM_SHARDS 16
-  SRC_LIST GROUPED_CONV3D_FWD
-  OUTPUT_DIR ${GENERATED_DIR}/wmma/comp
 )
 
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
