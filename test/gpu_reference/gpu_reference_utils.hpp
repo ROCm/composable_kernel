@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/ck.hpp"
+#include "ck/host_utility/hip_check_error.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -98,7 +99,7 @@ bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
         NDimSpatial,
         nullptr);
 
-    (void)hipDeviceSynchronize();
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     // Run CPU reference
     std::vector<long_index_t> strides_long(params.strides.begin(), params.strides.end());
@@ -132,7 +133,7 @@ bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
     // Copy result from device and compare
     Tensor<OutDataType> output_gpu(out_lengths_cpu);
     output_dev.FromDevice(output_gpu.mData.data());
-    (void)hipDeviceSynchronize();
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     // Compare results
     return ck::utils::check_err(output_gpu, output_ref);
@@ -188,7 +189,7 @@ bool test_conv_bwd_data_impl(const ConvParams<NDimSpatial>& params,
         NDimSpatial,
         nullptr);
 
-    (void)hipDeviceSynchronize();
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     // Run CPU reference
     std::vector<long_index_t> strides_long(params.strides.begin(), params.strides.end());
@@ -222,7 +223,7 @@ bool test_conv_bwd_data_impl(const ConvParams<NDimSpatial>& params,
     // Copy result from device and compare
     Tensor<InDataType> input_gpu(in_lengths_cpu);
     input_dev.FromDevice(input_gpu.mData.data());
-    (void)hipDeviceSynchronize();
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     // Compare results
     return ck::utils::check_err(input_gpu, input_ref);
@@ -278,7 +279,7 @@ bool test_conv_bwd_weight_impl(const ConvParams<NDimSpatial>& params,
         NDimSpatial,
         nullptr);
 
-    (void)hipDeviceSynchronize();
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     // Run CPU reference
     std::vector<long_index_t> strides_long(params.strides.begin(), params.strides.end());
@@ -312,7 +313,7 @@ bool test_conv_bwd_weight_impl(const ConvParams<NDimSpatial>& params,
     // Copy result from device and compare
     Tensor<WeiDataType> weight_gpu(wei_lengths_cpu);
     weight_dev.FromDevice(weight_gpu.mData.data());
-    (void)hipDeviceSynchronize();
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     // Compare results
     return ck::utils::check_err(weight_gpu, weight_ref);

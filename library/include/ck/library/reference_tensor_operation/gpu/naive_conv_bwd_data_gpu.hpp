@@ -238,7 +238,7 @@ void conv_bwd_data_with_layouts(TIn* p_in_grad,
     if(needs_input_xform)
     {
         size_t in_size = dims.N * dims.Di * dims.Hi * dims.Wi * dims.C * sizeof(TIn);
-        (void)hipMalloc(&p_in_grad_naive, in_size);
+        HIP_CHECK_ERROR(hipMalloc(&p_in_grad_naive, in_size));
     }
     else
     {
@@ -248,7 +248,7 @@ void conv_bwd_data_with_layouts(TIn* p_in_grad,
     if(needs_weight_xform)
     {
         size_t wei_size = dims.K * dims.Z * dims.Y * dims.X * dims.C * sizeof(TWei);
-        (void)hipMalloc(&p_wei_naive, wei_size);
+        HIP_CHECK_ERROR(hipMalloc(&p_wei_naive, wei_size));
     }
     else
     {
@@ -258,7 +258,7 @@ void conv_bwd_data_with_layouts(TIn* p_in_grad,
     if(needs_output_xform)
     {
         size_t out_size = dims.N * dims.Do * dims.Ho * dims.Wo * dims.K * sizeof(TOut);
-        (void)hipMalloc(&p_out_grad_naive, out_size);
+        HIP_CHECK_ERROR(hipMalloc(&p_out_grad_naive, out_size));
     }
     else
     {
@@ -312,15 +312,15 @@ void conv_bwd_data_with_layouts(TIn* p_in_grad,
     // Step 7: Free temporary buffers
     if(needs_input_xform)
     {
-        (void)hipFree(p_in_grad_naive);
+        HIP_CHECK_ERROR(hipFree(p_in_grad_naive));
     }
     if(needs_weight_xform)
     {
-        (void)hipFree(p_wei_naive);
+        HIP_CHECK_ERROR(hipFree(p_wei_naive));
     }
     if(needs_output_xform)
     {
-        (void)hipFree(p_out_grad_naive);
+        HIP_CHECK_ERROR(hipFree(p_out_grad_naive));
     }
 }
 

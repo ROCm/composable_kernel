@@ -6,6 +6,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
+#include "ck/host_utility/hip_check_error.hpp"
 
 namespace ck {
 namespace ref {
@@ -140,11 +141,13 @@ void launch_generic_transpose(const DataType* src,
     // Allocate device memory for dims and perm arrays
     ck::index_t* d_dims;
     int* d_perm;
-    (void)hipMalloc(&d_dims, dims.size() * sizeof(ck::index_t));
-    (void)hipMalloc(&d_perm, perm.size() * sizeof(int));
+    HIP_CHECK_ERROR(hipMalloc(&d_dims, dims.size() * sizeof(ck::index_t)));
+    HIP_CHECK_ERROR(hipMalloc(&d_perm, perm.size() * sizeof(int)));
 
-    (void)hipMemcpy(d_dims, dims.data(), dims.size() * sizeof(ck::index_t), hipMemcpyHostToDevice);
-    (void)hipMemcpy(d_perm, perm.data(), perm.size() * sizeof(int), hipMemcpyHostToDevice);
+    HIP_CHECK_ERROR(
+        hipMemcpy(d_dims, dims.data(), dims.size() * sizeof(ck::index_t), hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(
+        hipMemcpy(d_perm, perm.data(), perm.size() * sizeof(int), hipMemcpyHostToDevice));
 
     // Launch kernel
     constexpr int block_size = 256;
@@ -163,8 +166,8 @@ void launch_generic_transpose(const DataType* src,
                        total);
 
     // Free device memory
-    (void)hipFree(d_dims);
-    (void)hipFree(d_perm);
+    HIP_CHECK_ERROR(hipFree(d_dims));
+    HIP_CHECK_ERROR(hipFree(d_perm));
 }
 
 } // namespace layout_transform
