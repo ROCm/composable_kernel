@@ -17,11 +17,13 @@ TEST(ReferenceValidation, Can_Call_Reference_Run_Method)
 {
     // Test: Can we call Run() method on reference kernel?
 
-    constexpr ConvSignature sig{.spatial_dim           = 2,
-                                .direction             = ConvDirection::FORWARD,
-                                .layout                = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
-                                .data_type             = DataType::FP16,
-                                .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
+    constexpr ConvSignature sig{.spatial_dim            = 2,
+                                .direction              = ConvDirection::FORWARD,
+                                .data_type              = DataType::FP16,
+                                .accumulation_data_type = DataType::FP32,
+                                .input  = {.config = {.layout = TensorLayout::GNHWC}},
+                                .weight = {.config = {.layout = TensorLayout::GKYXC}},
+                                .output = {.config = {.layout = TensorLayout::GNHWK}}};
 
     constexpr auto ref_alg = ConvAlgorithm_Reference{};
     using RefKernel        = ConvBuilder<sig, ref_alg>::Instance;
@@ -78,11 +80,13 @@ TEST(ReferenceValidation, Compare_Reference_vs_Optimized_Forward_2D_FP16)
     // Test: Can we compare reference vs optimized kernel?
 
     // Define problem
-    constexpr ConvSignature sig{.spatial_dim           = 2,
-                                .direction             = ConvDirection::FORWARD,
-                                .layout                = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
-                                .data_type             = DataType::FP16,
-                                .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
+    constexpr ConvSignature sig{.spatial_dim            = 2,
+                                .direction              = ConvDirection::FORWARD,
+                                .data_type              = DataType::FP16,
+                                .accumulation_data_type = DataType::FP32,
+                                .input  = {.config = {.layout = TensorLayout::GNHWC}},
+                                .weight = {.config = {.layout = TensorLayout::GKYXC}},
+                                .output = {.config = {.layout = TensorLayout::GNHWK}}};
 
     // Reference algorithm
     constexpr auto ref_alg = ConvAlgorithm_Reference{};

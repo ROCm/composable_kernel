@@ -20,7 +20,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ReferenceForwardFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Types                         = internal::ConvTensorTypes<SIGNATURE.data_type>;
+    using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
 
     using InDataType  = typename Types::ADataType;
     using WeiDataType = typename Types::BDataType;

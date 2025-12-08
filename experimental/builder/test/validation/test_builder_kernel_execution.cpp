@@ -22,11 +22,13 @@ TEST(BuilderKernelExecution, Can_Execute_Optimized_Forward_2D_FP16)
     // Goal: Run Builder-generated optimized kernel (not reference!)
 
     // Copy pattern from test_ckb_conv_fwd_2d_fp16.cpp
-    constexpr ConvSignature TestSig{.spatial_dim           = 2,
-                                    .direction             = ConvDirection::FORWARD,
-                                    .layout                = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
-                                    .data_type             = DataType::FP16,
-                                    .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
+    constexpr ConvSignature TestSig{.spatial_dim            = 2,
+                                    .direction              = ConvDirection::FORWARD,
+                                    .data_type              = DataType::FP16,
+                                    .accumulation_data_type = DataType::FP32,
+                                    .input  = {.config = {.layout = TensorLayout::GNHWC}},
+                                    .weight = {.config = {.layout = TensorLayout::GKYXC}},
+                                    .output = {.config = {.layout = TensorLayout::GNHWK}}};
 
     // Builder generates optimized kernel
     constexpr auto TestAlg =
@@ -132,11 +134,13 @@ TEST(BuilderKernelExecution, Validate_Optimized_vs_Reference_Forward_2D_FP16)
     // Test: Compare Builder-generated kernel vs GPU reference
     // This validates Builder's code generation is correct!
 
-    constexpr ConvSignature TestSig{.spatial_dim           = 2,
-                                    .direction             = ConvDirection::FORWARD,
-                                    .layout                = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
-                                    .data_type             = DataType::FP16,
-                                    .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
+    constexpr ConvSignature TestSig{.spatial_dim            = 2,
+                                    .direction              = ConvDirection::FORWARD,
+                                    .data_type              = DataType::FP16,
+                                    .accumulation_data_type = DataType::FP32,
+                                    .input  = {.config = {.layout = TensorLayout::GNHWC}},
+                                    .weight = {.config = {.layout = TensorLayout::GKYXC}},
+                                    .output = {.config = {.layout = TensorLayout::GNHWK}}};
 
     // Reference algorithm
     constexpr auto ref_alg = ConvAlgorithm_Reference{};
