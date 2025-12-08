@@ -802,8 +802,45 @@ struct MoeFlatmmKernel
         constexpr int XDLPerLoadScaleB =
             MXFP4_Pipeline ? 4 : 1; // GranularityK32 / XDL16x16x32_K8 = 4
 
+        const auto scale_view = [&]() {
+            const auto& v0 = views.at(I3);
+            // if constexpr(IsGateUp)
+            if constexpr(false)
+            {
+                const auto N = v0.get_tensor_descriptor().get_length(I0);
+                const auto K = v0.get_tensor_descriptor().get_length(I1);
+
+                auto v_unmerge = transform_tensor_view(
+                    v0,
+                    make_tuple(make_unmerge_transform(make_tuple(number<2>{}, N / 2)),
+                               make_unmerge_transform(make_tuple(K / 2, number<2>{}))),
+                    make_tuple(sequence<0>{}, sequence<1>{}),
+                    make_tuple(sequence<0, 1>{}, sequence<2, 3>{}));
+
+                auto v_permute = transform_tensor_view(
+                    v_unmerge,
+                    make_tuple(make_pass_through_transform(N / 2),
+                               make_pass_through_transform(number<2>{}),
+                               make_pass_through_transform(K / 2),
+                               make_pass_through_transform(number<2>{})),
+                    make_tuple(sequence<1>{}, sequence<3>{}, sequence<2>{}, sequence<0>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
+
+                return transform_tensor_view(
+                    v_permute,
+                    make_tuple(make_merge_transform(make_tuple(N / 2, number<2>{})),
+                               make_merge_transform(make_tuple(K / 2, number<2>{}))),
+                    make_tuple(sequence<0, 1>{}, sequence<2, 3>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
+            else
+            {
+                return v0;
+            }
+        }();
+
         auto scale_block_window =
-            make_tile_window(views.at(I3),
+            make_tile_window(scale_view,
                              make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
                                         number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
                                                XDLPerLoadScaleB / GranularityK>{}),
