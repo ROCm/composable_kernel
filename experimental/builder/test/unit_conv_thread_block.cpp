@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <gtest/gtest.h>
-#include "ck_tile/builder/factory/helpers/conv_thread_block.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_thread_block.hpp"
 
 namespace {
 

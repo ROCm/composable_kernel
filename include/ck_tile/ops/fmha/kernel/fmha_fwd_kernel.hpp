@@ -73,54 +73,6 @@ struct FmhaFwdKernel
 #endif
     static constexpr std::string_view kPipelineName = FmhaPipeline::name;
 
-    // clang-format off
-    template <typename T1, typename T2 = T1> struct t2s;
-    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
-    template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
-    template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
-    template <> struct t2s<ck_tile::fp8_t> { static constexpr const char * name = "fp8"; };
-    template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
-    template <> struct t2s<ck_tile::fp8_t, ck_tile::bf16_t> { static constexpr const char * name = "fp8bf16"; };
-    template <> struct t2s<ck_tile::fp8_t, ck_tile::fp32_t> { static constexpr const char * name = "fp8fp32"; };
-    // clang-format on
-
-    CK_TILE_HOST static std::string GetName()
-    {
-        // sync with generate.py
-        // clang-format off
-        using bfs = typename FmhaPipeline::BlockFmhaShape;
-        using g0br = typename bfs::Gemm0BlockWarps;
-        using g1br = typename bfs::Gemm1BlockWarps;
-        using g0wt = typename bfs::Gemm0WarpTile;
-        using g1wt = typename bfs::Gemm1WarpTile;
-        #define _SS_  std::string
-        #define _TS_  std::to_string
-        auto pn = [&] () {
-            std::string n;
-            if (kPadSeqLenQ) n += "s";
-            if (kPadSeqLenK) n += "sk";
-            if (kPadHeadDimQ) n += "d";
-            if (kPadHeadDimV) n += "dv";
-            return n.empty() ? n : std::string("p") + n; }();
-        return
-            _SS_("fmha_fwd_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType, ODataType>::name) +
-            "_" + (kIsGroupMode ? "group" : "batch") + "_"
-            "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
-                    _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kQKHeaddim) + "_" +
-            "r" + _TS_(g0br::at(ck_tile::number<0>{})) + "x" + _TS_(g0br::at(ck_tile::number<1>{})) + "x" + _TS_(g0br::at(ck_tile::number<2>{})) + "_" +
-            "r" + _TS_(g1br::at(ck_tile::number<0>{})) + "x" + _TS_(g1br::at(ck_tile::number<1>{})) + "x" + _TS_(g1br::at(ck_tile::number<2>{})) + "_" +
-            "w" + _TS_(g0wt::at(ck_tile::number<0>{})) + "x" + _TS_(g0wt::at(ck_tile::number<1>{})) + "x" + _TS_(g0wt::at(ck_tile::number<2>{})) + "_" +
-            "w" + _TS_(g1wt::at(ck_tile::number<0>{})) + "x" + _TS_(g1wt::at(ck_tile::number<1>{})) + "x" + _TS_(g1wt::at(ck_tile::number<2>{})) + "_" +
-            (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
-            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) +
-            (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) + (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
-            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) + (kSkipMinSeqlenQ ? "_skip" : "_nskip" ) +
-            (QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE ? _SS_("_nqscale") : (_SS_("_") + BlockAttentionQuantScaleEnumToStr<QScaleEnum>::name)) + (kUseTrLoad ? "_trload" : "_ntrload");
-        #undef _SS_
-        #undef _TS_
-        // clang-format on
-    }
-
     template <ck_tile::index_t I> // to avoid duplicated base class prblem, introduce an template
                                   // arg
     struct FmhaFwdEmptyKargs

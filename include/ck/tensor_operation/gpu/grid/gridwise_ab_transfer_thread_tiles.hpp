@@ -31,6 +31,8 @@ template <typename ABLayout,
           bool ABThreadTransferSrcResetCoordinateAfterRun>
 struct ABTransferThreadTiles
 {
+    __device__ static constexpr bool IsLDSNeeded() { return true; }
+
     static constexpr auto ABK0Number = Number<KPerBlock / ABK1Value>{};
     static constexpr auto ABK1Number = Number<ABK1Value>{};
 
@@ -292,7 +294,8 @@ struct ABTransferThreadTiles
     __device__ static auto GetBlockTransfer(GridDescriptor& grid_descriptor,
                                             BlockDescriptor& block_descriptor,
                                             ABElementwiseOperation& ab_element_op,
-                                            const index_t block_mn_id)
+                                            const index_t block_mn_id,
+                                            const index_t)
     {
         constexpr index_t NumABTensor = ABsDataType::Size();
         const index_t mn_block_data_idx_on_grid =
@@ -478,6 +481,12 @@ struct ABTransferThreadTiles
         // K dimension size. This should always be called with the A matrix grid descriptor
         // because it doesn't work for B matrix when packed int4 is used
         return grid_desc.GetLength(I0) * grid_desc.GetLength(I2);
+    }
+
+    template <typename LDSType, typename IndexType>
+    __device__ static auto GetBuffer(LDSType* p_shared_AB, const IndexType& size)
+    {
+        return make_dynamic_buffer<AddressSpaceEnum::Lds>(p_shared_AB, size);
     }
 };
 
