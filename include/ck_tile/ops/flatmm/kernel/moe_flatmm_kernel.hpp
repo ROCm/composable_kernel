@@ -804,8 +804,7 @@ struct MoeFlatmmKernel
 
         const auto scale_view = [&]() {
             const auto& v0 = views.at(I3);
-            // if constexpr(IsGateUp)
-            if constexpr(false)
+            if constexpr(IsGateUp)
             {
                 const auto N = v0.get_tensor_descriptor().get_length(I0);
                 const auto K = v0.get_tensor_descriptor().get_length(I1);
