@@ -205,6 +205,19 @@ template <auto SIGNATURE>
     requires ValidUniqueInputs<SIGNATURE>
 UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args);
 
+/// @brief Allocate inputs corresponding to a signature.
+///
+/// The `init_inputs()` function is used to initialize pseudo-random data
+/// to the tensors specified in the Inputs structure.
+///
+/// @tparam SIGNATURE the signature to specialize the structure for.
+///
+/// @see Inputs
+/// @see UniqueInputs
+template <auto SIGNATURE>
+    requires ValidUniqueInputs<SIGNATURE>
+UniqueInputs<SIGNATURE> init_inputs(const Args<SIGNATURE>& args);
+
 /// @brief Allocate outputs corresponding to a signature.
 ///
 /// The `alloc_outputs()` function is used to create an instance of
