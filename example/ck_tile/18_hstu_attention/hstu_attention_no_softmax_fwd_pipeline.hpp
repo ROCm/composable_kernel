@@ -460,7 +460,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
             // check whether first V-LdsBufer overlap with last K-LdsBuffer,
             // this does not occur when k1_loops == 2 and NumKVLdsBuffers == 4
-            if constexpr((k1_loops - 1) % NumKVLdsBuffers == 2 % NumKVLdsBuffers)
+            if constexpr((n0_loops - 1) % NumKVLdsBuffers == 2 % NumKVLdsBuffers)
             {
                 __builtin_amdgcn_s_barrier();
             };

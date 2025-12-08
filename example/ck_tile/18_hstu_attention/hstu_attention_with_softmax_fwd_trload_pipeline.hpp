@@ -214,9 +214,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
         using k_tile_type = decltype(load_tile(k_dram_window));
 
-        constexpr index_t NumPrefetchK = (k1_loops <= 3) ? 1 : 2;
+        constexpr index_t NumPrefetchK = (n0_loops <= 3) ? 1 : 2;
 
-        static_assert(k1_loops >= NumPrefetchK, "Check failed!");
+        static_assert(n0_loops >= NumPrefetchK, "Check failed!");
 
         static_assert(k1_loops >= 2,
                       "k1_loops >= 2 required due to pre-storing two v_tiles to Lds");
@@ -224,8 +224,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
         // only prefetch two k tiles to save vgprs consumption
         statically_indexed_array<k_tile_type, NumPrefetchK> k_tiles;
 
-        static_for<0, NumPrefetchK, 1>{}([&](auto i_k1) {
-            k_tiles[i_k1] = load_tile(k_dram_window);
+        static_for<0, NumPrefetchK, 1>{}([&](auto i_n0) {
+            k_tiles[i_n0] = load_tile(k_dram_window);
             move_tile_window(k_dram_window, {kN0Sub, 0});
         });
 
@@ -485,7 +485,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
-            static_for<min(NumPrefetchK, k1_loops), k1_loops, 1>{}([&](auto i_k1) {
+            static_for<NumPrefetchK, k1_loops, 1>{}([&](auto i_k1) {
                 // load v_tiles used in current iteration
                 v_tiles[i_k1] = load_tile(v_dram_window);
                 move_tile_window(v_dram_window, {kK1, 0});
