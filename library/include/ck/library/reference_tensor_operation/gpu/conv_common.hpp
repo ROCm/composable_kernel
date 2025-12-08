@@ -5,6 +5,7 @@
 #define CONV_COMMON_HPP
 
 #include "ck/ck.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 
 namespace ck {
 namespace ref {

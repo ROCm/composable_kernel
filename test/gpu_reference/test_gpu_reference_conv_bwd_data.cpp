@@ -8,41 +8,42 @@ using namespace ck;
 using ck::test::ConvKernelType;
 using ck::test::ConvParams;
 
-TEST(GpuReferenceConvFwd, Conv2DFP16Small)
+TEST(GpuReferenceConvBwdData, Conv2DFP16Small)
 {
     auto params = test::conv_test_shapes::get_2d_small();
     bool result =
-        test::test_conv_gpu_ref<2, half_t, half_t, half_t>(params, ConvKernelType::Forward);
+        test::test_conv_gpu_ref<2, half_t, half_t, half_t>(params, ConvKernelType::BackwardData);
     EXPECT_TRUE(result);
 }
 
-TEST(GpuReferenceConvFwd, Conv2DFP32Medium)
+TEST(GpuReferenceConvBwdData, Conv2DFP32Medium)
 {
     auto params = test::conv_test_shapes::get_2d_medium();
-    bool result = test::test_conv_gpu_ref<2, float, float, float>(params, ConvKernelType::Forward);
+    bool result =
+        test::test_conv_gpu_ref<2, float, float, float>(params, ConvKernelType::BackwardData);
     EXPECT_TRUE(result);
 }
 
-TEST(GpuReferenceConvFwd, Conv1DFP16)
+TEST(GpuReferenceConvBwdData, Conv1DFP16)
 {
     auto params = test::conv_test_shapes::get_1d();
     bool result =
-        test::test_conv_gpu_ref<1, half_t, half_t, half_t>(params, ConvKernelType::Forward);
+        test::test_conv_gpu_ref<1, half_t, half_t, half_t>(params, ConvKernelType::BackwardData);
     EXPECT_TRUE(result);
 }
 
-TEST(GpuReferenceConvFwd, Conv3DFP16Small)
+TEST(GpuReferenceConvBwdData, Conv3DFP16Small)
 {
     auto params = test::conv_test_shapes::get_3d_small();
     bool result =
-        test::test_conv_gpu_ref<3, half_t, half_t, half_t>(params, ConvKernelType::Forward);
+        test::test_conv_gpu_ref<3, half_t, half_t, half_t>(params, ConvKernelType::BackwardData);
     EXPECT_TRUE(result);
 }
 
-TEST(GpuReferenceConvFwd, Conv2DFP16Stride2)
+TEST(GpuReferenceConvBwdData, Conv2DFP16Stride2)
 {
     auto params = test::conv_test_shapes::get_2d_stride2();
     bool result =
-        test::test_conv_gpu_ref<2, half_t, half_t, half_t>(params, ConvKernelType::Forward);
+        test::test_conv_gpu_ref<2, half_t, half_t, half_t>(params, ConvKernelType::BackwardData);
     EXPECT_TRUE(result);
 }
