@@ -238,6 +238,8 @@ UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args)
     };
 }
 
+
+
 /// @brief `alloc_outputs()` specialization for forward convolution.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
