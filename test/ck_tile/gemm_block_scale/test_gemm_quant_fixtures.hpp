@@ -433,7 +433,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
         if constexpr(PreshuffleB)
         {
-            if constexpr(TiledMMAPermuteN)
+            if constexpr(TiledMMAPermuteN && QuantGroupSize::kN == 1)
             {
                 printf("PreshuffleB with TiledMMAPermuteN\n");
                 b_k_n_dev = ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
@@ -451,11 +451,11 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
 
-        if constexpr(PreshuffleB && TiledMMAPermuteN)
+        if constexpr(PreshuffleB && TiledMMAPermuteN && QuantGroupSize::kN == 1)
         {
             printf("Preshuffle BQ with TiledMMAPermuteN \n");
             ck_tile::HostTensor<QDataType> bq_shuffle_host =
-                ck_tile::bq_permuteN<GemmConfig>(bq_bqk_bqn);
+                ck_tile::bq_permuteN<GemmConfig>(bq_bqk_bqn, QuantGroupSize::kN);
             bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
         }
         else if constexpr(GemmConfig::PreshuffleQuant)

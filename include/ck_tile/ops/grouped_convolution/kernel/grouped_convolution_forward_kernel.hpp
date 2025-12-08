@@ -594,25 +594,27 @@ struct GroupedConvolutionForwardKernel
     {
         constexpr auto NumGroupsToMerge = GroupedConvTraitsType_::NumGroupsToMerge;
         // clang-format off
-        if (NumGroupsToMerge > 1) {
-            return concat('_', "grouped_convolution_forward", 
-                gemm_prec_str<InDataType, WeiDataType>(), 
-                "gemm",
-                GemmPipeline::GetName(),
-                "epilogue",
-                EpiloguePipeline::GetName(),
-                "merge",
-                NumGroupsToMerge);
-        } else {
-            return concat('_', "grouped_convolution_forward", 
-                gemm_prec_str<InDataType, WeiDataType>(), 
-                "gemm",
-                GemmPipeline::GetName(),
-                "epilogue",
-                EpiloguePipeline::GetName());
-        }
+        return concat('_', "grouped_convolution_forward", 
+            gemm_prec_str<InDataType, WeiDataType>(), 
+            InLayout::name,
+            WeiLayout::name,
+            OutLayout::name,
+            "gemm",
+            GemmPipeline::GetName(),
+            "epilogue",
+            EpiloguePipeline::GetName(),
+            getConvSpecializationString(ConvSpecialization),
+            "MergedGroups",
+            NumGroupsToMerge,
+            "SplitImage",
+            EnableSplitImage,
+            "ExplicitGemm",
+            GroupedConvTraitsType_::ExplicitGemm
+        );
         // clang-format on
     }
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetTypeString() { return GetName(); }
 
 #ifdef CK_EXPERIMENTAL_BUILDER
     CK_TILE_HOST std::string GetInstanceString() const

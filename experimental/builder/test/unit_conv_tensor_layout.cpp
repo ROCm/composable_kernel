@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <type_traits>
 
-#include "ck_tile/builder/factory/helpers/conv_tensor_layout.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
 #include "impl/conv_signature_types.hpp"
 
 namespace {
