@@ -30,16 +30,14 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkyxc_ngkhw_f16_instanc
                                                                       Empty_Tuple,
                                                                       NGKHW,
                                                                       ConvFwdDefault>{});
-
-    // Gives wrong results!
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_f16_nchw_instances<2,
-                                                                   NGCHW,
-                                                                   GKYXC,
-                                                                   Empty_Tuple,
-                                                                   NGKHW,
-                                                                   ConvFwd1x1S1P0>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_f16_generic_instances<2,
+                                                                      NGCHW,
+                                                                      GKYXC,
+                                                                      Empty_Tuple,
+                                                                      NGKHW,
+                                                                      ConvFwd1x1S1P0>{});
 }
 
 } // namespace instance

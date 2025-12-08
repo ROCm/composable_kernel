@@ -39,10 +39,5 @@ add_instance_library(device_grouped_conv2d_fwd_clamp_instance
 
    # WMMA CSHUFFLE V3
    wmma/device_grouped_conv2d_fwd_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
-
    wmma/device_grouped_conv2d_fwd_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_fp16_instance.cpp
-   wmma/device_grouped_conv2d_fwd_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_fp16_16x16_instance.cpp
-   wmma/mem/device_grouped_conv2d_fwd_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_fp16_mem_intra_instance.cpp
-   wmma/mem/device_grouped_conv2d_fwd_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_fp16_mem_inter_instance.cpp
-   wmma/comp/device_grouped_conv2d_fwd_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_fp16_comp_instance.cpp
 )

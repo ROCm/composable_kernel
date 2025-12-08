@@ -28,7 +28,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_instanc
     add_device_operation_instances(
         instances,
         ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_wmma_cshufflev3_f16_instances<2,
+            device_grouped_conv_fwd_wmma_cshufflev3_f16_generic_instances<2,
                                                                   NGCHW,
                                                                   GKCYX,
                                                                   Empty_Tuple,
@@ -39,7 +39,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_instanc
     add_device_operation_instances(
         instances,
         ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_wmma_cshufflev3_f16_instances<2,
+            device_grouped_conv_fwd_wmma_cshufflev3_f16_generic_instances<2,
                                                                   NGCHW,
                                                                   GKCYX,
                                                                   Empty_Tuple,
@@ -50,7 +50,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_instanc
     add_device_operation_instances(
         instances,
         ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_wmma_cshufflev3_f16_instances<2,
+            device_grouped_conv_fwd_wmma_cshufflev3_f16_generic_instances<2,
                                                                   NGCHW,
                                                                   GKCYX,
                                                                   Empty_Tuple,
@@ -61,7 +61,7 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_instanc
     add_device_operation_instances(
         instances,
         ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_wmma_cshufflev3_f16_nchw_instances<2,
+            device_grouped_conv_fwd_wmma_cshufflev3_f16_generic_instances<2,
                                                                        NGCHW,
                                                                        GKCYX,
                                                                        Empty_Tuple,
