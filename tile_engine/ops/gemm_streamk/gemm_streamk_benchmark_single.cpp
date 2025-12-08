@@ -83,10 +83,10 @@ void benchmark_gemm_single(const ck_tile::ArgParser& arg_parser)
 {
     // Use DataTypeTraits to get the actual type names from the generated header
     // The generated header defines ADataType, BDataType, AccDataType, CDataType
-    std::string dtype_a   = DataTypeTraits<ADataType>::name;
-    std::string dtype_b   = DataTypeTraits<BDataType>::name;
-    std::string dtype_acc = DataTypeTraits<AccDataType>::name;
-    std::string dtype_c   = DataTypeTraits<CDataType>::name;
+    std::string dtype_a   = ck_tile::DataTypeTraits<ADataType>::name;
+    std::string dtype_b   = ck_tile::DataTypeTraits<BDataType>::name;
+    std::string dtype_acc = ck_tile::DataTypeTraits<AccDataType>::name;
+    std::string dtype_c   = ck_tile::DataTypeTraits<CDataType>::name;
 
     // Layout names from the layout types
     std::string layout_a = ALayout::name;

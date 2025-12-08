@@ -600,6 +600,19 @@ struct SimplifiedRatioAttentionMask
     mdiv y_ratio_mdiv;
 };
 
+template <typename>
+struct is_generic_attention_mask : std::false_type
+{
+};
+
+template <bool IsMasking, bool IsLocal>
+struct is_generic_attention_mask<GenericAttentionMask<IsMasking, IsLocal>> : std::true_type
+{
+};
+
+template <typename Mask>
+static constexpr bool is_generic_attention_mask_v = is_generic_attention_mask<Mask>::value;
+
 // TODO: prefer use this function in host code
 // can convert from the FA style left/right to our generic coordinate
 // if left_size < 0 && right_size = 0, it is normal causal mask
