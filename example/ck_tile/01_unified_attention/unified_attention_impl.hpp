@@ -104,7 +104,7 @@ struct unified_attention_kernel_traits
     static constexpr bool is_masking = IsMasking;
 
     static constexpr index_t BLOCK_M    = 256;
-    static constexpr index_t BLOCK_SIZE = 32;
+    static constexpr index_t BLOCK_SIZE = (FP8Mode != 0) ? 64 : 32;
     static constexpr index_t HEAD_SIZE  = 128;
 
     // TODO please fix this to support also other num_queries_per_kv

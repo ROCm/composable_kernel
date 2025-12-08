@@ -100,6 +100,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
         constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
+        // returns 16 (bytes are loaded togather -> 16 fp8 or 8 fp16 or 4 fp32/dword)
 
         static_assert(WarpSize * KVector >= kKPerBlock && WarpSize * KVector % kKPerBlock == 0);
         constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
@@ -286,8 +287,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
 
         // Follow the V type for this gemm
         using GemmProblem =
-            BlockGemmProblem<typename Problem::VDataType,
-                             typename Problem::PDataType,
+            BlockGemmProblem<typename Problem::PDataType,
+                             typename Problem::VDataType,
                              typename Problem::OaccDataType,
                              Problem::kBlockSize,
                              TileGemmShape<sequence<Problem::UnifiedAttentionShape::BLOCK_M,
@@ -297,40 +298,50 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                            typename Problem::UnifiedAttentionShape::Gemm1WarpTile>>;
         /// NOTICE: in order to use load_tile_transpose() later for V tiles, we have to pass
         /// WGAttrNumAccessEnum::Double instead of WGAttrNumAccessEnum::Single
-        using WarpGemm = decltype([]() {
-            if constexpr(std::is_same_v<typename Problem::VDataType, fp8_t>)
-            {
-                return WarpGemmDispatcher<
-                    typename Problem::VDataType,
-                    typename Problem::PDataType,
-                    typename Problem::OaccDataType,
-                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
-                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
-                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
-                    true,
-                    false,
-                    false,
-                    WGAttrNumAccessEnum::Single>{};
-            }
-            else
-            {
-                return WarpGemmDispatcher<
-                    typename Problem::VDataType,
-                    typename Problem::PDataType,
-                    typename Problem::OaccDataType,
-                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
-                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
-                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
-                    true,
-                    false,
-                    false,
-                    WGAttrNumAccessEnum::Double>{};
-            }
-        }());
-
+        // using WarpGemm = decltype([]() {
+        //     if constexpr(std::is_same_v<typename Problem::VDataType, fp8_t>)
+        //     {
+        //         return WarpGemmDispatcher<
+        //             typename Problem::PDataType,
+        //             typename Problem::VDataType,
+        //             typename Problem::OaccDataType,
+        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
+        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
+        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
+        //             true,
+        //             false,
+        //             false,
+        //             WGAttrNumAccessEnum::Single>{};
+        //     }
+        //     else
+        //     {
+        //         return WarpGemmDispatcher<
+        //             typename Problem::PDataType,
+        //             typename Problem::VDataType,
+        //             typename Problem::OaccDataType,
+        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
+        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
+        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
+        //             true,
+        //             false,
+        //             false,
+        //             WGAttrNumAccessEnum::Double>{};
+        //     }
+        // }());
+        using WarpGemm =
+            WarpGemmDispatcher<typename Problem::PDataType,
+                               typename Problem::VDataType,
+                               typename Problem::OaccDataType,
+                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
+                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
+                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
+                               true,
+                               false,
+                               false,
+                               WGAttrNumAccessEnum::Single>;
         using BlockGemmPolicy = BlockGemmARegBRegCRegV2CustomPolicy<
-            typename Problem::VDataType,
             typename Problem::PDataType,
+            typename Problem::VDataType,
             typename Problem::OaccDataType,
             typename Problem::UnifiedAttentionShape::Gemm1BlockWarps,
             WarpGemm,
@@ -436,20 +447,6 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                                     number<1>{}),
                                          number<KPack>{},
                                          number<1>{});
-
-        // Debug: verify constexpr components
-        // constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
-
-        static_assert(kNPerBlock > 0, "kNPerBlock must be constexpr");
-        static_assert(LaneGroups > 0, "LaneGroups must be constexpr");
-        static_assert(NumWarps > 0, "NumWarps must be constexpr");
-
-        // static_assert(NumIssues > 0, "NumIssues must be constexpr");
-        static_assert(LaneGroups > 0, "LaneGroups must be constexpr");
-        static_assert(NumWarps > 0, "NumWarps must be constexpr");
-        static_assert(kKPerBlock > 0, "kKPerBlock must be constexpr");
-        static_assert(KPack > 0 && kKPerBlock % KPack == 0,
-                      "KPack must be constexpr and divide kKPerBlock");
 
         constexpr auto k_lds_block_desc = transform_tensor_descriptor(
             k_lds_block_desc_0,

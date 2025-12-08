@@ -235,6 +235,16 @@ CK_TILE_DEVICE bf16x2_t cvt_pk_bf16_f32(float a, float b)
     return result;
 }
 
+CK_TILE_DEVICE fp8x4_t cvt_pk_fp8_f32(float b0, float b1, float b2, float b3)
+{
+    fp8x4_t result;
+    asm volatile("v_cvt_pk_fp8_f32 %0, %1, %2\n"
+                 "v_cvt_pk_fp8_f32 %0, %3, %4, op_sel:[0, 0, 1]\n"
+                 : "=v"(result)
+                 : "v"(b0), "v"(b1), "v"(b2), "v"(b3));
+    return result;
+}
+
 CK_TILE_DEVICE fp32x2_t pk_mul_f32(fp32x2_t lhs, fp32x2_t rhs)
 {
     fp32x2_t result;
@@ -274,7 +284,8 @@ struct UnifiedAttentionPipeline
     static constexpr ck_tile::index_t HEAD_SIZE        = UnifiedAttentionShape::HEAD_SIZE;
     static constexpr ck_tile::index_t HEAD_SIZE_PADDED = UnifiedAttentionShape::HEAD_SIZE_PADDED;
     static constexpr auto QuantEnum                    = Problem::QuantEnum;
-
+    static constexpr bool dequantkv = QuantEnum != UnifiedAttentionQuantScaleEnum::NO_SCALE &&
+                                      !std::is_same_v<QDataType, KDataType>;
     static_assert(HEAD_SIZE_PADDED <= 256,
                   "hdim bigger than 256 is not suitable for this pipeline!");
 
@@ -307,9 +318,10 @@ struct UnifiedAttentionPipeline
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         // create another LDS buffer for p
-        return ck_tile::max(BLOCK_M * HEAD_SIZE_PADDED * sizeof(PDataType),
-                            Policy::template GetSmemSize<Problem>() +
-                                BLOCK_M * BLOCK_SIZE * sizeof(PDataType));
+        return ck_tile::max(sizeof(SaccDataType) * BLOCK_SIZE * BLOCK_M,
+                            ck_tile::max(BLOCK_M * HEAD_SIZE_PADDED * sizeof(PDataType),
+                                         Policy::template GetSmemSize<Problem>() +
+                                             BLOCK_M * BLOCK_SIZE * sizeof(PDataType)));
     }
 
     // for debug only
@@ -410,9 +422,6 @@ struct UnifiedAttentionPipeline
         static_assert(!(std::is_same_v<QDataType, fp8_t> && !std::is_same_v<QDataType, fp8_t>));
 
         static_assert((std::is_same_v<KDataType, VDataType>));
-
-        const bool dequantkv = QuantEnum == UnifiedAttentionQuantScaleEnum::NO_SCALE &&
-                               !std::is_same_v<QDataType, KDataType>;
 
         static_assert(
             BLOCK_M == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
@@ -798,23 +807,45 @@ struct UnifiedAttentionPipeline
             /// result 'p' is only consumed later. To anchor them here, we rewrite
             /// the cast_tile() call as inline assembly, forcing the conversions to be
             /// emitted at this point.
-            static_assert(sp(sp_reg_idx).p.thread_buf_.size() % 2 == 0);
-            static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 2>{}([&](auto idx) {
-                float x = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx]);
-                float y = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 1]);
-                if constexpr(std::is_same_v<PDataType, fp16_t>)
-                {
-                    auto casted                           = detail::cvt_pk_fp16_f32(x, y);
+            if constexpr(std::is_same_v<PDataType, fp8_t>)
+            {
+                static_assert(sp(sp_reg_idx).p.thread_buf_.size() % 4 == 0);
+                static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 4>{}([&](auto idx) {
+                    float a = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx]);
+                    float b =
+                        p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 1]);
+                    float c =
+                        p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 2]);
+                    float d =
+                        p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 3]);
+                    auto casted                           = detail::cvt_pk_fp8_f32(a, b, c, d);
                     sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
                     sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
-                }
-                else
-                {
-                    auto casted                           = detail::cvt_pk_bf16_f32(x, y);
-                    sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
-                    sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
-                }
-            });
+                    sp(sp_reg_idx).p.thread_buf_[idx + 2] = casted.z;
+                    sp(sp_reg_idx).p.thread_buf_[idx + 3] = casted.w;
+                });
+            }
+            else
+            {
+                static_assert(sp(sp_reg_idx).p.thread_buf_.size() % 2 == 0);
+                static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 2>{}([&](auto idx) {
+                    float x = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx]);
+                    float y =
+                        p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 1]);
+                    if constexpr(std::is_same_v<PDataType, fp16_t>)
+                    {
+                        auto casted                           = detail::cvt_pk_fp16_f32(x, y);
+                        sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
+                        sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
+                    }
+                    else
+                    {
+                        auto casted                           = detail::cvt_pk_bf16_f32(x, y);
+                        sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
+                        sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
+                    }
+                });
+            }
 
             /// Note: Place fmha_alu1() at the end of the phase. The surrounding inline assembly
             /// can interfere with the behavior of sched_group_barrier(), so ending the phase here

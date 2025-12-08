@@ -1117,4 +1117,6 @@ CK_TILE_DEVICE
 bf8_t log(bf8_t x) { return static_cast<bf8_t>(__logf(static_cast<float>(x))); };
 #endif
 
+using fp8x4_t = fp8_t __attribute__((ext_vector_type(4)));
+
 } // namespace ck_tile
