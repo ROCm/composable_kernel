@@ -74,193 +74,97 @@ extract_conv_dims(const ConvParam& conv_param, ck::index_t NDimSpatial, bool app
 namespace ref {
 namespace layout_transform {
 
-// Input transformation: GNCDHW <-> NDHWGC (supports grouped convolutions)
+// Generic transpose kernel using permutation array
+// Permutation format: dst_dim[i] comes from src_dim[perm[i]]
+// Example: GNCDHW -> NDHWGC uses perm = [1, 3, 4, 5, 0, 2]
+//   dst[0]=src[1]=N, dst[1]=src[3]=D, dst[2]=src[4]=H,
+//   dst[3]=src[5]=W, dst[4]=src[0]=G, dst[5]=src[2]=C
 template <typename DataType>
-__global__ void transform_input_GNCDHW_to_NDHWGC(const DataType* __restrict__ src,
-                                                 DataType* __restrict__ dst,
-                                                 ck::index_t G,
-                                                 ck::index_t N,
-                                                 ck::index_t C,
-                                                 ck::index_t D,
-                                                 ck::index_t H,
-                                                 ck::index_t W)
+__global__ void generic_transpose(const DataType* __restrict__ src,
+                                  DataType* __restrict__ dst,
+                                  const ck::index_t* dims, // Source dimension lengths [num_dims]
+                                  const int* perm,         // Permutation [num_dims]
+                                  int num_dims,
+                                  ck::index_t total_elements)
 {
-    ck::index_t total = G * N * C * D * H * W;
-    ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
+    constexpr int MAX_DIMS = 8; // Support up to 8 dimensions
 
-    if(idx < total)
+    ck::index_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if(idx >= total_elements)
+        return;
+
+    // Decode source linear index to multi-dimensional indices
+    ck::index_t src_indices[MAX_DIMS];
+    ck::index_t tmp = idx;
+    for(int i = num_dims - 1; i >= 0; --i)
     {
-        // Calculate indices in GNCDHW layout (source)
-        ck::index_t w = idx % W;
-        ck::index_t h = (idx / W) % H;
-        ck::index_t d = (idx / (W * H)) % D;
-        ck::index_t c = (idx / (W * H * D)) % C;
-        ck::index_t n = (idx / (W * H * D * C)) % N;
-        ck::index_t g = idx / (W * H * D * C * N);
-
-        // Calculate linear index in NDHWGC layout (destination)
-        // NDHWGC: n*(D*H*W*G*C) + d*(H*W*G*C) + h*(W*G*C) + w*(G*C) + g*C + c
-        ck::index_t dst_idx = (((((n * D + d) * H + h) * W + w) * G + g) * C + c);
-
-        dst[dst_idx] = src[idx];
+        src_indices[i] = tmp % dims[i];
+        tmp /= dims[i];
     }
+
+    // Apply permutation: dst_indices[i] = src_indices[perm[i]]
+    // Also compute destination dimensions: dst_dims[i] = src_dims[perm[i]]
+    ck::index_t dst_indices[MAX_DIMS];
+    ck::index_t dst_dims[MAX_DIMS];
+    for(int i = 0; i < num_dims; ++i)
+    {
+        dst_indices[i] = src_indices[perm[i]];
+        dst_dims[i]    = dims[perm[i]];
+    }
+
+    // Encode destination multi-dimensional indices to linear index
+    ck::index_t dst_idx = 0;
+    ck::index_t stride  = 1;
+    for(int i = num_dims - 1; i >= 0; --i)
+    {
+        dst_idx += dst_indices[i] * stride;
+        stride *= dst_dims[i];
+    }
+
+    dst[dst_idx] = src[idx];
 }
 
+// Helper wrapper to launch generic transpose with device memory for arrays
 template <typename DataType>
-__global__ void transform_input_NDHWGC_to_GNCDHW(const DataType* __restrict__ src,
-                                                 DataType* __restrict__ dst,
-                                                 ck::index_t G,
-                                                 ck::index_t N,
-                                                 ck::index_t C,
-                                                 ck::index_t D,
-                                                 ck::index_t H,
-                                                 ck::index_t W)
+void launch_generic_transpose(const DataType* src,
+                              DataType* dst,
+                              const std::vector<ck::index_t>& dims,
+                              const std::vector<int>& perm,
+                              hipStream_t stream = nullptr)
 {
-    ck::index_t total = G * N * C * D * H * W;
-    ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
+    // Calculate total elements
+    ck::index_t total = 1;
+    for(auto d : dims)
+        total *= d;
 
-    if(idx < total)
-    {
-        // Calculate indices in NDHWGC layout (source)
-        ck::index_t c = idx % C;
-        ck::index_t g = (idx / C) % G;
-        ck::index_t w = (idx / (C * G)) % W;
-        ck::index_t h = (idx / (C * G * W)) % H;
-        ck::index_t d = (idx / (C * G * W * H)) % D;
-        ck::index_t n = idx / (C * G * W * H * D);
+    // Allocate device memory for dims and perm arrays
+    ck::index_t* d_dims;
+    int* d_perm;
+    (void)hipMalloc(&d_dims, dims.size() * sizeof(ck::index_t));
+    (void)hipMalloc(&d_perm, perm.size() * sizeof(int));
 
-        // Calculate linear index in GNCDHW layout (destination)
-        // GNCDHW: g*(N*C*D*H*W) + n*(C*D*H*W) + c*(D*H*W) + d*(H*W) + h*W + w
-        ck::index_t dst_idx = (((((g * N + n) * C + c) * D + d) * H + h) * W + w);
+    (void)hipMemcpy(d_dims, dims.data(), dims.size() * sizeof(ck::index_t), hipMemcpyHostToDevice);
+    (void)hipMemcpy(d_perm, perm.data(), perm.size() * sizeof(int), hipMemcpyHostToDevice);
 
-        dst[dst_idx] = src[idx];
-    }
-}
+    // Launch kernel
+    constexpr int block_size = 256;
+    int grid_size            = (total + block_size - 1) / block_size;
 
-// Weight transformation: GKCZYX <-> KZYXGC (supports grouped convolutions)
-template <typename DataType>
-__global__ void transform_weight_GKCZYX_to_KZYXGC(const DataType* __restrict__ src,
-                                                  DataType* __restrict__ dst,
-                                                  ck::index_t G,
-                                                  ck::index_t K,
-                                                  ck::index_t C,
-                                                  ck::index_t Z,
-                                                  ck::index_t Y,
-                                                  ck::index_t X)
-{
-    ck::index_t total = G * K * C * Z * Y * X;
-    ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
+    hipLaunchKernelGGL(generic_transpose<DataType>,
+                       dim3(grid_size),
+                       dim3(block_size),
+                       0,
+                       stream,
+                       src,
+                       dst,
+                       d_dims,
+                       d_perm,
+                       static_cast<int>(dims.size()),
+                       total);
 
-    if(idx < total)
-    {
-        // Calculate indices in GKCZYX layout (source)
-        ck::index_t x = idx % X;
-        ck::index_t y = (idx / X) % Y;
-        ck::index_t z = (idx / (X * Y)) % Z;
-        ck::index_t c = (idx / (X * Y * Z)) % C;
-        ck::index_t k = (idx / (X * Y * Z * C)) % K;
-        ck::index_t g = idx / (X * Y * Z * C * K);
-
-        // Calculate linear index in KZYXGC layout (destination)
-        // KZYXGC: k*(Z*Y*X*G*C) + z*(Y*X*G*C) + y*(X*G*C) + x*(G*C) + g*C + c
-        ck::index_t dst_idx = (((((k * Z + z) * Y + y) * X + x) * G + g) * C + c);
-
-        dst[dst_idx] = src[idx];
-    }
-}
-
-template <typename DataType>
-__global__ void transform_weight_KZYXGC_to_GKCZYX(const DataType* __restrict__ src,
-                                                  DataType* __restrict__ dst,
-                                                  ck::index_t G,
-                                                  ck::index_t K,
-                                                  ck::index_t C,
-                                                  ck::index_t Z,
-                                                  ck::index_t Y,
-                                                  ck::index_t X)
-{
-    ck::index_t total = G * K * C * Z * Y * X;
-    ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if(idx < total)
-    {
-        // Calculate indices in KZYXGC layout (source)
-        ck::index_t c = idx % C;
-        ck::index_t g = (idx / C) % G;
-        ck::index_t x = (idx / (C * G)) % X;
-        ck::index_t y = (idx / (C * G * X)) % Y;
-        ck::index_t z = (idx / (C * G * X * Y)) % Z;
-        ck::index_t k = idx / (C * G * X * Y * Z);
-
-        // Calculate linear index in GKCZYX layout (destination)
-        // GKCZYX: g*(K*C*Z*Y*X) + k*(C*Z*Y*X) + c*(Z*Y*X) + z*(Y*X) + y*X + x
-        ck::index_t dst_idx = (((((g * K + k) * C + c) * Z + z) * Y + y) * X + x);
-
-        dst[dst_idx] = src[idx];
-    }
-}
-
-// Output transformation: GNKDHW <-> NDHWGK (supports grouped convolutions)
-template <typename DataType>
-__global__ void transform_output_GNKDHW_to_NDHWGK(const DataType* __restrict__ src,
-                                                  DataType* __restrict__ dst,
-                                                  ck::index_t G,
-                                                  ck::index_t N,
-                                                  ck::index_t K,
-                                                  ck::index_t D,
-                                                  ck::index_t H,
-                                                  ck::index_t W)
-{
-    ck::index_t total = G * N * K * D * H * W;
-    ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if(idx < total)
-    {
-        // Calculate indices in GNKDHW layout (source)
-        ck::index_t w = idx % W;
-        ck::index_t h = (idx / W) % H;
-        ck::index_t d = (idx / (W * H)) % D;
-        ck::index_t k = (idx / (W * H * D)) % K;
-        ck::index_t n = (idx / (W * H * D * K)) % N;
-        ck::index_t g = idx / (W * H * D * K * N);
-
-        // Calculate linear index in NDHWGK layout (destination)
-        // NDHWGK: n*(D*H*W*G*K) + d*(H*W*G*K) + h*(W*G*K) + w*(G*K) + g*K + k
-        ck::index_t dst_idx = (((((n * D + d) * H + h) * W + w) * G + g) * K + k);
-
-        dst[dst_idx] = src[idx];
-    }
-}
-
-template <typename DataType>
-__global__ void transform_output_NDHWGK_to_GNKDHW(const DataType* __restrict__ src,
-                                                  DataType* __restrict__ dst,
-                                                  ck::index_t G,
-                                                  ck::index_t N,
-                                                  ck::index_t K,
-                                                  ck::index_t D,
-                                                  ck::index_t H,
-                                                  ck::index_t W)
-{
-    ck::index_t total = G * N * K * D * H * W;
-    ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if(idx < total)
-    {
-        // Calculate indices in NDHWGK layout (source)
-        ck::index_t k = idx % K;
-        ck::index_t g = (idx / K) % G;
-        ck::index_t w = (idx / (K * G)) % W;
-        ck::index_t h = (idx / (K * G * W)) % H;
-        ck::index_t d = (idx / (K * G * W * H)) % D;
-        ck::index_t n = idx / (K * G * W * H * D);
-
-        // Calculate linear index in GNKDHW layout (destination)
-        // GNKDHW: g*(N*K*D*H*W) + n*(K*D*H*W) + k*(D*H*W) + d*(H*W) + h*W + w
-        ck::index_t dst_idx = (((((g * N + n) * K + k) * D + d) * H + h) * W + w);
-
-        dst[dst_idx] = src[idx];
-    }
+    // Free device memory
+    (void)hipFree(d_dims);
+    (void)hipFree(d_perm);
 }
 
 } // namespace layout_transform
