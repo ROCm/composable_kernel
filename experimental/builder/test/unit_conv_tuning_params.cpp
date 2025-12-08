@@ -3,7 +3,7 @@
 
 #include <gtest/gtest.h>
 
-#include "ck_tile/builder/factory/helpers/conv_tuning_params.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tuning_params.hpp"
 
 namespace {
 
