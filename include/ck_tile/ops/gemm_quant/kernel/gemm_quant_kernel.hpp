@@ -747,7 +747,6 @@ struct QuantGemmKernel
                                          (splitk_batch_offset.splitted_k /
                                           GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{}));
                         index_t kFlatN = kargs.N * kargs.K / kFlatK;
-
                         return make_naive_tensor_view<address_space_enum::global>(
                             b_ptr,
                             make_tuple(kFlatN, kFlatK),
