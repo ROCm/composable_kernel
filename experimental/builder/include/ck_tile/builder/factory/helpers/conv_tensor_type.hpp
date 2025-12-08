@@ -65,17 +65,17 @@ consteval auto GetTensorDataAndComputeTypes()
     constexpr auto data_type    = Config.data_type;
     constexpr auto compute_type = Config.compute_type;
 
-    if constexpr(data_type == DataType::UNDEFINDED && compute_type == DataType::UNDEFINDED)
+    if constexpr(data_type == DataType::UNDEFINED && compute_type == DataType::UNDEFINED)
     {
         return std::make_pair(ConvertDataTypeToCK<SignatureDataType>(),
                               ConvertDataTypeToCK<SignatureDataType>());
     }
-    else if constexpr(data_type == DataType::UNDEFINDED)
+    else if constexpr(data_type == DataType::UNDEFINED)
     {
         return std::make_pair(ConvertDataTypeToCK<SignatureDataType>(),
                               ConvertDataTypeToCK<compute_type>());
     }
-    else if constexpr(compute_type == DataType::UNDEFINDED)
+    else if constexpr(compute_type == DataType::UNDEFINED)
     {
         return std::make_pair(ConvertDataTypeToCK<data_type>(),
                               ConvertDataTypeToCK<SignatureDataType>());
@@ -91,7 +91,7 @@ template <DataType SignatureAccDataType, DataType SignatureDataType>
 consteval auto GetTensorAccumulationType()
 {
     constexpr auto data_type = SignatureAccDataType;
-    if constexpr(data_type == DataType::UNDEFINDED)
+    if constexpr(data_type == DataType::UNDEFINED)
     {
         return ConvertDataTypeToCK<SignatureDataType>();
     }
@@ -105,7 +105,7 @@ template <auto Config, DataType SignatureDataType>
 consteval auto GetAuxiliaryTensorDataTypeValue()
 {
     constexpr auto data_type = Config.data_type;
-    if constexpr(data_type == DataType::UNDEFINDED)
+    if constexpr(data_type == DataType::UNDEFINED)
     {
         return ConvertDataTypeToCK<SignatureDataType>();
     }

@@ -14,8 +14,8 @@ struct TensorConfig
 {
     TensorLayout layout;
     // Optional data types, override the type defined in the signature if provided.
-    DataType data_type{DataType::UNDEFINDED};
-    DataType compute_type{DataType::UNDEFINDED};
+    DataType data_type{DataType::UNDEFINED};
+    DataType compute_type{DataType::UNDEFINED};
 };
 
 template <TensorConfig... Configs>

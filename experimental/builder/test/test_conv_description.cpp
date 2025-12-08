@@ -30,8 +30,8 @@ static_assert(!ckb::TensorOperatorDescriptor<InvalidTensorOp>);
 struct TensorConfig
 {
     ckb::TensorLayout layout;
-    ckb::DataType data_type{ckb::DataType::UNDEFINDED};
-    ckb::DataType compute_type{ckb::DataType::UNDEFINDED};
+    ckb::DataType data_type{ckb::DataType::UNDEFINED};
+    ckb::DataType compute_type{ckb::DataType::UNDEFINED};
 };
 
 struct ConvTensorSimple

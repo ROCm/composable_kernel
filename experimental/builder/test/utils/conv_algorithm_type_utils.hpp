@@ -108,8 +108,7 @@ inline std::string to_string<GridwiseWmmaGemm>(GridwiseWmmaGemm t)
         << t.m_per_wmma << ","
         << t.n_per_wmma << ","
         << t.m_wmma_per_wave << ","
-        << t.n_wmma_per_wave << ","
-        << to_string(t.pipeline_version);
+        << t.n_wmma_per_wave;
     return oss.str();
 }
 
@@ -141,8 +140,8 @@ inline std::string to_string<LdsTransfer>(LdsTransfer t)
     oss << t.src_vector_dim << ","
         << t.src_scalar_per_vector << ","
         << t.lds_dst_scalar_per_vector << ","
-        << (t.is_direct_load ? "1" : "0") << ","
-        << (t.lds_padding ? "1" : "0");
+        << (t.lds_padding ? "1" : "0") << ","
+        << (t.is_direct_load ? "true" : "false");
     return oss.str();
 }
 
@@ -191,8 +190,7 @@ template<>
 inline std::string to_string<DlThreadConfig>(DlThreadConfig t)
 {
     std::ostringstream oss;
-    oss << t.k0_per_block << ","
-        << t.k1 << ","
+    oss << t.k1 << ","
         << t.m1_per_thread << ","
         << t.n1_per_thread << ","
         << t.k_per_thread;
@@ -226,9 +224,9 @@ template<>
 inline std::string to_string<DlEpilogue>(DlEpilogue t)
 {
     std::ostringstream oss;
-    oss << t.src_dst_vector_dim << ","
-        << t.dst_scalar_per_vector << ","
-        << array_to_seq(t.src_dst_access_order);
+    oss << array_to_seq(t.src_dst_access_order) << ","
+        << t.src_dst_vector_dim << ","
+        << t.dst_scalar_per_vector;
     return oss.str();
 }
 
@@ -364,7 +362,6 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << ","
-        << to_string(static_cast<ConvSpecialization_>(t)) << ","
         << to_string(static_cast<DlThreadConfig_>(t)) << ","
         << to_string(static_cast<DlThreadCluster_>(t)) << ","
         << to_string(static_cast<DlTransfer_>(t));
