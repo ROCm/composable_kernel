@@ -121,24 +121,14 @@ float a8w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config&
         constexpr auto scheduler        = FlatmmConfig::Scheduler;
         constexpr auto memory_operation = memory_operation_.value;
 
-        using CodegenPipelineProblem =
-            std::conditional_t<MXFP4_Pipeline,
-                               ck_tile::F8xMXF4FlatmmPipelineProblem<ADataType,
-                                                                      BDataType,
-                                                                      AccDataType,
-                                                                      CodegenFlatmmShape,
-                                                                      CodegenGemmTraits,
-                                                                      scheduler,
-                                                                      has_hot_loop_v,
-                                                                      tail_number_v>,
-                               ck_tile::FlatmmPipelineProblem<ADataType,
-                                                              BDataType,
-                                                              AccDataType,
-                                                              CodegenFlatmmShape,
-                                                              CodegenGemmTraits,
-                                                              scheduler,
-                                                              has_hot_loop_v,
-                                                              tail_number_v>>;
+        using CodegenPipelineProblem = ck_tile::F8xMXF4FlatmmPipelineProblem<ADataType,
+                                                                             BDataType,
+                                                                             AccDataType,
+                                                                             CodegenFlatmmShape,
+                                                                             CodegenGemmTraits,
+                                                                             scheduler,
+                                                                             has_hot_loop_v,
+                                                                             tail_number_v>;
 
         constexpr int BlockedXDLN_PerWarp = 2; // determined by scale shuffle pattern
 
@@ -166,10 +156,8 @@ float a8w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config&
                                              FlatmmConfig::TiledMMAPermuteN,
                                              BlockedXDLN_PerWarp>>;
 
-        using CodegenFlatmmPipeline = std::conditional_t<
-            MXFP4_Pipeline,
-            ck_tile::F8xMXF4FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>,
-            ck_tile::MoeFlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>>;
+        using CodegenFlatmmPipeline = ck_tile::F8xMXF4FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
+
         using FusedAct =
             std::conditional_t<MXFP4_Pipeline, ck_tile::moe::Swiglu, ck_tile::moe::MoeSilu>;
 
@@ -458,7 +446,7 @@ int run_a8w4_moe_flatmm_example(int argc, char* argv[])
                                                               ck_tile::MoeFlatmmKind::kFFN_gemm2>(
                     argc, argv, Row{}, Col{}, Row{});
             }
-            else if(mixed_prec == "bf16xfp4")
+            else if(mixed_prec == "bf8xfp4")
             {
                 return run_a8w4_moe_gemm_example_with_layouts<ck_tile::bf8_t,
                                                                ck_tile::pk_fp4_t,

@@ -69,11 +69,12 @@ int run_a8w4_moe_gemm_example_with_layouts(int argc,
 
     using ADataType   = PrecActType;
     using BDataType   = PrecWeightType;
-    using CDataType   = PrecActType;
+    using CDataType   = ck_tile::bf16_t;
     using AccDataType = float;
 
     using ScaleType = ck_tile::e8m0_t;
 
+    constexpr int ScaleGranularityM = 1;
     constexpr int ScaleGranularityN = 1;
     constexpr int ScaleGranularityK = 32;
 
@@ -110,6 +111,7 @@ int run_a8w4_moe_gemm_example_with_layouts(int argc,
 
     auto a_m_k_tensor = ck_tile::HostTensor<ADataType>(ck_tile::host_tensor_descriptor(
         IsInputGemm ? num_tokens : num_tokens * topk, K, stride_A, is_row_major(a_layout)));
+	auto a_m_k_bf16_tensor = a_m_k_tensor.template CopyAsType<ck_tile::bf16_t>();
     auto b_k_n_tensor = ck_tile::HostTensor<BDataType>(
         is_row_major(b_layout)
             ? ck_tile::host_tensor_descriptor(experts * N, K, stride_B, is_row_major(b_layout))
@@ -198,11 +200,13 @@ int run_a8w4_moe_gemm_example_with_layouts(int argc,
     }
 
     ck_tile::DeviceMem a_m_k_dev_buf{a_m_k_tensor.get_element_space_size_in_bytes()};
+    ck_tile::DeviceMem a_m_k_bf16_dev_buf{a_m_k_bf16_tensor.get_element_space_size_in_bytes()};
     ck_tile::DeviceMem b_origin_dev_buf{b_k_n_tensor.get_element_space_size_in_bytes()};
     ck_tile::DeviceMem b_shuffle_dev_buf{b_shuffle_host.get_element_space_size_in_bytes()};
     ck_tile::DeviceMem c_m_n_dev_buf{c_m_n_tensor.get_element_space_size_in_bytes()};
 
     a_m_k_dev_buf.ToDevice(a_m_k_tensor.data());
+    a_m_k_bf16_dev_buf.ToDevice(a_m_k_bf16_tensor.data());
     b_origin_dev_buf.ToDevice(b_k_n_tensor.data());
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
     c_m_n_dev_buf.SetZero();
@@ -230,6 +234,16 @@ int run_a8w4_moe_gemm_example_with_layouts(int argc,
     const AccDataType* p_sorted_expert_weight_dev =
         static_cast<AccDataType*>(expert_weight_dev.GetDeviceBuffer());
 
+	ck_tile::HostTensor<AccDataType> scale_A(
+		ck_tile::HostTensorDescriptor({M, K / ScaleGranularityK}, {K / ScaleGranularityK, 1}));
+	// scaleA = 1 has no effect on the result
+	ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(scale_A);
+	ck_tile::DeviceMem scale_A_dev_buf(scale_A.get_element_space_size_in_bytes());
+	scale_A_dev_buf.ToDevice(scale_A.data());
+
+    auto scale_a_dev_ptr =
+        ck_tile::FlatmmScalePointer<ScaleGranularityM, ScaleGranularityK>{
+            static_cast<float*>(scale_A_dev_buf.GetDeviceBuffer()), M / ScaleGranularityM};
     auto scale_b_shuffle_dev_ptr =
         ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>{
             static_cast<float*>(scale_b_shuffle_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
@@ -237,7 +251,7 @@ int run_a8w4_moe_gemm_example_with_layouts(int argc,
         static_cast<float*>(expert_bias_dev.GetDeviceBuffer()), experts * N};
 
     using MoeFlatmmArgs = ck_tile::MoeFlatmmHostArgs<
-        ck_tile::FlatmmScalePointer<-1>,
+        ck_tile::FlatmmScalePointer<ScaleGranularityM, ScaleGranularityK>,
         ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>,
         ck_tile::FlatmmScalePointer<1>>;
     MoeFlatmmArgs gemm_desc{p_sorted_token_ids_dev,
@@ -257,7 +271,7 @@ int run_a8w4_moe_gemm_example_with_layouts(int argc,
                             stride_A,
                             stride_B,
                             stride_C,
-                            nullptr,
+                            scale_a_dev_ptr,
                             scale_b_shuffle_dev_ptr,
                             exp_bias_dev_ptr};
 
@@ -285,14 +299,6 @@ int run_a8w4_moe_gemm_example_with_layouts(int argc,
                                             is_row_major(CLayout{})));
         c_m_n_host_ref.SetZero();
 
-        ck_tile::HostTensor<AccDataType> scale_A(
-            ck_tile::HostTensorDescriptor({1, K / ScaleGranularityK}, {1, 1}));
-
-        // scaleA = 1 has no effect on the result
-        ck_tile::FillUniformDistribution<AccDataType>{1.f, 1.f}(scale_A);
-        ck_tile::DeviceMem scale_A_dev_buf(scale_A.get_element_space_size_in_bytes());
-        scale_A_dev_buf.ToDevice(scale_A.data());
-
         // convert scale_b from e8m0 to float
         ck_tile::HostTensor<AccDataType> scale_b_float(ck_tile::HostTensorDescriptor(
             {K * experts / ScaleGranularityK, N / ScaleGranularityN}, {N / ScaleGranularityN, 1}));
@@ -304,7 +310,7 @@ int run_a8w4_moe_gemm_example_with_layouts(int argc,
             std::make_unique<ck_tile::DeviceMem>(c_m_n_tensor.get_element_space_size_in_bytes());
         c_m_n_ref_buf->SetZero();
 
-        ck_tile::reference_moe_gemm_gpu<ADataType,
+        ck_tile::reference_moe_gemm_gpu<ck_tile::bf16_t,
                                         BDataType,
                                         AccDataType,
                                         CDataType,
@@ -316,7 +322,7 @@ int run_a8w4_moe_gemm_example_with_layouts(int argc,
             p_sorted_token_ids_dev,
             p_expert_ids_dev,
             p_max_token_id_dev,
-            static_cast<const ADataType*>(a_m_k_dev_buf.GetDeviceBuffer()),
+            static_cast<const ck_tile::bf16_t*>(a_m_k_bf16_dev_buf.GetDeviceBuffer()),
             static_cast<const BDataType*>(b_origin_dev_buf.GetDeviceBuffer()),
             static_cast<CDataType*>(c_m_n_ref_buf->GetDeviceBuffer()),
             p_sorted_expert_weight_dev,
@@ -338,8 +344,8 @@ int run_a8w4_moe_gemm_example_with_layouts(int argc,
 
         c_m_n_ref_buf->FromDevice(c_m_n_host_ref.data());
 
-        const float rtol = std::is_same_v<ADataType, ck_tile::half_t> && IsInputGemm ? 1e-3 : 1e-2;
-        const float atol = std::is_same_v<ADataType, ck_tile::half_t> && IsInputGemm ? 1e-3 : 1e-2;
+        const float rtol = std::is_same_v<ck_tile::bf16_t, ck_tile::half_t> && IsInputGemm ? 1e-3 : 1e-2;
+        const float atol = std::is_same_v<ck_tile::bf16_t, ck_tile::half_t> && IsInputGemm ? 1e-3 : 1e-2;
 
         pass = ck_tile::check_err(
             c_m_n_tensor, c_m_n_host_ref, "Error: Incorrect results!", rtol, atol);

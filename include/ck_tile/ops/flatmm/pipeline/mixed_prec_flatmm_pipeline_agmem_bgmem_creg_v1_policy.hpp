@@ -156,7 +156,7 @@ struct F16xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr int K_Lane = 64 / TileShape::WarpTile::at(I1); // 4
 
-        constexpr int K2             = TileShape::WarpTile::at(I2) / K_Lane; // 8
+        constexpr int K2             = TileShape::WarpTile::at(I2) / K_Lane; // 128 / 4 = 32
         constexpr int XDL_PerThreadK = KBPerLoad / K2;                       // 4
         constexpr int K0             = K_Lane;                               // 4
 
@@ -236,7 +236,7 @@ struct F16xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 };
 
-struct F8xMXF4MoeFlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
+struct F8xMXF4FlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
 {
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -342,103 +342,49 @@ struct F8xMXF4MoeFlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return a_lds_block_desc;
+    }
 
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeF8xF4_WriteALdsBlockDescriptor()
+    {
+#if CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPack     = GetSmemPackA<Problem>();
+        return make_naive_tensor_descriptor(make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                            make_tuple(number<KPerBlock>{}, number<1>{}),
+                                            number<KPack>{},
+                                            number<1>{});
+#else
+        return MakeF16xF4_ReadALdsBlockDescriptor<Problem>();
+#endif
+    }
 
-    // needn't use lds preshuffle for scale, just load per warp
-    // template <typename Problem>
-    // CK_TILE_HOST_DEVICE static constexpr auto MakeAScaleDramTileDistribution()
-    // {
-    //     using ADataType = remove_cvref_t<typename Problem::ADataType>;
-    //     using ALayout   = remove_cvref_t<typename Problem::ALayout>;
-    //
-    //     constexpr int AGranularityK = 32;
-    //
-    //     constexpr index_t BlockSize = Problem::kBlockSize;
-    //
-    //     constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-    //     constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / AGranularityK;
-    //
-    //     constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
-    //
-    //     if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
-    //     {
-    //         constexpr index_t M1 = Problem::VectorLoadSize / sizeof(ADataType) * APackedSize;
-    //         constexpr index_t M0 = MPerBlock / M1;
-    //         constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize;
-    //         static_assert(total_pixels % M1 == 0);
-    //         constexpr index_t K3    = total_pixels / M1;
-    //         constexpr index_t KPack = GetSmemPackA<Problem>();
-    //         static_assert(KPack % K3 == 0);
-    //         constexpr index_t K2 = KPack / K3;
-    //         if constexpr(get_warp_size() >= (K2 * M0))
-    //         {
-    //             constexpr index_t K1 = get_warp_size() / (K2 * M0);
-    //             constexpr index_t K0 = BlockSize / get_warp_size();
-    //             static_assert(KPerBlock == K0 * K1 * K2 * K3);
-    //             return make_static_tile_distribution(
-    //                 tile_distribution_encoding<sequence<1>,
-    //                                            tuple<sequence<M0, M1>, sequence<K0, K1, K2, K3>>,
-    //                                            tuple<sequence<2>, sequence<2, 1, 2>>,
-    //                                            tuple<sequence<0>, sequence<1, 0, 2>>,
-    //                                            sequence<2, 1>,
-    //                                            sequence<3, 1>>{});
-    //         }
-    //         else
-    //         {
-    //             constexpr index_t K1   = (K2 * M0) / get_warp_size();
-    //             constexpr index_t K2_m = K2 / K1;
-    //             constexpr index_t K0   = BlockSize / get_warp_size() / K1;
-    //             static_assert(KPerBlock == K0 * K1 * K2_m * K3);
-    //             return make_static_tile_distribution(
-    //                 tile_distribution_encoding<sequence<1>,
-    //                                            tuple<sequence<M0, M1>, sequence<K0, K1, K2_m, K3>>,
-    //                                            tuple<sequence<2, 2>, sequence<1, 2>>,
-    //                                            tuple<sequence<0, 1>, sequence<0, 2>>,
-    //                                            sequence<2, 1>,
-    //                                            sequence<3, 1>>{});
-    //         }
-    //     }
-    //     else
-    //     {
-    //         constexpr index_t K1 = Problem::VectorLoadSize / sizeof(ADataType) * APackedSize;
-    //         constexpr index_t K0 = KPerBlock / K1;
-    //         // coalesce reading for each blocks
-    //         if constexpr(get_warp_size() % K0 == 0)
-    //         {
-    //             constexpr index_t M2 = get_warp_size() / K0;
-    //             constexpr index_t M1 = BlockSize / get_warp_size();
-    //             static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
-    //             static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
-    //             constexpr index_t M0 = MPerBlock / (M2 * M1);
-    //             static_assert(M0 * M1 * M2 == MPerBlock,
-    //                           "Incorrect M0, M2, M1 configuration! "
-    //                           "M0, M1, M2 must cover whole MPerBlock!");
-    //
-    //             return make_static_tile_distribution(
-    //                 tile_distribution_encoding<sequence<1>,
-    //                                            tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-    //                                            tuple<sequence<1>, sequence<1, 2>>,
-    //                                            tuple<sequence<1>, sequence<2, 0>>,
-    //                                            sequence<1, 2>,
-    //                                            sequence<0, 1>>{});
-    //         }
-    //         else
-    //         {
-    //             constexpr index_t KWave = K0 / get_warp_size();
-    //             constexpr index_t M0    = BlockSize / get_warp_size() / KWave;
-    //             constexpr index_t M1    = MPerBlock / M0;
-    //
-    //             return make_static_tile_distribution(
-    //                 tile_distribution_encoding<
-    //                     sequence<1>,
-    //                     tuple<sequence<M0, M1>, sequence<KWave, get_warp_size(), K1>>,
-    //                     tuple<sequence<1, 2>, sequence<2>>,
-    //                     tuple<sequence<0, 0>, sequence<1>>,
-    //                     sequence<1, 2>,
-    //                     sequence<1, 2>>{});
-    //         }
-    //     }
-    // }
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeF8xF4_ALDS_TileDistribution()
+    {
+        using TileShape = typename Problem::BlockGemmShape;
+
+        static_assert(TileShape::WarpTile::at(I1) == 16, "requires XDL_N == 16");
+        static_assert(TileShape::BlockWarps::at(I0) == 1, "requires Wave_M == 1");
+
+        constexpr int Repeat = TileShape::BlockWarps::at(number<1>{});
+        constexpr int M0     = TileShape::WarpTile::at(I0);
+
+        constexpr int K_Lane = 64 / TileShape::WarpTile::at(I1); // 4
+
+        constexpr int K2             = TileShape::WarpTile::at(I2) / K_Lane; // 128 / 4 = 32
+        constexpr int XDL_PerThreadK = KBPerLoad / K2;                       // 32 / 32 = 1
+        constexpr int K0             = K_Lane;                               // 4
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<Repeat>,
+                                       tuple<sequence<M0>, sequence<K0, XDL_PerThreadK, K2>>,
+                                       tuple<sequence<0>, sequence<2, 1>>,
+                                       tuple<sequence<0>, sequence<0, 0>>,
+                                       sequence<2>,
+                                       sequence<2>>{});
+    }
 
     // assum a8 scale dtype is fp32
     template <typename Problem>
@@ -446,36 +392,23 @@ struct F8xMXF4MoeFlatmmPipelineAgBgCrPolicy : F16xMXF4FlatmmPipelineAgBgCrPolicy
     {
         using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
 
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t WaveSize  = get_warp_size();
-        constexpr index_t WaveNum   = BlockSize / WaveSize;
+        constexpr int Repeat = TileShape::BlockWarps::at(number<1>{}); // 4
 
-        constexpr index_t kMPerBlock = TileShape::BlockTile::at(I0);
+        constexpr index_t M0 = TileShape::WarpTile::at(I0); // 16
 
-        constexpr index_t M_Warps = TileShape::BlockWarps::at(I0);
-        constexpr index_t N_Warps = TileShape::BlockWarps::at(I1);
+        constexpr int K_Lane = 64 / TileShape::WarpTile::at(I1); // 4
 
-        static_assert(WaveNum == M_Warps * N_Warps, "Block warps do not match block size");
-
-        constexpr index_t M_Lanes = TileShape::WarpTile::at(I0);
-        constexpr index_t K_Lanes = 64 / M_Lanes;
-
-        // Y dimension (M) decomposition
-        constexpr index_t Y2 = M_Lanes;
-        constexpr index_t Y1 = M_Warps;
-        constexpr index_t Y0 = kMPerBlock / (Y1 * Y2);
-
-        // X dimension (K) decomposition
-        constexpr index_t X0 = K_Lanes;
-        constexpr index_t X1 = 1;  // per lane 32 elements shared 1 scale ?
+        constexpr int K2             = TileShape::WarpTile::at(I2) / K_Lane / 32; // 128 / 4 = 1
+        constexpr int K0             = K_Lane;                               // 4
 
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<N_Warps>, // repeat N_warps
-                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
-                                       tuple<sequence<1, 0>, sequence<2, 1>>,
-                                       tuple<sequence<1, 0>, sequence<0, 2>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
+            tile_distribution_encoding<sequence<Repeat>, // repeat N_warps
+                                       tuple<sequence<M0>, sequence<K0, K2>>,
+                                       tuple<sequence<0>, sequence<2, 1>>,
+                                       tuple<sequence<0>, sequence<0, 0>>,
+                                       sequence<2>,
+                                       sequence<1>>{});
+    }
 };
 
 } // namespace ck_tile

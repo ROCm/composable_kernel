@@ -23,7 +23,7 @@ namespace ck_tile {
  * E8M0_NAN = 0b11111111; => NaN
  */
 
-struct e8m0_bexp_t
+struct alignas(1) e8m0_bexp_t
 {
     using raw_type = uint8_t;
     using type     = raw_type;

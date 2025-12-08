@@ -239,8 +239,8 @@ using bf8x8_t  = bf8_t __attribute__((ext_vector_type(8)));
 using bf8x16_t = bf8_t __attribute__((ext_vector_type(16)));
 using bf8x32_t = bf8_t __attribute__((ext_vector_type(32)));
 using bf8x64_t = bf8_t __attribute__((ext_vector_type(64)));
-#endif
 
+#endif
 // pk_int4_t
 // using pk_int4_t
 using pk_int4x2_t  = int8_t __attribute__((ext_vector_type(2)));

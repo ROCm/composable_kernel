@@ -905,7 +905,7 @@ make_tile_scatter_gather(const TensorView_& tensor_view,
                          const WindowLengths_& window_lengths,
                          const multi_index<TensorView_::get_num_of_dimension()>& origin,
                          const StaticTileDistribution_& tile_distribution,
-                         const StaticPageIndexArray_& page_idx,
+                         const StaticPageIndexArray_& page_idx, //perbytes
                          number<HsGatherDim> = {},
                          number<NumCoord>    = {})
 {
