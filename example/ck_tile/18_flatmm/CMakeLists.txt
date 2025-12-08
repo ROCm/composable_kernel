@@ -34,6 +34,9 @@ if(has_supported_gpu)
         add_executable(tile_example_a16w4_moe_flatmm mixed_prec/a16w4_moe_flatmm.cpp)
         target_compile_options(tile_example_a16w4_moe_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
 
+        add_executable(tile_example_a8w4_moe_flatmm mixed_prec/a16w4_moe_flatmm.cpp)
+        target_compile_options(tile_example_a8w4_moe_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
+
         include(mxgemm/mx_flatmm_instance.cmake)
         mx_flatmm_instance_generate(EXAMPLE_MX_FLATMM_FILES)
         message(STATUS "Generated MX FlatMM kernel files: ${EXAMPLE_MX_FLATMM_FILES}")

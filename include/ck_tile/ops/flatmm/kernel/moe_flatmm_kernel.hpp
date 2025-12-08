@@ -217,6 +217,7 @@ struct MoeFlatmmKernel
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
     static constexpr auto I3 = number<3>();
+    static constexpr auto I4 = number<4>();
 
     static_assert(DsLayout::size() == DsDataType::size(),
                   "The size of DsLayout and DsDataType should be the same");
@@ -241,12 +242,22 @@ struct MoeFlatmmKernel
         IsGateUp ? TilePartitioner::NPerBlock / 2 : TilePartitioner::NPerBlock;
 
     // MXF4_Pipeline only has the of scale B and granularityK is 32
-    static constexpr bool MXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
-    static constexpr int MXFP4N_Pack     = 2;
-    static constexpr int MXFP4K_Pack     = 2;
+    static constexpr bool AQUANT_Pipeline = std::is_same_v<ADataType, ck_tile::bf8_t> ||
+                                            std::is_same_v<ADataType, ck_tile::fp8_t> ||
+                                            std::is_same_v<ADataType, ck_tile::pk_fp4_t>;
+    static constexpr bool BMXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
+    static constexpr bool MXF8F6F4MFMA    =
+#ifdef __gfx950__
+        AQUANT_Pipeline && BMXFP4_Pipeline;
+#else
+        false;
+#endif
+    static constexpr int MXFP4M_Pack      = 2;
+    static constexpr int MXFP4N_Pack      = 2;
+    static constexpr int MXFP4K_Pack      = 2;
 
-    static constexpr int N_Pack = MXFP4_Pipeline ? MXFP4N_Pack : 1;
-    static constexpr int K_Pack = MXFP4_Pipeline ? MXFP4K_Pack : 1;
+    static constexpr int N_Pack = BMXFP4_Pipeline ? MXFP4N_Pack : 1;
+    static constexpr int K_Pack = BMXFP4_Pipeline ? MXFP4K_Pack : 1;
 
     static constexpr int WeightPackedSize = numeric_traits<BDataType>::PackedSize;
 
@@ -631,14 +642,49 @@ struct MoeFlatmmKernel
             }
         }();
 
-        auto scale_n               = kargs.scale_n;
-        constexpr int GranularityK = decltype(scale_n)::GranularityK;
+        auto scale_m               = kargs.scale_m;
+        constexpr int AGranularityK = decltype(scale_m)::GranularityK;
 
-        index_t scale_k    = GranularityK == 0 ? 1 : (kargs.K + GranularityK - 1) / GranularityK;
+        using ScaleType = std::conditional_t<MXF8F6F4MFMA, e8m0_t, float>;
+
+        const auto& scale_a_tensor_view = [&]() {
+            if constexpr(std::is_same_v<ScaleType, float>)
+            {
+                index_t scale_m = kargs.M;
+                index_t scale_k = AGranularityK == 0 ? 1 : (kargs.K + AGranularityK - 1) / AGranularityK;
+                return make_naive_tensor_view<address_space_enum::global>(
+                    reinterpret_cast<const ScaleType*>(scale_m.ptr),
+                    make_tuple(scale_m, scale_k),
+                    make_tuple(scale_k, 1),
+                    number<8>{},
+                    number<1>{});
+            }
+            // else if constexpr(std::is_same_v<ScaleType, e8m0_t>)
+            // {
+            //     index_t scale_m_packs = kargs.M / MXFP4M_Pack / BlockGemmShape::WarpTile::at(I0);
+            //     index_t scale_k_packs = kargs.K / MXFP4K_Pack / AGranularityK / 64 * BlockGemmShape::WarpTile::at(I0);
+            //     // Pack 2x2 e8m0 over M/K dimension into 1 int32_t to trigger dword width load
+            //     const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
+            //         make_tuple(scale_m_packs, scale_k_packs, KThreadPerXdl, MThreadPerXdl));
+            //     const auto scale_a_desc = transform_tensor_descriptor(
+            //         scale_a_naive_desc,
+            //         make_tuple(make_merge_transform(make_tuple(ScaleM, MThreadPerXdl)),
+            //                    make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
+            //         make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
+            //         make_tuple(sequence<0>{}, sequence<1>{}));
+            //     return make_tensor_view<address_space_enum::global>(
+            //         reinterpret_cast<const int32_t*>(scale_a.ptr), scale_a_desc);
+            // }
+        }();
+
+        auto scale_n               = kargs.scale_n;
+        constexpr int BGranularityK = decltype(scale_n)::GranularityK;
+
+        index_t scale_k    = BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
         index_t FlatScaleK = scale_k * N_Pack * BlockGemmShape::WarpTile::at(I1);
         index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
 
-        using ScaleType = std::conditional_t<MXFP4_Pipeline, e8m0_t, float>;
+        using ScaleType = std::conditional_t<BMXFP4_Pipeline, e8m0_t, float>;
 
         const auto scale_b_flat_view = make_naive_tensor_view<address_space_enum::global>(
             reinterpret_cast<const ScaleType*>(scale_n.ptr) + expert_id * kargs.N * scale_k,
@@ -647,7 +693,11 @@ struct MoeFlatmmKernel
             number<8>{},
             number<1>{});
 
-        return make_tuple(a_tensor_view, b_flat_tensor_view, c_tensor_view, scale_b_flat_view);
+        return make_tuple(a_tensor_view,
+                          b_flat_tensor_view,
+                          c_tensor_view,
+                          scale_a_tensor_view,
+                          scale_b_flat_view);
     }
 
     template <typename TensorView>
@@ -690,7 +740,7 @@ struct MoeFlatmmKernel
             }
         }();
 
-        return make_tuple(a_pad_view, views.at(I1), c_pad_view, views.at(I3));
+        return make_tuple(a_pad_view, views.at(I1), c_pad_view, views.at(I3), views.at(I4));
     }
 
     template <typename PadView>
@@ -719,7 +769,7 @@ struct MoeFlatmmKernel
             }
         }();
 
-        constexpr bool isNonInterleaveGateUp = !IsGateUp || MXFP4_Pipeline;
+        constexpr bool isNonInterleaveGateUp = !IsGateUp || BMXFP4_Pipeline;
 
         const auto& b_flat_block_window =
             make_tile_window(b_flat_pad_view,
@@ -738,17 +788,28 @@ struct MoeFlatmmKernel
              output_N_offset});
 
         constexpr int GranularityK = 32; // fixed config for MXF4_Pipeline
-        constexpr int XDLPerLoadScaleB =
-            MXFP4_Pipeline ? 4 : 1; // GranularityK32 / XDL16x16x32_K8 = 4
-
-        auto scale_block_window =
+        auto a_scale_block_window =
             make_tile_window(views.at(I3),
+                             make_tuple(number<TilePartitioner::MPerBlock>{},
+                                        number<TilePartitioner::KPerBlock / GranularityK>{}),
+                             {coord_m, 0});
+
+        // constexpr int GranularityK = 32; // fixed config for MXF4_Pipeline
+        constexpr int XDLPerLoadScaleB =
+            BMXFP4_Pipeline ? 4 : 1; // GranularityK32 / XDL16x16x32_K8 = 4
+
+        auto b_scale_block_window =
+            make_tile_window(views.at(I4),
                              make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
                                         number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
                                                XDLPerLoadScaleB / GranularityK>{}),
                              {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
 
-        return make_tuple(a_block_window, b_flat_block_window, c_block_window, scale_block_window);
+        return make_tuple(a_block_window,
+                          b_flat_block_window,
+                          c_block_window,
+                          a_scale_block_window,
+                          b_scale_block_window);
     }
 
     template <class MoeFlatmmKernelArgs>
@@ -836,9 +897,10 @@ struct MoeFlatmmKernel
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
 
         // Run GEMM cooperatively by whole workgroup.
-        const auto& a_block_window     = gemm_tile_windows.at(I0);
-        const auto& b_block_window     = gemm_tile_windows.at(I1);
-        const auto& scale_block_window = gemm_tile_windows.at(I3);
+        const auto& a_block_window       = gemm_tile_windows.at(I0);
+        const auto& b_block_window       = gemm_tile_windows.at(I1);
+        const auto& a_scale_block_window = gemm_tile_windows.at(I3);
+        const auto& b_scale_block_window = gemm_tile_windows.at(I4);
 
         auto a_gather_block_tile =
             ck_tile::make_tile_scatter_gather(a_block_window.get_bottom_tensor_view(),
@@ -847,18 +909,50 @@ struct MoeFlatmmKernel
                                               a_dram_dist,
                                               a_offsets); // K DRAM tile window for
 
+
         auto c_block_tile = [&] {
-            if constexpr(MXFP4_Pipeline)
+            if constexpr(BMXFP4_Pipeline)
             {
-                // MXFP4_Pipeline uses gate-up interleave 16 layout for weight
+                // BMXFP4_Pipeline uses gate-up interleave 16 layout for weight
                 // so don't need extra processing
-                return FlatmmPipeline{}(a_gather_block_tile,
-                                        b_block_window,
-                                        scale_block_window, // weight scale with granularityK = 32
-                                        num_loop,
-                                        kargs.k_padded_zeros,
-                                        smem_ptr_ping,
-                                        smem_ptr_pong);
+                if constexpr(AQUANT_Pipeline)
+                {
+                    constexpr int AGranularityK = decltype(kargs.scale_m)::GranularityK;
+                    constexpr auto a_scale_dram_dist = FlatmmPipeline::GetAScaleDramTileDistribution();
+                    constexpr ck_tile::index_t DramMScaleRepeat =
+                        decltype(a_scale_dram_dist)::DstrEncode::hs_lengthss_[number<0>{}][number<0>{}];
+                    statically_indexed_array<ck_tile::index_t, DramMScaleRepeat> a_scale_offsets;
+                    static_for<0, DramMScaleRepeat, 1>{}([&](auto m0) {
+                        const auto row_idx =
+                            coord_m + m0 * (TilePartitioner::MPerBlock / DramMScaleRepeat) + a_coord[I0];
+                        index_t gather_token_id = row_to_token_idx(row_idx);
+                        a_scale_offsets[m0]           = gather_token_id * kargs.stride_A / AGranularityK;
+                    });
+                    auto a_scale_gather_block_tile =
+                        ck_tile::make_tile_scatter_gather(a_scale_block_window.get_bottom_tensor_view(),
+                                                          a_scale_block_window.get_window_lengths(),
+                                                          a_scale_block_window.get_window_origin(),
+                                                          a_scale_dram_dist,
+                                                          a_scale_offsets); // K DRAM tile window for
+                    return FlatmmPipeline{}(a_gather_block_tile,
+                                            b_block_window,
+                                            a_scale_gather_block_tile, // weight scale with granularityK = 32
+                                            b_scale_block_window, // weight scale with granularityK = 32
+                                            num_loop,
+                                            kargs.k_padded_zeros,
+                                            smem_ptr_ping,
+                                            smem_ptr_pong);
+                }
+                else
+                {
+                    return FlatmmPipeline{}(a_gather_block_tile,
+                                            b_block_window,
+                                            b_scale_block_window, // weight scale with granularityK = 32
+                                            num_loop,
+                                            kargs.k_padded_zeros,
+                                            smem_ptr_ping,
+                                            smem_ptr_pong);
+                }
             }
             else
             {
@@ -873,452 +967,452 @@ struct MoeFlatmmKernel
 
         auto& c_block_window = gemm_tile_windows.at(number<2>{});
 
-        // Run EpiloguePipeline
-        {
-            using EpiProblem = typename EpiloguePipeline::Problem;
-            using ODataType  = typename EpiloguePipeline::ODataType;
-            using CWarpDstr  = typename EpiloguePipeline::CWarpDstr;
-
-            constexpr index_t NumMXdlPerWavePerShuffle = EpiloguePipeline::NumMXdlPerWavePerShuffle;
-            constexpr index_t NumNXdlPerWavePerShuffle = EpiloguePipeline::NumNXdlPerWavePerShuffle;
-            constexpr index_t MPerIterationShuffle     = EpiloguePipeline::MPerIterationShuffle;
-            constexpr index_t NPerIterationShuffle     = EpiloguePipeline::NPerIterationShuffle;
-
-            constexpr index_t MRepeat       = EpiloguePipeline::MRepeat;
-            constexpr index_t NRepeat       = EpiloguePipeline::NRepeat;
-            constexpr index_t OutputNRepeat = IsGateUp ? NRepeat / 2 : NRepeat;
-
-            [[maybe_unused]] constexpr index_t EpiVectorSizeC = EpiloguePipeline::GetVectorSizeC();
-            [[maybe_unused]] constexpr index_t BlockedXDLN_PerWarp =
-                EpiloguePipeline::BlockedXDLN_PerWarp;
-
-            static_assert(!IsGateUp || NumNXdlPerWavePerShuffle % 2 == 0);
-
-            constexpr index_t OutputNumNXdlPerWavePerShuffle =
-                IsGateUp ? NumNXdlPerWavePerShuffle / 2 : NumNXdlPerWavePerShuffle;
-            constexpr index_t LDS_NPerIterationShuffle =
-                IsGateUp ? NPerIterationShuffle / 2 : NPerIterationShuffle;
-
-            constexpr auto lds_block_desc = make_naive_tensor_descriptor(
-                make_tuple(number<MPerIterationShuffle>{}, number<LDS_NPerIterationShuffle>{}),
-                make_tuple(number<LDS_NPerIterationShuffle>{}, number<1>{}));
-
-            // EpiloguePipeline::template MakeLdsBlockDescriptor<EpiProblem>();
-            auto o_lds_block = make_tensor_view<address_space_enum::lds>(
-                reinterpret_cast<ODataType*>(smem_ptr_ping), lds_block_desc);
-
-            constexpr int ScaleGranularityM = decltype(kargs.scale_m)::GranularityMN;
-            constexpr int ScaleGranularityN = decltype(kargs.scale_n)::GranularityMN;
-
-            constexpr index_t scale_stride_m = ScaleGranularityM == 0 ? 0  // per-tensor scale
-                                                                      : 1; // per-token scale
-            constexpr index_t scale_stride_n = ScaleGranularityN == 0 ? 0  // per-tensor scale
-                                                                      : 1; // per-channel scale
-
-            auto output_acc_tile_distr =
-                make_static_tile_distribution(detail::make_embed_tile_distribution_encoding(
-                    tile_distribution_encoding<
-                        sequence<>,
-                        tuple<sequence<MRepeat, MWave>, sequence<OutputNRepeat, NWave>>,
-                        tuple<sequence<1, 2>>,
-                        tuple<sequence<1, 1>>,
-                        sequence<1, 2>,
-                        sequence<0, 0>>{},
-                    typename CWarpDstr::DstrEncode{}));
-
-            const auto scale_m_coord =
-                output_acc_tile_distr.calculate_index(); // 2d thread offset, [i_row, i_col]
-
-            constexpr index_t kM2 = 4;                         // Val-dim
-            constexpr index_t kM1 = get_warp_size() / NPerXdl; // Thr-dim
-            constexpr index_t kM0 = MPerXdl / kM1 / kM2;       // Var-dim
-
-            constexpr index_t ScaleMRepeat = MRepeat * kM0 * kM2;
-            statically_indexed_array<index_t, ScaleMRepeat> scale_m_offsets;
-
-            if constexpr(!MXFP4_Pipeline)
-                static_for<0, MRepeat, 1>{}([&](auto mIter) {
-                    static_for<0, kM0, 1>{}([&](auto m0) {
-                        static_for<0, kM2, 1>{}([&](auto m2) {
-                            const auto row_idx =
-                                coord_m + mIter * MPerXdl + m0 * kM1 * kM2 + m2 + scale_m_coord[I0];
-                            scale_m_offsets[mIter * number<kM0 * kM2>{} + m0 * number<kM2>{} + m2] =
-                                row_to_token_idx(row_idx);
-                        });
-                    });
-                });
-
-            constexpr int DynamicTileOffsetFlag = 0;
-
-            constexpr bool EnableBias = decltype(kargs.exp_bias)::GranularityMN != -1;
-
-            auto permute_tensor_view = [&](auto naive_view, auto is_needed_to_permute_N_PACK) {
-                if constexpr(!is_needed_to_permute_N_PACK)
-                {
-                    return naive_view;
-                }
-                else
-                {
-                    auto view1 = transform_tensor_view(
-                        naive_view,
-                        make_tuple(
-                            make_pass_through_transform(number<DynamicTileOffsetFlag>{}),
-                            make_unmerge_transform(make_tuple(number<DynamicTileOffsetFlag>{},
-                                                              number<NRepeat / N_Pack>{},
-                                                              number<NWave>{},
-                                                              number<N_Pack>{},
-                                                              number<NPerXdl>{}))),
-                        make_tuple(sequence<0>{}, sequence<1>{}),
-                        make_tuple(sequence<0>{}, sequence<1, 2, 3, 4, 5>{}));
-                    return transform_tensor_view(
-                        view1,
-                        make_tuple(make_pass_through_transform(number<DynamicTileOffsetFlag>{}),
-                                   make_merge_transform_v3_division_mod(
-                                       make_tuple(number<DynamicTileOffsetFlag>{},
-                                                  number<NRepeat / N_Pack>{},
-                                                  number<N_Pack>{},
-                                                  number<NWave>{},
-                                                  number<NPerXdl>{}))),
-                        make_tuple(sequence<0>{}, sequence<1, 2, 4, 3, 5>{}),
-                        make_tuple(sequence<0>{}, sequence<1>{}));
-                }
-            };
-
-            auto scale_m_window =
-                make_tile_scatter_gather(make_naive_tensor_view<address_space_enum::global>(
-                                             kargs.scale_m.ptr,
-                                             make_tuple(kargs.M, 1),
-                                             make_tuple(scale_stride_m, 0),
-                                             number<1>{}, // gather load can't vectorize
-                                             number<1>{}),
-                                         make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                    number<TilePartitioner::NPerBlock>{}),
-                                         {0, 0}, // offset m is included in gather offsets
-                                         output_acc_tile_distr,
-                                         scale_m_offsets);
-
-            auto scale_n_window = make_tile_window(
-                make_naive_tensor_view<address_space_enum::global>(
-                    kargs.scale_n.ptr + expert_id * kargs.N,
-                    make_tuple(1, kargs.N),
-                    make_tuple(0, scale_stride_n),
-                    number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
-                    number<1>{}), // MXF4_Pipeline does't use scale_n, so there is no need to
-                                  // permute as n_pack
-                make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number < IsGateUp ? TilePartitioner::NPerBlock / 2
-                                             : TilePartitioner::NPerBlock > {}),
-                {0, IsGateUp ? coord_n / 2 : coord_n},
-                output_acc_tile_distr);
-
-            auto scale_n_up_window = make_tile_window(
-                make_naive_tensor_view<address_space_enum::global>(
-                    kargs.scale_n.ptr + expert_id * kargs.N + kargs.N / 2,
-                    make_tuple(1, kargs.N),
-                    make_tuple(0, scale_stride_n),
-                    number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
-                    number<1>{}),
-                make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number<TilePartitioner::NPerBlock / 2>{}),
-                {0, coord_n / 2},
-                output_acc_tile_distr);
-
-            auto exp_bias_view = make_naive_tensor_view<address_space_enum::global>(
-                kargs.exp_bias.ptr + expert_id * kargs.N,
-                make_tuple(1, kargs.N),
-                make_tuple(0, scale_stride_n),
-                number<FlatmmPipeline::GetVectorSizeB()>{},
-                number<1>{});
-
-            auto exp_bias_window = make_tile_window(
-                permute_tensor_view(exp_bias_view, number<(MXFP4_Pipeline && !IsInputGemm)>{}),
-                make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number < IsGateUp ? TilePartitioner::NPerBlock / 2
-                                             : TilePartitioner::NPerBlock > {}),
-                {0, IsGateUp ? coord_n / 2 : coord_n},
-                output_acc_tile_distr);
-
-            auto exp_bias_up_window =
-                make_tile_window(make_naive_tensor_view<address_space_enum::global>(
-                                     kargs.exp_bias.ptr + expert_id * kargs.N + kargs.N / 2,
-                                     make_tuple(1, kargs.N),
-                                     make_tuple(0, scale_stride_n),
-                                     number<FlatmmPipeline::GetVectorSizeB()>{},
-                                     number<1>{}),
-                                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                                            number<TilePartitioner::NPerBlock / 2>{}),
-                                 {0, coord_n / 2},
-                                 output_acc_tile_distr);
-
-            auto exp_weight_window =
-                make_tile_window(make_naive_tensor_view<address_space_enum::global>(
-                                     static_cast<const float*>(kargs.p_sorted_expert_weights),
-                                     make_tuple(kargs.M, 1),
-                                     make_tuple(1, 0),
-                                     number<FlatmmPipeline::GetVectorSizeA()>{},
-                                     number<1>{}),
-                                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                                            number<TilePartitioner::NPerBlock>{}),
-                                 {coord_m, 0},
-                                 output_acc_tile_distr);
-
-            using ScaleMBuffer    = decltype(load_tile(scale_m_window));
-            using ScaleNBuffer    = decltype(load_tile(scale_n_window));
-            using ExpBiasBuffer   = decltype(load_tile(exp_bias_window));
-            using ExpWeightBuffer = decltype(load_tile(exp_weight_window));
-
-            ScaleMBuffer scale_m_buffer;
-            ScaleNBuffer scale_n_buffer, scale_n_up_buffer;
-
-            ExpBiasBuffer exp_bias_buffer, exp_bias_up_buffer;
-            ExpWeightBuffer exp_weight_buffer;
-
-            if constexpr(!MXFP4_Pipeline)
-            {
-                scale_m_window.load(scale_m_buffer);
-                scale_n_buffer = load_tile(scale_n_window);
-                if constexpr(IsGateUp)
-                    scale_n_up_buffer = load_tile(scale_n_up_window);
-            }
-
-            if constexpr(EnableBias)
-            {
-                exp_bias_buffer = load_tile(exp_bias_window);
-                if constexpr(IsGateUp)
-                    exp_bias_up_buffer = load_tile(exp_bias_up_window);
-            }
-            if constexpr(!IsInputGemm)
-                exp_weight_buffer = load_tile(exp_weight_window);
-
-            auto in_lds_window = make_tile_window(
-                o_lds_block,
-                make_tuple(number<MPerIterationShuffle>{}, number<LDS_NPerIterationShuffle>{}),
-                {0, 0});
-
-            auto out_lds_window = make_tile_window(
-                o_lds_block,
-                make_tuple(number<MPerIterationShuffle>{}, number<LDS_NPerIterationShuffle>{}),
-                {0, 0});
-
-            using SFC = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                            sequence<0, 1>,
-                                            sequence<MPerIterationShuffle, NPerIterationShuffle>>;
-
-            constexpr index_t num_access = SFC::get_num_of_access();
-
-            static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-                          "Currently, the CShuffle EpiloguePipeline only supports the Row Major "
-                          "Output layout");
-
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<
-                kBlockSize,
-                MPerIterationShuffle,
-                LDS_NPerIterationShuffle,
-                kind == MoeFlatmmKind::kFFN_gemm2 ? 2 : EpiloguePipeline::GetVectorSizeC(),
-                tile_distribution_pattern::thread_raked,
-                EpiProblem::kNumWaveGroups>;
-
-            constexpr auto dram_tile_distribution =
-                TileEncodingPattern::make_2d_static_tile_distribution();
-
-            constexpr auto LdsTileDistr = [&] {
-                if constexpr(IsGateUp)
-                    return make_static_tile_distribution(
-                        detail::make_embed_tile_distribution_encoding(
-                            tile_distribution_encoding<
-                                sequence<>,
-                                tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                                      // merge two contiguous N
-                                      sequence<OutputNumNXdlPerWavePerShuffle, NWave>>,
-                                tuple<sequence<1, 2>>,
-                                tuple<sequence<1, 1>>,
-                                sequence<1, 2>,
-                                sequence<0, 0>>{},
-                            typename CWarpDstr::DstrEncode{}));
-                else
-                    return make_static_tile_distribution(
-                        EpiloguePipeline::MakeLdsDistributionEncode());
-            }();
-
-            using LDSTileTensor =
-                decltype(make_static_distributed_tensor<AccDataType>(LdsTileDistr));
-            LDSTileTensor lds_tile[2];
-
-            constexpr auto c_warp_y_lengths =
-                to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-            constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-            constexpr int ActVectorSize = c_warp_y_lengths.product() * NumMXdlPerWavePerShuffle *
-                                          OutputNumNXdlPerWavePerShuffle;
-
-            auto epi_tile_idx_slice =
-                [&](const auto& acc_tile_like_tensor, auto epi_m_idx, auto epi_n_idx) {
-                    return acc_tile_like_tensor.get_y_sliced_thread_data(
-                        merge_sequences(sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
-                                                 epi_n_idx * OutputNumNXdlPerWavePerShuffle>{},
-                                        c_warp_y_index_zeros),
-                        merge_sequences(
-                            sequence<NumMXdlPerWavePerShuffle, OutputNumNXdlPerWavePerShuffle>{},
-                            c_warp_y_lengths));
-                };
-
-            auto gate_up_epi_tile_idx_interleave_slice = [&](auto& dest_gate_tensor,
-                                                             auto& dest_up_tensor,
-                                                             const auto& acc_tile_like_tensor,
-                                                             auto epi_m_idx,
-                                                             auto epi_n_idx) {
-                static_for<0, OutputNumNXdlPerWavePerShuffle, 1>{}([&](auto n_xdl) {
-                    dest_gate_tensor.set_y_sliced_thread_data(
-                        merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
-                        merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{}, c_warp_y_lengths),
-                        acc_tile_like_tensor.get_y_sliced_thread_data(
-                            merge_sequences(
-                                sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
-                                         epi_n_idx * NumNXdlPerWavePerShuffle + 2 * n_xdl>{},
-                                c_warp_y_index_zeros),
-                            merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
-                                            c_warp_y_lengths)));
-                    dest_up_tensor.set_y_sliced_thread_data(
-                        merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
-                        merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{}, c_warp_y_lengths),
-                        acc_tile_like_tensor.get_y_sliced_thread_data(
-                            merge_sequences(
-                                sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
-                                         epi_n_idx * NumNXdlPerWavePerShuffle + 2 * n_xdl + 1>{},
-                                c_warp_y_index_zeros),
-                            merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
-                                            c_warp_y_lengths)));
-                });
-            };
-
-            auto process_epi_tile = [&](auto lds_stage, auto epi_m, auto epi_n) {
-                if constexpr(IsGateUp)
-                {
-                    LDSTileTensor gate_tensor, up_tensor;
-
-                    gate_up_epi_tile_idx_interleave_slice(
-                        gate_tensor, up_tensor, c_block_tile, epi_m, epi_n);
-                    auto epi_scale_m    = epi_tile_idx_slice(scale_m_buffer, epi_m, epi_n);
-                    auto epi_scale_n    = epi_tile_idx_slice(scale_n_buffer, epi_m, epi_n);
-                    auto epi_scale_n_up = epi_tile_idx_slice(scale_n_up_buffer, epi_m, epi_n);
-
-                    auto epi_exp_bias    = epi_tile_idx_slice(exp_bias_buffer, epi_m, epi_n);
-                    auto epi_exp_bias_up = epi_tile_idx_slice(exp_bias_up_buffer, epi_m, epi_n);
-
-                    static_for<0, ActVectorSize, 1>{}([&](auto idx) {
-                        if constexpr(!MXFP4_Pipeline)
-                        {
-                            gate_tensor.get_thread_buffer()[idx] *=
-                                epi_scale_m[idx] * epi_scale_n[idx];
-                            up_tensor.get_thread_buffer()[idx] *=
-                                epi_scale_m[idx] * epi_scale_n_up[idx];
-                        }
-                        if constexpr(EnableBias)
-                        {
-                            gate_tensor.get_thread_buffer()[idx] += epi_exp_bias[idx];
-                            up_tensor.get_thread_buffer()[idx] += epi_exp_bias_up[idx];
-                        }
-                        lds_tile[lds_stage].get_thread_buffer().at(idx) =
-                            ActivationOp{}(gate_tensor.get_thread_buffer().at(idx),
-                                           up_tensor.get_thread_buffer().at(idx));
-                    });
-                }
-                else
-                {
-                    lds_tile[lds_stage].get_thread_buffer() =
-                        epi_tile_idx_slice(c_block_tile, epi_m, epi_n);
-                    auto epi_scale_m    = epi_tile_idx_slice(scale_m_buffer, epi_m, epi_n);
-                    auto epi_scale_n    = epi_tile_idx_slice(scale_n_buffer, epi_m, epi_n);
-                    auto epi_exp_weight = epi_tile_idx_slice(exp_weight_buffer, epi_m, epi_n);
-                    auto epi_exp_bias   = epi_tile_idx_slice(exp_bias_buffer, epi_m, epi_n);
-
-                    static_for<0, ActVectorSize, 1>{}([&](auto idx) {
-                        if constexpr(!MXFP4_Pipeline)
-                            lds_tile[lds_stage].get_thread_buffer()[idx] *=
-                                epi_scale_m[idx] * epi_scale_n[idx];
-                        if constexpr(EnableBias)
-                            lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
-                        if constexpr(!IsInputGemm)
-                            lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
-                        else // for mlp1 gate-only
-                            lds_tile[lds_stage].get_thread_buffer()[idx] =
-                                ActivationOp{}(lds_tile[lds_stage].get_thread_buffer()[idx]);
-                    });
-                }
-            };
-
-            constexpr int NumMEpiTile = MRepeat / NumMXdlPerWavePerShuffle;
-            constexpr int MPerThread  = TileEncodingPattern::Y2;
-            statically_indexed_array<statically_indexed_array<index_t, MPerThread>, NumMEpiTile>
-                c_scatter_offsets;
-            auto c_coord = dram_tile_distribution.calculate_index();
-            static_for<0, NumMEpiTile, 1>{}([&](auto mIter) {
-                static_for<0, MPerThread, 1>{}([&](auto m0) {
-                    auto row_idx = coord_m + mIter * MPerIterationShuffle + c_coord[0] + m0;
-                    auto fused_token =
-                        kargs.p_sorted_token_ids[row_idx]; // topk-idx[31:24] + token_idx[23:0]
-
-                    index_t scatter_token_id = fused_token & token_id_mask;
-                    if constexpr(IsInputGemm)
-                        scatter_token_id =
-                            scatter_token_id * kargs.TopK + (fused_token >> token_id_offset);
-                    c_scatter_offsets[mIter][m0] = scatter_token_id * kargs.stride_C;
-                });
-            });
-
-            //===----------------------------------------------------------------------===//
-            // Pingpong process start
-            //===----------------------------------------------------------------------===//
-            process_epi_tile(number<0>{}, number<0>{}, number<0>{});
-
-            static_for<0, num_access, 1>{}([&](auto iAccess) {
-                constexpr int read_stage  = iAccess % 2;
-                constexpr int write_stage = read_stage ^ 1;
-
-                block_sync_lds();
-                constexpr auto idx_y_start = SFC::get_index(number<iAccess.value>{});
-                constexpr auto mIter = number<idx_y_start.at(number<0>{}) / MPerIterationShuffle>{};
-
-                const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile[read_stage]);
-
-                store_tile(in_lds_window, c_warptile_in_tensor_casted);
-
-                if constexpr(iAccess < num_access - 1)
-                {
-                    constexpr auto idx_y_start_next = SFC::get_index(number<iAccess.value + 1>{});
-                    constexpr auto mIter_next =
-                        number<idx_y_start_next.at(number<0>{}) / MPerIterationShuffle>{};
-                    constexpr auto nIter_next =
-                        number<idx_y_start_next.at(number<1>{}) / NPerIterationShuffle>{};
-
-                    process_epi_tile(number<write_stage>{}, mIter_next, nIter_next);
-                }
-
-                block_sync_lds();
-
-                auto c_out_tensor =
-                    load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
-                auto c_scatter_tile_window =
-                    make_tile_scatter_gather(c_block_window.get_bottom_tensor_view(),
-                                             c_block_window.get_window_lengths(),
-                                             c_block_window.get_window_origin(),
-                                             dram_tile_distribution,
-                                             c_scatter_offsets[mIter]);
-
-                if constexpr(!IsInputGemm ||
-                             EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add)
-                    c_scatter_tile_window.update(c_out_tensor);
-                else
-                    c_scatter_tile_window.store(c_out_tensor);
-
-                if constexpr(iAccess != num_access - 1)
-                {
-                    constexpr auto step = SFC::get_forward_step(iAccess);
-                    // row_offset of out windows has been included in scatter offset
-                    move_tile_window(c_block_window,
-                                     {0, step.at(number<1>{}) / number < IsGateUp ? 2 : 1 > {}});
-                }
-            });
-        }
+        // // Run EpiloguePipeline
+        // {
+        //     using EpiProblem = typename EpiloguePipeline::Problem;
+        //     using ODataType  = typename EpiloguePipeline::ODataType;
+        //     using CWarpDstr  = typename EpiloguePipeline::CWarpDstr;
+        //
+        //     constexpr index_t NumMXdlPerWavePerShuffle = EpiloguePipeline::NumMXdlPerWavePerShuffle;
+        //     constexpr index_t NumNXdlPerWavePerShuffle = EpiloguePipeline::NumNXdlPerWavePerShuffle;
+        //     constexpr index_t MPerIterationShuffle     = EpiloguePipeline::MPerIterationShuffle;
+        //     constexpr index_t NPerIterationShuffle     = EpiloguePipeline::NPerIterationShuffle;
+        //
+        //     constexpr index_t MRepeat       = EpiloguePipeline::MRepeat;
+        //     constexpr index_t NRepeat       = EpiloguePipeline::NRepeat;
+        //     constexpr index_t OutputNRepeat = IsGateUp ? NRepeat / 2 : NRepeat;
+        //
+        //     [[maybe_unused]] constexpr index_t EpiVectorSizeC = EpiloguePipeline::GetVectorSizeC();
+        //     [[maybe_unused]] constexpr index_t BlockedXDLN_PerWarp =
+        //         EpiloguePipeline::BlockedXDLN_PerWarp;
+        //
+        //     static_assert(!IsGateUp || NumNXdlPerWavePerShuffle % 2 == 0);
+        //
+        //     constexpr index_t OutputNumNXdlPerWavePerShuffle =
+        //         IsGateUp ? NumNXdlPerWavePerShuffle / 2 : NumNXdlPerWavePerShuffle;
+        //     constexpr index_t LDS_NPerIterationShuffle =
+        //         IsGateUp ? NPerIterationShuffle / 2 : NPerIterationShuffle;
+        //
+        //     constexpr auto lds_block_desc = make_naive_tensor_descriptor(
+        //         make_tuple(number<MPerIterationShuffle>{}, number<LDS_NPerIterationShuffle>{}),
+        //         make_tuple(number<LDS_NPerIterationShuffle>{}, number<1>{}));
+        //
+        //     // EpiloguePipeline::template MakeLdsBlockDescriptor<EpiProblem>();
+        //     auto o_lds_block = make_tensor_view<address_space_enum::lds>(
+        //         reinterpret_cast<ODataType*>(smem_ptr_ping), lds_block_desc);
+        //
+        //     constexpr int ScaleGranularityM = decltype(kargs.scale_m)::GranularityMN;
+        //     constexpr int ScaleGranularityN = decltype(kargs.scale_n)::GranularityMN;
+        //
+        //     constexpr index_t scale_stride_m = ScaleGranularityM == 0 ? 0  // per-tensor scale
+        //                                                               : 1; // per-token scale
+        //     constexpr index_t scale_stride_n = ScaleGranularityN == 0 ? 0  // per-tensor scale
+        //                                                               : 1; // per-channel scale
+        //
+        //     auto output_acc_tile_distr =
+        //         make_static_tile_distribution(detail::make_embed_tile_distribution_encoding(
+        //             tile_distribution_encoding<
+        //                 sequence<>,
+        //                 tuple<sequence<MRepeat, MWave>, sequence<OutputNRepeat, NWave>>,
+        //                 tuple<sequence<1, 2>>,
+        //                 tuple<sequence<1, 1>>,
+        //                 sequence<1, 2>,
+        //                 sequence<0, 0>>{},
+        //             typename CWarpDstr::DstrEncode{}));
+        //
+        //     const auto scale_m_coord =
+        //         output_acc_tile_distr.calculate_index(); // 2d thread offset, [i_row, i_col]
+        //
+        //     constexpr index_t kM2 = 4;                         // Val-dim
+        //     constexpr index_t kM1 = get_warp_size() / NPerXdl; // Thr-dim
+        //     constexpr index_t kM0 = MPerXdl / kM1 / kM2;       // Var-dim
+        //
+        //     constexpr index_t ScaleMRepeat = MRepeat * kM0 * kM2;
+        //     statically_indexed_array<index_t, ScaleMRepeat> scale_m_offsets;
+        //
+        //     if constexpr(!BMXFP4_Pipeline)
+        //         static_for<0, MRepeat, 1>{}([&](auto mIter) {
+        //             static_for<0, kM0, 1>{}([&](auto m0) {
+        //                 static_for<0, kM2, 1>{}([&](auto m2) {
+        //                     const auto row_idx =
+        //                         coord_m + mIter * MPerXdl + m0 * kM1 * kM2 + m2 + scale_m_coord[I0];
+        //                     scale_m_offsets[mIter * number<kM0 * kM2>{} + m0 * number<kM2>{} + m2] =
+        //                         row_to_token_idx(row_idx);
+        //                 });
+        //             });
+        //         });
+        //
+        //     constexpr int DynamicTileOffsetFlag = 0;
+        //
+        //     constexpr bool EnableBias = decltype(kargs.exp_bias)::GranularityMN != -1;
+        //
+        //     auto permute_tensor_view = [&](auto naive_view, auto is_needed_to_permute_N_PACK) {
+        //         if constexpr(!is_needed_to_permute_N_PACK)
+        //         {
+        //             return naive_view;
+        //         }
+        //         else
+        //         {
+        //             auto view1 = transform_tensor_view(
+        //                 naive_view,
+        //                 make_tuple(
+        //                     make_pass_through_transform(number<DynamicTileOffsetFlag>{}),
+        //                     make_unmerge_transform(make_tuple(number<DynamicTileOffsetFlag>{},
+        //                                                       number<NRepeat / N_Pack>{},
+        //                                                       number<NWave>{},
+        //                                                       number<N_Pack>{},
+        //                                                       number<NPerXdl>{}))),
+        //                 make_tuple(sequence<0>{}, sequence<1>{}),
+        //                 make_tuple(sequence<0>{}, sequence<1, 2, 3, 4, 5>{}));
+        //             return transform_tensor_view(
+        //                 view1,
+        //                 make_tuple(make_pass_through_transform(number<DynamicTileOffsetFlag>{}),
+        //                            make_merge_transform_v3_division_mod(
+        //                                make_tuple(number<DynamicTileOffsetFlag>{},
+        //                                           number<NRepeat / N_Pack>{},
+        //                                           number<N_Pack>{},
+        //                                           number<NWave>{},
+        //                                           number<NPerXdl>{}))),
+        //                 make_tuple(sequence<0>{}, sequence<1, 2, 4, 3, 5>{}),
+        //                 make_tuple(sequence<0>{}, sequence<1>{}));
+        //         }
+        //     };
+        //
+        //     auto scale_m_window =
+        //         make_tile_scatter_gather(make_naive_tensor_view<address_space_enum::global>(
+        //                                      kargs.scale_m.ptr,
+        //                                      make_tuple(kargs.M, 1),
+        //                                      make_tuple(scale_stride_m, 0),
+        //                                      number<1>{}, // gather load can't vectorize
+        //                                      number<1>{}),
+        //                                  make_tuple(number<TilePartitioner::MPerBlock>{},
+        //                                             number<TilePartitioner::NPerBlock>{}),
+        //                                  {0, 0}, // offset m is included in gather offsets
+        //                                  output_acc_tile_distr,
+        //                                  scale_m_offsets);
+        //
+        //     auto scale_n_window = make_tile_window(
+        //         make_naive_tensor_view<address_space_enum::global>(
+        //             kargs.scale_n.ptr + expert_id * kargs.N,
+        //             make_tuple(1, kargs.N),
+        //             make_tuple(0, scale_stride_n),
+        //             number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
+        //             number<1>{}), // MXF4_Pipeline does't use scale_n, so there is no need to
+        //                           // permute as n_pack
+        //         make_tuple(number<TilePartitioner::MPerBlock>{},
+        //                    number < IsGateUp ? TilePartitioner::NPerBlock / 2
+        //                                      : TilePartitioner::NPerBlock > {}),
+        //         {0, IsGateUp ? coord_n / 2 : coord_n},
+        //         output_acc_tile_distr);
+        //
+        //     auto scale_n_up_window = make_tile_window(
+        //         make_naive_tensor_view<address_space_enum::global>(
+        //             kargs.scale_n.ptr + expert_id * kargs.N + kargs.N / 2,
+        //             make_tuple(1, kargs.N),
+        //             make_tuple(0, scale_stride_n),
+        //             number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
+        //             number<1>{}),
+        //         make_tuple(number<TilePartitioner::MPerBlock>{},
+        //                    number<TilePartitioner::NPerBlock / 2>{}),
+        //         {0, coord_n / 2},
+        //         output_acc_tile_distr);
+        //
+        //     auto exp_bias_view = make_naive_tensor_view<address_space_enum::global>(
+        //         kargs.exp_bias.ptr + expert_id * kargs.N,
+        //         make_tuple(1, kargs.N),
+        //         make_tuple(0, scale_stride_n),
+        //         number<FlatmmPipeline::GetVectorSizeB()>{},
+        //         number<1>{});
+        //
+        //     auto exp_bias_window = make_tile_window(
+        //         permute_tensor_view(exp_bias_view, number<(BMXFP4_Pipeline && !IsInputGemm)>{}),
+        //         make_tuple(number<TilePartitioner::MPerBlock>{},
+        //                    number < IsGateUp ? TilePartitioner::NPerBlock / 2
+        //                                      : TilePartitioner::NPerBlock > {}),
+        //         {0, IsGateUp ? coord_n / 2 : coord_n},
+        //         output_acc_tile_distr);
+        //
+        //     auto exp_bias_up_window =
+        //         make_tile_window(make_naive_tensor_view<address_space_enum::global>(
+        //                              kargs.exp_bias.ptr + expert_id * kargs.N + kargs.N / 2,
+        //                              make_tuple(1, kargs.N),
+        //                              make_tuple(0, scale_stride_n),
+        //                              number<FlatmmPipeline::GetVectorSizeB()>{},
+        //                              number<1>{}),
+        //                          make_tuple(number<TilePartitioner::MPerBlock>{},
+        //                                     number<TilePartitioner::NPerBlock / 2>{}),
+        //                          {0, coord_n / 2},
+        //                          output_acc_tile_distr);
+        //
+        //     auto exp_weight_window =
+        //         make_tile_window(make_naive_tensor_view<address_space_enum::global>(
+        //                              static_cast<const float*>(kargs.p_sorted_expert_weights),
+        //                              make_tuple(kargs.M, 1),
+        //                              make_tuple(1, 0),
+        //                              number<FlatmmPipeline::GetVectorSizeA()>{},
+        //                              number<1>{}),
+        //                          make_tuple(number<TilePartitioner::MPerBlock>{},
+        //                                     number<TilePartitioner::NPerBlock>{}),
+        //                          {coord_m, 0},
+        //                          output_acc_tile_distr);
+        //
+        //     using ScaleMBuffer    = decltype(load_tile(scale_m_window));
+        //     using ScaleNBuffer    = decltype(load_tile(scale_n_window));
+        //     using ExpBiasBuffer   = decltype(load_tile(exp_bias_window));
+        //     using ExpWeightBuffer = decltype(load_tile(exp_weight_window));
+        //
+        //     ScaleMBuffer scale_m_buffer;
+        //     ScaleNBuffer scale_n_buffer, scale_n_up_buffer;
+        //
+        //     ExpBiasBuffer exp_bias_buffer, exp_bias_up_buffer;
+        //     ExpWeightBuffer exp_weight_buffer;
+        //
+        //     if constexpr(!BMXFP4_Pipeline)
+        //     {
+        //         scale_m_window.load(scale_m_buffer);
+        //         scale_n_buffer = load_tile(scale_n_window);
+        //         if constexpr(IsGateUp)
+        //             scale_n_up_buffer = load_tile(scale_n_up_window);
+        //     }
+        //
+        //     if constexpr(EnableBias)
+        //     {
+        //         exp_bias_buffer = load_tile(exp_bias_window);
+        //         if constexpr(IsGateUp)
+        //             exp_bias_up_buffer = load_tile(exp_bias_up_window);
+        //     }
+        //     if constexpr(!IsInputGemm)
+        //         exp_weight_buffer = load_tile(exp_weight_window);
+        //
+        //     auto in_lds_window = make_tile_window(
+        //         o_lds_block,
+        //         make_tuple(number<MPerIterationShuffle>{}, number<LDS_NPerIterationShuffle>{}),
+        //         {0, 0});
+        //
+        //     auto out_lds_window = make_tile_window(
+        //         o_lds_block,
+        //         make_tuple(number<MPerIterationShuffle>{}, number<LDS_NPerIterationShuffle>{}),
+        //         {0, 0});
+        //
+        //     using SFC = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
+        //                                     sequence<0, 1>,
+        //                                     sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+        //
+        //     constexpr index_t num_access = SFC::get_num_of_access();
+        //
+        //     static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
+        //                   "Currently, the CShuffle EpiloguePipeline only supports the Row Major "
+        //                   "Output layout");
+        //
+        //     using TileEncodingPattern = tile_distribution_encoding_pattern_2d<
+        //         kBlockSize,
+        //         MPerIterationShuffle,
+        //         LDS_NPerIterationShuffle,
+        //         kind == MoeFlatmmKind::kFFN_gemm2 ? 2 : EpiloguePipeline::GetVectorSizeC(),
+        //         tile_distribution_pattern::thread_raked,
+        //         EpiProblem::kNumWaveGroups>;
+        //
+        //     constexpr auto dram_tile_distribution =
+        //         TileEncodingPattern::make_2d_static_tile_distribution();
+        //
+        //     constexpr auto LdsTileDistr = [&] {
+        //         if constexpr(IsGateUp)
+        //             return make_static_tile_distribution(
+        //                 detail::make_embed_tile_distribution_encoding(
+        //                     tile_distribution_encoding<
+        //                         sequence<>,
+        //                         tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+        //                               // merge two contiguous N
+        //                               sequence<OutputNumNXdlPerWavePerShuffle, NWave>>,
+        //                         tuple<sequence<1, 2>>,
+        //                         tuple<sequence<1, 1>>,
+        //                         sequence<1, 2>,
+        //                         sequence<0, 0>>{},
+        //                     typename CWarpDstr::DstrEncode{}));
+        //         else
+        //             return make_static_tile_distribution(
+        //                 EpiloguePipeline::MakeLdsDistributionEncode());
+        //     }();
+        //
+        //     using LDSTileTensor =
+        //         decltype(make_static_distributed_tensor<AccDataType>(LdsTileDistr));
+        //     LDSTileTensor lds_tile[2];
+        //
+        //     constexpr auto c_warp_y_lengths =
+        //         to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        //     constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+        //     constexpr int ActVectorSize = c_warp_y_lengths.product() * NumMXdlPerWavePerShuffle *
+        //                                   OutputNumNXdlPerWavePerShuffle;
+        //
+        //     auto epi_tile_idx_slice =
+        //         [&](const auto& acc_tile_like_tensor, auto epi_m_idx, auto epi_n_idx) {
+        //             return acc_tile_like_tensor.get_y_sliced_thread_data(
+        //                 merge_sequences(sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
+        //                                          epi_n_idx * OutputNumNXdlPerWavePerShuffle>{},
+        //                                 c_warp_y_index_zeros),
+        //                 merge_sequences(
+        //                     sequence<NumMXdlPerWavePerShuffle, OutputNumNXdlPerWavePerShuffle>{},
+        //                     c_warp_y_lengths));
+        //         };
+        //
+        //     auto gate_up_epi_tile_idx_interleave_slice = [&](auto& dest_gate_tensor,
+        //                                                      auto& dest_up_tensor,
+        //                                                      const auto& acc_tile_like_tensor,
+        //                                                      auto epi_m_idx,
+        //                                                      auto epi_n_idx) {
+        //         static_for<0, OutputNumNXdlPerWavePerShuffle, 1>{}([&](auto n_xdl) {
+        //             dest_gate_tensor.set_y_sliced_thread_data(
+        //                 merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
+        //                 merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{}, c_warp_y_lengths),
+        //                 acc_tile_like_tensor.get_y_sliced_thread_data(
+        //                     merge_sequences(
+        //                         sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
+        //                                  epi_n_idx * NumNXdlPerWavePerShuffle + 2 * n_xdl>{},
+        //                         c_warp_y_index_zeros),
+        //                     merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
+        //                                     c_warp_y_lengths)));
+        //             dest_up_tensor.set_y_sliced_thread_data(
+        //                 merge_sequences(sequence<0, n_xdl>{}, c_warp_y_index_zeros),
+        //                 merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{}, c_warp_y_lengths),
+        //                 acc_tile_like_tensor.get_y_sliced_thread_data(
+        //                     merge_sequences(
+        //                         sequence<epi_m_idx * NumMXdlPerWavePerShuffle,
+        //                                  epi_n_idx * NumNXdlPerWavePerShuffle + 2 * n_xdl + 1>{},
+        //                         c_warp_y_index_zeros),
+        //                     merge_sequences(sequence<NumMXdlPerWavePerShuffle, 1>{},
+        //                                     c_warp_y_lengths)));
+        //         });
+        //     };
+        //
+        //     auto process_epi_tile = [&](auto lds_stage, auto epi_m, auto epi_n) {
+        //         if constexpr(IsGateUp)
+        //         {
+        //             LDSTileTensor gate_tensor, up_tensor;
+        //
+        //             gate_up_epi_tile_idx_interleave_slice(
+        //                 gate_tensor, up_tensor, c_block_tile, epi_m, epi_n);
+        //             auto epi_scale_m    = epi_tile_idx_slice(scale_m_buffer, epi_m, epi_n);
+        //             auto epi_scale_n    = epi_tile_idx_slice(scale_n_buffer, epi_m, epi_n);
+        //             auto epi_scale_n_up = epi_tile_idx_slice(scale_n_up_buffer, epi_m, epi_n);
+        //
+        //             auto epi_exp_bias    = epi_tile_idx_slice(exp_bias_buffer, epi_m, epi_n);
+        //             auto epi_exp_bias_up = epi_tile_idx_slice(exp_bias_up_buffer, epi_m, epi_n);
+        //
+        //             static_for<0, ActVectorSize, 1>{}([&](auto idx) {
+        //                 if constexpr(!BMXFP4_Pipeline)
+        //                 {
+        //                     gate_tensor.get_thread_buffer()[idx] *=
+        //                         epi_scale_m[idx] * epi_scale_n[idx];
+        //                     up_tensor.get_thread_buffer()[idx] *=
+        //                         epi_scale_m[idx] * epi_scale_n_up[idx];
+        //                 }
+        //                 if constexpr(EnableBias)
+        //                 {
+        //                     gate_tensor.get_thread_buffer()[idx] += epi_exp_bias[idx];
+        //                     up_tensor.get_thread_buffer()[idx] += epi_exp_bias_up[idx];
+        //                 }
+        //                 lds_tile[lds_stage].get_thread_buffer().at(idx) =
+        //                     ActivationOp{}(gate_tensor.get_thread_buffer().at(idx),
+        //                                    up_tensor.get_thread_buffer().at(idx));
+        //             });
+        //         }
+        //         else
+        //         {
+        //             lds_tile[lds_stage].get_thread_buffer() =
+        //                 epi_tile_idx_slice(c_block_tile, epi_m, epi_n);
+        //             auto epi_scale_m    = epi_tile_idx_slice(scale_m_buffer, epi_m, epi_n);
+        //             auto epi_scale_n    = epi_tile_idx_slice(scale_n_buffer, epi_m, epi_n);
+        //             auto epi_exp_weight = epi_tile_idx_slice(exp_weight_buffer, epi_m, epi_n);
+        //             auto epi_exp_bias   = epi_tile_idx_slice(exp_bias_buffer, epi_m, epi_n);
+        //
+        //             static_for<0, ActVectorSize, 1>{}([&](auto idx) {
+        //                 if constexpr(!BMXFP4_Pipeline)
+        //                     lds_tile[lds_stage].get_thread_buffer()[idx] *=
+        //                         epi_scale_m[idx] * epi_scale_n[idx];
+        //                 if constexpr(EnableBias)
+        //                     lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
+        //                 if constexpr(!IsInputGemm)
+        //                     lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
+        //                 else // for mlp1 gate-only
+        //                     lds_tile[lds_stage].get_thread_buffer()[idx] =
+        //                         ActivationOp{}(lds_tile[lds_stage].get_thread_buffer()[idx]);
+        //             });
+        //         }
+        //     };
+        //
+        //     constexpr int NumMEpiTile = MRepeat / NumMXdlPerWavePerShuffle;
+        //     constexpr int MPerThread  = TileEncodingPattern::Y2;
+        //     statically_indexed_array<statically_indexed_array<index_t, MPerThread>, NumMEpiTile>
+        //         c_scatter_offsets;
+        //     auto c_coord = dram_tile_distribution.calculate_index();
+        //     static_for<0, NumMEpiTile, 1>{}([&](auto mIter) {
+        //         static_for<0, MPerThread, 1>{}([&](auto m0) {
+        //             auto row_idx = coord_m + mIter * MPerIterationShuffle + c_coord[0] + m0;
+        //             auto fused_token =
+        //                 kargs.p_sorted_token_ids[row_idx]; // topk-idx[31:24] + token_idx[23:0]
+        //
+        //             index_t scatter_token_id = fused_token & token_id_mask;
+        //             if constexpr(IsInputGemm)
+        //                 scatter_token_id =
+        //                     scatter_token_id * kargs.TopK + (fused_token >> token_id_offset);
+        //             c_scatter_offsets[mIter][m0] = scatter_token_id * kargs.stride_C;
+        //         });
+        //     });
+        //
+        //     //===----------------------------------------------------------------------===//
+        //     // Pingpong process start
+        //     //===----------------------------------------------------------------------===//
+        //     process_epi_tile(number<0>{}, number<0>{}, number<0>{});
+        //
+        //     static_for<0, num_access, 1>{}([&](auto iAccess) {
+        //         constexpr int read_stage  = iAccess % 2;
+        //         constexpr int write_stage = read_stage ^ 1;
+        //
+        //         block_sync_lds();
+        //         constexpr auto idx_y_start = SFC::get_index(number<iAccess.value>{});
+        //         constexpr auto mIter = number<idx_y_start.at(number<0>{}) / MPerIterationShuffle>{};
+        //
+        //         const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile[read_stage]);
+        //
+        //         store_tile(in_lds_window, c_warptile_in_tensor_casted);
+        //
+        //         if constexpr(iAccess < num_access - 1)
+        //         {
+        //             constexpr auto idx_y_start_next = SFC::get_index(number<iAccess.value + 1>{});
+        //             constexpr auto mIter_next =
+        //                 number<idx_y_start_next.at(number<0>{}) / MPerIterationShuffle>{};
+        //             constexpr auto nIter_next =
+        //                 number<idx_y_start_next.at(number<1>{}) / NPerIterationShuffle>{};
+        //
+        //             process_epi_tile(number<write_stage>{}, mIter_next, nIter_next);
+        //         }
+        //
+        //         block_sync_lds();
+        //
+        //         auto c_out_tensor =
+        //             load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
+        //         auto c_scatter_tile_window =
+        //             make_tile_scatter_gather(c_block_window.get_bottom_tensor_view(),
+        //                                      c_block_window.get_window_lengths(),
+        //                                      c_block_window.get_window_origin(),
+        //                                      dram_tile_distribution,
+        //                                      c_scatter_offsets[mIter]);
+        //
+        //         if constexpr(!IsInputGemm ||
+        //                      EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add)
+        //             c_scatter_tile_window.update(c_out_tensor);
+        //         else
+        //             c_scatter_tile_window.store(c_out_tensor);
+        //
+        //         if constexpr(iAccess != num_access - 1)
+        //         {
+        //             constexpr auto step = SFC::get_forward_step(iAccess);
+        //             // row_offset of out windows has been included in scatter offset
+        //             move_tile_window(c_block_window,
+        //                              {0, step.at(number<1>{}) / number < IsGateUp ? 2 : 1 > {}});
+        //         }
+        //     });
+        // }
     }
 };
 
