@@ -236,6 +236,9 @@ template <auto SIGNATURE>
     requires ValidUniqueOutputs<SIGNATURE>
 UniqueInputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args);
 
+template <auto SIGNATURE>
+bool validate(Outputs<SIGNATURE> actual, Outputs<SIGNATURE> expected);
+
 /// @brief Invoke a device operation created by CK Builder.
 ///
 /// This is the main function used to invoke a particular device operation

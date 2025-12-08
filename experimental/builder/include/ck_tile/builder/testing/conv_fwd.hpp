@@ -10,8 +10,10 @@
 #include "ck_tile/builder/testing/extent.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
 #include "ck_tile/builder/testing/tensor_initialization.hpp"
+#include "ck_tile/builder/testing/validation.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
+
 /// This file implements common functionality for invoking/testing grouped
 /// forward convolutions created through the CK Builder API. The main item
 /// of it is the ConvArgs structure - which contains a complete description
@@ -266,6 +268,13 @@ UniqueOutputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args)
     return {
         .output_buf = alloc_tensor_buffer(args.make_output_descriptor()),
     };
+}
+
+template <auto SIGNATURE>
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+bool validate(const Args<SIGNATURE>& args, Outputs<SIGNATURE> actual, Outputs<SIGNATURE> expected)
+{
+    return compare_tensors("output", args.make_output_descriptor(), actual.output, expected.output);
 }
 
 } // namespace ck_tile::builder::test
