@@ -177,74 +177,73 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
     assert(BLOCK_Q == BLOCK_M / args.num_queries_per_kv &&
            "BLOCK_Q must equal BLOCK_M / num_queries_per_kv");
     index_t total_num_q_blocks = args.num_tokens / BLOCK_Q + args.num_seqs;
-    auto kargs_lambda =
-        [&]() {
-            if constexpr(Kernel::kIsQuantized)
-            {
-                return Kernel::MakeKargs(args.q_ptr,
-                                         args.k_ptr,
-                                         args.v_ptr,
-                                         args.o_ptr,
-                                         args.num_blks,
-                                         args.num_head_q,
-                                         args.num_queries_per_kv,
-                                         args.scale_s,
-                                         args.scale_q,
-                                         args.scale_k,
-                                         args.scale_v,
-                                         args.scale_out,
-                                         total_num_q_blocks,
-                                         args.query_stride_0,
-                                         args.query_stride_1,
-                                         args.stride_k_cache_0,
-                                         args.stride_k_cache_1,
-                                         args.stride_k_cache_2,
-                                         args.stride_k_cache_3,
-                                         args.stride_v_cache_0,
-                                         args.stride_v_cache_1,
-                                         args.stride_v_cache_2,
-                                         args.stride_v_cache_3,
-                                         args.output_stride_0,
-                                         args.output_stride_1,
-                                         args.block_tables_ptr,
-                                         args.block_table_stride,
-                                         args.seq_lens_ptr,
-                                         args.query_start_len_ptr,
-                                         args.num_seqs);
-            }
-            else
-            {
-                 return Kernel::MakeKargs(args.q_ptr,
-                                         args.k_ptr,
-                                         args.v_ptr,
-                                         args.o_ptr,
-                                         args.num_blks,
-                                         args.num_head_q,
-                                         args.num_queries_per_kv,
-                                         args.scale_s,
-                                         total_num_q_blocks,
-                                         args.query_stride_0,
-                                         args.query_stride_1,
-                                         args.stride_k_cache_0,
-                                         args.stride_k_cache_1,
-                                         args.stride_k_cache_2,
-                                         args.stride_k_cache_3,
-                                         args.stride_v_cache_0,
-                                         args.stride_v_cache_1,
-                                         args.stride_v_cache_2,
-                                         args.stride_v_cache_3,
-                                         args.output_stride_0,
-                                         args.output_stride_1,
-                                         args.block_tables_ptr,
-                                         args.block_table_stride,
-                                         args.seq_lens_ptr,
-                                         args.query_start_len_ptr,
-                                         args.num_seqs);
-            }
-        };
-    
-    auto kargs = kargs_lambda();  
-    
+    auto kargs_lambda          = [&]() {
+        if constexpr(Kernel::kIsQuantized)
+        {
+            return Kernel::MakeKargs(args.q_ptr,
+                                     args.k_ptr,
+                                     args.v_ptr,
+                                     args.o_ptr,
+                                     args.num_blks,
+                                     args.num_head_q,
+                                     args.num_queries_per_kv,
+                                     args.scale_s,
+                                     args.scale_q,
+                                     args.scale_k,
+                                     args.scale_v,
+                                     args.scale_out,
+                                     total_num_q_blocks,
+                                     args.query_stride_0,
+                                     args.query_stride_1,
+                                     args.stride_k_cache_0,
+                                     args.stride_k_cache_1,
+                                     args.stride_k_cache_2,
+                                     args.stride_k_cache_3,
+                                     args.stride_v_cache_0,
+                                     args.stride_v_cache_1,
+                                     args.stride_v_cache_2,
+                                     args.stride_v_cache_3,
+                                     args.output_stride_0,
+                                     args.output_stride_1,
+                                     args.block_tables_ptr,
+                                     args.block_table_stride,
+                                     args.seq_lens_ptr,
+                                     args.query_start_len_ptr,
+                                     args.num_seqs);
+        }
+        else
+        {
+            return Kernel::MakeKargs(args.q_ptr,
+                                     args.k_ptr,
+                                     args.v_ptr,
+                                     args.o_ptr,
+                                     args.num_blks,
+                                     args.num_head_q,
+                                     args.num_queries_per_kv,
+                                     args.scale_s,
+                                     total_num_q_blocks,
+                                     args.query_stride_0,
+                                     args.query_stride_1,
+                                     args.stride_k_cache_0,
+                                     args.stride_k_cache_1,
+                                     args.stride_k_cache_2,
+                                     args.stride_k_cache_3,
+                                     args.stride_v_cache_0,
+                                     args.stride_v_cache_1,
+                                     args.stride_v_cache_2,
+                                     args.stride_v_cache_3,
+                                     args.output_stride_0,
+                                     args.output_stride_1,
+                                     args.block_tables_ptr,
+                                     args.block_table_stride,
+                                     args.seq_lens_ptr,
+                                     args.query_start_len_ptr,
+                                     args.num_seqs);
+        }
+    };
+
+    auto kargs = kargs_lambda();
+
     dim3 grids = Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv, total_num_q_blocks);
     constexpr dim3 blocks         = Kernel::BlockSize();
     constexpr index_t kBlockPerCu = Kernel::kBlockPerCu;

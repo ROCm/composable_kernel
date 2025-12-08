@@ -7,7 +7,7 @@
 namespace ck_tile {
 
 using kernel_traits =
-    unified_attention_kernel_traits<unified_attention_args::data_type_enum::bf16, 0, true>;
+    unified_attention_kernel_traits<unified_attention_args::data_type_enum::fp16, 1, true>;
 
 INST_UNIFIED_ATTENTION_DISPATCH(kernel_traits)
 

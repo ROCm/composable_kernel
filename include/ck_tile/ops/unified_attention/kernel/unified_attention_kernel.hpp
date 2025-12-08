@@ -25,7 +25,6 @@ struct UnifiedAttentionKernel
     static constexpr ck_tile::index_t kBlockPerCu = UnifiedAttentionPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
 
-
     using QDataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::KDataType>;
     using VDataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::VDataType>;
@@ -39,7 +38,6 @@ struct UnifiedAttentionKernel
     static constexpr bool kPadHeadDimQ = UnifiedAttentionPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = UnifiedAttentionPipeline::kPadHeadDimV;
     static constexpr auto QuantEnum    = UnifiedAttentionPipeline::Problem::QuantEnum;
-    
 
     // TODO add yjese
     static constexpr index_t HEAD_SIZE        = UnifiedAttentionPipeline::HEAD_SIZE;
@@ -52,7 +50,7 @@ struct UnifiedAttentionKernel
     static constexpr index_t BLOCK_Q = UnifiedAttentionPipeline::BLOCK_Q;
     // BLOCK size for K seqlen
     static constexpr index_t BLOCK_SIZE = UnifiedAttentionPipeline::BLOCK_SIZE;
-    static constexpr bool kIsQuantized = (QuantEnum != UnifiedAttentionQuantScaleEnum::NO_SCALE);
+    static constexpr bool kIsQuantized  = (QuantEnum != UnifiedAttentionQuantScaleEnum::NO_SCALE);
     template <ck_tile::index_t I> // to avoid duplicated base class problem, introduce an template
                                   // arg
     struct UnifiedAttentionEmptyKargs
@@ -102,10 +100,10 @@ struct UnifiedAttentionKernel
         ck_tile::index_t output_stride_1;
     };
 
-
-    struct UnifiedAttentionVarlenKargs
-        : UnifiedAttentionCommonKargs,
-        std::conditional_t<kIsQuantized, UnifiedAttentionQuantKargs, UnifiedAttentionEmptyKargs<0>>
+    struct UnifiedAttentionVarlenKargs : UnifiedAttentionCommonKargs,
+                                         std::conditional_t<kIsQuantized,
+                                                            UnifiedAttentionQuantKargs,
+                                                            UnifiedAttentionEmptyKargs<0>>
     {
         const int32_t* block_tables_ptr;
         ck_tile::index_t block_table_stride;
@@ -299,9 +297,6 @@ struct UnifiedAttentionKernel
     {
         using namespace ck_tile;
 
-        // TODO fast exp
-        float scale_s = kargs.scale_s;
-
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
@@ -485,8 +480,9 @@ struct UnifiedAttentionKernel
                 return FmhaMask{cur_batch_query_len, seq_len};
         }();
 
-        // both quantized
+        float scale_s = kargs.scale_s;
 
+        // both quantized
         auto o_acc_tile = [&]() {
             if constexpr(kIsQuantized)
             {

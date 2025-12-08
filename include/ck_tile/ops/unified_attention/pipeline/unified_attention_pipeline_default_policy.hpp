@@ -4,15 +4,6 @@
 #pragma once
 
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
-
-#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1_custom_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_custom_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_one_warp_v1.hpp"
-
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2_custom_policy.hpp"
@@ -272,7 +263,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
             {
                 /// NOTICE: in order to use load_tile_transpose() later for V tile, we cannot use
                 /// WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution here
-                return WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution<>{};
+                return WarpGemmMfma_f32_32x32x16_fp8_fp8_CTransposed{};
                 // return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
             }
         }();
@@ -296,7 +287,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         // Follow the V type for this gemm
         using GemmProblem =
             BlockGemmProblem<typename Problem::VDataType,
-                             typename Problem::VDataType,
+                             typename Problem::PDataType,
                              typename Problem::OaccDataType,
                              Problem::kBlockSize,
                              TileGemmShape<sequence<Problem::UnifiedAttentionShape::BLOCK_M,
@@ -306,21 +297,40 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                            typename Problem::UnifiedAttentionShape::Gemm1WarpTile>>;
         /// NOTICE: in order to use load_tile_transpose() later for V tiles, we have to pass
         /// WGAttrNumAccessEnum::Double instead of WGAttrNumAccessEnum::Single
-        using WarpGemm =
-            WarpGemmDispatcher<typename Problem::VDataType,
-                               typename Problem::VDataType,
-                               typename Problem::OaccDataType,
-                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
-                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
-                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
-                               true,
-                               false,
-                               false,
-                               WGAttrNumAccessEnum::Double>;
+        using WarpGemm = decltype([]() {
+            if constexpr(std::is_same_v<typename Problem::VDataType, fp8_t>)
+            {
+                return WarpGemmDispatcher<
+                    typename Problem::VDataType,
+                    typename Problem::PDataType,
+                    typename Problem::OaccDataType,
+                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
+                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
+                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
+                    true,
+                    false,
+                    false,
+                    WGAttrNumAccessEnum::Single>{};
+            }
+            else
+            {
+                return WarpGemmDispatcher<
+                    typename Problem::VDataType,
+                    typename Problem::PDataType,
+                    typename Problem::OaccDataType,
+                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
+                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
+                    Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
+                    true,
+                    false,
+                    false,
+                    WGAttrNumAccessEnum::Double>{};
+            }
+        }());
 
         using BlockGemmPolicy = BlockGemmARegBRegCRegV2CustomPolicy<
             typename Problem::VDataType,
-            typename Problem::VDataType,
+            typename Problem::PDataType,
             typename Problem::OaccDataType,
             typename Problem::UnifiedAttentionShape::Gemm1BlockWarps,
             WarpGemm,
@@ -426,6 +436,20 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                                     number<1>{}),
                                          number<KPack>{},
                                          number<1>{});
+
+        // Debug: verify constexpr components
+        // constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
+
+        static_assert(kNPerBlock > 0, "kNPerBlock must be constexpr");
+        static_assert(LaneGroups > 0, "LaneGroups must be constexpr");
+        static_assert(NumWarps > 0, "NumWarps must be constexpr");
+
+        // static_assert(NumIssues > 0, "NumIssues must be constexpr");
+        static_assert(LaneGroups > 0, "LaneGroups must be constexpr");
+        static_assert(NumWarps > 0, "NumWarps must be constexpr");
+        static_assert(kKPerBlock > 0, "kKPerBlock must be constexpr");
+        static_assert(KPack > 0 && kKPerBlock % KPack == 0,
+                      "KPack must be constexpr and divide kKPerBlock");
 
         constexpr auto k_lds_block_desc = transform_tensor_descriptor(
             k_lds_block_desc_0,
