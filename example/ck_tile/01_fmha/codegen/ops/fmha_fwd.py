@@ -1069,7 +1069,7 @@ class KernelComponentFactoryGfx950(
                 # qr_async_trload_v3 only supports (generic) causal mask
                 for mask in ["no", "causal"]:
                     pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "f", "f",
-                        F_logits="f", F_bias="no", F_lse="f", F_dropout="f", F_qscale=qscale, F_mask=mask, F_skip="f", F_trload="t"))  # fmt: skip
+                        F_logits="f", F_bias="no", F_lse="f", F_dropout="f", F_qscale=qscale, F_mask=mask, F_skip="f", F_trload="t", F_sink="f"))  # fmt: skip
 
         return pipelines
 
