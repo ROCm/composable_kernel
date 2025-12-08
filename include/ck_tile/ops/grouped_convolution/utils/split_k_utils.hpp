@@ -72,8 +72,7 @@ CK_TILE_HOST index_t calculate_optimal_k_batch(const KernelArgs& kargs)
 
     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
     {
-        std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << optimal_k_batch
-                    << std::endl;
+        std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << optimal_k_batch << std::endl;
     }
 
     return optimal_k_batch;

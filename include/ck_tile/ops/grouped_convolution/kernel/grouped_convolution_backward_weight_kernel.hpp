@@ -489,12 +489,12 @@ struct GroupedConvolutionBackwardWeightKernel
                                                                   EpiloguePipeline_>;
 
         // Negative k_batch value: split-K autodeduction.
-        if (kernel_args.k_batch < 0)
+        if(kernel_args.k_batch < 0)
         {
             const auto optimal_split_k =
                 calculate_optimal_k_batch<GemmPipeline_::BlockSize, KernelImpl, TilePartitioner_>(
                     kernel_args);
-            kernel_args.k_batch = optimal_split_k;   
+            kernel_args.k_batch = optimal_split_k;
         }
 
         return kernel_args;
