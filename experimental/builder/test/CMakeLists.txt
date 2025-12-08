@@ -90,7 +90,7 @@ add_ck_builder_test(test_ckb_conv_builder
 
     # Tests convolution trait selection and configuration
     add_ck_builder_test(test_ckb_conv_traits
-        conv/test_conv_traits.cpp)
+        conv/ck/test_conv_traits.cpp)
     
     # Tests convolution problem description and parameter handling
     add_ck_builder_test(test_ckb_conv_description
@@ -103,34 +103,38 @@ add_ck_builder_test(test_ckb_conv_builder
 # compilable code. They are more expensive but catch real-world issues.
 
 
-# Verifies that GetInstanceString() methods produce valid kernel code.
+# Verifies that GetInstanceString() methods and other functions produce valid kernel code.
 # Tests various convolution types:
 #   - Group convolution (v3, standard, large tensor, WMMA, DL variants)
 #   - Backward weight group convolution (XDL)
-# Requires kernel compilation to validate the generated strings.
-add_ck_builder_test(test_ckb_get_instance_string
-    test_get_instance_string_fwd_grp_conv_v3.cpp
-    test_get_instance_string_fwd_grp_conv.cpp
-    test_get_instance_string_fwd_grp_conv_large_tensor.cpp
-    test_get_instance_string_fwd_grp_conv_wmma.cpp
-    test_get_instance_string_fwd_grp_conv_dl.cpp
-    test_get_instance_string_bwd_weight_grp_conv_xdl.cpp)
+# Requires kernel compilation to validate the generated strings through the base class.
+add_ck_builder_test(test_ckb_instance_string
+    test_instance_string_fwd_grp_conv_v3.cpp
+    test_instance_string_fwd_grp_conv.cpp
+    test_instance_string_fwd_grp_conv_large_tensor.cpp
+    test_instance_string_fwd_grp_conv_wmma.cpp
+    test_instance_string_fwd_grp_conv_dl.cpp
+    test_instance_string_bwd_weight_grp_conv_xdl.cpp)
 
 # Tests the forward convolution builder across multiple data types and dimensions.
 # Individual tests are split into separate files to enable parallel compilation.
 add_ck_builder_test(test_ckb_build_fwd_instances
-    conv/test_ckb_conv_fwd_1d_fp16.cpp
-    conv/test_ckb_conv_fwd_1d_bf16.cpp
-    conv/test_ckb_conv_fwd_1d_i8.cpp
-    conv/test_ckb_conv_fwd_2d_fp8.cpp
-    conv/test_ckb_conv_fwd_2d_bf16.cpp
-    conv/test_ckb_conv_fwd_2d_fp16.cpp
-    conv/test_ckb_conv_fwd_2d_fp32.cpp
-    conv/test_ckb_conv_fwd_2d_dl_fp16.cpp
-    conv/test_ckb_conv_fwd_2d_large_tensor_fp16.cpp
-    conv/test_ckb_conv_fwd_3d_bf16.cpp
-    conv/test_ckb_conv_fwd_3d_fp16.cpp
-    conv/test_ckb_conv_fwd_3d_fp32.cpp
+    conv/ck/test_ckb_conv_fwd_2d_bf16_scaleadd_relu.cpp
+    conv/ck/test_ckb_conv_fwd_1d_fp16.cpp
+    conv/ck/test_ckb_conv_fwd_1d_bf16.cpp
+    conv/ck/test_ckb_conv_fwd_1d_i8.cpp
+    conv/ck/test_ckb_conv_fwd_2d_fp8.cpp
+    conv/ck/test_ckb_conv_fwd_2d_bf16.cpp
+    conv/ck/test_ckb_conv_fwd_2d_fp16.cpp
+    conv/ck/test_ckb_conv_fwd_2d_fp32.cpp
+    conv/ck/test_ckb_conv_fwd_2d_dl_fp16.cpp
+    conv/ck/test_ckb_conv_fwd_2d_large_tensor_fp16.cpp
+    conv/ck/test_ckb_conv_fwd_3d_bf16.cpp
+    conv/ck/test_ckb_conv_fwd_3d_fp16.cpp
+    conv/ck/test_ckb_conv_fwd_3d_fp32.cpp
+    conv/ck_tile/test_ckb_conv_fwd_2d_fp16_v3.cpp
+    conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
+    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp
     )
 
 
@@ -183,7 +187,7 @@ endforeach()
 
 # Register all regression tests (integration tests with kernel compilation)
 set(CKB_REGRESSION_TESTS
-    test_ckb_get_instance_string
+    test_ckb_instance_string
     test_ckb_build_fwd_instances
     test_ckb_testing_utils
     test_ckb_factory_grouped_convolution_forward_convscale
