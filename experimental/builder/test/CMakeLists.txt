@@ -90,7 +90,7 @@ add_ck_builder_test(test_ckb_conv_builder
 
     # Tests convolution trait selection and configuration
     add_ck_builder_test(test_ckb_conv_traits
-        conv/test_conv_traits.cpp)
+        conv/ck/test_conv_traits.cpp)
     
     # Tests convolution problem description and parameter handling
     add_ck_builder_test(test_ckb_conv_description
@@ -119,19 +119,22 @@ add_ck_builder_test(test_ckb_instance_string
 # Tests the forward convolution builder across multiple data types and dimensions.
 # Individual tests are split into separate files to enable parallel compilation.
 add_ck_builder_test(test_ckb_build_fwd_instances
-    conv/test_ckb_conv_fwd_2d_bf16_scaleadd_relu.cpp
-    conv/test_ckb_conv_fwd_1d_fp16.cpp
-    conv/test_ckb_conv_fwd_1d_bf16.cpp
-    conv/test_ckb_conv_fwd_1d_i8.cpp
-    conv/test_ckb_conv_fwd_2d_fp8.cpp
-    conv/test_ckb_conv_fwd_2d_bf16.cpp
-    conv/test_ckb_conv_fwd_2d_fp16.cpp
-    conv/test_ckb_conv_fwd_2d_fp32.cpp
-    conv/test_ckb_conv_fwd_2d_dl_fp16.cpp
-    conv/test_ckb_conv_fwd_2d_large_tensor_fp16.cpp
-    conv/test_ckb_conv_fwd_3d_bf16.cpp
-    conv/test_ckb_conv_fwd_3d_fp16.cpp
-    conv/test_ckb_conv_fwd_3d_fp32.cpp
+    conv/ck/test_ckb_conv_fwd_2d_bf16_scaleadd_relu.cpp
+    conv/ck/test_ckb_conv_fwd_1d_fp16.cpp
+    conv/ck/test_ckb_conv_fwd_1d_bf16.cpp
+    conv/ck/test_ckb_conv_fwd_1d_i8.cpp
+    conv/ck/test_ckb_conv_fwd_2d_fp8.cpp
+    conv/ck/test_ckb_conv_fwd_2d_bf16.cpp
+    conv/ck/test_ckb_conv_fwd_2d_fp16.cpp
+    conv/ck/test_ckb_conv_fwd_2d_fp32.cpp
+    conv/ck/test_ckb_conv_fwd_2d_dl_fp16.cpp
+    conv/ck/test_ckb_conv_fwd_2d_large_tensor_fp16.cpp
+    conv/ck/test_ckb_conv_fwd_3d_bf16.cpp
+    conv/ck/test_ckb_conv_fwd_3d_fp16.cpp
+    conv/ck/test_ckb_conv_fwd_3d_fp32.cpp
+    conv/ck_tile/test_ckb_conv_fwd_2d_fp16_v3.cpp
+    conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
+    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp
     )
 
 
