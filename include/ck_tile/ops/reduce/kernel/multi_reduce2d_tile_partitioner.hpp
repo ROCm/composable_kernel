@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ck_tile/core.hpp"
+
 namespace ck_tile {
 
 /// @brief TilePartitioner for 2D reduction operations

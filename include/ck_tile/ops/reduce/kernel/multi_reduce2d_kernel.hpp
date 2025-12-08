@@ -10,6 +10,7 @@
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 #include "ck_tile/ops/reduce/pipeline/reduce2d_problem.hpp"
 #include "ck_tile/core/tensor/tile_window.hpp"
+#include "ck_tile/ops/reduce/kernel/multi_reduce2d_tile_partitioner.hpp"
 
 // Multi Reduce2d Unified Kernel:
 // =======================================
