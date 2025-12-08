@@ -89,5 +89,5 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
     auto conv = Instance{};
     ckt::run(conv, args, inputs.get(), outputs.get());
 
-    EXPECT_THAT(outputs.get(), testing::Not(MatchesReference(args, outputs.get())));
+    EXPECT_THAT(outputs.get(), MatchesReference(args, outputs.get()));
 }
