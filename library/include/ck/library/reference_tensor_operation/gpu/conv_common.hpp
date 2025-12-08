@@ -74,16 +74,16 @@ extract_conv_dims(const ConvParam& conv_param, ck::index_t NDimSpatial, bool app
 namespace ref {
 namespace layout_transform {
 
-// Input transformation: GNCDHW <-> NDHWC (with G=1)
+// Input transformation: GNCDHW <-> NDHWGC (supports grouped convolutions)
 template <typename DataType>
-__global__ void transform_input_GNCDHW_to_NDHWC(const DataType* __restrict__ src,
-                                                DataType* __restrict__ dst,
-                                                ck::index_t G,
-                                                ck::index_t N,
-                                                ck::index_t C,
-                                                ck::index_t D,
-                                                ck::index_t H,
-                                                ck::index_t W)
+__global__ void transform_input_GNCDHW_to_NDHWGC(const DataType* __restrict__ src,
+                                                 DataType* __restrict__ dst,
+                                                 ck::index_t G,
+                                                 ck::index_t N,
+                                                 ck::index_t C,
+                                                 ck::index_t D,
+                                                 ck::index_t H,
+                                                 ck::index_t W)
 {
     ck::index_t total = G * N * C * D * H * W;
     ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
@@ -97,57 +97,56 @@ __global__ void transform_input_GNCDHW_to_NDHWC(const DataType* __restrict__ src
         ck::index_t c = (idx / (W * H * D)) % C;
         ck::index_t n = (idx / (W * H * D * C)) % N;
         ck::index_t g = idx / (W * H * D * C * N);
-        (void)g; // Unused with G=1, but needed for general formula
 
-        // Calculate linear index in NDHWC layout (destination)
-        // NDHWC: n*(D*H*W*C) + d*(H*W*C) + h*(W*C) + w*C + c
-        ck::index_t dst_idx = ((((n * D + d) * H + h) * W + w) * C + c);
+        // Calculate linear index in NDHWGC layout (destination)
+        // NDHWGC: n*(D*H*W*G*C) + d*(H*W*G*C) + h*(W*G*C) + w*(G*C) + g*C + c
+        ck::index_t dst_idx = (((((n * D + d) * H + h) * W + w) * G + g) * C + c);
 
         dst[dst_idx] = src[idx];
     }
 }
 
 template <typename DataType>
-__global__ void transform_input_NDHWC_to_GNCDHW(const DataType* __restrict__ src,
-                                                DataType* __restrict__ dst,
-                                                ck::index_t G,
-                                                ck::index_t N,
-                                                ck::index_t C,
-                                                ck::index_t D,
-                                                ck::index_t H,
-                                                ck::index_t W)
+__global__ void transform_input_NDHWGC_to_GNCDHW(const DataType* __restrict__ src,
+                                                 DataType* __restrict__ dst,
+                                                 ck::index_t G,
+                                                 ck::index_t N,
+                                                 ck::index_t C,
+                                                 ck::index_t D,
+                                                 ck::index_t H,
+                                                 ck::index_t W)
 {
     ck::index_t total = G * N * C * D * H * W;
     ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(idx < total)
     {
-        // Calculate indices in NDHWC layout (source)
+        // Calculate indices in NDHWGC layout (source)
         ck::index_t c = idx % C;
-        ck::index_t w = (idx / C) % W;
-        ck::index_t h = (idx / (C * W)) % H;
-        ck::index_t d = (idx / (C * W * H)) % D;
-        ck::index_t n = idx / (C * W * H * D);
+        ck::index_t g = (idx / C) % G;
+        ck::index_t w = (idx / (C * G)) % W;
+        ck::index_t h = (idx / (C * G * W)) % H;
+        ck::index_t d = (idx / (C * G * W * H)) % D;
+        ck::index_t n = idx / (C * G * W * H * D);
 
         // Calculate linear index in GNCDHW layout (destination)
         // GNCDHW: g*(N*C*D*H*W) + n*(C*D*H*W) + c*(D*H*W) + d*(H*W) + h*W + w
-        // With G=1, g=0: n*(C*D*H*W) + c*(D*H*W) + d*(H*W) + h*W + w
-        ck::index_t dst_idx = ((((n * C + c) * D + d) * H + h) * W + w);
+        ck::index_t dst_idx = (((((g * N + n) * C + c) * D + d) * H + h) * W + w);
 
         dst[dst_idx] = src[idx];
     }
 }
 
-// Weight transformation: GKCZYX <-> KZYXC (with G=1)
+// Weight transformation: GKCZYX <-> KZYXGC (supports grouped convolutions)
 template <typename DataType>
-__global__ void transform_weight_GKCZYX_to_KZYXC(const DataType* __restrict__ src,
-                                                 DataType* __restrict__ dst,
-                                                 ck::index_t G,
-                                                 ck::index_t K,
-                                                 ck::index_t C,
-                                                 ck::index_t Z,
-                                                 ck::index_t Y,
-                                                 ck::index_t X)
+__global__ void transform_weight_GKCZYX_to_KZYXGC(const DataType* __restrict__ src,
+                                                  DataType* __restrict__ dst,
+                                                  ck::index_t G,
+                                                  ck::index_t K,
+                                                  ck::index_t C,
+                                                  ck::index_t Z,
+                                                  ck::index_t Y,
+                                                  ck::index_t X)
 {
     ck::index_t total = G * K * C * Z * Y * X;
     ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
@@ -161,57 +160,56 @@ __global__ void transform_weight_GKCZYX_to_KZYXC(const DataType* __restrict__ sr
         ck::index_t c = (idx / (X * Y * Z)) % C;
         ck::index_t k = (idx / (X * Y * Z * C)) % K;
         ck::index_t g = idx / (X * Y * Z * C * K);
-        (void)g; // Unused with G=1, but needed for general formula
 
-        // Calculate linear index in KZYXC layout (destination)
-        // KZYXC: k*(Z*Y*X*C) + z*(Y*X*C) + y*(X*C) + x*C + c
-        ck::index_t dst_idx = ((((k * Z + z) * Y + y) * X + x) * C + c);
+        // Calculate linear index in KZYXGC layout (destination)
+        // KZYXGC: k*(Z*Y*X*G*C) + z*(Y*X*G*C) + y*(X*G*C) + x*(G*C) + g*C + c
+        ck::index_t dst_idx = (((((k * Z + z) * Y + y) * X + x) * G + g) * C + c);
 
         dst[dst_idx] = src[idx];
     }
 }
 
 template <typename DataType>
-__global__ void transform_weight_KZYXC_to_GKCZYX(const DataType* __restrict__ src,
-                                                 DataType* __restrict__ dst,
-                                                 ck::index_t G,
-                                                 ck::index_t K,
-                                                 ck::index_t C,
-                                                 ck::index_t Z,
-                                                 ck::index_t Y,
-                                                 ck::index_t X)
+__global__ void transform_weight_KZYXGC_to_GKCZYX(const DataType* __restrict__ src,
+                                                  DataType* __restrict__ dst,
+                                                  ck::index_t G,
+                                                  ck::index_t K,
+                                                  ck::index_t C,
+                                                  ck::index_t Z,
+                                                  ck::index_t Y,
+                                                  ck::index_t X)
 {
     ck::index_t total = G * K * C * Z * Y * X;
     ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(idx < total)
     {
-        // Calculate indices in KZYXC layout (source)
+        // Calculate indices in KZYXGC layout (source)
         ck::index_t c = idx % C;
-        ck::index_t x = (idx / C) % X;
-        ck::index_t y = (idx / (C * X)) % Y;
-        ck::index_t z = (idx / (C * X * Y)) % Z;
-        ck::index_t k = idx / (C * X * Y * Z);
+        ck::index_t g = (idx / C) % G;
+        ck::index_t x = (idx / (C * G)) % X;
+        ck::index_t y = (idx / (C * G * X)) % Y;
+        ck::index_t z = (idx / (C * G * X * Y)) % Z;
+        ck::index_t k = idx / (C * G * X * Y * Z);
 
         // Calculate linear index in GKCZYX layout (destination)
         // GKCZYX: g*(K*C*Z*Y*X) + k*(C*Z*Y*X) + c*(Z*Y*X) + z*(Y*X) + y*X + x
-        // With G=1, g=0: k*(C*Z*Y*X) + c*(Z*Y*X) + z*(Y*X) + y*X + x
-        ck::index_t dst_idx = ((((k * C + c) * Z + z) * Y + y) * X + x);
+        ck::index_t dst_idx = (((((g * K + k) * C + c) * Z + z) * Y + y) * X + x);
 
         dst[dst_idx] = src[idx];
     }
 }
 
-// Output transformation: GNKDHW <-> NDHWK (with G=1)
+// Output transformation: GNKDHW <-> NDHWGK (supports grouped convolutions)
 template <typename DataType>
-__global__ void transform_output_GNKDHW_to_NDHWK(const DataType* __restrict__ src,
-                                                 DataType* __restrict__ dst,
-                                                 ck::index_t G,
-                                                 ck::index_t N,
-                                                 ck::index_t K,
-                                                 ck::index_t D,
-                                                 ck::index_t H,
-                                                 ck::index_t W)
+__global__ void transform_output_GNKDHW_to_NDHWGK(const DataType* __restrict__ src,
+                                                  DataType* __restrict__ dst,
+                                                  ck::index_t G,
+                                                  ck::index_t N,
+                                                  ck::index_t K,
+                                                  ck::index_t D,
+                                                  ck::index_t H,
+                                                  ck::index_t W)
 {
     ck::index_t total = G * N * K * D * H * W;
     ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
@@ -225,42 +223,41 @@ __global__ void transform_output_GNKDHW_to_NDHWK(const DataType* __restrict__ sr
         ck::index_t k = (idx / (W * H * D)) % K;
         ck::index_t n = (idx / (W * H * D * K)) % N;
         ck::index_t g = idx / (W * H * D * K * N);
-        (void)g; // Unused with G=1, but needed for general formula
 
-        // Calculate linear index in NDHWK layout (destination)
-        // NDHWK: n*(D*H*W*K) + d*(H*W*K) + h*(W*K) + w*K + k
-        ck::index_t dst_idx = ((((n * D + d) * H + h) * W + w) * K + k);
+        // Calculate linear index in NDHWGK layout (destination)
+        // NDHWGK: n*(D*H*W*G*K) + d*(H*W*G*K) + h*(W*G*K) + w*(G*K) + g*K + k
+        ck::index_t dst_idx = (((((n * D + d) * H + h) * W + w) * G + g) * K + k);
 
         dst[dst_idx] = src[idx];
     }
 }
 
 template <typename DataType>
-__global__ void transform_output_NDHWK_to_GNKDHW(const DataType* __restrict__ src,
-                                                 DataType* __restrict__ dst,
-                                                 ck::index_t G,
-                                                 ck::index_t N,
-                                                 ck::index_t K,
-                                                 ck::index_t D,
-                                                 ck::index_t H,
-                                                 ck::index_t W)
+__global__ void transform_output_NDHWGK_to_GNKDHW(const DataType* __restrict__ src,
+                                                  DataType* __restrict__ dst,
+                                                  ck::index_t G,
+                                                  ck::index_t N,
+                                                  ck::index_t K,
+                                                  ck::index_t D,
+                                                  ck::index_t H,
+                                                  ck::index_t W)
 {
     ck::index_t total = G * N * K * D * H * W;
     ck::index_t idx   = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(idx < total)
     {
-        // Calculate indices in NDHWK layout (source)
+        // Calculate indices in NDHWGK layout (source)
         ck::index_t k = idx % K;
-        ck::index_t w = (idx / K) % W;
-        ck::index_t h = (idx / (K * W)) % H;
-        ck::index_t d = (idx / (K * W * H)) % D;
-        ck::index_t n = idx / (K * W * H * D);
+        ck::index_t g = (idx / K) % G;
+        ck::index_t w = (idx / (K * G)) % W;
+        ck::index_t h = (idx / (K * G * W)) % H;
+        ck::index_t d = (idx / (K * G * W * H)) % D;
+        ck::index_t n = idx / (K * G * W * H * D);
 
         // Calculate linear index in GNKDHW layout (destination)
         // GNKDHW: g*(N*K*D*H*W) + n*(K*D*H*W) + k*(D*H*W) + d*(H*W) + h*W + w
-        // With G=1, g=0: n*(K*D*H*W) + k*(D*H*W) + d*(H*W) + h*W + w
-        ck::index_t dst_idx = ((((n * K + k) * D + d) * H + h) * W + w);
+        ck::index_t dst_idx = (((((g * N + n) * K + k) * D + d) * H + h) * W + w);
 
         dst[dst_idx] = src[idx];
     }

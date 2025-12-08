@@ -46,3 +46,18 @@ TEST(GpuReferenceConvFwd, Conv2DFP16Stride2)
         test::test_conv_gpu_ref<2, half_t, half_t, half_t>(params, ConvKernelType::Forward);
     EXPECT_TRUE(result);
 }
+
+TEST(GpuReferenceConvFwd, Conv2DFP16GroupedG2)
+{
+    auto params = test::conv_test_shapes::get_2d_grouped_g2();
+    bool result =
+        test::test_conv_gpu_ref<2, half_t, half_t, half_t>(params, ConvKernelType::Forward);
+    EXPECT_TRUE(result);
+}
+
+TEST(GpuReferenceConvFwd, Conv2DFP32GroupedG4)
+{
+    auto params = test::conv_test_shapes::get_2d_grouped_g4();
+    bool result = test::test_conv_gpu_ref<2, float, float, float>(params, ConvKernelType::Forward);
+    EXPECT_TRUE(result);
+}

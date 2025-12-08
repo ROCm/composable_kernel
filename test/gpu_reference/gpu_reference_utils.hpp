@@ -57,6 +57,7 @@ bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
                         DeviceMem& output_dev,
                         DeviceMem& output_cpu_dev,
                         const ref::ConvDims& dims,
+                        index_t G,
                         index_t N,
                         index_t K,
                         index_t Do,
@@ -126,18 +127,19 @@ bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
     // Transform GPU output back to CPU layout
     const index_t output_total = N * Do * Ho * Wo * K;
     const index_t output_grid  = (output_total + transform_block_size - 1) / transform_block_size;
+    const index_t K_per_group  = K / G;
 
     Tensor<OutDataType> output_cpu(out_lengths_cpu);
-    hipLaunchKernelGGL(ref::layout_transform::transform_output_NDHWK_to_GNKDHW<OutDataType>,
+    hipLaunchKernelGGL(ref::layout_transform::transform_output_NDHWGK_to_GNKDHW<OutDataType>,
                        dim3(output_grid),
                        dim3(transform_block_size),
                        0,
                        nullptr,
                        reinterpret_cast<const OutDataType*>(output_dev.GetDeviceBuffer()),
                        reinterpret_cast<OutDataType*>(output_cpu_dev.GetDeviceBuffer()),
-                       1,
+                       G,
                        N,
-                       K,
+                       K_per_group,
                        Do,
                        Ho,
                        Wo);
@@ -159,6 +161,7 @@ bool test_conv_bwd_data_impl(const ConvParams<NDimSpatial>& params,
                              DeviceMem& output_dev,
                              DeviceMem& input_cpu_dev,
                              const ref::ConvDims& dims,
+                             index_t G,
                              index_t N,
                              index_t C,
                              index_t Di,
@@ -229,17 +232,19 @@ bool test_conv_bwd_data_impl(const ConvParams<NDimSpatial>& params,
     const index_t input_total = N * Di * Hi * Wi * C;
     const index_t input_grid  = (input_total + transform_block_size - 1) / transform_block_size;
 
+    const index_t C_per_group = C / G;
+
     Tensor<InDataType> input_cpu(in_lengths_cpu);
-    hipLaunchKernelGGL(ref::layout_transform::transform_input_NDHWC_to_GNCDHW<InDataType>,
+    hipLaunchKernelGGL(ref::layout_transform::transform_input_NDHWGC_to_GNCDHW<InDataType>,
                        dim3(input_grid),
                        dim3(transform_block_size),
                        0,
                        nullptr,
                        reinterpret_cast<const InDataType*>(input_dev.GetDeviceBuffer()),
                        reinterpret_cast<InDataType*>(input_cpu_dev.GetDeviceBuffer()),
-                       1,
+                       G,
                        N,
-                       C,
+                       C_per_group,
                        Di,
                        Hi,
                        Wi);
@@ -261,6 +266,7 @@ bool test_conv_bwd_weight_impl(const ConvParams<NDimSpatial>& params,
                                DeviceMem& output_dev,
                                DeviceMem& weight_cpu_dev,
                                const ref::ConvDims& dims,
+                               index_t G,
                                index_t K,
                                index_t C,
                                index_t Z,
@@ -330,18 +336,20 @@ bool test_conv_bwd_weight_impl(const ConvParams<NDimSpatial>& params,
     // Transform GPU weight result back to CPU layout
     const index_t weight_total = K * Z * Y * X * C;
     const index_t weight_grid  = (weight_total + transform_block_size - 1) / transform_block_size;
+    const index_t K_per_group  = K / G;
+    const index_t C_per_group  = C / G;
 
     Tensor<WeiDataType> weight_cpu_result(wei_lengths_cpu);
-    hipLaunchKernelGGL(ref::layout_transform::transform_weight_KZYXC_to_GKCZYX<WeiDataType>,
+    hipLaunchKernelGGL(ref::layout_transform::transform_weight_KZYXGC_to_GKCZYX<WeiDataType>,
                        dim3(weight_grid),
                        dim3(transform_block_size),
                        0,
                        nullptr,
                        reinterpret_cast<const WeiDataType*>(weight_dev.GetDeviceBuffer()),
                        reinterpret_cast<WeiDataType*>(weight_cpu_dev.GetDeviceBuffer()),
-                       1,
-                       K,
-                       C,
+                       G,
+                       K_per_group,
+                       C_per_group,
                        Z,
                        Y,
                        X);
@@ -360,8 +368,9 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
     const index_t N = params.N;
     const index_t K = params.K;
     const index_t C = params.C;
+    const index_t G = params.G;
 
-    // Create GPU tensors (NDHWC format)
+    // Create GPU tensors (NDHWC format - GPU kernels use total channels)
     std::vector<index_t> in_lengths_gpu = {N};
     for(auto d : params.input_spatial)
         in_lengths_gpu.push_back(d);
@@ -481,16 +490,20 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
     dims.pad_y      = pad_y;
     dims.pad_x      = pad_x;
 
-    // Create CPU layout tensors for comparison
-    std::vector<index_t> in_lengths_cpu = {1, N, C};
+    // Create CPU layout tensors for comparison (GNCDHW/GKCZYX/GNKDHW)
+    // C and K in params are total channels, divide by G for per-group
+    const index_t C_per_group = C / G;
+    const index_t K_per_group = K / G;
+
+    std::vector<index_t> in_lengths_cpu = {G, N, C_per_group};
     for(auto d : params.input_spatial)
         in_lengths_cpu.push_back(d);
 
-    std::vector<index_t> wei_lengths_cpu = {1, K, C};
+    std::vector<index_t> wei_lengths_cpu = {G, K_per_group, C_per_group};
     for(auto d : params.filter_spatial)
         wei_lengths_cpu.push_back(d);
 
-    std::vector<index_t> out_lengths_cpu = {1, N, K};
+    std::vector<index_t> out_lengths_cpu = {G, N, K_per_group};
     for(auto d : params.output_spatial)
         out_lengths_cpu.push_back(d);
 
@@ -511,16 +524,16 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
         const index_t input_total = N * Di * Hi * Wi * C;
         const index_t input_grid  = (input_total + transform_block_size - 1) / transform_block_size;
 
-        hipLaunchKernelGGL(ref::layout_transform::transform_input_NDHWC_to_GNCDHW<InDataType>,
+        hipLaunchKernelGGL(ref::layout_transform::transform_input_NDHWGC_to_GNCDHW<InDataType>,
                            dim3(input_grid),
                            dim3(transform_block_size),
                            0,
                            nullptr,
                            reinterpret_cast<const InDataType*>(input_dev.GetDeviceBuffer()),
                            reinterpret_cast<InDataType*>(input_cpu_dev.GetDeviceBuffer()),
-                           1,
+                           G,
                            N,
-                           C,
+                           C_per_group,
                            Di,
                            Hi,
                            Wi);
@@ -533,16 +546,16 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
         const index_t weight_grid =
             (weight_total + transform_block_size - 1) / transform_block_size;
 
-        hipLaunchKernelGGL(ref::layout_transform::transform_weight_KZYXC_to_GKCZYX<WeiDataType>,
+        hipLaunchKernelGGL(ref::layout_transform::transform_weight_KZYXGC_to_GKCZYX<WeiDataType>,
                            dim3(weight_grid),
                            dim3(transform_block_size),
                            0,
                            nullptr,
                            reinterpret_cast<const WeiDataType*>(weight_dev.GetDeviceBuffer()),
                            reinterpret_cast<WeiDataType*>(weight_cpu_dev.GetDeviceBuffer()),
-                           1,
-                           K,
-                           C,
+                           G,
+                           K_per_group,
+                           C_per_group,
                            Z,
                            Y,
                            X);
@@ -555,16 +568,16 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
         const index_t output_grid =
             (output_total + transform_block_size - 1) / transform_block_size;
 
-        hipLaunchKernelGGL(ref::layout_transform::transform_output_NDHWK_to_GNKDHW<OutDataType>,
+        hipLaunchKernelGGL(ref::layout_transform::transform_output_NDHWGK_to_GNKDHW<OutDataType>,
                            dim3(output_grid),
                            dim3(transform_block_size),
                            0,
                            nullptr,
                            reinterpret_cast<const OutDataType*>(output_dev.GetDeviceBuffer()),
                            reinterpret_cast<OutDataType*>(output_cpu_dev.GetDeviceBuffer()),
-                           1,
+                           G,
                            N,
-                           K,
+                           K_per_group,
                            Do,
                            Ho,
                            Wo);
@@ -586,6 +599,7 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
             output_dev,
             output_cpu_dev,
             dims,
+            G,
             N,
             K,
             Do,
@@ -604,6 +618,7 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
             output_dev,
             input_cpu_dev,
             dims,
+            G,
             N,
             C,
             Di,
@@ -622,6 +637,7 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
             output_dev,
             weight_cpu_dev,
             dims,
+            G,
             K,
             C,
             Z,
