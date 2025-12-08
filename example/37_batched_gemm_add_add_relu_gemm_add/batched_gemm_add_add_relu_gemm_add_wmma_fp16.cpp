@@ -88,47 +88,49 @@ using DeviceGemmInstance =
         B1ElementOp,
         CDE1ElementOp,
         GemmSpec,
-        256,            // BlockSize
-        128,            // MPerBlock
-        128,            // LPerBlock
-        32,             // KPerBlock
-        128,            // NPerBlock (Gemm1NPerBlock)
-        32,             // LTilePerBlock (Gemm1KPerBlock)
-        8,              // AK1
-        8,              // BK1
-        2,              // L1 (B1K1)
-        16,             // MPerWmma
-        16,             // LPerWmma
-        2,              // MRepeat (MXdlPerWave)
-        8,              // LRepeat (NXdlPerWave)
-        8,              // NRepeat (Gemm1NXdlPerWave)
-        S<4, 64, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
+
+        32, // BlockSize
+        16, // MPerBlock
+        64, // LPerBlock
+        64, // KPerBlock
+        64, // NPerBlock (Gemm1NPerBlock)
+        64, // LTilePerBlock (Gemm1KPerBlock)
+        8,  // AK1
+        8,  // BK1
+        8,  // L1 (B1K1)
+        16, // MPerWmma
+        16, // LPerWmma
+        1,  // MRepeat
+        4,  // LRepeat (Gemm0NRepeat)
+        4,  // NRepeat (Gemm1NRepeat)
+
+        S<2, 16, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
         S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
         2,              // ABlockTransferSrcVectorDim
         8,              // ABlockTransferSrcScalarPerVector
         8,              // ABlockTransferDstScalarPerVector_K1
-        true,           // ABlockLdsAddExtraM
-        S<4, 64, 1>,    // B0BlockTransferThreadClusterLengths_K0_L_K1
+        false,          // ABlockLdsAddExtraM
+        S<2, 16, 1>,    // B0BlockTransferThreadClusterLengths_K0_L_K1
         S<1, 0, 2>,     // B0BlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,     // B0BlockTransferSrcAccessOrder
         2,              // B0BlockTransferSrcVectorDim
         8,              // B0BlockTransferSrcScalarPerVector
         8,              // B0BlockTransferDstScalarPerVector_K1
-        true,           // B0BlockLdsAddExtraL
-        9,              // CDE0BlockTransferSrcVectorDim
+        false,          // B0BlockLdsAddExtraL
+        8,              // CDE0BlockTransferSrcVectorDim
         4,              // CDE0BlockTransferSrcScalarPerVector
-        S<8, 32, 1>,    // B1BlockTransferThreadClusterLengths_L0_N_L1
+        S<2, 16, 1>,    // B1BlockTransferThreadClusterLengths_L0_N_L1
         S<0, 2, 1>,     // B1BlockTransferThreadClusterArrangeOrder
         S<0, 2, 1>,     // B1BlockTransferSrcAccessOrder
         1,              // B1BlockTransferSrcVectorDim
         4,              // B1BlockTransferSrcScalarPerVector
         2,              // B1BlockTransferDstScalarPerVector_L1
-        false,          // B1BlockLdsAddExtraN
+        true,           // B1BlockLdsAddExtraN
         1,              // CShuffleMRepeatPerShuffle
         2,              // CShuffleNRepeatPerShuffle
-        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        4>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+        S<1, 16, 1, 2>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 #include "batched_gemm_multiple_d_gemm_multiple_d.inc"
 int main(int argc, char* argv[]) { return run_example(argc, argv); }

@@ -73,10 +73,10 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         p_shared,
         arg.a_grid_desc,
         arg.b0_grid_desc,
-        arg.d0_grid_desc,
+        arg.d0s_grid_desc,
         arg.b1_grid_desc,
-        arg.d1_grid_desc,
-        arg.cde1_grid_desc_mblock_mperblock_nblock_nperblock,
+        arg.d1s_grid_desc_mblock_mperblock_nblock_nperblock,
+        arg.e1_grid_desc_mblock_mperblock_nblock_nperblock,
         arg.a_element_op,
         arg.b0_element_op,
         arg.acc_element_op,
@@ -288,7 +288,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
             return g_idx * static_cast<long_index_t>(BatchStrideA0_);
         }
 
-        __host__ __device__ constexpr long_index_t GetBBasePtr(index_t g_idx) const
+        __host__ __device__ constexpr long_index_t GetB0BasePtr(index_t g_idx) const
         {
             return g_idx * static_cast<long_index_t>(BatchStrideB0_);
         }
@@ -305,7 +305,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
             return g_idx * static_cast<long_index_t>(BatchStrideB1_);
         }
 
-        __host__ __device__ constexpr long_index_t GetCBasePtr(index_t g_idx) const
+        __host__ __device__ constexpr long_index_t GetE1BasePtr(index_t g_idx) const
         {
             return g_idx * static_cast<long_index_t>(BatchStrideE1_);
         }
@@ -408,9 +408,9 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
 
         RawArg(const ADataType* p_a_grid_,
                const B0DataType* p_b0_grid_,
-               std::array<const void*, NumD0Tensor> p_d0s_grid,
+               std::array<const void*, NumD0Tensor> p_d0s_grid_,
                const B1DataType* p_b1_grid_,
-               std::array<const void*, NumD1Tensor> p_d1s_grid,
+               std::array<const void*, NumD1Tensor> p_d1s_grid_,
                CDataType* p_e1_grid_,
                index_t M_,
                index_t N_,
@@ -436,9 +436,9 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
                CDE1ElementwiseOperation cde1_element_op_)
             : p_a_grid{p_a_grid_},
               p_b0_grid{p_b0_grid_},
-              p_d0s_grid_{},
+              p_d0s_grid{},
               p_b1_grid{p_b1_grid_},
-              p_d1s_grid_{},
+              p_d1s_grid{},
               p_e1_grid{p_e1_grid_},
               M{M_},
               N{N_},
@@ -478,7 +478,8 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
             b1_grid_desc     = MakeB1GridDescriptor(b1_g_o_n_lengths, b1_g_o_n_strides);
             e1_grid_desc_m_n = MakeE1GridDescriptor(e1_g_m_o_lengths, e1_g_m_o_strides);
             e1_grid_desc_mblock_mperblock_nblock_nperblock =
-                GridwiseOp::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e1_grid_desc_m_n);
+                GridwiseOp::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    e1_grid_desc_m_n);
             block_2_ctile_map = GridwiseOp::MakeDefaultBlock2CTileMap(e1_grid_desc_m_n, 1, 1);
 
             static_for<0, NumD0Tensor, 1>{}([&](auto i) {
@@ -489,10 +490,10 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
                 d0s_g_m_n_strides[i] = arr3{BatchStrideD0s[i], StrideD0s[i], 1};
 
                 // D0 pointer
-                p_d0s_grid_(i) = static_cast<const D0DataType*>(p_d0s_grid[i]);
+                p_d0s_grid(i) = static_cast<const D0DataType*>(p_d0s_grid_[i]);
 
                 // D0 desc
-                d0s_grid_desc_m_n_(i) = MakeD0GridDescriptor(M, K, StrideD0s[i]);
+                d0s_grid_desc(i) = MakeD0GridDescriptor(d0s_g_m_n_lengths[i], d0s_g_m_n_strides[i]);
             });
 
             static_for<0, NumD1Tensor, 1>{}([&](auto i) {
@@ -503,19 +504,22 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
                 d1s_g_m_o_strides[i] = arr3{BatchStrideD1s[i], StrideD1s[i], 1};
 
                 // D1 pointer
-                p_d1s_grid_(i) = static_cast<const D1DataType*>(p_d1s_grid[i]);
+                p_d1s_grid(i) = static_cast<const D1DataType*>(p_d1s_grid_[i]);
 
                 // D1 desc
-                d1s_grid_desc_m_n_(i) = MakeE1GridDescriptor(M, O, StrideD1s[i]);
+                d1s_grid_desc(i) = MakeE1GridDescriptor(d1s_g_m_o_lengths[i], d1s_g_m_o_strides[i]);
             });
+
+            d1s_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseOp::MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(d1s_grid_desc);
         }
 
         // Pointers
         const ADataType* p_a_grid;
         const B0DataType* p_b0_grid;
-        typename GridwiseOp::D0sGridPointer p_d0s_grid_;
+        typename GridwiseOp::D0sGridPointer p_d0s_grid;
         const B1DataType* p_b1_grid;
-        typename GridwiseOp::D1sGridPointer p_d1s_grid_;
+        typename GridwiseOp::D1sGridPointer p_d1s_grid;
         CDataType* p_e1_grid;
 
         // Raw Problem Size
@@ -550,8 +554,11 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
         D0sGridDesc d0s_grid_desc;
         B1GridDesc b1_grid_desc;
         D1sGridDesc d1s_grid_desc;
+        typename GridwiseOp::D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            d1s_grid_desc_mblock_mperblock_nblock_nperblock;
+
         E1GridDesc e1_grid_desc_m_n;
-        typename GridwiseOp::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        typename GridwiseOp::E1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e1_grid_desc_mblock_mperblock_nblock_nperblock;
 
         typename GridwiseOp::DefaultBlock2CTileMap block_2_ctile_map;
@@ -648,9 +655,9 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
 
         if(!GridwiseOp::CheckValidity(arg.a_grid_desc,
                                       arg.b0_grid_desc,
-                                      arg.d0_grid_desc,
+                                      arg.d0s_grid_desc,
                                       arg.b1_grid_desc,
-                                      arg.d1_grid_desc,
+                                      arg.d1s_grid_desc,
                                       arg.e1_grid_desc_m_n,
                                       arg.block_2_ctile_map))
         {
