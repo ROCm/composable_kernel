@@ -63,29 +63,17 @@ CK_TILE_HOST index_t calculate_optimal_k_batch(const KernelArgs& kargs)
 {
     static ActiveWorkgroupsPerCU<BlockSize, KernelArgs, KernelImpl> active_workgroups_per_cu;
 
-    index_t optimal_k_batch = kargs.k_batch;
-    if(optimal_k_batch < 0)
-    {
-        const auto grid_size =
-            TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN) * kargs.GemmBatch;
-        optimal_k_batch =
-            get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_, grid_size);
+    const auto grid_size = TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN) * kargs.GemmBatch;
+    auto optimal_k_batch =
+        get_best_occupancy_k_batch_value(active_workgroups_per_cu.max_occupancy_, grid_size);
 
-        const auto max_allowed_k_batch = kargs.GemmK;
-        optimal_k_batch                = std::min(optimal_k_batch, max_allowed_k_batch);
+    const auto max_allowed_k_batch = kargs.GemmK;
+    optimal_k_batch                = std::min(optimal_k_batch, max_allowed_k_batch);
 
-        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-        {
-            std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << optimal_k_batch
-                      << std::endl;
-        }
-    }
-    else
+    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
     {
-        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-        {
-            std::cout << "Using user defined k_batch: " << optimal_k_batch << std::endl;
-        }
+        std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << optimal_k_batch
+                    << std::endl;
     }
 
     return optimal_k_batch;
