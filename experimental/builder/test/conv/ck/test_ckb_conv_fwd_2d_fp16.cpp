@@ -6,10 +6,13 @@
 #include "utils/conv_algorithm_type_utils.hpp"
 #include "ck_tile/builder/testing/conv_fwd_ck.hpp"
 #include "ck_tile/host/device_prop.hpp"
+#include "testing_utils.hpp"
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
 namespace cku = ck_tile::builder::test_utils;
+
+using ck_tile::test::MatchesReference;
 
 constexpr auto SIGNATURE =
     ckt::ConvSignature{.spatial_dim            = 2,
@@ -86,5 +89,5 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
     auto conv = Instance{};
     ckt::run(conv, args, inputs.get(), outputs.get());
 
-    EXPECT_THAT(ckt::validate(args, outputs.get(), outputs.get()), testing::IsTrue());
+    EXPECT_THAT(outputs.get(), testing::Not(MatchesReference(args, outputs.get())));
 }
