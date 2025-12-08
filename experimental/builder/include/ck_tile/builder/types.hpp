@@ -145,6 +145,15 @@ enum struct GemmSpecialization
     MNKOPadding
 };
 
+// Enums for the CK Tile convolution specialization.
+enum class TileConvSpecialization
+{
+    DEFAULT,
+    FILTER_1X1_PAD0,
+    FILTER_1X1_STRIDE1_PAD0,
+    FILTER_3x3
+};
+
 // Enums for the forward convolution specialization.
 enum class ConvFwdSpecialization
 {
