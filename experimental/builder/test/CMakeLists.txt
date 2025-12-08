@@ -80,6 +80,7 @@ add_ck_builder_test(test_ckb_conv_builder
     test_instance_traits_util.cpp
     unit_device_buffer.cpp
     unit_tensor_descriptor.cpp
+    unit_error.cpp
     unit_conv_elementwise_op.cpp
     unit_conv_tensor_layout.cpp
     unit_conv_tensor_type.cpp

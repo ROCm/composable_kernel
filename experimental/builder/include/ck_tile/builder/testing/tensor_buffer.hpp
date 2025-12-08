@@ -7,10 +7,12 @@
 #include <memory>
 #include <numeric>
 #include <span>
+#include <sstream>
 #include <concepts>
 #include <hip/hip_runtime.h>
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/testing/type_traits.hpp"
+#include "ck_tile/builder/testing/error.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 
 /// This file deals with tensor memory allocation: Both the act of allocating
@@ -37,31 +39,6 @@ struct DeviceMemoryDeleter
         if(ptr)
             (void)hipFree(ptr);
     }
-};
-
-/// @brief HIP out of memory error
-///
-/// This is a derivation of `std::runtime_error` specialized for HIP
-/// out-of-memory errors.
-///
-/// @see std::runtime_error
-struct OutOfDeviceMemoryError : std::runtime_error
-{
-    /// @brief Utility for formatting out-of-memory error messages
-    ///
-    /// Returns a human-readable description of a HIP out-of-memory error.
-    ///
-    /// @param status The status to report
-    static std::string format_error(hipError_t status)
-    {
-        return std::string("failed to allocate hip memory: ") + hipGetErrorString(status) + " (" +
-               std::to_string(status) + ")";
-    }
-
-    /// @brief Construct an out-of-memory error using `status` as message.
-    ///
-    /// @param status A HIP error status that was encountered while allocating memory.
-    OutOfDeviceMemoryError(hipError_t status) : std::runtime_error(format_error(status)) {}
 };
 
 /// @brief Automatically managed GPU memory.
@@ -96,7 +73,16 @@ inline DeviceBuffer alloc_buffer(size_t size)
     std::byte* d_buf = nullptr;
     if(const auto status = hipMalloc(&d_buf, size); status != hipSuccess)
     {
-        throw OutOfDeviceMemoryError(status);
+        // Add some additional context
+
+        size_t free, total;
+        check_hip("failed to get HIP memory info", hipMemGetInfo(&free, &total));
+
+        std::stringstream ss;
+        ss << "failed to allocate device memory (tried to allocate " << size << " bytes with only "
+           << free << " available)";
+
+        throw OutOfDeviceMemoryError(ss.str());
     }
     return DeviceBuffer(d_buf);
 }
