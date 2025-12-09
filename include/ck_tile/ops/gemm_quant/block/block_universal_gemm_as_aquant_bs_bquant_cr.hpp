@@ -36,8 +36,8 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
         using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
         using CDataType       = remove_cvref_t<typename Problem::CDataType>;
         using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
-        using AQuantGroupSize  = remove_cvref_t<typename Problem::AQuantGroupSize>;
-		using BQuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
+        using AQuantGroupSize = remove_cvref_t<typename Problem::AQuantGroupSize>;
+        using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
         static constexpr index_t kBlockSize = Problem::kBlockSize;
         static constexpr auto Scheduler     = Problem::Scheduler;
@@ -304,11 +304,8 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                             }
                         });
                         // a_scale
-                        AQPickerCommon<AQBlockTensor, 
-					                   Traits, 
-                                       mIter,
-                                       kQScale>
-                            aq_picker(aq_block_tensor);
+                        AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(
+                            aq_block_tensor);
 
                         // Multiply bquant with accumulated C
                         constexpr index_t reg_offset = [&]() {
@@ -321,14 +318,24 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                                 return nIter * Traits::KQPerBlock + kQScale;
                             }
                         }();
-                        
+
                         constexpr auto tbuf_offset =
                             number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
                                        merge_sequences(sequence<mIter, nIter>{},
                                                        c_warp_y_index_zeros)) /
                                    CBlockTensor::PackedSize>{};
-                        auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-                        float b_scale_reg_f = Base::cvt_scale_to_fp32<typename Traits::BQDataType>(scale_reg);
+                        auto& scale_reg = bq_block_tensor.get_thread_buffer()[reg_offset];
+                        float b_scale_reg_f =
+                            Base::cvt_scale_to_fp32<typename Traits::BQDataType>(scale_reg);
+
+                        constexpr auto tbuf_offset =
+                            number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
+                                       merge_sequences(sequence<mIter, nIter>{},
+                                                       c_warp_y_index_zeros)) /
+                                   CBlockTensor::PackedSize>{};
+                        auto& scale_reg = bq_block_tensor.get_thread_buffer()[reg_offset];
+                        float b_scale_reg_f =
+                            Base::cvt_scale_to_fp32<typename Traits::BQDataType>(scale_reg);
 
                         static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                             [&](auto c_row) {

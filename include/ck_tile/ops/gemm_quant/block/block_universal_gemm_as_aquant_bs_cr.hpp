@@ -296,11 +296,8 @@ struct AQuantBlockUniversalGemmAsBsCr
                                                        c_warp_y_index_zeros)) /
                                    CBlockTensor::PackedSize>{};
 
-                        AQPickerCommon<AQBlockTensor, 
-					                   Traits, 
-                                       mIter,
-                                       kQScale>
-                            aq_picker(aq_block_tensor);
+                        AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(
+                            aq_block_tensor);
 
                         static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                             [&](auto c_row) {

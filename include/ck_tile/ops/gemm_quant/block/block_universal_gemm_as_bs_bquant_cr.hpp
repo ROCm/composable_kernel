@@ -322,7 +322,9 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                             int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
                                 pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
 
-                            float scale_reg_f = Base::cvt_scale_to_fp32<typename Traits::BQDataType>(gathered_scale_reg);
+                            float scale_reg_f =
+                                Base::cvt_scale_to_fp32<typename Traits::BQDataType>(
+                                    gathered_scale_reg);
 
                             static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                                 [&](auto c_row) {
@@ -345,8 +347,9 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                                 }
                             }();
 
-                            auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-                            float scale_reg_f = Base::cvt_scale_to_fp32<typename Traits::BQDataType>(scale_reg);
+                            auto& scale_reg = bq_block_tensor.get_thread_buffer()[reg_offset];
+                            float scale_reg_f =
+                                Base::cvt_scale_to_fp32<typename Traits::BQDataType>(scale_reg);
                             static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                                 [&](auto c_row) {
                                     c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=

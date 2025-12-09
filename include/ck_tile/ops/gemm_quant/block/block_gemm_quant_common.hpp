@@ -62,10 +62,7 @@ struct BlockGemmQuantBase
     }
 };
 
-template <typename AQBlockTensor,
-          typename GemmTraits_,
-          int32_t mIter,
-          int32_t kQScale>
+template <typename AQBlockTensor, typename GemmTraits_, int32_t mIter, int32_t kQScale>
 struct AQPickerCommon : public BlockGemmQuantBase
 {
     using Base       = BlockGemmQuantBase;
@@ -74,7 +71,7 @@ struct AQPickerCommon : public BlockGemmQuantBase
     using AQDataType = remove_cvref_t<typename Traits::AQDataType>;
 
     CK_TILE_DEVICE static float exchange_quant_value_across_lanes(float scale_reg,
-                                                                    index_t pull_from_lane)
+                                                                  index_t pull_from_lane)
     {
         // cross lane ops
         uint32_t scale_reg_dword;
@@ -104,8 +101,7 @@ struct AQPickerCommon : public BlockGemmQuantBase
             if constexpr(Traits::PreshuffleQuant)
             {
                 auto pull_from_lane =
-                    (__lane_id() & (Traits::WarpGemm::kN - 1)) * Traits::AQPerBlock +
-                    kQScale;
+                    (__lane_id() & (Traits::WarpGemm::kN - 1)) * Traits::AQPerBlock + kQScale;
 
                 scale_reg_f = exchange_quant_value_across_lanes(scale_reg, pull_from_lane);
             }
@@ -158,18 +154,16 @@ struct AQPickerCommon : public BlockGemmQuantBase
                 if constexpr(WarpGemm::kM == 16)
                 {
                     pull_from_lane =
-                        (__lane_id() / Traits::WarpGemm::kN * kTileRowsOfCPerThread +
-                            c_row) *
+                        (__lane_id() / Traits::WarpGemm::kN * kTileRowsOfCPerThread + c_row) *
                             Traits::QScalesPerBlockRow +
                         kQScale;
                 }
                 else if constexpr(WarpGemm::kM == 32)
                 {
-                    pull_from_lane =
-                        (__lane_id() / Traits::WarpGemm::kN * kTileRowsOfCPerThread +
-                            ((c_row >> 2) << 3) + (c_row & 0b11)) *
-                            Traits::QScalesPerBlockRow +
-                        kQScale;
+                    pull_from_lane = (__lane_id() / Traits::WarpGemm::kN * kTileRowsOfCPerThread +
+                                      ((c_row >> 2) << 3) + (c_row & 0b11)) *
+                                         Traits::QScalesPerBlockRow +
+                                     kQScale;
                 }
                 else
                 {
@@ -213,8 +207,7 @@ struct AQPickerCommon : public BlockGemmQuantBase
 
                 // M offset of each thread within its group (see comment above)
                 index_t m_base_offset_of_lane =
-                    (get_lane_id() / WarpGemm::kN *
-                        WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane);
+                    (get_lane_id() / WarpGemm::kN * WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane);
 
                 // M offset wrt. c_row in the subgroup of kCM1PerLane
                 constexpr index_t m_offset_of_c_row =

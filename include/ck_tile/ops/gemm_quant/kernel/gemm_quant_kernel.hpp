@@ -970,8 +970,7 @@ struct QuantGemmKernel
                     make_tuple(number<block_m>{}, number<block_k / QuantGroupSize::kK>{}),
                     {i_m, 0});
             }
-            else if constexpr(kQuantType == QuantType::ABQuantGrouped &&
-                              !PreshuffleQuant)
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped && !PreshuffleQuant)
             {
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 using QuantGroupSize   = remove_cvref_t<typename GemmPipeline::AQuantGroupSize>;

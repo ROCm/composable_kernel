@@ -48,7 +48,7 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     using AQDataType = remove_cvref_t<AQDataType_>;
     using BQDataType = remove_cvref_t<BQDataType_>;
 
-    using BlockGemmShape = typename Base::BlockGemmShape;
+    using BlockGemmShape  = typename Base::BlockGemmShape;
     using AQuantGroupSize = AQuantGroupSize_;
     using BQuantGroupSize = BQuantGroupSize_;
     // For backward compatibility
@@ -72,10 +72,10 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     using AQLayout = remove_cvref_t<typename Traits::AQLayout>;
     using BQLayout = remove_cvref_t<typename Traits::BQLayout>;
 
-    static constexpr auto Scheduler  = Scheduler_;
-    static constexpr auto HasHotLoop = HasHotLoop_;
-    static constexpr auto TailNum    = TailNum_;
-    static constexpr index_t kQuantGroupSize = QuantGroupSize::kK;
+    static constexpr auto Scheduler           = Scheduler_;
+    static constexpr auto HasHotLoop          = HasHotLoop_;
+    static constexpr auto TailNum             = TailNum_;
+    static constexpr index_t kQuantGroupSize  = QuantGroupSize::kK;
     static constexpr index_t kAQuantGroupSize = AQuantGroupSize::kK;
     static constexpr index_t kBQuantGroupSize = BQuantGroupSize::kK;
 
@@ -137,7 +137,7 @@ using GemmAQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
                                                                QuantGroupSize_,
-															   QuantGroupSize_,
+                                                               QuantGroupSize_,
                                                                TransposeC_,
                                                                ComputeDataType_,
                                                                Scheduler_,
@@ -163,7 +163,7 @@ using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
                                                                QuantGroupSize_,
-															   QuantGroupSize_,
+                                                               QuantGroupSize_,
                                                                false, // no TransposeC
                                                                ComputeDataType_,
                                                                Scheduler_,
@@ -178,7 +178,7 @@ template <typename ADataType_,
           typename BlockGemmShape_,
           typename Traits_,
           typename AQuantGroupSize_,
-		  typename BQuantGroupSize_,
+          typename BQuantGroupSize_,
           bool TransposeC_,
           typename ComputeDataType_        = ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
@@ -192,7 +192,7 @@ using GemmABQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                 BlockGemmShape_,
                                                                 Traits_,
                                                                 AQuantGroupSize_,
-																BQuantGroupSize_,
+                                                                BQuantGroupSize_,
                                                                 TransposeC_,
                                                                 ComputeDataType_,
                                                                 Scheduler_,
@@ -219,7 +219,7 @@ using GemmRowColTensorQuantPipelineProblem =
                                  BlockGemmShape_,
                                  Traits_,
                                  QuantGroupShape<sequence<1, 1, 1>>, // no group size applicable
-								 QuantGroupShape<sequence<1, 1, 1>>, // no group size applicable
+                                 QuantGroupShape<sequence<1, 1, 1>>, // no group size applicable
                                  TransposeC_,
                                  ComputeDataType_,
                                  Scheduler_,

@@ -19,25 +19,25 @@ void abquant_quantgrouped_instance_factory(
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
         return run_gemm_example_prec_type_layout<GemmConfig<ck_tile::fp8_t>,
-                                          TypeConfig,
-                                          AQuantGroupSize,
-                                          BQuantGroupSize,
-                                          ck_tile::QuantType::ABQuantGrouped>(arg_parser);
+                                                 TypeConfig,
+                                                 AQuantGroupSize,
+                                                 BQuantGroupSize,
+                                                 ck_tile::QuantType::ABQuantGrouped>(arg_parser);
     };
     lut[hash_multiple_strings({"fp8",
                                "abquant",
                                "non-preshuffleb",
                                "non-preshufflequant",
                                "1x128x128"})] = [](const ck_tile::ArgParser& arg_parser) {
-	    using AQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
+        using AQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
         using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
         return run_gemm_example_prec_type_layout<GemmConfig<ck_tile::fp8_t>,
-                                          TypeConfig,
-                                          AQuantGroupSize,
-                                          BQuantGroupSize,
-                                          ck_tile::QuantType::ABQuantGrouped>(arg_parser);
+                                                 TypeConfig,
+                                                 AQuantGroupSize,
+                                                 BQuantGroupSize,
+                                                 ck_tile::QuantType::ABQuantGrouped>(arg_parser);
     };
     lut[hash_multiple_strings({"bf8",
                                "abquant",

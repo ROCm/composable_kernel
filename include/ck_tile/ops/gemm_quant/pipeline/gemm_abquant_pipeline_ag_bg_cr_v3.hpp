@@ -26,19 +26,20 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmABQuantPipelineAgBgCrImplBase<Problem, Policy>;
 
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using AQDataType     = remove_cvref_t<typename Problem::AQDataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+    using AQDataType      = remove_cvref_t<typename Problem::AQDataType>;
+    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+    using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
+    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
     using AQuantGroupSize = remove_cvref_t<typename Problem::AQuantGroupSize>;
     using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
     static_assert(BQuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
     static_assert(AQuantGroupSize::kN == 1, "only M/K blocks for AQuant kernel!");
-	static_assert(AQuantGroupSize::kM == 1, "no block M for AQuant kernel supported yet!");
-    static_assert(AQuantGroupSize::kK == BQuantGroupSize::kK, "AQuantGroupSize::kK should be equal to BQuantGroupSize::kK");
+    static_assert(AQuantGroupSize::kM == 1, "no block M for AQuant kernel supported yet!");
+    static_assert(AQuantGroupSize::kK == BQuantGroupSize::kK,
+                  "AQuantGroupSize::kK should be equal to BQuantGroupSize::kK");
 
     using I0 = number<0>;
     using I1 = number<1>;

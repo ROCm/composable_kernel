@@ -43,19 +43,20 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<GemmShape>;
 
-    using GemmTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
-                                                    GemmConfig::kPadN,
-                                                    GemmConfig::kPadK,
-                                                    GemmConfig::PreshuffleQuant,
-                                                    GemmConfig::PreshuffleB,
-                                                    ALayout,
-                                                    BLayout,
-                                                    CLayout,
-                                                    QuantMode,
-                                                    ck_tile::tensor_layout::gemm::RowMajor,    // AQLayout is always RowMajor
-                                                    ck_tile::tensor_layout::gemm::ColumnMajor, // BQLayout is always ColumnMajor
-                                                    false,
-                                                    GemmConfig::DoubleSmemBuffer>;
+    using GemmTraits = ck_tile::TileGemmQuantTraits<
+        GemmConfig::kPadM,
+        GemmConfig::kPadN,
+        GemmConfig::kPadK,
+        GemmConfig::PreshuffleQuant,
+        GemmConfig::PreshuffleB,
+        ALayout,
+        BLayout,
+        CLayout,
+        QuantMode,
+        ck_tile::tensor_layout::gemm::RowMajor,    // AQLayout is always RowMajor
+        ck_tile::tensor_layout::gemm::ColumnMajor, // BQLayout is always ColumnMajor
+        false,
+        GemmConfig::DoubleSmemBuffer>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<typename TypeConfig::ADataType,
                                                                  typename TypeConfig::BDataType,
@@ -340,8 +341,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
 
     std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideAQ =" << stride_AQ << " StrideB =" << stride_B
-              << " StrideBQ =" << stride_BQ << " StrideC =" << stride_C << " A_Layout =" << ALayout::name
-              << " B_Layout =" << BLayout::name << " C_Layout =" << CLayout::name;
+              << " StrideBQ =" << stride_BQ << " StrideC =" << stride_C
+              << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
+              << " C_Layout =" << CLayout::name;
     if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped ||
                  QuantMode == ck_tile::QuantType::BQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant)
@@ -433,12 +435,12 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
     {
         AQK = K / AQuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
-        BQK = 0;                      // No B quantization
+        BQK = 0;                       // No B quantization
         BQN = 0;
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
-        AQK = 0;                      // No A quantization
+        AQK = 0;                       // No A quantization
         BQK = K / BQuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
         BQN = N / BQuantGroupSize::kN; // Group quantization: BQN = N / GroupSize
     }
@@ -739,8 +741,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
 
             if constexpr(GemmConfig::PreshuffleQuant)
             {
-                ck_tile::HostTensor<BQDataType> bq_shuffle_host =
-                    ck_tile::shuffle_bq(&bq_permuted_host, GemmConfig::K_Tile / BQuantGroupSize::kK);
+                ck_tile::HostTensor<BQDataType> bq_shuffle_host = ck_tile::shuffle_bq(
+                    &bq_permuted_host, GemmConfig::K_Tile / BQuantGroupSize::kK);
                 bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
             }
             else
@@ -777,7 +779,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                            K,
                            AQK,
                            BQK,
-						   BQN,
+                           BQN,
                            stride_A,
                            stride_AQ,
                            stride_B,
@@ -890,8 +892,7 @@ int run_gemm_example_prec_type_layout(const ck_tile::ArgParser& arg_parser)
 
     if(QuantMode == ck_tile::QuantType::ABQuantGrouped && GemmConfig::PreshuffleB)
     {
-        throw std::runtime_error(
-            "Preshuffling weight matrix is not supported for ABQuant");
+        throw std::runtime_error("Preshuffling weight matrix is not supported for ABQuant");
     }
 
     if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
@@ -902,17 +903,29 @@ int run_gemm_example_prec_type_layout(const ck_tile::ArgParser& arg_parser)
         std::string b_layout = arg_parser.get_str("b_layout");
         if(a_layout == "R" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<GemmConfig, TypeConfig, AQuantGroupSize, BQuantGroupSize, QuantMode>(
+            return run_gemm_example_with_layouts<GemmConfig,
+                                                 TypeConfig,
+                                                 AQuantGroupSize,
+                                                 BQuantGroupSize,
+                                                 QuantMode>(
                 arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "R")
         {
-            return run_gemm_example_with_layouts<GemmConfig, TypeConfig, AQuantGroupSize, BQuantGroupSize, QuantMode>(
+            return run_gemm_example_with_layouts<GemmConfig,
+                                                 TypeConfig,
+                                                 AQuantGroupSize,
+                                                 BQuantGroupSize,
+                                                 QuantMode>(
                 arg_parser, Col{}, Row{}, Row{}, Col{}, Row{});
         }
         else if(a_layout == "R" && b_layout == "R")
         {
-            return run_gemm_example_with_layouts<GemmConfig, TypeConfig, AQuantGroupSize, BQuantGroupSize, QuantMode>(
+            return run_gemm_example_with_layouts<GemmConfig,
+                                                 TypeConfig,
+                                                 AQuantGroupSize,
+                                                 BQuantGroupSize,
+                                                 QuantMode>(
                 arg_parser, Row{}, Row{}, Row{}, Col{}, Row{});
         }
         else
@@ -954,7 +967,11 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
 
         if(a_layout == "R" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantGroupSize, QuantMode>(
+            return run_gemm_example_with_layouts<GemmConfig,
+                                                 TypeConfig,
+                                                 QuantGroupSize,
+                                                 QuantGroupSize,
+                                                 QuantMode>(
                 arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
         }
         else

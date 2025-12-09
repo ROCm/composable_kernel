@@ -14,9 +14,9 @@ namespace ck_tile {
 template <typename Problem, typename Policy>
 struct GemmABQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Problem, Policy>
 {
-	using AQuantBase = GemmAQuantPipelineAgBgCrImplBase<Problem, Policy>;
-	using BQuantBase = GemmBQuantPipelineAgBgCrImplBase<Problem, Policy>;
-	
+    using AQuantBase = GemmAQuantPipelineAgBgCrImplBase<Problem, Policy>;
+    using BQuantBase = GemmBQuantPipelineAgBgCrImplBase<Problem, Policy>;
+
     template <typename AQDramBlockWindowTmp>
     CK_TILE_DEVICE constexpr auto
     GetAQDramLoadWindow(const AQDramBlockWindowTmp& aq_dram_block_window_tmp) const
@@ -30,7 +30,6 @@ struct GemmABQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Pro
     {
         return BQuantBase{}.GetBQDramLoadWindow(bq_dram_block_window_tmp);
     }
-
 };
 
 } // namespace ck_tile
