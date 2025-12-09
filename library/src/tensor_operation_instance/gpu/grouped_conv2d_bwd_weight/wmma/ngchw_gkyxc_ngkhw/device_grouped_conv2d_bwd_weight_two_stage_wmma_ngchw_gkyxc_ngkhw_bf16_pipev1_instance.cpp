@@ -11,17 +11,16 @@ namespace instance {
 
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
 void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkyxc_ngkhw_bf16_pipev1_instances(
-    [[maybe_unused]] std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                                            NGCHW,
-                                                                            GKYXC,
-                                                                            NGKHW,
-                                                                            BF16,
-                                                                            BF16,
-                                                                            BF16,
-                                                                            PassThrough,
-                                                                            PassThrough,
-                                                                            PassThrough>>>&
-        instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           NGCHW,
+                                                           GKYXC,
+                                                           NGKHW,
+                                                           BF16,
+                                                           BF16,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances)
 {
     // 1. Default
     add_device_operation_instances(
