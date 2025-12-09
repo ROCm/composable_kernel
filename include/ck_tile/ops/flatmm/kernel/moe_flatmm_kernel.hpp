@@ -1259,12 +1259,12 @@ struct MoeFlatmmKernel
                     auto fused_token =
                         kargs.p_sorted_token_ids[row_idx]; // topk-idx[31:24] + token_idx[23:0]
 
-                    index_t scatter_token_id = fused_token & token_id_mask;
+                    index_t scatter_token_id    = fused_token & token_id_mask;
+                    c_scatter_valids[mIter][m0] = (scatter_token_id < kargs.NumTokens);
                     if constexpr(IsInputGemm)
                         scatter_token_id =
                             scatter_token_id * kargs.TopK + (fused_token >> token_id_offset);
                     c_scatter_offsets[mIter][m0] = scatter_token_id * kargs.stride_C;
-                    c_scatter_valids[mIter][m0]  = (scatter_token_id < kargs.NumTokens);
                 });
             });
 

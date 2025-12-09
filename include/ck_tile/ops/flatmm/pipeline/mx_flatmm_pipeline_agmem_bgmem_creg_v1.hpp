@@ -34,13 +34,11 @@ struct MXFlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
 
     // using QuantType = BDataType_;
 
-    static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
-
     static constexpr int ScaleGranularityK = 32;
 
-    static constexpr int ContinuousKPerThread = 32; // it's fixed for fp4
-    static constexpr int MXdlPack             = 2;  // it's fixed for fp4
-    static constexpr int NXdlPack             = 2;  // it's fixed for fp4
+    static constexpr int ContinuousKPerThread = 32; // it's fixed for mx
+    static constexpr int MXdlPack             = 2;  // it's fixed for mx
+    static constexpr int NXdlPack             = 2;  // it's fixed for mx
     static constexpr int KXdlPack             = 2;
     // static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp * KXdlPack;
     static constexpr index_t flatKPerWarp = get_warp_size() * ContinuousKPerThread;
@@ -63,6 +61,9 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
+    static constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
+    static constexpr index_t BPackedSize = numeric_traits<BDataType>::PackedSize;
+
     using BlockFlatmm =
         remove_cvref_t<decltype(PipelinePolicy::template GetBlockFlatmm<Problem>())>;
 
@@ -81,8 +82,8 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t flatKPerWarp = Problem::flatKPerWarp;
-    static constexpr index_t flatNPerWarp = Problem::flatNPerWarp;
+    static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
+    static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
     static constexpr index_t GetVectorSizeA() { return 32; } /* fixed for fp4 shuffle layout*/
     static constexpr index_t GetVectorSizeB() { return 32; } /* fixed for fp4 shuffle layout*/
@@ -113,22 +114,22 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
     static constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);
     static constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
 
-    static constexpr index_t KFlatPerBlockPerIter = flatKPerWarp;
-    static constexpr index_t NFlatPerBlockPerIter = flatNPerWarp;
+    static constexpr index_t KFlatBytesPerBlockPerIter = flatKPerWarp / BPackedSize;
+    static constexpr index_t NFlatPerBlockPerIter      = flatNPerWarp;
 
     static constexpr index_t MPerBlockPerIter = kMPerBlock / MIterPerWarp;
     static constexpr index_t KPerBlockPerIter = kKPerBlock / KIterPerWarp;
 
-    static constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
-    static constexpr index_t BPackedSize = numeric_traits<BDataType>::PackedSize;
+    // static constexpr index_t WG_AKPacks = WG::kK / APackedSize;
+    // static constexpr index_t WG_BKPacks = WG::kK / BPackedSize;
 
     static constexpr index_t MXdlPack          = Problem::MXdlPack;
     static constexpr index_t NXdlPack          = Problem::NXdlPack;
     static constexpr index_t KXdlPack          = Problem::KXdlPack;
     static constexpr index_t ScaleGranularityK = Problem::ScaleGranularityK;
 
-    static constexpr index_t AK1 = Problem::VectorLoadSize / sizeof(ADataType) * APackedSize;
-    static constexpr index_t BK1 = Problem::VectorLoadSize / sizeof(BDataType) * BPackedSize;
+    static constexpr index_t AK1 = Problem::VectorLoadSize / sizeof(ADataType);
+    static constexpr index_t BK1 = Problem::VectorLoadSize / sizeof(BDataType);
 
     static constexpr index_t m_preload = (MIterPerWarp * KIterPerWarp >= DsReadPreload)
                                              ? DsReadPreload
@@ -562,11 +563,8 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         // B flat DRAM window for load
 
         // pingpong buffer for B
-        auto b_flat_dram_window =
-            make_tile_window(b_flat_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
-                             b_flat_dram_block_window_tmp.get_window_origin(),
-                             PipelinePolicy::template MakeMX_BFlatDramTileDistribution<Problem>());
+        auto b_flat_dram_window = PipelinePolicy::template MakeMX_BFlatBytesDramWindow<Problem>(
+            b_flat_dram_block_window_tmp);
         auto b_flat_dram_offsets = generate_tuple(
             [&](auto nIter) {
                 constexpr auto packed_n_idx  = nIter / number<NXdlPack>{};
@@ -621,7 +619,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
             scale_b_tile_tensor_ping, scale_b_tile_tensor_pong;
 
         auto async_load_tile_ = [](auto lds, auto dram) {
-            async_load_tile(lds, dram, number<-1>{}, true_type{}, false_type{});
+            async_load_tile(lds, dram, number<-1>{}, true_type{}, true_type{});
         };
 
         // HEAD
@@ -633,11 +631,12 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 b_warp_tensor_ping(nIter)(kIter) = load_tile_with_offset(
-                    b_flat_dram_window, b_flat_dram_offsets(nIter) + kIter * KFlatPerBlockPerIter);
+                    b_flat_dram_window,
+                    b_flat_dram_offsets(nIter) + kIter * KFlatBytesPerBlockPerIter);
             });
             // move B window to next flat K
             b_flat_dram_offsets(nIter) += b_flat_dram_window.get_load_offset(
-                tuple<number<0>, number<KIterPerWarp * KFlatPerBlockPerIter>>{});
+                tuple<number<0>, number<KIterPerWarp * KFlatBytesPerBlockPerIter>>{});
         });
 
         // prefetch Scale A
@@ -698,12 +697,12 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     b_warp_tensor_pong(nIter)(kIter) = load_tile_with_offset(
                         b_flat_dram_window,
-                        b_flat_dram_offsets(nIter) + kIter * KFlatPerBlockPerIter);
+                        b_flat_dram_offsets(nIter) + kIter * KFlatBytesPerBlockPerIter);
 
                     // move B window to next flat K
                     if constexpr(kIter == KIterPerWarp - 1)
                         b_flat_dram_offsets(nIter) += b_flat_dram_window.get_load_offset(
-                            tuple<number<0>, number<KIterPerWarp * KFlatPerBlockPerIter>>{});
+                            tuple<number<0>, number<KIterPerWarp * KFlatBytesPerBlockPerIter>>{});
                 });
             });
 
@@ -739,8 +738,10 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                                     WG{}.template
                                     operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
                                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
-                                        a_warp_tensor(number<AwarpIter>{}),
-                                        b_warp_tensor_ping(number<n_iter>{})(number<k_iter>{}),
+                                        bit_cast<typename WG::AWarpTensor>(
+                                            a_warp_tensor(number<AwarpIter>{})),
+                                        bit_cast<typename WG::BWarpTensor>(
+                                            b_warp_tensor_ping(number<n_iter>{})(number<k_iter>{})),
                                         scale_a_tile_tensor_ping(mIter_pack)(kIter_pack)
                                             .get_thread_buffer()[0],
                                         scale_b_tile_tensor_ping(nIter_pack)(kIter_pack)
@@ -792,12 +793,12 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     b_warp_tensor_ping(nIter)(kIter) = load_tile_with_offset(
                         b_flat_dram_window,
-                        b_flat_dram_offsets(nIter) + kIter * KFlatPerBlockPerIter);
+                        b_flat_dram_offsets(nIter) + kIter * KFlatBytesPerBlockPerIter);
 
                     // move B window to next flat K
                     if constexpr(kIter == KIterPerWarp - 1)
                         b_flat_dram_offsets(nIter) += b_flat_dram_window.get_load_offset(
-                            tuple<number<0>, number<KIterPerWarp * KFlatPerBlockPerIter>>{});
+                            tuple<number<0>, number<KIterPerWarp * KFlatBytesPerBlockPerIter>>{});
                 });
             });
 
@@ -833,8 +834,10 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                                     WG{}.template
                                     operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
                                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
-                                        a_warp_tensor(number<AwarpIter>{}),
-                                        b_warp_tensor_pong(number<n_iter>{})(number<k_iter>{}),
+                                        bit_cast<typename WG::AWarpTensor>(
+                                            a_warp_tensor(number<AwarpIter>{})),
+                                        bit_cast<typename WG::BWarpTensor>(
+                                            b_warp_tensor_pong(number<n_iter>{})(number<k_iter>{})),
                                         scale_a_tile_tensor_pong(mIter_pack)(kIter_pack)
                                             .get_thread_buffer()[0], // scale A
                                         scale_b_tile_tensor_pong(nIter_pack)(kIter_pack)
@@ -897,7 +900,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     b_warp_tensor_pong(nIter)(kIter) = load_tile_with_offset(
                         b_flat_dram_window,
-                        b_flat_dram_offsets(nIter) + kIter * KFlatPerBlockPerIter);
+                        b_flat_dram_offsets(nIter) + kIter * KFlatBytesPerBlockPerIter);
                 });
             });
 
@@ -932,8 +935,10 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                                     WG{}.template
                                     operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
                                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
-                                        a_warp_tensor(number<AwarpIter>{}),
-                                        b_warp_tensor_ping(number<n_iter>{})(number<k_iter>{}),
+                                        bit_cast<typename WG::AWarpTensor>(
+                                            a_warp_tensor(number<AwarpIter>{})),
+                                        bit_cast<typename WG::BWarpTensor>(
+                                            b_warp_tensor_ping(number<n_iter>{})(number<k_iter>{})),
                                         scale_a_tile_tensor_ping(mIter_pack)(kIter_pack)
                                             .get_thread_buffer()[0], // scale A
                                         scale_b_tile_tensor_ping(nIter_pack)(kIter_pack)
@@ -986,8 +991,10 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                                     WG{}.template
                                     operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
                                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
-                                        a_warp_tensor(number<AwarpIter>{}),
-                                        b_warp_tensor_pong(number<n_iter>{})(number<k_iter>{}),
+                                        bit_cast<typename WG::AWarpTensor>(
+                                            a_warp_tensor(number<AwarpIter>{})),
+                                        bit_cast<typename WG::BWarpTensor>(
+                                            b_warp_tensor_pong(number<n_iter>{})(number<k_iter>{})),
                                         scale_a_tile_tensor_pong(mIter_pack)(kIter_pack)
                                             .get_thread_buffer()[0], // scale A
                                         scale_b_tile_tensor_pong(nIter_pack)(kIter_pack)
@@ -1029,8 +1036,10 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                                     WG{}.template
                                     operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
                                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
-                                        a_warp_tensor(number<AwarpIter>{}),
-                                        b_warp_tensor_ping(number<n_iter>{})(number<k_iter>{}),
+                                        bit_cast<typename WG::AWarpTensor>(
+                                            a_warp_tensor(number<AwarpIter>{})),
+                                        bit_cast<typename WG::BWarpTensor>(
+                                            b_warp_tensor_ping(number<n_iter>{})(number<k_iter>{})),
                                         scale_a_tile_tensor_ping(mIter_pack)(kIter_pack)
                                             .get_thread_buffer()[0], // scale A
                                         scale_b_tile_tensor_ping(nIter_pack)(kIter_pack)
