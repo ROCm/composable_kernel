@@ -85,9 +85,9 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
     float ave_time{0};
 
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
-        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-        constexpr auto tail_number_v    = tail_number_.value;
-        constexpr auto scheduler        = GemmConfig::Scheduler;
+        constexpr bool has_hot_loop_v = has_hot_loop_.value;
+        constexpr auto tail_number_v  = tail_number_.value;
+        constexpr auto scheduler      = GemmConfig::Scheduler;
 
         constexpr bool UseGroupedQuant = QuantMode == ck_tile::QuantType::AQuantGrouped ||
                                          QuantMode == ck_tile::QuantType::BQuantGrouped;
@@ -235,42 +235,41 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                              GemmConfig::DoubleSmemBuffer,
                                                              GemmConfig::Persistent>;
 
-    constexpr auto scheduler   = GemmConfig::Scheduler;
+    constexpr auto scheduler = GemmConfig::Scheduler;
 
     constexpr bool UseGroupedQuant = QuantMode == ck_tile::QuantType::AQuantGrouped ||
-                                        QuantMode == ck_tile::QuantType::BQuantGrouped;
+                                     QuantMode == ck_tile::QuantType::BQuantGrouped;
 
     using QuantGemmProblem = std::conditional_t<
         UseGroupedQuant,
         std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
-                            ck_tile::GemmAQuantPipelineProblem<ADataType,
-                                                                AQDataType,
-                                                                BDataType,
-                                                                AccDataType,
-                                                                GemmShape,
-                                                                GemmUniversalTraits,
-                                                                QuantGroupSize,
-                                                                GemmConfig::TransposeC>,
-                            ck_tile::GemmBQuantPipelineProblem<ADataType,
-                                                                BDataType,
-                                                                BQDataType,
-                                                                AccDataType,
-                                                                GemmShape,
-                                                                GemmUniversalTraits,
-                                                                QuantGroupSize>>,
+                           ck_tile::GemmAQuantPipelineProblem<ADataType,
+                                                              AQDataType,
+                                                              BDataType,
+                                                              AccDataType,
+                                                              GemmShape,
+                                                              GemmUniversalTraits,
+                                                              QuantGroupSize,
+                                                              GemmConfig::TransposeC>,
+                           ck_tile::GemmBQuantPipelineProblem<ADataType,
+                                                              BDataType,
+                                                              BQDataType,
+                                                              AccDataType,
+                                                              GemmShape,
+                                                              GemmUniversalTraits,
+                                                              QuantGroupSize>>,
         ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
-                                                        BDataType,
-                                                        AccDataType,
-                                                        AccDataType,
-                                                        GemmShape,
-                                                        GemmUniversalTraits,
-                                                        GemmConfig::TransposeC,
-                                                        BDataType,
-                                                        scheduler>>;
+                                                      BDataType,
+                                                      AccDataType,
+                                                      AccDataType,
+                                                      GemmShape,
+                                                      GemmUniversalTraits,
+                                                      GemmConfig::TransposeC,
+                                                      BDataType,
+                                                      scheduler>>;
 
-    using GemmPipeline =
-        GemmQuantConfig<QuantMode>::template GemmPipeline<QuantGemmProblem,
-                                                            GemmConfig::PreshuffleB>;
+    using GemmPipeline = GemmQuantConfig<QuantMode>::template GemmPipeline<QuantGemmProblem,
+                                                                           GemmConfig::PreshuffleB>;
 
     using GemmEpilogue = ck_tile::CShuffleEpilogue<
         ck_tile::CShuffleEpilogueProblem<ADataType,
