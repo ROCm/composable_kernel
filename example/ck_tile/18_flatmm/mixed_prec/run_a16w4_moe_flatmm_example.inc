@@ -72,7 +72,8 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
     using CDataType   = PrecActType;
     using AccDataType = float;
 
-    using ScaleType = ck_tile::e8m0_t;
+    static constexpr bool IsInt4 = std::is_same_v<BDataType, ck_tile::pk_int4_t>;
+    using ScaleType = std::conditional_t<IsInt4, ck_tile::bfloat16_t, ck_tile::e8m0_t>;
 
     constexpr int ScaleGranularityN = 1;
     constexpr int ScaleGranularityK = 32;
