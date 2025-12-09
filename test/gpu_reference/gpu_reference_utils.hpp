@@ -60,22 +60,62 @@ void initialize_and_copy_tensor(Tensor<DataType>& host_tensor,
     }
 }
 
-// Forward convolution implementation
-template <index_t NDimSpatial, typename InDataType, typename WeiDataType, typename OutDataType>
-bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
-                        const Tensor<InDataType>& input_cpu,
-                        const Tensor<WeiDataType>& weight_cpu,
-                        const std::vector<index_t>& out_lengths_cpu,
-                        DeviceMem& input_dev,
-                        DeviceMem& weight_dev,
-                        DeviceMem& output_dev,
-                        const ConvDims& dims)
+// Helper to compute row-major strides from lengths
+inline std::vector<index_t> compute_row_major_strides(const std::vector<index_t>& lengths)
 {
-    using InElementOp  = tensor_operation::element_wise::PassThrough;
-    using WeiElementOp = tensor_operation::element_wise::PassThrough;
-    using OutElementOp = tensor_operation::element_wise::PassThrough;
+    std::vector<index_t> strides(lengths.size());
+    index_t stride = 1;
+    for(int i = lengths.size() - 1; i >= 0; --i)
+    {
+        strides[i] = stride;
+        stride *= lengths[i];
+    }
+    return strides;
+}
 
-    // Buffers are in CPU layout (GNCDHW/GKCZYX/GNKDHW)
+// Helper to convert ConvDims to vectors for GPU reference interface
+inline void extract_conv_vectors(const ConvDims& dims,
+                                 index_t NDimSpatial,
+                                 std::vector<index_t>& in_lengths,
+                                 std::vector<index_t>& wei_lengths,
+                                 std::vector<index_t>& out_lengths,
+                                 std::vector<index_t>& conv_strides,
+                                 std::vector<index_t>& conv_dilations,
+                                 std::vector<index_t>& input_pads)
+{
+    if(NDimSpatial == 1)
+    {
+        in_lengths     = {dims.G, dims.N, dims.C, dims.Wi};
+        wei_lengths    = {dims.G, dims.K, dims.C, dims.X};
+        out_lengths    = {dims.G, dims.N, dims.K, dims.Wo};
+        conv_strides   = {dims.stride_x};
+        conv_dilations = {dims.dilation_x};
+        input_pads     = {dims.pad_x};
+    }
+    else if(NDimSpatial == 2)
+    {
+        in_lengths     = {dims.G, dims.N, dims.C, dims.Hi, dims.Wi};
+        wei_lengths    = {dims.G, dims.K, dims.C, dims.Y, dims.X};
+        out_lengths    = {dims.G, dims.N, dims.K, dims.Ho, dims.Wo};
+        conv_strides   = {dims.stride_y, dims.stride_x};
+        conv_dilations = {dims.dilation_y, dims.dilation_x};
+        input_pads     = {dims.pad_y, dims.pad_x};
+    }
+    else // 3D
+    {
+        in_lengths     = {dims.G, dims.N, dims.C, dims.Di, dims.Hi, dims.Wi};
+        wei_lengths    = {dims.G, dims.K, dims.C, dims.Z, dims.Y, dims.X};
+        out_lengths    = {dims.G, dims.N, dims.K, dims.Do, dims.Ho, dims.Wo};
+        conv_strides   = {dims.stride_z, dims.stride_y, dims.stride_x};
+        conv_dilations = {dims.dilation_z, dims.dilation_y, dims.dilation_x};
+        input_pads     = {dims.pad_z, dims.pad_y, dims.pad_x};
+    }
+}
+
+// Helper to get layout types based on NDimSpatial
+template <index_t NDimSpatial>
+struct ConvLayoutTypes
+{
     using InLayout  = std::conditional_t<NDimSpatial == 3,
                                          tensor_layout::convolution::GNCDHW,
                                          std::conditional_t<NDimSpatial == 2,
@@ -91,59 +131,45 @@ bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
                                          std::conditional_t<NDimSpatial == 2,
                                                             tensor_layout::convolution::GNKHW,
                                                             tensor_layout::convolution::GNKW>>;
+};
 
-    // Convert ConvDims to lengths/strides format for GPU reference
-    std::vector<index_t> in_lengths, in_strides, wei_lengths, wei_strides, out_lengths, out_strides;
+// Forward convolution implementation
+template <index_t NDimSpatial, typename InDataType, typename WeiDataType, typename OutDataType>
+bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
+                        const Tensor<InDataType>& input_cpu,
+                        const Tensor<WeiDataType>& weight_cpu,
+                        const std::vector<index_t>& out_lengths_cpu,
+                        DeviceMem& input_dev,
+                        DeviceMem& weight_dev,
+                        DeviceMem& output_dev,
+                        const ConvDims& dims)
+{
+    using InElementOp  = tensor_operation::element_wise::PassThrough;
+    using WeiElementOp = tensor_operation::element_wise::PassThrough;
+    using OutElementOp = tensor_operation::element_wise::PassThrough;
+    using Layouts      = ConvLayoutTypes<NDimSpatial>;
+
+    // Extract vectors from ConvDims
+    std::vector<index_t> in_lengths, wei_lengths, out_lengths;
     std::vector<index_t> conv_strides_vec, conv_dilations_vec, input_pads_vec;
+    extract_conv_vectors(dims,
+                         NDimSpatial,
+                         in_lengths,
+                         wei_lengths,
+                         out_lengths,
+                         conv_strides_vec,
+                         conv_dilations_vec,
+                         input_pads_vec);
 
-    if(NDimSpatial == 1)
-    {
-        in_lengths         = {dims.G, dims.N, dims.C, dims.Wi};
-        wei_lengths        = {dims.G, dims.K, dims.C, dims.X};
-        out_lengths        = {dims.G, dims.N, dims.K, dims.Wo};
-        conv_strides_vec   = {dims.stride_x};
-        conv_dilations_vec = {dims.dilation_x};
-        input_pads_vec     = {dims.pad_x};
-    }
-    else if(NDimSpatial == 2)
-    {
-        in_lengths         = {dims.G, dims.N, dims.C, dims.Hi, dims.Wi};
-        wei_lengths        = {dims.G, dims.K, dims.C, dims.Y, dims.X};
-        out_lengths        = {dims.G, dims.N, dims.K, dims.Ho, dims.Wo};
-        conv_strides_vec   = {dims.stride_y, dims.stride_x};
-        conv_dilations_vec = {dims.dilation_y, dims.dilation_x};
-        input_pads_vec     = {dims.pad_y, dims.pad_x};
-    }
-    else // 3D
-    {
-        in_lengths         = {dims.G, dims.N, dims.C, dims.Di, dims.Hi, dims.Wi};
-        wei_lengths        = {dims.G, dims.K, dims.C, dims.Z, dims.Y, dims.X};
-        out_lengths        = {dims.G, dims.N, dims.K, dims.Do, dims.Ho, dims.Wo};
-        conv_strides_vec   = {dims.stride_z, dims.stride_y, dims.stride_x};
-        conv_dilations_vec = {dims.dilation_z, dims.dilation_y, dims.dilation_x};
-        input_pads_vec     = {dims.pad_z, dims.pad_y, dims.pad_x};
-    }
-
-    // Compute row-major strides
-    auto compute_row_major_strides = [](const std::vector<index_t>& lengths) {
-        std::vector<index_t> strides(lengths.size());
-        index_t stride = 1;
-        for(int i = lengths.size() - 1; i >= 0; --i)
-        {
-            strides[i] = stride;
-            stride *= lengths[i];
-        }
-        return strides;
-    };
-
-    in_strides  = compute_row_major_strides(in_lengths);
-    wei_strides = compute_row_major_strides(wei_lengths);
-    out_strides = compute_row_major_strides(out_lengths);
+    // Compute strides
+    auto in_strides  = compute_row_major_strides(in_lengths);
+    auto wei_strides = compute_row_major_strides(wei_lengths);
+    auto out_strides = compute_row_major_strides(out_lengths);
 
     // Call GPU reference with stride-based interface
-    ref::naive_conv_fwd<InLayout,
-                        WeiLayout,
-                        OutLayout,
+    ref::naive_conv_fwd<typename Layouts::InLayout,
+                        typename Layouts::WeiLayout,
+                        typename Layouts::OutLayout,
                         InDataType,
                         WeiDataType,
                         OutDataType,
@@ -218,76 +244,29 @@ bool test_conv_bwd_data_impl(const ConvParams<NDimSpatial>& params,
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
     using OutElementOp = tensor_operation::element_wise::PassThrough;
+    using Layouts      = ConvLayoutTypes<NDimSpatial>;
 
-    // Buffers are in CPU layout (GNCDHW/GKCZYX/GNKDHW)
-    using InLayout  = std::conditional_t<NDimSpatial == 3,
-                                         tensor_layout::convolution::GNCDHW,
-                                         std::conditional_t<NDimSpatial == 2,
-                                                            tensor_layout::convolution::GNCHW,
-                                                            tensor_layout::convolution::GNCW>>;
-    using WeiLayout = std::conditional_t<NDimSpatial == 3,
-                                         tensor_layout::convolution::GKCZYX,
-                                         std::conditional_t<NDimSpatial == 2,
-                                                            tensor_layout::convolution::GKCYX,
-                                                            tensor_layout::convolution::GKCX>>;
-    using OutLayout = std::conditional_t<NDimSpatial == 3,
-                                         tensor_layout::convolution::GNKDHW,
-                                         std::conditional_t<NDimSpatial == 2,
-                                                            tensor_layout::convolution::GNKHW,
-                                                            tensor_layout::convolution::GNKW>>;
-
-    // Convert ConvDims to lengths/strides format for GPU reference
-    std::vector<index_t> in_lengths, in_strides, wei_lengths, wei_strides, out_lengths, out_strides;
+    // Extract vectors from ConvDims
+    std::vector<index_t> in_lengths, wei_lengths, out_lengths;
     std::vector<index_t> conv_strides_vec, conv_dilations_vec, input_pads_vec;
+    extract_conv_vectors(dims,
+                         NDimSpatial,
+                         in_lengths,
+                         wei_lengths,
+                         out_lengths,
+                         conv_strides_vec,
+                         conv_dilations_vec,
+                         input_pads_vec);
 
-    if(NDimSpatial == 1)
-    {
-        in_lengths         = {dims.G, dims.N, dims.C, dims.Wi};
-        wei_lengths        = {dims.G, dims.K, dims.C, dims.X};
-        out_lengths        = {dims.G, dims.N, dims.K, dims.Wo};
-        conv_strides_vec   = {dims.stride_x};
-        conv_dilations_vec = {dims.dilation_x};
-        input_pads_vec     = {dims.pad_x};
-    }
-    else if(NDimSpatial == 2)
-    {
-        in_lengths         = {dims.G, dims.N, dims.C, dims.Hi, dims.Wi};
-        wei_lengths        = {dims.G, dims.K, dims.C, dims.Y, dims.X};
-        out_lengths        = {dims.G, dims.N, dims.K, dims.Ho, dims.Wo};
-        conv_strides_vec   = {dims.stride_y, dims.stride_x};
-        conv_dilations_vec = {dims.dilation_y, dims.dilation_x};
-        input_pads_vec     = {dims.pad_y, dims.pad_x};
-    }
-    else // 3D
-    {
-        in_lengths         = {dims.G, dims.N, dims.C, dims.Di, dims.Hi, dims.Wi};
-        wei_lengths        = {dims.G, dims.K, dims.C, dims.Z, dims.Y, dims.X};
-        out_lengths        = {dims.G, dims.N, dims.K, dims.Do, dims.Ho, dims.Wo};
-        conv_strides_vec   = {dims.stride_z, dims.stride_y, dims.stride_x};
-        conv_dilations_vec = {dims.dilation_z, dims.dilation_y, dims.dilation_x};
-        input_pads_vec     = {dims.pad_z, dims.pad_y, dims.pad_x};
-    }
-
-    // Compute row-major strides
-    auto compute_row_major_strides = [](const std::vector<index_t>& lengths) {
-        std::vector<index_t> strides(lengths.size());
-        index_t stride = 1;
-        for(int i = lengths.size() - 1; i >= 0; --i)
-        {
-            strides[i] = stride;
-            stride *= lengths[i];
-        }
-        return strides;
-    };
-
-    in_strides  = compute_row_major_strides(in_lengths);
-    wei_strides = compute_row_major_strides(wei_lengths);
-    out_strides = compute_row_major_strides(out_lengths);
+    // Compute strides
+    auto in_strides  = compute_row_major_strides(in_lengths);
+    auto wei_strides = compute_row_major_strides(wei_lengths);
+    auto out_strides = compute_row_major_strides(out_lengths);
 
     // Call GPU reference with stride-based interface
-    ref::naive_conv_bwd_data<InLayout,
-                             WeiLayout,
-                             OutLayout,
+    ref::naive_conv_bwd_data<typename Layouts::InLayout,
+                             typename Layouts::WeiLayout,
+                             typename Layouts::OutLayout,
                              InDataType,
                              WeiDataType,
                              OutDataType,
@@ -362,76 +341,29 @@ bool test_conv_bwd_weight_impl(const ConvParams<NDimSpatial>& params,
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
     using OutElementOp = tensor_operation::element_wise::PassThrough;
+    using Layouts      = ConvLayoutTypes<NDimSpatial>;
 
-    // Buffers are in CPU layout (GNCDHW/GKCZYX/GNKDHW)
-    using InLayout  = std::conditional_t<NDimSpatial == 3,
-                                         tensor_layout::convolution::GNCDHW,
-                                         std::conditional_t<NDimSpatial == 2,
-                                                            tensor_layout::convolution::GNCHW,
-                                                            tensor_layout::convolution::GNCW>>;
-    using WeiLayout = std::conditional_t<NDimSpatial == 3,
-                                         tensor_layout::convolution::GKCZYX,
-                                         std::conditional_t<NDimSpatial == 2,
-                                                            tensor_layout::convolution::GKCYX,
-                                                            tensor_layout::convolution::GKCX>>;
-    using OutLayout = std::conditional_t<NDimSpatial == 3,
-                                         tensor_layout::convolution::GNKDHW,
-                                         std::conditional_t<NDimSpatial == 2,
-                                                            tensor_layout::convolution::GNKHW,
-                                                            tensor_layout::convolution::GNKW>>;
-
-    // Convert ConvDims to lengths/strides format for GPU reference
-    std::vector<index_t> in_lengths, in_strides, wei_lengths, wei_strides, out_lengths, out_strides;
+    // Extract vectors from ConvDims
+    std::vector<index_t> in_lengths, wei_lengths, out_lengths;
     std::vector<index_t> conv_strides_vec, conv_dilations_vec, input_pads_vec;
+    extract_conv_vectors(dims,
+                         NDimSpatial,
+                         in_lengths,
+                         wei_lengths,
+                         out_lengths,
+                         conv_strides_vec,
+                         conv_dilations_vec,
+                         input_pads_vec);
 
-    if(NDimSpatial == 1)
-    {
-        in_lengths         = {dims.G, dims.N, dims.C, dims.Wi};
-        wei_lengths        = {dims.G, dims.K, dims.C, dims.X};
-        out_lengths        = {dims.G, dims.N, dims.K, dims.Wo};
-        conv_strides_vec   = {dims.stride_x};
-        conv_dilations_vec = {dims.dilation_x};
-        input_pads_vec     = {dims.pad_x};
-    }
-    else if(NDimSpatial == 2)
-    {
-        in_lengths         = {dims.G, dims.N, dims.C, dims.Hi, dims.Wi};
-        wei_lengths        = {dims.G, dims.K, dims.C, dims.Y, dims.X};
-        out_lengths        = {dims.G, dims.N, dims.K, dims.Ho, dims.Wo};
-        conv_strides_vec   = {dims.stride_y, dims.stride_x};
-        conv_dilations_vec = {dims.dilation_y, dims.dilation_x};
-        input_pads_vec     = {dims.pad_y, dims.pad_x};
-    }
-    else // 3D
-    {
-        in_lengths         = {dims.G, dims.N, dims.C, dims.Di, dims.Hi, dims.Wi};
-        wei_lengths        = {dims.G, dims.K, dims.C, dims.Z, dims.Y, dims.X};
-        out_lengths        = {dims.G, dims.N, dims.K, dims.Do, dims.Ho, dims.Wo};
-        conv_strides_vec   = {dims.stride_z, dims.stride_y, dims.stride_x};
-        conv_dilations_vec = {dims.dilation_z, dims.dilation_y, dims.dilation_x};
-        input_pads_vec     = {dims.pad_z, dims.pad_y, dims.pad_x};
-    }
-
-    // Compute row-major strides
-    auto compute_row_major_strides = [](const std::vector<index_t>& lengths) {
-        std::vector<index_t> strides(lengths.size());
-        index_t stride = 1;
-        for(int i = lengths.size() - 1; i >= 0; --i)
-        {
-            strides[i] = stride;
-            stride *= lengths[i];
-        }
-        return strides;
-    };
-
-    in_strides  = compute_row_major_strides(in_lengths);
-    wei_strides = compute_row_major_strides(wei_lengths);
-    out_strides = compute_row_major_strides(out_lengths);
+    // Compute strides
+    auto in_strides  = compute_row_major_strides(in_lengths);
+    auto wei_strides = compute_row_major_strides(wei_lengths);
+    auto out_strides = compute_row_major_strides(out_lengths);
 
     // Call GPU reference with stride-based interface
-    ref::naive_conv_bwd_weight<InLayout,
-                               WeiLayout,
-                               OutLayout,
+    ref::naive_conv_bwd_weight<typename Layouts::InLayout,
+                               typename Layouts::WeiLayout,
+                               typename Layouts::OutLayout,
                                InDataType,
                                WeiDataType,
                                OutDataType,
