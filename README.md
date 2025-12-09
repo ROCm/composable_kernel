@@ -187,7 +187,7 @@ limit the number of threads. For example, if you have a 128-core CPU and 128 Gb 
 
 Additional cmake flags can be used to significantly speed-up the build:
 
-* `DTYPES` (default is not set) can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build
+* `DTYPES` (default is not set) can be set to any subset of "fp64;fp32;tf32;fp16;fp8;bf16;int8" to build
   instances of select data types only. The main default data types are fp32 and fp16; you can safely skip
   other data types.
 
