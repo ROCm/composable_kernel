@@ -236,39 +236,26 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     {
         if constexpr(PreshuffleQuant)
         {
-            // constexpr index_t X1 = warp_size;
-            // constexpr index_t X0 = XPerTile / warp_size;
-            // constexpr index_t Y1 = NWarps;
-            // constexpr index_t Y0 = YPerTile / Y1;
+            if constexpr(YPerQ < WarpGemm::kN)
+            {
+                constexpr index_t X1  = WarpGemm::kN / YPerQ; // 2
+                constexpr index_t X0  = 256 / 128;            // 2
+                constexpr index_t X2  = 1;
+                constexpr index_t XR1 = YPerQ;                       // 8
+                constexpr index_t XR0 = warp_size / (X0 * X1 * XR1); // 2
+                constexpr index_t Y1  = NWarps;                      // 4
+                constexpr index_t Y0  = YPerTile / Y1;               // 1
+                constexpr index_t YR  = 1;
 
-            // return make_static_tile_distribution(
-            //     tile_distribution_encoding<sequence<MWarps>,
-            //                                tuple<sequence<Y0, Y1>, sequence<X0, X1>>,
-            //                                tuple<sequence<0, 1>, sequence<2>>, // (Mwarp, Nwarp),
-            //                                (X1 = warp_size(64)) tuple<sequence<0, 1>,
-            //                                sequence<1>>, sequence<1, 2>,       //(NiterPerWarp,
-            //                                X(threads in x dimension, 1)) sequence<0, 0>>{});
-
-            // constexpr index_t X1 = warp_size; //64
-            constexpr index_t X0 = XPerTile / warp_size;    // 64/64 = 1
-            constexpr index_t X1 = XPerTile / WarpGemm::kN; // 64/16 = 4
-            constexpr index_t X2 = WarpGemm::kN / YPerQ;    // 16/8=2
-            constexpr index_t XR = YPerQ;                   // 8
-            constexpr index_t Y1 = NWarps;                  // 4
-            constexpr index_t Y0 = YPerTile / Y1;           // 1
-            constexpr index_t YR = 1;
-
-            return make_static_tile_distribution(
-                tile_distribution_encoding<
-                    sequence<MWarps, XR, YR>,
-                    tuple<sequence<Y0, Y1>, sequence<X0, X1, X2>>,
-                    tuple<sequence<0, 1>, sequence<0, 2, 0>>, // (Mwarp, Nwarp),
-                    tuple<sequence<0, 1>,
-                          sequence<1, 2, 2>>, //(repeat for 8 threads in X direction, X2(no of
-                                              // scales per warp), X1(warp_size/quant_group_size),
-                                              // YR)(8, 2, 4, 1)
-                    sequence<1, 2>,
-                    sequence<0, 0>>{});
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<
+                        sequence<MWarps, XR0, XR1, YR>,
+                        tuple<sequence<Y0, Y1>, sequence<X0, X1, X2>>,
+                        tuple<sequence<0, 1>, sequence<0, 2, 0, 2, 0>>, // (Mwarp, Nwarp),
+                        tuple<sequence<0, 1>, sequence<1, 0, 2, 1, 3>>,
+                        sequence<1, 2>,
+                        sequence<0, 2>>{});
+            }
         }
         else
         {
