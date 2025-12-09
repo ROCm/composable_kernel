@@ -683,8 +683,6 @@ def cmake_build(Map conf=[:]){
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
                 export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
                 
-                ../script/debug_sccache_performance.sh post_build_\$(date +%Y%m%d_%H%M%S)
-                
                 # Archive monitoring logs
                 ls -la logs/*monitor*.log 2>/dev/null || echo "No monitoring logs found"
             """
