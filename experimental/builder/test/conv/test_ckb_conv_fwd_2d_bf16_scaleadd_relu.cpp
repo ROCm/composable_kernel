@@ -26,8 +26,8 @@ TEST(FwdConvInstances,
         .input                  = {.config = {.layout = NHWGC}},
         .weight                 = {.config = {.layout = GKYXC, .data_type = BF16}},
         .output                 = ConvolutionTensor{
-            .config    = {.layout = NHWGK},
-            .operation = TensorOperation<>{.elementwise_operation = SCALEADD_SCALEADD_RELU}
+                            .config    = {.layout = NHWGK},
+                            .operation = TensorOperation<>{.elementwise_operation = SCALEADD_SCALEADD_RELU}
                              .with_auxiliary_operand_configs<NHWGK, G_K_strided>()}};
 
     constexpr auto FwdConvAlgorithm =

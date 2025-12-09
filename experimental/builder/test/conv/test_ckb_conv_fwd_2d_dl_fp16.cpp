@@ -19,9 +19,9 @@ TEST(FwdConvInstances, Create_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK_Ins
                                              .direction              = FORWARD,
                                              .data_type              = FP16,
                                              .accumulation_data_type = FP32,
-                                             .input                  = {.config = {.layout = GNHWC}},
-                                             .weight                 = {.config = {.layout = GKYXC}},
-                                             .output                 = {.config = {.layout = GNHWK}}};
+                                             .input  = {.config = {.layout = GNHWC}},
+                                             .weight = {.config = {.layout = GKYXC}},
+                                             .output = {.config = {.layout = GNHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK{}
@@ -53,9 +53,9 @@ TEST(FwdConvInstances,
                                              .direction              = FORWARD,
                                              .data_type              = FP16,
                                              .accumulation_data_type = FP32,
-                                             .input                  = {.config = {.layout = GNHWC}},
-                                             .weight                 = {.config = {.layout = GKYXC}},
-                                             .output                 = {.config = {.layout = GNHWK}}};
+                                             .input  = {.config = {.layout = GNHWC}},
+                                             .weight = {.config = {.layout = GKYXC}},
+                                             .output = {.config = {.layout = GNHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK{}

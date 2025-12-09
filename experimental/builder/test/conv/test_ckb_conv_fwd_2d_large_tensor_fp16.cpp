@@ -20,9 +20,9 @@ TEST(FwdConvInstances,
                                              .direction              = FORWARD,
                                              .data_type              = FP16,
                                              .accumulation_data_type = FP32,
-                                             .input                  = {.config = {.layout = GNHWC}},
-                                             .weight                 = {.config = {.layout = GKYXC}},
-                                             .output                 = {.config = {.layout = GNHWK}}};
+                                             .input  = {.config = {.layout = GNHWC}},
+                                             .weight = {.config = {.layout = GKYXC}},
+                                             .output = {.config = {.layout = GNHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor{
@@ -57,9 +57,9 @@ TEST(
                                              .direction              = FORWARD,
                                              .data_type              = FP16,
                                              .accumulation_data_type = FP32,
-                                             .input                  = {.config = {.layout = GNHWC}},
-                                             .weight                 = {.config = {.layout = GKYXC}},
-                                             .output                 = {.config = {.layout = GNHWK}}};
+                                             .input  = {.config = {.layout = GNHWC}},
+                                             .weight = {.config = {.layout = GKYXC}},
+                                             .output = {.config = {.layout = GNHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor{

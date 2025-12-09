@@ -417,15 +417,9 @@ inline std::string_view toString(TensorLayout layout)
 }
 
 // ostream operator overloads for enum classes
-inline std::ostream& operator<<(std::ostream& os, DataType dt)
-{
-    return os << toString(dt);
-}
+inline std::ostream& operator<<(std::ostream& os, DataType dt) { return os << toString(dt); }
 
-inline std::ostream& operator<<(std::ostream& os, ConvDirection dir)
-{
-    return os << toString(dir);
-}
+inline std::ostream& operator<<(std::ostream& os, ConvDirection dir) { return os << toString(dir); }
 
 inline std::ostream& operator<<(std::ostream& os, ElementwiseOperation op)
 {

@@ -21,9 +21,9 @@ TEST(FwdConvInstances,
                                              .direction              = FORWARD,
                                              .data_type              = BF16,
                                              .accumulation_data_type = FP32,
-                                             .input                  = {.config = {.layout = NHWGC}},
-                                             .weight                 = {.config = {.layout = GKYXC}},
-                                             .output                 = {.config = {.layout = NHWGK}}};
+                                             .input  = {.config = {.layout = NHWGC}},
+                                             .weight = {.config = {.layout = GKYXC}},
+                                             .output = {.config = {.layout = NHWGK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
@@ -58,9 +58,9 @@ TEST(FwdConvInstances,
                                              .direction              = FORWARD,
                                              .data_type              = BF16,
                                              .accumulation_data_type = FP32,
-                                             .input                  = {.config = {.layout = NHWGC}},
-                                             .weight                 = {.config = {.layout = GKYXC}},
-                                             .output                 = {.config = {.layout = NHWGK}}};
+                                             .input  = {.config = {.layout = NHWGC}},
+                                             .weight = {.config = {.layout = GKYXC}},
+                                             .output = {.config = {.layout = NHWGK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}

@@ -23,7 +23,7 @@ TEST(FwdConvInstances,
                                              .accumulation_data_type = FP32,
                                              .input                  = {.config = {.layout = NWGC}},
                                              .weight                 = {.config = {.layout = GKXC}},
-                                             .output                 = {.config = {.layout = NWGK}}};
+                                             .output = {.config = {.layout = NWGK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle{}

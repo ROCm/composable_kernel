@@ -25,7 +25,7 @@ TEST(FwdConvInstances,
                                              .accumulation_data_type = INT32,
                                              .input                  = {.config = {.layout = GNWC}},
                                              .weight                 = {.config = {.layout = GKXC}},
-                                             .output                 = {.config = {.layout = GNWK}}};
+                                             .output = {.config = {.layout = GNWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}

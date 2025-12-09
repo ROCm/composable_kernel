@@ -26,8 +26,7 @@ TEST(FwdConvInstances,
         .accumulation_data_type = FP32,
         .input                  = {.config = {.layout = NGCW}},
         .weight                 = {.config = {.layout = GKXC}},
-        .output                 = {.config    = {.layout = NGKW},
-                                   .operation = {.elementwise_operation = SCALE}}};
+        .output = {.config = {.layout = NGKW}, .operation = {.elementwise_operation = SCALE}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}

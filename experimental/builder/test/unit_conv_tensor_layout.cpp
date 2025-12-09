@@ -16,30 +16,28 @@ using ck_tile::builder::TensorLayout;
 using ck_tile::builder::factory::internal::AuxiliaryTensorLayouts;
 using ck_tile::builder::factory::internal::ConvTensorLayouts;
 using ck_tile::builder::factory::internal::LayoutToCK;
-using ck_tile::builder::test::ConvSignature;
 using ck_tile::builder::test::ConvolutionTensor;
-using ck_tile::builder::test::TensorOperation;
+using ck_tile::builder::test::ConvSignature;
 using ck_tile::builder::test::TensorConfig;
+using ck_tile::builder::test::TensorOperation;
 using ::testing::StaticAssertTypeEq;
 
-namespace enums 
-{
-    using enum ck_tile::builder::ConvDirection;
-    using enum ck_tile::builder::TensorLayout;
-    using enum ck_tile::builder::DataType;
-}
+namespace enums {
+using enum ck_tile::builder::ConvDirection;
+using enum ck_tile::builder::TensorLayout;
+using enum ck_tile::builder::DataType;
+} // namespace enums
 
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_NWGC_GKXC_NWGK)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 1,
-                        .direction              = FORWARD,
-                        .data_type              = FP16,
-                        .accumulation_data_type = FP32,
-                        .input                  = {.config = {.layout = NWGC}},
-                        .weight                 = {.config = {.layout = GKXC}},
-                        .output                 = {.config = {.layout = NWGK}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 1,
+                                                .direction              = FORWARD,
+                                                .data_type              = FP16,
+                                                .accumulation_data_type = FP32,
+                                                .input  = {.config = {.layout = NWGC}},
+                                                .weight = {.config = {.layout = GKXC}},
+                                                .output = {.config = {.layout = NWGK}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 1, FORWARD>;
 
@@ -52,14 +50,13 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NWGC_GKXC_NWGK)
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKXC_NGKW)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 1,
-                        .direction              = FORWARD,
-                        .data_type              = FP16,
-                        .accumulation_data_type = FP32,
-                        .input                  = {.config = {.layout = NGCW}},
-                        .weight                 = {.config = {.layout = GKXC}},
-                        .output                 = {.config = {.layout = NGKW}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 1,
+                                                .direction              = FORWARD,
+                                                .data_type              = FP16,
+                                                .accumulation_data_type = FP32,
+                                                .input  = {.config = {.layout = NGCW}},
+                                                .weight = {.config = {.layout = GKXC}},
+                                                .output = {.config = {.layout = NGKW}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 1, FORWARD>;
 
@@ -72,14 +69,13 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKXC_NGKW)
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_GNWC_GKXC_GNWK)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 1,
-                        .direction              = FORWARD,
-                        .data_type              = FP16,
-                        .accumulation_data_type = FP32,
-                        .input                  = {.config = {.layout = GNWC}},
-                        .weight                 = {.config = {.layout = GKXC}},
-                        .output                 = {.config = {.layout = GNWK}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 1,
+                                                .direction              = FORWARD,
+                                                .data_type              = FP16,
+                                                .accumulation_data_type = FP32,
+                                                .input  = {.config = {.layout = GNWC}},
+                                                .weight = {.config = {.layout = GKXC}},
+                                                .output = {.config = {.layout = GNWK}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 1, FORWARD>;
 
@@ -92,14 +88,13 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_GNWC_GKXC_GNWK)
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKCX_NGKW)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 1,
-                        .direction              = FORWARD,
-                        .data_type              = FP16,
-                        .accumulation_data_type = FP32,
-                        .input                  = {.config = {.layout = NGCW}},
-                        .weight                 = {.config = {.layout = GKCX}},
-                        .output                 = {.config = {.layout = NGKW}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 1,
+                                                .direction              = FORWARD,
+                                                .data_type              = FP16,
+                                                .accumulation_data_type = FP32,
+                                                .input  = {.config = {.layout = NGCW}},
+                                                .weight = {.config = {.layout = GKCX}},
+                                                .output = {.config = {.layout = NGKW}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 1, FORWARD>;
 
@@ -112,14 +107,13 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKCX_NGKW)
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKYXC_NGKHW)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 2,
-                        .direction              = FORWARD,
-                        .data_type              = FP16,
-                        .accumulation_data_type = FP32,
-                        .input                  = {.config = {.layout = NGCHW}},
-                        .weight                 = {.config = {.layout = GKYXC}},
-                        .output                 = {.config = {.layout = NGKHW}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 2,
+                                                .direction              = FORWARD,
+                                                .data_type              = FP16,
+                                                .accumulation_data_type = FP32,
+                                                .input  = {.config = {.layout = NGCHW}},
+                                                .weight = {.config = {.layout = GKYXC}},
+                                                .output = {.config = {.layout = NGKHW}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
@@ -132,14 +126,13 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKYXC_NGKHW)
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_NHWGC_GKYXC_NHWGK)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 2,
-                        .direction              = FORWARD,
-                        .data_type              = DataType::FP16,
-                        .accumulation_data_type = DataType::FP32,
-                        .input                  = {.config = {.layout = NHWGC}},
-                        .weight                 = {.config = {.layout = GKYXC}},
-                        .output                 = {.config = {.layout = NHWGK}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 2,
+                                                .direction              = FORWARD,
+                                                .data_type              = DataType::FP16,
+                                                .accumulation_data_type = DataType::FP32,
+                                                .input  = {.config = {.layout = NHWGC}},
+                                                .weight = {.config = {.layout = GKYXC}},
+                                                .output = {.config = {.layout = NHWGK}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
@@ -152,14 +145,13 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NHWGC_GKYXC_NHWGK)
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_GNHWC_GKYXC_GNHWK)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 2,
-                        .direction              = FORWARD,
-                        .data_type              = DataType::FP16,
-                        .accumulation_data_type = DataType::FP32,
-                        .input                  = {.config = {.layout = GNHWC}},
-                        .weight                 = {.config = {.layout = GKYXC}},
-                        .output                 = {.config = {.layout = GNHWK}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 2,
+                                                .direction              = FORWARD,
+                                                .data_type              = DataType::FP16,
+                                                .accumulation_data_type = DataType::FP32,
+                                                .input  = {.config = {.layout = GNHWC}},
+                                                .weight = {.config = {.layout = GKYXC}},
+                                                .output = {.config = {.layout = GNHWK}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
@@ -172,14 +164,13 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_GNHWC_GKYXC_GNHWK)
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKCYX_NGKHW)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 2,
-                        .direction              = FORWARD,
-                        .data_type              = DataType::FP16,
-                        .accumulation_data_type = DataType::FP32,
-                        .input                  = {.config = {.layout = NGCHW}},
-                        .weight                 = {.config = {.layout = GKCYX}},
-                        .output                 = {.config = {.layout = NGKHW}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 2,
+                                                .direction              = FORWARD,
+                                                .data_type              = DataType::FP16,
+                                                .accumulation_data_type = DataType::FP32,
+                                                .input  = {.config = {.layout = NGCHW}},
+                                                .weight = {.config = {.layout = GKCYX}},
+                                                .output = {.config = {.layout = NGKHW}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
@@ -192,14 +183,13 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKCYX_NGKHW)
 TEST(ConvTensorLayout, AssignsLayoutsFor3D_NGCDHW_GKCZYX_NGKDHW)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 3,
-                        .direction              = FORWARD,
-                        .data_type              = DataType::FP16,
-                        .accumulation_data_type = DataType::FP32,
-                        .input                  = {.config = {.layout = NGCDHW}},
-                        .weight                 = {.config = {.layout = GKCZYX}},
-                        .output                 = {.config = {.layout = NGKDHW}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 3,
+                                                .direction              = FORWARD,
+                                                .data_type              = DataType::FP16,
+                                                .accumulation_data_type = DataType::FP32,
+                                                .input  = {.config = {.layout = NGCDHW}},
+                                                .weight = {.config = {.layout = GKCZYX}},
+                                                .output = {.config = {.layout = NGKDHW}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 3, FORWARD>;
 
@@ -212,14 +202,13 @@ TEST(ConvTensorLayout, AssignsLayoutsFor3D_NGCDHW_GKCZYX_NGKDHW)
 TEST(ConvTensorLayout, AssignsLayoutsFor3D_NDHWGC_GKZYXC_NDHWGK)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 3,
-                        .direction              = FORWARD,
-                        .data_type              = DataType::FP16,
-                        .accumulation_data_type = DataType::FP32,
-                        .input                  = {.config = {.layout = NDHWGC}},
-                        .weight                 = {.config = {.layout = GKZYXC}},
-                        .output                 = {.config = {.layout = NDHWGK}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 3,
+                                                .direction              = FORWARD,
+                                                .data_type              = DataType::FP16,
+                                                .accumulation_data_type = DataType::FP32,
+                                                .input  = {.config = {.layout = NDHWGC}},
+                                                .weight = {.config = {.layout = GKZYXC}},
+                                                .output = {.config = {.layout = NDHWGK}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 3, FORWARD>;
 
@@ -232,14 +221,13 @@ TEST(ConvTensorLayout, AssignsLayoutsFor3D_NDHWGC_GKZYXC_NDHWGK)
 TEST(ConvTensorLayout, AssignsLayoutsFor3D_GNDHWC_GKZYXC_GNDHWK)
 {
     using namespace enums;
-    static constexpr auto sig =
-        ConvSignature<>{.spatial_dim            = 3,
-                        .direction              = FORWARD,
-                        .data_type              = DataType::FP16,
-                        .accumulation_data_type = DataType::FP32,
-                        .input                  = {.config = {.layout = GNDHWC}},
-                        .weight                 = {.config = {.layout = GKZYXC}},
-                        .output                 = {.config = {.layout = GNDHWK}}};
+    static constexpr auto sig = ConvSignature<>{.spatial_dim            = 3,
+                                                .direction              = FORWARD,
+                                                .data_type              = DataType::FP16,
+                                                .accumulation_data_type = DataType::FP32,
+                                                .input  = {.config = {.layout = GNDHWC}},
+                                                .weight = {.config = {.layout = GKZYXC}},
+                                                .output = {.config = {.layout = GNDHWK}}};
 
     using TensorLayouts = ConvTensorLayouts<sig, 3, FORWARD>;
 
@@ -440,8 +428,8 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithSingleBiasGC)
 TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithTwoAuxiliaryTensors)
 {
     using namespace enums;
-    using OutputOp = TensorOperation<TensorConfig{.layout = G_K_strided},
-                                     TensorConfig{.layout = GC}>;
+    using OutputOp =
+        TensorOperation<TensorConfig{.layout = G_K_strided}, TensorConfig{.layout = GC}>;
 
     static constexpr auto sig =
         ConvSignature<ConvolutionTensor<>, ConvolutionTensor<>, ConvolutionTensor<OutputOp>>{

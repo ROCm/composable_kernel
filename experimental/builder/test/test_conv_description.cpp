@@ -79,11 +79,11 @@ struct ConvSignatureWithOptionalParams
     ckb::DataType data_type              = FP16;
     ckb::DataType accumulation_data_type = FP32;
     ckb::ConvDirection direction         = FORWARD;
-    ConvTensorWithOp input               = {.config = {GNHWC, FP16},
+    ConvTensorWithOp input               = {
+                      .config = {GNHWC, FP16},
     };
     ConvTensorWithOp weight = {.config = {GKYXC, FP16}};
-    ConvTensorWithOp output = {.config    = {GNHWK, FP16},
-                               .operation = {SCALE}};
+    ConvTensorWithOp output = {.config = {GNHWK, FP16}, .operation = {SCALE}};
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignatureWithOptionalParams>);
 

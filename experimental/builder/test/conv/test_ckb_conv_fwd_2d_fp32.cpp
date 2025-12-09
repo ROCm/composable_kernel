@@ -20,9 +20,9 @@ TEST(FwdConvInstances,
                                              .direction              = FORWARD,
                                              .data_type              = FP32,
                                              .accumulation_data_type = FP32,
-                                             .input                  = {.config = {.layout = NGCHW}},
-                                             .weight                 = {.config = {.layout = GKCYX}},
-                                             .output                 = {.config = {.layout = NGKHW}}};
+                                             .input  = {.config = {.layout = NGCHW}},
+                                             .weight = {.config = {.layout = GKCYX}},
+                                             .output = {.config = {.layout = NGKHW}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}

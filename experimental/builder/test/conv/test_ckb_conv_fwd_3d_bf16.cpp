@@ -17,14 +17,13 @@ TEST(FwdConvInstances,
     using enum ck_tile::builder::DataType;
     using enum ck_tile::builder::TensorLayout;
 
-    constexpr ConvSignature FwdConvSignature{
-        .spatial_dim            = 3,
-        .direction              = FORWARD,
-        .data_type              = BF16,
-        .accumulation_data_type = FP32,
-        .input                  = {.config = {.layout = GNDHWC}},
-        .weight                 = {.config = {.layout = GKZYXC}},
-        .output                 = {.config = {.layout = GNDHWK}}};
+    constexpr ConvSignature FwdConvSignature{.spatial_dim            = 3,
+                                             .direction              = FORWARD,
+                                             .data_type              = BF16,
+                                             .accumulation_data_type = FP32,
+                                             .input  = {.config = {.layout = GNDHWC}},
+                                             .weight = {.config = {.layout = GKZYXC}},
+                                             .output = {.config = {.layout = GNDHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}

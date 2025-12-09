@@ -12,13 +12,13 @@
 
 namespace {
 
-using ::testing::ElementsAre;
-using ck_tile::builder::ElementwiseOperation;
-using ck_tile::builder::DataType;
 using ck_tile::builder::ConvDirection;
-using ck_tile::builder::TensorLayout;
+using ck_tile::builder::DataType;
+using ck_tile::builder::ElementwiseOperation;
 using ck_tile::builder::PipelineScheduler;
 using ck_tile::builder::PipelineVersion;
+using ck_tile::builder::TensorLayout;
+using ::testing::ElementsAre;
 
 // Test fixture for ConvTraits tests
 class ConvTraitsTest : public ::testing::Test
@@ -91,7 +91,8 @@ TEST_F(ConvTraitsTest, ConvFwdTraitsExtraction)
     // Verify signature information
     EXPECT_EQ(Traits::spatial_dim, 2);
     EXPECT_EQ(Traits::direction, ConvDirection::FORWARD);
-    EXPECT_THAT(Traits::layout, ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
+    EXPECT_THAT(Traits::layout,
+                ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
     EXPECT_EQ(Traits::data_type, DataType::FP16);
     EXPECT_EQ(Traits::input_element_op, ElementwiseOperation::PASS_THROUGH);
     EXPECT_EQ(Traits::weight_element_op, ElementwiseOperation::PASS_THROUGH);
@@ -218,7 +219,8 @@ TEST_F(ConvTraitsTest, ConvFwdBaseTraitsExtraction)
     // Verify signature information
     EXPECT_EQ(Traits::spatial_dim, 2);
     EXPECT_EQ(Traits::direction, ConvDirection::FORWARD);
-    EXPECT_THAT(Traits::layout, ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
+    EXPECT_THAT(Traits::layout,
+                ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
     EXPECT_EQ(Traits::data_type, DataType::FP16);
     EXPECT_EQ(Traits::input_element_op, ElementwiseOperation::PASS_THROUGH);
     EXPECT_EQ(Traits::weight_element_op, ElementwiseOperation::PASS_THROUGH);
@@ -301,7 +303,8 @@ TEST_F(ConvTraitsTest, ConvFwdLargeTensorTraitsExtraction)
     // Verify signature information
     EXPECT_EQ(Traits::spatial_dim, 2);
     EXPECT_EQ(Traits::direction, ConvDirection::FORWARD);
-    EXPECT_THAT(Traits::layout, ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
+    EXPECT_THAT(Traits::layout,
+                ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
     EXPECT_EQ(Traits::data_type, DataType::FP16);
     EXPECT_EQ(Traits::input_element_op, ElementwiseOperation::PASS_THROUGH);
     EXPECT_EQ(Traits::weight_element_op, ElementwiseOperation::PASS_THROUGH);
