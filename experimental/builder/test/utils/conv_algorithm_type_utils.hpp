@@ -140,7 +140,7 @@ inline std::string to_string<LdsTransfer>(LdsTransfer t)
     oss << t.src_vector_dim << ","
         << t.src_scalar_per_vector << ","
         << t.lds_dst_scalar_per_vector << ","
-        << (t.lds_padding ? "1" : "0") << ","
+        << (t.lds_padding ? "true" : "false") << ","
         << (t.is_direct_load ? "true" : "false");
     return oss.str();
 }
@@ -161,7 +161,7 @@ inline std::string to_string<TransferAB>(TransferAB t)
         << t.lds_transfer.src_vector_dim << ","
         << t.lds_transfer.src_scalar_per_vector << ","
         << t.lds_transfer.lds_dst_scalar_per_vector << ","
-        << (t.lds_transfer.lds_padding ? "1" : "0");
+        << (t.lds_transfer.lds_padding ? "true" : "false");
     return oss.str();
 }
 
