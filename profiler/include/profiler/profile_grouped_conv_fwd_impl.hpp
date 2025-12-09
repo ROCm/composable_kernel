@@ -22,6 +22,7 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
 
 namespace ck {
 namespace profiler {
@@ -113,8 +114,58 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     wei_device_buf.ToDevice(weight.mData.data());
 
     // run reference op
-    if(do_verification)
+    if(do_verification == 2)
     {
+        // Use GPU reference for verification
+        std::cout << "Using GPU reference for verification" << std::endl;
+
+        // Allocate GPU reference output buffer
+        DeviceMem gpu_ref_out_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
+
+        // Convert arrays to vectors for GPU reference
+        std::vector<index_t> in_lengths_vec(a_g_n_c_wis_lengths.begin(), a_g_n_c_wis_lengths.end());
+        std::vector<index_t> in_strides_vec(a_g_n_c_wis_strides.begin(), a_g_n_c_wis_strides.end());
+        std::vector<index_t> wei_lengths_vec(b_g_k_c_xs_lengths.begin(), b_g_k_c_xs_lengths.end());
+        std::vector<index_t> wei_strides_vec(b_g_k_c_xs_strides.begin(), b_g_k_c_xs_strides.end());
+        std::vector<index_t> out_lengths_vec(e_g_n_k_wos_lengths.begin(),
+                                             e_g_n_k_wos_lengths.end());
+        std::vector<index_t> out_strides_vec(e_g_n_k_wos_strides.begin(),
+                                             e_g_n_k_wos_strides.end());
+        std::vector<index_t> strides_vec(conv_filter_strides.begin(), conv_filter_strides.end());
+        std::vector<index_t> dilations_vec(conv_filter_dilations.begin(),
+                                           conv_filter_dilations.end());
+        std::vector<index_t> pads_vec(input_left_pads.begin(), input_left_pads.end());
+
+        // Call GPU reference with stride-based interface
+        ref::naive_conv_fwd<InLayout,
+                            WeiLayout,
+                            OutLayout,
+                            InDataType,
+                            WeiDataType,
+                            OutDataType,
+                            InElementOp,
+                            WeiElementOp,
+                            OutElementOp>(
+            reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<OutDataType*>(gpu_ref_out_buf.GetDeviceBuffer()),
+            in_lengths_vec,
+            in_strides_vec,
+            wei_lengths_vec,
+            wei_strides_vec,
+            out_lengths_vec,
+            out_strides_vec,
+            strides_vec,
+            dilations_vec,
+            pads_vec,
+            nullptr);
+
+        // Copy GPU reference result to host for comparison
+        gpu_ref_out_buf.FromDevice(host_output.mData.data());
+    }
+    else if(do_verification == 1)
+    {
+        // Use CPU reference for verification (default)
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InDataType,
                                                                      WeiDataType,

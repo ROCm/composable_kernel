@@ -61,3 +61,25 @@ TEST(GpuReferenceConvFwd, Conv2DFP32GroupedG4)
     bool result = test::test_conv_gpu_ref<2, float, float, float>(params, ConvKernelType::Forward);
     EXPECT_TRUE(result);
 }
+
+// Test case from profiler that's failing - GNHWC layout
+// Params: {NDimSpatial=2, G=2, N=32, K=128, C=256, filter={1,1}, input={7,7}, output={4,4},
+// stride={2,2}, dilation={1,1}, pad={0,0}}
+TEST(GpuReferenceConvFwd, Conv2DFP32ProfilerGNHWC)
+{
+    using namespace ck::test;
+    ConvParams<2> params;
+    params.N              = 32;
+    params.K              = 128;
+    params.C              = 256;
+    params.G              = 2;
+    params.filter_spatial = {1, 1};
+    params.input_spatial  = {7, 7};
+    params.output_spatial = {4, 4};
+    params.strides        = {2, 2};
+    params.dilations      = {1, 1};
+    params.pads           = {0, 0};
+
+    bool result = test::test_conv_gpu_ref<2, float, float, float>(params, ConvKernelType::Forward);
+    EXPECT_TRUE(result);
+}
