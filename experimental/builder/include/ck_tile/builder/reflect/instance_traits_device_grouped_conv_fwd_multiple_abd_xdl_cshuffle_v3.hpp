@@ -316,7 +316,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "," << kABlockTransferSrcScalarPerVector; // 31. ABlockTransferSrcScalarPerVector
         oss << ","
             << kABlockTransferDstScalarPerVectorK1; // 32. ABlockTransferDstScalarPerVector_AK1
-        oss << "," << kABlockLdsExtraM;             // 33. ABlockLdsExtraM
+        oss << "," << (kABlockLdsExtraM ? "true" : "false");             // 33. ABlockLdsExtraM
         oss << ","
             << detail::array_to_string(
                    kBThreadClusterLengths); // 34. BBlockTransferThreadClusterLengths
@@ -330,7 +330,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "," << kBBlockTransferSrcScalarPerVector; // 38. BBlockTransferSrcScalarPerVector
         oss << ","
             << kBBlockTransferDstScalarPerVectorK1;   // 39. BBlockTransferDstScalarPerVector_BK1
-        oss << "," << kBBlockLdsExtraN;               // 40. BBlockLdsExtraN
+        oss << "," << (kBBlockLdsExtraN ? "true" : "false");               // 40. BBlockLdsExtraN
         oss << "," << kCShuffleMXdlPerWavePerShuffle; // 41. CShuffleMXdlPerWavePerShuffle
         oss << "," << kCShuffleNXdlPerWavePerShuffle; // 42. CShuffleNXdlPerWavePerShuffle
         oss << ","

@@ -311,7 +311,7 @@ struct InstanceTraits<
         oss << "," << kABlockTransferSrcScalarPerVector; // 32. ABlockTransferSrcScalarPerVector
         oss << ","
             << kABlockTransferDstScalarPerVectorK1; // 33. ABlockTransferDstScalarPerVector_AK1
-        oss << "," << kABlockLdsExtraM;             // 34. ABlockLdsExtraM
+        oss << "," << (kABlockLdsExtraM ? "true" : "false");             // 34. ABlockLdsExtraM
         oss << ","
             << detail::array_to_string(
                    kBThreadClusterLengths); // 35. BBlockTransferThreadClusterLengths
@@ -325,7 +325,7 @@ struct InstanceTraits<
         oss << "," << kBBlockTransferSrcScalarPerVector; // 39. BBlockTransferSrcScalarPerVector
         oss << ","
             << kBBlockTransferDstScalarPerVectorK1;   // 40. BBlockTransferDstScalarPerVector_BK1
-        oss << "," << kBBlockLdsExtraN;               // 41. BBlockLdsExtraN
+        oss << "," << (kBBlockLdsExtraN ? "true" : "false");               // 41. BBlockLdsExtraN
         oss << "," << kCShuffleMXdlPerWavePerShuffle; // 42. CShuffleMXdlPerWavePerShuffle
         oss << "," << kCShuffleNXdlPerWavePerShuffle; // 43. CShuffleNXdlPerWavePerShuffle
         oss << ","
