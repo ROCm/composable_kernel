@@ -624,8 +624,79 @@ def cmake_build(Map conf=[:]){
     echo cmd
 
     dir("build"){
+        // Start sccache monitoring
+        if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
+            sh """
+                echo "=== MAKING SCRIPTS EXECUTABLE ==="
+                chmod +x ../script/monitor_sccache_during_build.sh
+                
+                echo "=== SETTING UP DEBUG ENVIRONMENT ==="
+                mkdir -p logs
+                export CK_SCCACHE="${env.CK_SCCACHE}"
+                export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
+                export ROCM_PATH=/opt/rocm
+                export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
+                export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
+                
+                echo "Environment for debug scripts:"
+                echo "CK_SCCACHE: \$CK_SCCACHE"
+                echo "SCCACHE_REDIS: \$SCCACHE_REDIS"
+                echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \$SCCACHE_C_CUSTOM_CACHE_BUSTER"
+                echo "JENKINS_STAGE_NAME: \$JENKINS_STAGE_NAME"
+                
+                echo "=== STARTING CONTINUOUS MONITORING ==="
+                ../script/monitor_sccache_during_build.sh build_monitor &
+                MONITOR_PID=\$!
+                echo "Monitor PID: \$MONITOR_PID"
+                echo \$MONITOR_PID > monitor.pid
+            """
+        }
+
+        def build_start_time = System.currentTimeMillis()
+
         //build CK
         sh cmd
+
+        def build_end_time = System.currentTimeMillis()
+        def build_duration = (build_end_time - build_start_time) / 1000
+        echo "Build completed in ${build_duration} seconds"
+
+        // Stop sccache monitoring
+        if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
+            sh """
+                echo "=== POST-BUILD SCCACHE DEBUG ==="
+                echo "Build duration: ${build_duration} seconds"
+                
+                # Stop monitoring
+                if [ -f monitor.pid ]; then
+                    MONITOR_PID=\$(cat monitor.pid)
+                    kill \$MONITOR_PID 2>/dev/null || echo "Monitor already stopped"
+                    rm -f monitor.pid
+                fi
+                
+                echo "=== SETTING UP DEBUG ENVIRONMENT ==="
+                export CK_SCCACHE="${env.CK_SCCACHE}"
+                export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
+                export ROCM_PATH=/opt/rocm
+                export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
+                export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
+                
+                ../script/debug_sccache_performance.sh post_build_\$(date +%Y%m%d_%H%M%S)
+                
+                # Archive monitoring logs
+                ls -la logs/*monitor*.log 2>/dev/null || echo "No monitoring logs found"
+            """
+            
+            // Archive the debug logs
+            try {
+                archiveArtifacts artifacts: "logs/*monitor*.log", allowEmptyArchive: true
+            } catch (Exception e) {
+                echo "Could not archive sccache debug logs: ${e.getMessage()}"
+            }
+        }
+
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
             if ((setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE) || params.BUILD_INSTANCES_ONLY){
@@ -1734,7 +1805,10 @@ pipeline {
                         beforeAgent true
                         expression { (params.BUILD_GFX942.toBoolean() || params.RUN_FULL_QA.toBoolean()) && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx942") }
+                    agent{ 
+                        label rocmnode("gfx942")
+                        customWorkspace '/var/jenkins/workspace/composable_kernel'
+                    }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx942" """
                         execute_args = build_client_examples("gfx942")
@@ -1750,7 +1824,10 @@ pipeline {
                         beforeAgent true
                         expression { params.BUILD_GFX950.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx950") }
+                    agent{ 
+                        label rocmnode("gfx950") 
+                        customWorkspace '/var/jenkins/workspace/composable_kernel'
+                    }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx950" """
                         execute_args = build_client_examples("gfx950")
