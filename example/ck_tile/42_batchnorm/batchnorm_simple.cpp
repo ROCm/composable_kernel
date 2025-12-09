@@ -326,21 +326,26 @@ bool run(const ck_tile::ArgParser& arg_parser)
             bool save_pass = ck_tile::check_err(save_mean_host, save_mean_ref, "Error: Saved mean incorrect!", 1e-3, 1e-3);
             save_pass = save_pass && ck_tile::check_err(save_inv_std_host, save_inv_std_ref, "Error: Saved inv_std incorrect!", 1e-3, 1e-3);
             
-            std::cout << "\n=== Saved Statistics ===" << std::endl;
-            for(ck_tile::index_t c = 0; c < std::min(C, ck_tile::index_t(4)); ++c)
+            std::cout << "\n=== Saved Statistics (All Channels) ===" << std::endl;
+            for(ck_tile::index_t c = 0; c < C; ++c)
             {
-                std::cout << "Ch" << std::setw(2) << c 
+                float mean_diff = std::abs(save_mean_ref.mData[c] - save_mean_host.mData[c]);
+                float inv_std_diff = std::abs(save_inv_std_ref.mData[c] - save_inv_std_host.mData[c]);
+                
+                std::cout << "Ch" << std::setw(3) << c 
                           << " mean: Ref=" << std::setw(10) << save_mean_ref.mData[c]
                           << " Dev=" << std::setw(10) << save_mean_host.mData[c]
+                          << " Diff=" << std::setw(10) << mean_diff
                           << " | inv_std: Ref=" << std::setw(10) << save_inv_std_ref.mData[c]
-                          << " Dev=" << std::setw(10) << save_inv_std_host.mData[c] << std::endl;
+                          << " Dev=" << std::setw(10) << save_inv_std_host.mData[c]
+                          << " Diff=" << std::setw(10) << inv_std_diff << std::endl;
             }
             pass = pass && save_pass;
         }
         
         if constexpr(kUpdateMovingAverage)
         {
-            if(repeat == 1)
+            if(repeat == 1 && warmup == 0)
             {
                 running_mean_buf.FromDevice(running_mean_host.mData.data());
                 running_var_buf.FromDevice(running_var_host.mData.data());
@@ -348,14 +353,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 bool running_pass = ck_tile::check_err(running_mean_host, running_mean_ref, "Error: Running mean incorrect!", 1e-3, 1e-3);
                 running_pass = running_pass && ck_tile::check_err(running_var_host, running_var_ref, "Error: Running var incorrect!", 1e-3, 1e-3);
                 
-                std::cout << "\n=== Running Statistics ===" << std::endl;
-                for(ck_tile::index_t c = 0; c < std::min(C, ck_tile::index_t(4)); ++c)
+                std::cout << "\n=== Running Statistics (All Channels) ===" << std::endl;
+                for(ck_tile::index_t c = 0; c < C; ++c)
                 {
-                    std::cout << "Ch" << std::setw(2) << c 
+                    float mean_diff = std::abs(running_mean_ref.mData[c] - running_mean_host.mData[c]);
+                    float var_diff = std::abs(running_var_ref.mData[c] - running_var_host.mData[c]);
+                    
+                    std::cout << "Ch" << std::setw(3) << c 
                               << " mean: Ref=" << std::setw(10) << running_mean_ref.mData[c]
                               << " Dev=" << std::setw(10) << running_mean_host.mData[c]
+                              << " Diff=" << std::setw(10) << mean_diff
                               << " | var: Ref=" << std::setw(10) << running_var_ref.mData[c]
-                              << " Dev=" << std::setw(10) << running_var_host.mData[c] << std::endl;
+                              << " Dev=" << std::setw(10) << running_var_host.mData[c]
+                              << " Diff=" << std::setw(10) << var_diff << std::endl;
                 }
                 pass = pass && running_pass;
             }

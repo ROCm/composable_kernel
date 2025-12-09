@@ -11,7 +11,7 @@ namespace ck_tile {
 // Defines tile distributions and helper functions
 struct BatchnormFwdPipelineDefaultPolicy
 {
-    // Tile distribution for input data (following layernorm2d pattern exactly)
+    // Tile distribution for input data
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeXBlockTileDistribution()
     {
@@ -28,7 +28,7 @@ struct BatchnormFwdPipelineDefaultPolicy
                 sequence<0, 3, 0, 3>>{});
     }
 
-    // Tile distribution for gamma/beta parameters (following layernorm2d pattern)
+    // Tile distribution for gamma/beta parameters
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeGammaBetaBlockTileDistribution()
     {
