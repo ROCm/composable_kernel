@@ -4,312 +4,476 @@
 #pragma once
 
 #include "ck/utility/type_convert.hpp"
+#include "ck/host_utility/hip_check_error.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/reference_tensor_operation/gpu/conv_common.hpp"
-#include "ck/library/reference_tensor_operation/gpu/layout_utils.hpp"
+#include "ck/library/reference_tensor_operation/gpu/pack_unpack_kernels.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 namespace ref {
 
-/*
- * \brief naive implementation of 3D convolution backward weight.
- *        Layout is (NDHWC, KZYXC, NDHWK).
- *        Computes gradient with respect to weights.
- *
- * \param N number of batches
- * \param K number of filters (output channels)
- * \param C number of input channels
- * \param (Di, Hi, Wi) depth, height and width dimension of input
- * \param (Z, Y, X) depth, height and width dimensions of filter
- * \param (Do, Ho, Wo) depth, height and width dimension of output
- * \param (stride_z, stride_y, stride_x) strides
- * \param (dilation_z, dilation_y, dilation_x) dilations
- * \param (pad_z, pad_y, pad_x) pads
- */
-template <typename TIn,
-          typename TWei,
-          typename TOut,
-          typename TAcc,
-          typename InElementwiseOperation,
-          typename WeiElementwiseOperation,
-          typename OutElementwiseOperation>
-__global__ void naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
-                                                        TWei* __restrict__ p_wei_grad,
-                                                        const TOut* __restrict__ p_out_grad,
-                                                        const ConvDims dims)
+// Optimized backward weight convolution kernel working with packed (contiguous) tensors
+// Assumes row-major packing: input[G][N][C][spatial], output_grad[G][N][K][spatial],
+// weight_grad[G][K][C][filter]
+// Computes gradient with respect to weights
+template <index_t NDimSpatial,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InElementOp,
+          typename WeiElementOp,
+          typename OutElementOp>
+__global__ void naive_conv_bwd_weight_packed(const InDataType* __restrict__ p_in,
+                                             WeiDataType* __restrict__ p_wei_grad,
+                                             const OutDataType* __restrict__ p_out_grad,
+                                             index_t G,
+                                             index_t N,
+                                             index_t K,
+                                             index_t C,
+                                             index_t Di,
+                                             index_t Hi,
+                                             index_t Wi,
+                                             index_t Z,
+                                             index_t Y,
+                                             index_t X,
+                                             index_t Do,
+                                             index_t Ho,
+                                             index_t Wo,
+                                             index_t stride_z,
+                                             index_t stride_y,
+                                             index_t stride_x,
+                                             index_t dilation_z,
+                                             index_t dilation_y,
+                                             index_t dilation_x,
+                                             index_t pad_z,
+                                             index_t pad_y,
+                                             index_t pad_x)
 {
-    const index_t tid                = blockIdx.x * blockDim.x + threadIdx.x;
-    const index_t num_threads        = blockDim.x * gridDim.x;
-    const long_index_t weight_length = dims.K * dims.Z * dims.Y * dims.X * dims.C;
+    const long_index_t tid         = blockIdx.x * blockDim.x + threadIdx.x;
+    const long_index_t num_threads = blockDim.x * gridDim.x;
 
-    const index_t in_strides[] = {
-        dims.Di * dims.Hi * dims.Wi * dims.C, dims.Hi * dims.Wi * dims.C, dims.Wi * dims.C, dims.C};
-    const index_t out_strides[] = {
-        dims.Do * dims.Ho * dims.Wo * dims.K, dims.Ho * dims.Wo * dims.K, dims.Wo * dims.K, dims.K};
-    const index_t wei_strides[] = {
-        dims.Z * dims.Y * dims.X * dims.C, dims.Y * dims.X * dims.C, dims.X * dims.C, dims.C};
+    constexpr auto in_op  = InElementOp{};
+    constexpr auto wei_op = WeiElementOp{};
+    constexpr auto out_op = OutElementOp{};
 
-    constexpr auto in_op  = InElementwiseOperation{};
-    constexpr auto wei_op = WeiElementwiseOperation{};
-    constexpr auto out_op = OutElementwiseOperation{};
+    InDataType in_val   = InDataType{0};
+    WeiDataType wei_val = WeiDataType{0};
+    OutDataType out_val = OutDataType{0};
 
-    TIn in_val   = TIn{0};
-    TWei wei_val = TWei{0};
-    TOut out_val = TOut{0};
-
-    for(long_index_t ii = tid; ii < weight_length; ii += num_threads)
+    if constexpr(NDimSpatial == 1)
     {
-        // Weight layout is KZYXGC: [K_per_group, Z, Y, X, G, C_per_group]
-        // Decode linear index to (k_local, z, y, x, g, c_local)
-        const index_t C_per_group = dims.C / dims.G;
-        const index_t K_per_group = dims.K / dims.G;
+        const long_index_t num_wei      = G * K * C * X;
+        const long_index_t in_stride_g  = N * C * Wi;
+        const long_index_t in_stride_n  = C * Wi;
+        const long_index_t in_stride_c  = Wi;
+        const long_index_t out_stride_g = N * K * Wo;
+        const long_index_t out_stride_n = K * Wo;
+        const long_index_t out_stride_k = Wo;
+        const long_index_t wei_stride_g = K * C * X;
+        const long_index_t wei_stride_k = C * X;
+        const long_index_t wei_stride_c = X;
 
-        index_t tmp     = ii;
-        const index_t k = tmp / wei_strides[0]; // k_local in [0, K_per_group)
-        tmp -= k * wei_strides[0];
-        const index_t z = tmp / wei_strides[1];
-        tmp -= z * wei_strides[1];
-        const index_t y = tmp / wei_strides[2];
-        tmp -= y * wei_strides[2];
-        const index_t x = tmp / wei_strides[3];
-        tmp -= x * wei_strides[3];
-        const index_t g = tmp / C_per_group; // Group index
-        const index_t c = tmp % C_per_group; // c_local in [0, C_per_group)
-
-        // Convert to flat indices for input/output access
-        const index_t k_flat = g * K_per_group + k;
-        const index_t c_flat = g * C_per_group + c;
-
-        // Always accumulate in float
-        float acc_float = 0.0f;
-
-        // Loop over batch
-        for(index_t n = 0; n < dims.N; ++n)
+        for(long_index_t idx = tid; idx < num_wei; idx += num_threads)
         {
-            const TIn* in_n   = p_in + static_cast<long_index_t>(n) * in_strides[0];
-            const TOut* out_n = p_out_grad + static_cast<long_index_t>(n) * out_strides[0];
+            index_t remaining = idx;
+            const index_t x   = remaining % X;
+            remaining /= X;
+            const index_t c = remaining % C;
+            remaining /= C;
+            const index_t k = remaining % K;
+            const index_t g = remaining / K;
 
-            // Loop over output spatial dimensions
-            for(index_t d_o = 0; d_o < dims.Do; ++d_o)
+            float acc                   = 0.0f;
+            const InDataType* in_g      = p_in + g * in_stride_g;
+            const OutDataType* out_grad = p_out_grad + g * out_stride_g;
+
+            // Loop over batch and output positions
+            for(index_t n = 0; n < N; ++n)
             {
-                // Calculate input position from output position
-                index_t di = d_o * dims.stride_z - dims.pad_z + z * dims.dilation_z;
-                if(di < 0 || di >= dims.Di)
-                    continue;
+                const InDataType* in_gn     = in_g + n * in_stride_n + c * in_stride_c;
+                const OutDataType* out_gn_k = out_grad + n * out_stride_n + k * out_stride_k;
 
-                const TIn* in_n_di   = in_n + di * in_strides[1];
-                const TOut* out_n_do = out_n + d_o * out_strides[1];
-
-                for(index_t ho = 0; ho < dims.Ho; ++ho)
+                for(index_t wo = 0; wo < Wo; ++wo)
                 {
-                    index_t hi = ho * dims.stride_y - dims.pad_y + y * dims.dilation_y;
-                    if(hi < 0 || hi >= dims.Hi)
-                        continue;
-
-                    const TIn* in_n_di_hi   = in_n_di + hi * in_strides[2];
-                    const TOut* out_n_do_ho = out_n_do + ho * out_strides[2];
-
-                    for(index_t wo = 0; wo < dims.Wo; ++wo)
+                    long_index_t wi = wo * stride_x + x * dilation_x - pad_x;
+                    if(wi >= 0 && wi < Wi)
                     {
-                        index_t wi = wo * dims.stride_x - dims.pad_x + x * dims.dilation_x;
-                        if(wi < 0 || wi >= dims.Wi)
-                            continue;
-
-                        // Load values from memory (like forward does)
-                        const TIn* in_ptr   = in_n_di_hi + wi * in_strides[3];
-                        const TOut* out_ptr = out_n_do_ho + wo * out_strides[3];
-
-                        TIn in_loaded   = in_ptr[c_flat];
-                        TOut out_loaded = out_ptr[k_flat];
-
-                        // Apply element-wise operations
-                        in_op(in_val, in_loaded);
-                        out_op(out_val, out_loaded);
-
-                        // Convert to float for multiplication
-                        float in_f  = type_convert<float>(in_val);
-                        float out_f = type_convert<float>(out_val);
-
-                        acc_float += out_f * in_f;
+                        in_op(in_val, in_gn[wi]);
+                        out_op(out_val, out_gn_k[wo]);
+                        acc += type_convert<float>(out_val) * type_convert<float>(in_val);
                     }
                 }
             }
+
+            WeiDataType result = type_convert<WeiDataType>(acc);
+            wei_op(wei_val, result);
+            p_wei_grad[g * wei_stride_g + k * wei_stride_k + c * wei_stride_c + x] = wei_val;
         }
+    }
+    else if constexpr(NDimSpatial == 2)
+    {
+        const long_index_t num_wei      = G * K * C * Y * X;
+        const long_index_t in_stride_g  = N * C * Hi * Wi;
+        const long_index_t in_stride_n  = C * Hi * Wi;
+        const long_index_t in_stride_c  = Hi * Wi;
+        const long_index_t in_stride_h  = Wi;
+        const long_index_t out_stride_g = N * K * Ho * Wo;
+        const long_index_t out_stride_n = K * Ho * Wo;
+        const long_index_t out_stride_k = Ho * Wo;
+        const long_index_t out_stride_h = Wo;
+        const long_index_t wei_stride_g = K * C * Y * X;
+        const long_index_t wei_stride_k = C * Y * X;
+        const long_index_t wei_stride_c = Y * X;
+        const long_index_t wei_stride_y = X;
 
-        // Convert float accumulator to TAcc, then to weight type
-        TAcc acc    = type_convert<TAcc>(acc_float);
-        TWei result = type_convert<TWei>(acc);
+        for(long_index_t idx = tid; idx < num_wei; idx += num_threads)
+        {
+            index_t remaining = idx;
+            const index_t x   = remaining % X;
+            remaining /= X;
+            const index_t y = remaining % Y;
+            remaining /= Y;
+            const index_t c = remaining % C;
+            remaining /= C;
+            const index_t k = remaining % K;
+            const index_t g = remaining / K;
 
-        // Apply weight element-wise operation (if any)
-        wei_op(wei_val, result);
+            float acc                   = 0.0f;
+            const InDataType* in_g      = p_in + g * in_stride_g;
+            const OutDataType* out_grad = p_out_grad + g * out_stride_g;
 
-        // Write transformed result
-        p_wei_grad[ii] = wei_val;
+            // Loop over batch and output positions
+            for(index_t n = 0; n < N; ++n)
+            {
+                const InDataType* in_gnc    = in_g + n * in_stride_n + c * in_stride_c;
+                const OutDataType* out_gn_k = out_grad + n * out_stride_n + k * out_stride_k;
+
+                for(index_t ho = 0; ho < Ho; ++ho)
+                {
+                    long_index_t hi = ho * stride_y + y * dilation_y - pad_y;
+                    if(hi >= 0 && hi < Hi)
+                    {
+                        const InDataType* in_gnch    = in_gnc + hi * in_stride_h;
+                        const OutDataType* out_gn_kh = out_gn_k + ho * out_stride_h;
+
+                        for(index_t wo = 0; wo < Wo; ++wo)
+                        {
+                            long_index_t wi = wo * stride_x + x * dilation_x - pad_x;
+                            if(wi >= 0 && wi < Wi)
+                            {
+                                in_op(in_val, in_gnch[wi]);
+                                out_op(out_val, out_gn_kh[wo]);
+                                acc += type_convert<float>(out_val) * type_convert<float>(in_val);
+                            }
+                        }
+                    }
+                }
+            }
+
+            WeiDataType result = type_convert<WeiDataType>(acc);
+            wei_op(wei_val, result);
+            p_wei_grad[g * wei_stride_g + k * wei_stride_k + c * wei_stride_c + y * wei_stride_y +
+                       x] = wei_val;
+        }
+    }
+    else if constexpr(NDimSpatial == 3)
+    {
+        const long_index_t num_wei      = G * K * C * Z * Y * X;
+        const long_index_t in_stride_g  = N * C * Di * Hi * Wi;
+        const long_index_t in_stride_n  = C * Di * Hi * Wi;
+        const long_index_t in_stride_c  = Di * Hi * Wi;
+        const long_index_t in_stride_d  = Hi * Wi;
+        const long_index_t in_stride_h  = Wi;
+        const long_index_t out_stride_g = N * K * Do * Ho * Wo;
+        const long_index_t out_stride_n = K * Do * Ho * Wo;
+        const long_index_t out_stride_k = Do * Ho * Wo;
+        const long_index_t out_stride_d = Ho * Wo;
+        const long_index_t out_stride_h = Wo;
+        const long_index_t wei_stride_g = K * C * Z * Y * X;
+        const long_index_t wei_stride_k = C * Z * Y * X;
+        const long_index_t wei_stride_c = Z * Y * X;
+        const long_index_t wei_stride_z = Y * X;
+        const long_index_t wei_stride_y = X;
+
+        for(long_index_t idx = tid; idx < num_wei; idx += num_threads)
+        {
+            index_t remaining = idx;
+            const index_t x   = remaining % X;
+            remaining /= X;
+            const index_t y = remaining % Y;
+            remaining /= Y;
+            const index_t z = remaining % Z;
+            remaining /= Z;
+            const index_t c = remaining % C;
+            remaining /= C;
+            const index_t k = remaining % K;
+            const index_t g = remaining / K;
+
+            float acc                   = 0.0f;
+            const InDataType* in_g      = p_in + g * in_stride_g;
+            const OutDataType* out_grad = p_out_grad + g * out_stride_g;
+
+            // Loop over batch and output positions
+            for(index_t n = 0; n < N; ++n)
+            {
+                const InDataType* in_gnc    = in_g + n * in_stride_n + c * in_stride_c;
+                const OutDataType* out_gn_k = out_grad + n * out_stride_n + k * out_stride_k;
+
+                for(index_t do_idx = 0; do_idx < Do; ++do_idx)
+                {
+                    long_index_t di = do_idx * stride_z + z * dilation_z - pad_z;
+                    if(di >= 0 && di < Di)
+                    {
+                        const InDataType* in_gncd    = in_gnc + di * in_stride_d;
+                        const OutDataType* out_gn_kd = out_gn_k + do_idx * out_stride_d;
+
+                        for(index_t ho = 0; ho < Ho; ++ho)
+                        {
+                            long_index_t hi = ho * stride_y + y * dilation_y - pad_y;
+                            if(hi >= 0 && hi < Hi)
+                            {
+                                const InDataType* in_gncdh    = in_gncd + hi * in_stride_h;
+                                const OutDataType* out_gn_kdh = out_gn_kd + ho * out_stride_h;
+
+                                for(index_t wo = 0; wo < Wo; ++wo)
+                                {
+                                    long_index_t wi = wo * stride_x + x * dilation_x - pad_x;
+                                    if(wi >= 0 && wi < Wi)
+                                    {
+                                        in_op(in_val, in_gncdh[wi]);
+                                        out_op(out_val, out_gn_kdh[wo]);
+                                        acc += type_convert<float>(out_val) *
+                                               type_convert<float>(in_val);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            WeiDataType result = type_convert<WeiDataType>(acc);
+            wei_op(wei_val, result);
+            p_wei_grad[g * wei_stride_g + k * wei_stride_k + c * wei_stride_c + z * wei_stride_z +
+                       y * wei_stride_y + x] = wei_val;
+        }
     }
 }
 
-/*
- * \brief Layout-aware wrapper for naive backward weight convolution
- *
- * Automatically handles transformations between user-specified layouts and the
- * naive kernel's internal layout (NDHWGC, KZYXGC, NDHWGK).
- */
+// GPU reference backward weight convolution - takes lengths/strides directly
+// Used by both standalone tests and profiler
 template <typename InLayout,
           typename WeiLayout,
           typename OutLayout,
           typename TIn,
           typename TWei,
           typename TOut,
-          typename TAcc,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-void conv_bwd_weight_with_layouts(const TIn* p_in,
-                                  TWei* p_wei_grad,
-                                  const TOut* p_out_grad,
-                                  const ConvDims dims,
-                                  index_t NDimSpatial,
-                                  hipStream_t stream = nullptr)
+void naive_conv_bwd_weight(const TIn* p_in,
+                           TWei* p_wei_grad,
+                           const TOut* p_out_grad,
+                           const std::vector<index_t>& in_lengths,
+                           const std::vector<index_t>& in_strides,
+                           const std::vector<index_t>& wei_lengths,
+                           const std::vector<index_t>& wei_strides,
+                           const std::vector<index_t>& out_lengths,
+                           const std::vector<index_t>& out_strides,
+                           const std::vector<index_t>& conv_strides,
+                           const std::vector<index_t>& conv_dilations,
+                           const std::vector<index_t>& input_pads,
+                           hipStream_t stream = nullptr)
 {
-    static_assert(
-        std::is_base_of<tensor_layout::convolution::BaseConvolutionLayout, InLayout>::value,
-        "InLayout must derive from BaseConvolutionLayout");
-    static_assert(
-        std::is_base_of<tensor_layout::convolution::BaseConvolutionLayout, WeiLayout>::value,
-        "WeiLayout must derive from BaseConvolutionLayout");
-    static_assert(
-        std::is_base_of<tensor_layout::convolution::BaseConvolutionLayout, OutLayout>::value,
-        "OutLayout must derive from BaseConvolutionLayout");
+    constexpr int block_size = 256;
 
-    using namespace layout_utils;
+    // Calculate total elements
+    long_index_t in_total = 1, wei_total = 1, out_total = 1;
+    for(auto l : in_lengths)
+        in_total *= l;
+    for(auto l : wei_lengths)
+        wei_total *= l;
+    for(auto l : out_lengths)
+        out_total *= l;
 
-    // Step 1: Determine dimension orderings and permutations
-    auto user_input_order  = InputLayoutTrait<InLayout>::dim_order();
-    auto user_weight_order = WeightLayoutTrait<WeiLayout>::dim_order();
-    auto user_output_order = OutputLayoutTrait<OutLayout>::dim_order();
+    // Determine NDimSpatial from length array size
+    index_t NDimSpatial = in_lengths.size() - 3;
 
-    std::vector<int> naive_input_order, naive_weight_order, naive_output_order;
-    if(NDimSpatial == 3)
+    // Extract dimensions
+    index_t G = in_lengths[0];
+    index_t N = in_lengths[1];
+    index_t C = wei_lengths[2]; // Total C
+    index_t K = wei_lengths[1]; // Total K per group
+
+    // Allocate packed buffers
+    TIn* p_in_packed;
+    TWei* p_wei_grad_packed;
+    TOut* p_out_grad_packed;
+    HIP_CHECK_ERROR(hipMalloc(&p_in_packed, in_total * sizeof(TIn)));
+    HIP_CHECK_ERROR(hipMalloc(&p_wei_grad_packed, wei_total * sizeof(TWei)));
+    HIP_CHECK_ERROR(hipMalloc(&p_out_grad_packed, out_total * sizeof(TOut)));
+
+    // Allocate device arrays
+    index_t *d_in_lengths, *d_in_strides, *d_wei_lengths, *d_wei_strides, *d_out_lengths,
+        *d_out_strides;
+    const size_t dim_count = in_lengths.size();
+    HIP_CHECK_ERROR(hipMalloc(&d_in_lengths, dim_count * sizeof(index_t)));
+    HIP_CHECK_ERROR(hipMalloc(&d_in_strides, dim_count * sizeof(index_t)));
+    HIP_CHECK_ERROR(hipMalloc(&d_wei_lengths, dim_count * sizeof(index_t)));
+    HIP_CHECK_ERROR(hipMalloc(&d_wei_strides, dim_count * sizeof(index_t)));
+    HIP_CHECK_ERROR(hipMalloc(&d_out_lengths, dim_count * sizeof(index_t)));
+    HIP_CHECK_ERROR(hipMalloc(&d_out_strides, dim_count * sizeof(index_t)));
+
+    HIP_CHECK_ERROR(hipMemcpy(
+        d_in_lengths, in_lengths.data(), dim_count * sizeof(index_t), hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(
+        d_in_strides, in_strides.data(), dim_count * sizeof(index_t), hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(
+        d_wei_lengths, wei_lengths.data(), dim_count * sizeof(index_t), hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(
+        d_wei_strides, wei_strides.data(), dim_count * sizeof(index_t), hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(
+        d_out_lengths, out_lengths.data(), dim_count * sizeof(index_t), hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(
+        d_out_strides, out_strides.data(), dim_count * sizeof(index_t), hipMemcpyHostToDevice));
+
+    // Pack input and output_grad
+    int in_grid = (in_total + block_size - 1) / block_size;
+    pack_strided_tensor<<<in_grid, block_size, 0, stream>>>(
+        p_in, p_in_packed, d_in_lengths, d_in_strides, dim_count, in_total);
+
+    int out_grid = (out_total + block_size - 1) / block_size;
+    pack_strided_tensor<<<out_grid, block_size, 0, stream>>>(
+        p_out_grad, p_out_grad_packed, d_out_lengths, d_out_strides, dim_count, out_total);
+
+    // Run backward weight convolution
+    int wei_grid = (wei_total + block_size - 1) / block_size;
+
+    if(NDimSpatial == 1)
     {
-        naive_input_order  = get_naive_input_order_3d();
-        naive_weight_order = get_naive_weight_order_3d();
-        naive_output_order = get_naive_output_order_3d();
+        naive_conv_bwd_weight_packed<1,
+                                     TIn,
+                                     TWei,
+                                     TOut,
+                                     InElementwiseOperation,
+                                     WeiElementwiseOperation,
+                                     OutElementwiseOperation>
+            <<<wei_grid, block_size, 0, stream>>>(p_in_packed,
+                                                  p_wei_grad_packed,
+                                                  p_out_grad_packed,
+                                                  G,
+                                                  N,
+                                                  K,
+                                                  C,
+                                                  1,
+                                                  1,
+                                                  in_lengths[3],
+                                                  1,
+                                                  1,
+                                                  wei_lengths[3],
+                                                  1,
+                                                  1,
+                                                  out_lengths[3],
+                                                  1,
+                                                  1,
+                                                  conv_strides[0],
+                                                  1,
+                                                  1,
+                                                  conv_dilations[0],
+                                                  0,
+                                                  0,
+                                                  input_pads[0]);
     }
     else if(NDimSpatial == 2)
     {
-        naive_input_order  = get_naive_input_order_2d();
-        naive_weight_order = get_naive_weight_order_2d();
-        naive_output_order = get_naive_output_order_2d();
+        naive_conv_bwd_weight_packed<2,
+                                     TIn,
+                                     TWei,
+                                     TOut,
+                                     InElementwiseOperation,
+                                     WeiElementwiseOperation,
+                                     OutElementwiseOperation>
+            <<<wei_grid, block_size, 0, stream>>>(p_in_packed,
+                                                  p_wei_grad_packed,
+                                                  p_out_grad_packed,
+                                                  G,
+                                                  N,
+                                                  K,
+                                                  C,
+                                                  1,
+                                                  in_lengths[3],
+                                                  in_lengths[4],
+                                                  1,
+                                                  wei_lengths[3],
+                                                  wei_lengths[4],
+                                                  1,
+                                                  out_lengths[3],
+                                                  out_lengths[4],
+                                                  1,
+                                                  conv_strides[0],
+                                                  conv_strides[1],
+                                                  1,
+                                                  conv_dilations[0],
+                                                  conv_dilations[1],
+                                                  0,
+                                                  input_pads[0],
+                                                  input_pads[1]);
     }
-    else // 1D
+    else // 3D
     {
-        naive_input_order  = get_naive_input_order_1d();
-        naive_weight_order = get_naive_weight_order_1d();
-        naive_output_order = get_naive_output_order_1d();
+        naive_conv_bwd_weight_packed<3,
+                                     TIn,
+                                     TWei,
+                                     TOut,
+                                     InElementwiseOperation,
+                                     WeiElementwiseOperation,
+                                     OutElementwiseOperation>
+            <<<wei_grid, block_size, 0, stream>>>(p_in_packed,
+                                                  p_wei_grad_packed,
+                                                  p_out_grad_packed,
+                                                  G,
+                                                  N,
+                                                  K,
+                                                  C,
+                                                  in_lengths[3],
+                                                  in_lengths[4],
+                                                  in_lengths[5],
+                                                  wei_lengths[3],
+                                                  wei_lengths[4],
+                                                  wei_lengths[5],
+                                                  out_lengths[3],
+                                                  out_lengths[4],
+                                                  out_lengths[5],
+                                                  conv_strides[0],
+                                                  conv_strides[1],
+                                                  conv_strides[2],
+                                                  conv_dilations[0],
+                                                  conv_dilations[1],
+                                                  conv_dilations[2],
+                                                  input_pads[0],
+                                                  input_pads[1],
+                                                  input_pads[2]);
     }
 
-    // Compute permutations
-    auto input_to_naive  = compute_permutation(user_input_order, naive_input_order);
-    auto naive_to_weight = compute_permutation(naive_weight_order, user_weight_order);
-    auto output_to_naive = compute_permutation(user_output_order, naive_output_order);
+    // Unpack weight gradient
+    unpack_to_strided_tensor<<<wei_grid, block_size, 0, stream>>>(
+        p_wei_grad_packed, p_wei_grad, d_wei_lengths, d_wei_strides, dim_count, wei_total);
 
-    // Step 2: Check if transformations are needed
-    bool needs_input_xform  = (user_input_order != naive_input_order);
-    bool needs_weight_xform = (naive_weight_order != user_weight_order);
-    bool needs_output_xform = (user_output_order != naive_output_order);
+    HIP_CHECK_ERROR(hipGetLastError());
 
-    // Step 3: Allocate temporary buffers if needed
-    TIn* p_in_naive        = nullptr;
-    TWei* p_wei_grad_naive = nullptr;
-    TOut* p_out_grad_naive = nullptr;
-
-    if(needs_input_xform)
-    {
-        size_t in_size = dims.N * dims.Di * dims.Hi * dims.Wi * dims.C * sizeof(TIn);
-        HIP_CHECK_ERROR(hipMalloc(&p_in_naive, in_size));
-    }
-    else
-    {
-        p_in_naive = const_cast<TIn*>(p_in);
-    }
-
-    if(needs_weight_xform)
-    {
-        size_t wei_size = dims.K * dims.Z * dims.Y * dims.X * dims.C * sizeof(TWei);
-        HIP_CHECK_ERROR(hipMalloc(&p_wei_grad_naive, wei_size));
-    }
-    else
-    {
-        p_wei_grad_naive = p_wei_grad;
-    }
-
-    if(needs_output_xform)
-    {
-        size_t out_size = dims.N * dims.Do * dims.Ho * dims.Wo * dims.K * sizeof(TOut);
-        HIP_CHECK_ERROR(hipMalloc(&p_out_grad_naive, out_size));
-    }
-    else
-    {
-        p_out_grad_naive = const_cast<TOut*>(p_out_grad);
-    }
-
-    // Step 4: Transform inputs to naive format
-    if(needs_input_xform)
-    {
-        std::vector<index_t> input_dims = build_input_dims(dims, NDimSpatial);
-        layout_transform::launch_generic_transpose<TIn>(
-            p_in, p_in_naive, input_dims, input_to_naive, stream);
-    }
-
-    if(needs_output_xform)
-    {
-        std::vector<index_t> output_dims = build_output_dims(dims, NDimSpatial);
-        layout_transform::launch_generic_transpose<TOut>(
-            p_out_grad, p_out_grad_naive, output_dims, output_to_naive, stream);
-    }
-
-    // Step 5: Call naive kernel
-    constexpr int block_size   = 256;
-    long_index_t weight_length = dims.K * dims.Z * dims.Y * dims.X * dims.C;
-    int grid_size              = (weight_length + block_size - 1) / block_size;
-
-    hipLaunchKernelGGL((naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk<TIn,
-                                                                TWei,
-                                                                TOut,
-                                                                TAcc,
-                                                                InElementwiseOperation,
-                                                                WeiElementwiseOperation,
-                                                                OutElementwiseOperation>),
-                       dim3(grid_size),
-                       dim3(block_size),
-                       0,
-                       stream,
-                       p_in_naive,
-                       p_wei_grad_naive,
-                       p_out_grad_naive,
-                       dims);
-
-    // Step 6: Transform weight gradient back to user layout
-    if(needs_weight_xform)
-    {
-        std::vector<index_t> weight_dims = build_naive_weight_dims(dims, NDimSpatial);
-        layout_transform::launch_generic_transpose<TWei>(
-            p_wei_grad_naive, p_wei_grad, weight_dims, naive_to_weight, stream);
-    }
-
-    // Step 7: Free temporary buffers
-    if(needs_input_xform)
-    {
-        HIP_CHECK_ERROR(hipFree(p_in_naive));
-    }
-    if(needs_weight_xform)
-    {
-        HIP_CHECK_ERROR(hipFree(p_wei_grad_naive));
-    }
-    if(needs_output_xform)
-    {
-        HIP_CHECK_ERROR(hipFree(p_out_grad_naive));
-    }
+    // Free buffers
+    HIP_CHECK_ERROR(hipFree(p_in_packed));
+    HIP_CHECK_ERROR(hipFree(p_wei_grad_packed));
+    HIP_CHECK_ERROR(hipFree(p_out_grad_packed));
+    HIP_CHECK_ERROR(hipFree(d_in_lengths));
+    HIP_CHECK_ERROR(hipFree(d_in_strides));
+    HIP_CHECK_ERROR(hipFree(d_wei_lengths));
+    HIP_CHECK_ERROR(hipFree(d_wei_strides));
+    HIP_CHECK_ERROR(hipFree(d_out_lengths));
+    HIP_CHECK_ERROR(hipFree(d_out_strides));
 }
 
 } // namespace ref

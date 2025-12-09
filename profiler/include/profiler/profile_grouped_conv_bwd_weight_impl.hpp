@@ -23,6 +23,7 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_weight.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_weight_gpu.hpp"
 
 namespace ck {
 namespace profiler {
@@ -93,29 +94,100 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     float max_accumulated_value = 0;
     if(do_verification)
     {
-        auto ref_conv     = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
-                                                                               InDataType,
-                                                                               WeiDataType,
-                                                                               OutDataType,
-                                                                               InElementOp,
-                                                                               WeiElementOp,
-                                                                               OutElementOp>{};
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(input,
-                                                  weight_host_result,
-                                                  output,
-                                                  conv_param.conv_filter_strides_,
-                                                  conv_param.conv_filter_dilations_,
-                                                  conv_param.input_left_pads_,
-                                                  conv_param.input_right_pads_,
-                                                  in_element_op,
-                                                  wei_element_op,
-                                                  out_element_op,
-                                                  {},
-                                                  {},
-                                                  {});
+        if(do_verification == 1)
+        {
+            // CPU reference
+            auto ref_conv     = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   OutDataType,
+                                                                                   InElementOp,
+                                                                                   WeiElementOp,
+                                                                                   OutElementOp>{};
+            auto ref_invoker  = ref_conv.MakeInvoker();
+            auto ref_argument = ref_conv.MakeArgument(input,
+                                                      weight_host_result,
+                                                      output,
+                                                      conv_param.conv_filter_strides_,
+                                                      conv_param.conv_filter_dilations_,
+                                                      conv_param.input_left_pads_,
+                                                      conv_param.input_right_pads_,
+                                                      in_element_op,
+                                                      wei_element_op,
+                                                      out_element_op,
+                                                      {},
+                                                      {},
+                                                      {});
 
-        ref_invoker.Run(ref_argument);
+            ref_invoker.Run(ref_argument);
+        }
+        else if(do_verification == 2)
+        {
+            // GPU reference
+            std::cout << "Running GPU reference implementation..." << std::endl;
+
+            // Convert to vectors for GPU reference interface
+            std::vector<index_t> in_lengths_vec, in_strides_vec;
+            std::vector<index_t> wei_lengths_vec, wei_strides_vec;
+            std::vector<index_t> out_lengths_vec, out_strides_vec;
+            std::vector<index_t> conv_strides_vec, conv_dilations_vec, input_pads_vec;
+
+            for(const auto& l : in_g_n_c_wis_desc.GetLengths())
+                in_lengths_vec.push_back(l);
+            for(const auto& s : in_g_n_c_wis_desc.GetStrides())
+                in_strides_vec.push_back(s);
+            for(const auto& l : wei_g_k_c_xs_desc.GetLengths())
+                wei_lengths_vec.push_back(l);
+            for(const auto& s : wei_g_k_c_xs_desc.GetStrides())
+                wei_strides_vec.push_back(s);
+            for(const auto& l : out_g_n_k_wos_desc.GetLengths())
+                out_lengths_vec.push_back(l);
+            for(const auto& s : out_g_n_k_wos_desc.GetStrides())
+                out_strides_vec.push_back(s);
+            for(const auto& s : conv_param.conv_filter_strides_)
+                conv_strides_vec.push_back(s);
+            for(const auto& d : conv_param.conv_filter_dilations_)
+                conv_dilations_vec.push_back(d);
+            for(const auto& p : conv_param.input_left_pads_)
+                input_pads_vec.push_back(p);
+
+            // Allocate device memory for reference
+            DeviceMem in_ref_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
+            DeviceMem wei_ref_buf(sizeof(WeiDataType) *
+                                  weight_host_result.mDesc.GetElementSpaceSize());
+            DeviceMem out_ref_buf(sizeof(OutDataType) * output.mDesc.GetElementSpaceSize());
+
+            in_ref_buf.ToDevice(input.mData.data());
+            out_ref_buf.ToDevice(output.mData.data());
+
+            // Call GPU reference
+            ck::ref::naive_conv_bwd_weight<InLayout,
+                                           WeiLayout,
+                                           OutLayout,
+                                           InDataType,
+                                           WeiDataType,
+                                           OutDataType,
+                                           InElementOp,
+                                           WeiElementOp,
+                                           OutElementOp>(
+                static_cast<const InDataType*>(in_ref_buf.GetDeviceBuffer()),
+                static_cast<WeiDataType*>(wei_ref_buf.GetDeviceBuffer()),
+                static_cast<const OutDataType*>(out_ref_buf.GetDeviceBuffer()),
+                in_lengths_vec,
+                in_strides_vec,
+                wei_lengths_vec,
+                wei_strides_vec,
+                out_lengths_vec,
+                out_strides_vec,
+                conv_strides_vec,
+                conv_dilations_vec,
+                input_pads_vec,
+                nullptr);
+
+            // Copy result back to host
+            wei_ref_buf.FromDevice(weight_host_result.mData.data());
+        }
+
         max_accumulated_value =
             *std::max_element(weight_host_result.mData.begin(), weight_host_result.mData.end());
     }
