@@ -12,13 +12,17 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor_Instance_2D_FP16_GNHWC)
 {
+    using enum ck_tile::builder::ConvDirection;
+    using enum ck_tile::builder::DataType;
+    using enum ck_tile::builder::TensorLayout;
+
     constexpr ConvSignature FwdConvSignature{.spatial_dim            = 2,
-                                             .direction              = ConvDirection::FORWARD,
-                                             .data_type              = DataType::FP16,
-                                             .accumulation_data_type = DataType::FP32,
-                                             .input  = {.config = {.layout = TensorLayout::GNHWC}},
-                                             .weight = {.config = {.layout = TensorLayout::GKYXC}},
-                                             .output = {.config = {.layout = TensorLayout::GNHWK}}};
+                                             .direction              = FORWARD,
+                                             .data_type              = FP16,
+                                             .accumulation_data_type = FP32,
+                                             .input                  = {.config = {.layout = GNHWC}},
+                                             .weight                 = {.config = {.layout = GKYXC}},
+                                             .output                 = {.config = {.layout = GNHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor{
@@ -45,13 +49,17 @@ TEST(
     FwdConvInstances,
     Create_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor_Instance_2D_FP16_GNHWC_Filter1x1Pad0)
 {
+    using enum ck_tile::builder::ConvDirection;
+    using enum ck_tile::builder::DataType;
+    using enum ck_tile::builder::TensorLayout;
+
     constexpr ConvSignature FwdConvSignature{.spatial_dim            = 2,
-                                             .direction              = ConvDirection::FORWARD,
-                                             .data_type              = DataType::FP16,
-                                             .accumulation_data_type = DataType::FP32,
-                                             .input  = {.config = {.layout = TensorLayout::GNHWC}},
-                                             .weight = {.config = {.layout = TensorLayout::GKYXC}},
-                                             .output = {.config = {.layout = TensorLayout::GNHWK}}};
+                                             .direction              = FORWARD,
+                                             .data_type              = FP16,
+                                             .accumulation_data_type = FP32,
+                                             .input                  = {.config = {.layout = GNHWC}},
+                                             .weight                 = {.config = {.layout = GKYXC}},
+                                             .output                 = {.config = {.layout = GNHWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor{

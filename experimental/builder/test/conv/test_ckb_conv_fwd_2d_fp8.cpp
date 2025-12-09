@@ -13,13 +13,17 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_Instance_2D_FP8_ChannelsLast)
 {
+    using enum ck_tile::builder::ConvDirection;
+    using enum ck_tile::builder::DataType;
+    using enum ck_tile::builder::TensorLayout;
+
     constexpr ConvSignature FwdConvSignature{.spatial_dim            = 2,
-                                             .direction              = ConvDirection::FORWARD,
-                                             .data_type              = DataType::FP8,
-                                             .accumulation_data_type = DataType::FP32,
-                                             .input  = {.config = {.layout = TensorLayout::NHWGC}},
-                                             .weight = {.config = {.layout = TensorLayout::GKYXC}},
-                                             .output = {.config = {.layout = TensorLayout::NHWGK}}};
+                                             .direction              = FORWARD,
+                                             .data_type              = FP8,
+                                             .accumulation_data_type = FP32,
+                                             .input                  = {.config = {.layout = NHWGC}},
+                                             .weight                 = {.config = {.layout = GKYXC}},
+                                             .output                 = {.config = {.layout = NHWGK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle{}
