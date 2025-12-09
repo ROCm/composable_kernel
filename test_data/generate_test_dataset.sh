@@ -470,7 +470,7 @@ if [ $COUNT_3D -gt 0 ]; then
 fi
 echo "  - Intermediate files in: $OUTPUT_DIR/"
 echo ""
-echo "To use these datasets:"
-echo "  1. Build the test: cd ../script && make -j64 test_grouped_convnd_fwd_dataset_xdl"
-echo "  2. Run the test: ./bin/test_grouped_convnd_fwd_dataset_xdl"
+echo "To use these datasets for direction (bwd_data, bwd_weight, or fwd):"
+echo "  1. Build the test: cd ../script && make -j64 test_grouped_convnd_<direction>_dataset_xdl"
+echo "  2. Run the test: ./bin/test_grouped_convnd_<direction>_dataset_xdl"
 echo ""
