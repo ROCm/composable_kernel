@@ -639,9 +639,7 @@ struct MoeFlatmmKernel
         const auto& c_tensor_view = [&]() {
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
-                return make_naive_tensor_view<address_space_enum::global,
-                                              DstInMemOp,
-                                              amd_buffer_coherence_enum::SYSTEM_NT1>(
+                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
                     make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumTokens,
                                IsGateUp ? kargs.N / 2 : kargs.N),
@@ -651,9 +649,7 @@ struct MoeFlatmmKernel
             }
             else
             {
-                return make_naive_tensor_view<address_space_enum::global,
-                                              DstInMemOp,
-                                              amd_buffer_coherence_enum::SYSTEM_NT1>(
+                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
                     make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumTokens,
                                IsGateUp ? kargs.N / 2 : kargs.N),

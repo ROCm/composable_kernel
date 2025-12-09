@@ -116,7 +116,7 @@ struct MoeFlatmmPipelineAGmemBGmemCRegV1
     static constexpr index_t dswrite_kIter  = (DsWritePreIssue - 1) / MIterPerWarp;
 
     static constexpr auto BMemNTType = Problem::BMemNTType;
-    static constexpr bool BPreShufflePermute = Problem::BPreShufflePermute ;
+    static constexpr bool BPreShufflePermute = Problem::BPreShufflePermute;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {

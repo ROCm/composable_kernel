@@ -188,7 +188,7 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
     static constexpr bool DoubleSmemBuffer = false;
 
     static constexpr auto BMemNTType = Problem::BMemNTType;
-    static constexpr bool BPreShufflePermute = Problem::BPreShufflePermute ;
+    static constexpr bool BPreShufflePermute = Problem::BPreShufflePermute;
 
     CK_TILE_HOST_DEVICE static constexpr auto
     SchedulerPerM(index_t dsread_perM, index_t dswrite_perM, index_t load_perM)

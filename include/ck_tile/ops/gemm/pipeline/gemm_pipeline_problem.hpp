@@ -355,7 +355,7 @@ struct FlatmmPipelineProblem
     static constexpr auto HasHotLoop = HasHotLoop_;
     static constexpr auto TailNum    = TailNum_;
 
-    static constexpr auto BMemNTType          = BMemNTType_;
+    static constexpr auto BMemNTType         = BMemNTType_;
     static constexpr bool BPreShufflePermute = BPreShufflePermute_;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
