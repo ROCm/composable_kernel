@@ -224,8 +224,6 @@ template <typename AsDataType_,
           typename BlockGemmShape_,
           typename Traits_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
-          bool HasHotLoop_                 = true,
-          TailNumber TailNum_              = TailNumber::Full,
           typename AElementWise_           = ck_tile::element_wise::PassThrough,
           typename BElementWise_           = ck_tile::element_wise::PassThrough,
           typename ComputeDataType_        = AsDataType_,
@@ -296,8 +294,6 @@ struct UniversalGemmPipelineProblem
     static constexpr index_t VectorSizeA = VectorSizeA_;
     static constexpr index_t VectorSizeB = VectorSizeB_;
 
-    static constexpr auto HasHotLoop        = HasHotLoop_;
-    static constexpr auto TailNum           = TailNum_;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -305,7 +301,12 @@ struct UniversalGemmPipelineProblem
         return concat('_', "gemm_problem", 
                       concat('x', kBlockSize),
                       concat('x', kPadM, kPadN, kPadK),
-                      Scheduler);
+                      Scheduler,
+                      "NumWaveGroups",
+                      NumWaveGroups,
+                      "DoubleSmemBuffer",
+                      DoubleSmemBuffer
+                    );
         // clang-format on
     }
 };

@@ -21,7 +21,7 @@
 #endif
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
     defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
-    defined(__gfx1152__) || defined(__gfx11_generic__)
+    defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
@@ -357,6 +357,12 @@ struct amdgcn_compiler_target_state
 #endif // __gfx950__
 
     // GFX10
+#if defined(__gfx1010__)
+    static constexpr bool CK_TILE_ARCH_GFX1010 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1010 = false;
+#endif
+
 #if defined(__gfx1030__)
     static constexpr bool CK_TILE_ARCH_GFX1030 = true;
 #else
@@ -493,6 +499,7 @@ CK_TILE_HOST_DEVICE static constexpr uint32_t count_values_of(T search, Ts... se
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX90A,          \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX942,          \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX950,          \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1010,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1030,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1031,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1032,         \
