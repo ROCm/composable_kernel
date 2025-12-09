@@ -272,9 +272,12 @@ UniqueOutputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args)
 
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
-bool validate(const Args<SIGNATURE>& args, Outputs<SIGNATURE> actual, Outputs<SIGNATURE> expected)
+ValidationReport
+validate(const Args<SIGNATURE>& args, Outputs<SIGNATURE> actual, Outputs<SIGNATURE> expected)
 {
-    return compare_tensors("output", args.make_output_descriptor(), actual.output, expected.output);
+    ValidationReport report;
+    report.check("output", args.make_output_descriptor(), actual.output, expected.output);
+    return report;
 }
 
 } // namespace ck_tile::builder::test

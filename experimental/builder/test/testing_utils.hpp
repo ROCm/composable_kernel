@@ -174,7 +174,15 @@ struct ReferenceOutputMatcher
     bool MatchAndExplain(builder::test::Outputs<SIGNATURE> actual,
                          [[maybe_unused]] ::testing::MatchResultListener* listener) const override
     {
-        return ck_tile::builder::test::validate(*args_, actual, expected_);
+        const auto report = ck_tile::builder::test::validate(*args_, actual, expected_);
+        const auto errors = report.get_errors();
+
+        if(listener->IsInterested() && !errors.empty())
+        {
+            *listener << errors.size() << " tensors failed to validate";
+        }
+
+        return errors.empty();
     }
 
     void DescribeTo(std::ostream* os) const override { *os << "<tensor outputs>"; }

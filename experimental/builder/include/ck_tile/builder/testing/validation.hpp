@@ -10,10 +10,45 @@
 #include "ck/utility/type_convert.hpp"
 #include <string_view>
 #include <vector>
+#include <algorithm>
+#include <functional>
 
 namespace ck_tile::builder::test {
 
 using ErrorCounter = uint64_t;
+
+struct ValidationReport
+{
+    struct Case
+    {
+        std::string tensor_name;
+        uint64_t wrong_elements;
+        uint64_t total_elements;
+
+        bool is_ok() const { return wrong_elements == 0; }
+    };
+
+    template <DataType DT>
+    bool check(std::string_view tensor_name,
+               const TensorDescriptor<DT>& descriptor,
+               const void* actual,
+               const void* expected,
+               double rtol = 1e-3,
+               double atol = 1e-3);
+
+    std::vector<Case> get_errors() const
+    {
+        std::vector<Case> errors;
+        std::copy_if(reports_.begin(),
+                     reports_.end(),
+                     std::back_inserter(errors),
+                     [](const auto& report) { return !report.is_ok(); });
+        return errors;
+    }
+
+    private:
+    std::vector<Case> reports_;
+};
 
 template <DataType DT, int BLOCK_SIZE>
 __global__ __launch_bounds__(BLOCK_SIZE) //
@@ -29,8 +64,8 @@ __global__ __launch_bounds__(BLOCK_SIZE) //
     const auto* actual   = static_cast<const CKType*>(actual_data);
     const auto* expected = static_cast<const CKType*>(expected_data);
 
-    const auto gid = blockIdx.x * blockDim.x + threadIdx.x;
-    for(uint64_t i = gid; i < n; i += gridDim.x)
+    const auto gid = blockIdx.x * BLOCK_SIZE + threadIdx.x;
+    for(uint64_t i = gid; i < n; i += gridDim.x * BLOCK_SIZE)
     {
         static_assert(!std::is_same_v<CKType, double>,
                       "TODO implement flat_compare_kernel() for double");
@@ -47,12 +82,12 @@ __global__ __launch_bounds__(BLOCK_SIZE) //
 }
 
 template <DataType DT>
-bool compare_tensors(std::string_view tensor_name,
-                     const TensorDescriptor<DT>& descriptor,
-                     const void* actual,
-                     const void* expected,
-                     double rtol = 1e-3,
-                     double atol = 1e-3)
+bool ValidationReport::check(std::string_view tensor_name,
+                             const TensorDescriptor<DT>& descriptor,
+                             const void* actual,
+                             const void* expected,
+                             double rtol,
+                             double atol)
 {
     constexpr int block_size = 256;
     const auto kernel        = flat_compare_kernel<DT, block_size>;
@@ -64,6 +99,9 @@ bool compare_tensors(std::string_view tensor_name,
 
     auto error_count = alloc_buffer(sizeof(ErrorCounter));
 
+    // Reset counter
+    check_hip(hipMemset(error_count.get(), 0, sizeof(ErrorCounter)));
+
     kernel<<<occupancy, block_size>>>(
         num_elements, actual, expected, reinterpret_cast<uint64_t*>(error_count.get()), rtol, atol);
     check_hip(hipGetLastError());
@@ -72,11 +110,11 @@ bool compare_tensors(std::string_view tensor_name,
     check_hip(
         hipMemcpy(&h_error_count, error_count.get(), sizeof(ErrorCounter), hipMemcpyDeviceToHost));
 
-    if(h_error_count != 0)
-    {
-        std::cerr << "tensor " << tensor_name << " does not match reference [" << h_error_count
-                  << "/" << num_elements << " errors]" << std::endl;
-    }
+    reports_.push_back(Case{
+        .tensor_name    = std::string(tensor_name),
+        .wrong_elements = h_error_count,
+        .total_elements = num_elements,
+    });
 
     return h_error_count == 0;
 }
