@@ -151,7 +151,6 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             constexpr bool has_hot_loop_v   = has_hot_loop_.value;
             constexpr auto tail_number_v    = tail_number_.value;
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
-            constexpr auto memory_operation = ck_tile::memory_operation_enum::set;
 
             using QuantGemmProblem = std::conditional_t<
                 UseGroupedQuant,
@@ -217,8 +216,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                                  GroupedGemKernelParam::M_Warp_Tile,
                                                  GroupedGemKernelParam::N_Warp_Tile,
                                                  GroupedGemKernelParam::K_Warp_Tile,
-                                                 QuantGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 QuantGemmProblem::TransposeC>>;
 
             using Kernel = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
                                                            GemmPipeline,
@@ -357,8 +355,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                              GroupedGemKernelParam::M_Warp_Tile,
                                              GroupedGemKernelParam::N_Warp_Tile,
                                              GroupedGemKernelParam::K_Warp_Tile,
-                                             QuantGemmProblem::TransposeC,
-                                             memory_operation>>;
+                                             QuantGemmProblem::TransposeC>>;
         using Kernel      = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
                                                             GemmPipeline,
                                                             GemmEpilogue,
