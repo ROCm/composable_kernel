@@ -141,7 +141,33 @@ void add_device_grouped_gemm_xdl_fixed_nk_bf16_bf16_bf16_mk_kn_mn_instances(
                                                          PassThrough,
                                                          PassThrough>>>& instances);
 
+void add_device_grouped_gemm_wmma_fixed_nk_bf16_bf16_bf16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
+                                                         Row,
+                                                         Empty_Tuple,
+                                                         Row,
+                                                         BF16,
+                                                         BF16,
+                                                         Empty_Tuple,
+                                                         BF16,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         PassThrough>>>& instances);
+
 void add_device_grouped_gemm_xdl_fixed_nk_bf16_bf16_bf16_mk_nk_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
+                                                         Col,
+                                                         Empty_Tuple,
+                                                         Row,
+                                                         BF16,
+                                                         BF16,
+                                                         Empty_Tuple,
+                                                         BF16,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         PassThrough>>>& instances);
+
+void add_device_grouped_gemm_wmma_fixed_nk_bf16_bf16_bf16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
                                                          Col,
                                                          Empty_Tuple,
@@ -265,11 +291,13 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<ELayout, Row>)
             {
                 add_device_grouped_gemm_xdl_fixed_nk_bf16_bf16_bf16_mk_kn_mn_instances(op_ptrs);
+                add_device_grouped_gemm_wmma_fixed_nk_bf16_bf16_bf16_mk_kn_mn_instances(op_ptrs);
             }
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<ELayout, Row>)
             {
                 add_device_grouped_gemm_xdl_fixed_nk_bf16_bf16_bf16_mk_nk_mn_instances(op_ptrs);
+                add_device_grouped_gemm_wmma_fixed_nk_bf16_bf16_bf16_mk_nk_mn_instances(op_ptrs);
             }
         }
 #endif // CK_ENABLE_BF16
