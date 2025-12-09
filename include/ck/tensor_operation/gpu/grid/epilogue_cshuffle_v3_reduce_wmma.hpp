@@ -452,7 +452,7 @@ struct EpilogueReduceCShuffle
                         make_tuple(I0, I0, I0, I0),
                         c01_thread_buf);
 
-                    // c = c + c1_functior(c1)
+                    // c = c + c1_function(c1)
                     static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
                         [&](auto i) {
                             d0_element_op(c01_thread_buf(i), c01_thread_buf(i));
