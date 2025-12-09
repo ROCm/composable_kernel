@@ -6,18 +6,51 @@ Coordinate Systems - The Mathematical Foundation
 Overview
 --------
 
-The Composable Kernel framework uses a mathematical foundation based on coordinate transformations. This foundation enables the automatic generation of optimal memory access patterns while maintaining a clear separation between algorithmic intent and hardware implementation details. The coordinate system framework transforms the complex task of GPU work distribution into a series of well-defined mathematical transformations.
+[TODO: because this is required to understand tile distribution, it should be covered before anything else. Or maybe coordinate spaces should be]
 
-Understanding these coordinate systems is necessary for :ref:`tile distribution <ck_tile_distribution>`. They provide the mathematical machinery that maps from abstract thread identities to concrete memory addresses, ensuring that every memory access is optimized for the underlying hardware. This systematic approach eliminates the error-prone manual calculations that plague traditional GPU programming while enabling optimizations that would be impractical to implement by hand.
+[TODO: the examples should be pulled out and put in a howto or reference section]
 
-The Five Coordinate Spaces
---------------------------
+[TODO: this needs more context bc it doesn't feel complete. It feels like there's important information missing]
 
-The CK framework employs five interconnected coordinate spaces, each serving a specific purpose in the journey from thread identification to memory access. These spaces work together to efficiently distribute work across thousands of parallel threads while maintaining optimal memory access patterns.
+The Composable Kernel framework uses a mathematical foundation based on coordinate transformations. 
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
+The CK framework employs five interconnected coordinate spaces that work together to distribute work across parallel threads while maintaining optimal memory access patterns.
+
+Partition Space (P-space) identifies a thread within the warp and grid hierarchy. Each thread is assigned a unique P-coordinate that encodes its position within the thread hierarchy. For simple distributions, P-space might be one-dimensional, containing only a thread ID. For complex hierarchical distributions, P-space can have multiple dimensions representing different levels of the GPU's thread organization, regardless of the underlying GPU architecture. 
+
+[TODO: define simple versus complex distributions]
+
+
+Yield Space (Y-space) represents the logical organization of work within each thread's assigned tile. While P-space identifies which thread is running an operation, Y-space defines what that thread does with its assigned work [TODO: work or results?]. Y-space can express different iteration patterns without changing the underlying distribution logic. A thread might traverse its Y-space in row-major order for one algorithm, column-major for another, or even use :ref:`space-filling curves <ck_tile_space_filling_curve>` for optimal cache utilization. This flexibility enables algorithm-specific optimizations while maintaining a consistent framework.
+
+[TODO: details about what Yspace is. Because this is unclear. Is it the data being traversed? Is it a tensor being traversed? Is it patterns for how a tensor will be traversed? It's really not clear.]
+
+
+X-space [TODO: is it only called X-space or something else?] are the coordinates within the global tensor [TODO: what is the global tensor?]. This space directly corresponds to how data is conceptualized: row and column indices for matrices, spatial coordinates for images, or multi-dimensional indices for general tensors.
+
+[TODO: is X-space only ever defined in relation to P and Y space?]
+
+The transformation from P and Y coordinates to X coordinates encodes the distribution strategy, determining how logical thread work maps to physical tensor locations.
+
+[TODO: encoding and determining seem like two unrelated things. Needs clarification]
+
+The P+Y→X transformation can be expressed mathematically as a composition of functions:
+
+.. math::
+
+   X = f(P, Y) = BasePosition(P) + LocalOffset(Y)
+
+Where:
+- BasePosition(P) is where in the tensor the thread's tile begins
+- LocalOffset(Y) is the offset within the tile
+
+[TODO: need more information about this]
+ 
+R-space (Replication Space) introduces a mechanism for expressing data sharing and cooperation patterns between threads. 
+
+[TODO: need more information about R-space]
+
+D-space represents the final transformation in the coordinate pipeline [TODO: there was a coordinate pipeline? I thought these were all separate coordinates working together to define something. Now I'm confused. I think this needs a better explanation of what's happening] —converting multi-dimensional coordinates to linear memory addresses. This transformation incorporates all the low-level details of memory layout, including stride patterns, padding, and alignment requirements.
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -60,23 +93,8 @@ The CK framework employs five interconnected coordinate spaces, each serving a s
 .. image:: diagrams/coordinate_systems_1.svg
    :alt: Diagram
    :align: center
-The Challenge and Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Consider a scenario: an 8×8 matrix and 4 GPU threads. Each thread needs to answer several questions:
 
-1. Which thread am I? (Thread identification)
-2. What work should I do? (Work assignment)
-3. Where is my data in the tensor? (Physical location)
-4. How do I share data with other threads? (Cooperation)
-5. What's the memory address? (Hardware access)
-
-The coordinate system framework provides a systematic solution through five specialized spaces that transform from logical concepts to physical reality. Each space captures a different aspect of the computation, and the transformations between them encode the distribution strategy.
-
-P-Space: Thread Identification
-------------------------------
-
-P-space (Partition Space) represents the foundation of the coordinate system hierarchy. This space captures the identity of each processing element within the GPU's thread model, providing a structured way to identify threads across the complex hierarchy of warps, blocks, and grids.
 
 GPU Thread Hierarchy
 ~~~~~~~~~~~~~~~~~~~~
@@ -128,7 +146,7 @@ GPU Thread Hierarchy
 .. image:: diagrams/coordinate_systems_2.svg
    :alt: Diagram
    :align: center
-The structure of P-space directly reflects the :ref:`hardware organization <ck_tile_gpu_basics>` of GPUs. Each thread receives a unique P-coordinate that encodes its position within the thread hierarchy. For simple distributions, P-space might be one-dimensional, containing only a thread ID. For complex hierarchical distributions, P-space can have multiple dimensions representing different levels of the GPU's thread organization.
+
 
 C++ Implementation
 ~~~~~~~~~~~~~~~~~~
@@ -161,19 +179,14 @@ C++ Implementation
        // 3. Thread cooperation - coordinating shared memory usage
    }
 
-The P-space abstraction enables CK to handle different GPU architectures transparently. Whether running on GPUs with 32-thread warps or 64-thread wavefronts, the P-space coordinates provide a consistent interface while the underlying implementation adapts to the hardware.
+
 
 Y-Space: Logical Work Organization
 ----------------------------------
 
-Y-space (Yield Space) represents the logical organization of work within each thread's assigned tile. While P-space identifies which thread is executing, Y-space defines what that thread does with its assigned work. This abstraction enables the expression of complex access patterns in a hardware-independent manner.
-
 Work Assignment Structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -221,7 +234,8 @@ Work Assignment Structure
 .. image:: diagrams/coordinate_systems_3.svg
    :alt: Diagram
    :align: center
-Y-space can express different iteration patterns without changing the underlying distribution logic. A thread might traverse its Y-space in row-major order for one algorithm, column-major for another, or even use :ref:`space-filling curves <ck_tile_space_filling_curve>` for optimal cache utilization. This flexibility enables algorithm-specific optimizations while maintaining a consistent framework.
+
+
 
 Hierarchical Y-Space
 ~~~~~~~~~~~~~~~~~~~~
@@ -262,8 +276,6 @@ For complex kernels, Y-space often has a hierarchical structure that mirrors the
 X-Space: Physical Tensor Coordinates
 ------------------------------------
 
-X-space represents the ground truth of data organization—the actual coordinates within the global tensor. This space directly corresponds to how data is conceptualized: row and column indices for matrices, spatial coordinates for images, or multi-dimensional indices for general tensors.
-
 Memory Layout Mapping
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -296,7 +308,7 @@ The relationship between X-space and physical memory involves considerations of 
 The Core Transformation: P + Y → X
 ----------------------------------
 
-The transformation from P and Y coordinates to X coordinates is central to tile distribution. This transformation encodes the entire distribution strategy, determining how logical thread work maps to physical tensor locations.
+
 
 Transformation Pipeline
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -347,22 +359,8 @@ Transformation Pipeline
 Mathematical Foundation
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The P+Y→X transformation can be expressed mathematically as a composition of functions:
 
-.. math::
 
-   X = f(P, Y) = BasePosition(P) + LocalOffset(Y)
-
-Where:
-- BasePosition(P) determines where in the tensor this thread's tile begins
-- LocalOffset(Y) specifies the offset within the tile
-
-This transformation is highly configurable through the distribution encoding, enabling different strategies for different algorithms while maintaining the same mathematical framework.
-
-R-Space: Replication and Cooperation
-------------------------------------
-
-R-space (Replication Space) introduces a mechanism for expressing data sharing and cooperation patterns between threads. Unlike the other coordinate spaces which map to unique data elements, R-space enables multiple processing elements to work on the same data, facilitating efficient communication and reduction operations.
 
 Replication Patterns
 ~~~~~~~~~~~~~~~~~~~~
@@ -399,12 +397,7 @@ Replication Patterns
        }
    }
 
-R-space enables cooperation patterns that would be difficult to express otherwise. By providing a systematic way to identify which threads share data, it enables automatic generation of efficient communication patterns.
 
-D-Space: Memory Linearization
------------------------------
-
-D-space represents the final transformation in the coordinate pipeline—converting multi-dimensional coordinates to linear memory addresses. This transformation incorporates all the low-level details of memory layout, including stride patterns, padding, and alignment requirements.
 
 Linearization Strategies
 ~~~~~~~~~~~~~~~~~~~~~~~~
