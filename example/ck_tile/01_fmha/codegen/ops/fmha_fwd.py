@@ -1007,7 +1007,7 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                         pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip # TODO: cover arbitraty hdim# fmt: skip
         elif dtype in cls._DT_FP8BF16 or dtype in cls._DT_FP8FP32:
             # no need lse/dropout kernels
-            for logits, qscale, mask, bias， sink in itertools.product(
+            for logits, qscale, mask, bias，sink in itertools.product(
                 ["f"],
                 ["no", "pertensor"],
                 get_mask_map(mask_impl).keys(),
