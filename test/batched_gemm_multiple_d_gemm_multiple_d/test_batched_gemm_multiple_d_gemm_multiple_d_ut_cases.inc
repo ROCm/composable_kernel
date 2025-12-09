@@ -34,7 +34,7 @@ TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_PadO)
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, DISABLED_Test_OddM)
+TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddM)
 {
     this->lengths_ = std::vector<std::vector<int>>{
         {129, 128, 32, 128, 1},
@@ -42,6 +42,7 @@ TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, DISABLED_Test_OddM)
     this->Run();
 }
 
+// NOTE: Disabled as not supported for B1 ColMajor
 TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, DISABLED_Test_OddN)
 {
     this->lengths_ = std::vector<std::vector<int>>{
@@ -50,6 +51,7 @@ TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, DISABLED_Test_OddN)
     this->Run();
 }
 
+// NOTE: Disabled as no instances added for small transfer vector sizes
 TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, DISABLED_Test_OddK)
 {
     this->lengths_ = std::vector<std::vector<int>>{

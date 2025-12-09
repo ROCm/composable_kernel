@@ -103,7 +103,7 @@ template <typename ALayout,
           typename D0sDataType,
           typename B1DataType,
           typename D1sDataType,
-          typename CDataType,
+          typename E1DataType,
           typename AccDataType,
           typename CShuffleDataType,
           typename AElementwiseOperation,
@@ -167,7 +167,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
                                                      D0sDataType,
                                                      B1DataType,
                                                      D1sDataType,
-                                                     CDataType,
+                                                     E1DataType,
                                                      AElementwiseOperation,
                                                      B0ElementwiseOperation,
                                                      AccElementwiseOperation,
@@ -336,7 +336,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
         D1sDataType,
         AccDataType, // Acc1DataType
         CShuffleDataType,
-        CDataType,
+        E1DataType,
         // ElementwiseOp Family
         AElementwiseOperation,
         B0ElementwiseOperation,
@@ -411,7 +411,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
                std::array<const void*, NumD0Tensor> p_d0s_grid_,
                const B1DataType* p_b1_grid_,
                std::array<const void*, NumD1Tensor> p_d1s_grid_,
-               CDataType* p_e1_grid_,
+               E1DataType* p_e1_grid_,
                index_t M_,
                index_t N_,
                index_t K_,
@@ -520,7 +520,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
         typename GridwiseOp::D0sGridPointer p_d0s_grid;
         const B1DataType* p_b1_grid;
         typename GridwiseOp::D1sGridPointer p_d1s_grid;
-        CDataType* p_e1_grid;
+        E1DataType* p_e1_grid;
 
         // Raw Problem Size
         index_t M;
@@ -800,7 +800,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
                              std::array<const void*, NumD0Tensor> p_d0s,
                              const B1DataType* p_b1,
                              std::array<const void*, NumD1Tensor> p_d1s,
-                             CDataType* p_e1,
+                             E1DataType* p_e1,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
@@ -876,7 +876,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
                                         p_d0s,
                                         static_cast<const B1DataType*>(p_b1),
                                         p_d1s,
-                                        static_cast<CDataType*>(p_c),
+                                        static_cast<E1DataType*>(p_c),
                                         M,
                                         N,
                                         K,
@@ -978,7 +978,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
             << "D0n " << D0sDataType::Size() << ", "
             << "B1 " << DataTypeToString<B1DataType>() << ", "
             << "D1n " << D1sDataType::Size() << ", "
-            << "C " << DataTypeToString<CDataType>() << ", "
+            << "C " << DataTypeToString<E1DataType>() << ", "
             << "Acc " << DataTypeToString<AccDataType>() << ", "
             << "Cshuf " << DataTypeToString<CShuffleDataType>() << ", "
             << BlockSize << ", "

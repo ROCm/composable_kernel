@@ -6,6 +6,9 @@
 
 #include "gtest/gtest.h"
 
+#include "ck/ck.hpp"
+#include "ck/host_utility/device_prop.hpp"
+
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "profiler/profile_batched_gemm_multiple_d_gemm_multiple_d_impl.hpp"
 
@@ -54,6 +57,10 @@ struct BaseTestBatchedGemmMultipleDGemmMultipleD : public ::testing::Test
 
     void RunSingle(int M, int N, int K, int O, int BatchCount)
     {
+        // WMMA instances are setup to support all the test cases
+        // XDL instances are not.
+        bool fail_if_no_supported_instances = ck::is_gfx11_supported() || ck::is_gfx12_supported();
+
         bool pass =
             ck::profiler::profile_batched_gemm_multiple_d_gemm_multiple_d_impl<ALayout,
                                                                                B0Layout,
@@ -93,7 +100,7 @@ struct BaseTestBatchedGemmMultipleDGemmMultipleD : public ::testing::Test
                 -1,
                 -1,
                 -1,
-                true);
+                fail_if_no_supported_instances);
 
         EXPECT_TRUE(pass);
     }

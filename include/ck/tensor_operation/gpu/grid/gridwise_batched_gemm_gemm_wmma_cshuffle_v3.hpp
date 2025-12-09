@@ -134,9 +134,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         WmmaSelector<ADataType, B0DataType, Acc0DataType, MPerWmma, LPerWmma>::selected_wmma
             .k_per_wmma;
 
-    // HACK: Assuming all D0s have same data type for now
-    using D0DataType = remove_cvref_t<tuple_element_t<0, D0sDataType>>;
-
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     __host__ __device__ static constexpr auto MakeABlockDescriptor()
