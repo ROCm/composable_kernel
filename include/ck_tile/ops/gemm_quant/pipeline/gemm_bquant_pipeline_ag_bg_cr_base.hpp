@@ -42,14 +42,18 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     CK_TILE_DEVICE constexpr auto
     GetBQDramLoadWindow(const BQDramBlockWindowTmp& bq_dram_block_window_tmp) const
     {
-        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-
-        using YPerTile = number<NPerBlockBQ>;
-        using XPerTile = number<KPerBlockBQ>;
+        using YPerTile =
+            std::conditional_t<std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>,
+                               number<NPerBlockBQ>,
+                               number<KPerBlockBQ>>;
+        using XPerTile =
+            std::conditional_t<std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>,
+                               number<KPerBlockBQ>,
+                               number<NPerBlockBQ>>;
 
         auto bq_copy_dram_window =
             make_tile_window(bq_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(YPerTile(), XPerTile()),
+                             make_tuple(YPerTile{}, XPerTile{}),
                              bq_dram_block_window_tmp.get_window_origin(),
                              Policy::template MakeBQDramTileDistribution<Problem>());
         return bq_copy_dram_window;

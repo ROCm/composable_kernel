@@ -7,7 +7,7 @@
 
 namespace ck_tile {
 
-struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
+struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 {
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -58,7 +58,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
     template <typename Problem, typename TensorView>
     CK_TILE_DEVICE static constexpr auto
-    MakeMXFP4_AAsyncLoadDramDescriptor(const TensorView& naive_view)
+    MakeMX_AAsyncLoadDramDescriptor(const TensorView& naive_view)
     {
         using ADataType           = remove_cvref_t<typename Problem::ADataType>;
         using ALayout             = remove_cvref_t<typename Problem::ALayout>;
@@ -107,7 +107,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto MakeMXFP4_ADramTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeMX_ADramTileDistribution()
     {
 
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
@@ -140,7 +140,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto MakeMXFP4_ALdsBlockDescriptor()
+    CK_TILE_DEVICE static constexpr auto MakeMX_ALdsBlockDescriptor()
     {
         using ADataType           = remove_cvref_t<typename Problem::ADataType>;
         using ALayout             = remove_cvref_t<typename Problem::ALayout>;
@@ -218,7 +218,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXF4_ALDS_TileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ALDS_TileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape;
 
@@ -255,9 +255,11 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_BFlatDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_BFlatBytesDramTileDistribution()
     {
-        using TileShape = typename Problem::BlockGemmShape;
+        using TileShape         = typename Problem::BlockGemmShape;
+        using BDataType         = remove_cvref_t<typename Problem::BDataType>;
+        constexpr index_t BPack = numeric_traits<BDataType>::PackedSize;
 
         static_assert(TileShape::WarpTile::at(I1) == 16, "only for XDL_N == 16");
 
@@ -282,23 +284,58 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                 tile_distribution_encoding< //
                     sequence<WaveRepeat>,
                     tuple<sequence<NWavePerBlk, NXdlPack>, // 4 2
-                          sequence<K0, K1, K2>>,           // 1 64 32
+                          sequence<K0, K1, K2 / BPack>>,   // 1 64 32
                     tuple<sequence<0, 1, 2>, sequence<2>>,
                     tuple<sequence<0, 0, 0>, sequence<1>>,
                     sequence<2>,
                     sequence<2>>,
                 tile_distribution_encoding< //
                     sequence<WaveRepeat>,
-                    tuple<sequence<NWavePerBlk, NXdlPack>,     // 4 2
-                          sequence<num_access_v, K0, K1, K2>>, // 2 1 64 16
+                    tuple<sequence<NWavePerBlk, NXdlPack>,             // 4 2
+                          sequence<num_access_v, K0, K1, K2 / BPack>>, // 2 1 64 16
                     tuple<sequence<0, 1, 2>, sequence<2>>,
                     tuple<sequence<0, 0, 1>, sequence<2>>,
                     sequence<2, 2>,
                     sequence<0, 3>>>{});
     }
 
+    template <typename Problem, typename WindowTmp>
+    CK_TILE_HOST_DEVICE static constexpr auto
+    MakeMX_BFlatBytesDramWindow(const WindowTmp& window_tmp)
+    {
+
+        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
+        constexpr auto BPackedSize  = numeric_traits<BDataType>::PackedSize;
+        constexpr auto kKPerBlock   = Problem::BlockGemmShape::kK;
+        constexpr auto M_Warp_Tile  = Problem::BlockGemmShape::WarpTile::at(I1);
+        constexpr auto flatNPerWarp = Problem::BlockGemmShape::flatNPerWarp;
+        constexpr auto flatKPerWarp = Problem::BlockGemmShape::flatKPerWarp;
+
+        static_assert(std::decay_t<decltype(window_tmp)>::get_num_of_dimension() == 2);
+        auto&& tensor_view_tmp          = window_tmp.get_bottom_tensor_view();
+        const auto [flat_n, flat_k]     = tensor_view_tmp.get_tensor_descriptor().get_lengths();
+        constexpr auto flat_k_per_block = kKPerBlock * M_Warp_Tile;
+        auto&& byte_tensor_desc         = transform_tensor_descriptor(
+            make_naive_tensor_descriptor_packed(make_tuple(
+                flat_n, flat_k / flat_k_per_block, number<flat_k_per_block / BPackedSize>{})),
+            make_tuple(make_pass_through_transform(flat_n),
+                       make_merge_transform_v3_division_mod(make_tuple(
+                           flat_k / flat_k_per_block, number<flat_k_per_block / BPackedSize>{}))),
+            make_tuple(sequence<0>{}, sequence<1, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+        auto&& byte_ptr = reinterpret_cast<const uint8_t*>(&(tensor_view_tmp.get_buffer_view()(0)));
+        auto&& byte_tensor_view =
+            make_tensor_view<address_space_enum::global>(byte_ptr, byte_tensor_desc);
+        auto&& origin_tmp = window_tmp.get_window_origin();
+        return make_tile_window(
+            byte_tensor_view,
+            make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp / BPackedSize>{}),
+            {origin_tmp[0], origin_tmp[1] / BPackedSize},
+            MakeMX_BFlatBytesDramTileDistribution<Problem>());
+    }
+
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_ScaleA_DramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_DramTileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
 
@@ -335,7 +372,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_ScaleB_DramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleB_DramTileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
 
@@ -372,7 +409,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_ScaleA_FlatDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_FlatDramTileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape;
 
@@ -394,7 +431,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMXFP4_ScaleB_FlatDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleB_FlatDramTileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape;
 
@@ -420,8 +457,8 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     {
         using ADataType               = remove_cvref_t<typename Problem::ADataType>;
         constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
-        return sizeof(ADataType) *
-               MakeMXFP4_ALdsBlockDescriptor<Problem>().get_element_space_size() / APackedSize;
+        return sizeof(ADataType) * MakeMX_ALdsBlockDescriptor<Problem>().get_element_space_size() /
+               APackedSize;
     }
 
     template <typename Problem>

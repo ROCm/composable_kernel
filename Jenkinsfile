@@ -288,7 +288,7 @@ def getBaseDockerImageName(){
     }
     else{
         def ROCM_numeric = parseVersion("${params.ROCMVERSION}")
-        if ( ROCM_numeric.major <= 7 && ROCM_numeric.minor < 1 ){
+        if ( ROCM_numeric.major <= 7 && ROCM_numeric.minor < 2 ){
             img = "${env.CK_DOCKERHUB}:ck_ub24.04_rocm${params.ROCMVERSION}"
             }
         else{
@@ -434,7 +434,7 @@ def buildDocker(install_prefix){
     }
     catch(Exception ex){
         echo "Unable to locate image: ${image_name}. Building image now"
-        retimage = docker.build("${image_name}", dockerArgs + ' .')
+        retimage = docker.build("${image_name}", dockerArgs)
         withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
             retimage.push()
         }
@@ -447,7 +447,7 @@ def get_docker_options(){
         dockerOpts = "--network=host --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     }
     else{ //only add kfd and dri paths if you actually going to run somthing on GPUs
-        dockerOpts = "--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        dockerOpts = "--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     }
     if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
     // the  --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 env variable is required when building code with offload-compress flag with
@@ -1003,7 +1003,7 @@ def run_aiter_tests(Map conf=[:]){
     checkout scm
     //use the latest pytorch image
     def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
-    def dockerOpts=get_docker_options()
+    def dockerOpts=get_docker_options() + ' --group-add irc '
 
     gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'composable_kernel') {
         try
@@ -1055,7 +1055,7 @@ def run_pytorch_tests(Map conf=[:]){
     checkout scm
     //use the latest pytorch-nightly image
     def image = "${env.CK_DOCKERHUB}:ck_pytorch"
-    def dockerOpts=get_docker_options()
+    def dockerOpts=get_docker_options() + ' --group-add irc '
 
     gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'composable_kernel') {
         try
@@ -1121,8 +1121,8 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION',
-            defaultValue: '7.0.1',
-            description: 'Specify which ROCM version to use: 7.0.1 (default).')
+            defaultValue: '7.1.1',
+            description: 'Specify which ROCM version to use: 7.1.1 (default).')
         string(
             name: 'COMPILER_VERSION',
             defaultValue: '',

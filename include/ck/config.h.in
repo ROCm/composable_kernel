@@ -55,6 +55,11 @@
 #ifndef CK_ENABLE_FP32
 #define CK_ENABLE_FP32 "ON"
 #endif
+#ifndef CK_ENABLE_TF32
+#if defined(__gfx942__) || defined(__gfx95__)
+#define CK_ENABLE_TF32 "ON"
+#endif
+#endif
 #ifndef CK_ENABLE_FP64
 #define CK_ENABLE_FP64 "ON"
 #endif
@@ -83,6 +88,12 @@
 
 #ifndef CK_ENABLE_FP32
 #cmakedefine CK_ENABLE_FP32 @CK_ENABLE_FP32@
+#endif
+
+#ifndef CK_ENABLE_TF32
+#if defined(__gfx942__) || defined(__gfx95__)
+#cmakedefine CK_ENABLE_TF32 @CK_ENABLE_TF32@
+#endif
 #endif
 
 #ifndef CK_ENABLE_FP64
