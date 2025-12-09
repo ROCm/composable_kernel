@@ -252,9 +252,9 @@ struct MoeFlatmmKernel
 #else
         false;
 #endif
-    static constexpr int MXFP4M_Pack      = 2;
-    static constexpr int MXFP4N_Pack      = 2;
-    static constexpr int MXFP4K_Pack      = 2;
+    static constexpr int MXFP4M_Pack      = MXF8F6F4MFMA ? 1 : 2;
+    static constexpr int MXFP4N_Pack      = MXF8F6F4MFMA ? 1 : 2;
+    static constexpr int MXFP4K_Pack      = MXF8F6F4MFMA ? 4 : 2;
 
     static constexpr int N_Pack = BMXFP4_Pipeline ? MXFP4N_Pack : 1;
     static constexpr int K_Pack = BMXFP4_Pipeline ? MXFP4K_Pack : 1;
@@ -643,7 +643,8 @@ struct MoeFlatmmKernel
         }();
 
         auto scale_m_desc = kargs.scale_m;
-        constexpr int AGranularityK = decltype(scale_m_desc)::GranularityK;
+        // constexpr int AGranularityK = decltype(scale_m_desc)::GranularityK;
+        constexpr int AGranularityK = 32;
 
         //TODO: enable e8m0_t scale
         using AScaleType = float; //std::conditional_t<MXF8F6F4MFMA, e8m0_t, float>;
@@ -968,7 +969,7 @@ struct MoeFlatmmKernel
                                             a_scale_gather_block_tile, // weight scale with granularityK = 32
                                             b_scale_block_window, // weight scale with granularityK = 32
                                             num_loop,
-                                            kargs.k_padded_zeros,
+                                            // kargs.k_padded_zeros,
                                             smem_ptr_ping,
                                             smem_ptr_pong);
                 }

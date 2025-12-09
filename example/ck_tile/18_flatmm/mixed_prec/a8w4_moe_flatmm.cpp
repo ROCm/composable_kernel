@@ -98,8 +98,8 @@ float a8w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config&
     static_assert(sizeof(ComputeDataType) >= sizeof(BDataType),
                   "mixed_prec_flatmm requires ADataType is a wider type than BDataType");
 
-    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<ComputeDataType,
-                                                             ComputeDataType,
+    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
+                                                             BDataType,
                                                              AccDataType,
                                                              CodegenFlatmmShape,
                                                              Traits>;
@@ -133,9 +133,9 @@ float a8w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config&
         constexpr int BlockedXDLN_PerWarp = 2; // determined by scale shuffle pattern
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ComputeDataType,
-                                             ComputeDataType,
-                                             DsDatatype,
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             CDataType,
                                              AccDataType,
                                              CDataType,
                                              DsLayout,
