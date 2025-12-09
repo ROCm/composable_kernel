@@ -594,11 +594,12 @@ struct MoeFlatmmKernel
                     number<1>{});
             }
         }();
- 
+
         const auto& b_flat_tensor_view = [&]() {
             if constexpr(!FlatmmPipeline::BPreShufflePermute)
             {
-                index_t kFlatK = kargs.K * BlockGemmShape::WarpTile::at(I1); // TODO (support splitK)
+                index_t kFlatK =
+                    kargs.K * BlockGemmShape::WarpTile::at(I1); // TODO (support splitK)
                 index_t kFlatN = kargs.N * kargs.K / kFlatK;
 
                 return make_naive_tensor_view<address_space_enum::global,
@@ -612,7 +613,7 @@ struct MoeFlatmmKernel
             }
             else
             {
-                index_t kFlatK = FlatmmPipeline::flatKPerWarp;
+                index_t kFlatK  = FlatmmPipeline::flatKPerWarp;
                 index_t kFlatN0 = (kargs.N >> 4);
                 index_t kFlatK0 = (kargs.K >> 7);
 
@@ -626,10 +627,9 @@ struct MoeFlatmmKernel
                     number<1>{});
                 return transform_tensor_view(
                     b_tensor_view_naive,
-                    make_tuple(make_pass_through_transform(kFlatN0 - kargs.n_padded_zeros / NPerXdl),
-                               make_merge_transform_v3_division_mod(
-                                   make_tuple(kFlatK0,
-                                              kFlatK))),
+                    make_tuple(
+                        make_pass_through_transform(kFlatN0 - kargs.n_padded_zeros / NPerXdl),
+                        make_merge_transform_v3_division_mod(make_tuple(kFlatK0, kFlatK))),
                     make_tuple(sequence<1>{}, sequence<0, 2>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
             }
