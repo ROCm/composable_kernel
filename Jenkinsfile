@@ -1805,10 +1805,7 @@ pipeline {
                         beforeAgent true
                         expression { (params.BUILD_GFX942.toBoolean() || params.RUN_FULL_QA.toBoolean()) && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
-                    agent{ 
-                        label rocmnode("gfx942")
-                        customWorkspace '/var/jenkins/workspace/composable_kernel'
-                    }
+                    agent{ label rocmnode("gfx942") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx942" """
                         execute_args = build_client_examples("gfx942")
@@ -1824,10 +1821,7 @@ pipeline {
                         beforeAgent true
                         expression { params.BUILD_GFX950.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
-                    agent{ 
-                        label rocmnode("gfx950") 
-                        customWorkspace '/var/jenkins/workspace/composable_kernel'
-                    }
+                    agent{ label rocmnode("gfx950") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx950" """
                         execute_args = build_client_examples("gfx950")
