@@ -8,8 +8,8 @@ int run_example(int argc, char* argv[])
     // GEMM shape
     ck::index_t M              = 1024;
     ck::index_t N              = 1024;
-    ck::index_t K              = 64;
-    ck::index_t O              = 128;
+    ck::index_t K              = 256;
+    ck::index_t O              = 512;
     ck::index_t BatchCount     = 4;
     ck::index_t StrideA0       = -1;
     ck::index_t StrideB0       = -1;
@@ -328,7 +328,11 @@ int run_example(int argc, char* argv[])
             cde1_element_op(e1_g_m_o_host_result(idx), c1_g_m_o(idx), d1_g_m_o(idx));
         });
 
-        return ck::utils::check_err(e1_g_m_o_device_result, e1_g_m_o_host_result) ? 0 : 1;
+        bool validation_result = ck::utils::check_err(e1_g_m_o_device_result, e1_g_m_o_host_result);
+        std::cout << "Validation result: " << (validation_result ? "SUCCESS" : "FAIL") << "."
+                  << std::endl;
+
+        return validation_result ? 0 : 1;
     }
 
     return 0;

@@ -670,15 +670,14 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
 
         return transform_tensor_descriptor(
             d0_grid_desc_m_n,
-            make_tuple(make_unmerge_transform(make_tuple(
-                           M / MPerBlock, MRepeat, MWaves, wmma.num_thread_per_subgroups)),
+            make_tuple(make_unmerge_transform(make_tuple(M / MPerBlock, MRepeat, MWaves, MPerWmma)),
                        make_unmerge_transform(make_tuple(N / LPerBlock,
                                                          LRepeat,
                                                          LWaves,
-                                                         wmma.num_subgroups,
+                                                         WaveSize / LPerWmma,
                                                          wmma.num_acc_vgprs_per_wave))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8>{}));
+            make_tuple(Sequence<0, 2, 3, 4>{}, Sequence<1, 5, 6, 7, 8>{}));
     }
 
     // D0s desc for source in blockwise copy
@@ -962,8 +961,8 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             },
             Number<NumD0Tensor>{});
 
-        const auto wave_id     = GetGemm0WaveIdx();
-        const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
+        const auto wave_id     = GetGemm0WaveIdx(); // I0: MWaves, I1: LWaves, I2: WaveSize
+        const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I0: WaveSize / LPerWmma, I1: LPerWmma
 
         static_assert(CDE0BlockTransferSrcScalarPerVector <= laccvgprs,
                       "vector load must be not greater than n4");
@@ -991,14 +990,14 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                     CDE0BlockTransferSrcScalarPerVector,
                     1,
                     false>(d0s_griddesc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs[i],
-                           make_multi_index(block_work_idx[I0],     // MBlockId
+                           make_multi_index(block_work_idx[I0],  // MBlockId
                                             0,                      // NBlockId 
                                             0,                      // mrepeat
-                                            wave_id[I0],            // MWaveId
-                                            0,                      // MThreadPerSubgroup
+                                            wave_id[I0],            // mwave
+                                            wave_m_n_id[I1],        // mthreadpersubgroup
                                             0,                      // nrepeat
-                                            wave_id[I1],            // NWaveId
-                                            wave_m_n_id[I1],        // MPerWmma
+                                            wave_id[I1],            // nwave
+                                            wave_m_n_id[I0],        // nsubgroup
                                             0));                    // register number
             },
             Number<NumD0Tensor>{});
@@ -1171,6 +1170,8 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             // multiple d
             if constexpr(NumD0Tensor)
             {
+                constexpr auto d0s_thread_buf_size = d0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.GetElementSpaceSize();
+
                 static_for<0, NumD0Tensor, 1>{}([&](auto i) {
                     d0s_threadwise_copy(i).Run(d0s_griddesc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs[i],
                                                d0s_grid_buf[i],
@@ -1178,7 +1179,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                                make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
                                                d0s_thread_buf(i));
                 });
-                static_for<0, mrepeat * lrepeat * lsubgroup * laccvgprs, 1>{}([&](auto i) {
+                static_for<0, d0s_thread_buf_size, 1>{}([&](auto i) {
                     // get reference to src data
                     const auto src_data_refs = generate_tie(
                         // return type should be lvalue
