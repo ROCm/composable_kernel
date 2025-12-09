@@ -43,14 +43,14 @@ static void print_helper_msg()
     std::string conv_param_parser_helper_msg;
 
     conv_param_parser_helper_msg += "Following arguments (depending on number of spatial dims):\n"
-           " Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)\n"
-           " G, N, K, C, \n"
-           " <filter spatial dimensions>, (ie Y, X for 2D)\n"
-           " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
-           " <strides>, (ie Sy, Sx for 2D)\n"
-           " <dilations>, (ie Dy, Dx for 2D)\n"
-           " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
-           " <right padding>, (ie RightPy, RightPx for 2D)\n";
+                                    " Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)\n"
+                                    " G, N, K, C, \n"
+                                    " <filter spatial dimensions>, (ie Y, X for 2D)\n"
+                                    " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
+                                    " <strides>, (ie Sy, Sx for 2D)\n"
+                                    " <dilations>, (ie Dy, Dx for 2D)\n"
+                                    " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
+                                    " <right padding>, (ie RightPy, RightPx for 2D)\n";
 
     std::cout << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
               << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
@@ -151,14 +151,14 @@ int tile_profile_grouped_conv_bwd_weight(int argc, char* argv[])
         using ComputeTypeB = decltype(compute_type_b);
 
         bool pass = ck_tile::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial,
-                                                                       InLayout,
-                                                                       WeiLayout,
-                                                                       OutLayout,
-                                                                       InDataType,
-                                                                       WeiDataType,
-                                                                       OutDataType,
-                                                                       ComputeTypeA,
-                                                                       ComputeTypeB>(
+                                                                            InLayout,
+                                                                            WeiLayout,
+                                                                            OutLayout,
+                                                                            InDataType,
+                                                                            WeiDataType,
+                                                                            OutDataType,
+                                                                            ComputeTypeA,
+                                                                            ComputeTypeB>(
             do_verification, init_method, do_log, time_kernel, params, split_k);
 
         return pass ? 0 : 1;
@@ -184,7 +184,7 @@ int tile_profile_grouped_conv_bwd_weight(int argc, char* argv[])
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
         }
     }
-    
+
     if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
     {
         if(data_type == ConvDataType::F32_F32_F32)

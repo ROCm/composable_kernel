@@ -52,12 +52,12 @@ template <ck_tile::index_t NDimSpatial,
           typename ComputeTypeA = InDataType,
           typename ComputeTypeB = ComputeTypeA>
 bool profile_grouped_conv_fwd_impl(int do_verification,
-                                    int init_method,
-                                    bool /*do_log*/,
-                                    bool time_kernel,
-                                    const ck_tile::conv::ConvParam& conv_param,
-                                    const ck_tile::index_t k_batch,
-                                    ck_tile::index_t instance_index = -1)
+                                   int init_method,
+                                   bool /*do_log*/,
+                                   bool time_kernel,
+                                   const ck_tile::conv::ConvParam& conv_param,
+                                   const ck_tile::index_t k_batch,
+                                   ck_tile::index_t instance_index = -1)
 {
     using AccDataType  = float;
     using InElementOp  = ck_tile::element_wise::PassThrough;
@@ -100,19 +100,18 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         weight.SetZero();
     }
 
-    using DeviceOp = ops::GroupedConvolutionForwardBaseInvoker<
-                                                        NDimSpatial,
-                                                        InLayout,
-                                                        WeiLayout,
-                                                        OutLayout,
-                                                        InDataType,
-                                                        WeiDataType,
-                                                        OutDataType,
-                                                        InElementOp,
-                                                        WeiElementOp,
-                                                        OutElementOp,
-                                                        ComputeTypeA,
-                                                        ComputeTypeB>;
+    using DeviceOp = ops::GroupedConvolutionForwardBaseInvoker<NDimSpatial,
+                                                               InLayout,
+                                                               WeiLayout,
+                                                               OutLayout,
+                                                               InDataType,
+                                                               WeiDataType,
+                                                               OutDataType,
+                                                               InElementOp,
+                                                               WeiElementOp,
+                                                               OutElementOp,
+                                                               ComputeTypeA,
+                                                               ComputeTypeB>;
 
     // get device op instances
     const auto ops = ck_tile::ops::DeviceOperationInstanceFactory<DeviceOp>::GetInstances();
@@ -125,7 +124,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     index_t num_kernel = 0;
-    bool all_pass = true;
+    bool all_pass      = true;
 
     // tmp enforce instance
     // instance_index = -1;
@@ -141,12 +140,12 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         output_dev_buf.SetZero();
 
         ck_tile::GroupedConvFwdHostArgs args(conv_param,
-                                            input_dev_buf.GetDeviceBuffer(),
-                                            weight_dev_buf.GetDeviceBuffer(),
-                                            {},
-                                            output_dev_buf.GetDeviceBuffer(),
-                                            k_batch);
-                                
+                                             input_dev_buf.GetDeviceBuffer(),
+                                             weight_dev_buf.GetDeviceBuffer(),
+                                             {},
+                                             output_dev_buf.GetDeviceBuffer(),
+                                             k_batch);
+
         if(op->IsSupportedArgument(args))
         {
             num_kernel++;
@@ -160,7 +159,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             std::cout << op_name << " is profiled..." << std::endl;
 
             // Run verification first. If it doesn't pass, no need to do performance measurement.
-            bool pass = false; 
+            bool pass = false;
             if(do_verification)
             {
                 constexpr int n_warmup = 0;
@@ -172,39 +171,42 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                 ck_tile::HostTensor<OutDataType> output_host_ref(out_g_n_k_wos_desc);
                 output_host_ref.SetZero();
 
-                ck_tile::reference_grouped_conv_fwd<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-                    input,
-                    weight,
-                    output_host_ref,
-                    conv_param.conv_filter_strides_,
-                    conv_param.conv_filter_dilations_,
-                    conv_param.input_left_pads_,
-                    conv_param.input_right_pads_);
-                const ck_tile::index_t GemmK = weight.get_element_size() / (conv_param.G_ * conv_param.K_);
+                ck_tile::
+                    reference_grouped_conv_fwd<NDimSpatial, InDataType, WeiDataType, OutDataType>(
+                        input,
+                        weight,
+                        output_host_ref,
+                        conv_param.conv_filter_strides_,
+                        conv_param.conv_filter_dilations_,
+                        conv_param.input_left_pads_,
+                        conv_param.input_right_pads_);
+                const ck_tile::index_t GemmK =
+                    weight.get_element_size() / (conv_param.G_ * conv_param.K_);
                 const float max_accumulated_value =
                     *std::max_element(output_host_ref.mData.begin(), output_host_ref.mData.end());
                 const auto rtol_atol =
                     calculate_rtol_atol<InDataType, WeiDataType, AccDataType, OutDataType>(
                         GemmK, k_batch, max_accumulated_value);
                 pass = ck_tile::check_err(output,
-                                        output_host_ref,
-                                        "Error: Incorrect results!",
-                                        rtol_atol.at(ck_tile::number<0>{}),
-                                        rtol_atol.at(ck_tile::number<1>{}));
+                                          output_host_ref,
+                                          "Error: Incorrect results!",
+                                          rtol_atol.at(ck_tile::number<0>{}),
+                                          rtol_atol.at(ck_tile::number<1>{}));
 
                 std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                        << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                        << std::endl;
-                std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+                          << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                          << std::endl;
+                std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail")
+                          << std::endl;
                 all_pass &= pass;
             }
 
             bool is_valid = do_verification ? pass : true;
-            if (is_valid)
+            if(is_valid)
             {
                 constexpr int n_warmup = 5;
                 constexpr int n_repeat = 50;
-                float avg_time = op->Run(args, time_kernel, n_warmup, n_repeat);
+                float avg_time         = op->Run(args, time_kernel, n_warmup, n_repeat);
 
                 std::size_t flop      = conv_param.GetFlops();
                 std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
@@ -213,7 +215,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                 float gb_per_sec = num_btype / 1.E6 / avg_time;
 
                 std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops
-                            << " TFlops, " << gb_per_sec << " GB/s, " << op_name << std::endl;
+                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name << std::endl;
 
                 if(tflops > best_tflops)
                 {
@@ -224,18 +226,16 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                 }
             }
         }
-        else 
+        else
         {
-            //std::cout << op->GetName(args) << " does not support this problem." << std::endl;
+            // std::cout << op->GetName(args) << " does not support this problem." << std::endl;
         }
     }
 
-    std::cout << "\n********************************" 
-              << "\nBest configuration parameters:" 
-              << "\n********************************" 
-              << "\nname: " << best_op_name
-              << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
-              << "\nGB/s: " << best_gb_per_sec << std::endl;
+    std::cout << "\n********************************"
+              << "\nBest configuration parameters:" << "\n********************************"
+              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
+              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
 
     const char* log_file = std::getenv("CK_TILE_PROFILER_LOG_FILE");
     if(log_file != nullptr)

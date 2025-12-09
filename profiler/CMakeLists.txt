@@ -6,4 +6,3 @@ include_directories(BEFORE
 )
 
 add_subdirectory(src)
-add_subdirectory(ck_tile)

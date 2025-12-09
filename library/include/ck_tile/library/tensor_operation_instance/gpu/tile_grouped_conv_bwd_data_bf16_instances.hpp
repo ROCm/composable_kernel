@@ -11,32 +11,29 @@ namespace ops {
 using BF16 = ck_tile::bfloat16_t;
 
 using DeviceOp2DBF16 = GroupedConvolutionBackwardDataBaseInvoker<2,
-                                                NHWGC,
-                                                GKYXC,
-                                                NHWGK,
-                                                BF16,
-                                                BF16,
-                                                BF16,
-                                                PassThrough,
-                                                PassThrough,
-                                                PassThrough,
-                                                BF16,
-                                                BF16>;
+                                                                 NHWGC,
+                                                                 GKYXC,
+                                                                 NHWGK,
+                                                                 BF16,
+                                                                 BF16,
+                                                                 BF16,
+                                                                 PassThrough,
+                                                                 PassThrough,
+                                                                 PassThrough,
+                                                                 BF16,
+                                                                 BF16>;
 
-template <ck_tile::index_t NDimSpatial,
-          typename ALayout,
-          typename BLayout,
-          typename ELayout>
+template <ck_tile::index_t NDimSpatial, typename ALayout, typename BLayout, typename ELayout>
 using tile_grouped_conv_bwd_data_bf16_instances = std::tuple<
-// clang-format off
+    // clang-format off
     //###################################|    Num|  InLayout| WeiLayout|   OutLayout| InData|WeiData|OutData|           In|         Wei|         Out|                  Conv|K-block|  M-tile| N-tile | K-tile | M-warp| N-warp| K-warp| M-warp| N-warp| K-warp| Vector| Vector| Vector|    Double|                         GEMM|
     //###################################|    Dim|          |          |            |   Type|   Type|   Type|  Elementwise| Elementwise| Elementwise|                  Spec|    per|        |        |        |       |       |       |   tile|   tile|   tile|   size|   size|   size|      smem|                     pipeline|
     //###################################|Spatial|          |          |            |       |       |       |    Operation|   Operation|   Operation|                      |     CU|        |        |        |       |       |       |   size|   size|   size|      A|      B|      C|    buffer|                      version|                   
-GroupedConvolutionBackwardDataInvoker<NDimSpatial,   ALayout,   BLayout,     ELayout,   BF16,   BF16,   BF16,  PassThrough, PassThrough, PassThrough, ConvolutionSpecialization::Filter1x1Stride1Pad0,      1,     64,      16,     32,     4,    1,    1,16,     16,      32,      8,    8,4, false, CK_TILE_PIPELINE_MEMORY>,
-GroupedConvolutionBackwardDataInvoker<NDimSpatial,   ALayout,   BLayout,     ELayout,   BF16,   BF16,   BF16,  PassThrough, PassThrough, PassThrough, ConvolutionSpecialization::Filter1x1Stride1Pad0,      1,     64,      16,     16,     4,    1,    1,16,     16,      16,      4,    8,4, false, CK_TILE_PIPELINE_MEMORY>,
+// GroupedConvolutionBackwardDataInvoker<NDimSpatial,   ALayout,   BLayout,     ELayout,   BF16,   BF16,   BF16,  PassThrough, PassThrough, PassThrough, ConvolutionSpecialization::Filter1x1Stride1Pad0,      1,     64,      16,     32,     4,    1,    1,16,     16,      32,      8,    8,4, false, CK_TILE_PIPELINE_MEMORY>,
+// GroupedConvolutionBackwardDataInvoker<NDimSpatial,   ALayout,   BLayout,     ELayout,   BF16,   BF16,   BF16,  PassThrough, PassThrough, PassThrough, ConvolutionSpecialization::Filter1x1Stride1Pad0,      1,     64,      16,     16,     4,    1,    1,16,     16,      16,      4,    8,4, false, CK_TILE_PIPELINE_MEMORY>,
 GroupedConvolutionBackwardDataInvoker<NDimSpatial,   ALayout,   BLayout,     ELayout,   BF16,   BF16,   BF16,  PassThrough, PassThrough, PassThrough, ConvolutionSpecialization::Filter1x1Stride1Pad0,      1,     64,      16,     64,     4,    1,    1,16,     16,      32,      16,    2,2, false, CK_TILE_PIPELINE_MEMORY>
-// clang-format on
->;
+    // clang-format on
+    >;
 
 } // namespace ops
 } // namespace ck_tile

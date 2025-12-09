@@ -93,24 +93,21 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
         ck_tile::FillUniformDistribution<InDataType>{0.f, 1.f}(input);
         ck_tile::FillUniformDistribution<OutDataType>{0.f, 1.f}(output);
         break;
-    default:
-        input.SetZero();
-        output.SetZero();
+    default: input.SetZero(); output.SetZero();
     }
 
-    using DeviceOp = ops::GroupedConvolutionBackwardWeightBaseInvoker<
-                                                        NDimSpatial,
-                                                        InLayout,
-                                                        WeiLayout,
-                                                        OutLayout,
-                                                        InDataType,
-                                                        WeiDataType,
-                                                        OutDataType,
-                                                        InElementOp,
-                                                        WeiElementOp,
-                                                        OutElementOp,
-                                                        ComputeTypeA,
-                                                        ComputeTypeB>;
+    using DeviceOp = ops::GroupedConvolutionBackwardWeightBaseInvoker<NDimSpatial,
+                                                                      InLayout,
+                                                                      WeiLayout,
+                                                                      OutLayout,
+                                                                      InDataType,
+                                                                      WeiDataType,
+                                                                      OutDataType,
+                                                                      InElementOp,
+                                                                      WeiElementOp,
+                                                                      OutElementOp,
+                                                                      ComputeTypeA,
+                                                                      ComputeTypeB>;
 
     // get device op instances
     const auto ops = ck_tile::ops::DeviceOperationInstanceFactory<DeviceOp>::GetInstances();
@@ -123,13 +120,14 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     float best_gb_per_sec = 0;
     std::string best_split_k("1");
 
-    std::vector<ck_tile::index_t> split_k_list = {1, 2, 4, 6, 8, 10, 12, 16, 19, 32, 38, 64, 76, 128, 152, 256, 304};
+    std::vector<ck_tile::index_t> split_k_list = {
+        1, 2, 4, 6, 8, 10, 12, 16, 19, 32, 38, 64, 76, 128, 152, 256, 304};
     if(split_k != "all")
     {
         try
         {
             ck_tile::index_t split_k_value = std::stoi(split_k);
-            split_k_list              = {split_k_value};
+            split_k_list                   = {split_k_value};
         }
         catch(const std::exception& e)
         {
@@ -141,21 +139,21 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     // First, calculate the reference result if verification is needed.
     ck_tile::HostTensor<WeiDataType> weight_host_ref(wei_g_k_c_xs_desc);
     weight_host_ref.SetZero();
-    if (do_verification)
+    if(do_verification)
     {
-        ck_tile::reference_grouped_conv_bwd_weight<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-                            input,
-                            weight_host_ref,
-                            output,
-                            conv_param.conv_filter_strides_,
-                            conv_param.conv_filter_dilations_,
-                            conv_param.input_left_pads_,
-                            conv_param.input_right_pads_);
+        ck_tile::
+            reference_grouped_conv_bwd_weight<NDimSpatial, InDataType, WeiDataType, OutDataType>(
+                input,
+                weight_host_ref,
+                output,
+                conv_param.conv_filter_strides_,
+                conv_param.conv_filter_dilations_,
+                conv_param.input_left_pads_,
+                conv_param.input_right_pads_);
     }
 
-
     index_t num_kernel = 0;
-    bool all_pass = true;
+    bool all_pass      = true;
     for(auto& op : ops)
     {
         for(std::size_t split_k_id = 0; split_k_id < split_k_list.size(); split_k_id++)
@@ -172,13 +170,13 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             output_dev_buf.ToDevice(output.data());
 
             ck_tile::GroupedConvBwdWeightHostArgs args(conv_param,
-                                               input_dev_buf.GetDeviceBuffer(),
-                                               weight_dev_buf.GetDeviceBuffer(),
-                                               {},
-                                               output_dev_buf.GetDeviceBuffer(),
-                                               split_k_value);
+                                                       input_dev_buf.GetDeviceBuffer(),
+                                                       weight_dev_buf.GetDeviceBuffer(),
+                                                       {},
+                                                       output_dev_buf.GetDeviceBuffer(),
+                                                       split_k_value);
 
-            // Split-K autodeduction is not supported.                                   
+            // Split-K autodeduction is not supported.
             if(op->IsSupportedArgument(args) && split_k_value >= 1)
             {
                 num_kernel++;
@@ -189,10 +187,12 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                 }
 
                 std::string op_name = op->GetName(args);
-                std::cout << op_name << ", SplitK " << split_k_param_str << " is profiled..." << std::endl;
+                std::cout << op_name << ", SplitK " << split_k_param_str << " is profiled..."
+                          << std::endl;
 
-                // Run verification first. If it doesn't pass, no need to do performance measurement.
-                bool pass = false; 
+                // Run verification first. If it doesn't pass, no need to do performance
+                // measurement.
+                bool pass = false;
                 if(do_verification)
                 {
                     constexpr int n_warmup = 0;
@@ -201,45 +201,48 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     op->Run(args, false, n_warmup, n_repeat);
                     weight_dev_buf.FromDevice(weight.data());
 
-                    const ck_tile::index_t GemmK = weight.get_element_size() / (conv_param.G_ * conv_param.K_);
-                    const float max_accumulated_value =
-                        *std::max_element(weight_host_ref.mData.begin(), weight_host_ref.mData.end());
+                    const ck_tile::index_t GemmK =
+                        weight.get_element_size() / (conv_param.G_ * conv_param.K_);
+                    const float max_accumulated_value = *std::max_element(
+                        weight_host_ref.mData.begin(), weight_host_ref.mData.end());
                     const auto rtol_atol =
                         calculate_rtol_atol<InDataType, WeiDataType, AccDataType, OutDataType>(
                             GemmK, split_k_value, max_accumulated_value);
 
                     pass = ck_tile::check_err(weight,
-                                            weight_host_ref,
-                                            "Error: Incorrect results!",
-                                            rtol_atol.at(ck_tile::number<0>{}),
-                                            rtol_atol.at(ck_tile::number<1>{}));
+                                              weight_host_ref,
+                                              "Error: Incorrect results!",
+                                              rtol_atol.at(ck_tile::number<0>{}),
+                                              rtol_atol.at(ck_tile::number<1>{}));
 
                     std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                            << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                            << std::endl;
-                    std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+                              << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                              << std::endl;
+                    std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail")
+                              << std::endl;
 
                     all_pass &= pass;
                 }
 
                 bool is_valid = do_verification ? pass : true;
 
-                if (is_valid)
+                if(is_valid)
                 {
                     constexpr int n_warmup = 5;
                     constexpr int n_repeat = 50;
-                    float avg_time = op->Run(args, time_kernel, n_warmup, n_repeat);
+                    float avg_time         = op->Run(args, time_kernel, n_warmup, n_repeat);
 
-                    std::size_t flop      = conv_param.GetFlops();
-                    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+                    std::size_t flop = conv_param.GetFlops();
+                    std::size_t num_btype =
+                        conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
 
                     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
                     float gb_per_sec = num_btype / 1.E6 / avg_time;
 
                     std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops
-                            << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", SplitK "
-                            << split_k_param_str << std::endl;
-                    
+                              << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", SplitK "
+                              << split_k_param_str << std::endl;
+
                     if(tflops > best_tflops)
                     {
                         best_op_name    = op_name;
@@ -250,7 +253,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     }
                 }
             }
-            else 
+            else
             {
                 std::cout << op->GetName(args) << ", SplitK " << split_k_param_str
                           << " does not support this problem." << std::endl;
@@ -259,14 +262,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     }
 
     std::stringstream ss;
-    ss << "\n********************************" 
-       << "\nCK Tile best configuration parameters:" 
-       << "\n********************************" 
-       << "\nname: " << best_op_name
-       << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
-       << "\nGB/s: " << best_gb_per_sec 
-       << "\nSplitK: " << best_split_k
-       << std::endl;
+    ss << "\n********************************"
+       << "\nCK Tile best configuration parameters:" << "\n********************************"
+       << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
+       << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec
+       << "\nSplitK: " << best_split_k << std::endl;
 
     std::cout << ss.str();
 
