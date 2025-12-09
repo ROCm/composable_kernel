@@ -1007,14 +1007,15 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                         pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip # TODO: cover arbitraty hdim# fmt: skip
         elif dtype in cls._DT_FP8BF16 or dtype in cls._DT_FP8FP32:
             # no need lse/dropout kernels
-            for logits, qscale, mask, bias in itertools.product(
+            for logits, qscale, mask, bias， sink in itertools.product(
                 ["f"],
                 ["no", "pertensor"],
                 get_mask_map(mask_impl).keys(),
                 ["no"],
+                ["f", "t"],
             ):
-                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", "f"))  # fmt: skip
-                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
         elif dtype in ["fp8", "fp8fp16", "bf8"]:
             # TODO
             pass
