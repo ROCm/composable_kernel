@@ -552,6 +552,15 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
                     });
                 });
             }
+#if defined(__gfx9__)
+            else
+            {
+                // Workaround for a compiler issue: sometimes there are not enough wait-states
+                // between v_mfma_f32... and v_accvgpr_read_b32 instructions if they are separated
+                // by s_cbranch.
+                tile_elementwise_inout([](auto& x) { asm("; force move to %0" : "+v"(x)); }, s_acc);
+            }
+#endif
 
             {
                 bool need_perpixel_check = mask.IsEdgeTile(

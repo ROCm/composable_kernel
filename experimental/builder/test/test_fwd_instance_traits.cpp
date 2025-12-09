@@ -1,17 +1,19 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <ck/ck.hpp>
-#include <ck/utility/reduction_operator.hpp>
-#include <ck_tile/builder/reflect/instance_traits.hpp>
-#include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
-#include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp>
-#include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp>
-#include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp>
-#include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp>
-#include <ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp>
+#include <gtest/gtest.h>
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck_tile/builder/reflect/instance_traits.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp"
+#include "ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp"
+#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
 
 namespace {
 
@@ -767,8 +769,6 @@ TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
         GemmShape,
         GemmUniversalTraits,
         ck_tile::GemmPipelineScheduler::Intrawave /*scheduler*/,
-        true /*has_hot_loop_v*/,
-        ck_tile::TailNumber::Full /*tail_number_v*/,
         ck_tile::element_wise::PassThrough /*AElementwiseOperation*/,
         ck_tile::element_wise::PassThrough /*BElementwiseOperation*/,
         ck_tile::bf16_t /*OutDataType*/,

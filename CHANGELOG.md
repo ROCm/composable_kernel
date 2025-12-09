@@ -2,6 +2,16 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
+## (Unreleased) Composable Kernel 1.3.0
+
+### Added
+* Added support for explicit GEMM in CK_TILE grouped convolution forward and backward weight.
+* Added TF32 convolution support on gfx942 and gfx950 in CK. It could be enabled/disabled via `DTYPES` of "tf32".
+
+### Changed
+
+### Upcoming changes
+
 ## Composable Kernel 1.2.0 for ROCm 7.2.0
 
 ### Added
