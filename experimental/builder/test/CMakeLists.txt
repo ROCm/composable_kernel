@@ -94,8 +94,8 @@ add_ck_builder_test(test_ckb_conv_builder
     add_ck_builder_test(test_ckb_reference_validation validation/test_reference_validation.cpp)
     target_link_libraries(test_ckb_reference_validation PRIVATE utility)
     
-    add_ck_builder_test(test_ckb_builder_kernel_execution validation/test_builder_kernel_execution.cpp)
-    target_link_libraries(test_ckb_builder_kernel_execution PRIVATE utility)
+    add_ck_builder_test(test_ckb_builder_kernel_validation validation/test_builder_kernel_validation.cpp)
+    target_link_libraries(test_ckb_builder_kernel_validation PRIVATE utility)
 
     # Tests convolution trait selection and configuration
     add_ck_builder_test(test_ckb_conv_traits
