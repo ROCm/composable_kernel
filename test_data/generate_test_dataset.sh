@@ -83,7 +83,7 @@ fi
 # Parse command line arguments
 CONFIG_MODE="full"  # Default configuration mode: 'small', 'half' or 'full'
 MAX_PARALLEL_JOBS=1  # Default number of parallel jobs
-NUM_GPUS=0  # Number of GPUs to use (0 means no GPU assignment)
+NUM_GPUS=1  # Number of GPUs to use (0 means no GPU assignment)
 
 # Process arguments
 while [[ $# -gt 0 ]]; do
