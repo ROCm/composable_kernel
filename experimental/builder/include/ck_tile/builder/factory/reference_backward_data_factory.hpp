@@ -7,7 +7,7 @@
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
-#include "ck_tile/builder/factory/helpers/conv_tensor_type.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include <memory>
 
 namespace ck_tile::builder::factory {
@@ -20,7 +20,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ReferenceBackwardDataFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Types                         = internal::ConvTensorTypes<SIGNATURE.data_type>;
+    using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
 
     using InDataType  = typename Types::ADataType;
     using WeiDataType = typename Types::BDataType;

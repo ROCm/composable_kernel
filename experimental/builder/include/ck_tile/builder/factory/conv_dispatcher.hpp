@@ -195,17 +195,34 @@ constexpr auto make_conv_instance()
     }
     else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
     {
-        static_assert(
-            false,
-            "Backward data convolution is not yet supported. "
-            "Only forward convolution (ConvDirection::FORWARD) is currently implemented.");
+        // Check for reference algorithm
+        if constexpr(IsReferenceAlgorithm<AlgoType>)
+        {
+            return typename ReferenceBackwardDataFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else
+        {
+            static_assert(
+                false,
+                "Backward data convolution: Only reference algorithm supported currently. "
+                "Optimized kernels not yet implemented.");
+        }
     }
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
-        static_assert(
-            false,
-            "Backward weight convolution is not yet supported. "
-            "Only forward convolution (ConvDirection::FORWARD) is currently implemented.");
+        // Check for reference algorithm
+        if constexpr(IsReferenceAlgorithm<AlgoType>)
+        {
+            return
+                typename ReferenceBackwardWeightFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else
+        {
+            static_assert(
+                false,
+                "Backward weight convolution: Only reference algorithm supported currently. "
+                "Optimized kernels not yet implemented.");
+        }
     }
     else
     {

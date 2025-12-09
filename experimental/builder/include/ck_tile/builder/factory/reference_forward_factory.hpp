@@ -7,7 +7,7 @@
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
-#include "ck_tile/builder/factory/helpers/conv_tensor_type.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include <memory>
 
 namespace ck_tile::builder::factory {
