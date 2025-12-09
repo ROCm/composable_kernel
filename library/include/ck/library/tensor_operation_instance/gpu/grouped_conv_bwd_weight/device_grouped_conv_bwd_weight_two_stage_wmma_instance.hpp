@@ -132,8 +132,6 @@ using device_grouped_conv_bwd_weight_two_stage_ngchw_wmma_c_shuffle_f16_instance
     // clang-format on
     >;
 
-// device_grouped_conv_bwd_weight_two_stage_ngchw_wmma_c_shuffle_f16_part2_instances
-
 template <ck::index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
@@ -178,8 +176,6 @@ using device_grouped_conv_bwd_weight_two_stage_ngchw_wmma_c_shuffle_bf16_instanc
     DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,       ConvSpec,    96,    96,    96,    48,    8,   16,   16,       6,       2,       S<6, 16, 1>,     S<2, 0, 1>,     S<1, 0, 2>,              1,              6,              8,         1,       S<6, 16, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              6,              8,         0,           1,           1,        S<1, 16, 1, 6>,                     4, Scheduler, PipelineVersion,         1>
     // clang-format on
     >;
-
-// device_grouped_conv_bwd_weight_two_stage_ngchw_wmma_c_shuffle_bf16_part2_instances
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
