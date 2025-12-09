@@ -136,7 +136,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
             return pad_tensor_view(a_tensor_view,
                                    make_tuple(number<TilePartitioner::MPerBlock>{},
                                               number<TilePartitioner::KPerBlock>{}),
-                                   sequence<false, FlatmmPipeline::kPadK>{});
+                                   sequence<false, MXFlatmmPipeline::kPadK>{});
         }();
 
         // Step 3: Create tile window
@@ -177,7 +177,7 @@ CK_TILE_DEVICE static auto MakeBFlatBlockWindow(const BDataType* b_flat_ptr,
     // Step 3: Create tile window
     return make_tile_window(
         b_flat_tensor_view,
-        make_tuple(number<FlatmmPipeline::flatNPerWarp>{}, number<FlatmmPipeline::flatKPerWarp>{}),
+        make_tuple(number<MXFlatmmPipeline::flatNPerWarp>{}, number<MXFlatmmPipeline::flatKPerWarp>{}),
         {static_cast<int>(block_idx_n / BlockGemmShape::WarpTile::at(I1)), 0});
 }
 
@@ -222,14 +222,14 @@ CK_TILE_DEVICE static auto MakeDBlockWindows(const std::array<const void*, NumDT
                 return pad_tensor_view(ds_tensor_view[i],
                                        make_tuple(number<TilePartitioner::MPerBlock>{},
                                                   number<TilePartitioner::NPerBlock>{}),
-                                       sequence<false, FlatmmPipeline::kPadN>{});
+                                       sequence<false, MXFlatmmPipeline::kPadN>{});
             }
             else
             {
                 return pad_tensor_view(ds_tensor_view[i],
                                        make_tuple(number<TilePartitioner::NPerBlock>{},
                                                   number<TilePartitioner::MPerBlock>{}),
-                                       sequence<false, FlatmmPipeline::kPadM>{});
+                                       sequence<false, MXFlatmmPipeline::kPadM>{});
             }
         },
         number<NumDTensor>{});
