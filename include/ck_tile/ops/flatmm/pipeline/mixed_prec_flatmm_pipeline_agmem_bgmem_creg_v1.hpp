@@ -2493,7 +2493,7 @@ template <typename ADataType_,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full,
           typename ComputeDataType_        = ADataType_>
-struct F8xMXF4FlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
+struct F8xMXFlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
                                                        ADataType_,
                                                        CDataType_,
                                                        BlockGemmShape_,
@@ -2512,16 +2512,14 @@ struct F8xMXF4FlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
     static constexpr int ScaleGranularityK = 32;
 
     static constexpr int ContinuousKPerThread = 32; // it's fixed for fp4
-    static constexpr int MXdlPack             = 1;  // it's fixed for fp4
-    static constexpr int NXdlPack             = 1;  // it's fixed for fp4
-    static constexpr int KXdlPack             = 4;
-    static constexpr int ContinuousScaleNPerThread = 1;  // it's fixed for fp4
-    static constexpr int ContinuousScaleKPerThread = 4;  // it's fixed for fp4
+    static constexpr int MXdlPack             = 2;  // it's fixed for fp4
+    static constexpr int NXdlPack             = 2;  // it's fixed for fp4
+    static constexpr int KXdlPack             = 2;
     // static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp * KXdlPack;
     static constexpr index_t flatKPerWarp = get_warp_size() * ContinuousKPerThread;
 };
 
-template <typename Problem, typename PipelinePolicy = F8xMXF4FlatmmPipelineAgBgCrPolicy>
+template <typename Problem, typename PipelinePolicy = MXF8FlatmmPipelineAgBgCrPolicy>
 struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem, PipelinePolicy>
 {
     using Underlying = FlatmmPipelineAGmemBGmemCRegV1<Problem, PipelinePolicy>;
@@ -2945,11 +2943,6 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
         return PipelinePolicy::template MakeADramTileDistribution<Problem>();
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto GetAScaleDramTileDistribution()
-    {
-        return PipelinePolicy::template MakeMXFP4_ScaleA_FlatDramTileDistribution<Problem>();
-    }
-
     template <typename ADramBlockWindowTmp,
               typename BFlatBlockWindowTmp,
               typename ScaleADramBlockWindowTmp,
@@ -2989,7 +2982,7 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
                                  a_copy_dram_window_tmp.get_bottom_tensor_view()),
                              a_copy_dram_window_tmp.get_window_lengths(),
                              a_copy_dram_window_tmp.get_window_origin(),
-                             PipelinePolicy::template MakeADramTileDistribution<Problem>());
+                             PipelinePolicy::template MakeMXFP4_ADramTileDistribution<Problem>());
 
         __builtin_amdgcn_sched_barrier(0);
 

@@ -252,10 +252,11 @@ struct MoeFlatmmKernel
 #else
         false;
 #endif
-    static constexpr int MXFP4M_Pack      = MXF8F6F4MFMA ? 1 : 2;
-    static constexpr int MXFP4N_Pack      = MXF8F6F4MFMA ? 1 : 2;
-    static constexpr int MXFP4K_Pack      = MXF8F6F4MFMA ? 4 : 2;
+    static constexpr int MXFP4M_Pack = 2;
+    static constexpr int MXFP4N_Pack = 2;
+    static constexpr int MXFP4K_Pack = 2;
 
+    static constexpr int M_Pack = AQUANT_Pipeline ? MXFP4M_Pack : 1;
     static constexpr int N_Pack = BMXFP4_Pipeline ? MXFP4N_Pack : 1;
     static constexpr int K_Pack = BMXFP4_Pipeline ? MXFP4K_Pack : 1;
 
@@ -647,12 +648,12 @@ struct MoeFlatmmKernel
         constexpr int AGranularityK = 32;
 
         //TODO: enable e8m0_t scale
-        using AScaleType = float; //std::conditional_t<MXF8F6F4MFMA, e8m0_t, float>;
-        // using AScaleType = e8m0_t; //std::conditional_t<MXF8F6F4MFMA, e8m0_t, float>;
+        // using AScaleType = float; //std::conditional_t<MXF8F6F4MFMA, e8m0_t, float>;
+        using AScaleType = e8m0_t; //std::conditional_t<MXF8F6F4MFMA, e8m0_t, float>;
 
         const auto& scale_a_tensor_view = [&]() {
-            // if constexpr(std::is_same_v<AScaleType, float>)
-            // {
+            if constexpr(std::is_same_v<AScaleType, float>)
+            {
                 index_t scale_m = kargs.M;
                 index_t scale_k = AGranularityK == 0 ? 1 : (kargs.K + AGranularityK - 1) / AGranularityK;
                 return make_naive_tensor_view<address_space_enum::global>(
@@ -661,57 +662,57 @@ struct MoeFlatmmKernel
                     make_tuple(scale_k, 1),
                     number<8>{},
                     number<1>{});
-            // }
-            // else if constexpr(std::is_same_v<ScaleType, e8m0_t>)
-            // {
-            //     constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(I0);
-            //     constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I0);
-            //     index_t scale_m_packs = kargs.M / (MXFP4M_Pack * MThreadPerXdl);
-            //     index_t scale_k_packs = kargs.K / (MXFP4K_Pack * AGranularityK * KThreadPerXdl);
-            //     // Pack 2x2 e8m0 over M/K dimension into 1 int32_t to trigger dword width load
-            //     const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
-            //         make_tuple(scale_m_packs, scale_k_packs, KThreadPerXdl, MThreadPerXdl));
-            //     const auto scale_a_desc = transform_tensor_descriptor(
-            //         scale_a_naive_desc,
-            //         make_tuple(make_merge_transform(make_tuple(scale_m_packs, MThreadPerXdl)),
-            //                    make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
-            //         make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
-            //         make_tuple(sequence<0>{}, sequence<1>{}));
-            //     return make_tensor_view<address_space_enum::global>(
-            //         reinterpret_cast<const int32_t*>(scale_a.ptr), scale_a_desc);
-            // }
+            }
+            else if constexpr(std::is_same_v<ScaleType, e8m0_t>)
+            {
+                constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(I0);
+                constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I0);
+                index_t scale_m_packs = kargs.M / (MXFP4M_Pack * MThreadPerXdl);
+                index_t scale_k_packs = kargs.K / (MXFP4K_Pack * AGranularityK * KThreadPerXdl);
+                // Pack 2x2 e8m0 over M/K dimension into 1 int32_t to trigger dword width load
+                const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
+                    make_tuple(scale_m_packs, scale_k_packs, KThreadPerXdl, MThreadPerXdl));
+                const auto scale_a_desc = transform_tensor_descriptor(
+                    scale_a_naive_desc,
+                    make_tuple(make_merge_transform(make_tuple(scale_m_packs, MThreadPerXdl)),
+                               make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
+                    make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+                return make_tensor_view<address_space_enum::global>(
+                    reinterpret_cast<const int32_t*>(scale_a.ptr), scale_a_desc);
+            }
         }();
 
         auto scale_n = kargs.scale_n;
 
         constexpr int BGranularityK = decltype(scale_n)::GranularityK;
         const auto scale_b_flat_view = [&]() {
-            // if constexpr(AQUANT_Pipeline)
-            // {
-            //     constexpr int NThreadPerXdl = BlockGemmShape::WarpTile::at(I1);
-            //     constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I1);
-            //     index_t scale_n_packs = kargs.N / (MXFP4N_Pack * NThreadPerXdl);
-            //     index_t scale_k_packs = kargs.K / (MXFP4K_Pack * BGranularityK * KThreadPerXdl);
-            //     const auto scale_b_navie_desc = make_naive_tensor_descriptor_packed(
-            //         make_tuple(scale_packs_n, scale_packs_k, KThreadPerXdl, NThreadPerXdl));
-            //     const auto scale_b_desc = transform_tensor_descriptor(
-            //         scale_b_navie_desc,
-            //         make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
-            //                    make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
-            //         make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
-            //         make_tuple(sequence<0>{}, sequence<1>{}));
-            //
-            //     return make_tensor_view<address_space_enum::global>(
-            //         reinterpret_cast<const int32_t*>(scale_b.ptr), scale_b_desc);
-            //
-            // }
-            // else
-            // {
+            if constexpr(AQUANT_Pipeline)
+            {
+                constexpr int NThreadPerXdl = BlockGemmShape::WarpTile::at(I1);
+                constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I1);
+                index_t scale_n_packs = kargs.N / (MXFP4N_Pack * NThreadPerXdl);
+                index_t scale_k_packs = kargs.K / (MXFP4K_Pack * BGranularityK * KThreadPerXdl);
+                const auto scale_b_navie_desc = make_naive_tensor_descriptor_packed(
+                    make_tuple(scale_packs_n, scale_packs_k, KThreadPerXdl, NThreadPerXdl));
+                const auto scale_b_desc = transform_tensor_descriptor(
+                    scale_b_navie_desc,
+                    make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
+                               make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
+                    make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+
+                return make_tensor_view<address_space_enum::global>(
+                    reinterpret_cast<const int32_t*>(scale_b.ptr), scale_b_desc);
+
+            }
+            else
+            {
                 index_t scale_k    = BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
                 index_t FlatScaleK = scale_k * N_Pack * BlockGemmShape::WarpTile::at(I1);
                 index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
 
-                using ScaleType = std::conditional_t<BMXFP4_Pipeline, e8m0_t, float>;
+                using ScaleType = e8m0_t;
 
                 return make_naive_tensor_view<address_space_enum::global>(
                     reinterpret_cast<const ScaleType*>(scale_n.ptr) + expert_id * kargs.N * scale_k,
@@ -719,7 +720,7 @@ struct MoeFlatmmKernel
                     make_tuple(FlatScaleK, 1),
                     number<8>{},
                     number<1>{});
-            // }
+            }
         }();
 
 
@@ -819,21 +820,36 @@ struct MoeFlatmmKernel
 
         constexpr int GranularityK = 32; // fixed config for MXF4_Pipeline
         auto a_scale_block_window =
+            // make_tile_window(views.at(I3),
+            //                  make_tuple(number<TilePartitioner::MPerBlock>{},
+            //                             number<TilePartitioner::KPerBlock / GranularityK>{}),
+            //                  {coord_m, 0});
             make_tile_window(views.at(I3),
-                             make_tuple(number<TilePartitioner::MPerBlock>{},
-                                        number<TilePartitioner::KPerBlock / GranularityK>{}),
-                             {coord_m, 0});
+                make_tuple(number<TilePartitioner::MPerBlock / M_Pack>{},
+                           number<TilePartitioner::KPerBlock / (GranularityK * K_Pack)>{}),
+                {i_m / M_Pack, 0});
 
         // constexpr int GranularityK = 32; // fixed config for MXF4_Pipeline
         constexpr int XDLPerLoadScaleB =
             BMXFP4_Pipeline ? 4 : 1; // GranularityK32 / XDL16x16x32_K8 = 4
 
-        auto b_scale_block_window =
-            make_tile_window(views.at(I4),
-                             make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                                        number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
-                                               XDLPerLoadScaleB / GranularityK>{}),
-                             {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
+        auto b_scale_block_window = [&]() {
+            if constexpr(MXF8F6F4MFMA)
+            {
+                return make_tile_window(views.at(I4),
+                    make_tuple(number<TilePartitioner::NPerBlock / N_Pack>{},
+                               number<TilePartitioner::KPerBlock / (GranularityK * K_Pack)>{}),
+                    {coord_n / N_Pack, 0});
+            }
+            else
+            {
+                return make_tile_window(views.at(I4),
+                                 make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                                            number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
+                                                   XDLPerLoadScaleB / GranularityK>{}),
+                                 {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
+            }
+        }();
 
         return make_tuple(a_block_window,
                           b_flat_block_window,
@@ -947,26 +963,9 @@ struct MoeFlatmmKernel
                 // so don't need extra processing
                 if constexpr(AQUANT_Pipeline)
                 {
-                    constexpr int AGranularityK = decltype(kargs.scale_m)::GranularityK;
-                    constexpr auto a_scale_dram_dist = FlatmmPipeline::GetAScaleDramTileDistribution();
-                    constexpr ck_tile::index_t DramMScaleRepeat =
-                        decltype(a_scale_dram_dist)::DstrEncode::hs_lengthss_[number<0>{}][number<0>{}];
-                    statically_indexed_array<ck_tile::index_t, DramMScaleRepeat> a_scale_offsets;
-                    static_for<0, DramMScaleRepeat, 1>{}([&](auto m0) {
-                        const auto row_idx =
-                            coord_m + m0 * (TilePartitioner::MPerBlock / DramMScaleRepeat) + a_coord[I0];
-                        index_t gather_token_id = row_to_token_idx(row_idx);
-                        a_scale_offsets[m0]           = gather_token_id * kargs.stride_A / AGranularityK;
-                    });
-                    auto a_scale_gather_block_tile =
-                        ck_tile::make_tile_scatter_gather(a_scale_block_window.get_bottom_tensor_view(),
-                                                          a_scale_block_window.get_window_lengths(),
-                                                          a_scale_block_window.get_window_origin(),
-                                                          a_scale_dram_dist,
-                                                          a_scale_offsets); // K DRAM tile window for
                     return FlatmmPipeline{}(a_gather_block_tile,
                                             b_block_window,
-                                            a_scale_gather_block_tile, // weight scale with granularityK = 32
+                                            a_scale_block_window, // weight scale with granularityK = 32
                                             b_scale_block_window, // weight scale with granularityK = 32
                                             num_loop,
                                             // kargs.k_padded_zeros,
