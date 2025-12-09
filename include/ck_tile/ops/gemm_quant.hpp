@@ -7,7 +7,7 @@
 #include "ck_tile/ops/gemm_quant/block/block_universal_gemm_as_aquant_bs_bquant_cr.hpp"
 #include "ck_tile/ops/gemm_quant/block/block_universal_gemm_as_aquant_bs_cr.hpp"
 #include "ck_tile/ops/gemm_quant/block/block_universal_gemm_as_bs_bquant_cr.hpp"
-#include "ck_tile/ops/gemm_quant/block/block_universal_gemm_as_bs_abquant_cr.hpp"
+#include "ck_tile/ops/gemm_quant/block/block_universal_gemm_as_aquant_bs_bquant_cr.hpp"
 #include "ck_tile/ops/gemm_quant/kernel/gemm_quant_kernel.hpp"
 #include "ck_tile/ops/gemm_quant/kernel/grouped_gemm_quant_kernel.hpp"
 #include "ck_tile/ops/gemm_quant/pipeline/gemm_abquant_pipeline_ag_bg_cr_base.hpp"
