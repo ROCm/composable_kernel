@@ -32,10 +32,13 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
     using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
-    using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
+    using AQuantGroupSize = remove_cvref_t<typename Problem::AQuantGroupSize>;
+    using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
-    static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
-    // static_assert(QuantGroupSize::kN == 1, "only M/K blocks for AQuant kernel!");
+    static_assert(BQuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
+    static_assert(AQuantGroupSize::kN == 1, "only M/K blocks for AQuant kernel!");
+	static_assert(AQuantGroupSize::kM == 1, "no block M for AQuant kernel supported yet!");
+    static_assert(AQuantGroupSize::kK == BQuantGroupSize::kK, "AQuantGroupSize::kK should be equal to BQuantGroupSize::kK");
 
     using I0 = number<0>;
     using I1 = number<1>;
@@ -64,9 +67,9 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
     static constexpr index_t MPerBlock   = BlockGemmShape::kM;
     static constexpr index_t NPerBlock   = BlockGemmShape::kN;
     static constexpr index_t KPerBlock   = BlockGemmShape::kK;
-    static constexpr index_t KPerBlockAQ = BlockGemmShape::kK / QuantGroupSize::kK;
-    static constexpr index_t NPerBlockBQ = BlockGemmShape::kN / QuantGroupSize::kN;
-    static constexpr index_t KPerBlockBQ = BlockGemmShape::kK / QuantGroupSize::kK;
+    static constexpr index_t KPerBlockAQ = BlockGemmShape::kK / AQuantGroupSize::kK;
+    static constexpr index_t NPerBlockBQ = BlockGemmShape::kN / BQuantGroupSize::kN;
+    static constexpr index_t KPerBlockBQ = BlockGemmShape::kK / BQuantGroupSize::kK;
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
@@ -106,7 +109,7 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
                       BlockSize,
                       concat('x', WaveNumM, WaveNumN),
                       concat('x', BlockGemm::WarpGemm::kM, BlockGemm::WarpGemm::kN, BlockGemm::WarpGemm::kK),
-                      concat('x', kPadM, kPadN, kPadK), QuantGroupSize::GetName());
+                      concat('x', kPadM, kPadN, kPadK), BQuantGroupSize::GetName());
         // clang-format on
     }
 
@@ -166,7 +169,8 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
             << "\n"
             << "A/B LDS read inst: " << A_LDS_Read_Inst_Num << ", " << B_LDS_Read_Inst_Num << "\n"
             << "C MFMA inst: " << C_MFMA_Inst_Num << "\n"
-            << "QuantGroupSize: " << QuantGroupSize::GetName() << "\n"
+            << "AQuantGroupSize: " << AQuantGroupSize::GetName() << "\n"
+            << "BQuantGroupSize: " << BQuantGroupSize::GetName() << "\n"
             << "KPack: " << BlockGemm::Traits::KPack << "\n"
             << "PrefetchStages: " << PrefetchStages << "\n";
         return str.str();

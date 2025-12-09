@@ -28,7 +28,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
-    using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
+    using QuantGroupSize = remove_cvref_t<typename Problem::AQuantGroupSize>;
 
     static_assert(QuantGroupSize::kM == 1, "no block for M supported yet!");
     static_assert(QuantGroupSize::kN == 1, "only M/K blocks for AQuant kernel!");

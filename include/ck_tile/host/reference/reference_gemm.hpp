@@ -120,7 +120,8 @@ template <typename ADataType,
           typename BQDataType,
           typename AccDataType,
           typename CDataType,
-          typename QuantGroupSize,
+          typename AQuantGroupSize,
+          typename BQuantGroupSize,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
           typename ACCElementOp = ck_tile::identity>
@@ -185,13 +186,13 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
             v_block_acc += v_a * v_b;
 
             // Apply group dequant scale
-            if((k + 1) % QuantGroupSize::kK == 0)
+            if((k + 1) % BQuantGroupSize::kK == 0)
             {
                 float a_scale = 0.f;
                 float b_scale = 0.f;
                 // A scale
-                index_t outer_dim = m / QuantGroupSize::kM;
-                index_t inner_dim = k / QuantGroupSize::kK;
+                index_t outer_dim = m / AQuantGroupSize::kM;
+                index_t inner_dim = k / AQuantGroupSize::kK;
                 if constexpr(std::is_same_v<AQDataType, float>)
                 {
                     a_scale = a_q(outer_dim, inner_dim);
@@ -209,8 +210,8 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
                     static_assert(false, "Unexpected Q datatype.");
                 }
                 // B scale
-                outer_dim = k / QuantGroupSize::kK;
-                inner_dim = n / QuantGroupSize::kN;
+                outer_dim = k / BQuantGroupSize::kK;
+                inner_dim = n / BQuantGroupSize::kN;
                 if constexpr(std::is_same_v<BQDataType, float>)
                 {
                     b_scale = b_q(outer_dim, inner_dim);

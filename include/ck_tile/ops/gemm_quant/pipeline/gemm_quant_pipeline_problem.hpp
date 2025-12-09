@@ -18,7 +18,8 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename QuantGroupSize_,
+          typename AQuantGroupSize_,
+          typename BQuantGroupSize_,
           bool TransposeC_,
           typename ComputeDataType_        = BDataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
@@ -48,7 +49,10 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     using BQDataType = remove_cvref_t<BQDataType_>;
 
     using BlockGemmShape = typename Base::BlockGemmShape;
-    using QuantGroupSize = QuantGroupSize_;
+    using AQuantGroupSize = AQuantGroupSize_;
+    using BQuantGroupSize = BQuantGroupSize_;
+    // For backward compatibility
+    using QuantGroupSize = AQuantGroupSize_;
 
     using typename Base::ALayout;
     using typename Base::BLayout;
@@ -71,10 +75,16 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     static constexpr auto Scheduler  = Scheduler_;
     static constexpr auto HasHotLoop = HasHotLoop_;
     static constexpr auto TailNum    = TailNum_;
+    static constexpr index_t kQuantGroupSize = QuantGroupSize::kK;
+    static constexpr index_t kAQuantGroupSize = AQuantGroupSize::kK;
+    static constexpr index_t kBQuantGroupSize = BQuantGroupSize::kK;
 
-    static_assert(BlockGemmShape::kM % QuantGroupSize::kM == 0);
-    static_assert(BlockGemmShape::kN % QuantGroupSize::kN == 0);
-    static_assert(BlockGemmShape::kK % QuantGroupSize::kK == 0);
+    static_assert(BlockGemmShape::kM % AQuantGroupSize::kM == 0);
+    static_assert(BlockGemmShape::kN % AQuantGroupSize::kN == 0);
+    static_assert(BlockGemmShape::kK % AQuantGroupSize::kK == 0);
+    static_assert(BlockGemmShape::kM % BQuantGroupSize::kM == 0);
+    static_assert(BlockGemmShape::kN % BQuantGroupSize::kN == 0);
+    static_assert(BlockGemmShape::kK % BQuantGroupSize::kK == 0);
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -83,7 +93,8 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
                       concat('x', VectorLoadSize, kBlockSize),
                       concat('x', kPadM, kPadN, kPadK),
                       Scheduler,
-                      QuantGroupSize::GetName());
+                      AQuantGroupSize::GetName(),
+                      BQuantGroupSize::GetName());
         // clang-format on
     }
 
@@ -126,6 +137,7 @@ using GemmAQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
                                                                QuantGroupSize_,
+															   QuantGroupSize_,
                                                                TransposeC_,
                                                                ComputeDataType_,
                                                                Scheduler_,
@@ -151,6 +163,7 @@ using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
                                                                QuantGroupSize_,
+															   QuantGroupSize_,
                                                                false, // no TransposeC
                                                                ComputeDataType_,
                                                                Scheduler_,
@@ -164,7 +177,8 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename QuantGroupSize_,
+          typename AQuantGroupSize_,
+		  typename BQuantGroupSize_,
           bool TransposeC_,
           typename ComputeDataType_        = ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
@@ -177,7 +191,8 @@ using GemmABQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                 CDataType_,
                                                                 BlockGemmShape_,
                                                                 Traits_,
-                                                                QuantGroupSize_,
+                                                                AQuantGroupSize_,
+																BQuantGroupSize_,
                                                                 TransposeC_,
                                                                 ComputeDataType_,
                                                                 Scheduler_,
@@ -204,6 +219,7 @@ using GemmRowColTensorQuantPipelineProblem =
                                  BlockGemmShape_,
                                  Traits_,
                                  QuantGroupShape<sequence<1, 1, 1>>, // no group size applicable
+								 QuantGroupShape<sequence<1, 1, 1>>, // no group size applicable
                                  TransposeC_,
                                  ComputeDataType_,
                                  Scheduler_,
