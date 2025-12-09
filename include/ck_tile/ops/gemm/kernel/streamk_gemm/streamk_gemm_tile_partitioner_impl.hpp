@@ -66,6 +66,9 @@ CK_TILE_DEVICE index_t
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_start_iter(
     index_t cta_idx) const noexcept
 {
+    // Compute the number of extra iterations done before this CTA. If the cta_idx is less than
+    // extra_iters, the number of extra iterations before the CTA is exactly the cta_idx. Otherwise,
+    // it is extra_iters.
     index_t extra_iters_before_me = ck_tile::min(cta_idx, extra_iters_);
     return total_dp_iters_ + cta_idx * iters_per_sk_cta_ + extra_iters_before_me;
 }

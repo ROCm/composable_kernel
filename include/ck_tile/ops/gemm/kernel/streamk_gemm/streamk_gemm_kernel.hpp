@@ -324,8 +324,8 @@ struct StreamKKernel
     CK_TILE_DEVICE void SignalStorePartialDone(const StreamKKernelArgs& kargs,
                                                index_t cta_idx) const
     {
-        auto sk_flags_ptr = static_cast<index_t*>(kargs.workspace_ptr);
-        index_t offset    = cta_idx * sizeof(index_t);
+        auto* sk_flags_ptr = static_cast<index_t*>(kargs.workspace_ptr);
+        index_t offset     = cta_idx * sizeof(index_t);
 
         asm volatile("s_mov_b32 m0, %2\n\t"
                      // Depending on the architecture, the GLC flag will bypass the approproriate
@@ -347,7 +347,7 @@ struct StreamKKernel
      */
     CK_TILE_DEVICE void WaitStorePartialDone(const StreamKKernelArgs& kargs, index_t cta_idx) const
     {
-        auto sk_flags_ptr = static_cast<index_t*>(kargs.workspace_ptr);
+        auto* sk_flags_ptr = static_cast<index_t*>(kargs.workspace_ptr);
         index_t result;
         index_t offset = cta_idx * sizeof(index_t);
 
@@ -511,7 +511,8 @@ struct StreamKKernel
             {
                 BaseGemm(kargs, tile_idx, num_loop_sk, i_k_a, i_k_b, k_size, smem_ptr_0);
             }
-            else // Perform a normal reduction or a tree reduction
+            else if(TilePartitioner::ReductionStrategy == StreamKReductionStrategy::Reduction ||
+                    TilePartitioner::ReductionStrategy == StreamKReductionStrategy::TreeReduction)
             {
                 const auto c_macro_tile_idx =
                     kargs.tile_partitioner.get_output_tile_index(tile_idx);
@@ -651,6 +652,11 @@ struct StreamKKernel
                         }
                     }
                 }
+            }
+            else
+            {
+                static_assert(
+                    "An implementation does not exist for the chosen reduction strategy.");
             }
 
             // Prepare for next Stream-K loop iteration.
