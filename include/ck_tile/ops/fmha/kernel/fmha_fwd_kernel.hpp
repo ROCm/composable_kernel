@@ -1349,7 +1349,7 @@ struct FmhaFwdKernel
                 if constexpr(detail::is_n0loop_pipeline_v<FmhaPipeline>)
                 {
                     return pad_tensor_view(k_dram_naive,
-                                           make_tuple(number<FmhaPipeline::kK1>{},
+                                           make_tuple(number<FmhaPipeline::kN0Sub>{},
                                                       number<FmhaPipeline::kSubQKHeaddim>{}),
                                            sequence<kPadSeqLenK_, kPadHeadDimQ>{});
                 }

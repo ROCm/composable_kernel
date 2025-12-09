@@ -117,7 +117,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0Sub;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
@@ -170,7 +170,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetKSingleSmemElementSpaceSize()
     {
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0Sub;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
         constexpr index_t kKPack     = GetSmemKPackK<Problem>();
         constexpr index_t kKVector   = GetAlignmentK<Problem>();
@@ -213,7 +213,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t NumKLdsBuffers = GetNumKVLdsBuffers<Problem>();
-        constexpr index_t kNPerBlock     = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kNPerBlock     = Problem::BlockFmhaShape::kN0Sub;
         constexpr index_t kKPerBlock     = Problem::BlockFmhaShape::kSubQKHeaddim;
         constexpr index_t kKPack         = GetSmemKPackK<Problem>();
         constexpr index_t kKVector       = GetAlignmentK<Problem>();
@@ -320,7 +320,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0Sub;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
@@ -455,7 +455,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
                              typename Problem::SaccDataType,
                              Problem::kNumGemm0Warps * get_warp_size(),
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                                    Problem::BlockFmhaShape::kK1,
+                                                    Problem::BlockFmhaShape::kN0Sub,
                                                     Problem::BlockFmhaShape::kQKHeaddim>,
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
