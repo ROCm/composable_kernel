@@ -13,7 +13,7 @@ namespace ck_tile::builder {
 
 enum class DataType
 {
-    UNDEFINED = 0,
+    UNDEFINED_DATA_TYPE = 0,
     FP32,
     FP16,
     BF16,
@@ -25,7 +25,7 @@ enum class DataType
 
 enum class TensorLayout
 {
-    UNDEFINED,
+    UNDEFINED_TENSOR_LAYOUT = 0,
 
     // Bias tensors
     GC,
@@ -216,7 +216,7 @@ inline std::string_view toString(DataType dt)
     case INT32: return "INT32";
     case I8: return "I8";
     case U8: return "U8";
-    case UNDEFINED: return "UNDEFINED";
+    case UNDEFINED_DATA_TYPE: return "UNDEFINED_DATA_TYPE";
     default: return "Unknown";
     }
 }
@@ -411,7 +411,7 @@ inline std::string_view toString(TensorLayout layout)
     case GC: return "GC";
     case G_C_strided: return "G_C_strided";
     case G_K_strided: return "G_K_strided";
-    case UNDEFINED: return "UNDEFINED";
+    case UNDEFINED_TENSOR_LAYOUT: return "UNDEFINED_TENSOR_LAYOUT";
     default: return "Unknown";
     }
 }
