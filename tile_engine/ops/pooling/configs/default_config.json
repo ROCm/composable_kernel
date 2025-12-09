@@ -1,0 +1,35 @@
+{
+    "block_config": {
+        "block_m": {
+            "values": [64, 128, 256]
+        },
+        "block_n": {
+            "values": [1]
+        },
+        "warp_m": {
+            "values": [1, 2]
+        },
+        "warp_n": {
+            "values": [1]
+        },
+        "thread_tile_m": {
+            "values": [1, 2, 4]
+        },
+        "thread_tile_n": {
+            "values": [1]
+        }
+    },
+    "trait_config": {
+        "output_index": {
+            "values": [true, false]
+        },
+        "propagate_nan": {
+            "values": [false]
+        },
+        "pool_dim": {
+            "values": [2, 3]
+        }
+    },
+    "k_block_per_cu": 1
+}
+
