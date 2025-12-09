@@ -153,8 +153,6 @@ struct GroupedConvolutionBackwardDataInvoker
                                                   GemmShape,
                                                   GemmUniversalTraits,
                                                   scheduler,
-                                                  // HasHotLoop,
-                                                  // TailNumber,
                                                   ck_tile::element_wise::PassThrough,
                                                   ck_tile::element_wise::PassThrough,
                                                   InDataType,
