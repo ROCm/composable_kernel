@@ -2493,15 +2493,15 @@ template <typename ADataType_,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full,
           typename ComputeDataType_        = ADataType_>
-struct F8xMXFlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
-                                                       ADataType_,
-                                                       CDataType_,
-                                                       BlockGemmShape_,
-                                                       Traits_,
-                                                       Scheduler_,
-                                                       HasHotLoop_,
-                                                       TailNum_,
-                                                       ComputeDataType_>
+struct F8xMXF4FlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
+                                                            BDataType_,
+                                                            CDataType_,
+                                                            BlockGemmShape_,
+                                                            Traits_,
+                                                            Scheduler_,
+                                                            HasHotLoop_,
+                                                            TailNum_,
+                                                            ComputeDataType_>
 {
     using BlockGemmShape = BlockGemmShape_;
 
@@ -2519,7 +2519,7 @@ struct F8xMXFlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
     static constexpr index_t flatKPerWarp = get_warp_size() * ContinuousKPerThread;
 };
 
-template <typename Problem, typename PipelinePolicy = MXF8FlatmmPipelineAgBgCrPolicy>
+template <typename Problem, typename PipelinePolicy = F8xMXF4FlatmmPipelineAgBgCrPolicy>
 struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem, PipelinePolicy>
 {
     using Underlying = FlatmmPipelineAGmemBGmemCRegV1<Problem, PipelinePolicy>;
@@ -2600,8 +2600,8 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
     static constexpr index_t KXdlPack          = Problem::KXdlPack;
     static constexpr index_t ScaleGranularityK = Problem::ScaleGranularityK;
 
-    static constexpr index_t AK1 = Problem::VectorLoadSize / sizeof(ADataType) * APackedSize;
-    static constexpr index_t BK1 = Problem::VectorLoadSize / sizeof(BDataType) * BPackedSize;
+    static constexpr index_t AK1 = Problem::VectorLoadSize / sizeof(ADataType) * APackedSize; // 16 / 1 = 16
+    static constexpr index_t BK1 = Problem::VectorLoadSize / sizeof(BDataType) * BPackedSize; // 16 / 1 * 2 = 32
 
     static constexpr index_t m_preload = (MIterPerWarp * KIterPerWarp >= DsReadPreload)
                                              ? DsReadPreload
@@ -2612,8 +2612,8 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
 
     static constexpr index_t mfma_per_wg = 1; // 950 only
 
-    static constexpr index_t dsread_per_wg = WG::kM * WG::kK / AK1 / WaveSize;
-    static_assert((WG::kM * WG::kK) % (AK1 * WaveSize) == 0);
+    static constexpr index_t dsread_per_wg = WG::kM * WG::kK / AK1 / WaveSize; // 16 * 128 / 16 / 64 = 2
+    static_assert((WG::kM * WG::kK) % (AK1 * WaveSize) == 0);   // 16 * 128 %  16 * 64
 
     static constexpr index_t dsread_num_perK  = dsread_per_wg * MIterPerWarp;
     static constexpr index_t dswrite_num_perK = dsread_num_perK / NWarp;
@@ -2982,7 +2982,7 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
                                  a_copy_dram_window_tmp.get_bottom_tensor_view()),
                              a_copy_dram_window_tmp.get_window_lengths(),
                              a_copy_dram_window_tmp.get_window_origin(),
-                             PipelinePolicy::template MakeMXFP4_ADramTileDistribution<Problem>());
+                             PipelinePolicy::template MakeADramTileDistribution<Problem>());
 
         __builtin_amdgcn_sched_barrier(0);
 

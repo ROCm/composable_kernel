@@ -536,19 +536,17 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
     template <typename Problem>
     static inline constexpr auto wg_attr_num_access =
-        std::is_same_v<remove_cvref_t<typename Problem::ADataType>, pk_fp4_t>
-            ? WGAttrNumAccessEnum::Single
-            : WGAttrNumAccessEnum::Double;
+           WGAttrNumAccessEnum::Single;
+    //     std::is_same_v<remove_cvref_t<typename Problem::ADataType>, pk_fp4_t>
+    //         ? WGAttrNumAccessEnum::Single
+    //         : WGAttrNumAccessEnum::Double;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockFlatmm()
     {
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
-        static_assert(
-            sizeof(ADataType) * numeric_traits<BDataType>::PackedSize ==
-                sizeof(BDataType) * numeric_traits<ADataType>::PackedSize,
-            "sizeof(ADataType) / APackedSize must be equal to sizeof(BDataType) / BPackedSize!");
+
         using BlockWarps        = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile          = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm          = WarpGemmDispatcher< //
@@ -634,7 +632,8 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
         constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
 
-        constexpr index_t K2 = GetSmemPackA<Problem>() * APackedSize; // f4=32; f8=16
+        constexpr index_t K2 = MPerBlock == 16 ? GetSmemPackA<Problem>() * APackedSize/ 4:
+	          GetSmemPackA<Problem>() * APackedSize; // f4=32; f8=16
         constexpr index_t K1 = kDramLoadPackBytes * APackedSize / K2; // 8
         constexpr index_t K0 = KPerBlock / (K1 * K2);                 // KPerBlock/256
 

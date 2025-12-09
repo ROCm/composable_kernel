@@ -242,10 +242,13 @@ struct MoeFlatmmKernel
         IsGateUp ? TilePartitioner::NPerBlock / 2 : TilePartitioner::NPerBlock;
 
     // MXF4_Pipeline only has the of scale B and granularityK is 32
-    static constexpr bool AQUANT_Pipeline = std::is_same_v<ADataType, ck_tile::bf8_t> ||
-                                            std::is_same_v<ADataType, ck_tile::fp8_t> ||
-                                            std::is_same_v<ADataType, ck_tile::pk_fp4_t>;
+    static constexpr bool AQUANT_Pipeline = std::is_same_v<ADataType, bf8_t> ||
+                                            std::is_same_v<ADataType, fp8_t> ||
+                                            std::is_same_v<ADataType, pk_fp4_t>;
     static constexpr bool BMXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
+
+    static_assert(AQUANT_Pipeline);
+    static_assert(BMXFP4_Pipeline);
     static constexpr bool MXF8F6F4MFMA    =
 #ifdef __gfx950__
         AQUANT_Pipeline && BMXFP4_Pipeline;
@@ -663,7 +666,7 @@ struct MoeFlatmmKernel
                     number<8>{},
                     number<1>{});
             }
-            else if constexpr(std::is_same_v<ScaleType, e8m0_t>)
+            else if constexpr(std::is_same_v<AScaleType, e8m0_t>)
             {
                 constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(I0);
                 constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I0);
@@ -675,11 +678,11 @@ struct MoeFlatmmKernel
                 const auto scale_a_desc = transform_tensor_descriptor(
                     scale_a_naive_desc,
                     make_tuple(make_merge_transform(make_tuple(scale_m_packs, MThreadPerXdl)),
-                               make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
+                               make_merge_transform(make_tuple(scale_k_packs, KThreadPerXdl))),
                     make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
                 return make_tensor_view<address_space_enum::global>(
-                    reinterpret_cast<const int32_t*>(scale_a.ptr), scale_a_desc);
+                    reinterpret_cast<const int32_t*>(scale_m_desc.ptr), scale_a_desc);
             }
         }();
 
@@ -694,16 +697,16 @@ struct MoeFlatmmKernel
                 index_t scale_n_packs = kargs.N / (MXFP4N_Pack * NThreadPerXdl);
                 index_t scale_k_packs = kargs.K / (MXFP4K_Pack * BGranularityK * KThreadPerXdl);
                 const auto scale_b_navie_desc = make_naive_tensor_descriptor_packed(
-                    make_tuple(scale_packs_n, scale_packs_k, KThreadPerXdl, NThreadPerXdl));
+                    make_tuple(scale_n_packs, scale_k_packs, KThreadPerXdl, NThreadPerXdl));
                 const auto scale_b_desc = transform_tensor_descriptor(
                     scale_b_navie_desc,
-                    make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
-                               make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
+                    make_tuple(make_merge_transform(make_tuple(scale_n_packs, NThreadPerXdl)),
+                               make_merge_transform(make_tuple(scale_k_packs, KThreadPerXdl))),
                     make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 return make_tensor_view<address_space_enum::global>(
-                    reinterpret_cast<const int32_t*>(scale_b.ptr), scale_b_desc);
+                    reinterpret_cast<const int32_t*>(scale_n.ptr), scale_b_desc);
 
             }
             else
@@ -827,7 +830,7 @@ struct MoeFlatmmKernel
             make_tile_window(views.at(I3),
                 make_tuple(number<TilePartitioner::MPerBlock / M_Pack>{},
                            number<TilePartitioner::KPerBlock / (GranularityK * K_Pack)>{}),
-                {i_m / M_Pack, 0});
+                {coord_m / M_Pack, 0});
 
         // constexpr int GranularityK = 32; // fixed config for MXF4_Pipeline
         constexpr int XDLPerLoadScaleB =
