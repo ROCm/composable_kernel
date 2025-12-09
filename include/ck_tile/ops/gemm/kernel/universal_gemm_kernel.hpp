@@ -325,9 +325,15 @@ struct UniversalGemmKernel
     {
         __device__ SplitKBatchOffset(const KernelArgs& kargs, const std::size_t k_id = blockIdx.z)
         {
-            constexpr auto K1   = GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{});
+            constexpr auto K1   = TilePartitioner::KPerBlock;
             const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
             const index_t KRead = amd_wave_read_first_lane((kargs.K + K_t - 1) / K_t * K1);
+
+            // If the grid is smaller than splitk, reduce splitk to avoid out-of-bounds access.
+            // The current splitk implementation shifts pointers instead of iterating descriptors,
+            // which can trigger invalid memory access but is kept for performance.
+            const index_t effective_kbatch =
+                min(kargs.k_batch, integer_divide_ceil(kargs.K, KRead));
 
             static_for<0, NumATensor, 1>{}([&](auto index) {
                 using AiLayout = remove_cvref_t<std::tuple_element_t<index.value, AsLayout>>;
@@ -355,13 +361,17 @@ struct UniversalGemmKernel
                 }
             });
 
-            if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
+            if(k_id < static_cast<uint32_t>(effective_kbatch - 1))
             {
                 splitted_k = amd_wave_read_first_lane(KRead);
             }
+            else if(k_id == static_cast<uint32_t>(effective_kbatch - 1))
+            {
+                splitted_k = amd_wave_read_first_lane(kargs.K - KRead * (effective_kbatch - 1));
+            }
             else
             {
-                splitted_k = amd_wave_read_first_lane(kargs.K - KRead * (kargs.k_batch - 1));
+                splitted_k = 0;
             }
         }
 
