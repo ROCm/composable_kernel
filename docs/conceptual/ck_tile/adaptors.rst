@@ -6,18 +6,31 @@ Tensor Adaptors - Chaining Transformations
 Overview
 --------
 
-While individual :ref:`transforms <ck_tile_transforms>` are effective, TensorAdaptors enable the chaining of multiple transforms together to create complex coordinate transformations. Adaptors serve as transformation pipelines that can reshape, reorder, and restructure tensors.
+While individual :ref:`transforms <ck_tile_transforms>` are effective [TODO: at what?], TensorAdaptors enable the chaining of multiple transforms together to create complex coordinate transformations. Adaptors serve as transformation pipelines that can reshape, reorder, and restructure tensors.
 
-TensorAdaptors serve as the bridge between individual transforms and the high-level tensor operations used in real applications. They provide a composable abstraction that allows developers to build complex data access patterns from simple building blocks.
+[TODO: need to clarify what the concept name is (adaptor? tensor adaptor?) and what the class name is (tensor_adaptor, I think?)]
 
-TensorAdaptor Basics
---------------------
+A TensorAdaptor encapsulates a sequence of :ref:`coordinate transformations <ck_tile_coordinate_systems>`, managing the flow of coordinates through multiple transform stages.
 
-A TensorAdaptor encapsulates a sequence of :ref:`coordinate transformations <ck_tile_coordinate_systems>`, managing the flow of coordinates through multiple transform stages:
+Custom adaptors can be created by specifying the transforms to use and how they connect. Existing adaptors can be extended with new transforms using ``transform_tensor_adaptor`` [TODO: this feels like an implementation detail more suited to reference or how to]. 
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
+For example, the transpose adaptor reorders tensor dimensions according to a permutation pattern. This operation forms the basis for many tensor manipulations in GPU kernels.
+
+Each TensorAdaptor contains: [TODO: what does this mean? are these operations? functions in the class? what does it mean that they contain these things?]
+
+- ``transforms``: List of individual :ref:`transforms <ck_tile_transforms>` to apply
+- ``lower_dimension_hidden_idss``: Mappings between transform stages [TODO: why hidden tho?]
+- ``upper_dimension_hidden_idss``: Hidden dimension mappings for internal stages [TODO: what's meant by internal?]
+- ``bottom_dimension_hidden_ids``: Input dimension identifiers
+- ``top_dimension_hidden_ids``: Output dimension identifiers
+
+[TODO: this all needs more explanation, specifically re. what is meant by hidden, internal, and identifiers. These terms need to either be defined or explained long form]
+
+The most important method of a TensorAdaptor is ``calculate_bottom_index``, which calculates the lower index from the upper index by applying transforms in reverse order. [TODO: why is this the most important method?]
+
+[TODO: ``calculate_bottom_index`` isn't even in the list above. Is it not meant to be in that list or was it omitted by accident?]
+
+[TODO: move the code to the reference section after providing more details about it]
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -55,26 +68,13 @@ A TensorAdaptor encapsulates a sequence of :ref:`coordinate transformations <ck_
 .. image:: diagrams/adaptors_1.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/adaptors_1.svg
-   :alt: Diagram
-   :align: center
-Core Components
-~~~~~~~~~~~~~~~
 
-Each TensorAdaptor contains:
 
-- ``transforms``: List of individual :ref:`transforms <ck_tile_transforms>` to apply
-- ``lower_dimension_hidden_idss``: Mappings between transform stages
-- ``upper_dimension_hidden_idss``: Hidden dimension mappings for internal stages
-- ``bottom_dimension_hidden_ids``: Input dimension identifiers
-- ``top_dimension_hidden_ids``: Output dimension identifiers
-
-The most important method of a TensorAdaptor is ``calculate_bottom_index``, which calculates the lower index from the upper index by applying transforms in reverse order.
 
 Transpose Adaptor: Dimension Reordering
 ---------------------------------------
 
-The transpose adaptor reorders tensor dimensions according to a permutation pattern. This operation forms the basis for many tensor manipulations in GPU kernels.
+
 
 .. code-block:: cpp
 
@@ -98,7 +98,7 @@ The transpose adaptor reorders tensor dimensions according to a permutation patt
 Single-Stage Adaptors: Custom Transform Chains
 ----------------------------------------------
 
-Custom adaptors can be created by specifying exactly which transforms to use and how they connect. This provides fine-grained control over the transformation pipeline:
+
 
 .. code-block:: cpp
 
@@ -121,7 +121,6 @@ Custom adaptors can be created by specifying exactly which transforms to use and
 Chaining Adaptors: Building Complex Transformations
 ---------------------------------------------------
 
-Chaining multiple transformations together creates data access patterns:
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -172,9 +171,7 @@ Chaining multiple transformations together creates data access patterns:
 .. image:: diagrams/adaptors_2.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/adaptors_2.svg
-   :alt: Diagram
-   :align: center
+
 .. code-block:: cpp
 
    // Start with a 2D descriptor
@@ -202,7 +199,7 @@ Chaining multiple transformations together creates data access patterns:
 Transform Addition: Extending Existing Adaptors
 -----------------------------------------------
 
-Existing adaptors can be extended with new transforms using ``transform_tensor_adaptor``. This pattern is particularly useful for adding padding or other modifications to existing transformation pipelines:
+
 
 .. code-block:: cpp
 
@@ -232,7 +229,6 @@ Advanced Patterns
 Complex Nested Transforms
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-CK Tile supports complex nested transform patterns that enable advanced data layouts:
 
 .. code-block:: cpp
 
@@ -269,7 +265,6 @@ CK Tile supports complex nested transform patterns that enable advanced data lay
 GPU Memory Layout Example
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A practical example showing how adaptors create efficient :ref:`GPU memory access patterns <ck_tile_gpu_basics>`:
 
 .. code-block:: cpp
 
@@ -310,7 +305,6 @@ A practical example showing how adaptors create efficient :ref:`GPU memory acces
 Common Transform Chains
 -----------------------
 
-CK Tile provides several common transform chain patterns used throughout GPU kernels:
 
 Padding for Convolution
 ~~~~~~~~~~~~~~~~~~~~~~~~
