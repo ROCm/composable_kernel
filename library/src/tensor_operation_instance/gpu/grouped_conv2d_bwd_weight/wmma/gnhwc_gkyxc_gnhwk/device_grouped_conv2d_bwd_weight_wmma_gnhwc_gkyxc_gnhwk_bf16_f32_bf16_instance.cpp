@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_wmma_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_wmma_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -25,7 +25,7 @@ void add_device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_i
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_wmma_c_shuffle_bf16_f32_bf16_instances<
+        device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_f32_bf16_instances<
             2,
             GNHWC,
             GKYXC,
@@ -35,7 +35,7 @@ void add_device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_i
     // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_wmma_c_shuffle_bf16_f32_bf16_instances<
+        device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_f32_bf16_instances<
             2,
             GNHWC,
             GKYXC,

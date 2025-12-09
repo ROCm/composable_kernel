@@ -51,30 +51,6 @@ void add_device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_f16_instances(
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_f16_default_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           GNHWC,
-                                                           GKYXC,
-                                                           GNHWK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_f16_pad0_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           GNHWC,
-                                                           GKYXC,
-                                                           GNHWK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
 void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
@@ -87,55 +63,7 @@ void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_instances(
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_default_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_pad0_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
 void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_pipev1_part2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_pipev1_irregular_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
                                                            GKYXC,
@@ -160,18 +88,6 @@ void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkyxc_ngkhw_f16_p
                                                            PassThrough>>>& instances);
 
 void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkcyx_ngkhw_f16_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NGCHW,
-                                                           GKCYX,
-                                                           NGKHW,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkcyx_ngkhw_f16_pipev1_part2_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NGCHW,
                                                            GKCYX,
@@ -221,55 +137,7 @@ void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_instances(
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_default_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_pad0_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
 void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_bf16_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_bf16_pipev1_part2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_bf16_pipev1_irregular_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
                                                            GKYXC,
@@ -328,18 +196,6 @@ void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkcyx_ngkhw_bf16_
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkcyx_ngkhw_bf16_pipev1_part2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NGCHW,
-                                                           GKCYX,
-                                                           NGKHW,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
 #endif
 
 // conv3d backward weight
@@ -368,55 +224,7 @@ void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_instance
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_default_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_pad0_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
 void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_f16_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_f16_pipev1_part2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_f16_pipev1_irregular_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
                                                            GKZYXC,
@@ -441,18 +249,6 @@ void add_device_grouped_conv3d_bwd_weight_wmma_ngcdhw_gkczyx_ngkdhw_f16_instance
                                                            PassThrough>>>& instances);
 
 void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkczyx_ngkdhw_f16_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NGCDHW,
-                                                           GKCZYX,
-                                                           NGKDHW,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkczyx_ngkdhw_f16_pipev1_part2_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NGCDHW,
                                                            GKCZYX,
@@ -501,55 +297,7 @@ void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_instanc
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_default_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pad0_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
 void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pipev1_part2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pipev1_irregular_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
                                                            GKZYXC,
@@ -586,18 +334,6 @@ void add_device_grouped_conv3d_bwd_weight_wmma_ngcdhw_gkczyx_ngkdhw_bf16_instanc
                                                            PassThrough>>>& instances);
 
 void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkczyx_ngkdhw_bf16_pipev1_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NGCDHW,
-                                                           GKCZYX,
-                                                           NGKDHW,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkczyx_ngkdhw_bf16_pipev1_part2_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NGCDHW,
                                                            GKCZYX,

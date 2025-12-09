@@ -23,20 +23,13 @@ void add_device_grouped_conv3d_bwd_weight_wmma_ngcdhw_gkczyx_ngkdhw_bf16_instanc
                                                            PassThrough>>>& instances)
 {
     // 1. Default
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_instances <
-                                       3,
-                                   NGCDHW,
-                                   GKCZYX,
-                                   NGKDHW,
-                                   ConvBwdWeightDefault>{});
-    // add_device_operation_instances(instances,
-    //                                device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_instances <
-    //                                    3,
-    //                                NGCDHW,
-    //                                GKCZYX,
-    //                                NGKDHW,
-    //                                ConvBwdWeightDefault);
+    add_device_operation_instances(
+        instances,
+        device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_instances<3,
+                                                                        NGCDHW,
+                                                                        GKCZYX,
+                                                                        NGKDHW,
+                                                                        ConvBwdWeightDefault>{});
 }
 
 } // namespace instance

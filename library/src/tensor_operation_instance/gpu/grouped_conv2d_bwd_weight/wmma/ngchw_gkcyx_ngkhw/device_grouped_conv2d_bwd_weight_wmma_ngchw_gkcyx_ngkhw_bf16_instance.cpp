@@ -30,15 +30,6 @@ void add_device_grouped_conv2d_bwd_weight_wmma_ngchw_gkcyx_ngkhw_bf16_instances(
                                                                         GKCYX,
                                                                         NGKHW,
                                                                         ConvBwdWeightDefault>{});
-    // add_device_operation_instances(
-    //     instances,
-    //     device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_instances<2,
-    //                                                                    NGCHW,
-    //                                                                    GKCYX,
-    //                                                                    NGKHW,
-    //                                                                    ConvBwdWeightDefault,
-    //                                                                    4,
-    //                                                                    4>{});
 }
 
 } // namespace instance
