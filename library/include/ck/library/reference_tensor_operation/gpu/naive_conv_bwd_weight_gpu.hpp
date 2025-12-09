@@ -7,7 +7,6 @@
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
-#include "ck/library/reference_tensor_operation/gpu/conv_common.hpp"
 #include "ck/library/reference_tensor_operation/gpu/pack_unpack_kernels.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"

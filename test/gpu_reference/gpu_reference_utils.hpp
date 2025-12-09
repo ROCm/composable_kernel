@@ -20,13 +20,25 @@
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data_gpu.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_weight_gpu.hpp"
-#include "ck/library/reference_tensor_operation/gpu/conv_common.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 #include "common_test_params.hpp"
 
 namespace ck {
 namespace test {
+
+// Dimension structure for test utilities
+// K and C are PER-GROUP dimensions (not total)
+struct ConvDims
+{
+    index_t N, K, C, G;
+    index_t Di, Hi, Wi;
+    index_t Z, Y, X;
+    index_t Do, Ho, Wo;
+    index_t stride_z, stride_y, stride_x;
+    index_t dilation_z, dilation_y, dilation_x;
+    index_t pad_z, pad_y, pad_x;
+};
 
 enum class ConvKernelType
 {
@@ -57,7 +69,7 @@ bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
                         DeviceMem& input_dev,
                         DeviceMem& weight_dev,
                         DeviceMem& output_dev,
-                        const ref::ConvDims& dims)
+                        const ConvDims& dims)
 {
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
@@ -201,7 +213,7 @@ bool test_conv_bwd_data_impl(const ConvParams<NDimSpatial>& params,
                              DeviceMem& weight_dev,
                              DeviceMem& output_dev,
                              DeviceMem& input_dev,
-                             const ref::ConvDims& dims)
+                             const ConvDims& dims)
 {
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
@@ -345,7 +357,7 @@ bool test_conv_bwd_weight_impl(const ConvParams<NDimSpatial>& params,
                                DeviceMem& input_dev,
                                DeviceMem& output_dev,
                                DeviceMem& weight_dev,
-                               const ref::ConvDims& dims)
+                               const ConvDims& dims)
 {
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
@@ -590,7 +602,7 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
 
     // Create ConvDims structure for kernels
     // IMPORTANT: Use per-group semantics (matching CPU reference)
-    ref::ConvDims dims;
+    ConvDims dims;
     dims.N          = N;
     dims.K          = K / G; // Per-group K
     dims.C          = C / G; // Per-group C
