@@ -260,7 +260,7 @@ bool profile_gemm_bias_add_reduce_impl(int do_verification,
             std::size_t flop = std::size_t(2) * M * N * K + std::size_t(2) * M * N;
 
             std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
-                                   sizeof(CDataType) * M * N + sizeof(BiasDataType) * M * N +
+                                   sizeof(CDataType) * M * N + sizeof(BiasDataType) * N +
                                    sizeof(D0DataType) * M * N + sizeof(ReduceDataType) * M +
                                    sizeof(ReduceDataType) * M;
 
