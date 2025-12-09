@@ -98,8 +98,6 @@ struct BuildKernel
                                      GemmShape,
                                      GemmUniversalTraits,
                                      ConvConfig::Scheduler,
-                                     true, // has_hot_loop
-                                     TailNumber::Seven,
                                      element_wise::PassThrough,
                                      element_wise::PassThrough,
                                      PrecType,
