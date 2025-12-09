@@ -5,8 +5,7 @@ Tensor Views - Multi-Dimensional Structure
 
 [TO DO: add information about how tensor view and buffer view differ/are similar, when each should be used, etc]
 
-Overview
---------
+Tensor views are used to 
 
 While :ref:`BufferView <ck_tile_buffer_views>` provides the foundation for raw memory access, TensorView elevates this abstraction by adding multi-dimensional structure to flat memory regions. This abstraction bridges the gap between how developers conceptualize data—as matrices, tensors, and higher-dimensional structures—and how that data is physically stored in linear memory. TensorView enables coordinate-based access patterns that match the natural structure of algorithms while maintaining the performance characteristics necessary for efficient GPU computation.
 

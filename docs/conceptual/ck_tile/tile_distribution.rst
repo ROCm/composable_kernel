@@ -3,12 +3,19 @@
 Tile Distribution - The Core API
 ================================
 
-Overview
---------
 
-TileDistribution is a compile-time abstraction that transforms how developers approach parallel programming on GPUs. Rather than requiring programmers to manually orchestrate the complex choreography of thread coordination, memory access patterns, and data distribution, TileDistribution provides a mathematical framework that automatically maps logical computational coordinates to physical processing resources. This abstraction elevates the level of abstraction while maintaining—and often improving—the performance characteristics of hand-optimized code.
+[TODO: it seems that the documentation is a bit disjoint. I feel like there needs to be an overarching section that explains what everythin and how it fits together.]
+[TODO: the tuple/sequence needs to be explained. The high level needs to be connected to the tuple/sequence format]
 
-The tile distribution in CK uses a :ref:`coordinate transformation system <ck_tile_coordinate_systems>` that bridges multiple abstract spaces. This system orchestrates the interaction between four primary coordinate dimensions, each serving a distinct purpose in the overall computation model. The X dimensions represent the physical tensor coordinates, capturing the actual layout of data in memory. The Y dimensions encode the tile access patterns, defining how threads traverse their assigned data. The P dimensions map to processing elements, representing the hierarchical organization of threads, warps, and blocks in the :ref:`GPU's thread model <ck_tile_gpu_basics>`. Additionally, the optional R dimensions enable replication strategies for algorithms that benefit from redundant computation to reduce communication overhead.
+TileDistribution provides a mathematical framework for automatically mapping logical computational coordinates to physical processing resources. 
+
+The tile distribution in CK uses a :ref:`coordinate transformation system <ck_tile_coordinate_systems>` composed of four primary [TODO: what's meant by primary?] dimensions, X, Y, P, and R, where X is the physical tensor coordinate, Y is the tile access pattern, P is the processing elements, and R is the replication strategy.
+
+The X dimension encodes the layout of data in memory. The Y dimension defines the order in which threads process their assigned data. The P dimension encodes the hierarchial [TODO: not sure if this is right; I'm guessing based on my understanding and the original sentence]
+
+[TODO: I'm actually having a real hard time editing this. There isn't enough information -- granular information -- to get something that maps from the theoretical to the practical.]
+
+The X dimensions represent the physical tensor coordinates, capturing the actual layout of data in memory. The Y dimensions encode the tile access patterns, defining how threads traverse their assigned data. The P dimensions map to processing elements, representing the hierarchical organization of threads, warps, and blocks in the :ref:`GPU's thread model <ck_tile_gpu_basics>`. Additionally, the optional R dimensions enable replication strategies for algorithms that benefit from redundant computation to reduce communication overhead.
 
 This multi-dimensional mapping framework enables CK to express arbitrarily complex data access patterns through a mathematically rigorous formalism. This approach addresses how traditional GPU programming requires developers to manually calculate memory addresses, ensure coalescing constraints, :ref:`avoid bank conflicts <ck_tile_lds_bank_conflicts>`, and manage the intricate dance of thread cooperation. TileDistribution encapsulates all these concerns within a unified abstraction that can be analyzed, optimized, and verified at compile time.
 
