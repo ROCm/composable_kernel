@@ -132,6 +132,7 @@ enum class MoeFlatmmKind
     kFFN_gemm1_gate_only,
     kFFN_gemm1_gate_up,
     kFFN_gemm2,
+    kFFN_gemm1_split_k
 };
 
 namespace moe {
@@ -223,6 +224,8 @@ struct MoeFlatmmKernel
 
     static constexpr bool IsInputGemm = kind != MoeFlatmmKind::kFFN_gemm2;
     static constexpr bool IsGateUp    = kind == MoeFlatmmKind::kFFN_gemm1_gate_up;
+    static constexpr bool IsGemm1SplitK   = kind == MoeFlatmmKind::kFFN_gemm1_split_k;
+    static constexpr bool IsBShuffled = true;
 
     // static constexpr index_t kBlockSize     = EpiloguePipeline::kBlockSize;
     static constexpr index_t kMPerBlock     = EpiloguePipeline::kMPerBlock;
@@ -242,6 +245,7 @@ struct MoeFlatmmKernel
 
     // MXF4_Pipeline only has the of scale B and granularityK is 32
     static constexpr bool MXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
+    using ScaleType = std::conditional_t<MXFP4_Pipeline, e8m0_t, float>;
     static constexpr int MXFP4N_Pack     = 2;
     static constexpr int MXFP4K_Pack     = 2;
 
@@ -382,15 +386,6 @@ struct MoeFlatmmKernel
                 a_k_split_offset = k_id * KRead * kargs.stride_A;
             }
 
-            if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
-            {
-                b_k_split_offset = k_id * KRead * kargs.stride_B;
-            }
-            else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
-            {
-                b_k_split_offset = k_id * KRead;
-            }
-
             if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
             {
                 splitted_k = KRead;
@@ -398,6 +393,28 @@ struct MoeFlatmmKernel
             else
             {
                 splitted_k = kargs.K - KRead * (kargs.k_batch - 1);
+            }
+
+            if constexpr(IsBShuffled)
+            {
+                b_k_split_offset = k_id * splitted_k * NPerXdl;
+            }
+            else
+            {
+                if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+                {
+                    b_k_split_offset = k_id * KRead * kargs.stride_B;
+                }
+                else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+                {
+                    b_k_split_offset = k_id * KRead;
+                }
+            }
+
+            if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
+            {
+                printf("SplitKBatchOffset: k_id=%zu, a_k_split_offset=%ld, b_k_split_offset=%ld, splitted_k=%ld\n",
+                       k_id, a_k_split_offset, b_k_split_offset, splitted_k);
             }
         }
 
@@ -560,12 +577,13 @@ struct MoeFlatmmKernel
         return DTesnorIsValid;
     }
 
-    template <memory_operation_enum DstInMemOp = IsInputGemm ? memory_operation_enum::set
+    template <memory_operation_enum DstInMemOp = (IsInputGemm && !IsGemm1SplitK) ? memory_operation_enum::set
                                                              : memory_operation_enum::atomic_add,
               typename KernelArgs>
     CK_TILE_DEVICE static auto
     MakeGemmTensorViews(const ADataType* a_ptr,
                         const BDataType* b_flat_ptr,
+                        const ScaleType* b_scale_ptr,
                         EDataType* e_ptr,
                         [[maybe_unused]] const AccDataType* exp_weight_ptr,
                         const int expert_id,
@@ -638,10 +656,9 @@ struct MoeFlatmmKernel
         index_t FlatScaleK = scale_k * N_Pack * BlockGemmShape::WarpTile::at(I1);
         index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
 
-        using ScaleType = std::conditional_t<MXFP4_Pipeline, e8m0_t, float>;
 
         const auto scale_b_flat_view = make_naive_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const ScaleType*>(scale_n.ptr) + expert_id * kargs.N * scale_k,
+            b_scale_ptr,
             make_tuple(FlatScaleN - kargs.n_padded_zeros / NPerXdl / N_Pack, FlatScaleK),
             make_tuple(FlatScaleK, 1),
             number<8>{},
@@ -822,13 +839,23 @@ struct MoeFlatmmKernel
         const BDataType* b_flat_ptr =
             static_cast<const BDataType*>(kargs.b_ptr) +
             (splitk_batch_offset.b_k_split_offset + expert_stride * expert_id) / WeightPackedSize;
+
+        auto scale_n               = kargs.scale_n;
+        constexpr int GranularityK = decltype(scale_n)::GranularityK;
+        index_t scale_k    = GranularityK == 0 ? 1 : (kargs.K + GranularityK - 1) / GranularityK;
+
+        const auto scale_k_offset = (splitk_batch_offset.b_k_split_offset / GranularityK) * (MXFP4_Pipeline? N_Pack : 1);
+        const ScaleType* b_flat_scale_ptr =
+            reinterpret_cast<const ScaleType*>(scale_n.ptr) + scale_k_offset
+             + expert_id * kargs.N * scale_k;
+
         EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
 
         const AccDataType* exp_weight_ptr =
             static_cast<const AccDataType*>(kargs.p_sorted_expert_weights);
 
         const auto& gemm_tensor_views_tuple = MakeGemmTensorViews(
-            a_ptr, b_flat_ptr, e_ptr, exp_weight_ptr, expert_id, kargs, splitk_batch_offset);
+            a_ptr, b_flat_ptr, b_flat_scale_ptr, e_ptr, exp_weight_ptr, expert_id, kargs, splitk_batch_offset);
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
 
         auto gemm_tile_windows = MakeGemmTileWindows(gemm_pad_views, coord_m, coord_n);
@@ -1239,7 +1266,7 @@ struct MoeFlatmmKernel
                             lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
                         if constexpr(!IsInputGemm)
                             lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
-                        else // for mlp1 gate-only
+                        if constexpr(kind == MoeFlatmmKind::kFFN_gemm1_gate_only)// for mlp1 gate-only
                             lds_tile[lds_stage].get_thread_buffer()[idx] =
                                 ActivationOp{}(lds_tile[lds_stage].get_thread_buffer()[idx]);
                     });

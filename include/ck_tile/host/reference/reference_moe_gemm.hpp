@@ -249,7 +249,7 @@ template <typename ADataType,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC,
-          int MoeGemmKind       = 0, // 0: gemm1_gate_only, 1: gemm1_gate_up, 2: gemm2
+          int MoeGemmKind       = 0, // 0: gemm1_gate_only, 1: gemm1_gate_up, 2: gemm2, 3:gemm1_split_k
           typename ActivationOp = identity>
 void reference_moe_gemm_gpu(const index_t* p_sorted_token_ids_,
                             const index_t* p_sorted_expert_ids_,
