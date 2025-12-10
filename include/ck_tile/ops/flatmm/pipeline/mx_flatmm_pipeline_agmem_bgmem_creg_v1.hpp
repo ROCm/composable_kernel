@@ -470,11 +470,6 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         // __builtin_amdgcn_sched_barrier(0);
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto GetADramTileDistribution()
-    {
-        return PipelinePolicy::template MakeADramTileDistribution<Problem>();
-    }
-
     template <typename... Args>
     CK_TILE_DEVICE auto operator()(Args&&... args) const
     {
