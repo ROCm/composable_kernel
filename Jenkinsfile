@@ -630,7 +630,7 @@ def cmake_build(Map conf=[:]){
                 echo "=== MAKING SCRIPTS EXECUTABLE ==="
                 chmod +x ../script/monitor_sccache_during_build.sh
                 
-                echo "=== SETTING UP DEBUG ENVIRONMENT ==="
+                echo "=== SCCACHE DEBUG ENVIRONMENT ==="
                 mkdir -p logs
                 export CK_SCCACHE="${env.CK_SCCACHE}"
                 export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
@@ -638,12 +638,13 @@ def cmake_build(Map conf=[:]){
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
                 export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
-                
-                echo "Environment for debug scripts:"
-                echo "CK_SCCACHE: \$CK_SCCACHE"
-                echo "SCCACHE_REDIS: \$SCCACHE_REDIS"
-                echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \$SCCACHE_C_CUSTOM_CACHE_BUSTER"
-                echo "JENKINS_STAGE_NAME: \$JENKINS_STAGE_NAME"
+                echo "WORKSPACE: ${WORKSPACE}"
+                echo "Compiler: $(which clang || echo 'not found')"
+                echo "Build directory: $(pwd)"
+                echo "CMake build path: $(grep CMAKE_BINARY_DIR CMakeCache.txt 2>/dev/null || echo 'not found')"
+                echo "CMake source path: $(grep CMAKE_SOURCE_DIR CMakeCache.txt 2>/dev/null || echo 'not found')"
+                echo "Environment variables affecting cache:"
+                env | grep -E 'SCCACHE|PWD|WORKSPACE|CACHE_BUSTER'
                 
                 echo "=== STARTING CONTINUOUS MONITORING ==="
                 ../script/monitor_sccache_during_build.sh build_monitor &
@@ -657,19 +658,8 @@ def cmake_build(Map conf=[:]){
 
         // Get sccache environment info
         sh """
-                echo "=== SCCACHE DEBUG ENVIRONMENT ==="
-                echo "WORKSPACE: \${WORKSPACE:-unset}"
-                echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \${SCCACHE_C_CUSTOM_CACHE_BUSTER:-unset}"
-                echo "SCCACHE_REDIS: \${SCCACHE_REDIS:-unset}"
-                echo "SCCACHE_EXTRAFILES: \${SCCACHE_EXTRAFILES:-unset}"
-                echo "Compiler: $(which clang || echo 'not found')"
-                echo "Build directory: $(pwd)"
-                echo "Source directory: $(dirname "$0")"
-                echo "CMake build path: $(grep CMAKE_BINARY_DIR CMakeCache.txt 2>/dev/null || echo 'not found')"
-                echo "CMake source path: $(grep CMAKE_SOURCE_DIR CMakeCache.txt 2>/dev/null || echo 'not found')"
-                echo "Environment variables affecting cache:"
-                env | grep -E 'SCCACHE|PWD|WORKSPACE|CACHE_BUSTER'
-            """
+            
+        """
 
         try {
             //build CK
