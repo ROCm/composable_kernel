@@ -1262,10 +1262,13 @@ struct MoeFlatmmKernel
                         if constexpr(!MXFP4_Pipeline)
                             lds_tile[lds_stage].get_thread_buffer()[idx] *=
                                 epi_scale_m[idx] * epi_scale_n[idx];
-                        if constexpr(EnableBias)
-                            lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
-                        if constexpr(!IsInputGemm)
-                            lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
+                        if (kind != MoeFlatmmKind::kFFN_gemm1_split_k) // disable weight and bias for split-k
+                        {
+                            if constexpr(EnableBias)
+                                lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
+                            if constexpr(!IsInputGemm)
+                                lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
+                        }
                         if constexpr(kind == MoeFlatmmKind::kFFN_gemm1_gate_only)// for mlp1 gate-only
                             lds_tile[lds_stage].get_thread_buffer()[idx] =
                                 ActivationOp{}(lds_tile[lds_stage].get_thread_buffer()[idx]);
