@@ -42,8 +42,7 @@ TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddM)
     this->Run();
 }
 
-// NOTE: Disabled as not supported for B1 ColMajor
-TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, DISABLED_Test_OddN)
+TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddN)
 {
     this->lengths_ = std::vector<std::vector<int>>{
         {128, 129, 32, 128, 1},
@@ -51,8 +50,7 @@ TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, DISABLED_Test_OddN)
     this->Run();
 }
 
-// NOTE: Disabled as no instances added for small transfer vector sizes
-TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, DISABLED_Test_OddK)
+TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddK)
 {
     this->lengths_ = std::vector<std::vector<int>>{
         {128, 128, 33, 128, 1},
@@ -61,8 +59,7 @@ TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, DISABLED_Test_OddK)
     this->Run();
 }
 
-// If kernel B1Layout is RowMajor, expect not to support odd O size
-TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, DISABLED_Test_OddO)
+TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddO)
 {
     this->lengths_ = std::vector<std::vector<int>>{
         {128, 128, 32, 129, 1},
