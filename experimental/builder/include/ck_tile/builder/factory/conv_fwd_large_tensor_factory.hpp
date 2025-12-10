@@ -8,12 +8,12 @@
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_limits.hpp"
 #include "ck_tile/builder/builder_utils.hpp"
-#include "ck_tile/builder/factory/helpers/conv_tensor_layout.hpp"
-#include "ck_tile/builder/factory/helpers/conv_tensor_type.hpp"
-#include "ck_tile/builder/factory/helpers/conv_elementwise_op.hpp"
-#include "ck_tile/builder/factory/helpers/conv_tuning_params.hpp"
-#include "ck_tile/builder/factory/helpers/conv_block_transfer.hpp"
-#include "ck_tile/builder/factory/helpers/conv_thread_block.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tuning_params.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_block_transfer.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_thread_block.hpp"
 
 namespace ck_tile::builder::factory {
 

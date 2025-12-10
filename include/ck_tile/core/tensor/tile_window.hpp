@@ -1263,7 +1263,9 @@ struct tile_window_with_static_lengths
     }
 };
 
-template <typename TensorView_, typename WindowLengths_>
+template <typename TensorView_,
+          typename WindowLengths_,
+          typename = std::enable_if_t<is_tensor_view_v<TensorView_>>>
 CK_TILE_DEVICE constexpr auto
 make_tile_window(const TensorView_& tensor_view,
                  const WindowLengths_& window_lengths,
@@ -1310,7 +1312,10 @@ make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths
                             tile_distribution);
 }
 
-template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
+template <typename TensorView,
+          typename WindowLengths,
+          typename StaticTileDistribution,
+          typename = std::enable_if_t<is_tile_distribution_v<StaticTileDistribution>>>
 CK_TILE_DEVICE constexpr auto
 make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
                  const StaticTileDistribution& tile_distribution,

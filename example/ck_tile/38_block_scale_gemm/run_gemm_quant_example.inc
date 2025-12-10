@@ -69,7 +69,12 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     using BaseGemmPipeline = std::conditional_t<
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-        ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+        std::conditional_t<
+            QuantMode == ck_tile::QuantType::AQuantGrouped && GemmConfig::PreshuffleQuant == true,
+            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+            std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
+                               ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
+                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -128,7 +133,9 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
             std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
-                ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                std::conditional_t<GemmConfig::PreshuffleQuant == true,
+                                   ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                                   ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>>,
                 std::conditional_t<GemmConfig::PreshuffleB == true,
                                    ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
@@ -433,7 +440,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
         stride_AQ = 0; // No A quantization
-        stride_BQ = ck_tile::get_default_stride(BQK, N, stride_BQ, is_row_major(bq_layout));
+        stride_BQ = ck_tile::get_default_stride(BQK, BQN, stride_BQ, is_row_major(bq_layout));
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
     {
