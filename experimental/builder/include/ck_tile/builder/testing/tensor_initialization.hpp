@@ -20,7 +20,7 @@
 namespace ck_tile::builder::test {
 
 template <DataType DT>
-void init_tensor_buffer_uniform(const DeviceBuffer& buf, const TensorDescriptor<DT>& descriptor, int min_val, int max_val)
+void init_tensor_buffer_uniform_int(const DeviceBuffer& buf, const TensorDescriptor<DT>& descriptor, int min_val, int max_val)
 {
     size_t size = descriptor.get_element_space_size_in_bytes();
 
@@ -50,7 +50,7 @@ void init_tensor_buffer_uniform(const DeviceBuffer& buf, const TensorDescriptor<
 
 
 template <DataType DT>
-void init_tensor_buffer_uniform(const DeviceBuffer& buf, const TensorDescriptor<DT>& descriptor, float min_value, float max_value)
+void init_tensor_buffer_uniform_fp(const DeviceBuffer& buf, const TensorDescriptor<DT>& descriptor, float min_value, float max_value)
 {
     size_t size = descriptor.get_element_space_size_in_bytes();
 
@@ -69,7 +69,7 @@ void init_tensor_buffer_uniform(const DeviceBuffer& buf, const TensorDescriptor<
 
     size_t packed_size = ck::packed_size_v<ck_type>;
     fill_tensor_uniform_rand_fp_values<<<256, 256>>>(
-        static_cast<ck_type*>(buf.get()), min_value, max_value, (size * packed_size) / sizeof(ck_type));
+        reinterpret_cast<ck_type*>(buf.get()), min_value, max_value, (size * packed_size) / sizeof(ck_type));
 }
 
 template <DataType DT>
