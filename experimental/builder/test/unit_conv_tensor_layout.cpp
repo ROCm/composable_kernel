@@ -20,7 +20,6 @@ using ck_tile::builder::test::ConvolutionTensor;
 using ck_tile::builder::test::ConvSignature;
 using ck_tile::builder::test::TensorConfig;
 using ck_tile::builder::test::TensorOperation;
-using ::testing::StaticAssertTypeEq;
 
 namespace enums {
 using enum ck_tile::builder::ConvDirection;
