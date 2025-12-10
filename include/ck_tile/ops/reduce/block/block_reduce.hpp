@@ -394,6 +394,6 @@ struct BlockReduce2D
 
 // deduction guide
 template <typename T>
-BlockReduce2D(const T&, const typename T::DataType&) -> BlockReduce2D<T>;
+CK_TILE_HOST_DEVICE_EXTERN BlockReduce2D(const T&, const typename T::DataType&) -> BlockReduce2D<T>;
 
 } // namespace ck_tile

@@ -297,12 +297,12 @@ struct tile_sweeper
 
 // partial deduction is not allowed
 // template <typename T, typename F, typename U>
-// tile_sweeper(const F&, U = {})->tile_sweeper<T, F, U>;
+// CK_TILE_HOST_DEVICE_EXTERN tile_sweeper(const F&, U = {})->tile_sweeper<T, F, U>;
 
 // deduction guide
 template <typename T,
           typename F,
           typename U = typename uniform_sequence_gen<T::get_num_of_dimension(), 1>::type>
-tile_sweeper(const T&, const F&, U = {}) -> tile_sweeper<T, F, U>;
+CK_TILE_HOST_DEVICE_EXTERN tile_sweeper(const T&, const F&, U = {}) -> tile_sweeper<T, F, U>;
 
 } // namespace ck_tile
