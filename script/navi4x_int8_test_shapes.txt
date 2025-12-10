@@ -1,0 +1,7 @@
+FP16
+data_type   layout   verify   init_method   print  time_kernel   spat_dim   G  N   K   C   Y   X   Hi    Wi    Sy  Sx  Dy  Dx  Left_pad_y Left_pad_x  Right_pad_y   Right_pad_x
+        1        1        0             1       0            1          2   1  1  32  32   3   3  800  1280     1   1   1   1           1          1            1             1
+
+INT8
+data_type   layout   verify   init_method   print  time_kernel   spat_dim   G  N   K   C   Y   X   Hi    Wi    Sy  Sx  Dy  Dx  Left_pad_y Left_pad_x  Right_pad_y   Right_pad_x
+        3        1        0             1       0            1          2   1  1  32  32   3   3  800  1280     1   1   1   1           1          1            1             1
