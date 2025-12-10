@@ -638,7 +638,7 @@ def cmake_build(Map conf=[:]){
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
                 export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
-                echo "WORKSPACE: ${WORKSPACE}"
+                echo "WORKSPACE: \$WORKSPACE"
                 echo "Compiler: $(which clang || echo 'not found')"
                 echo "Build directory: $(pwd)"
                 echo "CMake build path: $(grep CMAKE_BINARY_DIR CMakeCache.txt 2>/dev/null || echo 'not found')"
