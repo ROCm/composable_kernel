@@ -70,6 +70,24 @@ inline bool is_load_tr_supported()
     // Check if load transpose is supported.
     return get_device_name() == "gfx950";
 }
+
+inline size_t get_num_cus()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return 0;
+    }
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return 0;
+    }
+    return static_cast<size_t>(props.multiProcessorCount);
+}
+
 } // namespace ck_tile
 
 #endif
