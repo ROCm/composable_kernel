@@ -9,6 +9,7 @@
 #include "ck_tile/builder/testing/testing.hpp"
 #include "ck_tile/builder/testing/extent.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
+#include "ck_tile/builder/testing/tensor_initialization.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 /// This file implements common functionality for invoking/testing grouped
