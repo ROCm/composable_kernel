@@ -7,11 +7,12 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
-#include "conv_util.hpp"
-#include "device.hpp"
-#include "device_conv_fwd.hpp"
-#include "common_header.hpp"
-#include "naive_conv_fwd_gpu.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/stream_config.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -26,7 +27,16 @@ template <typename InDataType,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
 struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K
-    : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
+    : public DeviceConvFwd<3,
+                           ck::tensor_layout::convolution::NDHWC,
+                           ck::tensor_layout::convolution::KZYXC,
+                           ck::tensor_layout::convolution::NDHWK,
+                           InDataType,
+                           WeiDataType,
+                           OutDataType,
+                           InElementwiseOperation,
+                           WeiElementwiseOperation,
+                           OutElementwiseOperation>
 
 {
     using DeviceOp = DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K;
@@ -57,6 +67,7 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op)
             : params_{3,
+                      1, // G (group count, always 1 for non-grouped)
                       N,
                       K,
                       C,
@@ -78,7 +89,7 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
         }
 
         //  private:
-        utils::conv::ConvParams params_;
+        utils::conv::ConvParam params_;
         std::vector<index_t> out_spatial_lengths_;
 
         const InDataType* p_in_;
@@ -97,46 +108,148 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto naive_conv3d_fwd =
-                ref::naive_conv_fwd_ndhwc_kzyxc_ndhwk<InDataType,
-                                                      WeiDataType,
-                                                      OutDataType,
-                                                      AccDataType,
-                                                      InElementwiseOperation,
-                                                      WeiElementwiseOperation,
-                                                      OutElementwiseOperation>;
+            // Build lengths and strides for the new naive_conv_fwd API
+            index_t G  = arg.params_.G_;
+            index_t N  = arg.params_.N_;
+            index_t C  = arg.params_.C_;
+            index_t K  = arg.params_.K_;
+            index_t Di = arg.params_.input_spatial_lengths_[0];
+            index_t Hi = arg.params_.input_spatial_lengths_[1];
+            index_t Wi = arg.params_.input_spatial_lengths_[2];
+            index_t Z  = arg.params_.filter_spatial_lengths_[0];
+            index_t Y  = arg.params_.filter_spatial_lengths_[1];
+            index_t X  = arg.params_.filter_spatial_lengths_[2];
+            index_t Do = arg.out_spatial_lengths_[0];
+            index_t Ho = arg.out_spatial_lengths_[1];
+            index_t Wo = arg.out_spatial_lengths_[2];
 
-            float ave_time = launch_and_time_kernel(stream_config,
-                                                    naive_conv3d_fwd,
-                                                    dim3(256),
-                                                    dim3(256),
-                                                    0,
-                                                    arg.p_in_,
-                                                    arg.p_wei_,
-                                                    arg.p_out_,
-                                                    arg.N_,
-                                                    arg.K_,
-                                                    arg.C_,
-                                                    arg.in_spatial_lengths_[0],
-                                                    arg.in_spatial_lengths_[1],
-                                                    arg.in_spatial_lengths_[2],
-                                                    arg.filter_spatial_lengths_[0],
-                                                    arg.filter_spatial_lengths_[1],
-                                                    arg.filter_spatial_lengths_[2],
-                                                    arg.out_spatial_lengths_[0],
-                                                    arg.out_spatial_lengths_[1],
-                                                    arg.out_spatial_lengths_[2],
-                                                    arg.conv_filter_strides_[0],
-                                                    arg.conv_filter_strides_[1],
-                                                    arg.conv_filter_strides_[2],
-                                                    arg.conv_filter_dilations_[0],
-                                                    arg.conv_filter_dilations_[1],
-                                                    arg.conv_filter_dilations_[2],
-                                                    arg.in_left_pads_[0],
-                                                    arg.in_left_pads_[1],
-                                                    arg.in_left_pads_[2]);
+            // Input layout: GNCDHW
+            std::vector<index_t> in_lengths = {G, N, C, Di, Hi, Wi};
+            std::vector<index_t> in_strides = {
+                N * C * Di * Hi * Wi, C * Di * Hi * Wi, Di * Hi * Wi, Hi * Wi, Wi, 1};
 
-            return ave_time;
+            // Weight layout: GKCZYX
+            std::vector<index_t> wei_lengths = {G, K, C, Z, Y, X};
+            std::vector<index_t> wei_strides = {
+                K * C * Z * Y * X, C * Z * Y * X, Z * Y * X, Y * X, X, 1};
+
+            // Output layout: GNKDHW
+            std::vector<index_t> out_lengths = {G, N, K, Do, Ho, Wo};
+            std::vector<index_t> out_strides = {
+                N * K * Do * Ho * Wo, K * Do * Ho * Wo, Do * Ho * Wo, Ho * Wo, Wo, 1};
+
+            // Convert long_index_t vectors to index_t
+            std::vector<index_t> conv_strides_vec(arg.params_.conv_filter_strides_.begin(),
+                                                  arg.params_.conv_filter_strides_.end());
+            std::vector<index_t> conv_dilations_vec(arg.params_.conv_filter_dilations_.begin(),
+                                                    arg.params_.conv_filter_dilations_.end());
+            std::vector<index_t> input_pads_vec(arg.params_.input_left_pads_.begin(),
+                                                arg.params_.input_left_pads_.end());
+
+            using InLayout  = ck::tensor_layout::convolution::GNCDHW;
+            using WeiLayout = ck::tensor_layout::convolution::GKCZYX;
+            using OutLayout = ck::tensor_layout::convolution::GNKDHW;
+
+            // Emulate launch_and_time_kernel behavior
+            if(stream_config.time_kernel_)
+            {
+                // Warm up
+                for(int i = 0; i < stream_config.cold_niters_; ++i)
+                {
+                    ref::naive_conv_fwd<InLayout,
+                                        WeiLayout,
+                                        OutLayout,
+                                        InDataType,
+                                        WeiDataType,
+                                        OutDataType,
+                                        InElementwiseOperation,
+                                        WeiElementwiseOperation,
+                                        OutElementwiseOperation>(arg.p_in_,
+                                                                 arg.p_wei_,
+                                                                 arg.p_out_,
+                                                                 in_lengths,
+                                                                 in_strides,
+                                                                 wei_lengths,
+                                                                 wei_strides,
+                                                                 out_lengths,
+                                                                 out_strides,
+                                                                 conv_strides_vec,
+                                                                 conv_dilations_vec,
+                                                                 input_pads_vec,
+                                                                 stream_config.stream_id_);
+                }
+
+                // Timed runs
+                const int nrepeat = stream_config.nrepeat_;
+                hipEvent_t start, stop;
+                hip_check_error(hipEventCreate(&start));
+                hip_check_error(hipEventCreate(&stop));
+
+                hip_check_error(hipDeviceSynchronize());
+                hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+
+                for(int i = 0; i < nrepeat; ++i)
+                {
+                    ref::naive_conv_fwd<InLayout,
+                                        WeiLayout,
+                                        OutLayout,
+                                        InDataType,
+                                        WeiDataType,
+                                        OutDataType,
+                                        InElementwiseOperation,
+                                        WeiElementwiseOperation,
+                                        OutElementwiseOperation>(arg.p_in_,
+                                                                 arg.p_wei_,
+                                                                 arg.p_out_,
+                                                                 in_lengths,
+                                                                 in_strides,
+                                                                 wei_lengths,
+                                                                 wei_strides,
+                                                                 out_lengths,
+                                                                 out_strides,
+                                                                 conv_strides_vec,
+                                                                 conv_dilations_vec,
+                                                                 input_pads_vec,
+                                                                 stream_config.stream_id_);
+                }
+
+                hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
+                hip_check_error(hipEventSynchronize(stop));
+
+                float total_time = 0;
+                hip_check_error(hipEventElapsedTime(&total_time, start, stop));
+
+                hip_check_error(hipEventDestroy(start));
+                hip_check_error(hipEventDestroy(stop));
+
+                return total_time / nrepeat;
+            }
+            else
+            {
+                // No timing, just run once
+                ref::naive_conv_fwd<InLayout,
+                                    WeiLayout,
+                                    OutLayout,
+                                    InDataType,
+                                    WeiDataType,
+                                    OutDataType,
+                                    InElementwiseOperation,
+                                    WeiElementwiseOperation,
+                                    OutElementwiseOperation>(arg.p_in_,
+                                                             arg.p_wei_,
+                                                             arg.p_out_,
+                                                             in_lengths,
+                                                             in_strides,
+                                                             wei_lengths,
+                                                             wei_strides,
+                                                             out_lengths,
+                                                             out_strides,
+                                                             conv_strides_vec,
+                                                             conv_dilations_vec,
+                                                             input_pads_vec,
+                                                             stream_config.stream_id_);
+                return 0;
+            }
         }
 
         // polymorphic
@@ -155,7 +268,9 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        std::vector<index_t> out_spatial_lengths = arg.params_.GetOutputSpatialLengths();
+        auto out_spatial_lengths_long = arg.params_.GetOutputSpatialLengths();
+        std::vector<index_t> out_spatial_lengths(out_spatial_lengths_long.begin(),
+                                                 out_spatial_lengths_long.end());
 
         bool out_lengths_are_consistent = out_spatial_lengths[0] == arg.out_spatial_lengths_[0] &&
                                           out_spatial_lengths[1] == arg.out_spatial_lengths_[1] &&

@@ -283,31 +283,57 @@ bool run_grouped_conv_fwd(int do_verification,
         DeviceMem out_device_ref_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
         out_device_ref_buf.SetZero();
 
-        // Extract dimensions using helper function
-        ck::ref::ConvDims dims = ck::utils::conv::extract_conv_dims(conv_param, NDimSpatial);
+        // Call new GPU reference function with lengths and strides
+        using InLayout  = ck::tensor_layout::convolution::GNCDHW;
+        using WeiLayout = ck::tensor_layout::convolution::GKCZYX;
+        using OutLayout = ck::tensor_layout::convolution::GNKDHW;
 
-        // Launch GPU reference kernel
-        constexpr ck::index_t block_size     = 256;
-        const ck::long_index_t output_length = dims.N * dims.Do * dims.Ho * dims.Wo * dims.K;
-        const ck::index_t grid_size          = (output_length + block_size - 1) / block_size;
+        std::vector<ck::index_t> in_lengths_vec(a_g_n_c_wis_lengths.begin(),
+                                                a_g_n_c_wis_lengths.end());
+        std::vector<ck::index_t> in_strides_vec(a_g_n_c_wis_strides.begin(),
+                                                a_g_n_c_wis_strides.end());
+        std::vector<ck::index_t> wei_lengths_vec(b_g_k_c_xs_lengths.begin(),
+                                                 b_g_k_c_xs_lengths.end());
+        std::vector<ck::index_t> wei_strides_vec(b_g_k_c_xs_strides.begin(),
+                                                 b_g_k_c_xs_strides.end());
+        std::vector<ck::index_t> out_lengths_vec(e_g_n_k_wos_lengths.begin(),
+                                                 e_g_n_k_wos_lengths.end());
+        std::vector<ck::index_t> out_strides_vec(e_g_n_k_wos_strides.begin(),
+                                                 e_g_n_k_wos_strides.end());
+        std::vector<ck::index_t> conv_strides_vec(conv_param.conv_filter_strides_.begin(),
+                                                  conv_param.conv_filter_strides_.end());
+        std::vector<ck::index_t> conv_dilations_vec(conv_param.conv_filter_dilations_.begin(),
+                                                    conv_param.conv_filter_dilations_.end());
+        std::vector<ck::index_t> input_pads_vec(conv_param.input_left_pads_.begin(),
+                                                conv_param.input_left_pads_.end());
 
-        auto gpu_ref_kernel = ck::ref::naive_conv_fwd_ndhwc_kzyxc_ndhwk<InDataType,
-                                                                        WeiDataType,
-                                                                        OutDataType,
-                                                                        ComputeDataType,
-                                                                        InElementOp,
-                                                                        WeiElementOp,
-                                                                        OutElementOp>;
-
-        gpu_ref_kernel<<<dim3(grid_size), dim3(block_size), 0, nullptr>>>(
+        ck::ref::naive_conv_fwd<InLayout,
+                                WeiLayout,
+                                OutLayout,
+                                InDataType,
+                                WeiDataType,
+                                OutDataType,
+                                InElementOp,
+                                WeiElementOp,
+                                OutElementOp>(
             reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
             reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
             reinterpret_cast<OutDataType*>(out_device_ref_buf.GetDeviceBuffer()),
-            dims);
+            in_lengths_vec,
+            in_strides_vec,
+            wei_lengths_vec,
+            wei_strides_vec,
+            out_lengths_vec,
+            out_strides_vec,
+            conv_strides_vec,
+            conv_dilations_vec,
+            input_pads_vec,
+            nullptr);
 
         HIP_CHECK_ERROR(hipDeviceSynchronize());
 
-        std::cout << "GPU reference kernel completed successfully, copying results..." << std::endl;
+        std::cout << "GPU reference function completed successfully, copying results..."
+                  << std::endl;
 
         // Copy GPU reference result to host
         out_device_ref_buf.FromDevice(out_host.mData.data());

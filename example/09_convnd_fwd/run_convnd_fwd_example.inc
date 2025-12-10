@@ -12,7 +12,7 @@ bool run_convnd_fwd_example(int argc, char* argv[])
 {
     print_helper_msg();
 
-    int do_verification = 1; // 0=no, 1=CPU, 2=GPU
+    int do_verification = 2; // 0=no, 1=CPU, 2=GPU
     int init_method     = 1;
     bool time_kernel    = false;
 
