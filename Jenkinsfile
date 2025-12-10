@@ -244,11 +244,11 @@ def shouldRunCICheck() {
         def changedFiles = sh(
             returnStdout: true,
             script: '''
-                if [ "$CHANGE_ID" != "" ]; then
-                    # For PR builds, compare against target branch
+                echo "CHANGE_TARGET is: ${CHANGE_TARGET:-<unset>}"
+                # Try to use origin/$CHANGE_TARGET if set, else fallback to HEAD~1
+                if [ -n "${CHANGE_TARGET:-}" ] && git rev-parse --verify origin/$CHANGE_TARGET >/dev/null 2>&1; then
                     git diff --name-only origin/$CHANGE_TARGET...HEAD
                 else
-                    # For regular builds, compare against previous commit
                     git diff --name-only HEAD~1..HEAD
                 fi
             '''
