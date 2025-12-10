@@ -686,9 +686,6 @@ def cmake_build(Map conf=[:]){
             // Stop sccache monitoring
             if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
                 sh """
-                    echo "=== POST-BUILD SCCACHE DEBUG ==="
-                    echo "Build duration: ${build_duration} seconds"
-                    
                     # Stop monitoring
                     if [ -f monitor.pid ]; then
                         MONITOR_PID=\$(cat monitor.pid)
