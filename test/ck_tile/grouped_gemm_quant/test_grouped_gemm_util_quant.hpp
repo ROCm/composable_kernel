@@ -148,9 +148,9 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         float ave_time{0};
 
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
-            constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
+            constexpr bool has_hot_loop_v = has_hot_loop_.value;
+            constexpr auto tail_number_v  = tail_number_.value;
+            constexpr auto scheduler      = ck_tile::GemmPipelineScheduler::Intrawave;
 
             using QuantGemmProblem = std::conditional_t<
                 UseGroupedQuant,
