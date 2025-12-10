@@ -57,56 +57,83 @@ float invoke_gemm(int n_warmup,
 
     float ave_time = 0;
 
-    // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have
-    // the gemm problems known on the host. Instead, we can just pass the pointer
-    // to the kernel and let the workgroups figure out which tiles to work on.
-    // This is useful when the gemm problems are generated dynamically.
-    // In this example however, we generate the `kargs` using the known gemm_descs,
-    // and copy the gemm descriptions to the device memory.
-    // The contents of the memory pointed to by `kargs_ptr` pointer could be
-    // written by e.g. another kernel from earlier stage.
-    std::vector<ck_tile::QuantGemmTransKernelArg> kargs;
-    void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
-    assert(args[0].k_batch == 1);
-    for(const auto& arg : args)
+    if constexpr(!GemmConfig::Persistent)
     {
-        kargs.emplace_back(ck_tile::QuantGroupedGemmKernelArgs{arg.a_ptr,
-                                                               arg.b_ptr,
-                                                               arg.aq_ptr,
-                                                               arg.bq_ptr,
-                                                               arg.e_ptr,
-                                                               arg.M,
-                                                               arg.N,
-                                                               arg.K,
-                                                               arg.QK_A,
-                                                               arg.QK_B,
-                                                               arg.stride_A,
-                                                               arg.stride_B,
-                                                               arg.stride_E,
-                                                               arg.stride_AQ,
-                                                               arg.stride_BQ,
-                                                               arg.k_batch});
+        ave_time =
+            grouped_gemm<GemmConfig,
+                         ALayout,
+                         AQLayout,
+                         BLayout,
+                         BQLayout,
+                         CLayout,
+                         ADataType,
+                         AQDataType,
+                         BDataType,
+                         BQDataType,
+                         AccDataType,
+                         CDataType,
+                         QuantGroupSize,
+                         QuantMode>(args,
+                                    ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
+                                    gemm_workspace.GetDeviceBuffer());
     }
-    const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
-    HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
-                                        kargs.data(),
-                                        kargs.size() * sizeof(ck_tile::QuantGemmTransKernelArg),
-                                        hipMemcpyHostToDevice,
-                                        stream.stream_id_));
-    ave_time = grouped_gemm_tileloop<GemmConfig,
-                                     ALayout,
-                                     AQLayout,
-                                     BLayout,
-                                     BQLayout,
-                                     CLayout,
-                                     ADataType,
-                                     AQDataType,
-                                     BDataType,
-                                     BQDataType,
-                                     AccDataType,
-                                     CDataType,
-                                     QuantGroupSize,
-                                     QuantMode>(stream, group_count, kargs_ptr);
+    else
+    {
+        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have
+        // the gemm problems known on the host. Instead, we can just pass the pointer
+        // to the kernel and let the workgroups figure out which tiles to work on.
+        // This is useful when the gemm problems are generated dynamically.
+        // In this example however, we generate the `kargs` using the known gemm_descs,
+        // and copy the gemm descriptions to the device memory.
+        // The contents of the memory pointed to by `kargs_ptr` pointer could be
+        // written by e.g. another kernel from earlier stage.
+        std::vector<ck_tile::QuantGemmTransKernelArg> kargs;
+        void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
+        if(args[0].k_batch != 1)
+        {
+            throw std::runtime_error("Split-K not supported yet for persistent kernel");
+        }
+
+        for(const auto& arg : args)
+        {
+            kargs.emplace_back(ck_tile::QuantGroupedGemmKernelArgs{arg.a_ptr,
+                                                                   arg.b_ptr,
+                                                                   arg.aq_ptr,
+                                                                   arg.bq_ptr,
+                                                                   arg.e_ptr,
+                                                                   arg.M,
+                                                                   arg.N,
+                                                                   arg.K,
+                                                                   arg.QK_A,
+                                                                   arg.QK_B,
+                                                                   arg.stride_A,
+                                                                   arg.stride_B,
+                                                                   arg.stride_E,
+                                                                   arg.stride_AQ,
+                                                                   arg.stride_BQ,
+                                                                   arg.k_batch});
+        }
+        const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
+        HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
+                                            kargs.data(),
+                                            kargs.size() * sizeof(ck_tile::QuantGemmTransKernelArg),
+                                            hipMemcpyHostToDevice,
+                                            stream.stream_id_));
+        ave_time = grouped_gemm_tileloop<GemmConfig,
+                                         ALayout,
+                                         AQLayout,
+                                         BLayout,
+                                         BQLayout,
+                                         CLayout,
+                                         ADataType,
+                                         AQDataType,
+                                         BDataType,
+                                         BQDataType,
+                                         AccDataType,
+                                         CDataType,
+                                         QuantGroupSize,
+                                         QuantMode>(stream, group_count, kargs_ptr);
+    }
 
     std::string op_name = "Quant Grouped Gemm (" + ck_tile::quant_type_to_string(QuantMode) + ")";
 
@@ -259,13 +286,24 @@ int run_grouped_gemm_example_with_layouts(int argc,
             AQK = 1; // Row quantization: tensor shape [M, 1] or [1]
             BQK = 1; // Column quantization: tensor shape [1, N] or [1]
         }
+        else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
+        {
+            AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
+            BQK = 0;                      // No B quantization
+            if(K % QuantGroupSize::kK != 0)
+            {
+                throw std::runtime_error(
+                    "K must be divisible by QuantGroupSize::kK for AQuantGrouped mode");
+            }
+        }
         else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
             AQK = 0;                      // No A quantization
             BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
             if(K % QuantGroupSize::kK != 0)
             {
-                throw std::runtime_error("K must be divisible by 128 for BQuantGrouped mode");
+                throw std::runtime_error(
+                    "K must be divisible by QuantGroupSize::kK for BQuantGrouped mode");
             }
         }
 
@@ -283,6 +321,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
         {
             stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
             stride_BQs[i] = 1; // Tensor quantization: tensor shape [1]
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
+        {
+            stride_AQs[i] =
+                ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(aq_layout));
+            stride_BQs[i] = 0; // No B quantization
         }
         else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
@@ -311,10 +355,17 @@ int run_grouped_gemm_example_with_layouts(int argc,
             bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
                 ck_tile::host_tensor_descriptor(1, 1, stride_BQs[i], is_row_major(bq_layout))));
         }
+        else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
+        {
+            aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
+                ck_tile::host_tensor_descriptor(M, AQK, stride_AQs[i], is_row_major(aq_layout))));
+            bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
+                ck_tile::host_tensor_descriptor(0, 0, stride_BQs[i], is_row_major(bq_layout))));
+        }
         else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
             aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
-                ck_tile::host_tensor_descriptor(0, AQK, stride_AQs[i], is_row_major(aq_layout))));
+                ck_tile::host_tensor_descriptor(0, 0, stride_AQs[i], is_row_major(aq_layout))));
             bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
                 ck_tile::host_tensor_descriptor(BQK, N, stride_BQs[i], is_row_major(bq_layout))));
         }
@@ -444,10 +495,21 @@ int run_grouped_gemm_example_with_layouts(int argc,
                                                                 bq_tensors[i],
                                                                 c_m_n_host_ref);
             }
-            else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+            else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
             {
                 ck_tile::reference_gemm_quant<ADataType,
                                               AQDataType,
+                                              BDataType,
+                                              AccDataType,
+                                              CDataType,
+                                              QuantGroupSize,
+                                              true>(
+                    a_m_k_tensors[i], aq_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
+            }
+            else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+            {
+                ck_tile::reference_gemm_quant<ADataType,
+                                              BQDataType,
                                               BDataType,
                                               AccDataType,
                                               CDataType,
@@ -477,7 +539,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     return pass;
 }
 
-template <typename GemmConfig, typename PrecType, ck_tile::QuantType QuantMode>
+template <typename PrecType, ck_tile::QuantType QuantMode, typename GemmConfig>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
     using Row   = ck_tile::tensor_layout::gemm::RowMajor;
@@ -494,6 +556,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 
     if(a_layout == "R" && b_layout == "C")
     {
+
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      AQDataType,
@@ -511,7 +574,24 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
 }
 
-template <template <typename PrecType> typename GemmConfig>
+template <typename PrecType, ck_tile::QuantType QuantMode>
+int run_gemm_example_persistency(
+    std::string a_layout, std::string b_layout, bool persistent, int argc, char* argv[])
+{
+    if(persistent)
+    {
+        using GemmConfig = GemmQuantConfig<QuantMode>::template GemmConfig<PrecType, true>;
+        return run_gemm_example_prec_type<PrecType, QuantMode, GemmConfig>(
+            a_layout, b_layout, argc, argv);
+    }
+    else
+    {
+        using GemmConfig = GemmQuantConfig<QuantMode>::template GemmConfig<PrecType, false>;
+        return run_gemm_example_prec_type<PrecType, QuantMode, GemmConfig>(
+            a_layout, b_layout, argc, argv);
+    }
+}
+
 int run_grouped_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -524,29 +604,29 @@ int run_grouped_gemm_example(int argc, char* argv[])
     const std::string b_layout  = arg_parser.get_str("b_layout");
     const std::string data_type = arg_parser.get_str("prec");
     std::string quant_mode      = arg_parser.get_str("quant_mode");
+    bool persistent             = arg_parser.get_bool("persistent");
 
     if(data_type == "fp8")
     {
         if(quant_mode == "tensor")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              ck_tile::fp8_t,
-                                              ck_tile::QuantType::TensorQuant>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::TensorQuant>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else if(quant_mode == "rowcol")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              ck_tile::fp8_t,
-                                              ck_tile::QuantType::RowColQuant>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::RowColQuant>(
+                a_layout, b_layout, persistent, argc, argv);
+        }
+        else if(quant_mode == "aquant")
+        {
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::AQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else if(quant_mode == "bquant")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              ck_tile::fp8_t,
-                                              ck_tile::QuantType::BQuantGrouped>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::BQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else
         {
@@ -557,24 +637,23 @@ int run_grouped_gemm_example(int argc, char* argv[])
     {
         if(quant_mode == "tensor")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              ck_tile::bf8_t,
-                                              ck_tile::QuantType::TensorQuant>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::TensorQuant>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else if(quant_mode == "rowcol")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              ck_tile::bf8_t,
-                                              ck_tile::QuantType::RowColQuant>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::RowColQuant>(
+                a_layout, b_layout, persistent, argc, argv);
+        }
+        else if(quant_mode == "aquant")
+        {
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::AQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else if(quant_mode == "bquant")
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              ck_tile::bf8_t,
-                                              ck_tile::QuantType::BQuantGrouped>(
-                a_layout, b_layout, argc, argv);
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::BQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
         }
         else
         {
