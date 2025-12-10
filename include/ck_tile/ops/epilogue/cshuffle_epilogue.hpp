@@ -205,12 +205,11 @@ struct CShuffleEpilogue
      * @details Return tuple(1, 1) if shuffle_tile values are too large for SMEM
      * or are not aligned with tile sizes.
      */
-    template <typename ShuffleTileTuple>
-    CK_TILE_HOST_DEVICE static constexpr auto
-    AlignShuffleTileWithSmem(ShuffleTileTuple shuffle_tile)
+    template <index_t m_shuffle_tile, index_t n_shuffle_tile>
+    CK_TILE_HOST_DEVICE static constexpr auto AlignShuffleTileWithSmem()
     {
-        constexpr index_t m_val = MPerXdl * MWave * std::get<0>(shuffle_tile);
-        constexpr index_t n_val = NPerXdl * NWave * std::get<1>(shuffle_tile);
+        constexpr index_t m_val = MPerXdl * MWave * m_shuffle_tile;
+        constexpr index_t n_val = NPerXdl * NWave * n_shuffle_tile;
         // Check MNXdlPerWavePerShuffle selection
         if constexpr(kMPerBlock % m_val != 0 || kNPerBlock % n_val != 0)
         {
@@ -227,7 +226,7 @@ struct CShuffleEpilogue
                 return std::make_tuple(1, 1);
             }
         }
-        return shuffle_tile;
+        return std::make_tuple(m_shuffle_tile, n_shuffle_tile);
     }
 
     /**
@@ -254,9 +253,9 @@ struct CShuffleEpilogue
                                   (kMPerBlock % num_xdl_shuffles == 0),
                               "kMPerBlock must be divisible by MPerXdl*MWave and "
                               "num_xdl_shuffles for CShuffleEpilogue");
-                constexpr auto shuffle_tile =
-                    std::make_tuple(min(num_xdl_shuffles, kMPerBlock / (MPerXdl * MWave)), 1);
-                return AlignShuffleTileWithSmem(shuffle_tile);
+                return AlignShuffleTileWithSmem<min(num_xdl_shuffles,
+                                                    kMPerBlock / (MPerXdl * MWave)),
+                                                1>();
             }
             else
             {
@@ -264,9 +263,9 @@ struct CShuffleEpilogue
                                   (kNPerBlock % num_xdl_shuffles == 0),
                               "kNPerBlock must be divisible by NPerXdl*NWave and "
                               "num_xdl_shuffles for CShuffleEpilogue");
-                constexpr auto shuffle_tile =
-                    std::make_tuple(1, min(num_xdl_shuffles, kNPerBlock / (NPerXdl * NWave)));
-                return AlignShuffleTileWithSmem(shuffle_tile);
+                return AlignShuffleTileWithSmem<1,
+                                                min(num_xdl_shuffles,
+                                                    kNPerBlock / (NPerXdl * NWave))>();
             }
         }
     }();
