@@ -31,7 +31,7 @@ using tile_grouped_conv_bwd_data_bf16_instances = std::tuple<
     //###################################|Spatial|          |          |            |       |       |       |    Operation|   Operation|   Operation|                      |     CU|        |        |        |       |       |       |   size|   size|   size|      A|      B|      C|    buffer|                      version|                   
 // GroupedConvolutionBackwardDataInvoker<NDimSpatial,   ALayout,   BLayout,     ELayout,   BF16,   BF16,   BF16,  PassThrough, PassThrough, PassThrough, ConvolutionSpecialization::Filter1x1Stride1Pad0,      1,     64,      16,     32,     4,    1,    1,16,     16,      32,      8,    8,4, false, CK_TILE_PIPELINE_MEMORY>,
 // GroupedConvolutionBackwardDataInvoker<NDimSpatial,   ALayout,   BLayout,     ELayout,   BF16,   BF16,   BF16,  PassThrough, PassThrough, PassThrough, ConvolutionSpecialization::Filter1x1Stride1Pad0,      1,     64,      16,     16,     4,    1,    1,16,     16,      16,      4,    8,4, false, CK_TILE_PIPELINE_MEMORY>,
-GroupedConvolutionBackwardDataInvoker<NDimSpatial,   ALayout,   BLayout,     ELayout,   BF16,   BF16,   BF16,  PassThrough, PassThrough, PassThrough, ConvolutionSpecialization::Filter1x1Stride1Pad0,      1,     64,      16,     64,     4,    1,    1,16,     16,      32,      16,    2,2, false, CK_TILE_PIPELINE_MEMORY>
+// GroupedConvolutionBackwardDataInvoker<NDimSpatial,   ALayout,   BLayout,     ELayout,   BF16,   BF16,   BF16,  PassThrough, PassThrough, PassThrough, ConvolutionSpecialization::Filter1x1Stride1Pad0,      1,     64,      16,     64,     4,    1,    1,16,     16,      32,      16,    2,2, false, CK_TILE_PIPELINE_MEMORY>
     // clang-format on
     >;
 

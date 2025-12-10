@@ -51,13 +51,16 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[1
   #list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_bwd_weight_fp16_instances)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_bwd_weight_bf16_instances)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_bwd_weight_bf16_instances_opt)
-  #list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_fp16_instances)
+
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_bf16_instances)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_bf16_instances_2)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_bf16_instances_3)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_bf16_instances_4)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_bf16_instances_5)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_bf16_instances_6)
+
+  list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_fp16_instances)
+  list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_int8_instances)
 
 endif()
 

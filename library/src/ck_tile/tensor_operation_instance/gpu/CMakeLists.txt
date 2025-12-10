@@ -47,6 +47,10 @@ add_library(ck_tile_grouped_conv_fwd_fp16_instances STATIC
     tile_grouped_conv_fwd_fp16_instances.cpp
 )
 
+add_library(ck_tile_grouped_conv_fwd_int8_instances STATIC
+    tile_grouped_conv_fwd_int8_instances.cpp
+)
+
 add_library(ck_tile_grouped_conv_fwd_bf16_instances STATIC
     tile_grouped_conv_fwd_bf16_instances.cpp
 )
@@ -122,6 +126,11 @@ target_include_directories(ck_tile_grouped_conv_bwd_weight_bf16_instances_opt PR
 )
 
 target_include_directories(ck_tile_grouped_conv_fwd_fp16_instances PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/library/include
+)
+
+target_include_directories(ck_tile_grouped_conv_fwd_int8_instances PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
 )

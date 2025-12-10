@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <vector>
 #include <memory>
+#include <type_traits>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
@@ -121,7 +122,13 @@ struct GroupedConvolutionForwardInvoker
         GemmConfigBase::NumWaveGroups,
         GemmConfigBase::Preshuffle>;
 
-    using AccDataType         = float;
+    constexpr static bool is_floating_point = 
+        (std::is_same_v<InDataType, ck_tile::half_t> || std::is_same_v<InDataType, ck_tile::bfloat16_t> || std::is_floating_point_v<InDataType>) &&
+        (std::is_same_v<WeiDataType, ck_tile::half_t> || std::is_same_v<WeiDataType, ck_tile::bfloat16_t> || std::is_floating_point_v<WeiDataType>) &&
+        (std::is_same_v<OutDataType, ck_tile::half_t> || std::is_same_v<OutDataType, ck_tile::bfloat16_t> || std::is_floating_point_v<OutDataType>);
+
+    using AccDataType         = std::conditional_t<is_floating_point, float, int32_t>;
+ 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
         InDataType,
         WeiDataType,

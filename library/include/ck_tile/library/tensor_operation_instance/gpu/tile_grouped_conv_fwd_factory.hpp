@@ -40,6 +40,20 @@ using DeviceOpFwd2DF16 = GroupedConvolutionForwardBaseInvoker<2,
                                                 F16,
                                                 F16>;
 
+using DeviceOpFwd2DINT8 = GroupedConvolutionForwardBaseInvoker<2,
+                                                NHWGC,
+                                                GKYXC,
+                                                NHWGK,
+                                                INT8,
+                                                INT8,
+                                                INT8,
+                                                PassThrough,
+                                                PassThrough,
+                                                PassThrough,
+                                                INT8,
+                                                INT8>;
+
+// BF16 instances 
 void add_grouped_conv2d_fwd_bf16_instances(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
 void add_grouped_conv2d_fwd_bf16_instances_2(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
 void add_grouped_conv2d_fwd_bf16_instances_3(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
@@ -47,7 +61,11 @@ void add_grouped_conv2d_fwd_bf16_instances_4(std::vector<std::unique_ptr<DeviceO
 void add_grouped_conv2d_fwd_bf16_instances_5(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
 void add_grouped_conv2d_fwd_bf16_instances_6(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
 
+// FP16 instances
 void add_grouped_conv2d_fwd_f16_instances(std::vector<std::unique_ptr<DeviceOpFwd2DF16>>& instances);
+
+// INT8 instances
+void add_grouped_conv2d_fwd_i8_instances(std::vector<std::unique_ptr<DeviceOpFwd2DINT8>>& instances);
 
 template <ck_tile::index_t NumDimSpatial,
           typename InLayout,
@@ -114,6 +132,14 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionForwardBaseInvoker<
                     add_grouped_conv2d_fwd_bf16_instances_4(op_ptrs);
                     add_grouped_conv2d_fwd_bf16_instances_5(op_ptrs);
                     add_grouped_conv2d_fwd_bf16_instances_6(op_ptrs);
+                }
+                else if constexpr(std::is_same_v<InDataType, ck_tile::int8_t> && 
+                             std::is_same_v<WeiDataType, ck_tile::int8_t> &&
+                             std::is_same_v<OutDataType, ck_tile::int8_t> && 
+                             std::is_same_v<ComputeTypeA, ck_tile::int8_t> &&
+                             std::is_same_v<ComputeTypeB, ck_tile::int8_t>)
+                {
+                    add_grouped_conv2d_fwd_int8_instances(op_ptrs);
                 }
                 else
                 {
