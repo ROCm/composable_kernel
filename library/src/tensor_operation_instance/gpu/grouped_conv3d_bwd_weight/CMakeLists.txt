@@ -69,22 +69,10 @@ if(DL_KERNELS)
 endif()
 
 list(APPEND GROUPED_CONV3D_BWD_WEIGHT
-    wmma/gndhwc_gkzyxc_gndhwk/device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
-    wmma/gndhwc_gkzyxc_gndhwk/device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_bf16_f32_bf16_instance.cpp
-
     wmma/ndhwgc_gkzyxc_ndhwgk/device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
-    wmma/ndhwgc_gkzyxc_ndhwgk/device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instance.cpp
     wmma/ndhwgc_gkzyxc_ndhwgk/device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
     wmma/ndhwgc_gkzyxc_ndhwgk/device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_f16_pipev1_instance.cpp
     wmma/ndhwgc_gkzyxc_ndhwgk/device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_pipev1_instance.cpp
-
-    wmma/ngcdhw_gkczyx_ngkdhw/device_grouped_conv3d_bwd_weight_wmma_ngcdhw_gkczyx_ngkdhw_f16_instance.cpp
-    wmma/ngcdhw_gkczyx_ngkdhw/device_grouped_conv3d_bwd_weight_wmma_ngcdhw_gkczyx_ngkdhw_bf16_instance.cpp
-    wmma/ngcdhw_gkczyx_ngkdhw/device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkczyx_ngkdhw_f16_pipev1_instance.cpp
-    wmma/ngcdhw_gkczyx_ngkdhw/device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkczyx_ngkdhw_bf16_pipev1_instance.cpp
-
-    wmma/ngcdhw_gkzyxc_ngkdhw/device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkzyxc_ngkdhw_f16_pipev1_instance.cpp
-    wmma/ngcdhw_gkzyxc_ngkdhw/device_grouped_conv3d_bwd_weight_two_stage_wmma_ngcdhw_gkzyxc_ngkdhw_bf16_pipev1_instance.cpp
     )
 
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8" AND DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
