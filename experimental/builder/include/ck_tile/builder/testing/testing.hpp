@@ -214,9 +214,10 @@ UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args);
 ///
 /// @see Inputs
 /// @see UniqueInputs
+/// @see tensor_initialization
 template <auto SIGNATURE>
     requires ValidUniqueInputs<SIGNATURE>
-UniqueInputs<SIGNATURE> init_inputs(const Args<SIGNATURE>& args);
+void init_inputs(const Args<SIGNATURE>& args, UniqueInputs<SIGNATURE>& inputs);
 
 /// @brief Allocate outputs corresponding to a signature.
 ///
