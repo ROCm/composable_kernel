@@ -244,11 +244,14 @@ def shouldRunCICheck() {
         def changedFiles = sh(
             returnStdout: true,
             script: """
-                CHANGE_TARGET='${env.CHANGE_TARGET}'
-                echo \"CHANGE_TARGET is: \${CHANGE_TARGET}\" >&2
-                if [ -n \"\${CHANGE_TARGET}\" ] && git rev-parse --verify origin/\${CHANGE_TARGET} >/dev/null 2>&1; then
-                    git diff --name-only origin/\${CHANGE_TARGET}...HEAD
+                #!/bin/bash
+                TRACKING_BRANCH=\$(git for-each-ref --format='%(upstream:short)' \$(git symbolic-ref -q HEAD))
+                if [ -n "\$TRACKING_BRANCH" ]; then
+                    FORK_POINT=\$(git merge-base HEAD \$TRACKING_BRANCH)
+                    echo "Diffing from fork point: \$FORK_POINT (\$TRACKING_BRANCH)" >&2
+                    git diff --name-only \$FORK_POINT..HEAD
                 else
+                    echo "No tracking branch found, using last commit" >&2
                     git diff --name-only HEAD~1..HEAD
                 fi
             """
