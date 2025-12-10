@@ -5,6 +5,7 @@
 #include "utils/ckb_conv_test_utils.hpp"
 #include "utils/conv_algorithm_type_utils.hpp"
 #include "ck_tile/builder/testing/conv_fwd_ck.hpp"
+#include "ck_tile/host/device_prop.hpp"
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
@@ -45,6 +46,11 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, Create)
 
 TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
 {
+    if(!ck_tile::get_device_name().starts_with("gfx9"))
+    {
+        GTEST_SKIP() << "unsupported architecture";
+    }
+
     ckt::Args<SIGNATURE> args = {
         .lengths =
             {
