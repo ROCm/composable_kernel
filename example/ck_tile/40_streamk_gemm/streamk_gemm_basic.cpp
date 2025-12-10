@@ -110,7 +110,7 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
                       << std::endl;
         }
 
-        auto resetDataBuffers = [&]() {
+        auto reset_data_buffers = [&]() {
             if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic)
             {
                 // Clear the output C tensor results after each repetition of the kernel
@@ -124,7 +124,7 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
             }
         };
 
-        std::function<void()> preprocess = resetDataBuffers;
+        std::function<void()> preprocess = reset_data_buffers;
 
         float average_time =
             ck_tile::launch_kernel_time_mask(stream_config,

@@ -62,9 +62,9 @@ template <typename GemmConfiguration,
           typename DsLayout,
           typename CLayout,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-std::tuple<float, ck_tile::index_t> invokeGemm(ck_tile::DeviceMem& a_m_k_device_buffer,
-                                               ck_tile::DeviceMem& b_k_n_device_buffer,
-                                               ck_tile::DeviceMem& c_m_n_device_buffer,
+std::tuple<float, ck_tile::index_t> invokeGemm(ck_tile::DeviceMem& a_m_k_device_memory,
+                                               ck_tile::DeviceMem& b_k_n_device_memory,
+                                               ck_tile::DeviceMem& c_m_n_device_memory,
                                                ck_tile::index_t m_dim,
                                                ck_tile::index_t n_dim,
                                                ck_tile::index_t k_dim,
@@ -76,9 +76,9 @@ std::tuple<float, ck_tile::index_t> invokeGemm(ck_tile::DeviceMem& a_m_k_device_
                                                bool flush_cache,
                                                ck_tile::StreamKReductionStrategy reduction_strategy)
 {
-    ck_tile::StreamKHostArgs args{a_m_k_device_buffer.GetDeviceBuffer(),
-                                  b_k_n_device_buffer.GetDeviceBuffer(),
-                                  c_m_n_device_buffer.GetDeviceBuffer(),
+    ck_tile::StreamKHostArgs args{a_m_k_device_memory.GetDeviceBuffer(),
+                                  b_k_n_device_memory.GetDeviceBuffer(),
+                                  c_m_n_device_memory.GetDeviceBuffer(),
                                   m_dim,
                                   n_dim,
                                   k_dim,
@@ -131,17 +131,19 @@ std::tuple<float, ck_tile::index_t> invokeGemm(ck_tile::DeviceMem& a_m_k_device_
 template <typename CDataType>
 bool doVerify(const ck_tile::HostTensor<CDataType>& c_m_n_device_result,
               const ck_tile::HostTensor<CDataType>& c_m_n_reference,
-              const ck_tile::tuple<double, double>& rtol_atol,
+              const ck_tile::tuple<double, double>& relative_absolute_tolerances,
               const char* variant)
 {
     bool pass = ck_tile::check_err(c_m_n_device_result,
                                    c_m_n_reference,
                                    "Error: Incorrect results!",
-                                   rtol_atol.at(ck_tile::number<0>{}),
-                                   rtol_atol.at(ck_tile::number<1>{}));
+                                   relative_absolute_tolerances.at(ck_tile::number<0>{}),
+                                   relative_absolute_tolerances.at(ck_tile::number<1>{}));
 
-    std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-              << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "Relative error threshold: "
+              << relative_absolute_tolerances.at(ck_tile::number<0>{})
+              << " Absolute error threshold: "
+              << relative_absolute_tolerances.at(ck_tile::number<1>{}) << std::endl;
     std::cout << "The " << variant << " verification result is:" << (pass ? "correct" : "fail")
               << std::endl;
     return pass;
@@ -234,13 +236,13 @@ int runGemmExampleWithLayouts(int argc,
         b_k_n_host.SetZero();
     }
 
-    ck_tile::DeviceMem a_m_k_device_buffer(a_m_k_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem b_k_n_device_buffer(b_k_n_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem c_m_n_device_buffer(c_m_n_device_result.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem a_m_k_device_memory(a_m_k_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem b_k_n_device_memory(b_k_n_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem c_m_n_device_memory(c_m_n_device_result.get_element_space_size_in_bytes());
 
-    a_m_k_device_buffer.ToDevice(a_m_k_host.data());
-    b_k_n_device_buffer.ToDevice(b_k_n_host.data());
-    c_m_n_device_buffer.SetZero();
+    a_m_k_device_memory.ToDevice(a_m_k_host.data());
+    b_k_n_device_memory.ToDevice(b_k_n_host.data());
+    c_m_n_device_memory.SetZero();
     c_m_n_device_result.SetZero();
     auto [average_time, num_wgs_per_tile] = invokeGemm<GemmConfiguration,
                                                        ADataType,
@@ -251,9 +253,9 @@ int runGemmExampleWithLayouts(int argc,
                                                        ALayout,
                                                        BLayout,
                                                        ck_tile::tuple<>,
-                                                       CLayout>(a_m_k_device_buffer,
-                                                                b_k_n_device_buffer,
-                                                                c_m_n_device_buffer,
+                                                       CLayout>(a_m_k_device_memory,
+                                                                b_k_n_device_memory,
+                                                                c_m_n_device_memory,
                                                                 m_dim,
                                                                 n_dim,
                                                                 k_dim,
@@ -265,7 +267,7 @@ int runGemmExampleWithLayouts(int argc,
                                                                 flush_cache,
                                                                 reduction_strategy);
 
-    c_m_n_device_buffer.FromDevice(c_m_n_device_result.data());
+    c_m_n_device_memory.FromDevice(c_m_n_device_result.data());
 
     std::size_t flop     = std::size_t(2) * m_dim * n_dim * k_dim;
     std::size_t num_byte = sizeof(ADataType) * m_dim * k_dim + sizeof(BDataType) * n_dim * k_dim +
@@ -295,10 +297,10 @@ int runGemmExampleWithLayouts(int argc,
             a_m_k_host, b_k_n_host, c_m_n_reference);
         const float max_accumulated_value =
             *std::max_element(c_m_n_reference.mData.begin(), c_m_n_reference.mData.end());
-        const auto rtol_atol =
+        const auto relative_absolute_tolerances =
             calculateRtolAtol<ADataType, BDataType, AccumulatorDataType, CDataType>(
                 k_dim, num_wgs_per_tile, max_accumulated_value);
-        pass = doVerify(c_m_n_device_result, c_m_n_reference, rtol_atol, "CPU");
+        pass = doVerify(c_m_n_device_result, c_m_n_reference, relative_absolute_tolerances, "CPU");
     }
     else if(arg_parser.get_int("v") == 2) // Validate on the GPU
     {
@@ -307,8 +309,8 @@ int runGemmExampleWithLayouts(int argc,
             c_m_n_reference.get_element_space_size_in_bytes());
         c_m_n_gpu_buffer_reference.SetZero();
 
-        ADataType* d_A = static_cast<ADataType*>(a_m_k_device_buffer.GetDeviceBuffer());
-        BDataType* d_B = static_cast<BDataType*>(b_k_n_device_buffer.GetDeviceBuffer());
+        ADataType* d_A = static_cast<ADataType*>(a_m_k_device_memory.GetDeviceBuffer());
+        BDataType* d_B = static_cast<BDataType*>(b_k_n_device_memory.GetDeviceBuffer());
         CDataType* d_C = static_cast<CDataType*>(c_m_n_gpu_buffer_reference.GetDeviceBuffer());
         ck_tile::reference_gemm_gpu<ADataType,
                                     BDataType,
@@ -322,10 +324,10 @@ int runGemmExampleWithLayouts(int argc,
 
         const float max_accumulated_value =
             *std::max_element(c_m_n_reference.mData.begin(), c_m_n_reference.mData.end());
-        const auto rtol_atol =
+        const auto relative_absolute_tolerances =
             calculateRtolAtol<ADataType, BDataType, AccumulatorDataType, CDataType>(
                 k_dim, num_wgs_per_tile, max_accumulated_value);
-        pass = doVerify(c_m_n_device_result, c_m_n_reference, rtol_atol, "GPU");
+        pass = doVerify(c_m_n_device_result, c_m_n_reference, relative_absolute_tolerances, "GPU");
     }
 
     return pass;
