@@ -674,6 +674,7 @@ def cmake_build(Map conf=[:]){
                     kill \$MONITOR_PID 2>/dev/null || echo "Monitor already stopped"
                     rm -f monitor.pid
                 fi
+                echo "=== CONTINUOUS MONITORING ENDED ==="
                 
                 echo "=== SETTING UP DEBUG ENVIRONMENT ==="
                 export CK_SCCACHE="${env.CK_SCCACHE}"

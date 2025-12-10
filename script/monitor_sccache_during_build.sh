@@ -72,8 +72,8 @@ log_with_timestamp "CK_SCCACHE: ${CK_SCCACHE:-not set}"
 
 # Initial state
 log_with_timestamp "=== INITIAL STATE ==="
-log_with_timestamp "$(get_sccache_stats)"
-log_with_timestamp "$(test_redis_connectivity)"
+sccache --zero-stats
+log_with_timestamp "$(get_sccache_stats) $(test_redis_connectivity)"
 
 # Monitor loop
 while true; do
@@ -88,10 +88,8 @@ while true; do
     current_stats=$(get_sccache_stats)
     redis_status=$(test_redis_connectivity)
     
-    # Extract cache hit information
-    cache_hits=$(echo "$current_stats" | grep -E "(Cache hits|Compile requests)" | tr '\n' ' ')
-    
-    log_with_timestamp "Stats: $cache_hits | $redis_status"
+    # Log current cache hit information
+    log_with_timestamp "$(get_sccache_stats) $(test_redis_connectivity)"
     
     # Check for Redis latency issues
     if echo "$redis_status" | grep -E "[0-9]{3,}" > /dev/null; then  # >100ms latency
