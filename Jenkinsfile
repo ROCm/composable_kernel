@@ -655,44 +655,42 @@ def cmake_build(Map conf=[:]){
 
         def build_start_time = System.currentTimeMillis()
 
-        //build CK
-        sh cmd
+        try {
+            //build CK
+            sh cmd
 
-        def build_end_time = System.currentTimeMillis()
-        def build_duration = (build_end_time - build_start_time) / 1000
-        echo "Build completed in ${build_duration} seconds"
-
-        // Stop sccache monitoring
-        if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
-            sh """
-                echo "=== POST-BUILD SCCACHE DEBUG ==="
-                echo "Build duration: ${build_duration} seconds"
+            def build_end_time = System.currentTimeMillis()
+            def build_duration = (build_end_time - build_start_time) / 1000
+            echo "Build completed in ${build_duration} seconds"
+        } catch (Exception buildError) {
+            echo "Build failed: ${buildError.getMessage()}"
+            throw buildError
+        } finally {
+            // Stop sccache monitoring
+            if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
+                sh """
+                    echo "=== POST-BUILD SCCACHE DEBUG ==="
+                    echo "Build duration: ${build_duration} seconds"
+                    
+                    # Stop monitoring
+                    if [ -f monitor.pid ]; then
+                        MONITOR_PID=\$(cat monitor.pid)
+                        kill \$MONITOR_PID 2>/dev/null || echo "Monitor already stopped"
+                        rm -f monitor.pid
+                    fi
+                    echo "=== CONTINUOUS MONITORING STOPPED ==="
+                    
+                    # List monitoring logs
+                    echo "=== MONITORING LOGS ==="
+                    ls -la logs/*monitor*.log 2>/dev/null || echo "No monitoring logs found"
+                """
                 
-                # Stop monitoring
-                if [ -f monitor.pid ]; then
-                    MONITOR_PID=\$(cat monitor.pid)
-                    kill \$MONITOR_PID 2>/dev/null || echo "Monitor already stopped"
-                    rm -f monitor.pid
-                fi
-                echo "=== CONTINUOUS MONITORING ENDED ==="
-                
-                echo "=== SETTING UP DEBUG ENVIRONMENT ==="
-                export CK_SCCACHE="${env.CK_SCCACHE}"
-                export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
-                export ROCM_PATH=/opt/rocm
-                export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
-                export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
-                export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
-                
-                # Archive monitoring logs
-                ls -la logs/*monitor*.log 2>/dev/null || echo "No monitoring logs found"
-            """
-            
-            // Archive the debug logs
-            try {
-                archiveArtifacts artifacts: "logs/*monitor*.log", allowEmptyArchive: true
-            } catch (Exception e) {
-                echo "Could not archive sccache debug logs: ${e.getMessage()}"
+                // Archive the monitoring logs
+                try {
+                    archiveArtifacts artifacts: "logs/*monitor*.log", allowEmptyArchive: true
+                } catch (Exception e) {
+                    echo "Could not archive sccache monitoring logs: ${e.getMessage()}"
+                }
             }
         }
 
