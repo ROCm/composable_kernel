@@ -655,6 +655,23 @@ def cmake_build(Map conf=[:]){
 
         def build_start_time = System.currentTimeMillis()
 
+        // Get sccache environment info
+        sh """
+                echo "=== SCCACHE DEBUG ENVIRONMENT ==="
+                echo "PWD: $PWD"
+                echo "WORKSPACE: ${WORKSPACE:-unset}"
+                echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: ${SCCACHE_C_CUSTOM_CACHE_BUSTER:-unset}"
+                echo "SCCACHE_REDIS: ${SCCACHE_REDIS:-unset}"
+                echo "SCCACHE_EXTRAFILES: ${SCCACHE_EXTRAFILES:-unset}"
+                echo "Compiler: $(which clang || echo 'not found')"
+                echo "Build directory: $(pwd)"
+                echo "Source directory: $(dirname "$0")"
+                echo "CMake build path: $(grep CMAKE_BINARY_DIR CMakeCache.txt 2>/dev/null || echo 'not found')"
+                echo "CMake source path: $(grep CMAKE_SOURCE_DIR CMakeCache.txt 2>/dev/null || echo 'not found')"
+                echo "Environment variables affecting cache:"
+                env | grep -E 'SCCACHE|PWD|WORKSPACE|CACHE_BUSTER'
+            """
+
         try {
             //build CK
             sh cmd
