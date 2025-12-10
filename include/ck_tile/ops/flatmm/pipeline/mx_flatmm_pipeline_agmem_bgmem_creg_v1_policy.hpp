@@ -162,14 +162,14 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor( //
             make_tuple(number<M0>{},
-                       number<M1>{},
                        number<K0>{},
+                       number<M1>{},
                        number<M2>{},
                        number<M3>{},
                        number<K1>{},
                        number<K2>{}),
-            make_tuple(number<M1*(K0 * (M2 * M3 * K1 * K2) + (K0 - 1) * Pad)>{},
-                       number<K0*(M2 * M3 * K1 * K2) + (K0 - 1) * Pad>{},
+            make_tuple(number<K0*(M1 * (M2 * M3 * K1 * K2) + (M1 - 1) * Pad)>{},
+                       number<M1*(M2 * M3 * K1 * K2) + (M1 - 1) * Pad>{},
                        number<M2 * M3 * K1 * K2 + Pad>{},
                        number<M3 * K1 * K2>{},
                        number<K1 * K2>{},
@@ -181,8 +181,8 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr auto a_lds_block_desc_1 = transform_tensor_descriptor(
             a_lds_block_desc_0,
             make_tuple(make_pass_through_transform(M0),
-                       make_pass_through_transform(M1),
                        make_pass_through_transform(K0),
+                       make_pass_through_transform(M1),
                        make_pass_through_transform(M2),
                        make_xor_transform(make_tuple(number<M3>{}, number<K1>{})),
                        make_pass_through_transform(number<K2>{})),
@@ -204,7 +204,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                            make_tuple(number<M0>{}, number<M1>{}, number<M2>{}, number<M3>{})),
                        make_merge_transform_v3_division_mod(
                            make_tuple(number<K0>{}, number<K1>{}, number<K2>{}))),
-            make_tuple(sequence<0, 1, 3, 4>{}, sequence<2, 5, 6>{}),
+            make_tuple(sequence<0, 2, 3, 4>{}, sequence<1, 5, 6>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         // return a_lds_block_desc_permuted;
