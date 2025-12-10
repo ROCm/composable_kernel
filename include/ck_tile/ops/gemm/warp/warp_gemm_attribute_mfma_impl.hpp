@@ -1593,7 +1593,9 @@ struct WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4
         auto arg_a         = bit_cast<decltype(dtype2vec(ADataType{}))>(a_vec);
         auto arg_b         = bit_cast<decltype(dtype2vec(BDataType{}))>(b_vec);
         constexpr int cbsz = decltype(dtype2code(ADataType{}))::value;
+	static_assert(cbsz == 0);
         constexpr int blgp = decltype(dtype2code(BDataType{}))::value;
+	static_assert(blgp == 4);
         c_vec              = __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
             arg256(arg_a), arg256(arg_b), c_vec, cbsz, blgp, opselA, a_scale, opselB, b_scale);
 #else

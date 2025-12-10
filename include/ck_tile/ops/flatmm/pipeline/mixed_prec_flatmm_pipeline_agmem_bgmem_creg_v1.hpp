@@ -2977,12 +2977,17 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        auto a_dram_window =
-            make_tile_window(PipelinePolicy::template MakeMXFP4_AAsyncLoadDramDescriptor<Problem>(
-                                 a_copy_dram_window_tmp.get_bottom_tensor_view()),
-                             a_copy_dram_window_tmp.get_window_lengths(),
-                             a_copy_dram_window_tmp.get_window_origin(),
-                             PipelinePolicy::template MakeADramTileDistribution<Problem>());
+        // auto a_dram_window =
+        //     make_tile_window(PipelinePolicy::template MakeMXFP4_AAsyncLoadDramDescriptor<Problem>(
+        //                          a_copy_dram_window_tmp.get_bottom_tensor_view()),
+        //                      a_copy_dram_window_tmp.get_window_lengths(),
+        //                      a_copy_dram_window_tmp.get_window_origin(),
+        //                      PipelinePolicy::template MakeADramTileDistribution<Problem>());
+        auto a_dram_window = replace_bottom_tensor_view(
+            PipelinePolicy::template MakeMXFP4_AAsyncLoadDramDescriptor<Problem>(
+                a_copy_dram_window_tmp.get_bottom_tensor_view()),
+            a_copy_dram_window_tmp);
+
 
         __builtin_amdgcn_sched_barrier(0);
 
@@ -3267,7 +3272,7 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
                 a_warp_tensor(loadIter) = load_tile_with_offset(
                     a_warp_window_pong, tuple<number<mIter * WG::kM>, number<kIter * WG::kK>>{});
             });
-            HotLoopScheduler();
+            // HotLoopScheduler();
 
             ////////////////////////////// Next K //////////////////////////////
 
@@ -3381,17 +3386,17 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
                 a_warp_tensor(loadIter) = load_tile_with_offset(
                     a_warp_window_ping, tuple<number<mIter * WG::kM>, number<kIter * WG::kK>>{});
             });
-            HotLoopScheduler();
+            // HotLoopScheduler();
         };
 
         if constexpr(HasHotLoop)
         {
             index_t iCounter = (num_loop - 1) / 2;
-            do
+            while(iCounter > 0);
             {
                 main_body_implx2();
                 iCounter--;
-            } while(iCounter > 0);
+            }
         }
 
         // TAIL
@@ -3557,7 +3562,7 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
                     });
                 });
             });
-            LastHotLoopScheduler();
+            // LastHotLoopScheduler();
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {
@@ -3618,12 +3623,35 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
                     });
                 });
             });
-            LastHotLoopScheduler();
+            // LastHotLoopScheduler();
         }
         else
         {
             static_assert(false, "Wrong TailNum");
         }
+//     if constexpr (MIterPerWarp / MXdlPack >0)
+// 	if constexpr (KIterPerWarp / KXdlPack >0)
+//             if (threadIdx.x == 0)
+// 	    printf("trheadIdx.x %d, token_idx, \n", threadIdx.x,
+// 				   // scale_a_tile_tensor_ping(I0)(I0).get_thread_buffer()[0],
+// 				   );
+
+
+		// const auto span_q2d = decltype(c_block_tile)::get_distributed_spans();
+		// sweep_tile_span(span_q2d[I0], [&](auto idx0) {
+		//     sweep_tile_span(span_q2d[I1], [&](auto idx1) {
+		//         const auto i_j_idx = ck_tile::make_tuple(idx0, idx1);
+		//         const auto tile_idx = get_x_indices_from_distributed_indices(
+		//             c_block_tile.get_tile_distribution(), i_j_idx);
+		// 
+		//         auto row_id = tile_idx.at(I0);
+		//         auto col_id = tile_idx.at(I1);
+		// 
+		//         printf("load_lds_warp_1 index [%d, %d] ", row_id, col_id);
+		//         printf("%f ,", ck_tile::type_convert<float>(c_block_tile[i_j_idx]));
+		//     });
+		//     printf("\n");
+		// });
         return c_block_tile;
     }
 };
