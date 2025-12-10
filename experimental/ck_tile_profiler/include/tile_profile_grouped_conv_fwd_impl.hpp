@@ -139,7 +139,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         weight_dev_buf.ToDevice(weight.data());
         output_dev_buf.SetZero();
 
-        ck_tile::GroupedConvFwdHostArgs args(conv_param,
+        ck_tile::GroupedConvFwdHostArgs<OutElementOp> args(conv_param,
                                              input_dev_buf.GetDeviceBuffer(),
                                              weight_dev_buf.GetDeviceBuffer(),
                                              {},

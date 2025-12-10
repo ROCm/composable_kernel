@@ -55,6 +55,13 @@ class ProfilerOperationRegistry final
     std::optional<Operation> Get(std::string_view name) const
     {
         const auto found = entries_.find(name);
+
+        for (const auto& [key, value] : entries_)
+        {
+            // Debug output to trace available operations
+            std::cout << "Registered operation: " << key << " - " << value.description_ << std::endl;
+        }
+
         if(found == end(entries_))
         {
             return std::nullopt;

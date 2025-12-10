@@ -11,9 +11,9 @@ message(STATUS "CK_PROFILER_OP_FILTER: ${CK_PROFILER_OP_FILTER}")
 message(STATUS "CK_PROFILER_INSTANCE_FILTER: ${CK_PROFILER_INSTANCE_FILTER}")
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
-  list(APPEND PROFILER_OPS tile_profile_grouped_conv_bwd_data.cpp)
-  list(APPEND PROFILER_OPS tile_profile_grouped_conv_bwd_weight.cpp)
-  #list(APPEND PROFILER_OPS tile_profile_grouped_conv_fwd.cpp)
+  #list(APPEND PROFILER_OPS tile_profile_grouped_conv_bwd_data.cpp)
+  #list(APPEND PROFILER_OPS tile_profile_grouped_conv_bwd_weight.cpp)
+  list(APPEND PROFILER_OPS tile_profile_grouped_conv_fwd.cpp)
 endif()
 
 set(PROFILER_SOURCES tile_profiler.cpp)

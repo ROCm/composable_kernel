@@ -25,6 +25,8 @@ using NHWGC  = ck_tile::tensor_layout::convolution::NHWGC;
 using GKYXC  = ck_tile::tensor_layout::convolution::GKYXC;
 using NHWGK  = ck_tile::tensor_layout::convolution::NHWGK;
 
+using INT8   = ck_tile::int8_t;
+
 using PassThrough = ck_tile::element_wise::PassThrough;
 
 template <typename BaseOp, typename NewOpInstances>
