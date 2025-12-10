@@ -630,24 +630,20 @@ def cmake_build(Map conf=[:]){
                 echo "=== MAKING SCRIPTS EXECUTABLE ==="
                 chmod +x ../script/monitor_sccache_during_build.sh
                 
-                echo "=== SCCACHE DEBUG ENVIRONMENT ==="
+                echo "=== SETTING UP DEBUG ENVIRONMENT ==="
                 mkdir -p logs
-                export CK_SCCACHE="\${env.CK_SCCACHE}"
-                export SCCACHE_REDIS="redis://\${env.CK_SCCACHE}"
+                export CK_SCCACHE="${env.CK_SCCACHE}"
+                export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
                 export ROCM_PATH=/opt/rocm
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
-                export SCCACHE_C_CUSTOM_CACHE_BUSTER="\${invocation_tag}"
-                export JENKINS_STAGE_NAME="\${env.STAGE_NAME}"
-                export WORKSPACE="\${env.WORKSPACE}"
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
+                export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
+                
+                echo "Environment for debug scripts:"
                 echo "CK_SCCACHE: \$CK_SCCACHE"
                 echo "SCCACHE_REDIS: \$SCCACHE_REDIS"
-                echo "WORKSPACE: \$WORKSPACE"
-                echo "Compiler: $(which clang || echo 'not found')"
-                echo "Build directory: $(pwd)"
-                echo "CMake build path: $(grep CMAKE_BINARY_DIR CMakeCache.txt 2>/dev/null || echo 'not found')"
-                echo "CMake source path: $(grep CMAKE_SOURCE_DIR CMakeCache.txt 2>/dev/null || echo 'not found')"
-                echo "Environment variables affecting cache:"
-                env | grep -E 'SCCACHE|PWD|WORKSPACE|CACHE_BUSTER'
+                echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \$SCCACHE_C_CUSTOM_CACHE_BUSTER"
+                echo "JENKINS_STAGE_NAME: \$JENKINS_STAGE_NAME"
                 
                 echo "=== STARTING CONTINUOUS MONITORING ==="
                 ../script/monitor_sccache_during_build.sh build_monitor &
@@ -658,11 +654,6 @@ def cmake_build(Map conf=[:]){
         }
 
         def build_start_time = System.currentTimeMillis()
-
-        // Get sccache environment info
-        sh """
-            
-        """
 
         try {
             //build CK
