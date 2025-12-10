@@ -632,12 +632,15 @@ def cmake_build(Map conf=[:]){
                 
                 echo "=== SCCACHE DEBUG ENVIRONMENT ==="
                 mkdir -p logs
-                export CK_SCCACHE="${env.CK_SCCACHE}"
-                export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
+                export CK_SCCACHE="\${env.CK_SCCACHE}"
+                export SCCACHE_REDIS="redis://\${env.CK_SCCACHE}"
                 export ROCM_PATH=/opt/rocm
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
-                export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
-                export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER="\${invocation_tag}"
+                export JENKINS_STAGE_NAME="\${env.STAGE_NAME}"
+                export WORKSPACE="\${env.WORKSPACE}"
+                echo "CK_SCCACHE: \$CK_SCCACHE"
+                echo "SCCACHE_REDIS: \$SCCACHE_REDIS"
                 echo "WORKSPACE: \$WORKSPACE"
                 echo "Compiler: $(which clang || echo 'not found')"
                 echo "Build directory: $(pwd)"
