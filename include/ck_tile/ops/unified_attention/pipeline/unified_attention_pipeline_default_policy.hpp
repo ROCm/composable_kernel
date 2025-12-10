@@ -264,7 +264,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
             {
                 /// NOTICE: in order to use load_tile_transpose() later for V tile, we cannot use
                 /// WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution here
-                return WarpGemmMfma_f32_32x32x16_fp8_fp8_CTransposed{};
+                return WarpGemmMfma_f32_32x32x16_fp8_fp8_CTransposed<>{};
                 // return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
             }
         }();
@@ -298,36 +298,6 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                            typename Problem::UnifiedAttentionShape::Gemm1WarpTile>>;
         /// NOTICE: in order to use load_tile_transpose() later for V tiles, we have to pass
         /// WGAttrNumAccessEnum::Double instead of WGAttrNumAccessEnum::Single
-        // using WarpGemm = decltype([]() {
-        //     if constexpr(std::is_same_v<typename Problem::VDataType, fp8_t>)
-        //     {
-        //         return WarpGemmDispatcher<
-        //             typename Problem::PDataType,
-        //             typename Problem::VDataType,
-        //             typename Problem::OaccDataType,
-        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
-        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
-        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
-        //             true,
-        //             false,
-        //             false,
-        //             WGAttrNumAccessEnum::Single>{};
-        //     }
-        //     else
-        //     {
-        //         return WarpGemmDispatcher<
-        //             typename Problem::PDataType,
-        //             typename Problem::VDataType,
-        //             typename Problem::OaccDataType,
-        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
-        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
-        //             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
-        //             true,
-        //             false,
-        //             false,
-        //             WGAttrNumAccessEnum::Double>{};
-        //     }
-        // }());
         using WarpGemm =
             WarpGemmDispatcher<typename Problem::PDataType,
                                typename Problem::VDataType,
@@ -338,7 +308,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                true,
                                false,
                                false,
-                               WGAttrNumAccessEnum::Single>;
+                               WGAttrNumAccessEnum::Double>;
         using BlockGemmPolicy = BlockGemmARegBRegCRegV2CustomPolicy<
             typename Problem::PDataType,
             typename Problem::VDataType,

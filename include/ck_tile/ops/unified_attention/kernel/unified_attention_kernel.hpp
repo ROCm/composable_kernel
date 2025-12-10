@@ -50,7 +50,7 @@ struct UnifiedAttentionKernel
     static constexpr index_t BLOCK_Q = UnifiedAttentionPipeline::BLOCK_Q;
     // BLOCK size for K seqlen
     static constexpr index_t BLOCK_SIZE = UnifiedAttentionPipeline::BLOCK_SIZE;
-    static constexpr bool kIsQuantized  = (QuantEnum != UnifiedAttentionQuantScaleEnum::NO_SCALE);
+    static constexpr bool IsQuantized   = (QuantEnum != UnifiedAttentionQuantScaleEnum::NO_SCALE);
     template <ck_tile::index_t I> // to avoid duplicated base class problem, introduce an template
                                   // arg
     struct UnifiedAttentionEmptyKargs
@@ -100,10 +100,9 @@ struct UnifiedAttentionKernel
         ck_tile::index_t output_stride_1;
     };
 
-    struct UnifiedAttentionVarlenKargs : UnifiedAttentionCommonKargs,
-                                         std::conditional_t<kIsQuantized,
-                                                            UnifiedAttentionQuantKargs,
-                                                            UnifiedAttentionEmptyKargs<0>>
+    struct UnifiedAttentionVarlenKargs
+        : UnifiedAttentionCommonKargs,
+          std::conditional_t<IsQuantized, UnifiedAttentionQuantKargs, UnifiedAttentionEmptyKargs<0>>
     {
         const int32_t* block_tables_ptr;
         ck_tile::index_t block_table_stride;
@@ -115,7 +114,7 @@ struct UnifiedAttentionKernel
 
     using Kargs = UnifiedAttentionVarlenKargs;
 
-    template <bool Cond = !kIsQuantized>
+    template <bool Cond = !IsQuantized>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
@@ -175,7 +174,7 @@ struct UnifiedAttentionKernel
         return kargs;
     }
 
-    template <bool Cond = kIsQuantized>
+    template <bool Cond = IsQuantized>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
@@ -484,7 +483,7 @@ struct UnifiedAttentionKernel
 
         // both quantized
         auto o_acc_tile = [&]() {
-            if constexpr(kIsQuantized)
+            if constexpr(IsQuantized)
             {
                 if(std::is_same_v<QDataType, KDataType>)
                 {

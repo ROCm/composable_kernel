@@ -159,9 +159,6 @@ struct Problem
             scale_s = 1.0f / ck_tile::sqrt(static_cast<float>(hdim));
 
         // Initialize other scales
-        scale      = args.get_float("scale");
-        scale_k    = args.get_float("scale_k");
-        scale_v    = args.get_float("scale_v");
         num_tokens = 0;
         for(const auto& len : query_lens)
         {
@@ -192,9 +189,6 @@ struct Problem
     ck_tile::index_t num_tokens;
     ck_tile::index_t fp8_mode;
     float scale_s;
-    float scale;
-    float scale_k;
-    float scale_v;
     mask_info mask;
     std::vector<int> query_lens;
     std::vector<int> kv_lens;

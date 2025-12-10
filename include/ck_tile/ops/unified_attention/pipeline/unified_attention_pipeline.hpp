@@ -869,7 +869,7 @@ struct UnifiedAttentionPipeline
                            get_slice_tile(q_tile,
                                           sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
                                           sequence<BLOCK_M, k0_loops * HEAD_SIZE_PADDED>{}),
-                           dequantized_k_tile);
+                           dequantized_k_tile * scale_k);
                 }
                 else
                 {
@@ -897,7 +897,7 @@ struct UnifiedAttentionPipeline
                            get_slice_tile(sp(sp_reg_idx).p,
                                           sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
                                           sequence<BLOCK_M, k1_loops * BLOCK_SIZE>{}),
-                           dequantized_v_tile);
+                           dequantized_v_tile * scale_v);
                 }
                 else
                 {
@@ -929,7 +929,7 @@ struct UnifiedAttentionPipeline
                            get_slice_tile(q_tile,
                                           sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
                                           sequence<BLOCK_M, k0_loops * HEAD_SIZE_PADDED>{}),
-                           dequantized_k_tile);
+                           dequantized_k_tile * scale_k);
                 }
                 else
                 {
@@ -957,7 +957,7 @@ struct UnifiedAttentionPipeline
                            get_slice_tile(sp(sp_reg_idx).p,
                                           sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
                                           sequence<BLOCK_M, k1_loops * BLOCK_SIZE>{}),
-                           dequantized_v_tile);
+                           dequantized_v_tile * scale_v);
                     fmha_alu0(number<1>{} - sp_reg_idx);
                 }
                 else

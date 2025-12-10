@@ -178,7 +178,7 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
            "BLOCK_Q must equal BLOCK_M / num_queries_per_kv");
     index_t total_num_q_blocks = args.num_tokens / BLOCK_Q + args.num_seqs;
     auto kargs_lambda          = [&]() {
-        if constexpr(Kernel::kIsQuantized)
+        if constexpr(Kernel::IsQuantized)
         {
             return Kernel::MakeKargs(args.q_ptr,
                                      args.k_ptr,
