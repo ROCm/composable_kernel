@@ -834,12 +834,14 @@ def Build_CK(Map conf=[:]){
                     if (params.hipTensor_test && arch == "gfx90a" ){
                         // build and test hipTensor on gfx90a node
                         sh """#!/bin/bash
-                            rm -rf "${params.hipTensor_branch}".zip
-                            rm -rf hipTensor-"${params.hipTensor_branch}"
-                            wget https://github.com/ROCm/hipTensor/archive/refs/heads/"${params.hipTensor_branch}".zip
-                            unzip -o "${params.hipTensor_branch}".zip
+                            rm -rf rocm-libraries
+                            git clone --no-checkout --filter=blob:none https://github.com/ROCm/rocm-libraries.git
+                            cd rocm-libraries
+                            git sparse-checkout init --cone
+                            git sparse-checkout set projects/hiptensor
+                            git checkout "${params.hipTensor_branch}"
                         """
-                        dir("hipTensor-${params.hipTensor_branch}"){
+                        dir("rocm-libraries/projects/hiptensor"){
                             sh """#!/bin/bash
                                 mkdir -p build
                                 ls -ltr
