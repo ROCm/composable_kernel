@@ -243,15 +243,15 @@ def shouldRunCICheck() {
         // Get the list of changed files
         def changedFiles = sh(
             returnStdout: true,
-            script: '''
-                echo "CHANGE_TARGET is: ${CHANGE_TARGET:-<unset>}"
-                # Try to use origin/$CHANGE_TARGET if set, else fallback to HEAD~1
-                if [ -n "${CHANGE_TARGET:-}" ] && git rev-parse --verify origin/$CHANGE_TARGET >/dev/null 2>&1; then
-                    git diff --name-only origin/$CHANGE_TARGET...HEAD
+            script: """
+                CHANGE_TARGET='${env.CHANGE_TARGET}'
+                echo \"CHANGE_TARGET is: \${CHANGE_TARGET}\" >&2
+                if [ -n \"\${CHANGE_TARGET}\" ] && git rev-parse --verify origin/\${CHANGE_TARGET} >/dev/null 2>&1; then
+                    git diff --name-only origin/\${CHANGE_TARGET}...HEAD
                 else
                     git diff --name-only HEAD~1..HEAD
                 fi
-            '''
+            """
         ).trim().split('\n')
         
         if (changedFiles.size() == 1 && changedFiles[0] == '') {
