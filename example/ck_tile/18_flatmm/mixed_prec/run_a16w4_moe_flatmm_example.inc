@@ -88,6 +88,7 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
     const ck_tile::index_t warmup     = arg_parser.get_int("warmup");
     const ck_tile::index_t repeat     = arg_parser.get_int("repeat");
     const ck_tile::index_t experts    = arg_parser.get_int("experts");
+    const ck_tile::index_t k_batch    = arg_parser.get_int("k_batch");
 
     // TODO: replace the magic declaration
     const ck_tile::index_t MPerBlock = FlatmmConfig::M_Tile;
@@ -250,7 +251,7 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
                             num_tokens,
                             experts,
                             topk,
-                            1, // k_batch
+                            k_batch, // k_batch
                             M,
                             N,
                             K,
