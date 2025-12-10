@@ -410,12 +410,6 @@ struct MoeFlatmmKernel
                     b_k_split_offset = k_id * KRead;
                 }
             }
-
-            if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
-            {
-                printf("SplitKBatchOffset: k_id=%zu, a_k_split_offset=%ld, b_k_split_offset=%ld, splitted_k=%ld\n",
-                       k_id, a_k_split_offset, b_k_split_offset, splitted_k);
-            }
         }
 
         index_t a_k_split_offset;
