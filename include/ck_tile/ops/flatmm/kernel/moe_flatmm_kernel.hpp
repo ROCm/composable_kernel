@@ -921,6 +921,7 @@ struct MoeFlatmmKernel
             a_offsets[m0]           = std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>
                                           ? gather_token_id * kargs.stride_A
                                           : gather_token_id;
+	    // printf("lane, %d a_offset%d \n", threadIdx.x, a_offsets[m0]);
         });
 
         const SplitKBatchOffset splitk_batch_offset(kargs);
@@ -959,6 +960,8 @@ struct MoeFlatmmKernel
                                               a_offsets); // K DRAM tile window for
 
 
+	if (coord_m > 0)
+		return;
         auto c_block_tile = [&] {
             if constexpr(BMXFP4_Pipeline)
             {
@@ -967,6 +970,7 @@ struct MoeFlatmmKernel
                 if constexpr(AQUANT_Pipeline)
                 {
                     return FlatmmPipeline{}(a_gather_block_tile,
+                    // return FlatmmPipeline{}(a_block_window,
                                             b_block_window,
                                             a_scale_block_window, // weight scale with granularityK = 32
                                             b_scale_block_window, // weight scale with granularityK = 32

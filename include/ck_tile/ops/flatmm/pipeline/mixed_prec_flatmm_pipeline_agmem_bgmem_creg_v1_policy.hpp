@@ -622,7 +622,6 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeADramTileDistribution()
     {
-
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
         using ALayout   = remove_cvref_t<typename Problem::ALayout>;
         static_assert(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>);
@@ -697,6 +696,13 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                        number<1>{}),
             number<K2>{},
             number<1>{});
+        // constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor( //
+        //     make_tuple(number<MPerBlock>{},
+        //                number<KPerBlock>{}),
+        //     make_tuple(number<256>{},
+        //                number<1>{}),
+        //     number<K2>{},
+        //     number<1>{});
 
         constexpr auto a_lds_block_desc_1 = transform_tensor_descriptor(
             a_lds_block_desc_0,
