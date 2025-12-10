@@ -78,8 +78,8 @@ static void print_helper_msg()
 
 int tile_profile_grouped_conv_fwd(int argc, char* argv[])
 {
-    // 8 for control, 1 for num_dim_spatial
-    if(argc < 9)
+    // 7 for control, 1 for num_dim_spatial
+    if(argc < 8)
     {
         print_helper_msg();
         return 1;
@@ -93,10 +93,12 @@ int tile_profile_grouped_conv_fwd(int argc, char* argv[])
     const bool time_kernel     = std::stoi(argv[7]);
     const int num_dim_spatial  = std::stoi(argv[8]);
 
-    // 9 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
-    if(argc != 8 + 1 + 4 + 6 * num_dim_spatial + 1)
+    // 7 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
+    const int expected_num_args = 7 + 1 + 4 + 6 * num_dim_spatial + 1;
+    if(argc != expected_num_args)
     {
-        std::cout << argc << std::endl;
+        std::cout << "Received " << argc << " args"<< std::endl;
+        std::cout << "Expected " << expected_num_args << " args"<< std::endl;
         print_helper_msg();
         return 1;
     }
@@ -170,6 +172,10 @@ int tile_profile_grouped_conv_fwd(int argc, char* argv[])
         {
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
         }
+        if (data_type == ConvDataType::I8_I8_I8)
+        {
+            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, int8_t{}, int8_t{}, int8_t{}, int8_t{}, int8_t{});
+        }
     }
 
     if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
@@ -187,7 +193,7 @@ int tile_profile_grouped_conv_fwd(int argc, char* argv[])
             return profile(
                 I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
         }
-        else if(data_type == ConvDataType::I8_I8_I8)
+        if(data_type == ConvDataType::I8_I8_I8)
         {
             return profile(
                 I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, int8_t{}, int8_t{}, int8_t{}, int8_t{}, int8_t{});

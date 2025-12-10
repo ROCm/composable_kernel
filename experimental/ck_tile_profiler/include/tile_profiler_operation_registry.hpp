@@ -56,12 +56,6 @@ class ProfilerOperationRegistry final
     {
         const auto found = entries_.find(name);
 
-        for (const auto& [key, value] : entries_)
-        {
-            // Debug output to trace available operations
-            std::cout << "Registered operation: " << key << " - " << value.description_ << std::endl;
-        }
-
         if(found == end(entries_))
         {
             return std::nullopt;

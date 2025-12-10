@@ -65,7 +65,7 @@ void add_grouped_conv2d_fwd_bf16_instances_6(std::vector<std::unique_ptr<DeviceO
 void add_grouped_conv2d_fwd_f16_instances(std::vector<std::unique_ptr<DeviceOpFwd2DF16>>& instances);
 
 // INT8 instances
-void add_grouped_conv2d_fwd_i8_instances(std::vector<std::unique_ptr<DeviceOpFwd2DINT8>>& instances);
+void add_grouped_conv2d_fwd_int8_instances(std::vector<std::unique_ptr<DeviceOpFwd2DINT8>>& instances);
 
 template <ck_tile::index_t NumDimSpatial,
           typename InLayout,
