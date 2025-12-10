@@ -135,55 +135,75 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
     }
     else if(config.do_verification == 2)
     {
-        // GPU verification (only supports G=1, standard convolution)
-        if(conv_param.G_ != 1)
-        {
-            std::cout << "GPU verification only supports G=1 (standard convolution)" << std::endl;
-            std::cout << "Current G=" << conv_param.G_ << " not supported." << std::endl;
-            std::cout << "Use do_verification=1 for CPU verification with grouped convolution."
-                      << std::endl;
-            return true;
-        }
+        // GPU verification using naive GPU reference
+        std::cout << "Running GPU verification..." << std::endl;
 
-        std::cout << "Running GPU verification (G=1)..." << std::endl;
-
+        // Allocate and ZERO GPU memory for reference weights
         DeviceMem wei_device_ref_buf(sizeof(WeiDataType) *
                                      wei_device_result.mDesc.GetElementSpaceSize());
         wei_device_ref_buf.SetZero();
 
-        // Extract dimensions using helper function (G=1, standard convolution)
-        ck::ref::ConvDims dims = ck::utils::conv::extract_conv_dims(conv_param, NDimSpatial, false);
+        // Convert arrays to vectors for GPU reference API
+        std::vector<ck::index_t> in_lengths_vec(input_lengths.begin(), input_lengths.end());
+        std::vector<ck::index_t> in_strides_vec(input_strides.begin(), input_strides.end());
+        std::vector<ck::index_t> wei_lengths_vec(filter_lengths.begin(), filter_lengths.end());
+        std::vector<ck::index_t> wei_strides_vec(weights_strides.begin(), weights_strides.end());
+        std::vector<ck::index_t> out_lengths_vec(output_lengths.begin(), output_lengths.end());
+        std::vector<ck::index_t> out_strides_vec(output_strides.begin(), output_strides.end());
+        std::vector<ck::index_t> conv_strides_vec(conv_filter_strides.begin(),
+                                                  conv_filter_strides.end());
+        std::vector<ck::index_t> conv_dilations_vec(conv_filter_dilations.begin(),
+                                                    conv_filter_dilations.end());
+        std::vector<ck::index_t> input_pads_vec(input_left_pads.begin(), input_left_pads.end());
 
-        constexpr ck::index_t block_size     = 256;
-        const ck::long_index_t weight_length = dims.K * dims.Z * dims.Y * dims.X * dims.C;
-        const ck::index_t grid_size          = (weight_length + block_size - 1) / block_size;
+        // Call new GPU reference function with lengths and strides
+        using InLayout  = InputLayout<NDimSpatial>;
+        using WeiLayout = WeightLayout<NDimSpatial>;
+        using OutLayout = OutputLayout<NDimSpatial>;
 
-        auto gpu_ref_kernel = ck::ref::naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk<InDataType,
-                                                                               WeiDataType,
-                                                                               OutDataType,
-                                                                               float,
-                                                                               InElementOp,
-                                                                               WeiElementOp,
-                                                                               OutElementOp>;
-
-        gpu_ref_kernel<<<dim3(grid_size), dim3(block_size), 0, nullptr>>>(
+        ck::ref::naive_conv_bwd_weight<InLayout,
+                                       WeiLayout,
+                                       OutLayout,
+                                       InDataType,
+                                       WeiDataType,
+                                       OutDataType,
+                                       InElementOp,
+                                       WeiElementOp,
+                                       OutElementOp>(
             reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
             reinterpret_cast<WeiDataType*>(wei_device_ref_buf.GetDeviceBuffer()),
             reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            dims);
+            in_lengths_vec,
+            in_strides_vec,
+            wei_lengths_vec,
+            wei_strides_vec,
+            out_lengths_vec,
+            out_strides_vec,
+            conv_strides_vec,
+            conv_dilations_vec,
+            input_pads_vec,
+            nullptr);
 
         HIP_CHECK_ERROR(hipDeviceSynchronize());
 
-        std::cout << "GPU reference kernel completed, copying results..." << std::endl;
+        std::cout << "GPU reference function completed successfully, copying results..."
+                  << std::endl;
 
+        // Copy GPU reference result to host
         wei_device_ref_buf.FromDevice(wei_host_result.mData.data());
+
+        // Copy GPU kernel result to host
         wei_device_buf.FromDevice(wei_device_result.mData.data());
 
+        std::cout << "Comparing GPU kernel output vs GPU reference..." << std::endl;
+
+        // Compare: Optimized kernel result vs GPU reference result
         bool pass = ck::utils::check_err(wei_device_result.mData,
                                          wei_host_result.mData,
                                          "Error: Incorrect results!",
                                          get_rtol<WeiDataType, float>(),
                                          get_atol<WeiDataType, float>());
+
         std::cout << "GPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
 
         return pass;
