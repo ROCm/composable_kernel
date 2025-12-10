@@ -659,7 +659,7 @@ def cmake_build(Map conf=[:]){
         sh """
                 echo "=== SCCACHE DEBUG ENVIRONMENT ==="
                 echo "WORKSPACE: \${WORKSPACE:-unset}"
-                echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: ${SCCACHE_C_CUSTOM_CACHE_BUSTER:-unset}"
+                echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \${SCCACHE_C_CUSTOM_CACHE_BUSTER:-unset}"
                 echo "SCCACHE_REDIS: \${SCCACHE_REDIS:-unset}"
                 echo "SCCACHE_EXTRAFILES: \${SCCACHE_EXTRAFILES:-unset}"
                 echo "Compiler: $(which clang || echo 'not found')"
