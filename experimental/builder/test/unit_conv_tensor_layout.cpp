@@ -41,10 +41,10 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NWGC_GKXC_NWGK)
 
     using TensorLayouts = ConvTensorLayouts<sig, 1, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NWGC>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NWGK>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NWGC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NWGK>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKXC_NGKW)
@@ -60,10 +60,10 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKXC_NGKW)
 
     using TensorLayouts = ConvTensorLayouts<sig, 1, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCW>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKW>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_GNWC_GKXC_GNWK)
@@ -79,10 +79,10 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_GNWC_GKXC_GNWK)
 
     using TensorLayouts = ConvTensorLayouts<sig, 1, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNWC>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::GNWK>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNWC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::GNWK>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKCX_NGKW)
@@ -98,10 +98,10 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKCX_NGKW)
 
     using TensorLayouts = ConvTensorLayouts<sig, 1, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCW>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKCX>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKW>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKCX>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKYXC_NGKHW)
@@ -117,10 +117,10 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKYXC_NGKHW)
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCHW>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKHW>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCHW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKHW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_NHWGC_GKYXC_NHWGK)
@@ -136,10 +136,10 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NHWGC_GKYXC_NHWGK)
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NHWGC>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NHWGK>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NHWGC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NHWGK>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_GNHWC_GKYXC_GNHWK)
@@ -155,10 +155,10 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_GNHWC_GKYXC_GNHWK)
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNHWC>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::GNHWK>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNHWC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::GNHWK>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKCYX_NGKHW)
@@ -174,10 +174,10 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKCYX_NGKHW)
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCHW>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKCYX>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKHW>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCHW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKCYX>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKHW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(ConvTensorLayout, AssignsLayoutsFor3D_NGCDHW_GKCZYX_NGKDHW)
@@ -193,10 +193,10 @@ TEST(ConvTensorLayout, AssignsLayoutsFor3D_NGCDHW_GKCZYX_NGKDHW)
 
     using TensorLayouts = ConvTensorLayouts<sig, 3, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCDHW>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKCZYX>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKDHW>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCDHW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKCZYX>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKDHW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(ConvTensorLayout, AssignsLayoutsFor3D_NDHWGC_GKZYXC_NDHWGK)
@@ -212,10 +212,10 @@ TEST(ConvTensorLayout, AssignsLayoutsFor3D_NDHWGC_GKZYXC_NDHWGK)
 
     using TensorLayouts = ConvTensorLayouts<sig, 3, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NDHWGC>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKZYXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NDHWGK>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NDHWGC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKZYXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NDHWGK>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(ConvTensorLayout, AssignsLayoutsFor3D_GNDHWC_GKZYXC_GNDHWK)
@@ -231,35 +231,35 @@ TEST(ConvTensorLayout, AssignsLayoutsFor3D_GNDHWC_GKZYXC_GNDHWK)
 
     using TensorLayouts = ConvTensorLayouts<sig, 3, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNDHWC>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKZYXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::GNDHWK>();
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNDHWC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKZYXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::GNDHWK>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ck::Tuple<>>));
 }
 
 TEST(AuxiliaryTensorLayout, AssignsLayoutForG_K_strided)
 {
     using CKLayout = LayoutToCK<TensorLayout::G_K_strided>::type;
-    StaticAssertTypeEq<CKLayout, ck::tensor_layout::convolution::G_K>();
+    EXPECT_TRUE((std::is_same_v<CKLayout, ck::tensor_layout::convolution::G_K>));
 }
 
 TEST(AuxiliaryTensorLayout, AssignsLayoutForGC)
 {
     using CKLayout = LayoutToCK<TensorLayout::GC>::type;
-    StaticAssertTypeEq<CKLayout, ck::tensor_layout::convolution::GC>();
+    EXPECT_TRUE((std::is_same_v<CKLayout, ck::tensor_layout::convolution::GC>));
 }
 
 TEST(AuxiliaryTensorLayout, AssignsLayoutForG_C_strided)
 {
     using CKLayout = LayoutToCK<TensorLayout::G_C_strided>::type;
-    StaticAssertTypeEq<CKLayout, ck::tensor_layout::convolution::G_C>();
+    EXPECT_TRUE((std::is_same_v<CKLayout, ck::tensor_layout::convolution::G_C>));
 }
 
 TEST(AuxiliaryTensorLayout, EmptyAuxiliaryTensorLayoutIsEmptyTuple)
 {
     using ::ck_tile::builder::factory::internal::EmptyAuxiliaryTensorLayout;
     using EmptyLayout = EmptyAuxiliaryTensorLayout::type;
-    StaticAssertTypeEq<EmptyLayout, ck::Tuple<>>();
+    EXPECT_TRUE((std::is_same_v<EmptyLayout, ck::Tuple<>>));
 }
 
 struct MockAuxiliaryTensorConfig
@@ -278,7 +278,7 @@ TEST(AuxiliaryTensorLayoutIntegration, SingleBiasTensorWithG_K_Layout)
 
     EXPECT_EQ(AuxLayouts::Size, 1);
     using ExpectedType = ck::Tuple<ck::tensor_layout::convolution::G_K>;
-    StaticAssertTypeEq<AuxLayouts::type, ExpectedType>();
+    EXPECT_TRUE((std::is_same_v<AuxLayouts::type, ExpectedType>));
 }
 
 TEST(AuxiliaryTensorLayoutIntegration, SingleBiasTensorWithGC_Layout)
@@ -292,7 +292,7 @@ TEST(AuxiliaryTensorLayoutIntegration, SingleBiasTensorWithGC_Layout)
 
     EXPECT_EQ(AuxLayouts::Size, 1);
     using ExpectedType = ck::Tuple<ck::tensor_layout::convolution::GC>;
-    StaticAssertTypeEq<AuxLayouts::type, ExpectedType>();
+    EXPECT_TRUE((std::is_same_v<AuxLayouts::type, ExpectedType>));
 }
 
 TEST(AuxiliaryTensorLayoutIntegration, SingleBiasTensorWithG_C_Layout)
@@ -306,7 +306,7 @@ TEST(AuxiliaryTensorLayoutIntegration, SingleBiasTensorWithG_C_Layout)
 
     EXPECT_EQ(AuxLayouts::Size, 1);
     using ExpectedType = ck::Tuple<ck::tensor_layout::convolution::G_C>;
-    StaticAssertTypeEq<AuxLayouts::type, ExpectedType>();
+    EXPECT_TRUE((std::is_same_v<AuxLayouts::type, ExpectedType>));
 }
 
 TEST(AuxiliaryTensorLayoutIntegration, TwoAuxiliaryTensors)
@@ -322,7 +322,7 @@ TEST(AuxiliaryTensorLayoutIntegration, TwoAuxiliaryTensors)
     EXPECT_EQ(AuxLayouts::Size, 2);
     using ExpectedType =
         ck::Tuple<ck::tensor_layout::convolution::G_K, ck::tensor_layout::convolution::GC>;
-    StaticAssertTypeEq<AuxLayouts::type, ExpectedType>();
+    EXPECT_TRUE((std::is_same_v<AuxLayouts::type, ExpectedType>));
 }
 
 TEST(AuxiliaryTensorLayoutIntegration, ThreeAuxiliaryTensors)
@@ -340,7 +340,7 @@ TEST(AuxiliaryTensorLayoutIntegration, ThreeAuxiliaryTensors)
     using ExpectedType = ck::Tuple<ck::tensor_layout::convolution::G_K,
                                    ck::tensor_layout::convolution::GC,
                                    ck::tensor_layout::convolution::G_C>;
-    StaticAssertTypeEq<AuxLayouts::type, ExpectedType>();
+    EXPECT_TRUE((std::is_same_v<AuxLayouts::type, ExpectedType>));
 }
 
 TEST(AuxiliaryTensorLayoutIntegration, WorksWith1DConvolution)
@@ -354,7 +354,7 @@ TEST(AuxiliaryTensorLayoutIntegration, WorksWith1DConvolution)
 
     EXPECT_EQ(AuxLayouts::Size, 1);
     using ExpectedType = ck::Tuple<ck::tensor_layout::convolution::G_K>;
-    StaticAssertTypeEq<AuxLayouts::type, ExpectedType>();
+    EXPECT_TRUE((std::is_same_v<AuxLayouts::type, ExpectedType>));
 }
 
 TEST(AuxiliaryTensorLayoutIntegration, WorksWith3DConvolution)
@@ -368,7 +368,7 @@ TEST(AuxiliaryTensorLayoutIntegration, WorksWith3DConvolution)
 
     EXPECT_EQ(AuxLayouts::Size, 1);
     using ExpectedType = ck::Tuple<ck::tensor_layout::convolution::GC>;
-    StaticAssertTypeEq<AuxLayouts::type, ExpectedType>();
+    EXPECT_TRUE((std::is_same_v<AuxLayouts::type, ExpectedType>));
 }
 
 TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithSingleBiasG_K)
@@ -390,12 +390,12 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithSingleBiasG_K)
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCHW>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKHW>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NGCHW>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NGKHW>));
 
     using ExpectedDsLayout = ck::Tuple<ck::tensor_layout::convolution::G_K>;
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ExpectedDsLayout>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ExpectedDsLayout>));
 }
 
 TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithSingleBiasGC)
@@ -417,12 +417,12 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithSingleBiasGC)
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NHWGC>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NHWGK>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NHWGC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NHWGK>));
 
     using ExpectedDsLayout = ck::Tuple<ck::tensor_layout::convolution::GC>;
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ExpectedDsLayout>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ExpectedDsLayout>));
 }
 
 TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithTwoAuxiliaryTensors)
@@ -445,13 +445,13 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithTwoAuxiliaryTensors)
 
     using TensorLayouts = ConvTensorLayouts<sig, 2, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNHWC>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::GNHWK>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::GNHWC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKYXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::GNHWK>));
 
     using ExpectedDsLayout =
         ck::Tuple<ck::tensor_layout::convolution::G_K, ck::tensor_layout::convolution::GC>;
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ExpectedDsLayout>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ExpectedDsLayout>));
 }
 
 TEST(ConvTensorLayoutsWithAuxiliary, Conv1DWithBias)
@@ -473,12 +473,12 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv1DWithBias)
 
     using TensorLayouts = ConvTensorLayouts<sig, 1, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NWGC>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NWGK>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NWGC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NWGK>));
 
     using ExpectedDsLayout = ck::Tuple<ck::tensor_layout::convolution::G_K>;
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ExpectedDsLayout>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ExpectedDsLayout>));
 }
 
 TEST(ConvTensorLayoutsWithAuxiliary, Conv3DWithBias)
@@ -500,12 +500,12 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv3DWithBias)
 
     using TensorLayouts = ConvTensorLayouts<sig, 3, FORWARD>;
 
-    StaticAssertTypeEq<TensorLayouts::ALayout, ck::tensor_layout::convolution::NDHWGC>();
-    StaticAssertTypeEq<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKZYXC>();
-    StaticAssertTypeEq<TensorLayouts::ELayout, ck::tensor_layout::convolution::NDHWGK>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ALayout, ck::tensor_layout::convolution::NDHWGC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::BLayout, ck::tensor_layout::convolution::GKZYXC>));
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::ELayout, ck::tensor_layout::convolution::NDHWGK>));
 
     using ExpectedDsLayout = ck::Tuple<ck::tensor_layout::convolution::G_C>;
-    StaticAssertTypeEq<TensorLayouts::DsLayout, ExpectedDsLayout>();
+    EXPECT_TRUE((std::is_same_v<TensorLayouts::DsLayout, ExpectedDsLayout>));
 }
 
 } // namespace
