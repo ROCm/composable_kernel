@@ -17,8 +17,8 @@ struct GroupedConvolutionBackwardWeightInvoker
               typename DsDataType     = ck_tile::tuple<>,
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    static float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
-                                         const ck_tile::stream_config& s)
+    static InvokerResult grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
+                                                 const ck_tile::stream_config& s)
     {
         // Implicit GEMM Traits
         using GemmShape = ck_tile::TileGemmShape<
@@ -105,9 +105,9 @@ struct GroupedConvolutionBackwardWeightInvoker
                                                                            TilePartitioner,
                                                                            GemmPipeline,
                                                                            ConvEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
+            const auto kargs = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids  = Kernel::GridSize(args);
+            const dim3 grids  = Kernel::GridSize(kargs);
             const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
@@ -130,7 +130,7 @@ struct GroupedConvolutionBackwardWeightInvoker
             }
 
             auto preprocess = [&]() {
-                if(args.k_batch > 1)
+                if(kargs.k_batch > 1)
                 {
                     ck_tile::hip_check_error(
                         hipMemsetAsync(kargs.wei_ptr,
@@ -140,10 +140,14 @@ struct GroupedConvolutionBackwardWeightInvoker
                 }
             };
 
-            return ck_tile::launch_kernel_time_mask(
+            const auto ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 preprocess,
                 ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+
+            const auto split_k = kargs.k_batch;
+
+            return InvokerResult{ave_time, split_k};
         };
 
         if(args.k_batch == 1)
