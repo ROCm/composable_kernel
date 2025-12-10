@@ -1288,7 +1288,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    std::cout << "Unsupported Conv_K_ % ABlockTransferSrcScalarPerVector" << std::endl;
+                    std::cout << "Unsupported Conv_K_ % ABlockTransferSrcScalarPerVector"
+                              << std::endl;
                 }
                 return false;
             }
@@ -1297,7 +1298,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    std::cout << "Unsupported Conv_C_ % BBlockTransferSrcScalarPerVector" << std::endl;
+                    std::cout << "Unsupported Conv_C_ % BBlockTransferSrcScalarPerVector"
+                              << std::endl;
                 }
                 return false;
             }
