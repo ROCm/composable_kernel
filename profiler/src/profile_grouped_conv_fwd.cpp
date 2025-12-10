@@ -61,11 +61,10 @@ static void print_helper_msg()
         "G, K, Ho, Wo]\n"
         << "                     3: Input[N, G, C, Hi, Wi], Weight[G, K, C, Y, X], Output[N, "
         "G, K, Ho, Wo])\n"
-        << "arg4: indexing data type (0: 32-bit, 1: 64-bit)\n"
-        << "arg5: verification (0: no, 1: yes)\n"
-        << "arg6: initialization (0: no init, 1: integer value, 2: decimal value)\n"
-        << "arg7: print tensor value (0: no; 1: yes)\n"
-        << "arg8: time kernel (0: no, 1: yes)\n"
+        << "arg4: verification (0: no, 1: yes)\n"
+        << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
+        << "arg6: print tensor value (0: no; 1: yes)\n"
+        << "arg7: time kernel (0: no, 1: yes)\n"
         << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
     // clang-format on
 }
@@ -75,7 +74,7 @@ static void print_helper_msg()
 int profile_grouped_conv_fwd(int argc, char* argv[])
 {
     // 8 for control, 1 for num_dim_spatial
-    if(argc < 10)
+    if(argc < 9)
     {
         print_helper_msg();
         return 1;
@@ -83,21 +82,21 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
 
     const auto data_type       = static_cast<ConvDataType>(std::stoi(argv[2]));
     const auto layout          = static_cast<ConvLayout>(std::stoi(argv[3]));
-    const auto index_type      = static_cast<IndexType>(std::stoi(argv[4]));
-    const bool do_verification = std::stoi(argv[5]);
-    const int init_method      = std::stoi(argv[6]);
-    const bool do_log          = std::stoi(argv[7]);
-    const bool time_kernel     = std::stoi(argv[8]);
-    const int num_dim_spatial  = std::stoi(argv[9]);
+    const auto index_type      = IndexType::INDEX_T;
+    const bool do_verification = std::stoi(argv[4]);
+    const int init_method      = std::stoi(argv[5]);
+    const bool do_log          = std::stoi(argv[6]);
+    const bool time_kernel     = std::stoi(argv[7]);
+    const int num_dim_spatial  = std::stoi(argv[8]);
 
     // 9 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
-    if(argc != 9 + 1 + 4 + 6 * num_dim_spatial)
+    if(argc != 8 + 1 + 4 + 6 * num_dim_spatial + 1)
     {
         print_helper_msg();
         return 1;
     }
 
-    const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 10, argv);
+    const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 9, argv);
 
     using F32  = float;
     using F16  = ck::half_t;
