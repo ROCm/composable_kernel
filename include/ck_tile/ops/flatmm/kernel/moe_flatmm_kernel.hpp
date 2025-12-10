@@ -586,7 +586,7 @@ struct MoeFlatmmKernel
                         const ScaleType* b_scale_ptr,
                         EDataType* e_ptr,
                         [[maybe_unused]] const AccDataType* exp_weight_ptr,
-                        const int expert_id,
+                        [[maybe_unused]] const int expert_id,
                         const KernelArgs& kargs,
                         const SplitKBatchOffset& splitk_batch_offset)
     {
