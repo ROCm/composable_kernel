@@ -358,15 +358,27 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
                 const index_t stride_a = gemm_descs[i].stride_A_;
                 const index_t stride_b = gemm_descs[i].stride_B_;
-                const index_t stride_e = gemm_descs[i].stride_C_;
 
                 const index_t m_padded  = GridwiseGemm64::CalculateMPadded(M);
                 const index_t n_padded  = GridwiseGemm64::CalculateNPadded(N);
                 const index_t k_padded  = GridwiseGemm64::CalculateKPadded(K, K_BATCH);
                 const index_t k0_padded = GridwiseGemm64::CalculateK0Padded(K, K_BATCH);
 
+                // For TwoStage kernels, use dense stride for workspace (based on padded dimensions)
+                // not the user's output stride, to avoid sparse layouts and minimize memory usage
+                const index_t workspace_stride = [&]() {
+                    if constexpr(is_same<tensor_layout::gemm::RowMajor, ELayout>::value)
+                    {
+                        return n_padded; // Row-major: stride along columns
+                    }
+                    else // ColumnMajor
+                    {
+                        return m_padded; // Column-major: stride along rows
+                    }
+                }();
+
                 const auto c_grid_desc_m_n =
-                    GridwiseGemm64::MakeCGridDescriptor_M_N(M, N, stride_e);
+                    GridwiseGemm64::MakeCGridDescriptor_M_N(M, N, workspace_stride);
 
                 DsGridDesc_M_N ds_grid_desc_m_n;
                 DsGridPointer p_ds_grid;
@@ -415,7 +427,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                                                K,
                                                stride_a,
                                                stride_b,
-                                               stride_e,
+                                               workspace_stride, // Use dense stride for workspace
                                                m_padded,
                                                n_padded,
                                                k_padded,
@@ -488,6 +500,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                               << "grid_size_: " << karg.KPadded << std::endl;
                 }
             }
+
+            // Update workspace pointers after changing block layout
+            if(p_workspace_ != nullptr)
+            {
+                UpdateEPointers();
+            }
         }
 
         void UpdateEPointers()
@@ -499,14 +517,14 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             for(auto& arg : gemm_kernel_args_)
             {
                 arg.karg_.p_c_grid = p_workspace + offset;
-                index_t tiles      = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
-                offset += tiles * MPerBlock * NPerBlock;
+                // Workspace uses MPadded rows × StrideC columns (where StrideC = dense padded
+                // dimension)
+                offset += arg.karg_.MPadded * arg.karg_.StrideC;
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    std::cout << "block_start: " << arg.block_start_ << "\n"
-                              << "block_end: " << arg.block_end_ << "\n"
-                              << "tiles: " << tiles << "\n"
-                              << "offset: " << offset << std::endl;
+                    std::cout << "UpdateEPointers: MPadded=" << arg.karg_.MPadded
+                              << ", StrideC=" << arg.karg_.StrideC << ", offset=" << offset
+                              << std::endl;
                 }
             }
         }
@@ -517,8 +535,9 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
             for(const auto& arg : gemm_kernel_args_)
             {
-                index_t tiles = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
-                size_bytes += tiles * MPerBlock * NPerBlock * sizeof(WorkspaceDataType);
+                // Workspace uses MPadded rows × StrideC columns (where StrideC = dense padded
+                // dimension)
+                size_bytes += arg.karg_.MPadded * arg.karg_.StrideC * sizeof(WorkspaceDataType);
             }
             return size_bytes;
         }

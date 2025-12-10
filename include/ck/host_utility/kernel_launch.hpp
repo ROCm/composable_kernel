@@ -138,6 +138,9 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         for(int i = 0; i < nrepeat; ++i)
         {
             preprocess();
+            // Synchronize to ensure async preprocess operations (e.g., hipMemsetAsync) complete
+            // before kernel launch, especially critical for large workspace buffers
+            hip_check_error(hipStreamSynchronize(stream_config.stream_id_));
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
             hip_check_error(hipGetLastError());
         }
