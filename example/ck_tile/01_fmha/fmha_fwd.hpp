@@ -564,6 +564,7 @@ struct fmha_batch_prefill_args
 
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
+    ck_tile::index_t sink_size;
     ck_tile::index_t mask_type;
 
     float p_drop;
@@ -1151,6 +1152,7 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.batch_stride_v,
                                          args.window_size_left,
                                          args.window_size_right,
+                                         args.sink_size,
                                          args.mask_type,
                                          args.p_drop,
                                          args.s_randval,
@@ -1203,6 +1205,7 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.batch_stride_o,
                                          args.window_size_left,
                                          args.window_size_right,
+                                         args.sink_size,
                                          args.mask_type,
                                          args.p_drop,
                                          args.s_randval,
