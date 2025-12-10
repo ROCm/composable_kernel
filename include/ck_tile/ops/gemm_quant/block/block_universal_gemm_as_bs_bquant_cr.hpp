@@ -125,6 +125,9 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
     using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
     using CDataType       = remove_cvref_t<typename Traits::CDataType>;
 
+    // BDataType gets converted from PkInt4 during loading
+    using OverrideBDataType =
+        std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
     using Base     = BlockGemmQuantBase;
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 

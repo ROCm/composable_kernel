@@ -162,11 +162,11 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                     ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
 
         constexpr bool TiledPermuteN =
-            (QuantGroupSize::kN > 1) ? false : GemmConfig::TiledMMAPermuteN;
+            (BQuantGroupSize::kN > 1) ? false : GemmConfig::TiledMMAPermuteN;
         if(s.log_level_ > 0)
         {
             printf(
-                "TiledPermuteN: %d (QuantGroupSize::kN=%d)\n", TiledPermuteN, QuantGroupSize::kN);
+                "TiledPermuteN: %d (QuantGroupSize::kN=%d)\n", TiledPermuteN, BQuantGroupSize::kN);
         }
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<typename TypeConfig::ADataType,
@@ -440,31 +440,30 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         }
     }
 
-    ck_tile::index_t AQK, BQK, BQN;
+    ck_tile::index_t AQK, BQK, BQN = 0;
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
     {
         AQK = K / AQuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
         BQK = 0;                       // No B quantization
-        BQN = 0;
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
         AQK = 0;                       // No A quantization
         BQK = K / BQuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
-        BQN = N / BQuantGroupSize::kN; // Group quantization: BQN = N / GroupSize
+        BQN = ck_tile::integer_divide_ceil(N, BQuantGroupSize::kN);
     }
     else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
     {
         AQK = K / AQuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
         BQK = K / BQuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
-        BQN = N / BQuantGroupSize::kN; // Group quantization: BQN = N / GroupSize
+        BQN = ck_tile::integer_divide_ceil(N, BQuantGroupSize::kN);
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
                       QuantMode == ck_tile::QuantType::TensorQuant)
     {
         AQK = 1; // Row quantization: tensor shape [M, 1] or [1]
         BQK = 1; // Column quantization: tensor shape [1, N] or [1]
-        BQN = 0;
+        BQN = 1;
     }
     else
     {
@@ -540,12 +539,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     // Create BQ tensor with appropriate shape
     std::unique_ptr<ck_tile::HostTensor<BQDataType>> bq_tensor_ptr = nullptr;
     if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
+                 QuantMode == ck_tile::QuantType::ABQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant)
-    {
-        bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
-            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, is_row_major(bq_layout)));
-    }
-    else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
     {
         bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
             ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, is_row_major(bq_layout)));
@@ -715,7 +710,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
     if constexpr(GemmConfig::PreshuffleB)
     {
-        if constexpr(GemmConfig::TiledMMAPermuteN && QuantGroupSize::kN == 1)
+        if constexpr(GemmConfig::TiledMMAPermuteN && BQuantGroupSize::kN == 1)
         {
             printf("PreshuffleB with TiledMMAPermuteN\n");
             b_k_n_dev = ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
@@ -742,10 +737,10 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                  QuantMode == ck_tile::QuantType::TensorQuant)
     {
         if constexpr(GemmConfig::PreshuffleB && GemmConfig::TiledMMAPermuteN &&
-                     QuantGroupSize::kN == 1)
+                     BQuantGroupSize::kN == 1)
         {
             ck_tile::HostTensor<BQDataType> bq_permuted_host =
-                ck_tile::bq_permuteN<GemmConfig>(*bq_tensor_ptr, QuantGroupSize::kN);
+                ck_tile::bq_permuteN<GemmConfig>(*bq_tensor_ptr, BQuantGroupSize::kN);
 
             if constexpr(GemmConfig::PreshuffleQuant)
             {
@@ -895,66 +890,6 @@ template <typename GemmConfig,
           typename AQuantGroupSize,
           typename BQuantGroupSize,
           ck_tile::QuantType QuantMode>
-int run_gemm_example_prec_type_layout(const ck_tile::ArgParser& arg_parser)
-{
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
-
-    if(QuantMode == ck_tile::QuantType::ABQuantGrouped && GemmConfig::PreshuffleB)
-    {
-        throw std::runtime_error("Preshuffling weight matrix is not supported for ABQuant");
-    }
-
-    if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
-                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
-                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t>)
-    {
-        std::string a_layout = arg_parser.get_str("a_layout");
-        std::string b_layout = arg_parser.get_str("b_layout");
-        if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig,
-                                                 TypeConfig,
-                                                 AQuantGroupSize,
-                                                 BQuantGroupSize,
-                                                 QuantMode>(
-                arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<GemmConfig,
-                                                 TypeConfig,
-                                                 AQuantGroupSize,
-                                                 BQuantGroupSize,
-                                                 QuantMode>(
-                arg_parser, Col{}, Row{}, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<GemmConfig,
-                                                 TypeConfig,
-                                                 AQuantGroupSize,
-                                                 BQuantGroupSize,
-                                                 QuantMode>(
-                arg_parser, Row{}, Row{}, Row{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices!");
-        }
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type for A.");
-    }
-
-    return 0;
-}
-
-template <typename GemmConfig,
-          typename TypeConfig,
-          typename QuantGroupSize,
-          ck_tile::QuantType QuantMode>
 int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
@@ -979,19 +914,22 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
         {
             return run_gemm_example_with_layouts<GemmConfig,
                                                  TypeConfig,
-                                                 QuantGroupSize,
-                                                 QuantGroupSize,
+                                                 AQuantGroupSize,
+                                                 BQuantGroupSize,
                                                  QuantMode>(
                 arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
         }
 
-        if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped && !GemmConfig::PreshuffleQuant)
+        if constexpr((QuantMode == ck_tile::QuantType::AQuantGrouped ||
+                      QuantMode == ck_tile::QuantType::ABQuantGrouped) &&
+                     !GemmConfig::PreshuffleQuant)
         {
             if(a_layout == "R" && b_layout == "R")
             {
                 return run_gemm_example_with_layouts<GemmConfig,
                                                      TypeConfig,
-                                                     QuantGroupSize,
+                                                     AQuantGroupSize,
+                                                     BQuantGroupSize,
                                                      QuantMode>(
                     arg_parser, Row{}, Row{}, Row{}, Col{}, Row{});
             }
@@ -999,24 +937,24 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
             {
                 return run_gemm_example_with_layouts<GemmConfig,
                                                      TypeConfig,
-                                                     QuantGroupSize,
+                                                     AQuantGroupSize,
+                                                     BQuantGroupSize,
                                                      QuantMode>(
                     arg_parser, Col{}, Row{}, Row{}, Col{}, Row{});
             }
-            else if(a_layout == "C" && b_layout == "C")
+        }
+        if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped && !GemmConfig::PreshuffleQuant)
+        {
+            if(a_layout == "C" && b_layout == "C")
             {
                 return run_gemm_example_with_layouts<GemmConfig,
                                                      TypeConfig,
-                                                     QuantGroupSize,
+                                                     AQuantGroupSize,
+                                                     BQuantGroupSize,
                                                      QuantMode>(
                     arg_parser, Col{}, Col{}, Col{}, Col{}, Row{});
             }
-            else
-            {
-                throw std::runtime_error("Unsupported memory layout for the input matrices!");
-            }
         }
-
         else
         {
             throw std::runtime_error("Unsupported memory layout for the input matrices!");
@@ -1028,4 +966,17 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
     }
 
     return 0;
+}
+
+template <typename GemmConfig,
+          typename TypeConfig,
+          typename QuantGroupSize,
+          ck_tile::QuantType QuantMode>
+int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
+{
+    return run_gemm_example_prec_type<GemmConfig,
+                                      TypeConfig,
+                                      QuantGroupSize,
+                                      QuantGroupSize,
+                                      QuantMode>(arg_parser);
 }

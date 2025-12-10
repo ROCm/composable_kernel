@@ -52,7 +52,7 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     using AQuantGroupSize = AQuantGroupSize_;
     using BQuantGroupSize = BQuantGroupSize_;
     // For backward compatibility
-    using QuantGroupSize = AQuantGroupSize_;
+    using QuantGroupSize = BQuantGroupSize_;
 
     using typename Base::ALayout;
     using typename Base::BLayout;
