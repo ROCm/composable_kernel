@@ -40,7 +40,10 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
     // BDataType gets converted from PkInt4 during loading
     using OverrideBDataType =
-        std::conditional_t<std::is_same_v<BDataType, pk_int4_t> && std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>, ADataType, BDataType>;
+        std::conditional_t<std::is_same_v<BDataType, pk_int4_t> &&
+                               std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>,
+                           ADataType,
+                           BDataType>;
 
     static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
     using I0 = number<0>;
@@ -185,9 +188,10 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
         }
 
         template <typename BBlockTile_, typename BDramWindow, typename BDramTileWindowStep>
-        CK_TILE_DEVICE static void BGlobalPrefetch(BBlockTile_& b_block_tile,
-                                                   BDramWindow& b_copy_dram_window,
-                                                   const BDramTileWindowStep& b_dram_tile_window_step)
+        CK_TILE_DEVICE static void
+        BGlobalPrefetch(BBlockTile_& b_block_tile,
+                        BDramWindow& b_copy_dram_window,
+                        const BDramTileWindowStep& b_dram_tile_window_step)
         {
             if constexpr(!std::is_same_v<BDataType, OverrideBDataType>)
             {
