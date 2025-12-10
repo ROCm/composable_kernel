@@ -73,7 +73,6 @@ template <typename ADataType,
           index_t B0BlockTransferDstScalarPerVector_K1,
           bool B0ThreadTransferSrcResetCoordinateAfterRun,
           bool B0BlockLdsExtraL,
-          index_t CDE0BlockTransferSrcVectorDim,
           index_t CDE0BlockTransferSrcScalarPerVector,
           typename B1BlockTransferThreadClusterLengths_L0_N_L1,
           typename B1BlockTransferThreadClusterArrangeOrder,
@@ -983,7 +982,8 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                              lsubgroup,
                              laccvgprs>,
                     Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8>,
-                    8, // CDE0BlockTransferSrcVectorDim
+                    8, // NOTE: XDL has this exposed as CDE0BlockTransferSrcVectorDim. 
+                       // But as the grid descriptor is built internally, the parameter doesn't really make sense to configure per instance
                     CDE0BlockTransferSrcScalarPerVector,
                     1,
                     false>(d0s_griddesc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs[i],

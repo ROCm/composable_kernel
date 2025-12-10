@@ -140,7 +140,6 @@ template <typename ALayout,
           ck::index_t B0BlockTransferSrcScalarPerVector,
           ck::index_t B0BlockTransferDstScalarPerVector_K1,
           bool B0BlockLdsAddExtraL,
-          ck::index_t CDE0BlockTransferSrcVectorDim,
           ck::index_t CDE0BlockTransferSrcScalarPerVector,
           typename B1BlockTransferThreadClusterLengths_L0_N_L1,
           typename B1BlockTransferThreadClusterArrangeOrder,
@@ -384,7 +383,6 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
         B0BlockTransferDstScalarPerVector_K1,
         true,
         B0BlockLdsAddExtraL,
-        CDE0BlockTransferSrcVectorDim,
         CDE0BlockTransferSrcScalarPerVector,
         B1BlockTransferThreadClusterLengths_L0_N_L1,
         B1BlockTransferThreadClusterArrangeOrder,
@@ -566,6 +564,20 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch;
     };
 
+    // check if DsLayout is supported
+    template <typename RefLayout, typename DsLayout, const index_t NumDTensor>
+    static constexpr bool CheckDLayout()
+    {
+        bool valid = true;
+        // iterate over DLayout tuple
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+            // if RefLayout and DLayout are same, keep valid true, otherwise false
+            valid = valid && is_same_v<RefLayout, DLayout>;
+        });
+        return valid;
+    }
+
     static bool IsSupportedArgument([[maybe_unused]] const RawArg& arg)
     {
         // Print lambda with env check and printf() style formmating.
@@ -619,7 +631,13 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
 
         if constexpr(!(is_same_v<B0layout, tensor_layout::gemm::ColumnMajor>))
         {
-            print("DeviceOp: B layout must be Column\n");
+            print("DeviceOp: B0 layout must be Column\n");
+            return false;
+        }
+
+        if constexpr(!(CheckDLayout<tensor_layout::gemm::RowMajor, D0sLayout, NumD0Tensor>()))
+        {
+            print("DeviceOp: All D0s layout must be Row\n");
             return false;
         }
 
@@ -630,13 +648,17 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
             return false;
         }
 
+        if constexpr(!(CheckDLayout<tensor_layout::gemm::RowMajor, D1sLayout, NumD1Tensor>()))
+        {
+            print("DeviceOp: All D1s layout must be Row\n");
+            return false;
+        }
+
         if constexpr(!(is_same_v<CLayout, tensor_layout::gemm::RowMajor>))
         {
             print("DeviceOp: C layout must be Row\n");
             return false;
         }
-
-        // TODO: Check D0s/D1s layouts
 
         // Other padding modes have not been tested and do not get checked individually.
         if constexpr(GemmSpec != GemmSpecialization::Default &&
@@ -665,23 +687,23 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
         }
 
         // Check scalar per vector requirement
-        // TODO: Check d0/d1
-        const auto a_extent_lowest  = ABlockTransferSrcVectorDim == 2 ? arg.K : arg.M;
-        const auto b0_extent_lowest = B0BlockTransferSrcVectorDim == 2 ? arg.K : arg.N;
-        const auto b1_extent_lowest = B1BlockTransferSrcVectorDim == 2 ? arg.N : arg.O;
-        const auto c_extent_lowest  = arg.O;
+        const auto a_extent_lowest    = ABlockTransferSrcVectorDim == 2 ? arg.K : arg.M;
+        const auto b0_extent_lowest   = B0BlockTransferSrcVectorDim == 2 ? arg.K : arg.N;
+        const auto cde0_extent_lowest = arg.N; // D0 tensors forced to be row-major
+        const auto b1_extent_lowest   = B1BlockTransferSrcVectorDim == 2 ? arg.N : arg.O;
+        const auto cde1_extent_lowest = arg.O;
 
         if(!(a_extent_lowest % ABlockTransferSrcScalarPerVector == 0 &&
              b0_extent_lowest % B0BlockTransferSrcScalarPerVector == 0 &&
+             cde0_extent_lowest % CDE0BlockTransferSrcScalarPerVector == 0 &&
              b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
-             c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
+             cde1_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
         {
             print("DeviceOp: Data Transfer Vector scalar err\n");
             return false;
         }
 
         // Check vector load/store requirement
-        // TODO: Check d0/d1
         const auto a_stride_lowest =
             ABlockTransferSrcVectorDim == 2 ? arg.a_g_m_k_strides[2] : arg.a_g_m_k_strides[1];
         const auto b0_stride_lowest =
@@ -689,6 +711,9 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
         const auto b1_stride_lowest =
             B1BlockTransferSrcVectorDim == 2 ? arg.b1_g_o_n_strides[2] : arg.b1_g_o_n_strides[1];
         const auto e1_stride_lowest = arg.e1_g_m_o_strides[2];
+
+        // NOTE: We don't check D0s/D1s stride, as they are already forced to be row-major
+        // and the lowest dimension stride is hardcoded to 1
 
         if(!(a_stride_lowest == 1 || b0_stride_lowest == 1 || b1_stride_lowest == 1 ||
              e1_stride_lowest == 1))
