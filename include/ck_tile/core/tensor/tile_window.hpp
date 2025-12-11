@@ -605,6 +605,7 @@ struct tile_window_with_static_distribution
                         return 0;
                 }();
 
+		printf("lane %d, offx %d, offy %d, off_page %d\n", threadIdx.x, bottom_tensor_thread_coord.get_offset(), dram_ys_offset, offset);
                 this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
                     smem,
                     bottom_tensor_thread_coord,

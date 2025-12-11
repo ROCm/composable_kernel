@@ -619,6 +619,60 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                            TensorView::DstInMemOp>{naive_view.buf_, desc};
     }
 
+    template <typename Problem, typename TensorView>
+    CK_TILE_DEVICE static constexpr auto
+    Make_F8AAsyncLoadDramDescriptor(const TensorView& naive_view)
+    {
+        constexpr int DynamicTileOffsetFlag = 0;
+
+        constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
+        constexpr index_t NPerXdl = Problem::BlockGemmShape::WarpTile::at(I1);
+
+        static_assert(MPerXdl == 16 && NPerXdl == 16);
+
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPack     = GetSmemPackA<Problem>();
+
+        constexpr int ContiguousThreadsCntInDS_READ_16B = 4;
+
+        // implement swizzle pattern on global side
+        // because we can't adjust the ds_write pattern of BUFFER_LOAD_LDS.
+        auto swizzle_a_dram_view_1 = transform_tensor_view(
+            naive_view,
+            make_tuple(
+                // M-dim is not affected by swizzle pattern
+                make_unmerge_transform(
+                    make_tuple(number<DynamicTileOffsetFlag>{}, number<MPerBlock>{})),
+                // K-dim is the swizzle dimension
+                make_unmerge_transform(make_tuple(number<DynamicTileOffsetFlag>{},
+                                                  number<KPerBlock / KPack>{},
+                                                  number<KPack>{}))),
+            make_tuple(sequence<0>{}, sequence<1>{}),
+            make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}));
+
+        auto swizzle_a_dram_view_2 = transform_tensor_view(
+            swizzle_a_dram_view_1,
+            make_tuple(make_pass_through_transform(number<DynamicTileOffsetFlag>{}),
+                       make_xor_transform(make_tuple(number<MPerBlock>{},
+                                                     number<ContiguousThreadsCntInDS_READ_16B>{})),
+                       make_pass_through_transform(number<DynamicTileOffsetFlag>{}),
+                       make_pass_through_transform(number<KPack>{})),
+            make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}, sequence<4>{}),
+            make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}, sequence<4>{}));
+
+        return transform_tensor_view(
+            swizzle_a_dram_view_2,
+            make_tuple(
+                make_merge_transform_v3_division_mod(
+                    make_tuple(number<DynamicTileOffsetFlag>{}, number<MPerBlock>{})),
+                make_merge_transform_v3_division_mod(make_tuple(number<DynamicTileOffsetFlag>{},
+                                                                number<KPerBlock / KPack>{},
+                                                                number<KPack>{}))),
+            make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+    }
+
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeADramTileDistribution()
     {
@@ -677,7 +731,8 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t M0 = MPerBlock / (M1 * M2 * M3); // MPerBlock/16
         static_assert(M0 * M1 * M2 * M3 == MPerBlock, "M0, M1, M2, M3 must cover whole MPerBlock!");
 
-        constexpr index_t Pad = 4 * K2; // 4 * 32
+        constexpr index_t Pad = 4 * K2; // 4 * 16
+        // constexpr index_t Pad = 0; // 4 * 16
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor( //
             make_tuple(number<M0>{},
@@ -696,36 +751,29 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                        number<1>{}),
             number<K2>{},
             number<1>{});
-        // constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor( //
-        //     make_tuple(number<MPerBlock>{},
-        //                number<KPerBlock>{}),
-        //     make_tuple(number<256>{},
-        //                number<1>{}),
-        //     number<K2>{},
-        //     number<1>{});
-
-        constexpr auto a_lds_block_desc_1 = transform_tensor_descriptor(
-            a_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(M0),
-                       make_pass_through_transform(M1),
-                       make_pass_through_transform(K0),
-                       make_pass_through_transform(M2),
-                       make_xor_transform(make_tuple(number<M3>{}, number<K1>{})),
-                       make_pass_through_transform(number<K2>{})),
-            make_tuple(sequence<0>{},
-                       sequence<1>{},
-                       sequence<2>{},
-                       sequence<3>{},
-                       sequence<4, 5>{},
-                       sequence<6>{}),
-            make_tuple(sequence<0>{},
-                       sequence<1>{},
-                       sequence<2>{},
-                       sequence<3>{},
-                       sequence<4, 5>{},
-                       sequence<6>{}));
+        // constexpr auto a_lds_block_desc_1 = transform_tensor_descriptor(
+        //     a_lds_block_desc_0,
+        //     make_tuple(make_pass_through_transform(M0),
+        //                make_pass_through_transform(M1),
+        //                make_pass_through_transform(K0),
+        //                make_pass_through_transform(M2),
+        //                make_xor_transform(make_tuple(number<M3>{}, number<K1>{})),
+        //                make_pass_through_transform(number<K2>{})),
+        //     make_tuple(sequence<0>{},
+        //                sequence<1>{},
+        //                sequence<2>{},
+        //                sequence<3>{},
+        //                sequence<4, 5>{},
+        //                sequence<6>{}),
+        //     make_tuple(sequence<0>{},
+        //                sequence<1>{},
+        //                sequence<2>{},
+        //                sequence<3>{},
+        //                sequence<4, 5>{},
+        //                sequence<6>{}));
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
-            a_lds_block_desc_1,
+            // a_lds_block_desc_1,
+            a_lds_block_desc_0,
             make_tuple(make_merge_transform_v3_division_mod(
                            make_tuple(number<M0>{}, number<M1>{}, number<M2>{}, number<M3>{})),
                        make_merge_transform_v3_division_mod(
@@ -735,6 +783,57 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         // return a_lds_block_desc_permuted;
         return a_lds_block_desc;
+    }
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeF8_ReadALdsBlockDescriptor()
+    {
+        constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
+        constexpr index_t NPerXdl = Problem::BlockGemmShape::WarpTile::at(I1);
+
+        static_assert(MPerXdl == 16 && NPerXdl == 16);
+
+        /*reduce transform layers,compare with old ck*/
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPack     = GetSmemPackA<Problem>();
+
+        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
+            make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
+            number<KPack>{},
+            number<1>{});
+
+        constexpr int ContiguousThreadsCntInDS_READ_16B = 4;
+
+        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
+            a_lds_block_desc_0,
+            make_tuple(make_xor_transform(make_tuple(number<MPerBlock>{},
+                                                     number<ContiguousThreadsCntInDS_READ_16B>{})),
+                       make_pass_through_transform(number<KPack>{})),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}));
+
+        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+            a_lds_block_desc_permuted,
+            make_tuple(make_pass_through_transform(number<MPerBlock>{}),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return a_lds_block_desc;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeF8_WriteALdsBlockDescriptor()
+    {
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPack     = GetSmemPackA<Problem>();
+        return make_naive_tensor_descriptor(make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                            make_tuple(number<KPerBlock>{}, number<1>{}),
+                                            number<KPack>{},
+                                            number<1>{});
     }
 
     template <typename Problem>
@@ -752,7 +851,8 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr int K_Lane = 64 / M_Lane; // 4
 
         constexpr int K_Thread         = TileShape::WarpTile::at(I2) / K_Lane; // 32
-        constexpr index_t num_access_v = static_cast<index_t>(wg_attr_num_access<Problem>);
+        // constexpr index_t num_access_v = static_cast<index_t>(wg_attr_num_access<Problem>);
+        constexpr index_t num_access_v = 2;
         constexpr int K1               = K_Thread / num_access_v; // 16
 
         return make_static_tile_distribution(

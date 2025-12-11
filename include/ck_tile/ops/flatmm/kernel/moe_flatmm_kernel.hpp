@@ -692,6 +692,7 @@ struct MoeFlatmmKernel
         const auto scale_b_flat_view = [&]() {
             if constexpr(AQUANT_Pipeline)
             {
+                index_t scale_k    = BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
                 constexpr int NThreadPerXdl = BlockGemmShape::WarpTile::at(I1);
                 constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I1);
                 index_t scale_n_packs = kargs.N / (MXFP4N_Pack * NThreadPerXdl);
@@ -706,7 +707,7 @@ struct MoeFlatmmKernel
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 return make_tensor_view<address_space_enum::global>(
-                    reinterpret_cast<const int32_t*>(scale_n.ptr), scale_b_desc);
+                    reinterpret_cast<const int32_t*>(scale_n.ptr) + expert_id * kargs.N * scale_k / 4, scale_b_desc);
 
             }
             else
@@ -913,7 +914,6 @@ struct MoeFlatmmKernel
 
         if(coord_m >= max_token_id)
             return;
-
         static_for<0, DramMRepeat, 1>{}([&](auto m0) {
             const auto row_idx =
                 coord_m + m0 * (TilePartitioner::MPerBlock / DramMRepeat) + a_coord[I0];
@@ -930,9 +930,15 @@ struct MoeFlatmmKernel
 
         const ADataType* a_ptr =
             static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
+	// if (threadIdx.x < 64){
+	//     printf("blockIdx.x %d, splitk:%d, stride%ld, expertid %d \n", blockIdx.x, splitk_batch_offset.b_k_split_offset, expert_stride, expert_id);
+	// }
         const BDataType* b_flat_ptr =
             static_cast<const BDataType*>(kargs.b_ptr) +
-            (splitk_batch_offset.b_k_split_offset + expert_stride * expert_id) / WeightPackedSize;
+            (splitk_batch_offset.b_k_split_offset + expert_stride * expert_id) / 2;
+	// if (threadIdx.x < 64){
+	//     printf("blockIdx.x %d, b:%d,\n", blockIdx.x, int32_t(bit_cast<uint8_t>(b_flat_ptr[0])));
+	// }
         EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
 
         const AccDataType* exp_weight_ptr =
@@ -960,8 +966,6 @@ struct MoeFlatmmKernel
                                               a_offsets); // K DRAM tile window for
 
 
-	if (coord_m > 0)
-		return;
         auto c_block_tile = [&] {
             if constexpr(BMXFP4_Pipeline)
             {
@@ -1002,6 +1006,37 @@ struct MoeFlatmmKernel
         }();
 
         auto& c_block_window = gemm_tile_windows.at(number<2>{});
+    // if constexpr (kMPerBlock == 32)
+    // {
+    //         if (threadIdx.x %16 ==0 && threadIdx.x < 64)
+    //         // if (threadIdx.x %16 ==0 && threadIdx.x < 64)
+    //         {
+    //         printf("blockIdx.x %d, trheadIdx.x %d, c_token_idx0,%f \n", blockIdx.x, threadIdx.x,
+    //             		   type_convert<float>(c_block_tile.get_thread_buffer()[0]),
+    //             		   );
+    //         printf("blockIdx.x %d, trheadIdx.x %d, c_token_idx1,%f \n", blockIdx.x, threadIdx.x,
+    //             		   type_convert<float>(c_block_tile.get_thread_buffer()[1]),
+    //             		   );
+    //         printf("blockIdx.x %d, trheadIdx.x %d, c_token_idx2,%f \n", blockIdx.x, threadIdx.x,
+    //             		   type_convert<float>(c_block_tile.get_thread_buffer()[2]),
+    //             		   );
+    //         printf("blockIdx.x %d, trheadIdx.x %d, c_token_idx3,%f \n", blockIdx.x, threadIdx.x,
+    //             		   type_convert<float>(c_block_tile.get_thread_buffer()[3]),
+    //             		   );
+    //         }
+    //         // if (threadIdx.x == 0)
+    //         // {
+    //         // printf("trheadIdx.x %d, token_idx0,%f \n", threadIdx.x,
+    //         //     		   type_convert<float>(b_warp_tensor_ping(I0)(I0).get_thread_buffer()[0]),
+    //         //     		   );
+    //         // printf("trheadIdx.x %d, token_idx1,%f \n", threadIdx.x,
+    //         //     		   type_convert<float>(b_warp_tensor_ping(I0)(I0).get_thread_buffer()[1]),
+    //         //     		   );
+    //         // printf("trheadIdx.x %d, scale,%d \n", threadIdx.x,
+    //         //     		   type_convert<int32_t>(scale_b_tile_tensor_ping(I0)(I0).get_thread_buffer()[0]),
+    //         //     		   );
+    //         // }
+    // }
 
         // Run EpiloguePipeline
         {
