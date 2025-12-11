@@ -116,18 +116,23 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentQ()
     {
-        using QDataType = remove_cvref_t<typename Problem::QKVDataType>;
+        if constexpr(Problem::kLoadWholeQTileOnceThroughLds)
+        {
+            return Problem::GetQDramTileAccessMaxVectorSize();
+        }
+        else
+        {
+            using QDataType = remove_cvref_t<typename Problem::QKVDataType>;
 
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kMPerBlock = Problem::kLoadWholeQTileOnceThroughLds
-                                           ? Problem::HstuAttentionTileSetting::kM0
-                                           : GetQKBlockGemmSingleRepM<Problem>();
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
+            constexpr index_t kBlockSize = Problem::kBlockSize;
+            constexpr index_t kMPerBlock = GetQKBlockGemmSingleRepM<Problem>();
+            constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
 
-        constexpr index_t MaxVectorSize = 16 / sizeof(QDataType);
-        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
-
-        return min(MaxVectorSize, ElemPerThread);
+            return Problem::template GetDramTileAccessMaxVectorSize<QDataType,
+                                                                    kBlockSize,
+                                                                    kMPerBlock,
+                                                                    kKPerBlock>();
+        };
     }
 
     template <typename Problem>
@@ -142,16 +147,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentK()
     {
-        using KDataType = remove_cvref_t<typename Problem::QKVDataType>;
-
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
-
-        constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
-        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
-
-        return min(MaxVectorSize, ElemPerThread);
+        return Problem::GetKDramTileAccessMaxVectorSize();
     }
 
     template <typename Problem>
@@ -166,21 +162,22 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
     {
-
-        using VDataType = remove_cvref_t<typename Problem::QKVDataType>;
-
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
-
+        // special consideration when shuffling is required before storing V to LDS
         if constexpr(!Problem::kUseTrLoad)
         {
+            using VDataType = remove_cvref_t<typename Problem::QKVDataType>;
+
+            constexpr index_t kBlockSize = Problem::kBlockSize;
+            constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
+            constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
+
             constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
 
             constexpr index_t MaxVectorSize = 16 / sizeof(VDataType);
             constexpr index_t kMaxVecLoad   = min(ElemPerThread, MaxVectorSize);
             constexpr index_t kMinVecLoad   = 4 / sizeof(VDataType);
 
+            // try to avoid writing sub-dword to LDS due to poor performance
             constexpr index_t kVecLoad = ((ElemPerThread / kMaxVecLoad) >= kMinVecLoad)
                                              ? kMaxVecLoad
                                              : (ElemPerThread / kMinVecLoad);
@@ -189,10 +186,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
         }
         else
         {
-            constexpr index_t MaxVectorSize = 16 / sizeof(VDataType);
-            constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
-
-            return min(MaxVectorSize, ElemPerThread);
+            return Problem::GetVDramTileAccessMaxVectorSize();
         };
     }
 
