@@ -262,14 +262,14 @@ TEST(InstanceTraits, V3InstanceStringReturnsCorrectFormat)
                                ",2"             // ABlockTransferSrcVectorDim
                                ",8"             // ABlockTransferSrcScalarPerVector
                                ",8"             // ABlockTransferDstScalarPerVector_AK1
-                               ",1"             // ABlockLdsExtraM
+                               ",true"          // ABlockLdsExtraM
                                ",Seq(4,64,1)"   // BBlockTransferThreadClusterLengths
                                ",Seq(1,0,2)"    // BBlockTransferThreadClusterArrangeOrder
                                ",Seq(1,0,2)"    // BBlockTransferSrcAccessOrder
                                ",2"             // BBlockTransferSrcVectorDim
                                ",8"             // BBlockTransferSrcScalarPerVector
                                ",8"             // BBlockTransferDstScalarPerVector_BK1
-                               ",1"             // BBlockLdsExtraN
+                               ",true"          // BBlockLdsExtraN
                                ",1"             // CShuffleMXdlPerWavePerShuffle
                                ",1"             // CShuffleNXdlPerWavePerShuffle
                                ",Seq(1,32,1,8)" // CDEBlockTransferClusterLengths
@@ -377,14 +377,14 @@ TEST(InstanceTraits, BaseInstanceStringReturnsCorrectFormat)
                                ",2"             // ABlockTransferSrcVectorDim
                                ",8"             // ABlockTransferSrcScalarPerVector
                                ",8"             // ABlockTransferDstScalarPerVector_AK1
-                               ",1"             // ABlockLdsExtraM
+                               ",true"          // ABlockLdsExtraM
                                ",Seq(4,64,1)"   // BBlockTransferThreadClusterLengths
                                ",Seq(1,0,2)"    // BBlockTransferThreadClusterArrangeOrder
                                ",Seq(1,0,2)"    // BBlockTransferSrcAccessOrder
                                ",2"             // BBlockTransferSrcVectorDim
                                ",8"             // BBlockTransferSrcScalarPerVector
                                ",8"             // BBlockTransferDstScalarPerVector_BK1
-                               ",1"             // BBlockLdsExtraN
+                               ",true"          // BBlockLdsExtraN
                                ",1"             // CShuffleMXdlPerWavePerShuffle
                                ",1"             // CShuffleNXdlPerWavePerShuffle
                                ",Seq(1,32,1,8)" // CDEBlockTransferClusterLengths
@@ -492,14 +492,14 @@ TEST(InstanceTraits, LargeTensorInstanceStringReturnsCorrectFormat)
                                ",2"             // ABlockTransferSrcVectorDim
                                ",8"             // ABlockTransferSrcScalarPerVector
                                ",8"             // ABlockTransferDstScalarPerVector_AK1
-                               ",1"             // ABlockLdsExtraM
+                               ",true"          // ABlockLdsExtraM
                                ",Seq(4,64,1)"   // BBlockTransferThreadClusterLengths
                                ",Seq(1,0,2)"    // BBlockTransferThreadClusterArrangeOrder
                                ",Seq(1,0,2)"    // BBlockTransferSrcAccessOrder
                                ",2"             // BBlockTransferSrcVectorDim
                                ",8"             // BBlockTransferSrcScalarPerVector
                                ",8"             // BBlockTransferDstScalarPerVector_BK1
-                               ",1"             // BBlockLdsExtraN
+                               ",true"          // BBlockLdsExtraN
                                ",1"             // CShuffleMXdlPerWavePerShuffle
                                ",1"             // CShuffleNXdlPerWavePerShuffle
                                ",Seq(1,32,1,8)" // CDEBlockTransferClusterLengths

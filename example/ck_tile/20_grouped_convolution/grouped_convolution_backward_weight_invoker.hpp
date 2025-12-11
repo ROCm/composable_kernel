@@ -17,8 +17,8 @@ struct GroupedConvolutionBackwardWeightInvoker
               typename DsDataType     = ck_tile::tuple<>,
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    static float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
-                                         const ck_tile::stream_config& s)
+    static InvokerResult grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
+                                                 const ck_tile::stream_config& s)
     {
         // Implicit GEMM Traits
         using GemmShape = ck_tile::TileGemmShape<
@@ -133,9 +133,11 @@ struct GroupedConvolutionBackwardWeightInvoker
             }
         };
 
-        return ck_tile::launch_kernel_time_mask(
+        float ave_time = ck_tile::launch_kernel_time_mask(
             s,
             preprocess,
             ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+
+        return InvokerResult{ave_time, args.k_batch};
     }
 };
