@@ -32,7 +32,9 @@ using tile_grouped_conv_fwd_fp16_instances = std::tuple<
 //##############################|       Num|  InLayout| WeiLayout| OutLayout| InData| WeiData| OutData|           In|         Wei|         Out|                                             Conv|    K-block|  M-tile| N-tile | K-tile | M-warp| N-warp| K-warp| M-warp| N-warp| K-warp| Vector| Vector| Vector|  Double|                     GEMM|
 //##############################|       Dim|          |          |          |   Type|    Type|    Type|  Elementwise| Elementwise| Elementwise|                                             Spec|        per|        |        |        |       |       |       |   tile|   tile|   tile|   size|   size|   size|    smem|                 pipeline|
 //##############################|   Spatial|          |          |          |       |        |        |    Operation|   Operation|   Operation|                                                 |         CU|        |        |        |       |       |       |   size|   size|   size|      A|      B|      C|  buffer|                  version|
-GroupedConvolutionForwardInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,  ConvolutionSpecialization::Filter1x1Stride1Pad0,          1,      64,      64,      32,      1,      1,      1,     32,     32,     16,      1,      1,      1,   false, CK_TILE_PIPELINE_MEMORY>
+GroupedConvolutionForwardInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,  ConvolutionSpecialization::Filter1x1Stride1Pad0,          1,      64,      64,      32,      1,      1,      1,     32,     32,     16,      1,      1,      1,   false, CK_TILE_PIPELINE_MEMORY>,
+GroupedConvolutionForwardInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,  ConvolutionSpecialization::Default,                       1,      64,      64,      32,      1,      1,      1,     32,     32,     16,      1,      1,      1,   false, CK_TILE_PIPELINE_MEMORY>
+// clang-format on
 // clang-format on
 >;
 

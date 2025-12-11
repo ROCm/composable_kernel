@@ -116,7 +116,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     // get device op instances
     const auto ops = ck_tile::ops::DeviceOperationInstanceFactory<DeviceOp>::GetInstances();
 
-    std::cout << "found " << ops.size() << " instances" << std::endl;
+    std::cout << "Found " << ops.size() << " instances\n" << std::endl;
 
     std::string best_op_name;
     float best_avg_time   = 0;
@@ -149,13 +149,14 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         if(op->IsSupportedArgument(args))
         {
             num_kernel++;
+            std::string op_name = op->GetName(args);
             if((instance_index != -1) && (instance_index + 1 != num_kernel))
             {
                 // skip test if instance_index is specified
                 continue;
             }
 
-            std::string op_name = op->GetName(args);
+            
             std::cout << op_name << " is profiled..." << std::endl;
 
             // Run verification first. If it doesn't pass, no need to do performance measurement.
@@ -228,7 +229,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         }
         else
         {
-            // std::cout << op->GetName(args) << " does not support this problem." << std::endl;
+            std::cout << op->GetName(args) << " does not support this problem." << std::endl;
         }
     }
 
