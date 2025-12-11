@@ -576,9 +576,13 @@ class FmhaFwdKernel:
 class KernelComponentFactory:
     @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
-        if dtype == "fp16" or dtype == "bf16":
+        if dtype in ["fp16", "bf16"]:
             return {
                 128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+            }  # fmt: skip
+        elif dtype == ["fp8bf16"]:
+            return {
+                128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
             }  # fmt: skip
         else:
             return None
@@ -589,9 +593,9 @@ class KernelComponentFactory:
         # TODO: the order of List matters! the later in this list will be also be checked later
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
         # TODO: how to design this more generic?
-        qscale = "no"
         pipelines = []
         if dtype in ["fp16", "bf16"]:
+            qscale = "no"
             for logits, mask, bias, lse, dropout in itertools.product(
                 ["t", "f"],
                 get_mask_map(mask_impl).keys(),
@@ -599,10 +603,16 @@ class KernelComponentFactory:
                 ["t", "f"],
                 ["t", "f"],
             ):
-                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask))  # fmt: skip
-                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask))  # fmt: skip
-                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask))  # fmt: skip
+        elif dtype == ["fp8bf16"]:
+            # no need lse/dropout kernels
+            for logits, qscale, mask, bias in itertools.product(
+                ["t", "f"],
+                ["no", "pertensor"],
+                get_mask_map(mask_impl).keys(),
+                ["no"],
+            ):
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask))  # fmt: skip
         else:
             assert False
         return pipelines
@@ -695,7 +705,7 @@ def get_fwd_blobs(
                         continue
                 # Aiter(mha_batch_prefill) integration
                 elif receipt == 200:
-                    cond = dtype in ["fp16", "bf16"]
+                    cond = dtype in ["fp16", "bf16", "fp8bf16"]
                     cond &= mode == "group"
                     cond &= pipeline.F_vlayout == "row"
                     cond &= pipeline.F_qscale == "no"
@@ -703,7 +713,7 @@ def get_fwd_blobs(
                         continue
                 # aiter::mha_batch_prefill C++ api integration
                 elif receipt == 600:
-                    cond = dtype in ["fp16", "bf16"]
+                    cond = dtype in ["fp16", "bf16", "fp8bf16"]
                     cond &= mode == "group"
                     cond &= pipeline.F_vlayout == "row"
                     cond &= pipeline.F_qscale == "no"
