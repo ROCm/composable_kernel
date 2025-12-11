@@ -43,13 +43,15 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-            karg.p_a_grid,
-            karg.p_b_grid,
+            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
             karg.p_ds_grid,
             karg.p_c_grid,
-            karg.p_a_scale_grid,
-            karg.p_b_scale_grid,
+            karg.p_a_scale_grid + splitk_batch_offset.scale_a_k_split_offset,
+            karg.p_b_scale_grid + splitk_batch_offset.scale_b_k_split_offset,
             p_shared,
             karg,
             karg.a_element_op,
@@ -405,31 +407,33 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         }
     }
 
-    __host__ __device__ static constexpr auto MakeAScaleGridDesciptor_M_K(index_t M, index_t K)
+    __host__ __device__ static constexpr auto
+    MakeAScaleGridDesciptor_M_K(index_t M, index_t K, index_t StrideScaleA)
     {
         const auto BM = math::integer_divide_ceil(M, ScaleBlockM);
         const auto BK = math::integer_divide_ceil(K, ScaleBlockK);
         if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            return make_naive_tensor_descriptor(make_tuple(BM, BK), make_tuple(BK, I1));
+            return make_naive_tensor_descriptor(make_tuple(BM, BK), make_tuple(StrideScaleA, I1));
         }
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
         {
-            return make_naive_tensor_descriptor(make_tuple(BM, BK), make_tuple(I1, BM));
+            return make_naive_tensor_descriptor(make_tuple(BM, BK), make_tuple(I1, StrideScaleA));
         }
     }
 
-    __host__ __device__ static constexpr auto MakeBScaleGridDesciptor_N_K(index_t N, index_t K)
+    __host__ __device__ static constexpr auto
+    MakeBScaleGridDesciptor_N_K(index_t N, index_t K, index_t StrideScaleB)
     {
         const auto BN = math::integer_divide_ceil(N, ScaleBlockN);
         const auto BK = math::integer_divide_ceil(K, ScaleBlockK);
         if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
-            return make_naive_tensor_descriptor(make_tuple(BN, BK), make_tuple(BK, I1));
+            return make_naive_tensor_descriptor(make_tuple(BN, BK), make_tuple(StrideScaleB, I1));
         }
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
         {
-            return make_naive_tensor_descriptor(make_tuple(BN, BK), make_tuple(I1, BN));
+            return make_naive_tensor_descriptor(make_tuple(BN, BK), make_tuple(I1, StrideScaleB));
         }
     }
 
@@ -548,6 +552,8 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                          index_t StrideB_,
                          std::array<index_t, NumDTensor> StrideDs_,
                          index_t StrideC_,
+                         index_t StrideScaleA_,
+                         index_t StrideScaleB_,
                          index_t KBatch_)
             : M{M_},
               N{N_},
@@ -556,6 +562,8 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
               StrideB{StrideB_},
               StrideDs{StrideDs_},
               StrideC{StrideC_},
+              StrideScaleA{StrideScaleA_},
+              StrideScaleB{StrideScaleB_},
               KBatch{KBatch_},
               MPadded{CalculateMPadded(M_)},
               NPadded{CalculateNPadded(N_)},
@@ -585,7 +593,8 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         index_t StrideB;
         std::array<index_t, NumDTensor> StrideDs;
         index_t StrideC;
-
+        index_t StrideScaleA;
+        index_t StrideScaleB;
         index_t KBatch;
         index_t MPadded;
         index_t NPadded;
@@ -611,13 +620,24 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                           index_t StrideB_,
                           std::array<index_t, NumDTensor> StrideDs_,
                           index_t StrideC_,
+                          index_t StrideScaleA_,
+                          index_t StrideScaleB_,
                           const AScaleType* p_a_scale_grid_,
                           const BScaleType* p_b_scale_grid_,
                           index_t k_batch_,
                           AElementwiseOperation a_element_op_,
                           BElementwiseOperation b_element_op_,
                           CElementwiseOperation c_element_op_)
-            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_},
+            : Problem{M_,
+                      N_,
+                      K_,
+                      StrideA_,
+                      StrideB_,
+                      StrideDs_,
+                      StrideC_,
+                      StrideScaleA_,
+                      StrideScaleB_,
+                      k_batch_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_ds_grid{},
@@ -673,6 +693,28 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                 b_k_split_offset = blockIdx.z * karg.KRead;
             }
 
+            // Calculate A scale offset
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
+            {
+                scale_a_k_split_offset = blockIdx.z * (karg.KRead / ScaleBlockK);
+            }
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+            {
+                scale_a_k_split_offset =
+                    blockIdx.z * (karg.KRead / ScaleBlockK) * karg.StrideScaleA;
+            }
+
+            // Calculate B scale offset
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+            {
+                scale_b_k_split_offset =
+                    blockIdx.z * (karg.KRead / ScaleBlockK) * karg.StrideScaleB;
+            }
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+            {
+                scale_b_k_split_offset = blockIdx.z * (karg.KRead / ScaleBlockK);
+            }
+
             if(blockIdx.z < static_cast<uint32_t>(karg.KBatch - 1))
             {
                 karg.K = karg.KRead;
@@ -685,6 +727,8 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
+        index_t scale_a_k_split_offset; // A scale matrix offset
+        index_t scale_b_k_split_offset; // B scale matrix offset
     };
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -1221,8 +1265,10 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
 
-        const auto a_scale_grid_desc_am_ak = MakeAScaleGridDesciptor_M_K(problem.M, problem.K);
-        const auto b_scale_grid_desc_bn_ak = MakeBScaleGridDesciptor_N_K(problem.N, problem.K);
+        const auto a_scale_grid_desc_am_ak =
+            MakeAScaleGridDesciptor_M_K(problem.M, problem.K, problem.StrideScaleA);
+        const auto b_scale_grid_desc_bn_ak =
+            MakeBScaleGridDesciptor_N_K(problem.N, problem.K, problem.StrideScaleB);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
