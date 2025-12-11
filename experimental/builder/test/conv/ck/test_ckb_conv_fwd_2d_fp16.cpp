@@ -82,7 +82,7 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
     auto outputs = alloc_outputs(args);
 
     init_inputs(args, inputs);
-    
+
     auto conv = Instance{};
     ckt::run(conv, args, inputs.get(), outputs.get());
 }
