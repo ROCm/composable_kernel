@@ -57,8 +57,8 @@ CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
                                                number<i_access>                     = {},
                                                bool_constant<oob_conditional_check> = {})
 {
-    // TODO: Tile windows should works with unknow number of params
-    // Load element_wise API works only when the input typle is a tuple-tyupe
+    // TODO: Tile windows should work with unknown number of params
+    // Load element_wise API works only when the input type is a tuple-type
     return tile_window[number<0>{}].load(
         tile_window, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
