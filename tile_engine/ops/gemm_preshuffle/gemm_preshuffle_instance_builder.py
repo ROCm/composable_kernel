@@ -484,7 +484,6 @@ struct SelectedKernel {{
     using BaseGemmPipeline = {base_pipeline_map.get(pipeline, "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2")}<GemmPipelineProblem>;
 
     static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
-        
         constexpr auto scheduler = {scheduler_type_map.get(scheduler, "ck_tile::GemmPipelineScheduler::Default")};
 
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<

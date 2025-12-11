@@ -452,6 +452,7 @@ struct SelectedKernel {{
     using BaseGemmPipeline = {base_pipeline_map.get(pipeline)}<GemmPipelineProblem>;
 
     static float launch(const ck_tile::GemmMultiDHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) {{
+<<<<<<< HEAD
         
         constexpr auto scheduler = {scheduler_type_map.get(scheduler)};
 
@@ -466,6 +467,24 @@ struct SelectedKernel {{
         
         using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;
         
+=======
+        constexpr auto scheduler = {scheduler_type_map.get(scheduler)};
+
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+            ADataType,
+            BDataType,
+            AccDataType,
+            TileShape,
+            ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                            ALayout, BLayout, CLayout, TransposeC>,
+            scheduler>;
+        
+        using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;
+
+        const auto Run = [&](const auto memory_operation_) {{
+            [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;
+            
+>>>>>>> origin/develop
         // Epilogue
 """
 
