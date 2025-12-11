@@ -35,15 +35,20 @@ function(create_individual_pool_target datatype reduce_op trait block_config con
     list(GET thread_tile_parts 0 thread_tile_m)
     list(GET thread_tile_parts 1 thread_tile_n)
 
-    # Parse trait combo to get pool_dim
+    # Parse trait combo to get individual parts
     string(REPLACE "_" ";" trait_parts ${trait})
+    list(GET trait_parts 0 output_index)
+    list(GET trait_parts 1 propagate_nan)
     list(GET trait_parts 2 pool_dim)
+
+    # Create trait string without pool_dim for filename (to match Python generator)
+    set(trait_for_filename "${output_index}_${propagate_nan}")
 
     set(target_name "benchmark_pool${pool_dim}d_${datatype}_${reduce_op}_${trait}_${block_config}")
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${reduce_op}")
 
-    # Generate the single instance header for this kernel
-    set(instance_header "${working_path}/pool_single_${pool_dim}d_${datatype}_${reduce_op}_${trait}_${block_config}.hpp")
+    # Generate the single instance header for this kernel (filename without pool_dim in trait)
+    set(instance_header "${working_path}/pool_single_${pool_dim}d_${datatype}_${reduce_op}_${trait_for_filename}_${block_config}.hpp")
 
     # Add custom command to generate the header file at build time
     add_custom_command(
@@ -54,7 +59,7 @@ function(create_individual_pool_target datatype reduce_op trait block_config con
                 --reduce_op ${reduce_op}
                 --config_json ${config_json}
                 --gen_single
-                --kernel_name "pool${pool_dim}d_${datatype}_${reduce_op}_${trait}_${block_config}"
+                --kernel_name "pool${pool_dim}d_${datatype}_${reduce_op}_${trait_for_filename}_${block_config}"
                 --block_config "${block_config}"
                 --trait_combo "${trait}"
                 --gpu_target "${POOL_GPU_TARGETS_INDIVIDUAL}"

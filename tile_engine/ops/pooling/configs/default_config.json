@@ -7,7 +7,7 @@
             "values": [1]
         },
         "warp_m": {
-            "values": [1, 2]
+            "values": [1]
         },
         "warp_n": {
             "values": [1]
@@ -32,4 +32,3 @@
     },
     "k_block_per_cu": 1
 }
-
