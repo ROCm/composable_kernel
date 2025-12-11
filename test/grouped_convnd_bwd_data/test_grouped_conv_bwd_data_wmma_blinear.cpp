@@ -32,14 +32,13 @@ template <typename Tuple>
 class TestGroupedConvndBwdData : public ::testing::Test
 {
     protected:
-    using F16 = ck::half_t;
     using InDataType  = std::tuple_element_t<0, Tuple>;;
-     using WeiDataType  =std::tuple_element_t<0, Tuple>;;
-      using OutDataType  = std::tuple_element_t<0, Tuple>;;
-      using ComputeDataType = InDataType;
-using InLayout    = std::tuple_element_t<3, Tuple>;;
-using WeiLayout   = std::tuple_element_t<2, Tuple>;;
-using OutLayout   = std::tuple_element_t<1, Tuple>;;
+    using WeiDataType  =std::tuple_element_t<0, Tuple>;;
+    using OutDataType  = std::tuple_element_t<0, Tuple>;;
+    using ComputeDataType = InDataType;
+    using InLayout    = std::tuple_element_t<3, Tuple>;;
+    using WeiLayout   = std::tuple_element_t<2, Tuple>;;
+    using OutLayout   = std::tuple_element_t<1, Tuple>;;
     using WeiElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using InElementOp = ck::tensor_operation::element_wise::Bilinear;
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -48,7 +47,7 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
     using Bilinear = ck::tensor_operation::element_wise::Bilinear;
     static constexpr ck::index_t NDimSpatial = 3;
     static constexpr float alpha             = 2.f;
-     static constexpr float beta             = 2.f;
+    static constexpr float beta             = 2.f;
 
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
@@ -254,7 +253,7 @@ using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
 
-using KernelTypes3d = ::testing::Types<
+using KernelTypes3d = ::testing::Types<std::tuple<float, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<ck::half_t, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>>;
 
@@ -262,14 +261,17 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
 
 TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
 {
-this->conv_params.push_back({3, 3, 16, 96, 96,   {1, 3, 3}, {2, 48, 32}, {1, 1, 1}, {1, 1, 1}, {0, 1, 1}, {0, 1, 1}});
-this->conv_params.push_back({3, 1, 16, 288, 288, {2, 1, 1}, {2, 48, 32}, {2, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-this->conv_params.push_back({3, 3, 16, 96, 96,   {3, 1, 1}, {2, 48, 32}, {1, 1, 1}, {1, 1, 1}, {1, 0, 0}, {1, 0, 0}});
-this->conv_params.push_back({3, 3, 16, 96, 96,   {1, 3, 3}, {4, 48, 32}, {1, 1, 1}, {1, 1, 1}, {0, 1, 1}, {0, 1, 1}});
-this->conv_params.push_back({3, 1, 16, 288, 288, {2, 1, 1}, {4, 48, 32}, {2, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-this->conv_params.push_back({3, 3, 16, 96, 96,   {3, 1, 1}, {4, 48, 32}, {1, 1, 1}, {1, 1, 1}, {1, 0, 0}, {1, 0, 0}});
-this->conv_params.push_back({3, 3, 16, 96, 96,   {1, 3, 3}, {8, 48, 32}, {1, 1, 1}, {1, 1, 1}, {0, 1, 1}, {0, 1, 1}});
-this->conv_params.push_back({3, 1, 16, 288, 288, {2, 1, 1}, {8, 48, 32}, {2, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-this->conv_params.push_back({3, 3, 16, 96, 96,   {3, 1, 1}, {8, 48, 32}, {1, 1, 1}, {1, 1, 1}, {1, 0, 0}, {1, 0, 0}});
+    this->conv_params.push_back(
+        {3, 2, 16, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 2, 2, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 2, 32, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->Run();
 }
