@@ -47,9 +47,8 @@ struct composes<F>
     F f_;
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
 template <typename... Ts>
-__host__ __device__ composes(Ts&&...) -> composes<remove_cvref_t<Ts>...>;
+CK_TILE_HOST_DEVICE_EXTERN composes(Ts&&...) -> composes<remove_cvref_t<Ts>...>;
 
 template <typename SaturateType>
 struct saturates
