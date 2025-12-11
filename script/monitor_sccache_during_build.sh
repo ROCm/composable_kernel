@@ -63,12 +63,60 @@ test_redis_connectivity() {
     fi
 }
 
+# Executes a final dump of the sccache stats
+cleanup() {
+    log_with_timestamp "=== FINAL SCCACHE STATS EXIT ==="
+    log_with_timestamp "$(get_sccache_stats)"
+}
+trap cleanup EXIT
+
+generate_cache_key_fingerprint() {
+    echo "=== CACHE KEY FINGERPRINT GENERATION ===" | tee -a "$CACHE_KEY_LOG"
+    
+    # Create a deterministic hash of all components that affect cache keys
+    {
+        # 1. Compiler binary
+        if [ -f "${ROCM_PATH}/bin/hipcc" ]; then
+            echo "HIPCC_BINARY:"
+            md5sum "${ROCM_PATH}/bin/hipcc"
+        fi
+        
+        # 2. Compiler version info
+        if [ -f "${ROCM_PATH}/llvm/bin/clang" ]; then
+            echo "CLANG_VERSION:"
+            "${ROCM_PATH}/llvm/bin/clang" --version | head -1
+        fi
+        
+        # 3. Extra files content
+        if [ -f "${SCCACHE_EXTRAFILES}" ]; then
+            echo "SCCACHE_EXTRAFILES:"
+            cat "${SCCACHE_EXTRAFILES}" | sort
+        fi
+        
+        # 4. Custom cache buster
+        echo "CACHE_BUSTER:"
+        echo "${SCCACHE_C_CUSTOM_CACHE_BUSTER:-none}"
+        
+        # 5. Environment variables that affect compilation
+        echo "BUILD_ENV:"
+        env | grep -E "(ROCM_PATH|HIP_PATH|CMAKE_|CXXFLAGS|CFLAGS|LDFLAGS)" | sort
+        
+        # 6. ROCm devicelib bitcodes
+        if [ -d "${ROCM_PATH}/amdgcn/bitcode" ]; then
+            echo "DEVICELIB_BITCODES:"
+            find "${ROCM_PATH}/amdgcn/bitcode" -type f -name "*.bc" -exec md5sum {} \; | sort
+        fi
+        
+    } | md5sum | tee -a "$CACHE_KEY_LOG"
+}
+
 log_with_timestamp "=== SCCACHE MONITORING STARTED ==="
 log_with_timestamp "PID: $$"
 log_with_timestamp "Node: ${NODE_NAME:-$(hostname)}"
 log_with_timestamp "Stage: ${JENKINS_STAGE_NAME:-unknown}"
 log_with_timestamp "SCCACHE_REDIS: ${SCCACHE_REDIS:-not set}"
 log_with_timestamp "CK_SCCACHE: ${CK_SCCACHE:-not set}"
+log_with_timestamp "Cache Key fingerprint: $(generate_cache_key_fingerprint)"
 
 # Initial state
 log_with_timestamp "=== INITIAL STATE ==="

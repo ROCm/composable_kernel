@@ -625,7 +625,7 @@ def cmake_build(Map conf=[:]){
 
     dir("build"){
         // Start sccache monitoring
-        if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
+        if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
             sh """
                 echo "=== MAKING SCRIPTS EXECUTABLE ==="
                 chmod +x ../script/monitor_sccache_during_build.sh
@@ -644,6 +644,7 @@ def cmake_build(Map conf=[:]){
                 echo "SCCACHE_REDIS: \$SCCACHE_REDIS"
                 echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \$SCCACHE_C_CUSTOM_CACHE_BUSTER"
                 echo "JENKINS_STAGE_NAME: \$JENKINS_STAGE_NAME"
+                echo "Full build command: \n\${cmd}
                 
                 echo "=== STARTING CONTINUOUS MONITORING ==="
                 ../script/monitor_sccache_during_build.sh build_monitor &
@@ -667,7 +668,7 @@ def cmake_build(Map conf=[:]){
             throw buildError
         } finally {
             // Stop sccache monitoring
-            if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
+            if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
                 sh """
                     # Stop monitoring
                     if [ -f monitor.pid ]; then
