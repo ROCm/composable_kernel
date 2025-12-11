@@ -623,7 +623,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             const auto& a = arg.gemm_kernel_args_[i].karg_;
 
             // Validate stride requirements for SplitK (k_batch > 1)
-            // AMD buffer atomic operations require contiguous output layout
+            // TODO: Enable splitK
             if(a.k_batch > 1)
             {
                 if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
