@@ -624,6 +624,9 @@ def cmake_build(Map conf=[:]){
     dir("build"){
         //build CK
         sh cmd
+        //generate build traces
+        sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${check_arch_name()}.json"
+        archiveArtifacts "ck_build_trace${check_arch_name()}.json"
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
             if (params.NINJA_BUILD_TRACE || params.BUILD_INSTANCES_ONLY){
@@ -633,9 +636,6 @@ def cmake_build(Map conf=[:]){
                     sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${check_arch_name()}.log"
                     archiveArtifacts "clang_build_analysis_${check_arch_name()}.log"
                 }
-                sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${check_arch_name()}.json"
-                archiveArtifacts "ck_build_trace${check_arch_name()}.json"
-
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
                     if (!runAllUnitTests){
