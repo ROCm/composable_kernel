@@ -60,14 +60,14 @@ std::string expected_str = "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Ten
                            ",2"             // ABlockTransferSrcVectorDim
                            ",1"             // ABlockTransferSrcScalarPerVector
                            ",8"             // ABlockTransferDstScalarPerVector_AK1
-                           ",1"             // ABlockLdsExtraM
+                           ",true"          // ABlockLdsExtraM
                            ",Seq(4,16,1)"   // BBlockTransferThreadClusterLengths
                            ",Seq(1,0,2)"    // BBlockTransferThreadClusterArrangeOrder
                            ",Seq(1,0,2)"    // BBlockTransferSrcAccessOrder
                            ",2"             // BBlockTransferSrcVectorDim
                            ",1"             // BBlockTransferSrcScalarPerVector
                            ",8"             // BBlockTransferDstScalarPerVector_BK1
-                           ",1"             // BBlockLdsExtraN
+                           ",true"          // BBlockLdsExtraN
                            ",1"             // CShuffleMXdlPerWavePerShuffle
                            ",1"             // CShuffleNXdlPerWavePerShuffle
                            ",Seq(1,16,1,4)" // CDEBlockTransferClusterLengths
