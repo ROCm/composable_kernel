@@ -2977,16 +2977,17 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        auto a_dram_window =
-            make_tile_window(PipelinePolicy::template MakeMXFP4_AAsyncLoadDramDescriptor<Problem>(
-                                 a_copy_dram_window_tmp.get_bottom_tensor_view()),
-                             a_copy_dram_window_tmp.get_window_lengths(),
-                             a_copy_dram_window_tmp.get_window_origin(),
-                             PipelinePolicy::template MakeADramTileDistribution<Problem>());
-        // auto a_dram_window = replace_bottom_tensor_view(
-        //     PipelinePolicy::template MakeMXFP4_AAsyncLoadDramDescriptor<Problem>(
-        //         a_copy_dram_window_tmp.get_bottom_tensor_view()),
-        //     a_copy_dram_window_tmp);
+        // auto a_dram_window =
+        //     make_tile_window(PipelinePolicy::template MakeMXFP4_AAsyncLoadDramDescriptor<Problem>(
+        //                          a_copy_dram_window_tmp.get_bottom_tensor_view()),
+        //                      a_copy_dram_window_tmp.get_window_lengths(),
+        //                      a_copy_dram_window_tmp.get_window_origin(),
+        //                      PipelinePolicy::template MakeADramTileDistribution<Problem>());
+        auto a_dram_window = replace_bottom_tensor_view(
+            PipelinePolicy::template MakeMXFP4_AAsyncLoadDramDescriptor<Problem>(
+            // PipelinePolicy::template Make_F8AAsyncLoadDramDescriptor<Problem>(
+                a_copy_dram_window_tmp.get_bottom_tensor_view()),
+            a_copy_dram_window_tmp);
         // auto a_dram_window = a_copy_dram_window_tmp;
  	// auto a_tile = load_tile(a_dram_window);
             // if (threadIdx.x == 8)
@@ -3010,6 +3011,16 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
 
         constexpr auto a_lds_block_desc =
             PipelinePolicy::template MakeMXFP4_ALdsBlockDescriptor<Problem>();
+            // PipelinePolicy::template MakeF8_ReadALdsBlockDescriptor<Problem>();
+
+        constexpr auto a_load_lds_block_desc =
+            PipelinePolicy::template MakeMXFP4_ALdsBlockDescriptor<Problem>();
+            // PipelinePolicy::template MakeF8_WriteALdsBlockDescriptor<Problem>();
+
+        auto a_lds_block_ping_load =
+            make_tensor_view<address_space_enum::lds>(p_a_lds_ping, a_load_lds_block_desc);
+        auto a_lds_block_pong_load =
+            make_tensor_view<address_space_enum::lds>(p_a_lds_pong, a_load_lds_block_desc);
 
         auto a_lds_block_ping =
             make_tensor_view<address_space_enum::lds>(p_a_lds_ping, a_lds_block_desc);
@@ -3017,9 +3028,9 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
             make_tensor_view<address_space_enum::lds>(p_a_lds_pong, a_lds_block_desc);
 
         auto a_store_lds_window_ping = make_tile_window(
-            a_lds_block_ping, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
+            a_lds_block_ping_load, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
         auto a_store_lds_window_pong = make_tile_window(
-            a_lds_block_pong, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
+            a_lds_block_pong_load, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
 
         // ping-pong window for A LDS
         auto a_warp_window_ping =
@@ -3193,21 +3204,31 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
     {
 	if constexpr (KIterPerWarp / KXdlPack >0)
 	{
-            if (threadIdx.x == 1)
-	    {
-	    printf("trheadIdx.x %d, token_idx0,%f \n", threadIdx.x,
-	        		   type_convert<float>(a_warp_tensor(I0).get_thread_buffer()[0]),
-	        		   );
-	    printf("trheadIdx.x %d, token_idx1,%f \n", threadIdx.x,
-	        		   type_convert<float>(a_warp_tensor(I0).get_thread_buffer()[1]),
-	        		   );
-	    printf("trheadIdx.x %d, token_idx2,%f \n", threadIdx.x,
-	        		   type_convert<float>(a_warp_tensor(I0).get_thread_buffer()[2]),
-	        		   );
-	    printf("trheadIdx.x %d, scale,%d \n", threadIdx.x,
-	        		   type_convert<int32_t>(scale_a_tile_tensor_ping(I0)(I0).get_thread_buffer()[0]),
-	        		   );
-	    }
+            // if (threadIdx.x <= 7 )
+	    // if (threadIdx.x % 16 ==4 && threadIdx.x < 64) // >= 7 &&  threadIdx.x <= 15)
+	    // {
+	    // printf("trheadIdx.x %d, token_idx0,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(a_warp_tensor(I0).get_thread_buffer()[0]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, token_idx1,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(a_warp_tensor(I0).get_thread_buffer()[1]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, token_idx2,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(a_warp_tensor(I0).get_thread_buffer()[2]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, token_idx-3,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(a_warp_tensor(I0).get_thread_buffer()[29]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, token_idx-2,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(a_warp_tensor(I0).get_thread_buffer()[30]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, token_idx-1,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(a_warp_tensor(I0).get_thread_buffer()[31]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, scale,%d \n", threadIdx.x,
+	    //     		   type_convert<int32_t>(scale_a_tile_tensor_ping(I0)(I0).get_thread_buffer()[0]),
+	    //     		   );
+	    // }
             // if (threadIdx.x == 0)
 	    // {
 	    // printf("trheadIdx.x %d, token_idx0,%f \n", threadIdx.x,
@@ -3451,246 +3472,246 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
             // HotLoopScheduler();
         };
 
-        // if constexpr(HasHotLoop)
-        // {
-        //     index_t iCounter = (num_loop - 1) / 2;
-        //     while(iCounter > 0);
-        //     {
-        //         main_body_implx2();
-        //         iCounter--;
-        //     }
-        // }
+        if constexpr(HasHotLoop)
+        {
+            index_t iCounter = (num_loop - 1) / 2;
+            while(iCounter > 0);
+            {
+                main_body_implx2();
+                iCounter--;
+            }
+        }
 
-        // // TAIL
-        // if constexpr(TailNum == TailNumber::Even)
-        // {
-        //     // prefetch B(loopK)
-        //     static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-        //         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-        //             b_warp_tensor_pong(nIter)(kIter) = load_tile_with_offset(
-        //                 b_flat_dram_windows(nIter),
-        //                 make_tuple(number<0>{}, number<kIter * KFlatPerBlockPerIter>{}));
-        //         });
-        //     });
+        // TAIL
+        if constexpr(TailNum == TailNumber::Even)
+        {
+            // prefetch B(loopK)
+            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                    b_warp_tensor_pong(nIter)(kIter) = load_tile_with_offset(
+                        b_flat_dram_windows(nIter),
+                        make_tuple(number<0>{}, number<kIter * KFlatPerBlockPerIter>{}));
+                });
+            });
 
-        //     // prefetch Scale A and Scale B (2i+1)
-        //     static_for<0, MIterPerWarp / MXdlPack, 1>{}([&](auto mIter_pack) {
-        //         static_for<0, KIterPerWarp / KXdlPack, 1>{}([&](auto kIter_pack) {
-        //             scale_a_dram_windows(mIter_pack)(kIter_pack) = scale_a_dram_window;
-        //             move_tile_window(scale_a_dram_windows(mIter_pack)(kIter_pack),
-        //                              {mIter_pack * MWarp * WG::kM, kIter_pack * (64 / WG::kM)});
+            // prefetch Scale A and Scale B (2i+1)
+            static_for<0, MIterPerWarp / MXdlPack, 1>{}([&](auto mIter_pack) {
+                static_for<0, KIterPerWarp / KXdlPack, 1>{}([&](auto kIter_pack) {
+                    scale_a_dram_windows(mIter_pack)(kIter_pack) = scale_a_dram_window;
+                    move_tile_window(scale_a_dram_windows(mIter_pack)(kIter_pack),
+                                     {mIter_pack * MWarp * WG::kM, kIter_pack * (64 / WG::kM)});
 
-        //             scale_a_tile_tensor_pong(mIter_pack)(kIter_pack) =
-        //                 load_tile(scale_a_dram_windows(mIter_pack)(kIter_pack));
-        //         });
-        //     });
-        //     static_for<0, NIterPerWarp / NXdlPack, 1>{}([&](auto nIter_pack) {
-        //         static_for<0, KIterPerWarp / KXdlPack, 1>{}([&](auto kIter_pack) {
-        //             scale_b_dram_windows(nIter_pack)(kIter_pack) = scale_b_dram_window;
-        //             move_tile_window(scale_b_dram_windows(nIter_pack)(kIter_pack),
-        //                              {nIter_pack * NWarp * WG::kN, kIter_pack * (64 / WG::kN)});
+                    scale_a_tile_tensor_pong(mIter_pack)(kIter_pack) =
+                        load_tile(scale_a_dram_windows(mIter_pack)(kIter_pack));
+                });
+            });
+            static_for<0, NIterPerWarp / NXdlPack, 1>{}([&](auto nIter_pack) {
+                static_for<0, KIterPerWarp / KXdlPack, 1>{}([&](auto kIter_pack) {
+                    scale_b_dram_windows(nIter_pack)(kIter_pack) = scale_b_dram_window;
+                    move_tile_window(scale_b_dram_windows(nIter_pack)(kIter_pack),
+                                     {nIter_pack * NWarp * WG::kN, kIter_pack * (64 / WG::kN)});
 
-        //             scale_b_tile_tensor_pong(nIter_pack)(kIter_pack) =
-        //                 load_tile(scale_b_dram_windows(nIter_pack)(kIter_pack));
-        //         });
-        //     });
+                    scale_b_tile_tensor_pong(nIter_pack)(kIter_pack) =
+                        load_tile(scale_b_dram_windows(nIter_pack)(kIter_pack));
+                });
+            });
 
-        //     // GEMM loopK-1
-        //     static_for<0, KIterPerWarp / KXdlPack, 1>{}([&](auto kIter_pack) {
-        //         static_for<0, MIterPerWarp / MXdlPack, 1>{}([&](auto mIter_pack) {
-        //             static_for<0, NIterPerWarp / NXdlPack, 1>{}([&](auto nIter_pack) {
-        //                 static_for<0, KXdlPack, 1>{}([&](auto ikxdl) {
-        //                     static_for<0, MXdlPack, 1>{}([&](auto imxdl) {
-        //                         constexpr auto AwarpIter = imxdl + ikxdl * MXdlPack;
-        //                         static_for<0, NXdlPack, 1>{}([&](auto inxdl) {
-        //                             // read C warp tensor from C block tensor
-        //                             CWarpTensor c_warp_tensor;
-        //                             c_warp_tensor.get_thread_buffer() =
-        //                                 c_block_tile.get_y_sliced_thread_data(
-        //                                     merge_sequences(
-        //                                         sequence<mIter_pack * MXdlPack + imxdl,
-        //                                                  nIter_pack * NXdlPack + inxdl>{},
-        //                                         c_warp_y_index_zeros),
-        //                                     merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+            // GEMM loopK-1
+            static_for<0, KIterPerWarp / KXdlPack, 1>{}([&](auto kIter_pack) {
+                static_for<0, MIterPerWarp / MXdlPack, 1>{}([&](auto mIter_pack) {
+                    static_for<0, NIterPerWarp / NXdlPack, 1>{}([&](auto nIter_pack) {
+                        static_for<0, KXdlPack, 1>{}([&](auto ikxdl) {
+                            static_for<0, MXdlPack, 1>{}([&](auto imxdl) {
+                                constexpr auto AwarpIter = imxdl + ikxdl * MXdlPack;
+                                static_for<0, NXdlPack, 1>{}([&](auto inxdl) {
+                                    // read C warp tensor from C block tensor
+                                    CWarpTensor c_warp_tensor;
+                                    c_warp_tensor.get_thread_buffer() =
+                                        c_block_tile.get_y_sliced_thread_data(
+                                            merge_sequences(
+                                                sequence<mIter_pack * MXdlPack + imxdl,
+                                                         nIter_pack * NXdlPack + inxdl>{},
+                                                c_warp_y_index_zeros),
+                                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-        //                             // warp GEMM
-        //                             WG{}.template
-        //                             operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
-        //                                 c_warp_tensor,
-        //                                 a_warp_tensor(number<AwarpIter>{}),
-        //                                 b_warp_tensor_ping(nIter_pack * number<NXdlPack>{} + inxdl)(
-        //                                     kIter_pack * number<KXdlPack>{} + ikxdl),
-        //                                 scale_a_tile_tensor_ping(mIter_pack)(kIter_pack)
-        //                                     .get_thread_buffer()[0], // scale A
-        //                                 scale_b_tile_tensor_ping(nIter_pack)(kIter_pack)
-        //                                     .get_thread_buffer()[0]); // scale B
+                                    // warp GEMM
+                                    WG{}.template
+                                    operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
+                                        c_warp_tensor,
+                                        a_warp_tensor(number<AwarpIter>{}),
+                                        b_warp_tensor_ping(nIter_pack * number<NXdlPack>{} + inxdl)(
+                                            kIter_pack * number<KXdlPack>{} + ikxdl),
+                                        scale_a_tile_tensor_ping(mIter_pack)(kIter_pack)
+                                            .get_thread_buffer()[0], // scale A
+                                        scale_b_tile_tensor_ping(nIter_pack)(kIter_pack)
+                                            .get_thread_buffer()[0]); // scale B
 
-        //                             // write C warp tensor into C block tensor
-        //                             c_block_tile.set_y_sliced_thread_data(
-        //                                 merge_sequences(sequence<mIter_pack * MXdlPack + imxdl,
-        //                                                          nIter_pack * NXdlPack + inxdl>{},
-        //                                                 c_warp_y_index_zeros),
-        //                                 merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-        //                                 c_warp_tensor.get_thread_buffer());
-        //                         });
-        //                         // preload next A from lds
-        //                         constexpr auto addr = (mIter_pack * MXdlPack + imxdl) % 2 +
-        //                                               (kIter_pack * KXdlPack + ikxdl) * 2 +
-        //                                               (mIter_pack * MXdlPack + imxdl) / 2 * 4 +
-        //                                               m_preload;
-        //                         if constexpr(addr < (KIterPerWarp * MIterPerWarp) &&
-        //                                      (nIter_pack == NIterPerWarp / NXdlPack - 1))
-        //                         {
-        //                             constexpr auto AmIter              = addr % 2 + addr / 4 * 2;
-        //                             constexpr auto AkIter              = addr / 2 % 2;
-        //                             a_warp_tensor(number<AwarpIter>{}) = load_tile_with_offset(
-        //                                 a_warp_window_ping,
-        //                                 tuple<number<AmIter * WG::kM>, number<AkIter * WG::kK>>{});
-        //                         }
-        //                     });
-        //                 });
-        //             });
-        //         });
-        //     });
-        //     // barrier as ds_load A(2i) and buffer_load_lds A(2i + 1) finished
-        //     s_waitcnt< // vmcnt
-        //         Bload_num + ScaleAload_num + ScaleBload_num>();
-        //     block_sync_lds();
+                                    // write C warp tensor into C block tensor
+                                    c_block_tile.set_y_sliced_thread_data(
+                                        merge_sequences(sequence<mIter_pack * MXdlPack + imxdl,
+                                                                 nIter_pack * NXdlPack + inxdl>{},
+                                                        c_warp_y_index_zeros),
+                                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                                        c_warp_tensor.get_thread_buffer());
+                                });
+                                // preload next A from lds
+                                constexpr auto addr = (mIter_pack * MXdlPack + imxdl) % 2 +
+                                                      (kIter_pack * KXdlPack + ikxdl) * 2 +
+                                                      (mIter_pack * MXdlPack + imxdl) / 2 * 4 +
+                                                      m_preload;
+                                if constexpr(addr < (KIterPerWarp * MIterPerWarp) &&
+                                             (nIter_pack == NIterPerWarp / NXdlPack - 1))
+                                {
+                                    constexpr auto AmIter              = addr % 2 + addr / 4 * 2;
+                                    constexpr auto AkIter              = addr / 2 % 2;
+                                    a_warp_tensor(number<AwarpIter>{}) = load_tile_with_offset(
+                                        a_warp_window_ping,
+                                        tuple<number<AmIter * WG::kM>, number<AkIter * WG::kK>>{});
+                                }
+                            });
+                        });
+                    });
+                });
+            });
+            // barrier as ds_load A(2i) and buffer_load_lds A(2i + 1) finished
+            s_waitcnt< // vmcnt
+                Bload_num + ScaleAload_num + ScaleBload_num>();
+            block_sync_lds();
 
-        //     // preload A(2i+1)
-        //     static_for<0, m_preload, 1>{}([&](auto loadIter) {
-        //         constexpr auto mIter    = loadIter % MXdlPack;
-        //         constexpr auto kIter    = loadIter / MXdlPack;
-        //         a_warp_tensor(loadIter) = load_tile_with_offset(
-        //             a_warp_window_pong, tuple<number<mIter * WG::kM>, number<kIter * WG::kK>>{});
-        //     });
+            // preload A(2i+1)
+            static_for<0, m_preload, 1>{}([&](auto loadIter) {
+                constexpr auto mIter    = loadIter % MXdlPack;
+                constexpr auto kIter    = loadIter / MXdlPack;
+                a_warp_tensor(loadIter) = load_tile_with_offset(
+                    a_warp_window_pong, tuple<number<mIter * WG::kM>, number<kIter * WG::kK>>{});
+            });
 
-        //     Last2ndHotLoopScheduler();
+            Last2ndHotLoopScheduler();
 
-        //     // GEMM loopK
-        //     static_for<0, KIterPerWarp / KXdlPack, 1>{}([&](auto kIter_pack) {
-        //         static_for<0, MIterPerWarp / MXdlPack, 1>{}([&](auto mIter_pack) {
-        //             static_for<0, NIterPerWarp / NXdlPack, 1>{}([&](auto nIter_pack) {
-        //                 static_for<0, KXdlPack, 1>{}([&](auto ikxdl) {
-        //                     static_for<0, MXdlPack, 1>{}([&](auto imxdl) {
-        //                         constexpr auto AwarpIter = imxdl + ikxdl * MXdlPack;
-        //                         static_for<0, NXdlPack, 1>{}([&](auto inxdl) {
-        //                             // read C warp tensor from C block tensor
-        //                             CWarpTensor c_warp_tensor;
-        //                             c_warp_tensor.get_thread_buffer() =
-        //                                 c_block_tile.get_y_sliced_thread_data(
-        //                                     merge_sequences(
-        //                                         sequence<mIter_pack * MXdlPack + imxdl,
-        //                                                  nIter_pack * NXdlPack + inxdl>{},
-        //                                         c_warp_y_index_zeros),
-        //                                     merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+            // GEMM loopK
+            static_for<0, KIterPerWarp / KXdlPack, 1>{}([&](auto kIter_pack) {
+                static_for<0, MIterPerWarp / MXdlPack, 1>{}([&](auto mIter_pack) {
+                    static_for<0, NIterPerWarp / NXdlPack, 1>{}([&](auto nIter_pack) {
+                        static_for<0, KXdlPack, 1>{}([&](auto ikxdl) {
+                            static_for<0, MXdlPack, 1>{}([&](auto imxdl) {
+                                constexpr auto AwarpIter = imxdl + ikxdl * MXdlPack;
+                                static_for<0, NXdlPack, 1>{}([&](auto inxdl) {
+                                    // read C warp tensor from C block tensor
+                                    CWarpTensor c_warp_tensor;
+                                    c_warp_tensor.get_thread_buffer() =
+                                        c_block_tile.get_y_sliced_thread_data(
+                                            merge_sequences(
+                                                sequence<mIter_pack * MXdlPack + imxdl,
+                                                         nIter_pack * NXdlPack + inxdl>{},
+                                                c_warp_y_index_zeros),
+                                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-        //                             // warp GEMM
-        //                             WG{}.template
-        //                             operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
-        //                                 c_warp_tensor,
-        //                                 a_warp_tensor(number<AwarpIter>{}),
-        //                                 b_warp_tensor_pong(nIter_pack * number<NXdlPack>{} + inxdl)(
-        //                                     kIter_pack * number<KXdlPack>{} + ikxdl),
-        //                                 scale_a_tile_tensor_pong(mIter_pack)(kIter_pack)
-        //                                     .get_thread_buffer()[0], // scale A
-        //                                 scale_b_tile_tensor_pong(nIter_pack)(kIter_pack)
-        //                                     .get_thread_buffer()[0]); // scale B
+                                    // warp GEMM
+                                    WG{}.template
+                                    operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
+                                        c_warp_tensor,
+                                        a_warp_tensor(number<AwarpIter>{}),
+                                        b_warp_tensor_pong(nIter_pack * number<NXdlPack>{} + inxdl)(
+                                            kIter_pack * number<KXdlPack>{} + ikxdl),
+                                        scale_a_tile_tensor_pong(mIter_pack)(kIter_pack)
+                                            .get_thread_buffer()[0], // scale A
+                                        scale_b_tile_tensor_pong(nIter_pack)(kIter_pack)
+                                            .get_thread_buffer()[0]); // scale B
 
-        //                             // write C warp tensor into C block tensor
-        //                             c_block_tile.set_y_sliced_thread_data(
-        //                                 merge_sequences(sequence<mIter_pack * MXdlPack + imxdl,
-        //                                                          nIter_pack * NXdlPack + inxdl>{},
-        //                                                 c_warp_y_index_zeros),
-        //                                 merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-        //                                 c_warp_tensor.get_thread_buffer());
-        //                         });
-        //                         // preload next A from lds
-        //                         constexpr auto addr = (mIter_pack * MXdlPack + imxdl) % 2 +
-        //                                               (kIter_pack * KXdlPack + ikxdl) * 2 +
-        //                                               (mIter_pack * MXdlPack + imxdl) / 2 * 4 +
-        //                                               m_preload;
-        //                         if constexpr(addr < (KIterPerWarp * MIterPerWarp) &&
-        //                                      (nIter_pack == NIterPerWarp / NXdlPack - 1))
-        //                         {
-        //                             constexpr auto AmIter              = addr % 2 + addr / 4 * 2;
-        //                             constexpr auto AkIter              = addr / 2 % 2;
-        //                             a_warp_tensor(number<AwarpIter>{}) = load_tile_with_offset(
-        //                                 a_warp_window_pong,
-        //                                 tuple<number<AmIter * WG::kM>, number<AkIter * WG::kK>>{});
-        //                         }
-        //                     });
-        //                 });
-        //             });
-        //         });
-        //     });
-        //     // LastHotLoopScheduler();
-        // }
-        // else if constexpr(TailNum == TailNumber::Odd)
-        // {
-        //     // GEMM loopK
-        //     static_for<0, KIterPerWarp / KXdlPack, 1>{}([&](auto kIter_pack) {
-        //         static_for<0, MIterPerWarp / MXdlPack, 1>{}([&](auto mIter_pack) {
-        //             static_for<0, NIterPerWarp / NXdlPack, 1>{}([&](auto nIter_pack) {
-        //                 static_for<0, KXdlPack, 1>{}([&](auto ikxdl) {
-        //                     static_for<0, MXdlPack, 1>{}([&](auto imxdl) {
-        //                         constexpr auto AwarpIter = imxdl + ikxdl * MXdlPack;
-        //                         static_for<0, NXdlPack, 1>{}([&](auto inxdl) {
-        //                             // read C warp tensor from C block tensor
-        //                             CWarpTensor c_warp_tensor;
-        //                             c_warp_tensor.get_thread_buffer() =
-        //                                 c_block_tile.get_y_sliced_thread_data(
-        //                                     merge_sequences(
-        //                                         sequence<mIter_pack * MXdlPack + imxdl,
-        //                                                  nIter_pack * NXdlPack + inxdl>{},
-        //                                         c_warp_y_index_zeros),
-        //                                     merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+                                    // write C warp tensor into C block tensor
+                                    c_block_tile.set_y_sliced_thread_data(
+                                        merge_sequences(sequence<mIter_pack * MXdlPack + imxdl,
+                                                                 nIter_pack * NXdlPack + inxdl>{},
+                                                        c_warp_y_index_zeros),
+                                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                                        c_warp_tensor.get_thread_buffer());
+                                });
+                                // preload next A from lds
+                                constexpr auto addr = (mIter_pack * MXdlPack + imxdl) % 2 +
+                                                      (kIter_pack * KXdlPack + ikxdl) * 2 +
+                                                      (mIter_pack * MXdlPack + imxdl) / 2 * 4 +
+                                                      m_preload;
+                                if constexpr(addr < (KIterPerWarp * MIterPerWarp) &&
+                                             (nIter_pack == NIterPerWarp / NXdlPack - 1))
+                                {
+                                    constexpr auto AmIter              = addr % 2 + addr / 4 * 2;
+                                    constexpr auto AkIter              = addr / 2 % 2;
+                                    a_warp_tensor(number<AwarpIter>{}) = load_tile_with_offset(
+                                        a_warp_window_pong,
+                                        tuple<number<AmIter * WG::kM>, number<AkIter * WG::kK>>{});
+                                }
+                            });
+                        });
+                    });
+                });
+            });
+            // LastHotLoopScheduler();
+        }
+        else if constexpr(TailNum == TailNumber::Odd)
+        {
+            // GEMM loopK
+            static_for<0, KIterPerWarp / KXdlPack, 1>{}([&](auto kIter_pack) {
+                static_for<0, MIterPerWarp / MXdlPack, 1>{}([&](auto mIter_pack) {
+                    static_for<0, NIterPerWarp / NXdlPack, 1>{}([&](auto nIter_pack) {
+                        static_for<0, KXdlPack, 1>{}([&](auto ikxdl) {
+                            static_for<0, MXdlPack, 1>{}([&](auto imxdl) {
+                                constexpr auto AwarpIter = imxdl + ikxdl * MXdlPack;
+                                static_for<0, NXdlPack, 1>{}([&](auto inxdl) {
+                                    // read C warp tensor from C block tensor
+                                    CWarpTensor c_warp_tensor;
+                                    c_warp_tensor.get_thread_buffer() =
+                                        c_block_tile.get_y_sliced_thread_data(
+                                            merge_sequences(
+                                                sequence<mIter_pack * MXdlPack + imxdl,
+                                                         nIter_pack * NXdlPack + inxdl>{},
+                                                c_warp_y_index_zeros),
+                                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-        //                             // warp GEMM
-        //                             WG{}.template
-        //                             operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
-        //                                 c_warp_tensor,
-        //                                 a_warp_tensor(number<AwarpIter>{}),
-        //                                 b_warp_tensor_ping(nIter_pack * number<NXdlPack>{} + inxdl)(
-        //                                     kIter_pack * number<KXdlPack>{} + ikxdl),
-        //                                 scale_a_tile_tensor_ping(mIter_pack)(kIter_pack)
-        //                                     .get_thread_buffer()[0], // scale A
-        //                                 scale_b_tile_tensor_ping(nIter_pack)(kIter_pack)
-        //                                     .get_thread_buffer()[0]); // scale B
+                                    // warp GEMM
+                                    WG{}.template
+                                    operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
+                                        c_warp_tensor,
+                                        a_warp_tensor(number<AwarpIter>{}),
+                                        b_warp_tensor_ping(nIter_pack * number<NXdlPack>{} + inxdl)(
+                                            kIter_pack * number<KXdlPack>{} + ikxdl),
+                                        scale_a_tile_tensor_ping(mIter_pack)(kIter_pack)
+                                            .get_thread_buffer()[0], // scale A
+                                        scale_b_tile_tensor_ping(nIter_pack)(kIter_pack)
+                                            .get_thread_buffer()[0]); // scale B
 
-        //                             // write C warp tensor into C block tensor
-        //                             c_block_tile.set_y_sliced_thread_data(
-        //                                 merge_sequences(sequence<mIter_pack * MXdlPack + imxdl,
-        //                                                          nIter_pack * NXdlPack + inxdl>{},
-        //                                                 c_warp_y_index_zeros),
-        //                                 merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-        //                                 c_warp_tensor.get_thread_buffer());
-        //                         });
-        //                         // preload next A from lds
-        //                         constexpr auto addr = (mIter_pack * MXdlPack + imxdl) % 2 +
-        //                                               (kIter_pack * KXdlPack + ikxdl) * 2 +
-        //                                               (mIter_pack * MXdlPack + imxdl) / 2 * 4 +
-        //                                               m_preload;
-        //                         if constexpr(addr < (KIterPerWarp * MIterPerWarp) &&
-        //                                      (nIter_pack == NIterPerWarp / NXdlPack - 1))
-        //                         {
-        //                             constexpr auto AmIter              = addr % 2 + addr / 4 * 2;
-        //                             constexpr auto AkIter              = addr / 2 % 2;
-        //                             a_warp_tensor(number<AwarpIter>{}) = load_tile_with_offset(
-        //                                 a_warp_window_ping,
-        //                                 tuple<number<AmIter * WG::kM>, number<AkIter * WG::kK>>{});
-        //                         }
-        //                     });
-        //                 });
-        //             });
-        //         });
-        //     });
-        //     // LastHotLoopScheduler();
-        // }
-        // else
-        // {
-        //     static_assert(false, "Wrong TailNum");
-        // }
+                                    // write C warp tensor into C block tensor
+                                    c_block_tile.set_y_sliced_thread_data(
+                                        merge_sequences(sequence<mIter_pack * MXdlPack + imxdl,
+                                                                 nIter_pack * NXdlPack + inxdl>{},
+                                                        c_warp_y_index_zeros),
+                                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                                        c_warp_tensor.get_thread_buffer());
+                                });
+                                // preload next A from lds
+                                constexpr auto addr = (mIter_pack * MXdlPack + imxdl) % 2 +
+                                                      (kIter_pack * KXdlPack + ikxdl) * 2 +
+                                                      (mIter_pack * MXdlPack + imxdl) / 2 * 4 +
+                                                      m_preload;
+                                if constexpr(addr < (KIterPerWarp * MIterPerWarp) &&
+                                             (nIter_pack == NIterPerWarp / NXdlPack - 1))
+                                {
+                                    constexpr auto AmIter              = addr % 2 + addr / 4 * 2;
+                                    constexpr auto AkIter              = addr / 2 % 2;
+                                    a_warp_tensor(number<AwarpIter>{}) = load_tile_with_offset(
+                                        a_warp_window_ping,
+                                        tuple<number<AmIter * WG::kM>, number<AkIter * WG::kK>>{});
+                                }
+                            });
+                        });
+                    });
+                });
+            });
+            // LastHotLoopScheduler();
+        }
+        else
+        {
+            static_assert(false, "Wrong TailNum");
+        }
 //     if constexpr (MIterPerWarp / MXdlPack >0)
 // 	if constexpr (KIterPerWarp / KXdlPack >0)
 //             if (threadIdx.x == 0)

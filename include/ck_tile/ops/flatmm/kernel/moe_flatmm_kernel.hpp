@@ -913,7 +913,6 @@ struct MoeFlatmmKernel
 
         if(coord_m >= max_token_id)
             return;
-
         static_for<0, DramMRepeat, 1>{}([&](auto m0) {
             const auto row_idx =
                 coord_m + m0 * (TilePartitioner::MPerBlock / DramMRepeat) + a_coord[I0];
@@ -960,8 +959,6 @@ struct MoeFlatmmKernel
                                               a_offsets); // K DRAM tile window for
 
 
-	if (coord_m > 0)
-		return;
         auto c_block_tile = [&] {
             if constexpr(BMXFP4_Pipeline)
             {
@@ -1002,6 +999,36 @@ struct MoeFlatmmKernel
         }();
 
         auto& c_block_window = gemm_tile_windows.at(number<2>{});
+    if constexpr (kMPerBlock == 32)
+    {
+            // if (threadIdx.x %16 ==0 && blockIdx.x==0 && threadIdx.x < 64)
+	    // {
+	    // printf("trheadIdx.x %d, c_token_idx0,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(c_block_tile.get_thread_buffer()[0]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, c_token_idx1,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(c_block_tile.get_thread_buffer()[1]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, c_token_idx2,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(c_block_tile.get_thread_buffer()[2]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, c_token_idx3,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(c_block_tile.get_thread_buffer()[3]),
+	    //     		   );
+	    // }
+            // if (threadIdx.x == 0)
+	    // {
+	    // printf("trheadIdx.x %d, token_idx0,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(b_warp_tensor_ping(I0)(I0).get_thread_buffer()[0]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, token_idx1,%f \n", threadIdx.x,
+	    //     		   type_convert<float>(b_warp_tensor_ping(I0)(I0).get_thread_buffer()[1]),
+	    //     		   );
+	    // printf("trheadIdx.x %d, scale,%d \n", threadIdx.x,
+	    //     		   type_convert<int32_t>(scale_b_tile_tensor_ping(I0)(I0).get_thread_buffer()[0]),
+	    //     		   );
+	    // }
+    }
 
         // Run EpiloguePipeline
         {

@@ -397,10 +397,6 @@ struct tile_scatter_gather
                             bool_constant<oob_conditional_check>{});
                     }
                 }();
-		if (threadIdx.x == 63)
-		{
-                    printf("lane %d, offx %d, off_page %d\n", threadIdx.x, bottom_tensor_thread_coord.get_offset(), page_offset);
-		}
 #if 1
                 // write into distributed tensor
                 static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
@@ -655,126 +651,123 @@ struct tile_scatter_gather
                                                bool_constant<oob_conditional_check> = {},
                                                bool_constant<static_move_ys>        = {}) const
     {
-	async_load(lds_tile);
-        // using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
-        // using LdsDataType   = typename LdsTileWindow::DataType;
+	// async_load(lds_tile);
+        using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
+        using LdsDataType   = typename LdsTileWindow::DataType;
 
-        // using Traits = load_store_traits;
+        using Traits = load_store_traits;
 
-        // using vector_t = typename Traits::vector_t;
-        // using SFC_Ys   = typename Traits::SFC_Ys;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
 
-        // // Precompute invariant values outside loops
-        // const auto window_origin       = lds_tile.get_window_origin();
-        // const auto& bottom_tensor_view = lds_tile.get_bottom_tensor_view();
-        // const auto& tensor_descriptor  = bottom_tensor_view.get_tensor_descriptor();
-        // auto lds_base_ptr              = bottom_tensor_view.get_buffer_view().p_data_;
+        // Precompute invariant values outside loops
+        const auto window_origin       = lds_tile.get_window_origin();
+        const auto& bottom_tensor_view = lds_tile.get_bottom_tensor_view();
+        const auto& tensor_descriptor  = bottom_tensor_view.get_tensor_descriptor();
+        auto lds_base_ptr              = bottom_tensor_view.get_buffer_view().p_data_;
 
-        // static_for<0, NumCoord, 1>{}([&](auto iCoord) {
-        //     auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
-        //     auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
-        //     auto window_adaptor_warp_coord = pre_computed_warp_coords_[iCoord][I0];
-        //     auto bottom_tensor_warp_coord  = pre_computed_warp_coords_[iCoord][I1];
+            auto window_adaptor_warp_coord = pre_computed_warp_coords_[iCoord][I0];
+            auto bottom_tensor_warp_coord  = pre_computed_warp_coords_[iCoord][I1];
 
-        //     static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-        //         constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
-        //         constexpr auto idx_ys_offset = [&]() {
-        //             constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
-        //             constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
-        //                 StaticTileDistribution_{}.get_ps_ys_to_xs_adaptor(),
-        //                 container_concat(array<index_t, NDimP>{0},
-        //                                  to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
-        //             return adapter_ys_offset.get_bottom_index();
-        //         }();
-        //         const auto lds_ys_offset = [&]() {
-        //             if constexpr(static_move_ys)
-        //             {
-        //                 const auto coord_ys_offset =
-        //                     make_tensor_coordinate(tensor_descriptor, idx_ys_offset);
-        //                 return coord_ys_offset.get_offset();
-        //             }
-        //             else
-        //                 return 0;
-        //         }();
+                constexpr auto idx_ys_offset = [&]() {
+                    constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
+                    constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
+                        StaticTileDistribution_{}.get_ps_ys_to_xs_adaptor(),
+                        container_concat(array<index_t, NDimP>{0},
+                                         to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
+                    return adapter_ys_offset.get_bottom_index();
+                }();
+                const auto lds_ys_offset = [&]() {
+                    if constexpr(static_move_ys)
+                    {
+                        const auto coord_ys_offset =
+                            make_tensor_coordinate(tensor_descriptor, idx_ys_offset);
+                        return coord_ys_offset.get_offset();
+                    }
+                    else
+                        return 0;
+                }();
 
-        //         // Use precomputed window origin & tensor descriptor
-        //         auto lds_bottom_tensor_thread_idx =
-        //             window_origin + window_adaptor_warp_coord.get_bottom_index();
-        //         const auto lds_coord =
-        //             make_tensor_coordinate(tensor_descriptor, lds_bottom_tensor_thread_idx);
+                // Use precomputed window origin & tensor descriptor
+                auto lds_bottom_tensor_thread_idx =
+                    window_origin + window_adaptor_warp_coord.get_bottom_index();
+                const auto lds_coord =
+                    make_tensor_coordinate(tensor_descriptor, lds_bottom_tensor_thread_idx);
 
-        //         // Calculate SMEM address using base pointer
-        //         CK_TILE_LDS_ADDR LdsDataType* smem = lds_base_ptr +
-        //                                              lds_coord.get_offset() / Traits::PackedSize +
-        //                                              lds_ys_offset / Traits::PackedSize;
+                // Calculate SMEM address using base pointer
+                CK_TILE_LDS_ADDR LdsDataType* smem = lds_base_ptr +
+                                                     lds_coord.get_offset() / Traits::PackedSize +
+                                                     lds_ys_offset / Traits::PackedSize;
 
-        //         const auto dram_ys_offset = [&]() {
-        //             if constexpr(static_move_ys)
-        //             {
-        //                 const auto coord_ys_offset = make_tensor_coordinate(
-        //                     this->get_bottom_tensor_view().get_tensor_descriptor(), idx_ys_offset);
-        //                 return coord_ys_offset.get_offset();
-        //             }
-        //             else
-        //                 return 0;
-        //         }();
+                const auto dram_ys_offset = [&]() {
+                    if constexpr(static_move_ys)
+                    {
+                        const auto coord_ys_offset = make_tensor_coordinate(
+                            this->get_bottom_tensor_view().get_tensor_descriptor(), idx_ys_offset);
+                        return coord_ys_offset.get_offset();
+                    }
+                    else
+                        return 0;
+                }();
 
-        //         constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-        //         constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
-        //         const auto page_offset      = page_idx_[idx_gather];
+                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+                constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
+                const auto page_offset      = page_idx_[idx_gather];
 
-        //         auto mixed_bottom_thread_coord = bottom_tensor_thread_coord;
-        //         mixed_bottom_thread_coord.get_hidden_index()[number<0>{}] += page_offset;
-	// 	if (threadIdx.x == 63)
-	// 	{
-	// 		printf("lane %d, offx %d, offy %d, off_page %d\n", threadIdx.x, mixed_bottom_thread_coord.get_offset(), dram_ys_offset, offset);
-	// 	}
+                auto mixed_bottom_thread_coord = bottom_tensor_thread_coord;
+                mixed_bottom_thread_coord.get_hidden_index()[number<0>{}] += page_offset;
+		// printf("lane %d,off_ori %d, offx %d, offy %d, off_page %d\n", threadIdx.x, bottom_tensor_thread_coord.get_offset(), mixed_bottom_thread_coord.get_offset(), dram_ys_offset, page_offset);
 
-        //         if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
-        //         {
-        //             this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
-        //                 smem,
-        //                 mixed_bottom_thread_coord,
-        //                 offset + dram_ys_offset,
-        //                 bool_constant<oob_conditional_check>{});
-        //         }
-        //         else
-        //         {
-        //             this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
-        //                 smem,
-        //                 mixed_bottom_thread_coord,
-        //                 offset + dram_ys_offset,
-        //                 valids_[idx_gather],
-        //                 bool_constant<oob_conditional_check>{});
-        //         }
+                if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
+                {
+                    this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
+                        smem,
+                        mixed_bottom_thread_coord,
+                        offset + dram_ys_offset,
+                        bool_constant<oob_conditional_check>{});
+                }
+                else
+                {
+                    this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
+                        smem,
+                        mixed_bottom_thread_coord,
+                        offset + dram_ys_offset,
+                        valids_[idx_gather],
+                        bool_constant<oob_conditional_check>{});
+                }
 
-        //         // Move thread coordinate if not last access
-        //         if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
-        //         {
-        //             constexpr auto idx_diff_ys    = SFC_Ys::get_forward_step(iAccess);
+                // Move thread coordinate if not last access
+                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                {
+                    constexpr auto idx_diff_ys    = SFC_Ys::get_forward_step(iAccess);
 
-        //             constexpr auto forward_step_scatter = generate_tuple(
-        //                 [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
-        //                 number<NDimY>{});
+                    constexpr auto forward_step_scatter = generate_tuple(
+                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        number<NDimY>{});
 
-        //             constexpr auto idx_diff_ps_ys = container_concat(
-        //                 generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
-        //                 forward_step_scatter);
+                    constexpr auto idx_diff_ps_ys = container_concat(
+                        generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                        forward_step_scatter);
 
-        //             if constexpr(!static_move_ys)
-        //                 move_window_adaptor_and_bottom_tensor_thread_coordinate(
-        //                     window_adaptor_thread_coord,
-        //                     bottom_tensor_thread_coord,
-        //                     idx_diff_ps_ys);
+                    if constexpr(!static_move_ys)
+                        move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                            window_adaptor_thread_coord,
+                            bottom_tensor_thread_coord,
+                            idx_diff_ps_ys);
 
-        //             if constexpr(!static_move_ys)
-        //                 move_window_adaptor_and_bottom_tensor_thread_coordinate(
-        //                     window_adaptor_warp_coord, bottom_tensor_warp_coord, idx_diff_ps_ys);
-        //         }
-        //     });
-        // });
+                    if constexpr(!static_move_ys)
+                        move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                            window_adaptor_warp_coord, bottom_tensor_warp_coord, idx_diff_ps_ys);
+                }
+            });
+        });
     }
 
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
