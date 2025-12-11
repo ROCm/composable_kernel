@@ -43,7 +43,8 @@ CK_TILE_HOST void reference_gemm_quant(const HostTensor<ADataType>& a_m_k,
         static_assert(std::is_same_v<AccDataType, float>);
         static_assert(std::is_same_v<CDataType, float> ||
                       std::is_same_v<CDataType, ck_tile::half_t>);
-        for(std::size_t k = 0; k < K; ++k)
+        std::size_t K_t = (K / QuantGroupSize::kK) * QuantGroupSize::kK;
+        for(std::size_t k = 0; k < K_t; ++k)
         {
             AccDataType v_a;
             AccDataType v_b;
@@ -81,6 +82,70 @@ CK_TILE_HOST void reference_gemm_quant(const HostTensor<ADataType>& a_m_k,
 
             // Apply group dequant scale
             if((k + 1) % QuantGroupSize::kK == 0)
+            {
+                float scale       = 0.f;
+                index_t outer_dim = (aquant) ? (m / QuantGroupSize::kM) : (k / QuantGroupSize::kK);
+                index_t inner_dim = (aquant) ? (k / QuantGroupSize::kK) : (n / QuantGroupSize::kN);
+                if constexpr(std::is_same_v<QDataType, float>)
+                {
+                    scale = q(outer_dim, inner_dim);
+                }
+                else if constexpr(std::is_same_v<QDataType, ck_tile::fp8_t>)
+                {
+                    scale = fp8_to_float_raw(q(outer_dim, inner_dim));
+                }
+                else if constexpr(std::is_same_v<QDataType, ck_tile::bf8_t>)
+                {
+                    scale = bf8_to_float_raw(q(outer_dim, inner_dim));
+                }
+                else
+                {
+                    static_assert(false, "Unexpected Q datatype.");
+                }
+                v_block_acc *= scale;
+                v_acc += v_block_acc;
+                v_block_acc = 0;
+            }
+        }
+
+        for(std::size_t k = K_t; k < K; ++k)
+        {
+            AccDataType v_a;
+            AccDataType v_b;
+            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            {
+                const pk_int4_t pk_val  = a_element_op(a_m_k(m, k));
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
+                if(k % 2 == 1)
+                    v_a = fp32_val.hi;
+                else
+                    v_a = fp32_val.lo;
+            }
+            else
+            {
+                v_a = ck_tile::type_convert<AccDataType>(a_element_op(a_m_k(m, k)));
+            }
+            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            {
+                const pk_int4_t pk_val  = b_element_op(b_k_n(k, n));
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
+                if(k % 2 == 1)
+                    v_b = fp32_val.hi;
+                else
+                    v_b = fp32_val.lo;
+            }
+            else if constexpr(std::is_same_v<BDataType, fp8_t>)
+            {
+                v_b = fp8_to_float_raw(b_element_op(b_k_n(k, n)));
+            }
+            else
+            {
+                v_b = ck_tile::type_convert<AccDataType>(b_element_op(b_k_n(k, n)));
+            }
+            v_block_acc += v_a * v_b;
+
+            // Apply group dequant scale
+            if(k == (K - 1))
             {
                 float scale       = 0.f;
                 index_t outer_dim = (aquant) ? (m / QuantGroupSize::kM) : (k / QuantGroupSize::kK);
