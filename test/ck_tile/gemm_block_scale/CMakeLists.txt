@@ -23,6 +23,12 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_bquant PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    # ABQuant tests
+    add_gtest_executable(test_tile_gemm_quant_abquant 
+        test_gemm_quant_abquant.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
     # BQuant tests (with PreshuffleB)
     add_gtest_executable(test_tile_gemm_quant_bquant_preshuffle 
         test_gemm_quant_bquant_preshuffle.cpp

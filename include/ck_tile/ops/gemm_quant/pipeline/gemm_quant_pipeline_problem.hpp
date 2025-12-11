@@ -48,11 +48,13 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     using AQDataType = remove_cvref_t<AQDataType_>;
     using BQDataType = remove_cvref_t<BQDataType_>;
 
-    using BlockGemmShape  = typename Base::BlockGemmShape;
-    using AQuantGroupSize = AQuantGroupSize_;
-    using BQuantGroupSize = BQuantGroupSize_;
-    // For backward compatibility
-    using QuantGroupSize = BQuantGroupSize_;
+    using BlockGemmShape = typename Base::BlockGemmShape;
+    using AQuantGroupSize =
+        std::conditional_t<!std::is_void_v<AQuantGroupSize_>, AQuantGroupSize_, BQuantGroupSize_>;
+    using BQuantGroupSize =
+        std::conditional_t<!std::is_void_v<BQuantGroupSize_>, BQuantGroupSize_, AQuantGroupSize_>;
+    // Unified alias for 1D quantization usage, to avoid forcing users to pick one.
+    using QuantGroupSize = BQuantGroupSize;
 
     using typename Base::ALayout;
     using typename Base::BLayout;
@@ -72,12 +74,9 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     using AQLayout = remove_cvref_t<typename Traits::AQLayout>;
     using BQLayout = remove_cvref_t<typename Traits::BQLayout>;
 
-    static constexpr auto Scheduler           = Scheduler_;
-    static constexpr auto HasHotLoop          = HasHotLoop_;
-    static constexpr auto TailNum             = TailNum_;
-    static constexpr index_t kQuantGroupSize  = QuantGroupSize::kK;
-    static constexpr index_t kAQuantGroupSize = AQuantGroupSize::kK;
-    static constexpr index_t kBQuantGroupSize = BQuantGroupSize::kK;
+    static constexpr auto Scheduler  = Scheduler_;
+    static constexpr auto HasHotLoop = HasHotLoop_;
+    static constexpr auto TailNum    = TailNum_;
 
     static_assert(BlockGemmShape::kM % AQuantGroupSize::kM == 0);
     static_assert(BlockGemmShape::kN % AQuantGroupSize::kN == 0);
@@ -137,7 +136,7 @@ using GemmAQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
                                                                QuantGroupSize_,
-                                                               QuantGroupSize_,
+                                                               void,
                                                                TransposeC_,
                                                                ComputeDataType_,
                                                                Scheduler_,
@@ -162,7 +161,7 @@ using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                CDataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
-                                                               QuantGroupSize_,
+                                                               void,
                                                                QuantGroupSize_,
                                                                false, // no TransposeC
                                                                ComputeDataType_,
@@ -218,7 +217,7 @@ using GemmRowColTensorQuantPipelineProblem =
                                  CDataType_,
                                  BlockGemmShape_,
                                  Traits_,
-                                 QuantGroupShape<sequence<1, 1, 1>>, // no group size applicable
+                                 void,
                                  QuantGroupShape<sequence<1, 1, 1>>, // no group size applicable
                                  TransposeC_,
                                  ComputeDataType_,

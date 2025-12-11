@@ -884,7 +884,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
 
     return pass;
 }
-
+// Usage of Two-Matrix Quantization (AB-Quant)
 template <typename GemmConfig,
           typename TypeConfig,
           typename AQuantGroupSize,
@@ -967,7 +967,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
 
     return 0;
 }
-
+// Support for Unilateral Quantization (A/B)
 template <typename GemmConfig,
           typename TypeConfig,
           typename QuantGroupSize,
