@@ -23,42 +23,38 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <typename Tuple>
-class TestGroupedConvndBwdDataWmma : public ::testing::Test
+class TestGroupedConvndBwdData : public ::testing::Test
 {
-   using InDataType  = ck::half_t;
-using WeiDataType = ck::half_t;
-using OutDataType = ck::half_t;
-using ComputeDataType = InDataType;
-using AccDataType = float;
+    protected:
+    using F16 = ck::half_t;
+    using InDataType  = std::tuple_element_t<0, Tuple>;;
+     using WeiDataType  =std::tuple_element_t<0, Tuple>;;
+      using OutDataType  = std::tuple_element_t<0, Tuple>;;
+      using ComputeDataType = InDataType;
+using InLayout    = std::tuple_element_t<3, Tuple>;;
+using WeiLayout   = std::tuple_element_t<2, Tuple>;;
+using OutLayout   = std::tuple_element_t<1, Tuple>;;
+    using WeiElementOp  = ck::tensor_operation::element_wise::PassThrough;
+    using InElementOp = ck::tensor_operation::element_wise::Bilinear;
+    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+    using Bilinear = ck::tensor_operation::element_wise::Bilinear;
+    static constexpr ck::index_t NDimSpatial = 3;
+    static constexpr float alpha             = 2.f;
+     static constexpr float beta             = 2.f;
 
 
+    std::vector<ck::utils::conv::ConvParam> conv_params;
+    std::vector<ck::index_t> split_ks{1};
 
-
-using InLayout    = ck::tensor_layout::convolution::NDHWGC;
-using WeiLayout   = ck::tensor_layout::convolution::GKZYXC;
-using OutLayout   = ck::tensor_layout::convolution::NDHWGK;
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Bilinear = ck::tensor_operation::element_wise::Bilinear;
-
-static constexpr ck::index_t NumDimSpatial = 3;
-static constexpr ck::index_t G             = 2;
-static constexpr ck::index_t N             = 16;
-static constexpr ck::index_t K             = 16;
-static constexpr ck::index_t C             = 16;
-static constexpr ck::index_t Z             = 3;
-static constexpr ck::index_t Y             = 3;
-static constexpr ck::index_t X             = 3;
-static constexpr ck::index_t Di            = 14;
-static constexpr ck::index_t Hi            = 14;
-static constexpr ck::index_t Wi            = 14;
-static constexpr ck::index_t Do            = 14;
-static constexpr ck::index_t Ho            = 14;
-static constexpr ck::index_t Wo            = 14;
-
-
-public: std::vector<ck::utils::conv::ConvParam> conv_param;
-struct SimpleDeviceMem
+    struct SimpleDeviceMem
 {
     SimpleDeviceMem() = delete;
 
@@ -73,32 +69,62 @@ struct SimpleDeviceMem
 
     void* p_mem_;
 };
+   
+    bool PerformConvDataScale(ck::utils::conv::ConvParam& conv_param, const ck::index_t split_k)
+    {
+        bool passed = true;
+      
+           const auto out_g_n_k_wos_desc =
+            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
+                conv_param);
 
-  bool PerformBwdData()
-{
-    std::array<ck::index_t, NumDimSpatial + 3> in_lengths{G, N, C, Di, Hi, Wi};
-    std::array<ck::index_t, NumDimSpatial + 3> in_strides{
-        C, Di * Hi * Wi * G * C, 1, Hi * Wi * G * C, Wi * G * C, G * C};
+        const auto wei_g_k_c_xs_desc =
+            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
+                conv_param);
 
-    std::array<ck::index_t, NumDimSpatial + 3> wei_lengths{G, K, C, Z, Y, X};
-    std::array<ck::index_t, NumDimSpatial + 3> wei_strides{
-        K * Z * Y * X * C, Z * Y * X * C, 1, Y * X * C, X * C, C};
+        const auto in_g_n_c_wis_desc =
+            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
+                conv_param);
 
-    std::array<ck::index_t, NumDimSpatial + 3> out_lengths{G, N, K, Do, Ho, Wo};
-    std::array<ck::index_t, NumDimSpatial + 3> out_strides{
-        K, Do * Ho * Wo * G * K, 1, Ho * Wo * G * K, Wo * G * K, G * K};
+        Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
+        Tensor<OutDataType> out(out_g_n_k_wos_desc);
+        Tensor<InDataType> in_host(in_g_n_c_wis_desc);
+        Tensor<InDataType> in_device(in_g_n_c_wis_desc);
 
-    std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1, 1};
-    std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1, 1};
-    std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1, 1};
-    std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1, 1};
+        std::cout << "in: " << in_host.mDesc << std::endl;
+        std::cout << "wei: " << wei.mDesc << std::endl;
+        std::cout << "out: " << out.mDesc << std::endl;
 
-    SimpleDeviceMem in(sizeof(InDataType) * G * N * Di * Hi * Wi * C);
-    SimpleDeviceMem wei(sizeof(WeiDataType) * G * K * Z * Y * X * C);
-    SimpleDeviceMem out(sizeof(OutDataType) * G * N * Do * Ho * Wo * K);
+        SimpleDeviceMem in_device_buf(sizeof(InDataType)* in_host.mDesc.GetElementSpaceSize());
+        SimpleDeviceMem out_device_buf(sizeof(OutDataType)* out.mDesc.GetElementSpaceSize());
+        SimpleDeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
 
-    using DeviceOp =
-        ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NumDimSpatial,
+       std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
+        std::array<ck::index_t, NDimSpatial + 3> out_strides{};
+        std::array<ck::index_t, NDimSpatial + 3> wei_lengths{};
+        std::array<ck::index_t, NDimSpatial + 3> wei_strides{};
+        std::array<ck::index_t, NDimSpatial + 3> in_lengths{};
+        std::array<ck::index_t, NDimSpatial + 3> in_strides{};
+        std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
+        std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
+        std::array<ck::index_t, NDimSpatial> input_left_pads{};
+        std::array<ck::index_t, NDimSpatial> input_right_pads{};
+      
+        
+        auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
+
+        copy(out_g_n_k_wos_desc.GetLengths(), out_lengths);
+        copy(out_g_n_k_wos_desc.GetStrides(), out_strides);
+        copy(wei_g_k_c_xs_desc.GetLengths(), wei_lengths);
+        copy(wei_g_k_c_xs_desc.GetStrides(), wei_strides);
+        copy(in_g_n_c_wis_desc.GetLengths(), in_lengths);
+        copy(in_g_n_c_wis_desc.GetStrides(), in_strides);
+        copy(conv_param.conv_filter_strides_, conv_filter_strides);
+        copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
+        copy(conv_param.input_left_pads_, input_left_pads);
+        copy(conv_param.input_right_pads_, input_right_pads);
+   
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
                                                                         OutLayout,
                                                                         WeiLayout,
                                                                         ck::Tuple<InLayout>,
@@ -115,24 +141,15 @@ struct SimpleDeviceMem
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+        int num_kernel = 0;
 
-    std::string best_op_name;
-    int best_op_id        = -1;
-    float best_avg_time   = std::numeric_limits<float>::max();
-    float best_gb_per_sec = 0;
-    float best_tflops     = 0;
-
-    // profile device operation instances
-    std::cout << "Run all instances and do timing" << std::endl;
-
-    for(size_t i = 0; i < op_ptrs.size(); ++i)
-    {
-        auto& op_ptr        = op_ptrs[i];
-        auto argument_ptr   = op_ptr->MakeArgumentPointer(out.GetDeviceBuffer(),
-                                                        wei.GetDeviceBuffer(),
-                                                          {in.GetDeviceBuffer()},
-                                                        in.GetDeviceBuffer(),
+        for(std::size_t i = 0; i < op_ptrs.size(); ++i)
+        {
+            auto& op_ptr      = op_ptrs[i];
+            auto argument_ptr = op_ptr->MakeArgumentPointer(out_device_buf.GetDeviceBuffer(),
+                                                        wei_device_buf.GetDeviceBuffer(),
+                                                        {in_device_buf.GetDeviceBuffer()},
+                                                        in_device_buf.GetDeviceBuffer(),
                                                         out_lengths,
                                                         out_strides,
                                                         wei_lengths,
@@ -141,172 +158,118 @@ struct SimpleDeviceMem
                                                           {in_strides},
                                                         in_lengths,
                                                         in_strides,
-                                                        filter_strides,
-                                                        filter_dilations,
+                                                        conv_filter_strides,
+                                                        conv_filter_dilations,
                                                         input_left_pads,
                                                         input_right_pads,
                                                         PassThrough{},
                                                         PassThrough{},
-                                                        Bilinear{2.f, 2.f});
-        auto invoker_ptr    = op_ptr->MakeInvokerPointer();
-        std::string op_name = op_ptr->GetTypeString();
+                                                        Bilinear{alpha,beta});
 
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
-        {
-            float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
+            DeviceMem workspace_buf(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_buf.GetDeviceBuffer());
 
-            std::size_t flop = std::size_t(2) * G * N * K * C * Do * Ho * Wo * Y * X +
-                               3 * G * N * Di * Hi * Wi * C;
-            std::size_t num_bytes = 2 * sizeof(InDataType) * G * N * Di * Hi * Wi * C +
-                                    sizeof(WeiDataType) * G * K * Z * Y * X * C +
-                                    sizeof(OutDataType) * G * N * Do * Ho * Wo * K;
+            auto invoker_ptr    = op_ptr->MakeInvokerPointer();
+            std::string op_name = op_ptr->GetTypeString();
 
-            float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
-            float gb_per_sec = num_bytes / 1.E6 / avg_time;
-
-            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << op_name << std::endl;
-
-            if(tflops > best_tflops)
+            if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                best_op_id      = i;
-                best_op_name    = op_name;
-                best_avg_time   = avg_time;
-                best_gb_per_sec = gb_per_sec;
-                best_tflops     = tflops;
+                num_kernel++;
+                float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
+               // wei_device_buf.FromDevice(in_device.mData.data());
+
+                using AccDataType = float;
+                float max_accumulated_value =
+                    *std::max_element(in_host.mData.begin(), in_host.mData.end());
+
+                const ck::index_t num_accums         = out.GetElementSize() / conv_param.K_;
+                const ck::index_t num_accums_split_k = split_k;
+                double rtol =
+                    ck::utils::get_relative_threshold<InDataType, WeiDataType, AccDataType>(
+                        num_accums / num_accums_split_k);
+                double atol =
+                    ck::utils::get_absolute_threshold<InDataType, WeiDataType, AccDataType>(
+                        max_accumulated_value / num_accums_split_k,
+                        num_accums / num_accums_split_k);
+
+                // Calculate error due to split_k accumulation
+                auto rtol_split_k =
+                    ck::utils::get_relative_threshold<InDataType, InDataType, InDataType>(
+                        num_accums_split_k);
+                auto atol_split_k =
+                    ck::utils::get_absolute_threshold<InDataType, InDataType, InDataType>(
+                        max_accumulated_value, num_accums_split_k);
+                // Use higher threshold
+                rtol = std::max(rtol, rtol_split_k);
+                atol = std::max(atol, atol_split_k);
+
+                passed &= ck::utils::check_err(
+                    in_device, in_host, "Error: incorrect results!", rtol, atol);
+
+                std::size_t flop =
+                    conv_param.GetFlops() +
+                    3 * conv_param.GetOutputByte<InDataType>() / sizeof(InDataType);
+                std::size_t num_bytes = conv_param.GetByte<InDataType, WeiDataType, OutDataType>() +
+                                        conv_param.GetOutputByte<InDataType>();
+
+                float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+                float gb_per_sec = num_bytes / 1.E6 / avg_time;
+
+                std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops
+                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name << std::endl;
+            }
+            else
+            {
+                std::cerr << op_name << " does not support this problem" << std::endl;
             }
         }
-        else
-        {
-            std::cerr << op_name << " does not support this problem" << std::endl;
-        }
-    }
 
-    if(best_op_id < 0)
-    {
-        std::cerr << "no suitable instance" << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    std::cout << "Best Perf: " << std::setw(10) << best_avg_time << " ms, " << best_tflops
-              << " TFlops, " << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
-
-    // run the best intance
-    {
-        auto& op_ptr = op_ptrs[best_op_id];
-        std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
-                  << std::endl;
-        auto argument_ptr = op_ptr->MakeArgumentPointer(out.GetDeviceBuffer(),
-                                                        wei.GetDeviceBuffer(),
-                                                        {in.GetDeviceBuffer()},
-                                                        in.GetDeviceBuffer(),
-                                                        out_lengths,
-                                                        out_strides,
-                                                        wei_lengths,
-                                                        wei_strides,
-                                                        {in_lengths},
-                                                        {in_strides},
-                                                        in_lengths,
-                                                        in_strides,
-                                                        filter_strides,
-                                                        filter_dilations,
-                                                        input_left_pads,
-                                                        input_right_pads,
-                                                        PassThrough{},
-                                                        PassThrough{},
-                                                        Bilinear{2.f, 2.f});
-
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
-        {
-            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
-        }
-
-        std::cout << "Done" << std::endl;
-    
-
-
-       bool passed =op_ptr->IsSupportedArgument(argument_ptr.get());
-
-        std::cout << "passed  value is:" << passed << std::endl;
+        printf("\033[36mvalids: %d\033[0m\n", num_kernel);
         return passed;
-       
-        
     }
-    
-}
 
-     public: bool Run()
+    void Run()
     {
-      
+        EXPECT_FALSE(conv_params.empty());
         bool pass = true;
-   pass        = pass && PerformBwdData();
-            std::cout<< "pass value is :" << pass << std::endl;
-        EXPECT_TRUE(pass);
-        return pass;
-    
-    }
 
+        for(auto split_k : split_ks)
+        {
+            for(auto& param : conv_params)
+            {
+                pass = pass && PerformConvDataScale(param, split_k);
+            }
+        }
+        EXPECT_TRUE(pass);
+    }
 };
 
-using namespace ck::tensor_layout::convolution;
+template <typename Tuple>
+class TestGroupedConvndBwdData3d : public TestGroupedConvndBwdData<Tuple>
+{
+};
 
-
-using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
 using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
-
 using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
-
-using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
-using NGKDHW = ck::tensor_layout::convolution::NGKDHW;
 
-using NGCDHW = ck::tensor_layout::convolution::NGCDHW;
 
-using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<ck::half_t, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<ck::bhalf_t, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<float, NGKDHW, GKZYXC, NGCDHW>,
-                                       std::tuple<ck::half_t, NGKDHW, GKZYXC, NGCDHW>,
-                                       std::tuple<ck::bhalf_t, NGKDHW, GKZYXC, NGCDHW>,
-                                       std::tuple<float, NGKDHW, GKCZYX, NGCDHW>,
-                                       std::tuple<ck::half_t, NGKDHW, GKCZYX, NGCDHW>,
-                                       std::tuple<ck::bhalf_t, NGKDHW, GKCZYX, NGCDHW>,
-                                       std::tuple<float, NDHWGK, GKZYXC, NDHWGC>,
+using KernelTypes3d = ::testing::Types<
                                        std::tuple<ck::half_t, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>>;
-        
-template <typename Tuple>
-class TestGroupedConvndBwdDataWmma3d : public TestGroupedConvndBwdDataWmma<Tuple>
+
+TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
+
+TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
 {
-};
-
-TYPED_TEST_SUITE(TestGroupedConvndBwdDataWmma3d, KernelTypes3d);
-
-TYPED_TEST(TestGroupedConvndBwdDataWmma3d, Test3D)
-{
-
-    this->conv_param.push_back(
-        {3, 2, 16, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-            this->conv_param.push_back(
-        {3, 2, 2, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_param.push_back(
-        {3, 2, 32, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    this->conv_param.push_back(
-        {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_param.push_back(
-        {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_param.push_back(
-        {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-   this-> Run();
-
-
+this->conv_params.push_back({3, 3, 16, 96, 96,   {1, 3, 3}, {2, 48, 32}, {1, 1, 1}, {1, 1, 1}, {0, 1, 1}, {0, 1, 1}});
+this->conv_params.push_back({3, 1, 16, 288, 288, {2, 1, 1}, {2, 48, 32}, {2, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+this->conv_params.push_back({3, 3, 16, 96, 96,   {3, 1, 1}, {2, 48, 32}, {1, 1, 1}, {1, 1, 1}, {1, 0, 0}, {1, 0, 0}});
+this->conv_params.push_back({3, 3, 16, 96, 96,   {1, 3, 3}, {4, 48, 32}, {1, 1, 1}, {1, 1, 1}, {0, 1, 1}, {0, 1, 1}});
+this->conv_params.push_back({3, 1, 16, 288, 288, {2, 1, 1}, {4, 48, 32}, {2, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+this->conv_params.push_back({3, 3, 16, 96, 96,   {3, 1, 1}, {4, 48, 32}, {1, 1, 1}, {1, 1, 1}, {1, 0, 0}, {1, 0, 0}});
+this->conv_params.push_back({3, 3, 16, 96, 96,   {1, 3, 3}, {8, 48, 32}, {1, 1, 1}, {1, 1, 1}, {0, 1, 1}, {0, 1, 1}});
+this->conv_params.push_back({3, 1, 16, 288, 288, {2, 1, 1}, {8, 48, 32}, {2, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+this->conv_params.push_back({3, 3, 16, 96, 96,   {3, 1, 1}, {8, 48, 32}, {1, 1, 1}, {1, 1, 1}, {1, 0, 0}, {1, 0, 0}});
+    this->Run();
 }
-
-int main(int argc, char** argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
-
