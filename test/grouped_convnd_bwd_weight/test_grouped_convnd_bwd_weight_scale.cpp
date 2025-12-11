@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <iomanip>
@@ -44,9 +44,9 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
     std::vector<ck::index_t> split_ks{1, 2};
 
     void RunReference(ck::utils::conv::ConvParam& conv_param,
-                      Tensor<InDataType>& in,
-                      Tensor<WeiDataType>& wei_host,
-                      Tensor<OutDataType>& out)
+                      ck::Tensor<InDataType>& in,
+                      ck::Tensor<WeiDataType>& wei_host,
+                      ck::Tensor<OutDataType>& out)
     {
         auto ref_conv =
             ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
@@ -93,10 +93,10 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
 
-        Tensor<InDataType> in(in_g_n_c_wis_desc);
-        Tensor<OutDataType> out(out_g_n_k_wos_desc);
-        Tensor<WeiDataType> wei_host(wei_g_k_c_xs_desc);
-        Tensor<WeiDataType> wei_device(wei_g_k_c_xs_desc);
+        ck::Tensor<InDataType> in(in_g_n_c_wis_desc);
+        ck::Tensor<OutDataType> out(out_g_n_k_wos_desc);
+        ck::Tensor<WeiDataType> wei_host(wei_g_k_c_xs_desc);
+        ck::Tensor<WeiDataType> wei_device(wei_g_k_c_xs_desc);
 
         std::cout << "in: " << in.mDesc << std::endl;
         std::cout << "wei: " << wei_host.mDesc << std::endl;
@@ -105,9 +105,9 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
 
-        DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-        DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
-        DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_device.mDesc.GetElementSpaceSize());
+        ck::DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
+        ck::DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
+        ck::DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_device.mDesc.GetElementSpaceSize());
         in_device_buf.ToDevice(in.mData.data());
         wei_device_buf.ToDevice(wei_device.mData.data());
         out_device_buf.ToDevice(out.mData.data());
@@ -183,7 +183,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 OutElementOp{},
                 split_k);
 
-            DeviceMem workspace_buf(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+            ck::DeviceMem workspace_buf(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
             op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_buf.GetDeviceBuffer());
 
             auto invoker_ptr    = op_ptr->MakeInvokerPointer();

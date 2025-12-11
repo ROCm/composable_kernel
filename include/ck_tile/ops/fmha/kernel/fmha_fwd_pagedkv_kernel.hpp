@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -865,7 +865,17 @@ struct FmhaFwdPagedKVKernel
         }
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize()
+    {
+        if(is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {

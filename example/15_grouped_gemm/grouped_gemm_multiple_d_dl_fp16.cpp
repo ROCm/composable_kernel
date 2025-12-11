@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <cstddef>
@@ -24,6 +24,11 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/sequence.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::hip_check_error;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;

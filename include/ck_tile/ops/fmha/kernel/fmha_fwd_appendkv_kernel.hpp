@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -42,7 +42,7 @@ struct FmhaFwdAppendKVKernel
     template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
     // clang-format on
 
-    __host__ static std::string GetName()
+    CK_TILE_HOST static std::string GetName()
     {
         // sync with generate.py
         // clang-format off
@@ -143,41 +143,41 @@ struct FmhaFwdAppendKVKernel
     {
     };
 
-    __host__ static constexpr Kargs MakeKargs(void* q_ptr,
-                                              void* k_ptr,
-                                              const void* knew_ptr,
-                                              void* v_ptr,
-                                              const void* vnew_ptr,
-                                              ck_tile::index_t seqlen_q,
-                                              const void* seqlen_k_ptr,
-                                              ck_tile::index_t seqlen_knew,
-                                              ck_tile::index_t hdim_q,
-                                              ck_tile::index_t hdim_v,
-                                              ck_tile::index_t num_head_q,
-                                              ck_tile::index_t nhead_ratio_qk,
-                                              const void* rotary_cos_ptr,
-                                              const void* rotary_sin_ptr,
-                                              ck_tile::index_t rotary_dim,
-                                              bool has_mask,
-                                              const void* block_table_ptr,
-                                              ck_tile::index_t batch_stride_block_table,
-                                              ck_tile::index_t page_block_size,
-                                              const void* cache_batch_idx,
-                                              ck_tile::index_t stride_q,
-                                              ck_tile::index_t stride_k,
-                                              ck_tile::index_t stride_knew,
-                                              ck_tile::index_t stride_v,
-                                              ck_tile::index_t stride_vnew,
-                                              ck_tile::index_t nhead_stride_q,
-                                              ck_tile::index_t nhead_stride_k,
-                                              ck_tile::index_t nhead_stride_knew,
-                                              ck_tile::index_t nhead_stride_v,
-                                              ck_tile::index_t nhead_stride_vnew,
-                                              ck_tile::index_t batch_stride_q,
-                                              ck_tile::index_t batch_stride_k,
-                                              ck_tile::index_t batch_stride_knew,
-                                              ck_tile::index_t batch_stride_v,
-                                              ck_tile::index_t batch_stride_vnew)
+    CK_TILE_HOST static constexpr Kargs MakeKargs(void* q_ptr,
+                                                  void* k_ptr,
+                                                  const void* knew_ptr,
+                                                  void* v_ptr,
+                                                  const void* vnew_ptr,
+                                                  ck_tile::index_t seqlen_q,
+                                                  const void* seqlen_k_ptr,
+                                                  ck_tile::index_t seqlen_knew,
+                                                  ck_tile::index_t hdim_q,
+                                                  ck_tile::index_t hdim_v,
+                                                  ck_tile::index_t num_head_q,
+                                                  ck_tile::index_t nhead_ratio_qk,
+                                                  const void* rotary_cos_ptr,
+                                                  const void* rotary_sin_ptr,
+                                                  ck_tile::index_t rotary_dim,
+                                                  bool has_mask,
+                                                  const void* block_table_ptr,
+                                                  ck_tile::index_t batch_stride_block_table,
+                                                  ck_tile::index_t page_block_size,
+                                                  const void* cache_batch_idx,
+                                                  ck_tile::index_t stride_q,
+                                                  ck_tile::index_t stride_k,
+                                                  ck_tile::index_t stride_knew,
+                                                  ck_tile::index_t stride_v,
+                                                  ck_tile::index_t stride_vnew,
+                                                  ck_tile::index_t nhead_stride_q,
+                                                  ck_tile::index_t nhead_stride_k,
+                                                  ck_tile::index_t nhead_stride_knew,
+                                                  ck_tile::index_t nhead_stride_v,
+                                                  ck_tile::index_t nhead_stride_vnew,
+                                                  ck_tile::index_t batch_stride_q,
+                                                  ck_tile::index_t batch_stride_k,
+                                                  ck_tile::index_t batch_stride_knew,
+                                                  ck_tile::index_t batch_stride_v,
+                                                  ck_tile::index_t batch_stride_vnew)
     {
         Kargs kargs{
             {q_ptr,
@@ -255,7 +255,7 @@ struct FmhaFwdAppendKVKernel
         return ck_tile::make_tuple(i_tile, i_nhead, i_batch);
     }
 
-    __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {

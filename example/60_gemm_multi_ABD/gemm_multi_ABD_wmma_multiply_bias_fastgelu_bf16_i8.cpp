@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -20,6 +20,10 @@
 
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
@@ -27,7 +31,8 @@ using BF16 = ck::bhalf_t;
 using I8   = int8_t;
 using F32  = float;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using A0DataType       = BF16;
 using AsDataType       = ck::Tuple<A0DataType>;
@@ -160,11 +165,11 @@ int main(int argc, char* argv[])
 
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, Bypass{});
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, Bypass{});
             }
         };
 

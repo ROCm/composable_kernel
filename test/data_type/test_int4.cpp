@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <bitset>
 #include <cinttypes>
@@ -13,6 +13,8 @@
 #include "ck/utility/math_v2.hpp"
 #include "ck/utility/get_id.hpp"
 #include "ck/library/utility/device_memory.hpp"
+
+using ::ck::DeviceMem;
 
 using ck::int4_t;
 

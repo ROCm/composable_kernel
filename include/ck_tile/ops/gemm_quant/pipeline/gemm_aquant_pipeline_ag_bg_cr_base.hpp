@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,17 +18,15 @@ struct GemmAQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     using BDataType      = typename Base::BDataType;
     using BLayout        = typename Base::BLayout;
     using BlockGemmShape = typename Base::BlockGemmShape;
-
-    using AQLayout = remove_cvref_t<typename Problem::AQLayout>;
+    using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t QuantGroupSize = Problem::kQuantGroupSize;
-    static constexpr index_t KPerBlockAQ    = KPerBlock / QuantGroupSize;
+    static constexpr index_t KPerBlockAQ = KPerBlock / QuantGroupSize::kK;
 
-    static_assert(KPerBlock % QuantGroupSize == 0,
+    static_assert(KPerBlock % QuantGroupSize::kK == 0,
                   "KPerBlock must be a multiple of QuantGroupSize");
 
     // Create DRAM tile window for AQ
@@ -36,8 +34,6 @@ struct GemmAQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     CK_TILE_DEVICE constexpr auto
     GetAQDramLoadWindow(const AQDramBlockWindowTmp& aq_dram_block_window_tmp) const
     {
-        static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-
         auto aq_copy_dram_window =
             make_tile_window(aq_dram_block_window_tmp.get_bottom_tensor_view(),
                              aq_dram_block_window_tmp.get_window_lengths(),

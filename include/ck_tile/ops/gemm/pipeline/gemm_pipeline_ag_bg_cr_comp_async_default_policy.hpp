@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,7 +18,8 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
     static constexpr auto ATileAccessPattern = tile_distribution_pattern::warp_raked;
     static constexpr auto BTileAccessPattern = tile_distribution_pattern::warp_raked;
 
-    template <typename Problem>
+    template <typename Problem,
+              typename OverrideADataType = remove_cvref_t<typename Problem::ADataType>>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;

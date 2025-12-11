@@ -1,16 +1,12 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
-#include <string>
-#include <sstream>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
-#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -25,8 +21,6 @@ struct BaseGemmPipelineAgBgCrCompV3
     static constexpr index_t GlobalBufferNum  = 1;
     static constexpr bool UsePersistentKernel = Problem::Traits::UsePersistentKernel;
 
-    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
-
     CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
@@ -36,7 +30,7 @@ struct BaseGemmPipelineAgBgCrCompV3
     {
         if(BlockHasHotloop(num_loop))
         {
-            return TailNumber::Full;
+            return TailNumber::Odd;
         }
         else
         {
@@ -58,23 +52,27 @@ struct BaseGemmPipelineAgBgCrCompV3
         // Handle all the valid cases.
         if(has_hot_loop)
         {
-            if(tail_number == TailNumber::Full)
+            if(tail_number == ck_tile::TailNumber::Odd)
             {
-                return run_func(bool_constant<true>{},
-                                integral_constant<TailNumber, TailNumber::Full>{});
+                return run_func(
+                    ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
         }
         else
         {
-            if(tail_number == TailNumber::Odd)
+
+            if(tail_number == ck_tile::TailNumber::Odd)
             {
-                return run_func(bool_constant<false>{},
-                                integral_constant<TailNumber, TailNumber::Odd>{});
+                return run_func(
+                    ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
-            else if(tail_number == TailNumber::Even)
+            else if(tail_number == ck_tile::TailNumber::Even)
             {
-                return run_func(bool_constant<false>{},
-                                integral_constant<TailNumber, TailNumber::Even>{});
+                return run_func(
+                    ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
         }
 #if defined(__HIP_DEVICE_COMPILE__)
@@ -82,16 +80,8 @@ struct BaseGemmPipelineAgBgCrCompV3
         __builtin_unreachable();
 #else
         // If execution reaches here, it's an invalid combination of arguments.
-        if(has_hot_loop)
-        {
-            throw std::logic_error("Invalid TailNumber: If has_hot_loop is true, tail_number must "
-                                   "be TailNumber::Full.");
-        }
-        else
-        {
-            throw std::logic_error("Invalid TailNumber: If has_hot_loop is false, tail_number must "
-                                   "be TailNumber::Odd or TailNumber::Even.");
-        }
+        throw std::logic_error("Invalid TailNumber value: must be "
+                               "TailNumber::Odd or TailNumber::Even");
 #endif
     }
 };
@@ -164,10 +154,6 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
     static constexpr index_t Preshuffle    = Problem::Preshuffle;
 
-    static constexpr bool HasHotLoop =
-        Problem::HasHotLoop; // Base::BlockHasHotloop(Problem::num_loop);
-    static constexpr auto TailNum =
-        Problem::TailNum; // Base::GetBlockLoopTailNum(Problem::num_loop);
     static constexpr auto Scheduler = Problem::Scheduler;
 
     static constexpr auto is_a_load_tr_v = bool_constant<PipelineImplBase::is_a_load_tr>{};
@@ -176,6 +162,13 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using Base::PrefetchStages;
     using Base::UsePersistentKernel;
 
+    [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
+    {
+        // clang-format off
+        return "COMPUTE_V3";
+        // clang-format on
+    }
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
@@ -183,8 +176,10 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
         constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
         return concat('_', "pipeline_AgBgCrCompV3", 
                       concat('x', MPerBlock, NPerBlock, KPerBlock),  BlockSize,
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
                       concat('x', WaveNumM, WaveNumN),
-                      concat('x', kPadM, kPadN, kPadK));
+                      concat('x', kPadM, kPadN, kPadK),
+                      Problem::GetName());
         // clang-format on
     }
 
@@ -587,7 +582,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 } while(i < (num_loop - 1));
             }
             // tail
-            if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
+            if constexpr(TailNum == TailNumber::Odd)
             {
                 // Leak last MFMA block to epilogue region, cover the potential lds-shuffle
                 // latency
@@ -644,13 +639,20 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
-            a_dram_block_window_tmp,
-            a_element_func,
-            b_dram_block_window_tmp,
-            b_element_func,
-            num_loop,
-            p_smem);
+        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
+        const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
+
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
+                a_dram_block_window_tmp,
+                a_element_func,
+                b_dram_block_window_tmp,
+                b_element_func,
+                num_loop,
+                p_smem);
+        };
+
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
 
     /**
@@ -703,13 +705,15 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
-            a_dram_block_window_tmp,
-            [](auto& e, const ADataType& a) { e = a; },
-            b_dram_block_window_tmp,
-            [](auto& e, const BDataType& b) { e = b; },
-            num_loop,
-            p_smem);
+        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
+        const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
+
+        return operator()(a_dram_block_window_tmp,
+                          b_dram_block_window_tmp,
+                          num_loop,
+                          has_hot_loop,
+                          tail_number,
+                          p_smem);
     }
 
     template <typename AsDramBlockWindowTmp,

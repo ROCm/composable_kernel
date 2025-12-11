@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -21,7 +21,7 @@ struct TopkSoftmaxHostArgs
     index_t num_experts;
     index_t topk;
     index_t stride_input;  // row stride for input, at least experts
-    index_t stride_output; // row stride for output/indices, at least tpok
+    index_t stride_output; // row stride for output/indices, at least topk
 };
 
 template <typename Pipeline_>
@@ -45,7 +45,7 @@ struct TopkSoftmaxKernel
         index_t num_experts;
         index_t topk;
         index_t stride_input;  // row stride for input, at least experts
-        index_t stride_output; // row stride for output/indices, at least tpok
+        index_t stride_output; // row stride for output/indices, at least topk
     };
 
     using Kargs = TopkSoftmaxKargs;

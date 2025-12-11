@@ -1,8 +1,12 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+
 def __version__():
     import subprocess
 
     # needs to be manually updated
-    rocm_version = "7.0.1"
+    rocm_version = "7.1.1"
     hash_width = 6
     try:
         hash = subprocess.check_output("git rev-parse HEAD", shell=True, text=True)[

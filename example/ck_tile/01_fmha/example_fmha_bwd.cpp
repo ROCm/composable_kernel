@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/host.hpp"
 #include "fmha_bwd.hpp"
@@ -24,11 +24,19 @@ auto create_args(int argc, char* argv[])
                 "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary\n"
                 "also with \"-s=s0,s1,s2...\" comma-separated ints to set seqlen per batch "
                 "(group mode)")
+        .insert("s_qpad",
+                "-1",
+                "padded seqlen_q per batch (group mode only). "
+                "Use \"-s_qpad=p0,p1,...\"; -1 disables explicit padding")
         .insert("s_k",
                 "-1",
                 "seqlen_k, -1 means equal to s\n"
                 "also with \"-s_k=s0,s1,s2...\" comma-separated ints to set seqlen per batch "
                 "(group mode)")
+        .insert("s_kpad",
+                "-1",
+                "padded seqlen_k per batch (group mode only). "
+                "Use \"-s_kpad=k0,k1,...\"; -1 disables explicit padding")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "-1", "head dim for v, -1 means equal to d")
         .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(hdim)")
@@ -96,7 +104,9 @@ auto run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t nhead   = arg_parser.get_int("h");
     ck_tile::index_t nhead_k = arg_parser.get_int("h_k");
     auto seqlen_qs           = arg_parser.get_int_vec("s");
+    auto seqlen_qpads        = arg_parser.get_int_vec("s_qpad");
     auto seqlen_ks           = arg_parser.get_int_vec("s_k");
+    auto seqlen_kpads        = arg_parser.get_int_vec("s_kpad");
     ck_tile::index_t hdim_q  = arg_parser.get_int("d");
     ck_tile::index_t hdim_v  = arg_parser.get_int("d_v");
     bool i_perm              = arg_parser.get_bool("iperm");
@@ -130,6 +140,8 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         nhead_k,
                                         seqlen_qs,
                                         seqlen_ks,
+                                        seqlen_qpads,
+                                        seqlen_kpads,
                                         hdim_q,
                                         hdim_v,
                                         i_perm,

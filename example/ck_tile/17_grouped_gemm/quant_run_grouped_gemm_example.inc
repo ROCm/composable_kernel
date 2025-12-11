@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -43,7 +43,9 @@ template <typename GemmConfig,
           typename BLayout,
           typename BQLayout,
           typename CLayout,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+          typename QuantGroupSize,
+          ck_tile::QuantType QuantMode = ck_tile::QuantType::BQuantGrouped,
+          typename CDEElementWise      = ck_tile::element_wise::PassThrough>
 float invoke_gemm(int n_warmup,
                   int n_repeat,
                   int group_count,
@@ -55,56 +57,85 @@ float invoke_gemm(int n_warmup,
 
     float ave_time = 0;
 
-    // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have
-    // the gemm problems known on the host. Instead, we can just pass the pointer
-    // to the kernel and let the workgroups figure out which tiles to work on.
-    // This is useful when the gemm problems are generated dynamically.
-    // In this example however, we generate the `kargs` using the known gemm_descs,
-    // and copy the gemm descriptions to the device memory.
-    // The contents of the memory pointed to by `kargs_ptr` pointer could be
-    // written by e.g. another kernel from earlier stage.
-    std::vector<ck_tile::QuantGemmTransKernelArg> kargs;
-    void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
-    assert(args[0].k_batch == 1);
-    for(const auto& arg : args)
+    if constexpr(!GemmConfig::Persistent)
     {
-        kargs.emplace_back(ck_tile::QuantGroupedGemmKernelArgs{arg.a_ptr,
-                                                               arg.b_ptr,
-                                                               arg.aq_ptr,
-                                                               arg.bq_ptr,
-                                                               arg.e_ptr,
-                                                               arg.M,
-                                                               arg.N,
-                                                               arg.K,
-                                                               arg.QK_A,
-                                                               arg.QK_B,
-                                                               arg.stride_A,
-                                                               arg.stride_B,
-                                                               arg.stride_E,
-                                                               arg.stride_AQ,
-                                                               arg.stride_BQ,
-                                                               arg.k_batch});
+        ave_time =
+            grouped_gemm<GemmConfig,
+                         ALayout,
+                         AQLayout,
+                         BLayout,
+                         BQLayout,
+                         CLayout,
+                         ADataType,
+                         AQDataType,
+                         BDataType,
+                         BQDataType,
+                         AccDataType,
+                         CDataType,
+                         QuantGroupSize,
+                         QuantMode>(args,
+                                    ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
+                                    gemm_workspace.GetDeviceBuffer());
     }
-    const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
-    HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
-                                        kargs.data(),
-                                        kargs.size() * sizeof(ck_tile::QuantGemmTransKernelArg),
-                                        hipMemcpyHostToDevice,
-                                        stream.stream_id_));
-    ave_time = grouped_gemm_tileloop<GemmConfig,
-                                     ALayout,
-                                     AQLayout,
-                                     BLayout,
-                                     BQLayout,
-                                     CLayout,
-                                     ADataType,
-                                     AQDataType,
-                                     BDataType,
-                                     BQDataType,
-                                     AccDataType,
-                                     CDataType>(stream, group_count, kargs_ptr);
+    else
+    {
+        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have
+        // the gemm problems known on the host. Instead, we can just pass the pointer
+        // to the kernel and let the workgroups figure out which tiles to work on.
+        // This is useful when the gemm problems are generated dynamically.
+        // In this example however, we generate the `kargs` using the known gemm_descs,
+        // and copy the gemm descriptions to the device memory.
+        // The contents of the memory pointed to by `kargs_ptr` pointer could be
+        // written by e.g. another kernel from earlier stage.
+        std::vector<ck_tile::QuantGemmTransKernelArg> kargs;
+        void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
+        if(args[0].k_batch != 1)
+        {
+            throw std::runtime_error("Split-K not supported yet for persistent kernel");
+        }
 
-    std::string op_name{"Grouped Gemm"};
+        for(const auto& arg : args)
+        {
+            kargs.emplace_back(ck_tile::QuantGroupedGemmKernelArgs{arg.a_ptr,
+                                                                   arg.b_ptr,
+                                                                   arg.aq_ptr,
+                                                                   arg.bq_ptr,
+                                                                   arg.e_ptr,
+                                                                   arg.M,
+                                                                   arg.N,
+                                                                   arg.K,
+                                                                   arg.QK_A,
+                                                                   arg.QK_B,
+                                                                   arg.stride_A,
+                                                                   arg.stride_B,
+                                                                   arg.stride_E,
+                                                                   arg.stride_AQ,
+                                                                   arg.stride_BQ,
+                                                                   arg.k_batch});
+        }
+        const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
+        HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
+                                            kargs.data(),
+                                            kargs.size() * sizeof(ck_tile::QuantGemmTransKernelArg),
+                                            hipMemcpyHostToDevice,
+                                            stream.stream_id_));
+        ave_time = grouped_gemm_tileloop<GemmConfig,
+                                         ALayout,
+                                         AQLayout,
+                                         BLayout,
+                                         BQLayout,
+                                         CLayout,
+                                         ADataType,
+                                         AQDataType,
+                                         BDataType,
+                                         BQDataType,
+                                         AccDataType,
+                                         CDataType,
+                                         QuantGroupSize,
+                                         QuantMode>(stream, group_count, kargs_ptr);
+    }
+
+    std::string op_name = "Quant Grouped Gemm (" + ck_tile::quant_type_to_string(QuantMode) + ")";
 
     std::size_t flop = 0, num_btype = 0;
     for(int j = 0; j < group_count; ++j)
@@ -132,6 +163,8 @@ template <typename GemmConfig,
           typename BQDataType,
           typename CDataType,
           typename AccDataType,
+          typename QuantGroupSize,
+          ck_tile::QuantType QuantMode,
           typename ALayout,
           typename AQLayout,
           typename BLayout,
@@ -153,13 +186,14 @@ int run_grouped_gemm_example_with_layouts(int argc,
     };
 
     auto valid_input_data = [&](int group_count, const auto&... args) {
-        return !(args.empty() || ...) && group_count == (args.size() == ...);
+        return group_count != 0 && ((args.size() == static_cast<size_t>(group_count)) && ...);
     };
 
     const int group_count = arg_parser.get_int("group_count");
     const int repeat      = arg_parser.get_int("repeat");
     const int warmup      = arg_parser.get_int("warmup");
     const int kbatch      = arg_parser.get_int("kbatch");
+    const int init_method = arg_parser.get_int("init");
     bool validate         = arg_parser.get_bool("validate");
 
     if(kbatch > 1 && validate && warmup + repeat > 1)
@@ -169,9 +203,11 @@ int run_grouped_gemm_example_with_layouts(int argc,
         validate = false;
     }
 
-    std::vector<ck_tile::index_t> Ms         = arg_parser.get_int_vec("Ms");
-    std::vector<ck_tile::index_t> Ns         = arg_parser.get_int_vec("Ns");
-    std::vector<ck_tile::index_t> Ks         = arg_parser.get_int_vec("Ks");
+    std::vector<ck_tile::index_t> Ms = arg_parser.get_int_vec("Ms");
+    std::vector<ck_tile::index_t> Ns = arg_parser.get_int_vec("Ns");
+    std::vector<ck_tile::index_t> Ks = arg_parser.get_int_vec("Ks");
+    std::vector<ck_tile::index_t> AQs; // dimension of AQ tensor is calculated from A tensor
+    std::vector<ck_tile::index_t> BQs; // dimension of BQ tensor is calculated from B tensor
     std::vector<ck_tile::index_t> stride_As  = arg_parser.get_int_vec("stride_As");
     std::vector<ck_tile::index_t> stride_Bs  = arg_parser.get_int_vec("stride_Bs");
     std::vector<ck_tile::index_t> stride_Cs  = arg_parser.get_int_vec("stride_Cs");
@@ -180,7 +216,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     ck_tile::index_t AQK, BQK;
 
-    if(!valid_input_data(group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs))
+    if(!valid_input_data(
+           group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs, stride_AQs, stride_BQs))
     {
         std::cout << "Please check the input data. Default values will be used." << std::endl;
 
@@ -196,6 +233,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
         for(int i = 0; i < group_count; i++)
         {
+
             Ms.push_back(256 + 256 * i);
             Ns.push_back(256 + 512 * i);
             Ks.push_back(512 + 128 * i);
@@ -242,34 +280,114 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const ck_tile::index_t M = Ms[i];
         const ck_tile::index_t N = Ns[i];
         const ck_tile::index_t K = Ks[i];
+        if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
+                     QuantMode == ck_tile::QuantType::TensorQuant)
+        {
+            AQK = 1; // Row quantization: tensor shape [M, 1] or [1]
+            BQK = 1; // Column quantization: tensor shape [1, N] or [1]
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
+        {
+            AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
+            BQK = 0;                      // No B quantization
+            if(K % QuantGroupSize::kK != 0)
+            {
+                throw std::runtime_error(
+                    "K must be divisible by QuantGroupSize::kK for AQuantGrouped mode");
+            }
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            AQK = 0;                      // No A quantization
+            BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
+            if(K % QuantGroupSize::kK != 0)
+            {
+                throw std::runtime_error(
+                    "K must be divisible by QuantGroupSize::kK for BQuantGrouped mode");
+            }
+        }
 
-        AQK = 1; // Row quantization: tensor shape [M, 1]. Only for NT
-        BQK = N; // Column quantization: tensor shape [1, N]. Only for NT
+        stride_As[i] = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(a_layout));
+        stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
+        stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
+        if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
+        {
+            stride_AQs[i] =
+                ck_tile::get_default_stride(M, 1, stride_AQs[i], is_row_major(aq_layout));
+            stride_BQs[i] =
+                ck_tile::get_default_stride(1, N, stride_BQs[i], is_row_major(bq_layout));
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
+        {
+            stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
+            stride_BQs[i] = 1; // Tensor quantization: tensor shape [1]
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
+        {
+            stride_AQs[i] =
+                ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(aq_layout));
+            stride_BQs[i] = 0; // No B quantization
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            stride_AQs[i] = 0; // No A quantization
+            stride_BQs[i] =
+                ck_tile::get_default_stride(BQK, N, stride_BQs[i], is_row_major(bq_layout));
+        }
 
-        stride_As[i]  = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(a_layout));
-        stride_Bs[i]  = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
-        stride_Cs[i]  = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
-        stride_AQs[i] = ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(aq_layout));
-        stride_BQs[i] = ck_tile::get_default_stride(1, N, stride_BQs[i], is_row_major(bq_layout));
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
             ck_tile::host_tensor_descriptor(M, K, stride_As[i], is_row_major(a_layout))));
         b_k_n_tensors.push_back(ck_tile::HostTensor<BDataType>(
             ck_tile::host_tensor_descriptor(K, N, stride_Bs[i], is_row_major(b_layout))));
         c_m_n_tensors.push_back(ck_tile::HostTensor<CDataType>(
             ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], is_row_major(CLayout{}))));
-        aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
-            ck_tile::host_tensor_descriptor(M, AQK, stride_AQs[i], is_row_major(aq_layout))));
-        bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
-            ck_tile::host_tensor_descriptor(1, N, stride_BQs[i], is_row_major(bq_layout))));
+        if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
+        {
+            aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
+                ck_tile::host_tensor_descriptor(M, AQK, stride_AQs[i], is_row_major(aq_layout))));
+            bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
+                ck_tile::host_tensor_descriptor(BQK, N, stride_BQs[i], is_row_major(bq_layout))));
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
+        {
+            aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
+                ck_tile::host_tensor_descriptor(1, 1, stride_AQs[i], is_row_major(aq_layout))));
+            bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
+                ck_tile::host_tensor_descriptor(1, 1, stride_BQs[i], is_row_major(bq_layout))));
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
+        {
+            aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
+                ck_tile::host_tensor_descriptor(M, AQK, stride_AQs[i], is_row_major(aq_layout))));
+            bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
+                ck_tile::host_tensor_descriptor(0, 0, stride_BQs[i], is_row_major(bq_layout))));
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
+                ck_tile::host_tensor_descriptor(0, 0, stride_AQs[i], is_row_major(aq_layout))));
+            bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
+                ck_tile::host_tensor_descriptor(BQK, N, stride_BQs[i], is_row_major(bq_layout))));
+        }
 
         std::cout << "gemm[" << i << "]" << " a_m_k: " << a_m_k_tensors[i].mDesc
                   << " b_k_n: " << b_k_n_tensors[i].mDesc << " c_m_n: " << c_m_n_tensors[i].mDesc
                   << " aq: " << aq_tensors[i].mDesc << " bq: " << bq_tensors[i].mDesc << std::endl;
 
-        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
-        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
-        ck_tile::FillUniformDistribution<AQDataType>{-1.f, 1.f}(aq_tensors[i]);
-        ck_tile::FillUniformDistribution<BQDataType>{-1.f, 1.f}(bq_tensors[i]);
+        if(init_method == 2)
+        {
+            ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k_tensors[i]);
+            ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n_tensors[i]);
+            ck_tile::FillUniformDistribution<AQDataType>{1.f, 1.f}(aq_tensors[i]);
+            ck_tile::FillUniformDistribution<BQDataType>{1.f, 1.f}(bq_tensors[i]);
+        }
+        else
+        {
+            ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
+            ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
+            ck_tile::FillUniformDistribution<AQDataType>{-1.f, 1.f}(aq_tensors[i]);
+            ck_tile::FillUniformDistribution<BQDataType>{-1.f, 1.f}(bq_tensors[i]);
+        }
 
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
             a_m_k_tensors[i].get_element_space_size_in_bytes()));
@@ -282,8 +400,18 @@ int run_grouped_gemm_example_with_layouts(int argc,
         bq_dev_buf.push_back(
             std::make_unique<ck_tile::DeviceMem>(bq_tensors[i].get_element_space_size_in_bytes()));
 
+        if constexpr(GemmConfig::PreshuffleB && QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            ck_tile::HostTensor<BDataType> b_shuffle_host =
+                ck_tile::shuffle_b<GemmConfig>(b_k_n_tensors[i]);
+            b_k_n_dev_buf[i]->ToDevice(b_shuffle_host.data());
+        }
+        else
+        {
+            b_k_n_dev_buf[i]->ToDevice(b_k_n_tensors[i].data());
+        }
+
         a_m_k_dev_buf[i]->ToDevice(a_m_k_tensors[i].data());
-        b_k_n_dev_buf[i]->ToDevice(b_k_n_tensors[i].data());
         aq_dev_buf[i]->ToDevice(aq_tensors[i].data());
         bq_dev_buf[i]->ToDevice(bq_tensors[i].data());
         c_m_n_dev_buf[i]->SetZero();
@@ -324,7 +452,9 @@ int run_grouped_gemm_example_with_layouts(int argc,
                 AQLayout,
                 BLayout,
                 BQLayout,
-                CLayout>(warmup, repeat, group_count, gemm_descs);
+                CLayout,
+                QuantGroupSize,
+                QuantMode>(warmup, repeat, group_count, gemm_descs);
 
     for(int i = 0; i < group_count; i++)
     {
@@ -339,13 +469,55 @@ int run_grouped_gemm_example_with_layouts(int argc,
             ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
                 Ms[i], Ns[i], stride_Cs[i], is_row_major(CLayout{})));
             c_m_n_host_ref.SetZero();
-            ck_tile::reference_gemm_rowcol_quant<ADataType,
-                                                 AQDataType,
-                                                 BDataType,
-                                                 BQDataType,
-                                                 AccDataType,
-                                                 CDataType>(
-                a_m_k_tensors[i], aq_tensors[i], b_k_n_tensors[i], bq_tensors[i], c_m_n_host_ref);
+            if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
+            {
+                ck_tile::reference_gemm_rowcol_quant<ADataType,
+                                                     AQDataType,
+                                                     BDataType,
+                                                     BQDataType,
+                                                     AccDataType,
+                                                     CDataType>(a_m_k_tensors[i],
+                                                                aq_tensors[i],
+                                                                b_k_n_tensors[i],
+                                                                bq_tensors[i],
+                                                                c_m_n_host_ref);
+            }
+            else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
+            {
+                ck_tile::reference_gemm_tensor_quant<ADataType,
+                                                     AQDataType,
+                                                     BDataType,
+                                                     BQDataType,
+                                                     AccDataType,
+                                                     CDataType>(a_m_k_tensors[i],
+                                                                aq_tensors[i],
+                                                                b_k_n_tensors[i],
+                                                                bq_tensors[i],
+                                                                c_m_n_host_ref);
+            }
+            else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
+            {
+                ck_tile::reference_gemm_quant<ADataType,
+                                              AQDataType,
+                                              BDataType,
+                                              AccDataType,
+                                              CDataType,
+                                              QuantGroupSize,
+                                              true>(
+                    a_m_k_tensors[i], aq_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
+            }
+            else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+            {
+                ck_tile::reference_gemm_quant<ADataType,
+                                              BQDataType,
+                                              BDataType,
+                                              AccDataType,
+                                              CDataType,
+                                              QuantGroupSize,
+                                              false>(
+                    a_m_k_tensors[i], bq_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
+            }
+
             const float max_accumulated_value =
                 *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
             const auto rtol_atol =
@@ -367,62 +539,34 @@ int run_grouped_gemm_example_with_layouts(int argc,
     return pass;
 }
 
-template <typename GemmConfig, typename PrecType>
+template <typename PrecType, ck_tile::QuantType QuantMode, typename GemmConfig>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
     using Row   = ck_tile::tensor_layout::gemm::RowMajor;
     using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
     using Types = GemmTypeConfig<PrecType>;
     // Specific type aliases for easy access
-    using ADataType   = typename Types::ADataType;
-    using BDataType   = typename Types::BDataType;
-    using AccDataType = typename Types::AccDataType;
-    using CDataType   = typename Types::CDataType;
-    using AQDataType  = typename Types::AccDataType;
-    using BQDataType  = typename Types::AccDataType;
+    using ADataType      = typename Types::ADataType;
+    using BDataType      = typename Types::BDataType;
+    using AccDataType    = typename Types::AccDataType;
+    using CDataType      = typename Types::CDataType;
+    using AQDataType     = typename Types::AccDataType;
+    using BQDataType     = typename Types::AccDataType;
+    using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
+
     if(a_layout == "R" && b_layout == "C")
     {
+
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      AQDataType,
                                                      BDataType,
                                                      BQDataType,
                                                      CDataType,
-                                                     AccDataType>(
+                                                     AccDataType,
+                                                     QuantGroupSize,
+                                                     QuantMode>(
             argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
-    }
-    else if(a_layout == "R" && b_layout == "R")
-    {
-        return run_grouped_gemm_example_with_layouts<GemmConfig,
-                                                     ADataType,
-                                                     AQDataType,
-                                                     BDataType,
-                                                     BQDataType,
-                                                     CDataType,
-                                                     AccDataType>(
-            argc, argv, Row{}, Row{}, Row{}, Row{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "R")
-    {
-        return run_grouped_gemm_example_with_layouts<GemmConfig,
-                                                     ADataType,
-                                                     AQDataType,
-                                                     BDataType,
-                                                     BQDataType,
-                                                     CDataType,
-                                                     AccDataType>(
-            argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "C")
-    {
-        return run_grouped_gemm_example_with_layouts<GemmConfig,
-                                                     ADataType,
-                                                     AQDataType,
-                                                     BDataType,
-                                                     BQDataType,
-                                                     CDataType,
-                                                     AccDataType>(
-            argc, argv, Col{}, Col{}, Col{}, Col{}, Row{});
     }
     else
     {
@@ -430,7 +574,24 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
 }
 
-template <template <typename PrecType> typename GemmConfig>
+template <typename PrecType, ck_tile::QuantType QuantMode>
+int run_gemm_example_persistency(
+    std::string a_layout, std::string b_layout, bool persistent, int argc, char* argv[])
+{
+    if(persistent)
+    {
+        using GemmConfig = GemmQuantConfig<QuantMode>::template GemmConfig<PrecType, true>;
+        return run_gemm_example_prec_type<PrecType, QuantMode, GemmConfig>(
+            a_layout, b_layout, argc, argv);
+    }
+    else
+    {
+        using GemmConfig = GemmQuantConfig<QuantMode>::template GemmConfig<PrecType, false>;
+        return run_gemm_example_prec_type<PrecType, QuantMode, GemmConfig>(
+            a_layout, b_layout, argc, argv);
+    }
+}
+
 int run_grouped_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -442,11 +603,62 @@ int run_grouped_gemm_example(int argc, char* argv[])
     const std::string a_layout  = arg_parser.get_str("a_layout");
     const std::string b_layout  = arg_parser.get_str("b_layout");
     const std::string data_type = arg_parser.get_str("prec");
+    std::string quant_mode      = arg_parser.get_str("quant_mode");
+    bool persistent             = arg_parser.get_bool("persistent");
 
     if(data_type == "fp8")
     {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
-            a_layout, b_layout, argc, argv);
+        if(quant_mode == "tensor")
+        {
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::TensorQuant>(
+                a_layout, b_layout, persistent, argc, argv);
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::RowColQuant>(
+                a_layout, b_layout, persistent, argc, argv);
+        }
+        else if(quant_mode == "aquant")
+        {
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::AQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
+        }
+        else if(quant_mode == "bquant")
+        {
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::BQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported quantization mode!");
+        }
+    }
+    if(data_type == "bf8")
+    {
+        if(quant_mode == "tensor")
+        {
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::TensorQuant>(
+                a_layout, b_layout, persistent, argc, argv);
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::RowColQuant>(
+                a_layout, b_layout, persistent, argc, argv);
+        }
+        else if(quant_mode == "aquant")
+        {
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::AQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
+        }
+        else if(quant_mode == "bquant")
+        {
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::BQuantGrouped>(
+                a_layout, b_layout, persistent, argc, argv);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported quantization mode!");
+        }
     }
     else
     {

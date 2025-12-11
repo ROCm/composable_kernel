@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -65,6 +65,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         ck_tile::index_t nhead_k,
                         std::vector<ck_tile::index_t> seqlen_qs,
                         std::vector<ck_tile::index_t> seqlen_ks,
+                        std::vector<ck_tile::index_t> seqlen_qpads,
+                        std::vector<ck_tile::index_t> seqlen_kpads,
                         ck_tile::index_t hdim_q,
                         ck_tile::index_t hdim_v,
                         bool i_perm,
@@ -119,13 +121,26 @@ bwd_result fmha_bwd_run(mode_enum mode,
         std::cerr << "dbias only exists when bias type is elementwise" << std::endl;
         return bwd_result::invalid_args;
     }
-    std::vector<ck_tile::index_t> seqlen_kpads;
-    std::tie(seqlen_qs, seqlen_ks, seqlen_kpads) =
-        generate_missing_seqlens(mode, batch, seqlen_qs, seqlen_ks, {}, 0, false, random_engine);
-    ck_tile::ignore = seqlen_kpads;
+
+    std::tie(seqlen_qs, seqlen_ks, seqlen_qpads, seqlen_kpads) = generate_missing_seqlens(
+        mode, batch, seqlen_qs, seqlen_ks, seqlen_qpads, seqlen_kpads, 0, false, random_engine);
+
+    bool use_qpadding =
+        mode == mode_enum::group && (!seqlen_qpads.empty() && seqlen_qpads[0] != -1);
+    bool use_kpadding =
+        mode == mode_enum::group && (!seqlen_kpads.empty() && seqlen_kpads[0] != -1);
+
 #if 0
+    std::cout << "use_qpadding: " << use_qpadding << std::endl;
+    std::cout << "use_kpadding: " << use_kpadding << std::endl;
     std::cout << "seqlen_qs: " << seqlen_qs << std::endl;
     std::cout << "seqlen_ks: " << seqlen_ks << std::endl;
+    if (use_qpadding) {
+        std::cout << "seqlen_qpads: " << seqlen_qpads << std::endl;
+    }
+    if (use_kpadding) {
+        std::cout << "seqlen_kpads: " << seqlen_kpads << std::endl;
+    }
 #endif
 
     mask_info mask = mask_info::decode(mask_str, seqlen_qs[0], seqlen_ks[0]);
@@ -146,8 +161,10 @@ bwd_result fmha_bwd_run(mode_enum mode,
         s_randval = true;
     }
 
-    const auto seqstart_q_host = to_seqstarts(seqlen_qs);
-    const auto seqstart_k_host = to_seqstarts(seqlen_ks);
+    const auto seqstart_q_host =
+        (use_qpadding ? to_seqstarts(seqlen_qpads) : to_seqstarts(seqlen_qs));
+    const auto seqstart_k_host =
+        (use_kpadding ? to_seqstarts(seqlen_kpads) : to_seqstarts(seqlen_ks));
 
     using TypeConfig = FmhaBwdTypeConfig<DataTypeConfig>;
 
@@ -176,8 +193,11 @@ bwd_result fmha_bwd_run(mode_enum mode,
     {
         for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
-            const int32_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
-            const int32_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
+            // When padding is enabled, use logical lengths for flop/bandwidth calculation
+            const int32_t real_seqlen_q =
+                use_qpadding ? seqlen_qs[wb] : (seqstart_q_host[wb + 1] - seqstart_q_host[wb]);
+            const int32_t real_seqlen_k =
+                use_kpadding ? seqlen_ks[wb] : (seqstart_k_host[wb + 1] - seqstart_k_host[wb]);
 
             if(max_seqlen_q < real_seqlen_q)
             {
@@ -336,6 +356,10 @@ bwd_result fmha_bwd_run(mode_enum mode,
     ck_tile::DeviceMem do_buf(do_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem dbias_buf(dbias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem seqlen_q_dev(mode == mode_enum::batch ? 0
+                                                             : seqlen_qs.size() * sizeof(int32_t));
+    ck_tile::DeviceMem seqlen_k_dev(mode == mode_enum::batch ? 0
+                                                             : seqlen_ks.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
@@ -349,6 +373,13 @@ bwd_result fmha_bwd_run(mode_enum mode,
     do_buf.ToDevice(do_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
+    if(mode == mode_enum::group)
+    {
+        std::vector<int32_t> seqlen_q_host(seqlen_qs.begin(), seqlen_qs.end());
+        seqlen_q_dev.ToDevice(seqlen_q_host.data());
+        std::vector<int32_t> seqlen_k_host(seqlen_ks.begin(), seqlen_ks.end());
+        seqlen_k_dev.ToDevice(seqlen_k_host.data());
+    }
     drop_seed_buf.ToDevice(drop_prefs ? &drop_seed : nullptr);
     drop_offset_buf.ToDevice(drop_prefs ? &drop_offset : nullptr);
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
@@ -440,6 +471,9 @@ bwd_result fmha_bwd_run(mode_enum mode,
             }
         }();
 
+        const void* seqlen_q_ptr_dev = use_qpadding ? seqlen_q_dev.GetDeviceBuffer() : nullptr;
+        const void* seqlen_k_ptr_dev = use_kpadding ? seqlen_k_dev.GetDeviceBuffer() : nullptr;
+
         return fmha_bwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
                              v_buf.GetDeviceBuffer(),
@@ -457,6 +491,9 @@ bwd_result fmha_bwd_run(mode_enum mode,
                              dq_acc_buf.GetDeviceBuffer(),
                              seqstart_q.GetDeviceBuffer(),
                              seqstart_k.GetDeviceBuffer(),
+                             seqlen_q_ptr_dev,
+                             seqlen_k_ptr_dev,
+                             nullptr,
                              nullptr,
                              shape_seqlen_q,
                              shape_seqlen_k,
@@ -551,8 +588,18 @@ bwd_result fmha_bwd_run(mode_enum mode,
 
         for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
-            const ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
-            const ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
+            // When padding is enabled, use logical lengths instead of computing from padded
+            // prefix-sum
+            const ck_tile::index_t real_seqlen_q =
+                use_qpadding ? seqlen_qs[wb] : (seqstart_q_host[wb + 1] - seqstart_q_host[wb]);
+            const ck_tile::index_t real_seqlen_k =
+                use_kpadding ? seqlen_ks[wb] : (seqstart_k_host[wb + 1] - seqstart_k_host[wb]);
+
+            // Skip forward reference computation for batches with zero length sequences
+            if(real_seqlen_q == 0 || real_seqlen_k == 0)
+            {
+                continue;
+            }
 
             // adjust matrix index according to the mode
             const ck_tile::index_t b = (mode == mode_enum::batch ? wb : 0);
@@ -797,10 +844,23 @@ bwd_result fmha_bwd_run(mode_enum mode,
         dv_buf.FromDevice(dv_host.data());
         dbias_buf.FromDevice(dbias_host.data());
 
+        // Track the index into reference vectors (may differ from wb if batches were skipped)
+        ck_tile::index_t ref_idx = 0;
+
         for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
-            const ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
-            const ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
+            // When padding is enabled, use logical lengths instead of computing from padded
+            // prefix-sum
+            const ck_tile::index_t real_seqlen_q =
+                use_qpadding ? seqlen_qs[wb] : (seqstart_q_host[wb + 1] - seqstart_q_host[wb]);
+            const ck_tile::index_t real_seqlen_k =
+                use_kpadding ? seqlen_ks[wb] : (seqstart_k_host[wb + 1] - seqstart_k_host[wb]);
+
+            // Skip validation for batches with zero length sequences
+            if(real_seqlen_q == 0 || real_seqlen_k == 0)
+            {
+                continue;
+            }
 
             // adjust matrix index according to the mode
             const ck_tile::index_t b = (mode == mode_enum::batch ? wb : 0);
@@ -833,14 +893,14 @@ bwd_result fmha_bwd_run(mode_enum mode,
 
             // dP = dO@V x Z w/  dropout
             // dP = dO@V     w/o dropout
-            auto v_t_host_ref = v_host_refs[wb].transpose({0, 2, 1}); // v_g_o_n -> v_g_n_o
+            auto v_t_host_ref = v_host_refs[ref_idx].transpose({0, 2, 1}); // v_g_o_n -> v_g_n_o
             ck_tile::reference_batched_gemm<OGradDataType, VDataType, AccDataType, AccDataType>(
                 do_host_ref, v_t_host_ref, dp_hp_host_ref); // dp_g_m_n = do_g_m_o@v_g_n_o
 
             if(p_drop > 0)
             {
                 ck_tile::reference_batched_dropout(
-                    dp_hp_host_ref, randval_host_refs[wb], p_undrop_in_uint8_t, rp_undrop);
+                    dp_hp_host_ref, randval_host_refs[ref_idx], p_undrop_in_uint8_t, rp_undrop);
             }
 
             // dS_i_j = P_i_j .* (dP_i_j - dO_i dot O_i)
@@ -849,11 +909,13 @@ bwd_result fmha_bwd_run(mode_enum mode,
                     AccDataType do_dot_o = 0;
                     for(int o = 0; o < hdim_v; o++)
                     {
-                        do_dot_o += ck_tile::type_convert<AccDataType>(do_host_ref(i0, i1, o)) *
-                                    ck_tile::type_convert<AccDataType>(o_host_refs[wb](i0, i1, o));
+                        do_dot_o +=
+                            ck_tile::type_convert<AccDataType>(do_host_ref(i0, i1, o)) *
+                            ck_tile::type_convert<AccDataType>(o_host_refs[ref_idx](i0, i1, o));
                     }
-                    ds_hp_host_ref(i0, i1, i2) = ck_tile::type_convert<AccDataType>(
-                        p_hp_host_refs[wb](i0, i1, i2) * (dp_hp_host_ref(i0, i1, i2) - do_dot_o));
+                    ds_hp_host_ref(i0, i1, i2) =
+                        ck_tile::type_convert<AccDataType>(p_hp_host_refs[ref_idx](i0, i1, i2) *
+                                                           (dp_hp_host_ref(i0, i1, i2) - do_dot_o));
                 },
                 ds_hp_host_ref.mDesc.get_lengths()[0],
                 ds_hp_host_ref.mDesc.get_lengths()[1],
@@ -869,14 +931,14 @@ bwd_result fmha_bwd_run(mode_enum mode,
             // dV = P_drop^T@dO^T
             // dV = P^T@dO^T w/o dropout
             auto p_t_lp_host_ref =
-                p_lp_host_refs[wb].transpose({0, 2, 1});           // p_lp_g_m_n -> p_lp_g_n_m
+                p_lp_host_refs[ref_idx].transpose({0, 2, 1});      // p_lp_g_m_n -> p_lp_g_n_m
             auto do_t_host_ref = do_host_ref.transpose({0, 2, 1}); // do_g_m_o -> do_g_o_m
             ck_tile::
                 reference_batched_gemm<GemmDataType, OGradDataType, AccDataType, VGradDataType>(
                     p_t_lp_host_ref, do_t_host_ref, dv_host_ref); // dv_g_n_o = p_lp_g_n_m@do_g_o_m
 
             // dQ = scale * dS@K^T
-            auto k_t_host_ref = k_host_refs[wb].transpose({0, 2, 1}); // k_g_n_k -> k_g_k_n
+            auto k_t_host_ref = k_host_refs[ref_idx].transpose({0, 2, 1}); // k_g_n_k -> k_g_k_n
             ck_tile::reference_batched_gemm<GemmDataType, KDataType, AccDataType, QGradDataType>(
                 ds_lp_host_ref,
                 k_t_host_ref,
@@ -886,8 +948,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
                 ck_tile::scales(scale)); // dq_g_m_k = ds_g_m_n@k_g_k_n
 
             // dK = scale * dS^T@Q^T
-            auto ds_t_lp_host_ref = ds_lp_host_ref.transpose({0, 2, 1});  // ds_g_m_n -> ds_g_n_m
-            auto q_t_host_ref     = q_host_refs[wb].transpose({0, 2, 1}); // q_g_m_k -> q_g_k_m
+            auto ds_t_lp_host_ref = ds_lp_host_ref.transpose({0, 2, 1}); // ds_g_m_n -> ds_g_n_m
+            auto q_t_host_ref     = q_host_refs[ref_idx].transpose({0, 2, 1}); // q_g_m_k -> q_g_k_m
             ck_tile::reference_batched_gemm<GemmDataType, QDataType, AccDataType, KGradDataType>(
                 ds_t_lp_host_ref,
                 q_t_host_ref,
@@ -961,6 +1023,9 @@ bwd_result fmha_bwd_run(mode_enum mode,
 
                 break;
             }
+
+            // Increment reference vector index for successfully validated batches
+            ref_idx++;
         }
 
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;

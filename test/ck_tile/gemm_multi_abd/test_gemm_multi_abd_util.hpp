@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include <sstream>
 #include <gtest/gtest.h>
 
@@ -13,40 +12,9 @@
 #include "ck_tile/ops/gemm/kernel/gemm_multi_abd_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
-struct AddScale
-{
-    template <typename E, typename A0, typename A1>
-    CK_TILE_HOST_DEVICE constexpr void operator()(E& a, const A0& a0, const A1& a1) const
-    {
-        a = scale * (ck_tile::type_convert<float>(a0) + ck_tile::type_convert<float>(a1));
-    }
-
-    float scale = 1.0;
-};
-
-struct MultiplyMultiply
-{
-    template <typename E, typename C, typename D0, typename D1>
-    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
-    {
-        const float x0_f = ck_tile::type_convert<float>(c) * ck_tile::type_convert<float>(d0) *
-                           ck_tile::type_convert<float>(d1);
-
-        e = ck_tile::type_convert<E>(x0_f);
-    }
-};
-
-struct ElementWiseAddAdd
-{
-    template <typename E, typename C, typename D0, typename D1>
-    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
-    {
-        const float x0_f = ck_tile::type_convert<float>(c) + ck_tile::type_convert<float>(d0) +
-                           ck_tile::type_convert<float>(d1);
-
-        e = ck_tile::type_convert<E>(x0_f);
-    }
-};
+using AddScale          = ck_tile::element_wise::AddScale;
+using ElementWiseAddAdd = ck_tile::element_wise::MultiDAdd;
+using MultiplyMultiply  = ck_tile::element_wise::MultiDMultiply;
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -166,7 +134,6 @@ class TestCkTileGemmMultiABD : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, AsLayout, BsLayout, ELayout>;
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
@@ -175,39 +142,22 @@ class TestCkTileGemmMultiABD : public ::testing::Test
                                                                      BsLayout,
                                                                      ELayout,
                                                                      TransposeC>;
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<AsDataType, BsDataType, AccDataType, GemmShape, Traits>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+        constexpr auto scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
 
-        const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
-        const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
-        const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-        const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<AsDataType,
+                                                                           BsDataType,
+                                                                           AccDataType,
+                                                                           GemmShape,
+                                                                           GemmUniversalTraits,
+                                                                           scheduler,
+                                                                           AElementWise,
+                                                                           BElementWise>;
 
-        float ave_time{0};
+        using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
-        const auto Run = [&](const auto has_hot_loop_,
-                             const auto tail_number_,
-                             const auto memory_operation_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
-            constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
+        const auto Run = [&](const auto memory_operation_) {
             constexpr auto memory_operation = memory_operation_.value;
-
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<AsDataType,
-                                                                               BsDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               scheduler,
-                                                                               has_hot_loop_v,
-                                                                               tail_number_v,
-                                                                               AElementWise,
-                                                                               BElementWise>;
-
-            using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
             using DefaultGemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
                 ck_tile::DefaultGemm2DEpilogueProblem<AsDataType,
@@ -266,38 +216,28 @@ class TestCkTileGemmMultiABD : public ::testing::Test
             {
                 std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
                           << "shape: " << GemmShape::GetName() << '\n'
-                          << "problem: " << GemmPipelineProblem::GetName() << '\n'
                           << "pipeline: " << GemmPipeline::GetName() << '\n'
                           << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                           << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
                           << "}" << std::endl;
             }
 
-            ave_time = ck_tile::launch_kernel(
+            return ck_tile::launch_kernel(
                 s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-            return ave_time;
         };
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(args.k_batch == 1)
-            {
-                std::cout << "Run without SplitK" << std::endl;
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::set>{});
-            }
-            else
-            {
-                std::cout << "Run using SplitK" << std::endl;
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::atomic_add>{});
-            }
-        };
-
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        if(args.k_batch == 1)
+        {
+            std::cout << "Run without SplitK" << std::endl;
+            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::set>{});
+        }
+        else
+        {
+            std::cout << "Run using SplitK" << std::endl;
+            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::atomic_add>{});
+        }
     }
 
     public:

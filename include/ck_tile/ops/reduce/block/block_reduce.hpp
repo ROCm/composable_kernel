@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,7 +32,7 @@ CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
 
     constexpr index_t idim_p_lane = NDimP - 1;
 
-    const auto ps_idx = detail::get_partition_index(acc_tensor.get_tile_distribution());
+    const auto ps_idx = get_partition_index(acc_tensor.get_tile_distribution());
     const auto rs_idx = acc_tensor.get_tile_distribution().calculate_rs_index_from_ps_index(ps_idx);
 
     constexpr index_t thread_buf_size = AccDistributedTensor_::get_thread_buffer_size();

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -21,11 +21,20 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BQLayout                = remove_cvref_t<typename Problem::BQLayout>;
         using BQDataType              = remove_cvref_t<typename Problem::BQDataType>;
         constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
+        constexpr index_t NPerBlockBQ = NPerBlock / Problem::QuantGroupSize::kN;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockBQ = KPerBlock / Problem::kQuantGroupSize;
+        constexpr index_t KPerBlockBQ = KPerBlock / Problem::QuantGroupSize::kK;
 
-        static_assert(std::is_same_v<BQLayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
-        return GetABQGlobalVectorLoadSize<Problem, BQDataType, NPerBlock, KPerBlockBQ>();
+        // Support both RowMajor and ColumnMajor layouts for BQ
+        if constexpr(std::is_same_v<BQLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            return GetABQGlobalVectorLoadSize<Problem, BQDataType, KPerBlockBQ, NPerBlockBQ>();
+        }
+        else
+        {
+            static_assert(std::is_same_v<BQLayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
+            return GetABQGlobalVectorLoadSize<Problem, BQDataType, NPerBlockBQ, KPerBlockBQ>();
+        }
     }
 
     template <typename Problem>
@@ -34,29 +43,50 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BQLayout       = remove_cvref_t<typename Problem::BQLayout>;
         using BlockGemmShape = typename Problem::BlockGemmShape;
 
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockBQ = KPerBlock / Problem::kQuantGroupSize;
-        constexpr index_t VecLoadSize = GetVectorSizeBQ<Problem>();
-        using WarpTile                = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm                = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                                           typename Problem::ComputeDataType,
-                                                           typename Problem::CDataType,
-                                                           WarpTile::at(I0),
-                                                           WarpTile::at(I1),
-                                                           WarpTile::at(I2),
-                                                           Problem::TransposeC>;
+        constexpr index_t BlockSize    = Problem::kBlockSize;
+        constexpr index_t NPerBlock    = Problem::BlockGemmShape::kN;
+        constexpr index_t NPerBlockBQ  = NPerBlock / Problem::QuantGroupSize::kN;
+        constexpr index_t KPerBlock    = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlockBQ  = KPerBlock / Problem::QuantGroupSize::kK;
+        constexpr index_t VecLoadSize  = GetVectorSizeBQ<Problem>();
+        constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
 
-        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-        using TileEncodingPattern = tile_distribution_encoding_pattern_bq<BlockGemmShape,
-                                                                          WarpGemm,
-                                                                          BlockSize,
-                                                                          NPerBlock,
-                                                                          KPerBlockBQ,
-                                                                          VecLoadSize>;
+        using WarpTile = typename Problem::BlockGemmShape::WarpTile;
+        using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
+                                            typename Problem::ComputeDataType,
+                                            typename Problem::CDataType,
+                                            WarpTile::at(I0),
+                                            WarpTile::at(I1),
+                                            WarpTile::at(I2),
+                                            Problem::TransposeC>;
 
-        return TileEncodingPattern::make_2d_static_tile_distribution();
+        if constexpr(PreshuffleQuant)
+        {
+            using TileEncodingPattern = tile_distribution_encoding_pattern_bq<
+                BlockGemmShape,
+                WarpGemm,
+                BlockSize,
+                NPerBlock / WarpGemm::kN,
+                ck_tile::integer_least_multiple(WarpGemm::kN * KPerBlockBQ, get_warp_size()),
+                VecLoadSize,
+                BQLayout,
+                PreshuffleQuant>;
+            return TileEncodingPattern::make_2d_static_tile_distribution();
+        }
+        else
+        {
+            // KPerTile and NPerTile are LOGICAL dimensions (K quant groups and N quant groups)
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_bq<BlockGemmShape,
+                                                      WarpGemm,
+                                                      BlockSize,
+                                                      KPerBlockBQ, // Logical K dimension
+                                                      NPerBlockBQ, // Logical N dimension
+                                                      Problem::QuantGroupSize::kN,
+                                                      BQLayout>;
+
+            return TileEncodingPattern::make_2d_static_tile_distribution();
+        }
     }
 
     template <typename Problem>
@@ -65,8 +95,8 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
-        static_assert(Problem::kQuantGroupSize % WarpTile::at(I2) == 0,
-                      "KPerWarpGemm must be a multiple of kQuantGroupSize!");
+        static_assert(Problem::QuantGroupSize::kK % WarpTile::at(I2) == 0,
+                      "KPerWarpGemm must be a multiple of QuantGroupSize!");
 
         using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
                                             typename Problem::ComputeDataType,

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -60,7 +60,7 @@ struct BlockFmhaPipelineProblem
     static constexpr auto BiasEnum          = Traits::BiasEnum;
     static constexpr bool kStoreLSE         = Traits::kStoreLSE;
     static constexpr bool kHasDropout       = Traits::kHasDropout;
-    static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
+    static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
 };
 
@@ -204,6 +204,7 @@ struct BlockFmhaSplitKVCombinePipelineProblem
 
     using BaseType::kM0;
     using BaseType::kN1;
+    using BaseType::NThreads;
 
     static_assert(kN1 <= kHeadDimV && kHeadDimV % kN1 == 0);
 
@@ -216,7 +217,7 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     static constexpr index_t kMaxSplits     = Traits::kMaxSplits;
     static_assert(8 <= kMaxSplits);
 
-    static constexpr index_t kNumWarps  = 4; // always use 4 warps for each workgroup
+    static constexpr index_t kNumWarps  = 4;
     static constexpr index_t kBlockSize = kNumWarps * get_warp_size();
 
     static_assert(get_warp_size() <= (kM0 * kMaxSplits) &&
@@ -260,49 +261,6 @@ struct BlockFmhaFwdAppendKVPipelineProblem
     static constexpr bool kPadSeqLenK    = Traits::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
-    static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
-};
-
-template <typename QDataType_,
-          typename KDataType_,
-          typename VDataType_,
-          typename SaccDataType_,
-          typename SMPLComputeDataType_,
-          typename LSEDataType_,
-          typename PDataType_,
-          typename OaccDataType_,
-          typename ODataType_,
-          typename BlockFmhaShape_,
-          bool kIsGroupMode_,
-          typename FmhaMask_,
-          typename Traits_>
-struct BlockFmhaFwdV3PipelineProblem
-{
-    using QDataType           = remove_cvref_t<QDataType_>;
-    using KDataType           = remove_cvref_t<KDataType_>;
-    using VDataType           = remove_cvref_t<VDataType_>;
-    using SaccDataType        = remove_cvref_t<SaccDataType_>;
-    using SMPLComputeDataType = remove_cvref_t<SMPLComputeDataType_>;
-    using LSEDataType         = remove_cvref_t<LSEDataType_>;
-    using PDataType           = remove_cvref_t<PDataType_>;
-    using OaccDataType        = remove_cvref_t<OaccDataType_>;
-    using ODataType           = remove_cvref_t<ODataType_>;
-    using BlockFmhaShape      = remove_cvref_t<BlockFmhaShape_>;
-    using FmhaMask            = remove_cvref_t<FmhaMask_>;
-    using Traits              = remove_cvref_t<Traits_>;
-
-    static constexpr index_t kNumGemm0Warps = BlockFmhaShape::NumGemm0Warps;
-    static constexpr index_t kNumGemm1Warps = BlockFmhaShape::NumGemm1Warps;
-    static constexpr index_t kBlockSize     = BlockFmhaShape::NumWarps * get_warp_size();
-
-    static constexpr bool kIsGroupMode = kIsGroupMode_;
-
-    // attributes from traits
-    static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK    = Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
-    static constexpr bool kStoreLSE      = Traits::kStoreLSE;
     static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
 };
 

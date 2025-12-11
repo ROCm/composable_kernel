@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -69,6 +69,13 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
     static constexpr index_t kLdsAlignmentInBytes = 16;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
+    {
+        // clang-format off
+        return "BASIC_V1";
+        // clang-format on
+    }
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {

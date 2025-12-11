@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3_b_scale.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3_ab_scale.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
@@ -46,12 +46,14 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<c_data_type, ck::bhalf_t>)))
     {
 #endif
+        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueCShuffle>();
         // The normal approach to batching would be to increase the grid size by just stretching out
         // the grid Z dimension (which is the outermost dimension), but this depends on lower level
         // functions not directly using the Z dimension for other calculations. As it turns out, k
         // batching does rely directly on blockIdx.Z through SplitKBatchOffset. Therefore, for now
         // we will use the grid Y dimension for batching. This may be a bit fragile.
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[LDS_size];
 
         const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
 
@@ -84,17 +86,21 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                  splitk_batch_offset.b_k_split_offset[i] + b_batch_offset;
         });
 
+        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             p_as_grid_shift,
             p_bs_grid_shift,
             karg.p_ds_grid,
             karg.p_e_grid + splitk_batch_offset.c_reduce_offset + c_batch_offset,
-            karg.p_b_scale_grid + b_scale_batch_offset + splitk_batch_offset.scale_k_split_offset,
+            karg.p_a_scale_grid,
+            karg.p_b_scale_grid + b_scale_batch_offset + splitk_batch_offset.scale_b_k_split_offset,
             p_shared,
             karg,
             karg.a_element_op,
             karg.b_element_op,
-            karg.cde_element_op);
+            karg.cde_element_op,
+            epilogue_args);
 #if defined(__gfx11__)
     }
 #endif
@@ -310,12 +316,13 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3_b_scale<
+    using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3_ab_scale<
         ALayout,
         BLayout,
         Tuple<>, // DsLayout
         CLayout,
         Tuple<ADataType>,
+        void, // AScaleType
         Tuple<BDataType>,
         BScaleDataType,
         AccDataType,
@@ -327,6 +334,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
         CElementwiseOperation,
         GemmSpec,
         BlockSize,
+        0, // ScaleBlockM
         ScaleBlockN,
         ScaleBlockK,
         MPerBlock,
@@ -400,7 +408,9 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
                                      std::array<index_t, 1>{StrideB_},
                                      std::array<index_t, 0>{}, // StrideDs_
                                      StrideC_,
+                                     0, // StrideScaleA
                                      StrideScaleB_,
+                                     nullptr,
                                      p_b_scale_grid_,
                                      k_batch_,
                                      a_element_op_,

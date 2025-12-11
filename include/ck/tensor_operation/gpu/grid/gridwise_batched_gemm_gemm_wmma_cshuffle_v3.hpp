@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -109,9 +109,20 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     static constexpr auto LWaves = LPerBlock / (LRepeat * LPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
 
-    // TODO: I am pretty sure this is always 16 and *should* always be 16.
-    static constexpr auto KPack =
-        math::integer_least_multiple(math::integer_least_multiple(AK1Value, BK1Value), 16);
+    static constexpr index_t KPerWmmaBlk =
+        WmmaSelector<ADataType, B0DataType, Acc0DataType, MPerWmma, LPerWmma>::selected_wmma
+            .k_per_blk;
+
+    static constexpr index_t KInnerA = ck::math::integer_divide_ceil(AK1Value, KPerWmmaBlk);
+
+    static constexpr index_t KInnerB = ck::math::integer_divide_ceil(BK1Value, KPerWmmaBlk);
+
+    static constexpr index_t KInner = ck::math::min(KInnerA, KInnerB);
+
+    static constexpr index_t KPack =
+        KInner *
+        WmmaSelector<ADataType, B0DataType, Acc0DataType, MPerWmma, LPerWmma>::selected_wmma
+            .k_per_wmma;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -201,54 +212,115 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         return b1_block_copy_step;
     }
 
+    template <index_t MNRepeat, index_t MNWaves, index_t MNPerWmma, typename BlockDesc>
+    __host__ __device__ static constexpr auto MakeWmmaTileDescriptor(const BlockDesc&)
+    {
+        // K0_MN_K1 -> K0_MNRepeat_MNWaves_KRow_MNPerWmma_K1
+        constexpr auto K0 = BlockDesc{}.GetLength(I0);
+        constexpr auto K1 = BlockDesc{}.GetLength(I2);
+#ifdef __gfx12__
+        constexpr auto KRow = I2;
+#else
+        constexpr auto KRow = I1;
+#endif
+
+        if constexpr(KInner > 1)
+        {
+            // KPack = KInner * KPerWmma
+            // K1 = KInner * KPerWmmaBlk
+            // Each thread loads multiple tiles with one instruction
+            // 1 - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma - K1
+            return transform_tensor_descriptor(
+                BlockDesc{},
+                make_tuple(
+                    make_unmerge_transform(make_tuple(Number<K0 / (KRow)>{}, KRow, Number<1>{})),
+                    make_unmerge_transform(
+                        make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                    make_pass_through_transform(Number<K1>{})),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<2, 4, 0>{}, Sequence<1, 3, 5>{}, Sequence<6>{}));
+        }
+        else
+        {
+            // KPack = KPerWmma (KInner == 1)
+            if constexpr(K1 <= KPerWmmaBlk)
+            {
+                // K1 <= single tile (KPerWmmaBlk)
+                // Each thread will load KPerWmmaBlk for the WMMA instruction
+                // Since K1 <= single tile, K0 is unmerged first over KPack / KRow / K1
+                // (rest of the single WMMA tile for single thread) and then over KRow
+                // (rest of the single WMMA tile for single wave)
+                // KPack / KRow / K1 - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma - K1
+                return transform_tensor_descriptor(
+                    BlockDesc{},
+                    make_tuple(make_unmerge_transform(make_tuple(
+                                   Number<K0 / (KPack / K1)>{}, KRow, Number<KPack / KRow / K1>{})),
+                               make_unmerge_transform(make_tuple(
+                                   Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                               make_pass_through_transform(Number<K1>{})),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                    make_tuple(Sequence<2, 4, 0>{}, Sequence<1, 3, 5>{}, Sequence<6>{}));
+            }
+            else
+            {
+                // K1 > single tile (KPerWmmaBlk)
+                // Each thread will load KPerWmmaBlk for the WMMA instruction
+                // Since K1 > single tile, each thread loads KPerWmmaBlk and the next
+                // KPerWmmaBlk chunk is loaded by a different thread in the same wave (WMMA layout).
+                // This layout is needed to support for example AK1 > single tile and
+                // BK1 <= single tile in the same gemm
+                // KPack / KPerWmmaBlk / KRow - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma -
+                // K1
+                constexpr auto desc1 = transform_tensor_descriptor(
+                    BlockDesc{},
+                    make_tuple(
+                        make_pass_through_transform(Number<K0>{}),
+                        make_unmerge_transform(
+                            make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                        make_unmerge_transform(make_tuple(Number<K1 / KPack>{},
+                                                          Number<KPack / KPerWmmaBlk / KRow>{},
+                                                          Number<KRow>{},
+                                                          Number<KPerWmmaBlk>{}))),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                    make_tuple(Sequence<2>{}, Sequence<1, 4, 6>{}, Sequence<3, 0, 5, 7>{}));
+
+                return transform_tensor_descriptor(
+                    desc1,
+                    make_tuple(make_pass_through_transform(Number<KPack / KPerWmmaBlk / KRow>{}),
+                               make_pass_through_transform(Number<MNRepeat>{}),
+                               make_merge_transform(make_tuple(Number<K0>{}, Number<K1 / KPack>{})),
+                               make_pass_through_transform(Number<MNWaves>{}),
+                               make_pass_through_transform(Number<KRow>{}),
+                               make_pass_through_transform(Number<MNPerWmma>{}),
+                               make_pass_through_transform(Number<KPerWmmaBlk>{})),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2, 3>{},
+                               Sequence<4>{},
+                               Sequence<5>{},
+                               Sequence<6>{},
+                               Sequence<7>{}),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2>{},
+                               Sequence<3>{},
+                               Sequence<4>{},
+                               Sequence<5>{},
+                               Sequence<6>{}));
+            }
+        }
+    }
+
     template <typename ABlockDesc_>
     __host__ __device__ static constexpr auto MakeAWaveDescriptor(const ABlockDesc_&)
     {
-        constexpr auto a_wave_desc = [&]() {
-            // AK0_M_AK1 -> AK0_MRepeat_Mwaves_AKRow_MPerWmma_AK1
-            constexpr auto A_K0 = ABlockDesc_{}.GetLength(I0);
-            constexpr auto A_K1 = ABlockDesc_{}.GetLength(I2);
-#ifdef __gfx12__
-            constexpr auto A_KRow = I2;
-#else
-            constexpr auto A_KRow = I1;
-#endif
-            return transform_tensor_descriptor(
-                ABlockDesc_{},
-                make_tuple(make_unmerge_transform(make_tuple(Number<A_K0 / A_KRow>{}, A_KRow)),
-                           make_unmerge_transform(
-                               make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWmma>{})),
-                           make_pass_through_transform(Number<A_K1>{})),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-                make_tuple(Sequence<0, 3>{}, Sequence<1, 2, 4>{}, Sequence<5>{}));
-        }();
-
-        return a_wave_desc;
+        return MakeWmmaTileDescriptor<MRepeat, MWaves, MPerWmma>(ABlockDesc_{});
     }
 
     template <typename B0BlockDesc_>
     __host__ __device__ static constexpr auto MakeB0WaveDescriptor(const B0BlockDesc_&)
     {
-        constexpr auto b0_wave_desc = [&]() {
-            // BK0_L_BK1 -> BK0_LRepeat_Lwaves_BKRow_LPerWmma_BK1
-            constexpr auto B_K0 = B0BlockDesc_{}.GetLength(I0);
-            constexpr auto B_K1 = B0BlockDesc_{}.GetLength(I2);
-#ifdef __gfx12__
-            constexpr auto B_KRow = I2;
-#else
-            constexpr auto B_KRow = I1;
-#endif
-            return transform_tensor_descriptor(
-                B0BlockDesc_{},
-                make_tuple(make_unmerge_transform(make_tuple(Number<B_K0 / B_KRow>{}, B_KRow)),
-                           make_unmerge_transform(
-                               make_tuple(Number<LRepeat>{}, Number<LWaves>{}, Number<LPerWmma>{})),
-                           make_pass_through_transform(Number<B_K1>{})),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-                make_tuple(Sequence<0, 3>{}, Sequence<1, 2, 4>{}, Sequence<5>{}));
-        }();
-
-        return b0_wave_desc;
+        return MakeWmmaTileDescriptor<LRepeat, LWaves, LPerWmma>(B0BlockDesc_{});
     }
 
     template <typename A1BlockDesc_AL0_M_AL1>
@@ -356,6 +428,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                 MRepeat,
                                 LRepeat,
                                 KPack,
+                                KInner,
                                 true>())>; // TransposeC (must be true to work), C' = B' x A'
 
     // block_id to matrix tile idx (m0, n0) mapping is controlled by {M01, N01}
@@ -822,8 +895,9 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         c_thread_buf.Clear();
 
         // Empty BScale struct for the blockwise pipeline.
-        using BScale        = typename BlockwiseGemmPipe::Empty;
-        auto b_scale_struct = BScale{};
+        using ABScale       = typename BlockwiseGemmPipe::Empty;
+        auto a_scale_struct = ABScale{};
+        auto b_scale_struct = ABScale{};
 
 /*******************************************************************************/
         // 
@@ -846,6 +920,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                                                               b0_block_buf,
                                                                               b0_block_slice_copy_step,
                                                                               acc0_thread_buf,
+                                                                              a_scale_struct,
                                                                               b_scale_struct,
                                                                               KBlockMainLoop,
                                                                               1); // num_k_block_per_scale

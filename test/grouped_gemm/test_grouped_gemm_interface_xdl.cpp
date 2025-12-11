@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <stdexcept>
 #include <vector>
@@ -9,6 +9,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "test_grouped_gemm_util.hpp"
+#include "test_grouped_gemm_interface_xdl.hpp"
 
 class TestGGemmSplitKInterface_MKNKMN : public ::testing::Test
 {

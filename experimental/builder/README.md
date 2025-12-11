@@ -2,7 +2,7 @@
 
 This directory contains the experimental builder feature for composable_kernel.
 
-* Status: In development (October - November 2025)
+* Status: In development (October - December 2025)
 
 ## Overview
 
@@ -10,10 +10,18 @@ The builder provides a high-level, semantically-clear interface for constructing
 
 This project is a prototype for a more general builder pattern for all of composable_kernel (CK) and CKTile, but is currently limited to formalizing the interface between MIOpen and CK.
 
+## Design descriptions
+
+- [CK Builder design description](include/ck_tile/builder/README.md) 
+
 ## Directory Structure
 
 - `include/ck_tile/builder/`  
   Core builder headers and public API.
+- `include/ck_tile/builder/reflect`
+  Reflection mechanism.
+- `include/ck_tile/builder/factory`
+  Compile-time dispatch from builder descriptors to our exisitng specialized convolution kernel implementations.
 - `test/`  
   Unit tests and example usage of the builder pattern.
 - `CMakeLists.txt`  
@@ -23,12 +31,54 @@ This project is a prototype for a more general builder pattern for all of compos
 
 To enable the experimental builder, configure your build with:
 
-```sh
-cmake -DCK_EXPERIMENTAL_BUILDER=ON -DCMAKE_CXX_STANDARD=20 ...
+```bash
+cmake                                                                                             \
+  -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
+  -D CMAKE_BUILD_TYPE=Release                                                                     \
+  -D GPU_TARGETS="gfx942"                                                                         \
+  -D CK_EXPERIMENTAL_BUILDER=ON                                                                   \
+  -D CMAKE_CXX_STANDARD=20                                                                        \
+  -G Ninja                                                                                        \
+  ..
 ```
-## Building and testing
 
-During development, build and test from the CK build directory with
+## Building and Testing
+
+The builder test suite is organized into two main categories:
+
+### Smoke Tests (Fast Unit Tests)
+Quick unit tests that verify the builder's internal logic without compiling GPU kernels. These complete in under 1 second total and are suitable for frequent execution during development.
+
 ```sh
-ninja test_conv_builder && bin/test_conv_builder
+ninja smoke-builder
 ```
+
+### Regression Tests (Integration Tests)
+Integration tests that compile actual GPU kernels to verify that the builder generates valid, compilable code. These are more expensive than smoke tests (can take minutes to compile) but cover more fuctionality.
+)
+
+```sh
+ninja regression-builder
+```
+
+### Running All Tests
+To build and run the complete test suite:
+
+```sh
+ninja check-builder
+```
+
+### Building Individual Tests
+To build and run a specific test:
+
+```sh
+ninja test_ckb_conv_builder && bin/test_ckb_conv_builder
+```
+
+### Test Organization
+- **Smoke tests**: Fast feedback during active development
+- **Regression tests**: Thorough validation before submitting changes
+- **Factory tests**: Expensive tests that build all MIOpen kernels (included in regression tests)
+
+When adding new tests, please follow the convention where the CMake build target starts with a prefix `test_ckb`. This allows filtering of CK Builder tests from the full CK repository test suite.

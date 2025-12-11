@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 if(GPU_TARGETS MATCHES "gfx9|gfx12")
     #Fail on gfx11 CI but fail to reproduce it in local, disable it temporary
     add_gtest_executable(test_grouped_convnd_fwd_bias_bnorm_clamp test_grouped_convnd_fwd_bias_bnorm_clamp.cpp)

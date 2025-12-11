@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -26,6 +26,8 @@ struct PoolProblem
     using OutputIndex     = bool_constant<OutputIndex_>;
     using PropagateNan    = bool_constant<PropagateNan_>;
 
+    static constexpr bool kOutputIndex       = OutputIndex_;
+    static constexpr bool kPropagateNan      = PropagateNan_;
     static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;
     static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;
 };

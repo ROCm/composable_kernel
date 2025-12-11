@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <limits>
 #include <iostream>
@@ -19,6 +19,10 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_infer.hpp"
 
 #include "batchnorm_infer_impl.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},

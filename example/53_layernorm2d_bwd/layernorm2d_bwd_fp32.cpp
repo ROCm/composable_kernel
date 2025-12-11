@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -18,6 +18,10 @@
 #include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_data_impl.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_gamma_beta_impl.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm_bwd.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 using DYDataType         = float;
 using XDataType          = float;

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,7 +32,8 @@ struct Reduce2dDefaultPolicy
     {
         using P_ = BlockReduce2dProblem<typename Problem::XDataType,
                                         typename Problem::ComputeDataType,
-                                        typename Problem::BlockShape>;
+                                        typename Problem::BlockShape,
+                                        Problem::kOutputIndex>;
         return BlockReduce2d<P_>{};
     }
 
@@ -41,7 +42,8 @@ struct Reduce2dDefaultPolicy
     {
         using P_ = BlockReduce2dProblem<typename Problem::XDataType,
                                         typename Problem::ComputeDataType,
-                                        typename Problem::BlockShape>;
+                                        typename Problem::BlockShape,
+                                        Problem::kOutputIndex>;
         return BlockReduce2dSync<P_>{};
     }
 
@@ -50,7 +52,8 @@ struct Reduce2dDefaultPolicy
     {
         using P_ = BlockReduce2dProblem<typename Problem::XDataType,
                                         typename Problem::ComputeDataType,
-                                        typename Problem::BlockShape>;
+                                        typename Problem::BlockShape,
+                                        Problem::kOutputIndex>;
         return BlockReduce2dCrossWarpSync<P_>{};
     }
 
@@ -61,7 +64,8 @@ struct Reduce2dDefaultPolicy
         {
             using P_ = BlockReduce2dProblem<typename Problem::XDataType,
                                             typename Problem::ComputeDataType,
-                                            typename Problem::BlockShape>;
+                                            typename Problem::BlockShape,
+                                            Problem::kOutputIndex>;
 
             using block_reduce2d = BlockReduce2d<P_>;
             using x_block_tile =
@@ -75,6 +79,24 @@ struct Reduce2dDefaultPolicy
         {
             return 1; // zero size arrays are an extension
         }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetIndicesSmemSize()
+    {
+        using P_ = BlockReduce2dProblem<typename Problem::XDataType,
+                                        typename Problem::ComputeDataType,
+                                        typename Problem::BlockShape,
+                                        Problem::kOutputIndex>;
+
+        using block_reduce2d = BlockReduce2d<P_>;
+        using x_block_tile   = decltype(make_static_distributed_tensor<typename Problem::XDataType>(
+            MakeXBlockTileDistribution<Problem>()));
+        using y_index_block_tile =
+            decltype(block_reduce2d::template MakeYIndexBlockTile<x_block_tile, index_t>());
+
+        return GetBlockReduce2dCrossWarpSync<Problem>()
+            .template GetIndicesSmemSize<y_index_block_tile>();
     }
 };
 } // namespace ck_tile

@@ -1,6 +1,8 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #pragma once
+#include "ck_tile/ops/common/utils.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout)
@@ -69,8 +71,7 @@ invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
             int n_warmup,
             int n_repeat,
             bool flush_cache,
-            ck_tile::StreamKReductionStrategy reduction_strategy,
-            uint32_t num_sk_blocks)
+            ck_tile::StreamKReductionStrategy reduction_strategy)
 {
     ck_tile::StreamKHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
                                   b_k_n_dev_buf.GetDeviceBuffer(),
@@ -80,13 +81,11 @@ invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                   K,
                                   stride_A,
                                   stride_B,
-                                  stride_C,
-                                  reduction_strategy,
-                                  num_sk_blocks};
+                                  stride_C};
 
     std::tuple<float, ck_tile::index_t> ave_time_and_batch;
 
-    if(args.reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic)
+    if(reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic)
     {
         ave_time_and_batch = gemm<GemmConfig,
                                   ADataType,
@@ -197,7 +196,6 @@ int run_gemm_example_with_layouts(int argc,
 
     ck_tile::StreamKReductionStrategy reduction_strategy =
         get_reduction_strategy_value(arg_parser.get_str("reduction_strategy"));
-    uint32_t num_sk_blocks = static_cast<uint32_t>(arg_parser.get_int("num_sk_blocks"));
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -261,8 +259,7 @@ int run_gemm_example_with_layouts(int argc,
                                                              n_warmup,
                                                              n_repeat,
                                                              flush_cache,
-                                                             reduction_strategy,
-                                                             num_sk_blocks);
+                                                             reduction_strategy);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
@@ -275,14 +272,15 @@ int run_gemm_example_with_layouts(int argc,
     std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
               << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
               << " A_Layout=" << ALayout::name << " B_Layout=" << BLayout::name
-              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
-              << " B_Type=" << DataTypeTraits<BDataType>::name
-              << " C_Type=" << DataTypeTraits<CDataType>::name
+              << " C_Layout=" << CLayout::name
+              << " A_Type=" << ck_tile::DataTypeTraits<ADataType>::name
+              << " B_Type=" << ck_tile::DataTypeTraits<BDataType>::name
+              << " C_Type=" << ck_tile::DataTypeTraits<CDataType>::name
               << " reduction_strategy=" << arg_parser.get_str("reduction_strategy") << " "
-              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
+              << " persistent_dp=" << arg_parser.get_str("persistent_dp") << " " << ave_time
+              << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
-    bool pass = true;
+    bool pass = false;
 
     // Memory on host to store gpu reference result
     ck_tile::HostTensor<CDataType> c_m_n_ref(

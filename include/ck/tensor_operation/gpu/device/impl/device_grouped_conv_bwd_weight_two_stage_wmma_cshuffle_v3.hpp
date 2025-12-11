@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -58,7 +58,13 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const index_t num_k_per_block)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+        typename GridwiseGemm::EpilogueCShuffle>();
+    __shared__ char p_shared[LDS_size];
+
+    auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+
     GridwiseGemm::template Run<AGridDesc_AK0_M_K1,
                                BGridDesc_BK0_N_K1,
                                CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -72,7 +78,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                         c_grid_desc_mblock_mperblock_nblock_nperblock,
                                         compute_ptr_offset_of_batch,
                                         num_k_per_block,
-                                        karg);
+                                        karg,
+                                        epilogue_args);
 #else
     ignore = karg;
     ignore = a_grid_desc_ak0_m_ak1;
@@ -373,9 +380,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
-        false,
-        false,
-        true>;
+        false, // permuteA
+        false, // permuteB
+        false, // IsBPreShuffled
+        true>; // ForceThreadTileTransfer
 
     using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 

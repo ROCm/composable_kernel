@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,7 +19,7 @@
 namespace ck_tile {
 
 /** @brief Maximum number of error values to display when checking errors */
-constexpr int ERROR_DETAIL_LIMIT = 5;
+constexpr int ERROR_DETAIL_LIMIT = 128;
 
 /** @brief 8-bit floating point type */
 using F8 = ck_tile::fp8_t;

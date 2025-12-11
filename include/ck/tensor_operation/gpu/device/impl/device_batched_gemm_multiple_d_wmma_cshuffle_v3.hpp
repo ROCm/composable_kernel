@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -61,7 +61,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const long_index_t c_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueCShuffle>();
+        __shared__ char p_shared[LDS_size];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
@@ -79,8 +81,10 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             karg.p_ds_grid(i) = karg.p_ds_grid(i) + ds_batch_offset[i];
         });
 
+        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+
         GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
-            p_shared, splitk_batch_offset, karg);
+            p_shared, splitk_batch_offset, karg, epilogue_args);
 #if defined(__gfx11__)
     }
 #endif

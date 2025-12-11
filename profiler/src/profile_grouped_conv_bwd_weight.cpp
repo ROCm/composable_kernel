@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <initializer_list>
@@ -99,9 +99,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
     using BF16 = ck::bhalf_t;
     using F8   = ck::f8_t;
     using BF8  = ck::bf8_t;
-#if defined(__gfx942__)
     using TF32 = ck::tf32_t;
-#endif
 
     using namespace ck::tensor_layout::convolution;
 
@@ -162,9 +160,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         }
         else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
-#if defined(__gfx942__)
             return profile(I1, GNWC{}, GKXC{}, GNWK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
         }
     }
     if(num_dim_spatial == 2 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
@@ -184,9 +180,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         }
         else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
-#if defined(__gfx942__)
             return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
         }
     }
     if(num_dim_spatial == 2 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
@@ -210,9 +204,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         }
         else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
-#if defined(__gfx942__)
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
         }
     }
     else if(num_dim_spatial == 2 && layout == ConvLayout::NGCHW_GKYXC_NGKHW)
@@ -243,9 +235,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         }
         else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
-#if defined(__gfx942__)
             return profile(I2, NGCHW{}, GKCYX{}, NGKHW{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
         }
     }
     if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
@@ -270,9 +260,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         }
         else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
-#if defined(__gfx942__)
             return profile(I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
         }
     }
     if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
@@ -306,9 +294,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         }
         else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
-#if defined(__gfx942__)
             return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
         }
     }
     else if(num_dim_spatial == 3 && layout == ConvLayout::NGCHW_GKYXC_NGKHW)
@@ -340,9 +326,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         }
         else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
-#if defined(__gfx942__)
             return profile(I3, NGCDHW{}, GKCZYX{}, NGKDHW{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
         }
     }
 

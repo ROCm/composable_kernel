@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,13 +18,11 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeAQ()
     {
-        using AQLayout                = remove_cvref_t<typename Problem::AQLayout>;
         using AQDataType              = remove_cvref_t<typename Problem::AQDataType>;
         constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockAQ = KPerBlock / Problem::kQuantGroupSize;
+        constexpr index_t KPerBlockAQ = KPerBlock / Problem::QuantGroupSize::kK;
 
-        static_assert(std::is_same_v<AQLayout, ck_tile::tensor_layout::gemm::RowMajor>);
         return GetABQGlobalVectorLoadSize<Problem, AQDataType, MPerBlock, KPerBlockAQ>();
     }
 
@@ -37,7 +35,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         constexpr index_t BlockSize    = Problem::kBlockSize;
         constexpr index_t MPerBlock    = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock    = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockAQ  = KPerBlock / Problem::kQuantGroupSize;
+        constexpr index_t KPerBlockAQ  = KPerBlock / Problem::QuantGroupSize::kK;
         constexpr index_t VecLoadSize  = GetVectorSizeAQ<Problem>();
         constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
         using WarpTile                 = typename Problem::BlockGemmShape::WarpTile;
@@ -49,7 +47,6 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                             WarpTile::at(I2),
                                                             Problem::TransposeC>;
 
-        static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
         if constexpr(PreshuffleQuant)
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_aq<
@@ -68,6 +65,8 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         {
             if constexpr(Problem::TransposeC)
             {
+                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>,
+                              "TransposeC currently only supports RowMajor layout");
                 using TileEncodingPatternTransposeC =
                     tile_distribution_encoding_pattern_aq_transposed_c<BlockGemmShape,
                                                                        WarpGemm,
@@ -79,16 +78,34 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
             }
             else
             {
-                using TileEncodingPattern = tile_distribution_encoding_pattern_aq<BlockGemmShape,
-                                                                                  WarpGemm,
-                                                                                  BlockSize,
-                                                                                  MPerBlock,
-                                                                                  KPerBlockAQ,
-                                                                                  KPerBlockAQ,
-                                                                                  VecLoadSize,
-                                                                                  PreshuffleQuant>;
+                // !Problem::TransposeC
+                if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    using TileEncodingPattern =
+                        tile_distribution_encoding_pattern_aq<BlockGemmShape,
+                                                              WarpGemm,
+                                                              BlockSize,
+                                                              MPerBlock,
+                                                              KPerBlockAQ,
+                                                              KPerBlockAQ,
+                                                              VecLoadSize,
+                                                              PreshuffleQuant>;
 
-                return TileEncodingPattern::make_2d_static_tile_distribution();
+                    return TileEncodingPattern::make_2d_static_tile_distribution();
+                }
+                else
+                {
+                    using TileEncodingPattern =
+                        tile_distribution_encoding_pattern_aq<BlockGemmShape,
+                                                              WarpGemm,
+                                                              BlockSize,
+                                                              KPerBlockAQ, // YPerTile
+                                                              MPerBlock,   // XPerTile
+                                                              KPerBlockAQ,
+                                                              VecLoadSize,
+                                                              PreshuffleQuant>;
+                    return TileEncodingPattern::make_2d_static_tile_distribution_transposed();
+                }
             }
         }
     }
@@ -99,8 +116,8 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
-        static_assert(Problem::kQuantGroupSize % WarpTile::at(I2) == 0,
-                      "KPerWarpGemm must be a multiple of kQuantGroupSize!");
+        static_assert(Problem::QuantGroupSize::kK % WarpTile::at(I2) == 0,
+                      "KPerWarpGemm must be a multiple of QuantGroupSize::kK!");
 
         using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
                                             typename Problem::ComputeDataType,

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -143,11 +143,13 @@ auto randints(ForwardIterator first,
 template <typename RandomEngine>
 std::tuple<std::vector<ck_tile::index_t>,
            std::vector<ck_tile::index_t>,
+           std::vector<ck_tile::index_t>,
            std::vector<ck_tile::index_t>>
 generate_missing_seqlens(mode_enum mode,
                          ck_tile::index_t batch,
                          const std::vector<ck_tile::index_t>& q_val,
                          const std::vector<ck_tile::index_t>& k_val,
+                         const std::vector<ck_tile::index_t>& q_pad_val,
                          const std::vector<ck_tile::index_t>& k_pad_val,
                          ck_tile::index_t seqlen_k_min,
                          bool need_append_kvcache,
@@ -177,7 +179,7 @@ generate_missing_seqlens(mode_enum mode,
             return seqlen_ks;
         }();
         auto s_kpad = std::vector<ck_tile::index_t>(batch, -1); // TODO: batch not support k_padding
-
+        auto s_qpad = std::vector<ck_tile::index_t>(batch, -1);
         // s_k should be greater than or equal to seqlen_k_min if provided
         if(s_k.back() < seqlen_k_min)
         {
@@ -187,13 +189,14 @@ generate_missing_seqlens(mode_enum mode,
             throw std::runtime_error(msg.str());
         }
 
-        return std::make_tuple(s_q, s_k, s_kpad);
+        return std::make_tuple(s_q, s_k, s_qpad, s_kpad);
     }
     else
     {
         std::vector<ck_tile::index_t> s_q;
         std::vector<ck_tile::index_t> s_k;
         std::vector<ck_tile::index_t> s_kpad;
+        std::vector<ck_tile::index_t> s_qpad;
         ck_tile::index_t idx = 0;
         for(; idx < std::min(static_cast<ck_tile::index_t>(q_val.size()), batch); ++idx)
         {
@@ -205,9 +208,15 @@ generate_missing_seqlens(mode_enum mode,
                     ? -1
                     : k_pad_val[std::min(idx, static_cast<ck_tile::index_t>(k_pad_val.size()) - 1)];
 
+            ck_tile::index_t qp =
+                q_pad_val.empty()
+                    ? -1
+                    : q_pad_val[std::min(idx, static_cast<ck_tile::index_t>(q_pad_val.size()) - 1)];
+
             s_q.push_back(q);
             s_k.push_back(k < 0 ? q : k);
             s_kpad.push_back(kp);
+            s_qpad.push_back(qp);
 
             // s_k should be greater than or equal to seqlen_k_min
             if(s_k.back() < seqlen_k_min)
@@ -228,8 +237,9 @@ generate_missing_seqlens(mode_enum mode,
             s_q.insert(s_q.end(), rem_q.begin(), rem_q.end());
             s_k.insert(s_k.end(), rem_k.begin(), rem_k.end());
             s_kpad.insert(s_kpad.end(), batch - idx, s_kpad.back());
+            s_qpad.insert(s_qpad.end(), batch - idx, s_qpad.back());
         }
-        return std::make_tuple(s_q, s_k, s_kpad);
+        return std::make_tuple(s_q, s_k, s_qpad, s_kpad);
     }
 }
 

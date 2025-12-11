@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -98,6 +98,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instances(
                     op_ptrs);
+                add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_direct_load_instances(
+                    op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_FP16
@@ -123,17 +125,21 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_mem_inter_instances(
                     op_ptrs);
+                add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_direct_load_instances(
+                    op_ptrs);
             }
 #endif
-#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
                 static_assert(is_same_v<AComputeType, BComputeType>,
                               "Error: AComputeType and BComputeType should be the same");
+#ifdef CK_ENABLE_TF32
                 if constexpr(is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_16x16_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_fwd_bias_clamp_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f32_tf32_instances(
                         op_ptrs);
@@ -146,7 +152,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv2d_fwd_bias_clamp_xdl_large_tensor_nhwgc_gkyxc_nhwgk_f32_tf32_instances(
                         op_ptrs);
                 }
-                else
+#endif
+#ifdef CK_ENABLE_FP32
+                if constexpr(is_same_v<AComputeType, float>)
                 {
                     add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
                         op_ptrs);
@@ -163,9 +171,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_mem_inter_instances(
                         op_ptrs);
                 }
-            }
-
 #endif
+            }
         }
         // layout NDHWGC/GKZYXC/NDHWGK
         if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
@@ -215,15 +222,17 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
             }
 #endif
-#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
                 static_assert(is_same_v<AComputeType, BComputeType>,
                               "Error: AComputeType and BComputeType should be the same");
+#ifdef CK_ENABLE_TF32
                 if constexpr(is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv3d_fwd_bias_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_fwd_bias_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_16x16_instances(
                         op_ptrs);
                     add_device_grouped_conv3d_fwd_bias_clamp_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
                         op_ptrs);
@@ -236,7 +245,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv3d_fwd_bias_clamp_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
                         op_ptrs);
                 }
-                else
+#endif
+#ifdef CK_ENABLE_FP32
+                if constexpr(is_same_v<AComputeType, float>)
                 {
                     add_device_grouped_conv3d_fwd_bias_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                         op_ptrs);
@@ -253,9 +264,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv3d_fwd_bias_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_inter_instances(
                         op_ptrs);
                 }
-            }
-
 #endif
+            }
         }
 #endif // CK_USE_XDL
 

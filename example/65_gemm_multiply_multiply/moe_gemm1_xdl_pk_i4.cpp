@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -21,6 +21,10 @@
 
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
@@ -29,8 +33,9 @@ using F16 = ck::half_t;
 using F8  = ck::f8_t;
 using F32 = float;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using A0DataType       = F8;
 using B0DataType       = I4;
@@ -222,7 +227,7 @@ int main(int argc, char* argv[])
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4 to 5: N, K, tokens\n");
-        exit(0);
+        exit(1);
     }
 
     if(tokens * topk > valid_size)
@@ -268,10 +273,10 @@ int main(int argc, char* argv[])
         HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}, Col{}));
     Tensor<B0DataType> b0_preshuffled(
         HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}, Col{}));
-    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
+    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}, Bypass{}));
     Tensor<D1DataType> d1_e_n(
         HostTensorDescriptor({experts, N * 2}, {StrideDs[1] * N * 2, StrideDs[1]}));
-    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
+    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}, Bypass{}));
     Tensor<EDataType> e_t_n_host_result(
         HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}, Row{}));
     Tensor<EDataType> e_t_n_device_result(
