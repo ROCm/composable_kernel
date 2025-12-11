@@ -20,11 +20,14 @@
 namespace ck_tile::builder::test {
 
 template <DataType DT>
-void init_tensor_buffer_uniform_int(const DeviceBuffer& buf, const TensorDescriptor<DT>& descriptor, int min_val, int max_val)
+void init_tensor_buffer_uniform_int(const DeviceBuffer& buf,
+                                    const TensorDescriptor<DT>& descriptor,
+                                    int min_val,
+                                    int max_val)
 {
     size_t size = descriptor.get_element_space_size_in_bytes();
 
-   if(size % sizeof(DT) != 0)
+    if(size % sizeof(DT) != 0)
     {
         throw std::runtime_error("size must be a multiple of datatype size");
     }
@@ -37,7 +40,8 @@ void init_tensor_buffer_uniform_int(const DeviceBuffer& buf, const TensorDescrip
 
     using ck_type = factory::internal::DataTypeToCK<DT>::type;
 
-    // we might be asked to generate int values on fp data types that don't have the required precision
+    // we might be asked to generate int values on fp data types that don't have the required
+    // precision
     if(static_cast<ck_type>(max_val - 1) == static_cast<ck_type>(min_val))
     {
         throw std::runtime_error("Error while filling device tensor with random integer data: "
@@ -48,32 +52,11 @@ void init_tensor_buffer_uniform_int(const DeviceBuffer& buf, const TensorDescrip
         static_cast<ck_type>(buf.get()), min_val, max_val, (size * packed_size) / sizeof(ck_type));
 }
 
-
 template <DataType DT>
-void init_tensor_buffer_uniform_fp(const DeviceBuffer& buf, const TensorDescriptor<DT>& descriptor, float min_value, float max_value)
-{
-    size_t size = descriptor.get_element_space_size_in_bytes();
-
-   if(size % sizeof(DT) != 0)
-    {
-        throw std::runtime_error("size must be a multiple of datatype size");
-    }
-    using ck_type = factory::internal::DataTypeToCK<DT>::type;
-
-    if(std::nextafter(static_cast<ck_type>(min_value), static_cast<ck_type>(max_value)) >= max_value)
-    {
-        // nextafter is not defined for non-standard data types, skip test for now
-        // throw std::runtime_error("Error while filling device tensor with random integer data:
-        // insufficient precision in specified range");
-    }
-
-    size_t packed_size = ck::packed_size_v<ck_type>;
-    fill_tensor_uniform_rand_fp_values<<<256, 256>>>(
-        reinterpret_cast<ck_type*>(buf.get()), min_value, max_value, (size * packed_size) / sizeof(ck_type));
-}
-
-template <DataType DT>
-void init_tensor_buffer_normal_fp(const DeviceBuffer& buf, const TensorDescriptor<DT>& descriptor, float sigma, float mean)
+void init_tensor_buffer_uniform_fp(const DeviceBuffer& buf,
+                                   const TensorDescriptor<DT>& descriptor,
+                                   float min_value,
+                                   float max_value)
 {
     size_t size = descriptor.get_element_space_size_in_bytes();
 
@@ -82,10 +65,38 @@ void init_tensor_buffer_normal_fp(const DeviceBuffer& buf, const TensorDescripto
         throw std::runtime_error("size must be a multiple of datatype size");
     }
     using ck_type = factory::internal::DataTypeToCK<DT>::type;
+
+    if(std::nextafter(static_cast<ck_type>(min_value), static_cast<ck_type>(max_value)) >=
+       max_value)
+    {
+        // nextafter is not defined for non-standard data types, skip test for now
+        // throw std::runtime_error("Error while filling device tensor with random integer data:
+        // insufficient precision in specified range");
+    }
+
+    size_t packed_size = ck::packed_size_v<ck_type>;
+    fill_tensor_uniform_rand_fp_values<<<256, 256>>>(reinterpret_cast<ck_type*>(buf.get()),
+                                                     min_value,
+                                                     max_value,
+                                                     (size * packed_size) / sizeof(ck_type));
+}
+
+template <DataType DT>
+void init_tensor_buffer_normal_fp(const DeviceBuffer& buf,
+                                  const TensorDescriptor<DT>& descriptor,
+                                  float sigma,
+                                  float mean)
+{
+    size_t size = descriptor.get_element_space_size_in_bytes();
+
+    if(size % sizeof(DT) != 0)
+    {
+        throw std::runtime_error("size must be a multiple of datatype size");
+    }
+    using ck_type      = factory::internal::DataTypeToCK<DT>::type;
     size_t packed_size = ck::packed_size_v<ck_type>;
     fill_tensor_norm_rand_fp_values<<<256, 256>>>(
         static_cast<ck_type*>(buf.get()), sigma, mean, (size * packed_size) / sizeof(ck_type));
-
 }
 
 } // namespace ck_tile::builder::test
