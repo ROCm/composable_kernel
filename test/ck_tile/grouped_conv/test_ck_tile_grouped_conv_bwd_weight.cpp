@@ -42,7 +42,7 @@ template <typename PrecType,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
-          index_t NDimSpatial         = 2>
+          index_t NDimSpatial = 2>
 struct BuildKernel
 {
     using GemmShape = TileGemmShape<
