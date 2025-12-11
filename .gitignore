@@ -87,3 +87,6 @@ __pycache__/
 # The experimental/builder directory should be tracked despite matching build*
 !experimental/builder
 !experimental/builder/**
+
+# Virtual envs
+*/venv/**
