@@ -20,12 +20,12 @@ repos:
             )$
 -   repo: local
     hooks:
-    # -   id: copyright-year-checker
-    #     name: copyright-year-checker
-    #     entry: script/check_copyright_year.sh
-    #     verbose: false
-    #     language: script
-    #     types: [c++]
+    -   id: copyright-header-checker
+        name: Check copyright headers
+        entry: script/check_copyright_year.sh
+        verbose: false
+        language: script
+        types_or: [c++, python, shell, cmake]
     -   id: remove-exec-bit
         name: Remove executable bit from non-executable files
         entry: script/remove_exec_bit.sh
