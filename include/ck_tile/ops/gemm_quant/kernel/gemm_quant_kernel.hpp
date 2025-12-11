@@ -762,14 +762,14 @@ struct QuantGemmKernel
                         if constexpr(std::is_same_v<BDataType, pk_fp4_raw_t>)
                             return make_naive_tensor_view<address_space_enum::global>(
                                 b_ptr,
-                                make_tuple(kargs.N, splitk_batch_offset.splitted_k / 2),
+                                make_tuple(kargs.N, k_size / 2),
                                 make_tuple(kargs.stride_B, 1),
                                 number<GemmPipeline::GetVectorSizeB()>{},
                                 number<1>{});
                         else
                             return make_naive_tensor_view<address_space_enum::global>(
                                 b_ptr,
-                                make_tuple(kargs.N, splitk_batch_offset.splitted_k),
+                                make_tuple(kargs.N, k_size),
                                 make_tuple(kargs.stride_B, 1),
                                 number<GemmPipeline::GetVectorSizeB()>{},
                                 number<1>{});
