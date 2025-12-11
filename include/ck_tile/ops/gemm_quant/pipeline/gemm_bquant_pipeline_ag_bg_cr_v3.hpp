@@ -188,10 +188,10 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
         }
 
         template <typename BBlockTile_, typename BDramWindow, typename BDramTileWindowStep>
-        CK_TILE_DEVICE static void
+        CK_TILE_DEVICE void
         BGlobalPrefetch(BBlockTile_& b_block_tile,
                         BDramWindow& b_copy_dram_window,
-                        const BDramTileWindowStep& b_dram_tile_window_step)
+                        const BDramTileWindowStep& b_dram_tile_window_step) const
         {
             if constexpr(!std::is_same_v<BDataType, OverrideBDataType>)
             {
