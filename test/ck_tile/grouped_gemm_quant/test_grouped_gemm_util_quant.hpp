@@ -31,8 +31,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
     using DsDataType                  = ck_tile::tuple<>;
     using Row                         = ck_tile::tensor_layout::gemm::RowMajor;
     using Col                         = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using AQLayout                    = Row;
-    using BQLayout                    = Col;
+    using AQLayout                    = ALayout;
+    using BQLayout                    = BLayout;
     static constexpr bool PreshuffleB = std::tuple_element_t<10, Tuple>::value;
     static constexpr bool Persistent  = std::tuple_element_t<11, Tuple>::value;
     static constexpr bool TransposeC  = std::tuple_element_t<12, Tuple>::value;
