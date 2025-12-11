@@ -69,6 +69,48 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
 }
 
+template <typename GridwiseGemm,
+          bool HasMainKBlockLoop,
+          InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+          index_t MinimumOccupancy = 1,
+          TailNumber TailNum       = TailNumber::Full>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+#endif
+    kernel_gemm_b_preshuffle_wmma_cshuffle_v3(typename GridwiseGemm::Argument karg)
+{
+#if(defined(__gfx11__) || defined(__gfx12__))
+#if defined(__gfx11__)
+    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+    using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
+    if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
+                   (std::is_same_v<e_data_type, ck::half_t> ||
+                    std::is_same_v<e_data_type, ck::bhalf_t>)))
+    {
+#endif
+        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueCShuffle>();
+        __shared__ char p_shared[LDS_size];
+
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
+
+        const index_t num_k_per_block = math::integer_divide_ceil(karg.K, GridwiseGemm::KPack);
+        const index_t k_id            = blockIdx.z * num_k_per_block;
+
+        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+
+        GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
+            p_shared, splitk_batch_offset, karg, epilogue_args, k_id);
+
+#if defined(__gfx11__)
+    }
+#endif
+#else
+    ignore = karg;
+#endif
+}
+
 template <typename ALayout,
           typename BLayout,
           typename DsLayout,
@@ -162,7 +204,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     static constexpr index_t KInnerB = ck::math::integer_divide_ceil(BK1Value, KPerWmmaBlk);
 
-    static constexpr index_t KInner = ck::math::min(KInnerA, KInnerB);
+    static constexpr index_t KInner = IsBPreShuffled ? KInnerB : ck::math::min(KInnerA, KInnerB);
 
     static constexpr index_t KPack =
         KInner *
@@ -966,6 +1008,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
               typename BGridDesc_BK0_N_K1,
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
               typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename AScaleStruct,
               typename BScaleStruct,
               typename EpilogueArgument,
               bool HasMainKBlockLoop,
@@ -988,6 +1031,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                const index_t& block_m_id,
                                const index_t& block_n_id,
                                const index_t& num_k_block_per_scale,
+                               AScaleStruct& a_scale_struct,
                                BScaleStruct& b_scale_struct,
                                EpilogueArgument& epilogue_args,
                                const index_t k_id = 0)
@@ -1072,6 +1116,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             b_block_buf,
             b_block_slice_copy_step,
             c_thread_buf,
+            a_scale_struct,
             b_scale_struct,
             num_k_block_main_loop,
             num_k_block_per_scale);
