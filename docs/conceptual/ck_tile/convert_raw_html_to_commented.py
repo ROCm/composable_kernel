@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 """Convert raw HTML mermaid blocks to commented format for SVG conversion."""
 
 import os
