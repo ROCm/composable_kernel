@@ -295,8 +295,8 @@ struct QuantGemmKernel
         //       K-dimension groups per block
         // bq_y: Number of quantization groups in K dimension
         //       = Total K groups (QK_B) / groups per block
-        const auto bq_x = N * KPerBlockBQ;    // 64 * 2 = 128 || 8*2 =  16
-        const auto bq_y = QK_B / KPerBlockBQ; // 4/2 =2 || 4/2 =2
+        const auto bq_x = N * KPerBlockBQ;    // 2x2 = 4
+        const auto bq_y = QK_B / KPerBlockBQ; // 4/2 = 2
 
         if(get_block_id() == 0 && get_thread_id() == 0)
         {
@@ -311,13 +311,13 @@ struct QuantGemmKernel
         const auto bq_desc = make_naive_tensor_descriptor(make_tuple(bq_y, bq_x),
                                                           make_tuple(bq_x, 1),
                                                           number<GetVectorSizeBQ>{},
-                                                          number<1>{}); // 2x128 || 2x16
+                                                          number<1>{}); // 2x4
 
         // Step 2: First padding transformation (block-level alignment)
         // ----------------------------------------------------------
         // Pad the X dimension to be a multiple of block_tile_size to ensure
         // each thread block can process complete tiles without edge cases
-        const auto block_tile_size = NPerBlockBQ * KPerBlockBQ; // 64 * 2 = 128 || 8 * 2 = 16
+        const auto block_tile_size = NPerBlockBQ * KPerBlockBQ; // 2x2 = 4
 
         if(get_block_id() == 0 && get_thread_id() == 0)
         {
@@ -328,7 +328,7 @@ struct QuantGemmKernel
             bq_desc,
             make_tuple(
                 make_pass_through_transform(bq_y),
-                make_right_pad_transform(bq_x, get_padding_size(bq_x, block_tile_size))), // 2, 16
+                make_right_pad_transform(bq_x, get_padding_size(bq_x, block_tile_size))), // 2,4
             make_tuple(sequence<0>{}, sequence<1>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -337,10 +337,10 @@ struct QuantGemmKernel
         // Split the X dimension into [wave_tile_count_x, wave_tile_size]
         // This separates the work into tiles that can be processed by
         // individual warps/waves
-        const auto pad_bq_x       = bq_pad0_desc.get_lengths()[I1];   // 128 || 16
-        const auto wave_tile_size = (WarpTileN / QN_B) * KPerBlockBQ; // 16 * 2= 32 || 16/8 x 2 = 4
+        const auto pad_bq_x       = bq_pad0_desc.get_lengths()[I1];   // 4
+        const auto wave_tile_size = ((QN_B <= WarpTileN) ? (WarpTileN / QN_B) : (QN_B/WarpTileN)) * KPerBlockBQ; // 32/16 x 2 = 4
         const auto wave_tile_count_x =
-            ck_tile::integer_divide_ceil(pad_bq_x, wave_tile_size); // 128/32 = 4 || 16/4 = 4
+            ck_tile::integer_divide_ceil(pad_bq_x, wave_tile_size); // 4/4 = 1
 
         if(get_block_id() == 0 && get_thread_id() == 0)
         {
@@ -370,7 +370,7 @@ struct QuantGemmKernel
             bq_unmerge_pad0_desc,
             make_tuple(
                 make_pass_through_transform(bq_y),              // 2
-                make_pass_through_transform(wave_tile_count_x), // 4
+                make_pass_through_transform(wave_tile_count_x), // 1
                 make_right_pad_transform(wave_tile_size,
                                          get_padding_size(wave_tile_size, get_warp_size()))), // 64
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
@@ -389,7 +389,7 @@ struct QuantGemmKernel
         }
         const auto bq_merge_pad1_desc = transform_tensor_descriptor(
             bq_pad1_desc,
-            make_tuple(make_merge_transform(make_tuple(bq_y, wave_tile_count_x)), // 8
+            make_tuple(make_merge_transform(make_tuple(bq_y, wave_tile_count_x)), // 2
                        make_pass_through_transform(pad_wave_size)),               // 64
             make_tuple(sequence<0, 1>{}, sequence<2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
@@ -1212,7 +1212,7 @@ struct QuantGemmKernel
                     //  bq_block_window.template print_tile_window_range<BQDataType>(
                     //      0, 128, 0, 2, "bq block window");
                     bq_block_window.template print_tile_window_range<BQDataType>(
-                        0, 1, 0, 64, "bq block window");
+                        0, 3, 0, 64, "bq block window");
                 }
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, n);

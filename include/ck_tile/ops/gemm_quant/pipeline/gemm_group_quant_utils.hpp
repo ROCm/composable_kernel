@@ -192,6 +192,7 @@ template <typename BlockGemmShape,
           index_t KPerTile,
           index_t NPerTile,
           index_t NPerQ,
+          index_t KPerQ,
           typename BQLayout    = tensor_layout::gemm::ColumnMajor,
           bool PreshuffleQuant = false>
 struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
@@ -241,25 +242,59 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
 
         if constexpr(PreshuffleQuant)
         {
-            if constexpr(YPerQ < WarpGemm::kN)
+            if constexpr(NPerQ <= WarpGemm::kN)
             {
-                constexpr index_t X1  = WarpGemm::kN / NPerQ; // 2
-                constexpr index_t X0  = 256 / 128;            // 2
-                constexpr index_t X2  = 1;
-                constexpr index_t XR1 = NPerQ;                       // 8
-                constexpr index_t XR0 = warp_size / (X0 * X1 * XR1); // 2
-                constexpr index_t Y1  = NWarps;                      // 4
-                constexpr index_t Y0  = KPerTile / Y1;               // 1
-                constexpr index_t YR  = 1;
+                constexpr auto N1  = BlockGemmShape::kK / KPerQ; // 2
+                constexpr auto N0  = WarpGemm::kN / NPerQ; //BlockGemmShape::kN / KPerQ;  // 1
+                constexpr auto N2  = 1;
+                constexpr auto NR1 = NPerQ;                       // 16
+                constexpr auto NR0 = warp_size / (N0 * N1 * N2 * NR1); // 64/(1*2*1*16)=2
+                constexpr auto K1  = NWarps;                      // 4
+                constexpr auto K0  = KPerTile / K1;               // 1
+                constexpr auto KR  = 1;
+
+                
 
                 return make_static_tile_distribution(
                     tile_distribution_encoding<
-                        sequence<MWarps, XR0, XR1, YR>,
-                        tuple<sequence<Y0, Y1>, sequence<X0, X1, X2>>,
-                        tuple<sequence<0, 1>, sequence<0, 2, 0, 2, 0>>, // (Mwarp, Nwarp),
-                        tuple<sequence<0, 1>, sequence<1, 0, 2, 1, 3>>,
+                        sequence<MWarps, NR0, NR1, KR>,
+                        tuple<sequence<K0, K1>, sequence<N0, N1, N2>>,
+                        tuple<sequence<0, 1>, sequence<0, 2, 0, 2, 0>>, // (Mwarp, Nwarp),(XR0, X0, XR1, X1, YR)
+                        tuple<sequence<0, 1>, sequence<1, 0, 2, 1, 3>>, // (1, 4), (2, 1, 16, 2, 1)
                         sequence<1, 2>,
                         sequence<0, 2>>{});
+            }
+            else if constexpr(NPerQ <= WarpGemm::kN * NWarps)
+            {
+                constexpr auto KR = NPerQ / WarpGemm::kN; // Scale replication factor 32/16 = 2
+                constexpr auto K1 = NWarps / KR;          // Warps per unique scale 4/2 = 2
+                constexpr auto K0 = KPerTile / K1;        // Iterations to cover N dimension 4/2 = 2
+                constexpr auto N1  = BlockGemmShape::kK / KPerQ; // 2
+                constexpr auto N0  = 1; //NPerQ/WarpGemm::kN;  // 2
+                constexpr auto N2  = 1;
+                constexpr auto NR1 = NPerQ;                       // 32
+                constexpr auto NR0 = warp_size / (N0 * N1 * N2 * NR1); // 64/(1*2*1*32)=1
+
+                if(get_block_id() == 0 && get_thread_id() == 0)
+                {
+                    // Debug print to verify values
+                    printf("PreshuffleQuant Medium-grained: MWarps: %d, K1=%d, KR=%d, get_warp_size(): %d, K0=%d, N0=%d\n",
+                           MWarps,
+                           K1,
+                           KR,
+                           get_warp_size(),
+                           K0,
+                           N0);
+                }
+               
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<MWarps, NR0, NR1, KR>,
+                                                tuple<sequence<K0, K1>, sequence<N0, N1, N2>>,
+                                                tuple<sequence<0, 1, 0>, sequence<0, 2, 0, 2>>,
+                                                tuple<sequence<0, 1, 3>, sequence<1, 0, 2, 1>>,
+                                                sequence<1, 2>,
+                                                sequence<0, 2>>{});
+                
             }
         }
         else

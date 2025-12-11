@@ -560,7 +560,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             }
             // for(int i = 0; i < BQK; i++)
             // {
-            //     for(int j = 0; j < N; j++)
+            //     for(int j = 0; j < BQN; j++)
             //     {
             //         printf("bq_tensor_ptr[%d][%d]: %.0f\n ", i, j, (*bq_tensor_ptr)(i, j));
             //     }

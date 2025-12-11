@@ -69,6 +69,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                 NPerBlock / WarpGemm::kN,
                 ck_tile::integer_least_multiple(WarpGemm::kN * KPerBlockBQ, get_warp_size()),
                 Problem::QuantGroupSize::kN,
+                Problem::QuantGroupSize::kK,
                 BQLayout,
                 PreshuffleQuant>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
@@ -83,6 +84,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                       KPerBlockBQ, // Logical K dimension
                                                       NPerBlockBQ, // Logical N dimension
                                                       Problem::QuantGroupSize::kN,
+                                                      Problem::QuantGroupSize::kK,
                                                       BQLayout>;
 
             return TileEncodingPattern::make_2d_static_tile_distribution();
