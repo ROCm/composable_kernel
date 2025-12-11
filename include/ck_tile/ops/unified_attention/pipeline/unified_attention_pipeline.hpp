@@ -545,9 +545,8 @@ struct UnifiedAttentionPipeline
         const auto q_origin = q_dram_window.get_window_origin();
 
         const auto num_total_loop = num_blocks;
-        index_t k_block_table_off = num_blocks_start;
-        index_t v_block_table_off = num_blocks_start;
-        
+        index_t k_block_idx       = 0;
+        index_t v_block_idx       = 0;
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking)
@@ -562,12 +561,13 @@ struct UnifiedAttentionPipeline
         }
 
         // TODO check correctness of this
-        index_t i_total_loops = num_blocks_start;
+        index_t i_total_loops         = num_blocks_start;
         const index_t PAGE_BLOCK_SIZE = kv_page_size_in_blocks * BLOCK_SIZE;
         const ck_tile::index_t* block_tables_ptr_ =
             reinterpret_cast<const ck_tile::index_t*>(block_tables_ptr);
-        assert(k_block_table_off == v_block_table_off); // because of the following line
-        index_t kv_blk_idx_initial      = block_tables_ptr_[block_table_offset + k_block_table_off];
+        assert(k_block_idx == v_block_idx); // because of the following line
+        block_table_offset += num_blocks_start;
+        index_t kv_blk_idx_initial = block_tables_ptr_[block_table_offset + k_block_idx];
 
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -672,56 +672,35 @@ struct UnifiedAttentionPipeline
         constexpr int V_mem_su_ld_insts = v_dram_window.get_num_of_access();
 
         // Page block index tracking
-        // const index_t kv_page_size_in_blocks = 
+        // const index_t kv_page_size_in_blocks =
         //     PAGE_BLOCK_SIZE / BLOCK_SIZE;
-        index_t k_block_i_inside_page = 0;
-        index_t v_block_i_inside_page = 0;
+        // index_t kv_block_idx = 0;
+        // only for block 0 and thread
+        if(blockIdx.x == 0 && threadIdx.x == 0) {}
         auto K_mem_load = [&](auto k_lds_write_idx) {
             async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
-            // prefetch next K tile (only if not at the end of loop)
-            if (k_block_table_off * kv_page_size_in_blocks + k_block_i_inside_page + 1 >= num_total_loop)
-            {
-                return;
-            }
-            // Update block index inside the page           
-            ++k_block_i_inside_page;
-            if(k_block_i_inside_page < kv_page_size_in_blocks)
-            {
-                // Staying inside the page, just move the window
-                move_tile_window(k_dram_window, {BLOCK_SIZE, 0});
-            }
-            else
-            {
-                // Moving outside the page, fetch new physical page index
-                k_block_table_off++;
-                index_t k_page_blk_idx = amd_wave_read_first_lane(block_tables_ptr_[block_table_offset + k_block_table_off]);
-                k_dram_window.set_window_origin({k_page_blk_idx * PAGE_BLOCK_SIZE, 0});
-                k_block_i_inside_page = 0;
-            }
+            k_block_idx++;
+
+            index_t k_page_blk_idx =
+                block_tables_ptr_[block_table_offset + (k_block_idx / kv_page_size_in_blocks)];
+            k_dram_window.set_window_origin(
+                {k_page_blk_idx * PAGE_BLOCK_SIZE +
+                     (k_block_idx % kv_page_size_in_blocks) * BLOCK_SIZE,
+                 0});
         };
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
             async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
             // prefetch next V tile (only if not at the end of loop)
-            if (v_block_table_off * kv_page_size_in_blocks + v_block_i_inside_page + 1 >= num_total_loop)
-            {
-                return;
-            }
-            // Update the block index inside the page           
-            ++v_block_i_inside_page;
-            if(v_block_i_inside_page < kv_page_size_in_blocks)
-            {
-                // Staying inside the page, just move the window
-                move_tile_window(v_dram_window, {BLOCK_SIZE, 0});
-            }
-            else
-            {
-                // Moving outside the page, fetch new physical page index
-                v_block_table_off++;
-                index_t v_page_blk_idx = amd_wave_read_first_lane(block_tables_ptr_[block_table_offset + v_block_table_off]);
-                v_dram_window.set_window_origin({v_page_blk_idx * PAGE_BLOCK_SIZE, 0});
-                v_block_i_inside_page = 0;
-            }
+            v_block_idx++;
+
+            index_t v_page_blk_idx =
+                block_tables_ptr_[block_table_offset + (v_block_idx / kv_page_size_in_blocks)];
+            v_dram_window.set_window_origin(
+                {v_page_blk_idx * PAGE_BLOCK_SIZE +
+                     (v_block_idx % kv_page_size_in_blocks) * BLOCK_SIZE,
+                 0});
+            // we assume that v load is always after k
         };
 
         auto K_lds_load = [&](auto k_lds_read_idx) {

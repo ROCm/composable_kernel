@@ -471,9 +471,12 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
             long kv_lens            = has_varlen_k ? eff_kv_vec[b] : problem.seqlen_k;
             long valid_out_elements = 0;
 
-            if(problem.mask.type == mask_enum::no_mask) {
+            if(problem.mask.type == mask_enum::no_mask)
+            {
                 valid_out_elements = kv_lens * query_lens;
-            } else {
+            }
+            else
+            {
                 if(query_lens > kv_lens)
                 {
                     valid_out_elements = (kv_lens * kv_lens + kv_lens) / 2;
@@ -483,7 +486,6 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
                     valid_out_elements =
                         query_lens * kv_lens - ((query_lens * query_lens - query_lens) / 2);
                 }
-
             }
             // Causal logic for valid output elements
 

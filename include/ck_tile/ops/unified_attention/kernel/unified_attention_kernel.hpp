@@ -204,7 +204,6 @@ struct UnifiedAttentionKernel
         return left - 1;
     }
 
-
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const ck_tile::index_t pid,
                                                       const Kargs& kargs)
     {
@@ -259,13 +258,14 @@ struct UnifiedAttentionKernel
 
         const index_t q_block_start_idx = kargs.query_start_len_ptr[seq_idx] / BLOCK_Q + seq_idx;
 
-        const index_t q_block_local_idx = amd_wave_read_first_lane(q_block_global_idx - q_block_start_idx);
+        const index_t q_block_local_idx =
+            amd_wave_read_first_lane(q_block_global_idx - q_block_start_idx);
 
         const index_t cur_batch_in_all_start_index = kargs.query_start_len_ptr[seq_idx];
-        const index_t cur_batch_in_all_stop_index = kargs.query_start_len_ptr[seq_idx + 1];
+        const index_t cur_batch_in_all_stop_index  = kargs.query_start_len_ptr[seq_idx + 1];
 
         const index_t cur_batch_query_len =
-             amd_wave_read_first_lane(cur_batch_in_all_stop_index - cur_batch_in_all_start_index);
+            amd_wave_read_first_lane(cur_batch_in_all_stop_index - cur_batch_in_all_start_index);
 
         // TODO check if we get the block size info from pipeline
         if(q_block_local_idx * BLOCK_Q >= cur_batch_query_len)
@@ -276,11 +276,10 @@ struct UnifiedAttentionKernel
         const index_t query_pos = amd_wave_read_first_lane(q_block_local_idx * BLOCK_Q);
         const index_t seq_len   = kargs.seq_lens_ptr[seq_idx];
 
-        const index_t context_len =  amd_wave_read_first_lane(seq_len - cur_batch_query_len);
+        const index_t context_len = amd_wave_read_first_lane(seq_len - cur_batch_query_len);
 
-        index_t _max_seq_prefix_len =
-             amd_wave_read_first_lane((context_len + q_block_local_idx * BLOCK_Q + (BLOCK_M - 1)
-             + 1));
+        index_t _max_seq_prefix_len = amd_wave_read_first_lane(
+            (context_len + q_block_local_idx * BLOCK_Q + (BLOCK_M - 1) + 1));
 
         if(seq_len < _max_seq_prefix_len)
         {
@@ -288,7 +287,8 @@ struct UnifiedAttentionKernel
         }
 
         const auto max_seq_prefix_len = _max_seq_prefix_len;
-        const index_t num_blocks      =  amd_wave_read_first_lane((max_seq_prefix_len + BLOCK_SIZE - 1) / BLOCK_SIZE);
+        const index_t num_blocks =
+            amd_wave_read_first_lane((max_seq_prefix_len + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
         // TODO sliding window
         const index_t num_blocks_start = 0;
@@ -315,7 +315,8 @@ struct UnifiedAttentionKernel
         const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.v_ptr) + kv_head_offset;
         ODataType* o_ptr       = reinterpret_cast<ODataType*>(kargs.o_ptr) + o_ptr_offset;
 
-        index_t query_len_padded =  amd_wave_read_first_lane(integer_divide_ceil(cur_batch_query_len, BLOCK_Q) * BLOCK_Q);
+        index_t query_len_padded =
+            amd_wave_read_first_lane(integer_divide_ceil(cur_batch_query_len, BLOCK_Q) * BLOCK_Q);
         // const bool is_query_len_padded = (cur_batch_query_len % BLOCK_Q == 0);
 
         // Q/K/V DRAM and DRAM window
@@ -397,21 +398,20 @@ struct UnifiedAttentionKernel
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
-                    -1, 
+                    -1,
                     0,
                     cur_batch_query_len, // y_total
-                    seq_len,           // x_total
-                    num_queries_per_kv, // the same sequence index is repeated num_queries_per_kv
-                                       // times along x dim of the tile
-                    false
-                );
+                    seq_len,             // x_total
+                    num_queries_per_kv,  // the same sequence index is repeated num_queries_per_kv
+                                         // times along x dim of the tile
+                    false);
             else
                 return FmhaMask{cur_batch_query_len, seq_len};
         }();
 
         const index_t kv_page_size_in_blocks = kargs.page_blk_size / BLOCK_SIZE;
         assert(kv_page_size_in_blocks >= 1); // BLOCK_SIZE <= page_blk_size
-        
+
         auto o_acc_tile = [&]() {
             return UnifiedAttentionPipeline{}(q_dram_window,
                                               k_dram_window,
