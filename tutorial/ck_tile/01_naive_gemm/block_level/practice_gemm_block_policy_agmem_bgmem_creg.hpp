@@ -98,12 +98,12 @@ struct PracticeGemmBlockPolicy
         constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
+            tile_distribution_encoding<sequence<1>,                                   // replication
+                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>, // hierarchy
+                                       tuple<sequence<1>, sequence<1, 2>>,            // parallelism
+                                       tuple<sequence<1>, sequence<2, 0>>,            // paralleism
+                                       sequence<1, 2>,                                // yield
+                                       sequence<0, 1>>{});                            // yield
     }
 
     template <typename Problem>

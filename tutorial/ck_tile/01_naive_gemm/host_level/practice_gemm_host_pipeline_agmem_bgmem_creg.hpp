@@ -24,7 +24,7 @@ struct PracticeGemmHostPipeline
     template <typename ADRAMTensorView, typename BDRAMTensorView, typename CDRAMTensorView>
     CK_TILE_DEVICE void operator()(const ADRAMTensorView& a_dram,
                                    const BDRAMTensorView& b_dram,
-                                   CDRAMTensorView& c_dram_ref) const
+                                   CDRAMTensorView& c_dram) const
     {
 
         // Size of the entire problem
