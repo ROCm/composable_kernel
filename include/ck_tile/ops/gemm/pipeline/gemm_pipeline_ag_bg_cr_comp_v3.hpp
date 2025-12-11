@@ -176,8 +176,10 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
         constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
         return concat('_', "pipeline_AgBgCrCompV3", 
                       concat('x', MPerBlock, NPerBlock, KPerBlock),  BlockSize,
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
                       concat('x', WaveNumM, WaveNumN),
-                      concat('x', kPadM, kPadN, kPadK));
+                      concat('x', kPadM, kPadN, kPadK),
+                      Problem::GetName());
         // clang-format on
     }
 

@@ -895,8 +895,9 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         c_thread_buf.Clear();
 
         // Empty BScale struct for the blockwise pipeline.
-        using BScale        = typename BlockwiseGemmPipe::Empty;
-        auto b_scale_struct = BScale{};
+        using ABScale       = typename BlockwiseGemmPipe::Empty;
+        auto a_scale_struct = ABScale{};
+        auto b_scale_struct = ABScale{};
 
 /*******************************************************************************/
         // 
@@ -919,6 +920,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                                                               b0_block_buf,
                                                                               b0_block_slice_copy_step,
                                                                               acc0_thread_buf,
+                                                                              a_scale_struct,
                                                                               b_scale_struct,
                                                                               KBlockMainLoop,
                                                                               1); // num_k_block_per_scale
