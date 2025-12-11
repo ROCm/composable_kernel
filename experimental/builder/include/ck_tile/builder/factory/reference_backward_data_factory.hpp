@@ -16,7 +16,7 @@ namespace ck_tile::builder::factory {
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsBackwardData<SIGNATURE> && IsReferenceAlgorithm<decltype(ALGORITHM)>
+    requires ConvDirectionIsBackwardData<SIGNATURE>
 struct ReferenceBackwardDataFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;

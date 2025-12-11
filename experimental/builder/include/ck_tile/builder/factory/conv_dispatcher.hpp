@@ -9,10 +9,11 @@
 // ## Design Overview
 //
 // The dispatcher operates in two phases:
-// 1. **Algorithm Identification**: Five `consteval` predicate functions (`IsXdlV3Algorithm`,
-//    `IsXdlAlgorithm`, `IsWmmaAlgorithm`, `IsDlAlgorithm`, `IsLargeTensorAlgorithm`) inspect
-//    the algorithm descriptor's structure to determine which kernel variant it satisfies.
-//    Each predicate checks a specific set of concept constraints that define a kernel variant.
+// 1. **Algorithm Identification**: Six `consteval` predicate functions (`IsReferenceAlgorithm`,
+//    `IsXdlV3Algorithm`, `IsXdlAlgorithm`, `IsWmmaAlgorithm`, `IsDlAlgorithm`,
+//    `IsLargeTensorAlgorithm`) inspect the algorithm descriptor's structure to determine which
+//    kernel variant it satisfies. Each predicate checks a specific set of concept constraints
+//    that define a kernel variant.
 //
 // 2. **Factory Routing**: The main `make_conv_instance()` function uses `if constexpr`
 //    to dispatch to the appropriate factory class based on both the convolution direction
@@ -20,6 +21,9 @@
 //    ensuring zero runtime overhead.
 //
 // ## Supported Kernel Variants
+//
+// - **Reference**: Simple reference implementation for validation. Only requires a specialization
+//   field set to ConvAlgorithmSpecialization::REFERENCE.
 //
 // - **XDL V3**: Newer XDL-based pipeline using block GEMM structure. Requires fewer parameters
 //   than standard XDL (e.g., uses `SpecifiesBlockGemm` instead of scheduling/prefetch configs).
@@ -84,6 +88,16 @@ namespace ck_tile::builder::factory {
 // clear.
 //
 // TODO: Make this dispatch logic much more robust and clear for users.
+
+// Reference algorithm (simplest implementation for validation)
+template <typename T>
+consteval bool IsReferenceAlgorithm()
+{
+    return ConvAlgorithmDescriptor<T> && requires {
+        { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+        requires T::specialization == ConvAlgorithmSpecialization::REFERENCE;
+    };
+}
 
 // CK Tile kernel
 template <typename T>
@@ -155,7 +169,7 @@ constexpr auto make_conv_instance()
     if constexpr(ConvDirectionIsForward<SIGNATURE>)
     {
         // Check for reference algorithm first (simplest check)
-        if constexpr(IsReferenceAlgorithm<AlgoType>)
+        if constexpr(IsReferenceAlgorithm<AlgoType>())
         {
             return typename ReferenceForwardFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
@@ -196,7 +210,7 @@ constexpr auto make_conv_instance()
     else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
     {
         // Check for reference algorithm
-        if constexpr(IsReferenceAlgorithm<AlgoType>)
+        if constexpr(IsReferenceAlgorithm<AlgoType>())
         {
             return typename ReferenceBackwardDataFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
@@ -211,7 +225,7 @@ constexpr auto make_conv_instance()
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
         // Check for reference algorithm
-        if constexpr(IsReferenceAlgorithm<AlgoType>)
+        if constexpr(IsReferenceAlgorithm<AlgoType>())
         {
             return
                 typename ReferenceBackwardWeightFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};

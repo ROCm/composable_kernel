@@ -16,7 +16,7 @@ namespace ck_tile::builder::factory {
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE> && IsReferenceAlgorithm<decltype(ALGORITHM)>
+    requires ConvDirectionIsForward<SIGNATURE>
 struct ReferenceForwardFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
