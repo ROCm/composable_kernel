@@ -385,13 +385,14 @@ struct QuantGroupedGemmKernel
                                      const index_t block_idx_n)
     {
         static_assert(kQuantType == QuantType::BQuantGrouped, "kQuantType must be BQuantGrouped");
-        
+
         // Create block windows using specialized methods
         const auto& a_block_window =
             Base::MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
         const auto& b_block_window =
             Base::MakeBBlockWindow(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
-        const auto& bq_block_window = Base::MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
+        const auto& bq_block_window =
+            Base::MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
 
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
@@ -409,14 +410,15 @@ struct QuantGroupedGemmKernel
         // Run Epilogue Pipeline with split_k dispatch
         if(kargs.k_batch == 1)
         {
-            auto c_block_window =
-                Base::template MakeCBlockWindow<memory_operation_enum::set>(c_ptr, kargs, block_idx_m, block_idx_n);
+            auto c_block_window = Base::template MakeCBlockWindow<memory_operation_enum::set>(
+                c_ptr, kargs, block_idx_m, block_idx_n);
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
         else
         {
             auto c_block_window =
-                Base::template MakeCBlockWindow<memory_operation_enum::atomic_add>(c_ptr, kargs, block_idx_m, block_idx_n);
+                Base::template MakeCBlockWindow<memory_operation_enum::atomic_add>(
+                    c_ptr, kargs, block_idx_m, block_idx_n);
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
     }
@@ -458,8 +460,10 @@ struct QuantGroupedGemmKernel
             Base::MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
         const auto& b_block_window =
             Base::MakeBBlockWindow(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
-        const auto& aq_block_window = Base::MakeAQBlockWindow(aq_ptr, kargs, block_idx_m, block_idx_n);
-        const auto& bq_block_window = Base::MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
+        const auto& aq_block_window =
+            Base::MakeAQBlockWindow(aq_ptr, kargs, block_idx_m, block_idx_n);
+        const auto& bq_block_window =
+            Base::MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
 
         // Get hot-loop and tail configuration
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
@@ -500,8 +504,8 @@ struct QuantGroupedGemmKernel
         // Run Epilogue Pipeline with split_k dispatch
         if(kargs.k_batch == 1)
         {
-            auto c_block_window =
-                Base::template MakeCBlockWindow<memory_operation_enum::set>(c_ptr, kargs, block_idx_m, block_idx_n);
+            auto c_block_window = Base::template MakeCBlockWindow<memory_operation_enum::set>(
+                c_ptr, kargs, block_idx_m, block_idx_n);
 
             if constexpr(kQuantType == QuantType::AQuantGrouped ||
                          kQuantType == QuantType::BQuantGrouped)
@@ -528,7 +532,8 @@ struct QuantGroupedGemmKernel
         else
         {
             auto c_block_window =
-                Base::template MakeCBlockWindow<memory_operation_enum::atomic_add>(c_ptr, kargs, block_idx_m, block_idx_n);
+                Base::template MakeCBlockWindow<memory_operation_enum::atomic_add>(
+                    c_ptr, kargs, block_idx_m, block_idx_n);
 
             if constexpr(kQuantType == QuantType::AQuantGrouped ||
                          kQuantType == QuantType::BQuantGrouped)

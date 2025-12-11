@@ -116,10 +116,10 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
         auto c_ptr                                    = ws_args.wei_ptr;
         ws_args.wei_ptr                               = ws_m_n_dev_buf.GetDeviceBuffer();
 
-        const auto kargs                              = Kernel::MakeKernelArgs(ws_args);
-        const dim3 grids                              = Kernel::GridSize(kargs);
-        const dim3 blocks                             = Kernel::BlockSize();
-        
+        const auto kargs  = Kernel::MakeKernelArgs(ws_args);
+        const dim3 grids  = Kernel::GridSize(kargs);
+        const dim3 blocks = Kernel::BlockSize();
+
         if(!Kernel::IsSupportedArgument(kargs))
         {
             throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");

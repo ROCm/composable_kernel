@@ -547,7 +547,7 @@ struct QuantGemmKernel
         if constexpr(kQuantType == QuantType::AQuantGrouped && PreshuffleQuant)
         {
             static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-            
+
             // Step 1: Create preshuffled tensor view
             const auto aq_tensor_view =
                 MakePreshuffledQuantTensorView<GemmPipeline::KPerBlockAQ,
@@ -555,7 +555,7 @@ struct QuantGemmKernel
                                                TilePartitioner::BlockGemmShape::WarpTile::at(I0),
                                                GemmPipeline::GetVectorSizeAQ()>(
                     aq_ptr, kargs.M, kargs.QK_A);
-            
+
             // Step 2: Create tile window
             using QuantGroupSize         = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
             constexpr auto block_m       = TilePartitioner::MPerBlock;
@@ -565,7 +565,7 @@ struct QuantGemmKernel
                 ck_tile::integer_least_multiple(warp_m * aqk_per_block, get_warp_size());
             constexpr auto tile_window_height = block_m / warp_m;
             auto block_m_idx                  = block_idx_m / block_m;
-            
+
             return make_tile_window(
                 aq_tensor_view,
                 make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
@@ -597,10 +597,10 @@ struct QuantGemmKernel
 
             // Step 2: No padding
             // Step 3: Create tile window
-            using QuantGroupSize     = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
+            using QuantGroupSize         = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
             constexpr auto aqk_per_block = TilePartitioner::KPerBlock / QuantGroupSize::kK;
             constexpr auto block_m       = TilePartitioner::MPerBlock;
-            
+
             if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_tile_window(aq_tensor_view,
@@ -668,17 +668,16 @@ struct QuantGemmKernel
                               "ColumnMajor BQ layout");
 
                 // Step 1: Create preshuffled tensor view
-                const auto bq_tensor_view =
-                    MakePreshuffledQuantTensorView<
-                        GemmPipeline::KPerBlockBQ,
-                        GemmPipeline::NPerBlock,
-                        TilePartitioner::BlockGemmShape::WarpTile::at(I1),
-                        GemmPipeline::GetVectorSizeBQ()>(bq_ptr, kargs.N, kargs.QK_B);
+                const auto bq_tensor_view = MakePreshuffledQuantTensorView<
+                    GemmPipeline::KPerBlockBQ,
+                    GemmPipeline::NPerBlock,
+                    TilePartitioner::BlockGemmShape::WarpTile::at(I1),
+                    GemmPipeline::GetVectorSizeBQ()>(bq_ptr, kargs.N, kargs.QK_B);
 
                 // Step 2: Create tile window
-                using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
-                constexpr auto block_n       = TilePartitioner::NPerBlock / QuantGroupSize::kN;
-                constexpr auto warp_n        = TilePartitioner::BlockGemmShape::WarpTile::at(I1);
+                using QuantGroupSize   = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
+                constexpr auto block_n = TilePartitioner::NPerBlock / QuantGroupSize::kN;
+                constexpr auto warp_n  = TilePartitioner::BlockGemmShape::WarpTile::at(I1);
                 constexpr auto bqk_per_block = TilePartitioner::KPerBlock / QuantGroupSize::kK;
                 constexpr auto tile_window_width =
                     ck_tile::integer_least_multiple(warp_n * bqk_per_block, get_warp_size());
@@ -1105,8 +1104,8 @@ struct QuantGemmKernel
         // Run Epilogue Pipeline with split_k dispatch
         if(kargs.k_batch == 1)
         {
-            auto c_block_window =
-                MakeCBlockWindow<memory_operation_enum::set>(c_ptr, kargs, block_idx_m, block_idx_n);
+            auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
+                c_ptr, kargs, block_idx_m, block_idx_n);
 
             if constexpr(kQuantType == QuantType::AQuantGrouped ||
                          kQuantType == QuantType::BQuantGrouped)
