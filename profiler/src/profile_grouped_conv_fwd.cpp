@@ -89,9 +89,12 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
     const bool time_kernel     = std::stoi(argv[7]);
     const int num_dim_spatial  = std::stoi(argv[8]);
 
-    // 9 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
-    if(argc != 8 + 1 + 4 + 6 * num_dim_spatial + 1)
+    // program name, 7 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
+    const int expected_num_args = 1 + 7 + 1 + 4 + 6 * num_dim_spatial;
+    if(argc != expected_num_args)
     {
+        std::cout << "Received " << argc << " arguments." << std::endl;
+        std::cout << "Expected " << expected_num_args << " arguments." << std::endl;
         print_helper_msg();
         return 1;
     }

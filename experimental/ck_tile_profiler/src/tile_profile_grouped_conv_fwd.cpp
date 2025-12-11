@@ -85,6 +85,8 @@ int tile_profile_grouped_conv_fwd(int argc, char* argv[])
         return 1;
     }
 
+    std::cout << argv[0] << " " << argv[1] << " " << argv[2] << " " << argv[3] << " " << argv[4] << std::endl;
+
     const auto data_type       = static_cast<ConvDataType>(std::stoi(argv[2]));
     const auto layout          = static_cast<ConvLayout>(std::stoi(argv[3]));
     const bool do_verification = std::stoi(argv[4]);
@@ -93,8 +95,8 @@ int tile_profile_grouped_conv_fwd(int argc, char* argv[])
     const bool time_kernel     = std::stoi(argv[7]);
     const int num_dim_spatial  = std::stoi(argv[8]);
 
-    // 7 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
-    const int expected_num_args = 7 + 1 + 4 + 6 * num_dim_spatial + 1;
+    // program name, 7 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
+    const int expected_num_args = 1 + 7 + 1 + 4 + 6 * num_dim_spatial;
     if(argc != expected_num_args)
     {
         std::cout << "Received " << argc << " args"<< std::endl;
