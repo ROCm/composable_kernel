@@ -123,7 +123,6 @@ struct BuildKernel
                                                     ConvConfig::N_Warp_Tile,
                                                     ConvConfig::K_Warp_Tile,
                                                     ConvTraits::FixedGemmParams::TransposeC,
-                                                    MemOp,
                                                     ConvConfig::NumWaveGroups,
                                                     ConvTraits::FixedGemmParams::FixedVectorSize,
                                                     ConvTraits::VectorSizeC>;
