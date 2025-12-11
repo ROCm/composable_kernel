@@ -28,9 +28,9 @@ struct PracticeGemmHostPipeline
     {
 
         // Size of the entire problem
-        const auto M = a_dram.get_tensor_descriptor().get_length(number<0>{});     // M x K
-        const auto N = c_dram_ref.get_tensor_descriptor().get_length(number<1>{}); // M x N
-        const auto K = a_dram.get_tensor_descriptor().get_length(number<1>{});     // M x K
+        const auto M = a_dram.get_tensor_descriptor().get_length(number<0>{}); // M x K
+        const auto N = c_dram.get_tensor_descriptor().get_length(number<1>{}); // M x N
+        const auto K = a_dram.get_tensor_descriptor().get_length(number<1>{}); // M x K
 
         // Size of the block tile
         const auto MPerBlock = BlockTile::at(number<0>{});
@@ -83,7 +83,7 @@ struct PracticeGemmHostPipeline
         __shared__ char p_smem_char[block_gemm_pipeline.GetStaticLDSSize()];
         const auto c_block_tile =
             block_gemm_pipeline(a_block_window, b_block_window, num_loops_k, p_smem_char);
-        auto c_window = make_tile_window(c_dram_ref,
+        auto c_window = make_tile_window(c_dram,
                                          make_tuple(number<MPerBlock>{}, number<NPerBlock>{}),
                                          {tile_origin_m, tile_origin_n});
         store_tile(c_window, c_block_tile);
