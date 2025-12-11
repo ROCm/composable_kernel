@@ -253,6 +253,10 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         {
             return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
         }
+        else if (data_type == ConvDataType::F8_F8_F8)
+        {
+            return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, F8{}, F8{}, F8{}, F8{}, F8{});
+        }
     }
     else if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
     {
@@ -325,6 +329,10 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         {
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
         }
+        else if (data_type == ConvDataType::F8_F8_F8)
+        {
+            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F8{}, F8{}, F8{}, F8{}, F8{});
+        }
     }
     else if(num_dim_spatial == 2 && layout == ConvLayout::NGCHW_GKYXC_NGKHW)
     {
@@ -344,6 +352,14 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         {
             return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
         }
+        else if (data_type == ConvDataType::F8_F8_F8)
+        {
+            return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, F8{}, F8{}, F8{}, F8{}, F8{});
+        }
+        else if (data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
+        }
     }
     else if(num_dim_spatial == 2 && layout == ConvLayout::NGCHW_GKCYX_NGKHW)
     {
@@ -362,6 +378,14 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
             return profile(I2, NGCHW{}, GKCYX{}, NGKHW{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+        }
+        else if (data_type == ConvDataType::F8_F8_F8)
+        {
+            return profile(I2, NGCHW{}, GKCYX{}, NGKHW{}, F8{}, F8{}, F8{}, F8{}, F8{});
+        }
+        else if (data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return profile(I2, NGCHW{}, GKCYX{}, NGKHW{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
         }
     }
     else if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
