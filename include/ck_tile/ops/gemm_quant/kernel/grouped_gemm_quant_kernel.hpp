@@ -500,6 +500,25 @@ struct QuantGroupedGemmKernel
             // Run Epilogue Pipeline
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
+        else if constexpr(kQuantType == QuantType::ABQuantGrouped)
+        {
+            const auto& aq_block_window = gemm_tile_windows.at(Base::I1);
+            const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
+            // Run GEMM pipeline
+            const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
+                                                                          b_block_window,
+                                                                          aq_block_window,
+                                                                          bq_block_window,
+                                                                          num_loop,
+                                                                          has_hot_loop,
+                                                                          tail_num,
+                                                                          smem_ptr_0);
+
+            auto& c_block_window = gemm_tile_windows.at(Base::I4);
+
+            // Run Epilogue Pipeline
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+        }
         else
         {
             // Run GEMM pipeline
