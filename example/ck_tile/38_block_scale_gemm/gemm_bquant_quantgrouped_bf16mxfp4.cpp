@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
 // Copyright (c) , Advanced Micro Devices, Inc. All rights reserved.
+// SPDX-License-Identifier: MIT
 
 #include "run_gemm_quant_example.inc"
 
