@@ -242,24 +242,6 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                            typename Problem::UnifiedAttentionShape::Gemm0BlockWarps,
                                            typename Problem::UnifiedAttentionShape::Gemm0WarpTile>>;
 
-        // constexpr auto warp_gemm = []() {
-        //     if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
-        //                  std::is_same_v<typename Problem::KDataType, half_t> &&
-        //                  std::is_same_v<typename Problem::SaccDataType, float>)
-        //     {
-        //         /// NOTICE: in order to use load_tile_transpose() later for V tile, we cannot use
-        //         /// WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution here
-        //         return WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution<>{};
-        //     }
-        //     else if constexpr(std::is_same_v<typename Problem::QDataType, bf16_t> &&
-        //                       std::is_same_v<typename Problem::KDataType, bf16_t> &&
-        //                       std::is_same_v<typename Problem::SaccDataType, float>)
-        //     {
-        //         /// NOTICE: in order to use load_tile_transpose() later for V tile, we cannot use
-        //         /// WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution here
-        //         return WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution<>{};
-        //     }
-        // }();
         using WarpGemm =
             WarpGemmDispatcher<typename Problem::QDataType,
                                typename Problem::KDataType,
