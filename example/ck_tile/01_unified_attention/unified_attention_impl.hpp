@@ -58,16 +58,16 @@ struct unified_attention_kernel_traits
     static constexpr auto date_type  = DataType;
     static constexpr bool is_masking = IsMasking;
 
-    static constexpr index_t BLOCK_M    = 256;
+    static constexpr index_t kBlockM    = 256;
     static constexpr index_t BLOCK_SIZE = 32;
     static constexpr index_t HEAD_SIZE  = 128;
 
     // TODO please fix this to support also other num_queries_per_kv
     static constexpr index_t num_queries_per_kv = 1;
-    static constexpr index_t BLOCK_Q            = BLOCK_M / num_queries_per_kv;
+    static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
 
-    //                                    BLOCK_M BLOCK_Q   BLOCK_SIZE  HEAD_SIZE
-    using unified_attention_block_tile      = sequence<BLOCK_M, BLOCK_Q, BLOCK_SIZE, HEAD_SIZE>;
+    //                                    kBlockM kBlockQ   BLOCK_SIZE  HEAD_SIZE
+    using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
     using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
     // need to have 8 warps per workgroup to have warp specialization
     using unified_attention_block_warps = sequence<8, 1, 1>;
@@ -119,14 +119,14 @@ template <typename Kernel>
 float unified_attention_kernel_launch(const unified_attention_args& args,
                                       const stream_config& config)
 {
-    index_t BLOCK_Q = Kernel::BLOCK_Q;
+    index_t kBlockQ = Kernel::kBlockQ;
     assert(args.num_queries_per_kv == Kernel::num_queries_per_kv &&
            "argument num_queries_per_kv must equal compiled num_queries_per_kv");
     assert(args.BLOCK_SIZE == Kernel::BLOCK_SIZE &&
            "argument BLOCK_SIZE must equal compiled BLOCK_SIZE");
-    assert(BLOCK_Q == BLOCK_M / args.num_queries_per_kv &&
-           "BLOCK_Q must equal BLOCK_M / num_queries_per_kv");
-    index_t total_num_q_blocks = args.num_tokens / BLOCK_Q + args.num_seqs;
+    assert(kBlockQ == kBlockM / args.num_queries_per_kv &&
+           "kBlockQ must equal kBlockM / num_queries_per_kv");
+    index_t total_num_q_blocks = args.num_tokens / kBlockQ + args.num_seqs;
     auto kargs                 = Kernel::MakeKargs(args.q_ptr,
                                    args.k_ptr,
                                    args.v_ptr,

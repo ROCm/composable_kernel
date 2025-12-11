@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/unified_attention/block/block_rotary_embedding.hpp"
 
 namespace ck_tile {
 

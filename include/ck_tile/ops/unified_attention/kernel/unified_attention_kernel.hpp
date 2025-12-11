@@ -37,17 +37,16 @@ struct UnifiedAttentionKernel
     static constexpr bool kPadHeadDimQ = UnifiedAttentionPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = UnifiedAttentionPipeline::kPadHeadDimV;
 
-    // TODO add yjese
-    static constexpr index_t HEAD_SIZE        = UnifiedAttentionPipeline::HEAD_SIZE;
-    static constexpr index_t HEAD_SIZE_PADDED = UnifiedAttentionPipeline::HEAD_SIZE_PADDED;
+    static constexpr index_t kHeadDim       = UnifiedAttentionPipeline::kHeadDim;
+    static constexpr index_t kHeadDimPadded = UnifiedAttentionPipeline::kHeadDimPadded;
 
-    // BLOCK_Q = BLOCK_M // num_queries_per_kv
-    // BLOCK_Q is the block size for q seqlen
-    /// static constexpr index_t BLOCK_Q = UnifiedAttentionPipeline::BLOCK_Q;
-    static constexpr index_t BLOCK_M = UnifiedAttentionPipeline::BLOCK_M;
-    static constexpr index_t BLOCK_Q = UnifiedAttentionPipeline::BLOCK_Q;
+    // kBlockQ = kBlockM // num_queries_per_kv
+    // kBlockQ is the block size for q seqlen
+    /// static constexpr index_t kBlockQ = UnifiedAttentionPipeline::kBlockQ;
+    static constexpr index_t kBlockM = UnifiedAttentionPipeline::kBlockM;
+    static constexpr index_t kBlockQ = UnifiedAttentionPipeline::kBlockQ;
     // BLOCK size for K seqlen
-    static constexpr index_t BLOCK_SIZE = UnifiedAttentionPipeline::BLOCK_SIZE;
+    static constexpr index_t kPageBlockSize = UnifiedAttentionPipeline::kPageBlockSize;
 
     // kargs use aggregate initializer, so no constructor will provided
     // use inheritance to minimize karg size
@@ -56,8 +55,8 @@ struct UnifiedAttentionKernel
     struct UnifiedAttentionCommonKargs
     {
         const void* q_ptr;
-        const void* k_ptr; // [num_blks, page_blk_size, num_kv_heads, head_size]
-        const void* v_ptr; // [num_blks, page_blk_size, num_kv_heads, head_size]
+        const void* k_ptr; // [num_blks, page_size, num_kv_heads, head_size]
+        const void* v_ptr; // [num_blks, page_size, num_kv_heads, head_size]
         void* o_ptr;
 
         ck_tile::index_t num_blks;
@@ -72,7 +71,7 @@ struct UnifiedAttentionKernel
         float scale_v;
         float scale_out;
 
-        ck_tile::index_t page_blk_size;
+        ck_tile::index_t page_size;
 
         ck_tile::index_t total_num_q_blocks;
         ck_tile::index_t query_stride_0;
@@ -113,7 +112,7 @@ struct UnifiedAttentionKernel
                                                   float scale_k,
                                                   float scale_v,
                                                   float scale_out,
-                                                  ck_tile::index_t page_blk_size,
+                                                  ck_tile::index_t page_size,
                                                   ck_tile::index_t total_num_q_blocks,
                                                   ck_tile::index_t query_stride_0,
                                                   ck_tile::index_t query_stride_1,
@@ -145,7 +144,7 @@ struct UnifiedAttentionKernel
                      scale_k,
                      scale_v,
                      scale_out,
-                     page_blk_size,
+                     page_size,
                      total_num_q_blocks,
                      query_stride_0,
                      query_stride_1,
@@ -213,7 +212,6 @@ struct UnifiedAttentionKernel
 
         return ck_tile::make_tuple(pid % num_head_kv, pid / num_head_kv);
     }
-
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
@@ -233,30 +231,27 @@ struct UnifiedAttentionKernel
 
         const index_t num_queries_per_kv = kargs.num_queries_per_kv;
 
-        assert(BLOCK_M / num_queries_per_kv == BLOCK_Q);
+        assert(kBlockM / num_queries_per_kv == kBlockQ);
 
-        // const index_t BLOCK_Q = BLOCK_M / num_queries_per_kv;
         // for simplicity, batch stride we just modify the pointer
         // const index_t num_head_q = kargs.num_head_q;
-
-        // const index_t num_head_k = num_head_q / num_queries_per_kv;
 
         // divide problem
         const auto [kv_head_idx, q_block_global_idx] = GetTileIndex(pid, kargs);
 
         // grid size is (num_kv_heads, total_num_q_blocks)
-        // total_num_q_blocks = q.shape[0] // BLOCK_Q + num_seqs
+        // total_num_q_blocks = q.shape[0] // kBlockQ + num_seqs
         // q.shape[0] is total number of query tokens across all batches
-        // one q_block spans BLOCK_Q = BLOCK_M // num_queries_per_kv number of query token groups.
+        // one q_block spans kBlockQ = kBlockM // num_queries_per_kv number of query token groups.
         // One query token group shares one kv token
 
         const index_t seq_idx = find_seq_idx(kargs.query_start_len_ptr,
                                              q_block_global_idx,
                                              kargs.num_seqs,
-                                             BLOCK_Q,
+                                             kBlockQ,
                                              true); // which batch
 
-        const index_t q_block_start_idx = kargs.query_start_len_ptr[seq_idx] / BLOCK_Q + seq_idx;
+        const index_t q_block_start_idx = kargs.query_start_len_ptr[seq_idx] / kBlockQ + seq_idx;
 
         const index_t q_block_local_idx =
             amd_wave_read_first_lane(q_block_global_idx - q_block_start_idx);
@@ -268,18 +263,18 @@ struct UnifiedAttentionKernel
             amd_wave_read_first_lane(cur_batch_in_all_stop_index - cur_batch_in_all_start_index);
 
         // TODO check if we get the block size info from pipeline
-        if(q_block_local_idx * BLOCK_Q >= cur_batch_query_len)
+        if(q_block_local_idx * kBlockQ >= cur_batch_query_len)
         {
             return;
         }
 
-        const index_t query_pos = amd_wave_read_first_lane(q_block_local_idx * BLOCK_Q);
+        const index_t query_pos = amd_wave_read_first_lane(q_block_local_idx * kBlockQ);
         const index_t seq_len   = kargs.seq_lens_ptr[seq_idx];
 
         const index_t context_len = amd_wave_read_first_lane(seq_len - cur_batch_query_len);
 
         index_t _max_seq_prefix_len = amd_wave_read_first_lane(
-            (context_len + q_block_local_idx * BLOCK_Q + (BLOCK_M - 1) + 1));
+            (context_len + q_block_local_idx * kBlockQ + (kBlockM - 1) + 1));
 
         if(seq_len < _max_seq_prefix_len)
         {
@@ -288,7 +283,7 @@ struct UnifiedAttentionKernel
 
         const auto max_seq_prefix_len = _max_seq_prefix_len;
         const index_t num_blocks =
-            amd_wave_read_first_lane((max_seq_prefix_len + BLOCK_SIZE - 1) / BLOCK_SIZE);
+            amd_wave_read_first_lane((max_seq_prefix_len + kPageBlockSize - 1) / kPageBlockSize);
 
         // TODO sliding window
         const index_t num_blocks_start = 0;
@@ -316,30 +311,30 @@ struct UnifiedAttentionKernel
         ODataType* o_ptr       = reinterpret_cast<ODataType*>(kargs.o_ptr) + o_ptr_offset;
 
         index_t query_len_padded =
-            amd_wave_read_first_lane(integer_divide_ceil(cur_batch_query_len, BLOCK_Q) * BLOCK_Q);
-        // const bool is_query_len_padded = (cur_batch_query_len % BLOCK_Q == 0);
+            amd_wave_read_first_lane(integer_divide_ceil(cur_batch_query_len, kBlockQ) * kBlockQ);
+        // const bool is_query_len_padded = (cur_batch_query_len % kBlockQ == 0);
 
         // Q/K/V DRAM and DRAM window
         const auto q_dram = [&]() {
             const auto q_dram_base = make_naive_tensor_view<address_space_enum::global>(
                 q_ptr,
-                make_tuple(cur_batch_query_len, num_queries_per_kv, HEAD_SIZE),
+                make_tuple(cur_batch_query_len, num_queries_per_kv, kHeadDim),
                 make_tuple(kargs.query_stride_0, kargs.query_stride_1, 1),
                 number<UnifiedAttentionPipeline::kAlignmentQ>{},
                 number<1>{});
 
             const auto q_dram_pad =
-                pad_tensor_view( // aling seqlen with BLOCK_Q and head dim with HEAD_SIZE_PADDED
+                pad_tensor_view( // aling seqlen with kBlockQ and head dim with kHeadDimPadded
                     q_dram_base,
                     // block sizes
-                    make_tuple(number<BLOCK_Q>{}, 1, HEAD_SIZE_PADDED),
+                    make_tuple(number<kBlockQ>{}, 1, kHeadDimPadded),
                     sequence<true, false, kPadHeadDimQ>{}); // pads to (seq_len_padded, num_head_q,
-                                                            // HEAD_SIZE_PADDED)
+                                                            // kHeadDimPadded)
 
             const auto q_dram_merged = transform_tensor_view(
                 q_dram_pad,
                 make_tuple(make_merge_transform(make_tuple(query_len_padded, num_queries_per_kv)),
-                           make_pass_through_transform(HEAD_SIZE_PADDED)),
+                           make_pass_through_transform(kHeadDimPadded)),
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{},
                            sequence<1>{})); // flattens the first two dims, head idx is the fastest
@@ -354,46 +349,47 @@ struct UnifiedAttentionKernel
         // stride for dim 0 (num_queries_per_kv * head_dim, head_dim, 1)
         auto q_dram_window =
             make_tile_window(q_dram,
-                             make_tuple(number<BLOCK_M>{}, number<HEAD_SIZE_PADDED>{}),
+                             make_tuple(number<kBlockM>{}, number<kHeadDimPadded>{}),
                              {query_pos * num_queries_per_kv, 0});
 
         const auto k_dram = [&]() {
             // HEAD dim is skipped as defined in the ptrs
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.num_blks * kargs.page_blk_size, HEAD_SIZE),
+                make_tuple(kargs.num_blks * kargs.page_size, kHeadDim),
                 make_tuple(kargs.stride_k_cache_1, kargs.stride_k_cache_3),
                 number<UnifiedAttentionPipeline::kAlignmentK>{},
                 number<1>{});
 
-            const auto k_dram_pad = pad_tensor_view(k_dram_naive,
-                                                    // TODO can the BLOCK_SIZE_RAW needs padding?
-                                                    make_tuple(BLOCK_SIZE, HEAD_SIZE_PADDED),
-                                                    sequence<false, kPadHeadDimQ>{});
+            const auto k_dram_pad =
+                pad_tensor_view(k_dram_naive,
+                                // TODO can the kPageBlockSize_RAW needs padding?
+                                make_tuple(kPageBlockSize, kHeadDimPadded),
+                                sequence<false, kPadHeadDimQ>{});
 
             return k_dram_pad;
         }();
 
         auto k_dram_window = make_tile_window(
-            k_dram, make_tuple(number<BLOCK_SIZE>{}, number<HEAD_SIZE_PADDED>{}), {0, 0});
+            k_dram, make_tuple(number<kPageBlockSize>{}, number<kHeadDimPadded>{}), {0, 0});
 
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
-                make_tuple(kargs.num_blks * kargs.page_blk_size, HEAD_SIZE),
+                make_tuple(kargs.num_blks * kargs.page_size, kHeadDim),
                 make_tuple(kargs.stride_v_cache_1, kargs.stride_v_cache_3),
                 number<UnifiedAttentionPipeline::kAlignmentV>{},
                 number<1>{});
 
             const auto v_dram_pad = pad_tensor_view(v_dram_naive,
-                                                    make_tuple(BLOCK_SIZE, HEAD_SIZE_PADDED),
+                                                    make_tuple(kPageBlockSize, kHeadDimPadded),
                                                     sequence<false, kPadHeadDimQ>{});
 
             return v_dram_pad;
         }();
 
         auto v_dram_window = make_tile_window(
-            v_dram, make_tuple(number<BLOCK_SIZE>{}, number<HEAD_SIZE_PADDED>{}), {0, 0});
+            v_dram, make_tuple(number<kPageBlockSize>{}, number<kHeadDimPadded>{}), {0, 0});
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
@@ -409,8 +405,8 @@ struct UnifiedAttentionKernel
                 return FmhaMask{cur_batch_query_len, seq_len};
         }();
 
-        const index_t kv_page_size_in_blocks = kargs.page_blk_size / BLOCK_SIZE;
-        assert(kv_page_size_in_blocks >= 1); // BLOCK_SIZE <= page_blk_size
+        const index_t kv_page_size_in_blocks = kargs.page_size / kPageBlockSize;
+        assert(kv_page_size_in_blocks >= 1); // kPageBlockSize <= page_size
 
         auto o_acc_tile = [&]() {
             return UnifiedAttentionPipeline{}(q_dram_window,
@@ -430,23 +426,23 @@ struct UnifiedAttentionKernel
         auto o_dram = [&]() {
             const auto o_dram_base = make_naive_tensor_view<address_space_enum::global>(
                 o_ptr,
-                make_tuple(cur_batch_query_len, num_queries_per_kv, HEAD_SIZE),
+                make_tuple(cur_batch_query_len, num_queries_per_kv, kHeadDim),
                 make_tuple(kargs.output_stride_0, kargs.output_stride_1, 1),
                 number<UnifiedAttentionPipeline::kAlignmentO>{},
                 number<1>{});
 
             const auto o_dram_pad =
-                pad_tensor_view( // aling cu_seqlen with BLOCK_Q and head dim with HEAD_SIZE_PADDED
+                pad_tensor_view( // aling cu_seqlen with kBlockQ and head dim with kHeadDimPadded
                     o_dram_base,
                     // block sizes
-                    make_tuple(BLOCK_Q, 1, HEAD_SIZE_PADDED),
+                    make_tuple(kBlockQ, 1, kHeadDimPadded),
                     sequence<true, false, kPadHeadDimQ>{}); // pads to (seq_len_padded, num_head_q,
-                                                            // HEAD_SIZE_PADDED)
+                                                            // kHeadDimPadded)
 
             const auto o_dram_merged = transform_tensor_view(
                 o_dram_pad,
                 make_tuple(make_merge_transform(make_tuple(query_len_padded, num_queries_per_kv)),
-                           make_pass_through_transform(HEAD_SIZE_PADDED)),
+                           make_pass_through_transform(kHeadDimPadded)),
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -455,7 +451,7 @@ struct UnifiedAttentionKernel
 
         auto o_dram_window =
             make_tile_window(o_dram,
-                             make_tuple(number<BLOCK_M>{}, number<HEAD_SIZE_PADDED>{}),
+                             make_tuple(number<kBlockM>{}, number<kHeadDimPadded>{}),
                              {query_pos * num_queries_per_kv, 0});
 
         EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);

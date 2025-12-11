@@ -47,21 +47,22 @@ struct TileUnifiedAttentionShape
 
     static constexpr index_t NumWarps = max(NumGemm0Warps, NumGemm1Warps);
 
-    static constexpr index_t BLOCK_M = BlockTile::at(
+    static constexpr index_t kBlockM = BlockTile::at(
         number<0>{}); // tile size along the flattened batch dimension (: num_queries_per_kv * BS)
-    static constexpr index_t BLOCK_Q = BlockTile::at(
+    static constexpr index_t kBlockQ = BlockTile::at(
         number<1>{}); // tile size along the flattened batch dimension (: num_queries_per_kv * BS)
-    // static constexpr index_t BLOCK_M = BlockTile::at(number<1>{}); // tile size along q seqlen *
+    // static constexpr index_t kBlockM = BlockTile::at(number<1>{}); // tile size along q seqlen *
     // num_queries_per_kv (q_head//kv_head)
-    static constexpr index_t BLOCK_SIZE = BlockTile::at(number<2>{}); //  BLOCK size for K seqlen
-    static constexpr index_t HEAD_SIZE  = BlockTile::at(number<3>{}); //  BLOCK size for K seqlen
+    static constexpr index_t kPageBlockSize =
+        BlockTile::at(number<2>{});                                 //  BLOCK size for K seqlen
+    static constexpr index_t kHeadDim = BlockTile::at(number<3>{}); //  BLOCK size for K seqlen
 
     // static constexpr index_t kQKHeaddim =
     //     BlockTile::at(number<5>{}); // total length of K0, used for pipeline that need load Q at
     //                                 // once (or repeately load Q as a whole tile)
     // static_assert(kQKHeaddim % kK0 == 0, "kQKHeaddim should be divisible by kK0");
 
-    static constexpr index_t HEAD_SIZE_PADDED = ceil_to_qualified_tile_length<HEAD_SIZE>();
+    static constexpr index_t kHeadDimPadded = ceil_to_qualified_tile_length<kHeadDim>();
 
     // v, rowmajor : seqlen*hdim, colmajor : hdim*seqlen
     static constexpr bool IsVLayoutRowMajor = IsVLayoutRowMajor_;
