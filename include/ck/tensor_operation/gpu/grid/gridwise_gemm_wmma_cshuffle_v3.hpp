@@ -618,8 +618,9 @@ struct GridwiseGemm_wmma_cshuffle_v3
             __builtin_amdgcn_readfirstlane(block_work_idx[Number<BlockMapNBlockIndex>{}]);
 
         // BScale struct (Empty)
-        using BScale        = typename BlockwiseGemmPipe::Empty;
-        auto b_scale_struct = BScale{};
+        using Scale         = typename BlockwiseGemmPipe::Empty;
+        auto a_scale_struct = Scale{};
+        auto b_scale_struct = Scale{};
 
         const index_t num_k_block_per_scale = GetKBlockPerScale();
 
@@ -627,6 +628,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                            decltype(bs_grid_desc_bk0_n_bk1),
                            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
                            decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                           decltype(a_scale_struct),
                            decltype(b_scale_struct),
                            decltype(epilogue_args),
                            HasMainKBlockLoop,
@@ -646,6 +648,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                     block_m_id,
                                     block_n_id,
                                     num_k_block_per_scale,
+                                    a_scale_struct,
                                     b_scale_struct,
                                     epilogue_args,
                                     k_id);

@@ -10,7 +10,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_v2.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_ab_scale.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3_ab_scale.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -24,10 +24,13 @@ namespace device {
 
 template <typename ALayout,
           typename BLayout,
+          typename DsLayout,
           typename CLayout,
           typename ADataType,
+          typename AScaleDataType,
           typename BDataType,
           typename BScaleDataType,
+          typename DsDataType,
           typename CDataType,
           typename AccDataType,
           typename CShuffleDataType,
@@ -36,6 +39,7 @@ template <typename ALayout,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
           index_t BlockSize,
+          index_t ScaleBlockM, // scale block for M
           index_t ScaleBlockN, // scale block for N
           index_t ScaleBlockK, // scale block for K
           index_t MPerBlock,
@@ -64,47 +68,56 @@ template <typename ALayout,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
+          typename CShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           bool PermuteA                               = false,
           bool PermuteB                               = false>
-struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
-                                                                     BLayout,
-                                                                     CLayout,
-                                                                     ADataType,
-                                                                     BDataType,
-                                                                     BScaleDataType,
-                                                                     CDataType,
-                                                                     ScaleBlockN,
-                                                                     ScaleBlockK,
-                                                                     AElementwiseOperation,
-                                                                     BElementwiseOperation,
-                                                                     CElementwiseOperation>
+struct DeviceGemmMultiD_BlockScale_Wmma_CShuffle_V3_BPreshuffle
+    : public DeviceGemmMultipleD_BlockScale_BPreshuffleSplitK<ALayout,
+                                                              BLayout,
+                                                              DsLayout,
+                                                              CLayout,
+                                                              ADataType,
+                                                              AScaleDataType,
+                                                              BDataType,
+                                                              BScaleDataType,
+                                                              DsDataType,
+                                                              CDataType,
+                                                              ScaleBlockM,
+                                                              ScaleBlockN,
+                                                              ScaleBlockK,
+                                                              AElementwiseOperation,
+                                                              BElementwiseOperation,
+                                                              CElementwiseOperation>
 {
+    static constexpr index_t NumDTensor = DsDataType::Size();
+
+    using AScaleLayout = tensor_layout::gemm::ColumnMajor;
+    using BScaleLayout = BLayout;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3_ab_scale<
         ALayout,
         BLayout,
-        Tuple<>, // DsLayout
+        DsLayout,
         CLayout,
         Tuple<ADataType>,
-        void, // AScaleType
+        AScaleDataType,
         Tuple<BDataType>,
         BScaleDataType,
         AccDataType,
         CShuffleDataType,
-        Tuple<>, // DsDataType
+        DsDataType,
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
         GemmSpec,
         BlockSize,
-        0, // ScaleBlockM
+        ScaleBlockM,
         ScaleBlockN,
         ScaleBlockK,
         MPerBlock,
@@ -135,21 +148,25 @@ struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        Sequence<CShuffleBlockTransferScalarPerVector_NPerBlock>,
+        CShuffleBlockTransferScalarPerVectors,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        true,
+        AScaleLayout,
+        BScaleLayout>;
 
     using Argument = typename GridwiseGemm::Argument;
+    int GetPreShuffleParameters() override { return NPerWmma; }
 
     using DeviceGemmCommon =
         DeviceGemm_Wmma_CShuffleV3_Common<GridwiseGemm,
                                           Tuple<ADataType>,
                                           Tuple<BDataType>,
-                                          Tuple<>,
+                                          DsDataType,
                                           CDataType,
                                           MPerBlock,
                                           NPerBlock,
@@ -158,17 +175,25 @@ struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
                                           AK1,
                                           BK1,
                                           GemmSpec,
-                                          Sequence<CShuffleBlockTransferScalarPerVector_NPerBlock>,
+                                          CShuffleBlockTransferScalarPerVectors,
                                           BlkGemmPipeSched,
                                           BlkGemmPipelineVer,
                                           ComputeTypeA,
-                                          ComputeTypeB>;
+                                          ComputeTypeB,
+                                          true>; // IsBPreshuffle
 
     // Invoker
     using Invoker = typename DeviceGemmCommon::Invoker;
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        // with splitk the implementation doesn't work
+        // when KRead % ScaleBlockK != 0, independently of K padding
+        if(arg.KBatch > 1 && arg.KRead % ScaleBlockK != 0)
+        {
+            return false;
+        }
+
         return DeviceGemmCommon::IsSupportedArgument(arg);
     }
 
@@ -178,41 +203,47 @@ struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    index_t GetKPerBlock() override { return KPerBlock; }
-
-    bool GetPermuteB() override { return PermuteB; }
-
-    static auto MakeArgument(const ADataType* p_a,
-                             const BDataType* p_b,
-                             CDataType* p_c,
+    static auto MakeArgument(const void* p_a,
+                             const void* p_b,
+                             std::array<const void*, NumDTensor> p_ds,
+                             void* p_e,
                              index_t M,
                              index_t N,
                              index_t K,
                              index_t StrideA,
                              index_t StrideB,
+                             const std::array<index_t, NumDTensor> StrideDs,
                              index_t StrideC,
-                             index_t StrideScaleB,
-                             const BScaleDataType* p_b_scale,
-                             index_t KBatch,
+                             const void* p_a_scale,
+                             const void* p_b_scale,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation cde_element_op)
+                             CElementwiseOperation cde_element_op,
+                             index_t KBatch)
     {
+        index_t StrideScaleA = ck::is_same_v<AScaleLayout, tensor_layout::gemm::RowMajor>
+                                   ? math::integer_divide_ceil(K, ScaleBlockK)
+                                   : math::integer_divide_ceil(M, ScaleBlockM);
+
+        index_t StrideScaleB = ck::is_same_v<BScaleLayout, ck::tensor_layout::gemm::ColumnMajor>
+                                   ? math::integer_divide_ceil(K, ScaleBlockK)
+                                   : math::integer_divide_ceil(N, ScaleBlockN);
+
         return Argument{std::array<const void*, 1>{p_a},
                         std::array<const void*, 1>{p_b},
-                        std::array<const void*, 0>{}, // p_ds_grid_
-                        p_c,
+                        p_ds,
+                        static_cast<CDataType*>(p_e),
                         M,
                         N,
                         K,
                         std::array<index_t, 1>{StrideA},
                         std::array<index_t, 1>{StrideB},
-                        std::array<index_t, 0>{}, // StrideDs_
+                        StrideDs,
                         StrideC,
-                        0, // StrideScaleA
+                        StrideScaleA,
                         StrideScaleB,
-                        nullptr,
-                        p_b_scale,
+                        static_cast<const AScaleDataType*>(p_a_scale),
+                        static_cast<const BScaleDataType*>(p_b_scale),
                         KBatch,
                         a_element_op,
                         b_element_op,
@@ -222,36 +253,47 @@ struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                      const void* p_b,
-                                                      void* p_c,
-                                                      index_t M,
-                                                      index_t N,
-                                                      index_t K,
-                                                      index_t StrideA,
-                                                      index_t StrideB,
-                                                      index_t StrideC,
-                                                      index_t StrideScaleB,
-                                                      const void* p_b_scale,
-                                                      index_t KBatch,
-                                                      AElementwiseOperation a_element_op,
-                                                      BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a,
+                        const void* p_b,
+                        std::array<const void*, NumDTensor> p_ds,
+                        void* p_e,
+                        index_t M,
+                        index_t N,
+                        index_t K,
+                        index_t StrideA,
+                        index_t StrideB,
+                        const std::array<ck::index_t, NumDTensor> StrideDs,
+                        index_t StrideC,
+                        const void* p_a_scale,
+                        const void* p_b_scale,
+                        AElementwiseOperation a_element_op,
+                        BElementwiseOperation b_element_op,
+                        CElementwiseOperation c_element_op,
+                        index_t KBatch) override
     {
+        index_t StrideScaleA = ck::is_same_v<AScaleLayout, tensor_layout::gemm::RowMajor>
+                                   ? math::integer_divide_ceil(K, ScaleBlockK)
+                                   : math::integer_divide_ceil(M, ScaleBlockM);
+
+        index_t StrideScaleB = ck::is_same_v<BScaleLayout, ck::tensor_layout::gemm::ColumnMajor>
+                                   ? math::integer_divide_ceil(K, ScaleBlockK)
+                                   : math::integer_divide_ceil(N, ScaleBlockN);
+
         return std::make_unique<Argument>(std::array<const void*, 1>{p_a},
                                           std::array<const void*, 1>{p_b},
-                                          std::array<const void*, 0>{}, // p_ds_grid_
-                                          static_cast<CDataType*>(p_c),
+                                          p_ds,
+                                          static_cast<CDataType*>(p_e),
                                           M,
                                           N,
                                           K,
                                           std::array<index_t, 1>{StrideA},
                                           std::array<index_t, 1>{StrideB},
-                                          std::array<index_t, 0>{}, // StrideDs_
+                                          StrideDs,
                                           StrideC,
-                                          0, // StrideScaleA
+                                          StrideScaleA,
                                           StrideScaleB,
-                                          nullptr, // p_a_scale
+                                          static_cast<const AScaleDataType*>(p_a_scale),
                                           static_cast<const BScaleDataType*>(p_b_scale),
                                           KBatch,
                                           a_element_op,
@@ -282,7 +324,7 @@ struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
             {BlockGemmPipelineVersion::v5, "v5"}};
 
         // clang-format off
-        str << "DeviceGemm_Wmma_CShuffleV3_BScale"
+        str << "DeviceGemmMultiD_BlockScale_Wmma_CShuffle_V3_BPreshuffle"
             << "<"
             << getGemmSpecializationString(GemmSpec) << ", "
             << std::string(ALayout::name)[0]
