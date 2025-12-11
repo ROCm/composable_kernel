@@ -1807,13 +1807,10 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             return;
 
         row_offset  = x * ori_row_stride + y * group_size;
-        using vec_i = ck_tile::vec_t<DTYPE_I, thread_data_size>;
+        using vec_i = ck_tile::vec_t<DTYPE_I, thread_data_size>;  // TODO: use dtype_vector.hpp
         static constexpr int32_t vec_size_o = thread_data_size;
         using vec_o = ck_tile::vec_t<DTYPE_O, vec_size_o>;
-        const float inverted_DTYPE_MAX =
-            std::is_same_v<DTYPE_O, ck_tile::fp4x2_t>
-                ? 0.25
-                : (1. / ck::type_convert<float>(ck_tile::numeric<DTYPE_O>::max()));
+        const float inverted_DTYPE_MAX = (1. / ck::type_convert<float>(ck::numeric<DTYPE_O>::max()));
 
         static constexpr int32_t ooba_o = 4 / sizeof(DTYPE_O);
         const int64_t oob_o = (ori_rows * ori_cols + ooba_o - 1) / ooba_o * ooba_o;
