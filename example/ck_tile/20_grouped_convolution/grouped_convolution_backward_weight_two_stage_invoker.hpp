@@ -115,25 +115,11 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
         ck_tile::GroupedConvBwdWeightHostArgs ws_args = ck_tile::GroupedConvBwdWeightHostArgs(args);
         auto c_ptr                                    = ws_args.wei_ptr;
         ws_args.wei_ptr                               = ws_m_n_dev_buf.GetDeviceBuffer();
-        auto kargs                                    = Kernel::MakeKernelArgs(ws_args);
 
-<<<<<<< HEAD
+        const auto kargs                              = Kernel::MakeKernelArgs(ws_args);
         const dim3 grids                              = Kernel::GridSize(kargs);
         const dim3 blocks                             = Kernel::BlockSize();
-=======
-        const ck_tile::index_t spatial_lengths_accum =
-            std::accumulate(args.filter_spatial_lengths_.begin(),
-                            args.filter_spatial_lengths_.end(),
-                            1,
-                            std::multiplies<ck_tile::index_t>());
-        ck_tile::DeviceMem ws_m_n_dev_buf(args.G_ * args.K_ * args.C_ * spatial_lengths_accum *
-                                          sizeof(WorkspaceDataType));
-        ck_tile::GroupedConvBwdWeightHostArgs ws_args = ck_tile::GroupedConvBwdWeightHostArgs(args);
-        auto c_ptr                                    = ws_args.wei_ptr;
-        ws_args.wei_ptr                               = ws_m_n_dev_buf.GetDeviceBuffer();
-        const auto kargs                              = Kernel::MakeKernelArgs(ws_args);
->>>>>>> origin/develop
-
+        
         if(!Kernel::IsSupportedArgument(kargs))
         {
             throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
