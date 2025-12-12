@@ -51,7 +51,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
-        
+
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             karg.p_sorted_token_ids,
             karg.p_sorted_expert_ids,
@@ -311,7 +311,8 @@ struct GridwiseMoeGemmBlockScale
         constexpr auto KReadVec = math::lcm(AK1Number, BK1Number);
         // auto K_t                = K_Batch * KReadVec;
         // return (K + K_t - 1) / K_t * KReadVec;
-        return K_Batch == 1 ? math::integer_divide_ceil(K, KReadVec) * KReadVec : K_Batch * KPerBlock;
+        return K_Batch == 1 ? math::integer_divide_ceil(K, KReadVec) * KReadVec
+                            : K_Batch * KPerBlock;
     }
 
     __host__ __device__ static auto CalculateMBlock(index_t M)
@@ -747,28 +748,28 @@ struct GridwiseMoeGemmBlockScale
         {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = k_id * karg.KRead / APackedSize;
+                a_k_split_offset      = k_id * karg.KRead / APackedSize;
                 ascale_k_split_offset = math::integer_divide_floor(a_k_split_offset, ScaleBlockK);
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_k_split_offset = k_id * karg.KRead * karg.StrideA;
+                a_k_split_offset      = k_id * karg.KRead * karg.StrideA;
                 ascale_k_split_offset = math::integer_divide_floor(a_k_split_offset, ScaleBlockK);
             }
 
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = k_id * karg.KRead * karg.StrideB;
+                b_k_split_offset      = k_id * karg.KRead * karg.StrideB;
                 bscale_k_split_offset = math::integer_divide_floor(b_k_split_offset, ScaleBlockK);
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
                 // KPack * NLane * KLane * K0 * N0
                 b_k_split_offset = k_id * karg.KRead * NLane / BPackedSize;
-                bscale_k_split_offset = k_id * karg.KRead / ScaleBlockK + k_id * NLane / ScaleBlockN;
+                bscale_k_split_offset =
+                    k_id * karg.KRead / ScaleBlockK + k_id * NLane / ScaleBlockN;
             }
-            
-            
+
             // if(k_id < karg.KBatch - 1)
             // {
             //     karg.K = karg.KRead;
@@ -925,8 +926,8 @@ struct GridwiseMoeGemmBlockScale
     }
 
     using BlockwiseGemmPipe =
-        remove_cvref_t<decltype(BlockGemmBlockMoeScaleBPreshufflePipeline_Selector<
-                                BlkGemmPipelineVer,
+        remove_cvref_t<decltype(BlockGemmBlockMoeScaleBPreshufflePipeline_Selector <
+                                    BlkGemmPipelineVer,
                                 BlkGemmPipeSched,
                                 BlockSize,
                                 ADataType,
@@ -952,7 +953,7 @@ struct GridwiseMoeGemmBlockScale
                                 MXdlPerWave,
                                 NXdlPerWave,
                                 KPack,
-                                IsInputGemm && !IsSplitK>())>;
+                                IsInputGemm && !IsSplitK > ())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -1202,9 +1203,9 @@ struct GridwiseMoeGemmBlockScale
                                BElementwiseOperation b_element_op,
                                CElementwiseOperation c_element_op)
     {
-        ignore                           = b_element_op;
-        index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N * (IsInputGemm && IsSplitK ? 2 : 1));
-        index_t BK0Shuffled              = CalculateBK0Shuffled(problem.K);
+        ignore              = b_element_op;
+        index_t BN0Shuffled = CalculateBN0Shuffled(problem.N * (IsInputGemm && IsSplitK ? 2 : 1));
+        index_t BK0Shuffled = CalculateBK0Shuffled(problem.K);
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
             problem.MPadded,
@@ -1228,7 +1229,8 @@ struct GridwiseMoeGemmBlockScale
                        math::integer_divide_ceil(problem.K, ScaleBlockK)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(math::integer_divide_ceil(problem.N * (IsInputGemm && IsSplitK ? 2 : 1), ScaleBlockN),
+            make_tuple(math::integer_divide_ceil(problem.N * (IsInputGemm && IsSplitK ? 2 : 1),
+                                                 ScaleBlockN),
                        math::integer_divide_ceil(problem.K, ScaleBlockK)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
 
@@ -1384,8 +1386,10 @@ struct GridwiseMoeGemmBlockScale
         decltype(c_thread_buf) c_thread_buf_up;
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
-            problem.KBatch == 1 ?(a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-            KPerBlock : problem.KBatch);
+            problem.KBatch == 1
+                ? (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
+                      KPerBlock
+                : problem.KBatch);
         constexpr index_t ScaleSliceSizeM = MXdlPerWave;
         constexpr index_t ScaleSliceSizeN = math::integer_divide_ceil(NPerBlock, ScaleBlockN);
         constexpr index_t ScaleSliceSizeK = math::integer_divide_ceil(KPerBlock, ScaleBlockK);
@@ -1755,8 +1759,12 @@ struct GridwiseMoeGemmBlockScale
 
             using EDataType = CDataType;
 
-            const auto ds_grid_desc_m_n = MakeDsGridDescriptor_M_N(
-                problem.M, problem.MPadded, problem.N * (IsInputGemm && IsSplitK ? 2 : 1), problem.NPadded  * (IsInputGemm && IsSplitK ? 2 : 1), problem.StrideDs);
+            const auto ds_grid_desc_m_n =
+                MakeDsGridDescriptor_M_N(problem.M,
+                                         problem.MPadded,
+                                         problem.N * (IsInputGemm && IsSplitK ? 2 : 1),
+                                         problem.NPadded * (IsInputGemm && IsSplitK ? 2 : 1),
+                                         problem.StrideDs);
 
             const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
                 MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -1887,7 +1895,8 @@ struct GridwiseMoeGemmBlockScale
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
-                    scatter_offsets(m0) = token_offset * problem.N * (IsInputGemm && IsSplitK ? 2 : 1);
+                    scatter_offsets(m0) =
+                        token_offset * problem.N * (IsInputGemm && IsSplitK ? 2 : 1);
                 });
 
                 block_sync_lds();
@@ -2137,8 +2146,10 @@ struct GridwiseMoeGemmBlockScale
         decltype(c_thread_buf) c_thread_buf_up;
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
-            problem.KBatch == 1 ?(a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-            KPerBlock : problem.KBatch);
+            problem.KBatch == 1
+                ? (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
+                      KPerBlock
+                : problem.KBatch);
 
         // scale
         constexpr index_t ScaleSliceSizeM = MXdlPerWave;
@@ -2631,7 +2642,8 @@ struct GridwiseMoeGemmBlockScale
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
-                    scatter_offsets(m0) = token_offset * problem.N * (IsInputGemm && IsSplitK ? 2 : 1);
+                    scatter_offsets(m0) =
+                        token_offset * problem.N * (IsInputGemm && IsSplitK ? 2 : 1);
                 });
 
                 block_sync_lds();

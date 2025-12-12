@@ -22,8 +22,8 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename ComputeTypeA   = AccDataType,
-          typename ComputeTypeB   = AccDataType>
+          typename ComputeTypeA = AccDataType,
+          typename ComputeTypeB = AccDataType>
 struct ReferenceMoeGemm1BlockScaleSplitK : public device::BaseOperator
 {
     // Argument
@@ -109,20 +109,20 @@ struct ReferenceMoeGemm1BlockScaleSplitK : public device::BaseOperator
                         // same for B matrix
                         if constexpr(is_same_v<BDataType, pk_i4_t>)
                         {
-                            uint8_t i4x2    = arg.b_e_n_k_(e, k, n).data;
-                            uint8_t i4      = 0;
+                            uint8_t i4x2 = arg.b_e_n_k_(e, k, n).data;
+                            uint8_t i4   = 0;
                             if(k % 2 == 1)
                             {
-                                i4    = (i4x2 >> 0) & 0xf;
+                                i4 = (i4x2 >> 0) & 0xf;
                             }
                             else
                             {
-                                i4    = (i4x2 >> 4) & 0xf;
+                                i4 = (i4x2 >> 4) & 0xf;
                             }
 #if CK_USE_PK4_LAYOUT_SHUFFLE
-                            v_b    = i4_to_f32_gfx9(i4);
+                            v_b = i4_to_f32_gfx9(i4);
 #else
-                            v_b    = i4 - 8;
+                            v_b = i4 - 8;
 #endif
                         }
                         else

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -38,10 +38,10 @@ using Row    = ck::tensor_layout::gemm::RowMajor;
 using Col    = ck::tensor_layout::gemm::ColumnMajor;
 using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
-using A0DataType = F8;
-using A1DataType = F32;
-using B0DataType = F8;
-using B1DataType = F32;
+using A0DataType       = F8;
+using A1DataType       = F32;
+using B0DataType       = F8;
+using B1DataType       = F32;
 using EDataType        = F32;
 using AccDataType      = F32;
 using CShuffleDataType = EDataType;
@@ -55,7 +55,6 @@ using D0Layout = Row;
 using D1Layout = Col;
 using D2Layout = ELayout;
 using DsLayout = ck::Tuple<D2Layout>;
-
 
 struct MulABScaleExpertWeight
 {
@@ -113,30 +112,30 @@ static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
 
-static constexpr ck::index_t Nswizzle = false;
-static constexpr ck::index_t IsInputGemm= true; //splitk gemm1 goes to gemm2 pipeline.
-static constexpr ck::index_t IsSplitK = true; //splitk gemm1 
-static constexpr ck::index_t ActOP    = 0; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr bool MulRoutedWeight = false; //splitk gemm1 does not do routedWeight.
+static constexpr ck::index_t Nswizzle    = false;
+static constexpr ck::index_t IsInputGemm = true;  // splitk gemm1 goes to gemm2 pipeline.
+static constexpr ck::index_t IsSplitK    = true;  // splitk gemm1
+static constexpr ck::index_t ActOP       = 0;     // 0: gelu_and_mul, 1: silu_and_mul
+static constexpr bool MulRoutedWeight    = false; // splitk gemm1 does not do routedWeight.
 
 #if 1
-static constexpr ck::index_t MPerBlock = 32;
-static constexpr ck::index_t NPerBlock   = 128;
-static constexpr ck::index_t MNPerXDL    = 16;
-static constexpr ck::index_t MXDLPerWave = MPerBlock / (MNPerXDL * 1);
-static constexpr ck::index_t NXDLPerWave = NPerBlock / (MNPerXDL * 4);
+static constexpr ck::index_t MPerBlock           = 32;
+static constexpr ck::index_t NPerBlock           = 128;
+static constexpr ck::index_t MNPerXDL            = 16;
+static constexpr ck::index_t MXDLPerWave         = MPerBlock / (MNPerXDL * 1);
+static constexpr ck::index_t NXDLPerWave         = NPerBlock / (MNPerXDL * 4);
 static constexpr ck::index_t CShuffleMXDLPerWave = MXDLPerWave;
 static constexpr ck::index_t CShuffleNXDLPerWave = NXDLPerWave;
-static constexpr ck::index_t BLOCKSIZE   = 256;
+static constexpr ck::index_t BLOCKSIZE           = 256;
 
-static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
-static constexpr ck::index_t AK1         = 16 / sizeof(A0DataType);
-static constexpr ck::index_t BK1         = 16 / sizeof(B0DataType);
-static constexpr ck::index_t EVec        = 16 / sizeof(EDataType);
-static constexpr ck::index_t D0Vec       = 1;
-static constexpr ck::index_t D1Vec       = 1;
+static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
+static constexpr ck::index_t AK1       = 16 / sizeof(A0DataType);
+static constexpr ck::index_t BK1       = 16 / sizeof(B0DataType);
+static constexpr ck::index_t EVec      = 16 / sizeof(EDataType);
+static constexpr ck::index_t D0Vec     = 1;
+static constexpr ck::index_t D1Vec     = 1;
 
-using DeviceOpInstance                   = ck::tensor_operation::device::DeviceMoeGemmBlockScale
+using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale
     // clang-format off
         <      Row, Col, DsLayout, ELayout,
                A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
@@ -183,8 +182,8 @@ int main(int argc, char* argv[])
     bool time_kernel     = true;
 #if 1
     // GEMM shape
-    ck::index_t N       = 4096;
-    ck::index_t K       = 6144;
+    ck::index_t N = 4096;
+    ck::index_t K = 6144;
     // ck::index_t N       = 128;
     // ck::index_t K       = 512;
     ck::index_t experts = 8;
@@ -397,30 +396,29 @@ int main(int argc, char* argv[])
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
 
-    auto invoker = device_op.MakeInvoker();
-    auto argument =
-        device_op.MakeArgument(sorted_token_ids_dev.GetDeviceBuffer(),
-                               expert_ids_dev.GetDeviceBuffer(),
-                               max_token_id_dev.GetDeviceBuffer(),
-                               a0_device_buf.GetDeviceBuffer(),
-                               b0_device_buf.GetDeviceBuffer(),
-                               std::array<const void*, NumDTensor>{nullptr},
-                               e_device_buf.GetDeviceBuffer(),
-                               tokens,
-                               topk,
-                               sorted_size,
-                               N,
-                               K,
-                               StrideA,
-                               StrideB,
-                               StrideDs,
-                               StrideE,
-                               a1_device_buf.GetDeviceBuffer(),
-                               b1_device_buf.GetDeviceBuffer(),
-                               KBatch,
-                               a_element_op,
-                               b_element_op,
-                               cde_element_op);
+    auto invoker  = device_op.MakeInvoker();
+    auto argument = device_op.MakeArgument(sorted_token_ids_dev.GetDeviceBuffer(),
+                                           expert_ids_dev.GetDeviceBuffer(),
+                                           max_token_id_dev.GetDeviceBuffer(),
+                                           a0_device_buf.GetDeviceBuffer(),
+                                           b0_device_buf.GetDeviceBuffer(),
+                                           std::array<const void*, NumDTensor>{nullptr},
+                                           e_device_buf.GetDeviceBuffer(),
+                                           tokens,
+                                           topk,
+                                           sorted_size,
+                                           N,
+                                           K,
+                                           StrideA,
+                                           StrideB,
+                                           StrideDs,
+                                           StrideE,
+                                           a1_device_buf.GetDeviceBuffer(),
+                                           b1_device_buf.GetDeviceBuffer(),
+                                           KBatch,
+                                           a_element_op,
+                                           b_element_op,
+                                           cde_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {

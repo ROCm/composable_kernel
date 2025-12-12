@@ -203,7 +203,8 @@ struct DeviceMoeGemmBlockScale
             }
 
             index_t gdx, gdy, gdz;
-            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N * (IsInputGemm && IsSplitK ? 2 : 1), arg.K, arg.KBatch);
+            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(
+                arg.M, arg.N * (IsInputGemm && IsSplitK ? 2 : 1), arg.K, arg.KBatch);
 
             float ave_time = 0;
 
@@ -253,7 +254,8 @@ struct DeviceMoeGemmBlockScale
                         // if(arg_.KBatch > 1)
                         //     hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
                         //                                      0,
-                        //                                      arg_.M * arg_.N * sizeof(CDataType) * (IsInputGemm && IsSplitK ? 2 : 1),
+                        //                                      arg_.M * arg_.N * sizeof(CDataType)
+                        //                                      * (IsInputGemm && IsSplitK ? 2 : 1),
                         //                                      stream_config.stream_id_));
                     };
 
@@ -271,7 +273,8 @@ struct DeviceMoeGemmBlockScale
                     // if(arg.KBatch > 1)
                     //     hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
                     //                                      0,
-                    //                                      arg.M * arg.N * sizeof(CDataType) * (IsInputGemm && IsSplitK ? 2 : 1),
+                    //                                      arg.M * arg.N * sizeof(CDataType) *
+                    //                                      (IsInputGemm && IsSplitK ? 2 : 1),
                     //                                      stream_config.stream_id_));
 
                     ave_time = launch_and_time_kernel(
@@ -290,8 +293,9 @@ struct DeviceMoeGemmBlockScale
 
             constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
 
-            constexpr auto MemoryDataOp =
-                (IsInputGemm && !IsSplitK) ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
+            constexpr auto MemoryDataOp = (IsInputGemm && !IsSplitK)
+                                              ? InMemoryDataOperationEnum::Set
+                                              : InMemoryDataOperationEnum::AtomicAdd;
 
             if(has_main_k_block_loop)
             {
@@ -442,7 +446,7 @@ struct DeviceMoeGemmBlockScale
         {
             return false;
         }
-        if (arg.KBatch > 1 && arg.K % (KPerBlock * arg.KBatch) != 0)
+        if(arg.KBatch > 1 && arg.K % (KPerBlock * arg.KBatch) != 0)
         {
             // Not support Kpadding with KBatch > 1
             return false;
