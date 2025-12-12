@@ -638,12 +638,14 @@ def cmake_build(Map conf=[:]){
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
                 export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
+                export WORKSPACE_PATH="${env.WORKSPACE}"
                 
                 echo "Environment for debug scripts:"
                 echo "CK_SCCACHE: \$CK_SCCACHE"
                 echo "SCCACHE_REDIS: \$SCCACHE_REDIS"
                 echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \$SCCACHE_C_CUSTOM_CACHE_BUSTER"
                 echo "JENKINS_STAGE_NAME: \$JENKINS_STAGE_NAME"
+                echo "WORKSPACE_PATH: \$WORKSPACE_PATH"
                 
                 echo "=== STARTING CONTINUOUS MONITORING ==="
                 ../script/monitor_sccache_during_build.sh build_monitor &
