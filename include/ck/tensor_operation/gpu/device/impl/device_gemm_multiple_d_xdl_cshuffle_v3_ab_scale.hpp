@@ -73,7 +73,8 @@ template <typename ALayout,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
-          typename LDSTypeB                           = ComputeTypeB>
+          typename LDSTypeB                           = ComputeTypeB,
+          typename UnquantizedADatatype               = ADataType>
 struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
     : public DeviceGemmMultipleD_ABScale<ALayout,
                                          BLayout,
@@ -439,7 +440,8 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
                              const void* p_b_scale,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             CElementwiseOperation c_element_op,
+                             const void* p_a_unquantized = nullptr)
     {
         index_t StrideScaleA = ck::is_same_v<ALayout, tensor_layout::gemm::RowMajor>
                                    ? math::integer_divide_ceil(K, ScaleBlockK)
@@ -467,7 +469,8 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
                         1,
                         a_element_op,
                         b_element_op,
-                        c_element_op};
+                        c_element_op,
+                        p_a_unquantized};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

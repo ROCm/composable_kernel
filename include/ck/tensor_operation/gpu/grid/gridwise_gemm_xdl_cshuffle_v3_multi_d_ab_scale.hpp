@@ -16,6 +16,10 @@
 
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3.hpp"
 
+// TODO: replace these includes
+#include "vec_convert.h"
+#include "hip_reduce.h"
+
 #define DEBUG_LOG 0
 
 namespace ck {
@@ -47,8 +51,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         {
             // Quantize A matrix: populate p_a_grid with quantized data from p_a_grid_unquantized
             // and compute scales into p_a_scale_grid
-            GridwiseGemm::QuantizeA(karg.p_a_grid_unquantized, karg.p_a_grid, karg.p_a_scale_grid, karg.M, karg.K);
-            __syncthreads();
+            if(karg.p_a_grid_unquantized != nullptr && karg.p_a_scale_grid != nullptr)
+            {
+                GridwiseGemm::QuantizeA(karg.p_a_grid_unquantized, karg.p_a_grid, karg.p_a_scale_grid, karg.M, karg.K);
+                __syncthreads();
+            }
         }
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
@@ -1807,12 +1814,12 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             return;
 
         row_offset  = x * ori_row_stride + y * group_size;
-        using vec_i = ck_tile::vec_t<DTYPE_I, thread_data_size>;  // TODO: use dtype_vector.hpp
+        using vec_i = ck_tile::vec_t<UnquantizedADatatype, thread_data_size>;  // TODO: use dtype_vector.hpp
         static constexpr int32_t vec_size_o = thread_data_size;
-        using vec_o = ck_tile::vec_t<DTYPE_O, vec_size_o>;
-        const float inverted_DTYPE_MAX = (1. / ck::type_convert<float>(ck::numeric<DTYPE_O>::max()));
+        using vec_o = ck_tile::vec_t<ADatatype, vec_size_o>;
+        const float inverted_DTYPE_MAX = (1. / ck::type_convert<float>(ck::numeric<ADatatype>::max()));
 
-        static constexpr int32_t ooba_o = 4 / sizeof(DTYPE_O);
+        static constexpr int32_t ooba_o = 4 / sizeof(ADatatype);
         const int64_t oob_o = (ori_rows * ori_cols + ooba_o - 1) / ooba_o * ooba_o;
 
         auto const* input_vecs = reinterpret_cast<vec_i const*>(input + row_offset);
@@ -1828,37 +1835,24 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         row_offset           = groupId * group_size + (threadIdx.x % num_thread_per_group) * vec_size_o;
         if(threadIdx.x % num_thread_per_group == 0)
         {
-            if constexpr(std::is_same_v<DTYPE_O, ck_tile::fp4x2_t>)
+            if(shuffle_scale)
             {
-                auto* tmp        = reinterpret_cast<uint8_t*>(scale);
-                uint8_t exponent = (ck_tile::bit_cast<uint32_t>(inverted_scale) >> 23) & 0b11111111;
-                if(shuffle_scale)
-                {
-                    groupId = fp4_scale_shuffle_id(scaleN_pad, x, y);
-                }
-                tmp[groupId] = exponent;
+                groupId = y * ori_rows + x;
             }
-            else
-            {
-                if(shuffle_scale)
-                {
-                    groupId = y * ori_rows + x;
-                }
-                scale[groupId] = inverted_scale;
-            }
+            // Write scale to global memory
+            p_a_scale_grid[groupId] = inverted_scale;
         }
-        inverted_scale =
-            std::is_same_v<DTYPE_O, ck_tile::fp4x2_t> ? inverted_scale : 1.0f / inverted_scale;
+        inverted_scale = 1.0f / inverted_scale;
 
-        using DTYPE_STORE = typename ck_tile::vector_traits<DTYPE_O>::scalar_type;
-        auto* out_ptr     = reinterpret_cast<DTYPE_STORE*>(out);
+        using DTYPE_STORE = ADatatype;
+        auto* out_ptr     = p_a_grid;
         auto buffer_o =
             ck_tile::make_buffer_view<ck_tile::address_space_enum::global,
                                     ck_tile::amd_buffer_coherence_enum::glc>(out_ptr, oob_o);
         buffer_o.init_raw();
 
         auto out_s =
-            ck_tile::vec_convert<DTYPE_O, DTYPE_I, thread_data_size>(thread_data, inverted_scale)
+            ck_tile::vec_convert<ADatatype, UnquantizedADatatype, thread_data_size>(thread_data, inverted_scale)
                 .template get_as<DTYPE_STORE>();
         if constexpr(thread_data_size <= 16)
         {
@@ -1866,7 +1860,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         }
         else
         {
-            static constexpr int32_t o_step = std::is_same_v<DTYPE_O, ck_tile::fp4x2_t> ? 8 : 16;
+            static constexpr int32_t o_step = 16;
             assert(thread_data_size % 16 == 0);
             using vecT                        = ck_tile::vec_t<DTYPE_STORE, o_step>;
             auto vec                          = out_s.template get_as<vecT>();
