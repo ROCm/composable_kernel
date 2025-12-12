@@ -85,31 +85,35 @@ namespace ck_tile::builder::factory {
 // CK Tile kernel
 template <typename T>
 concept IsTileAlgorithm = ConvAlgorithmDescriptor<T> && SpecifiesTileThreadBlock<T> &&
-    SpecifiesTileTransfer<T> && SpecifiesTileConvSpecialization<T> && SpecifiesTileBlockGemm<T> &&
-    SpecifiesTileOptimizations<T>;
+                          SpecifiesTileTransfer<T> && SpecifiesTileConvSpecialization<T> &&
+                          SpecifiesTileBlockGemm<T> && SpecifiesTileOptimizations<T>;
 
 // XDL-based kernel with V3 pipeline structure (newer block GEMM pipeline)
 template <typename T>
-concept IsXdlV3Algorithm = ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> &&
-    SpecifiesGridwiseXdlGemm<T> && SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> &&
-    SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T>;
+concept IsXdlV3Algorithm =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConvSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T>;
 
 // Standard XDL-based kernel (uses XDLops hardware instructions for matrix multiply)
 template <typename T>
-concept IsXdlAlgorithm = ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> &&
-    SpecifiesGridwiseXdlGemm<T> && SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> &&
-    SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-    SpecifiesNumPrefetchStages<T> && SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T>
-
-// WMMA-based kernel (uses Wavefront Matrix-Matrix Accumulate instructions)
-template <typename T>
-concept IsWmmaAlgorithm =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
+concept IsXdlAlgorithm =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
     SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
     SpecifiesSourceAccessOrder<T> && SpecifiesFwdConvSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
+    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> &&
+    SpecifiesNumGroupsToMerge<T> &&
+    SpecifiesLoopScheduler<T>
+
+    // WMMA-based kernel (uses Wavefront Matrix-Matrix Accumulate instructions)
+    template <typename T>
+    concept IsWmmaAlgorithm =
+        ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
+        SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> &&
+        SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T> &&
+        SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
+        SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
 
 // Specialized DL kernel for specific NHWC/KYXC/NHWK data layouts
 template <typename T>
