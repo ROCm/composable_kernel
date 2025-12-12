@@ -135,7 +135,7 @@ struct ConvLayoutTypes
 
 // Forward convolution implementation
 template <index_t NDimSpatial, typename InDataType, typename WeiDataType, typename OutDataType>
-bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
+bool test_conv_fwd_impl(const ck::utils::conv::ConvParam& params,
                         const Tensor<InDataType>& input_cpu,
                         const Tensor<WeiDataType>& weight_cpu,
                         const std::vector<index_t>& out_lengths_cpu,
@@ -193,9 +193,12 @@ bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     // Run CPU reference
-    std::vector<long_index_t> strides_long(params.strides.begin(), params.strides.end());
-    std::vector<long_index_t> dilations_long(params.dilations.begin(), params.dilations.end());
-    std::vector<long_index_t> pads_long(params.pads.begin(), params.pads.end());
+    std::vector<long_index_t> strides_long(params.conv_filter_strides_.begin(),
+                                           params.conv_filter_strides_.end());
+    std::vector<long_index_t> dilations_long(params.conv_filter_dilations_.begin(),
+                                             params.conv_filter_dilations_.end());
+    std::vector<long_index_t> pads_long(params.input_left_pads_.begin(),
+                                        params.input_left_pads_.end());
 
     Tensor<InDataType> input_ref   = input_cpu;
     Tensor<WeiDataType> weight_ref = weight_cpu;
@@ -232,7 +235,7 @@ bool test_conv_fwd_impl(const ConvParams<NDimSpatial>& params,
 
 // Backward data convolution implementation
 template <index_t NDimSpatial, typename InDataType, typename WeiDataType, typename OutDataType>
-bool test_conv_bwd_data_impl(const ConvParams<NDimSpatial>& params,
+bool test_conv_bwd_data_impl(const ck::utils::conv::ConvParam& params,
                              const Tensor<WeiDataType>& weight_cpu,
                              const Tensor<OutDataType>& output_cpu,
                              const std::vector<index_t>& in_lengths_cpu,
@@ -290,9 +293,12 @@ bool test_conv_bwd_data_impl(const ConvParams<NDimSpatial>& params,
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     // Run CPU reference
-    std::vector<long_index_t> strides_long(params.strides.begin(), params.strides.end());
-    std::vector<long_index_t> dilations_long(params.dilations.begin(), params.dilations.end());
-    std::vector<long_index_t> pads_long(params.pads.begin(), params.pads.end());
+    std::vector<long_index_t> strides_long(params.conv_filter_strides_.begin(),
+                                           params.conv_filter_strides_.end());
+    std::vector<long_index_t> dilations_long(params.conv_filter_dilations_.begin(),
+                                             params.conv_filter_dilations_.end());
+    std::vector<long_index_t> pads_long(params.input_left_pads_.begin(),
+                                        params.input_left_pads_.end());
 
     Tensor<InDataType> input_ref(in_lengths_cpu);
     Tensor<WeiDataType> weight_ref = weight_cpu;
@@ -329,7 +335,7 @@ bool test_conv_bwd_data_impl(const ConvParams<NDimSpatial>& params,
 
 // Backward weight convolution implementation
 template <index_t NDimSpatial, typename InDataType, typename WeiDataType, typename OutDataType>
-bool test_conv_bwd_weight_impl(const ConvParams<NDimSpatial>& params,
+bool test_conv_bwd_weight_impl(const ck::utils::conv::ConvParam& params,
                                const Tensor<InDataType>& input_cpu,
                                const Tensor<OutDataType>& output_cpu,
                                const std::vector<index_t>& wei_lengths_cpu,
@@ -387,9 +393,12 @@ bool test_conv_bwd_weight_impl(const ConvParams<NDimSpatial>& params,
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     // Run CPU reference
-    std::vector<long_index_t> strides_long(params.strides.begin(), params.strides.end());
-    std::vector<long_index_t> dilations_long(params.dilations.begin(), params.dilations.end());
-    std::vector<long_index_t> pads_long(params.pads.begin(), params.pads.end());
+    std::vector<long_index_t> strides_long(params.conv_filter_strides_.begin(),
+                                           params.conv_filter_strides_.end());
+    std::vector<long_index_t> dilations_long(params.conv_filter_dilations_.begin(),
+                                             params.conv_filter_dilations_.end());
+    std::vector<long_index_t> pads_long(params.input_left_pads_.begin(),
+                                        params.input_left_pads_.end());
 
     Tensor<InDataType> input_ref = input_cpu;
     Tensor<WeiDataType> weight_ref(wei_lengths_cpu);
@@ -426,13 +435,13 @@ bool test_conv_bwd_weight_impl(const ConvParams<NDimSpatial>& params,
 
 // Main test function - dispatches to specific implementations
 template <index_t NDimSpatial, typename InDataType, typename WeiDataType, typename OutDataType>
-bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType kernel_type)
+bool test_conv_gpu_ref(const ck::utils::conv::ConvParam& params, ConvKernelType kernel_type)
 {
     // Calculate dimensions
-    const index_t N = params.N;
-    const index_t K = params.K;
-    const index_t C = params.C;
-    const index_t G = params.G;
+    const index_t N = params.N_;
+    const index_t K = params.K_;
+    const index_t C = params.C_;
+    const index_t G = params.G_;
 
     // C and K in params are total channels, divide by G for per-group
     const index_t C_per_group = C / G;
@@ -441,16 +450,16 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
     // Create tensors in CPU layout (GNCDHW/GKCZYX/GNKDHW)
     // The wrappers will handle transformations to/from naive kernel format
     std::vector<index_t> in_lengths = {G, N, C_per_group};
-    for(auto d : params.input_spatial)
-        in_lengths.push_back(d);
+    for(auto d : params.input_spatial_lengths_)
+        in_lengths.push_back(static_cast<index_t>(d));
 
     std::vector<index_t> wei_lengths = {G, K_per_group, C_per_group};
-    for(auto d : params.filter_spatial)
-        wei_lengths.push_back(d);
+    for(auto d : params.filter_spatial_lengths_)
+        wei_lengths.push_back(static_cast<index_t>(d));
 
     std::vector<index_t> out_lengths = {G, N, K_per_group};
-    for(auto d : params.output_spatial)
-        out_lengths.push_back(d);
+    for(auto d : params.output_spatial_lengths_)
+        out_lengths.push_back(static_cast<index_t>(d));
 
     Tensor<InDataType> input(in_lengths);
     Tensor<WeiDataType> weight(wei_lengths);
@@ -488,48 +497,48 @@ bool test_conv_gpu_ref(const ConvParams<NDimSpatial>& params, ConvKernelType ker
 
     if(NDimSpatial == 1)
     {
-        Wi         = params.input_spatial[0];
-        X          = params.filter_spatial[0];
-        Wo         = params.output_spatial[0];
-        stride_x   = params.strides[0];
-        dilation_x = params.dilations[0];
-        pad_x      = params.pads[0];
+        Wi         = params.input_spatial_lengths_[0];
+        X          = params.filter_spatial_lengths_[0];
+        Wo         = params.output_spatial_lengths_[0];
+        stride_x   = params.conv_filter_strides_[0];
+        dilation_x = params.conv_filter_dilations_[0];
+        pad_x      = params.input_left_pads_[0];
     }
     else if(NDimSpatial == 2)
     {
-        Hi         = params.input_spatial[0];
-        Wi         = params.input_spatial[1];
-        Y          = params.filter_spatial[0];
-        X          = params.filter_spatial[1];
-        Ho         = params.output_spatial[0];
-        Wo         = params.output_spatial[1];
-        stride_y   = params.strides[0];
-        stride_x   = params.strides[1];
-        dilation_y = params.dilations[0];
-        dilation_x = params.dilations[1];
-        pad_y      = params.pads[0];
-        pad_x      = params.pads[1];
+        Hi         = params.input_spatial_lengths_[0];
+        Wi         = params.input_spatial_lengths_[1];
+        Y          = params.filter_spatial_lengths_[0];
+        X          = params.filter_spatial_lengths_[1];
+        Ho         = params.output_spatial_lengths_[0];
+        Wo         = params.output_spatial_lengths_[1];
+        stride_y   = params.conv_filter_strides_[0];
+        stride_x   = params.conv_filter_strides_[1];
+        dilation_y = params.conv_filter_dilations_[0];
+        dilation_x = params.conv_filter_dilations_[1];
+        pad_y      = params.input_left_pads_[0];
+        pad_x      = params.input_left_pads_[1];
     }
     else if(NDimSpatial == 3)
     {
-        Di         = params.input_spatial[0];
-        Hi         = params.input_spatial[1];
-        Wi         = params.input_spatial[2];
-        Z          = params.filter_spatial[0];
-        Y          = params.filter_spatial[1];
-        X          = params.filter_spatial[2];
-        Do         = params.output_spatial[0];
-        Ho         = params.output_spatial[1];
-        Wo         = params.output_spatial[2];
-        stride_z   = params.strides[0];
-        stride_y   = params.strides[1];
-        stride_x   = params.strides[2];
-        dilation_z = params.dilations[0];
-        dilation_y = params.dilations[1];
-        dilation_x = params.dilations[2];
-        pad_z      = params.pads[0];
-        pad_y      = params.pads[1];
-        pad_x      = params.pads[2];
+        Di         = params.input_spatial_lengths_[0];
+        Hi         = params.input_spatial_lengths_[1];
+        Wi         = params.input_spatial_lengths_[2];
+        Z          = params.filter_spatial_lengths_[0];
+        Y          = params.filter_spatial_lengths_[1];
+        X          = params.filter_spatial_lengths_[2];
+        Do         = params.output_spatial_lengths_[0];
+        Ho         = params.output_spatial_lengths_[1];
+        Wo         = params.output_spatial_lengths_[2];
+        stride_z   = params.conv_filter_strides_[0];
+        stride_y   = params.conv_filter_strides_[1];
+        stride_x   = params.conv_filter_strides_[2];
+        dilation_z = params.conv_filter_dilations_[0];
+        dilation_y = params.conv_filter_dilations_[1];
+        dilation_x = params.conv_filter_dilations_[2];
+        pad_z      = params.input_left_pads_[0];
+        pad_y      = params.input_left_pads_[1];
+        pad_x      = params.input_left_pads_[2];
     }
 
     // Create ConvDims structure for kernels

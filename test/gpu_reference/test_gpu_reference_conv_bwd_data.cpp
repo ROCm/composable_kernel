@@ -6,7 +6,6 @@
 
 using namespace ck;
 using ck::test::ConvKernelType;
-using ck::test::ConvParams;
 
 TEST(GpuReferenceConvBwdData, Conv2DFP16Small)
 {
