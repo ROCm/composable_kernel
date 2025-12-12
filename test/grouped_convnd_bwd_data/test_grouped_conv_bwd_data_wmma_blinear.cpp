@@ -93,10 +93,17 @@ class TestGroupedConvndBwdData : public ::testing::Test
         std::cout << "in: " << in_host.mDesc << std::endl;
         std::cout << "wei: " << wei.mDesc << std::endl;
         std::cout << "out: " << out.mDesc << std::endl;
+        
+    DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
 
-        SimpleDeviceMem in_device_buf(sizeof(InDataType)* in_host.mDesc.GetElementSpaceSize());
-        SimpleDeviceMem out_device_buf(sizeof(OutDataType)* out.mDesc.GetElementSpaceSize());
-        SimpleDeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
+   
+       out_device_buf.ToDevice(out.mData.data());
+       wei_device_buf.ToDevice(wei.mData.data());
+
+        // reset input to zero
+        in_device_buf.SetZero();
 
        std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> out_strides{};
@@ -175,36 +182,50 @@ class TestGroupedConvndBwdData : public ::testing::Test
             {
                 num_kernel++;
                 float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
-               // wei_device_buf.FromDevice(in_device.mData.data());
+               in_device_buf.FromDevice(in_device.mData.data());
 
-                using AccDataType = float;
-                float max_accumulated_value =
-                    *std::max_element(in_host.mData.begin(), in_host.mData.end());
+                using ComputeType_ = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
+                                                             OutDataType,
+                                                             WeiDataType>;
+                using ComputeType =
+                    std::conditional_t<sizeof(ComputeType_) < sizeof(ComputeDataType),
+                                            ComputeType_,
+                                            ComputeDataType>;
+                using AccDataType =
+                    std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
+                const ck::index_t num_accums = conv_param.K_;
+               float max_accumulated_value = *std::max_element(in_host.mData.begin(), in_host.mData.end());
 
-                const ck::index_t num_accums         = out.GetElementSize() / conv_param.K_;
-                const ck::index_t num_accums_split_k = split_k;
-                double rtol =
-                    ck::utils::get_relative_threshold<InDataType, WeiDataType, AccDataType>(
-                        num_accums / num_accums_split_k);
-                double atol =
-                    ck::utils::get_absolute_threshold<InDataType, WeiDataType, AccDataType>(
-                        max_accumulated_value / num_accums_split_k,
-                        num_accums / num_accums_split_k);
-
+            
+                const ck::index_t split_k_for_run = split_k;
+              // Calculate thresholds
+                auto rtol = ck::utils::get_relative_threshold<ComputeType, InDataType, AccDataType>(
+                    num_accums / split_k_for_run);
+                auto atol = ck::utils::get_absolute_threshold<ComputeType, InDataType, AccDataType>(
+                    max_accumulated_value / split_k_for_run, num_accums / split_k_for_run);
                 // Calculate error due to split_k accumulation
                 auto rtol_split_k =
                     ck::utils::get_relative_threshold<InDataType, InDataType, InDataType>(
-                        num_accums_split_k);
+                        split_k_for_run);
                 auto atol_split_k =
                     ck::utils::get_absolute_threshold<InDataType, InDataType, InDataType>(
-                        max_accumulated_value, num_accums_split_k);
+                        max_accumulated_value, split_k_for_run);
                 // Use higher threshold
                 rtol = std::max(rtol, rtol_split_k);
                 atol = std::max(atol, atol_split_k);
-
-                passed &= ck::utils::check_err(
-                    in_device, in_host, "Error: incorrect results!", rtol, atol);
-
+                if(split_k_for_run > 1)
+                {
+                    passed &= ck::utils::check_err(
+                        in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                    std::cout << "Relative error threshold: " << rtol
+                              << " Absolute error threshold: " << atol << std::endl;
+                }
+                else
+                {
+                    passed &= ck::utils::check_err(in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                       std::cout << "Relative error threshold: " << rtol
+                              << " Absolute error threshold: " << atol << std::endl;
+                }
                 std::size_t flop =
                     conv_param.GetFlops() +
                     3 * conv_param.GetOutputByte<InDataType>() / sizeof(InDataType);

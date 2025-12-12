@@ -47,27 +47,49 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
 
     using Scale = ck::tensor_operation::element_wise::Scale;
     static constexpr ck::index_t NDimSpatial = 3;
-    static constexpr float alpha             = 2.f;
+    static constexpr float alpha             = 2.2;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
     std::vector<ck::index_t> split_ks{1};
 
-    struct SimpleDeviceMem
-{
-    SimpleDeviceMem() = delete;
 
-    SimpleDeviceMem(std::size_t mem_size) : p_mem_{}
+        void RunReference(ck::utils::conv::ConvParam& conv_param,
+                      Tensor<InDataType>& in_host,
+                      Tensor<WeiDataType>& wei,
+                      Tensor<OutDataType>& out)
     {
-        (void)hipMalloc(static_cast<void**>(&p_mem_), mem_size);
+        auto ref_conv =
+            ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
+                                                               InDataType,
+                                                               WeiDataType,
+                                                               OutDataType,
+                                                               InElementOp,
+                                                               WeiElementOp,
+                                                               OutElementOp,
+                                                               0, /*Num A Elementwise Tensors*/
+                                                               0, /*Num B Elementwise Tensors*/
+                                                               0,
+                                                               ComputeDataType> /*Num D Elementwise Tensors*/
+            {};
+
+        auto ref_invoker  = ref_conv.MakeInvoker();
+
+       
+        auto ref_argument = ref_conv.MakeArgument(in_host,
+                                                  wei,
+                                                  out,
+                                                  conv_param.conv_filter_strides_,
+                                                  conv_param.conv_filter_dilations_,
+                                                  conv_param.input_left_pads_,
+                                                  conv_param.input_right_pads_,
+                                                  InElementOp{alpha},
+                                                  WeiElementOp{},
+                                                 OutElementOp{});
+
+        ref_invoker.Run(ref_argument);
     }
 
-    void* GetDeviceBuffer() { return p_mem_; }
-
-    ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
-
-    void* p_mem_;
-};
-   
+  
     bool PerformConvDataScale(ck::utils::conv::ConvParam& conv_param, const ck::index_t split_k)
     {
         bool passed = true;
@@ -92,10 +114,17 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
         std::cout << "in: " << in_host.mDesc << std::endl;
         std::cout << "wei: " << wei.mDesc << std::endl;
         std::cout << "out: " << out.mDesc << std::endl;
+        
+    DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
 
-        SimpleDeviceMem in_device_buf(sizeof(InDataType)* in_host.mDesc.GetElementSpaceSize());
-        SimpleDeviceMem out_device_buf(sizeof(OutDataType)* out.mDesc.GetElementSpaceSize());
-        SimpleDeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
+   
+       out_device_buf.ToDevice(out.mData.data());
+       wei_device_buf.ToDevice(wei.mData.data());
+
+        // reset input to zero
+        in_device_buf.SetZero();
 
        std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> out_strides{};
@@ -121,6 +150,8 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
         copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
         copy(conv_param.input_left_pads_, input_left_pads);
         copy(conv_param.input_right_pads_, input_right_pads);
+
+         RunReference(conv_param, in_host, wei, out);
    
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
                                                                         OutLayout,
@@ -162,7 +193,7 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
                                                         input_right_pads,
                                                         PassThrough{},
                                                         PassThrough{},
-                                                        Scale{2.f});
+                                                        Scale{2.2});
 
             DeviceMem workspace_buf(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
             op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_buf.GetDeviceBuffer());
@@ -174,36 +205,50 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
             {
                 num_kernel++;
                 float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
-               // wei_device_buf.FromDevice(in_device.mData.data());
+               in_device_buf.FromDevice(in_device.mData.data());
 
-                using AccDataType = float;
-                float max_accumulated_value =
-                    *std::max_element(in_host.mData.begin(), in_host.mData.end());
+                using ComputeType_ = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
+                                                             OutDataType,
+                                                             WeiDataType>;
+                using ComputeType =
+                    std::conditional_t<sizeof(ComputeType_) < sizeof(ComputeDataType),
+                                            ComputeType_,
+                                            ComputeDataType>;
+                using AccDataType =
+                    std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
+                const ck::index_t num_accums = conv_param.K_;
+               float max_accumulated_value = *std::max_element(in_host.mData.begin(), in_host.mData.end());
 
-                const ck::index_t num_accums         = out.GetElementSize() / conv_param.K_;
-                const ck::index_t num_accums_split_k = split_k;
-                double rtol =
-                    ck::utils::get_relative_threshold<InDataType, WeiDataType, AccDataType>(
-                        num_accums / num_accums_split_k);
-                double atol =
-                    ck::utils::get_absolute_threshold<InDataType, WeiDataType, AccDataType>(
-                        max_accumulated_value / num_accums_split_k,
-                        num_accums / num_accums_split_k);
-
+            
+                const ck::index_t split_k_for_run = split_k;
+              // Calculate thresholds
+                auto rtol = ck::utils::get_relative_threshold<ComputeType, InDataType, AccDataType>(
+                    num_accums / split_k_for_run);
+                auto atol = ck::utils::get_absolute_threshold<ComputeType, InDataType, AccDataType>(
+                    max_accumulated_value / split_k_for_run, num_accums / split_k_for_run);
                 // Calculate error due to split_k accumulation
                 auto rtol_split_k =
                     ck::utils::get_relative_threshold<InDataType, InDataType, InDataType>(
-                        num_accums_split_k);
+                        split_k_for_run);
                 auto atol_split_k =
                     ck::utils::get_absolute_threshold<InDataType, InDataType, InDataType>(
-                        max_accumulated_value, num_accums_split_k);
+                        max_accumulated_value, split_k_for_run);
                 // Use higher threshold
                 rtol = std::max(rtol, rtol_split_k);
                 atol = std::max(atol, atol_split_k);
-
-                passed &= ck::utils::check_err(
-                    in_device, in_host, "Error: incorrect results!", rtol, atol);
-
+                if(split_k_for_run > 1)
+                {
+                    passed &= ck::utils::check_err(
+                        in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                    std::cout << "Relative error threshold: " << rtol
+                              << " Absolute error threshold: " << atol << std::endl;
+                }
+                else
+                {
+                    passed &= ck::utils::check_err(in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                       std::cout << "Relative error threshold: " << rtol
+                              << " Absolute error threshold: " << atol << std::endl;
+                }
                 std::size_t flop =
                     conv_param.GetFlops() +
                     3 * conv_param.GetOutputByte<InDataType>() / sizeof(InDataType);
@@ -220,7 +265,8 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
             {
                 std::cerr << op_name << " does not support this problem" << std::endl;
             }
-        }
+
+       }
 
         printf("\033[36mvalids: %d\033[0m\n", num_kernel);
         return passed;
@@ -261,7 +307,7 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
 TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
 {
     this->conv_params.push_back(
-        {3, 1, 64 ,  64, 16 ,{1,1,1} ,{28, 28, 28} , {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 64 , 16, 32, {3,3,3} ,{28, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
         {3, 2, 16, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
