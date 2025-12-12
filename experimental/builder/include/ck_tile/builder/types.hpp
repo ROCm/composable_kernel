@@ -213,13 +213,6 @@ enum class ConvAlgorithmSpecialization
     REFERENCE // GPU reference implementation for validation
 };
 
-// Reference algorithm struct - for GPU reference validation
-struct ConvAlgorithm_Reference
-{
-    static constexpr auto specialization = ConvAlgorithmSpecialization::REFERENCE;
-    // GPU reference uses simple algorithm, no tile configuration needed
-};
-
 // ostream operator overloads for enum classes
 inline std::ostream& operator<<(std::ostream& os, DataType dt)
 {

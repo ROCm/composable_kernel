@@ -12,6 +12,7 @@
 
 namespace {
 
+using namespace ck_tile::builder::test; // For ConvAlgorithm_Reference
 using namespace ck_tile::builder::test_utils;
 
 TEST(OptimizedExecution, Forward_2D_FP16)

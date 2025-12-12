@@ -3,6 +3,7 @@
 
 #include "ck_tile/builder/conv_builder.hpp"
 #include "ck_tile/builder/types.hpp"
+#include "impl/conv_algorithm_types.hpp"
 #include "ck_tile/ref/naive_grouped_conv_fwd_gpu.hpp"
 #include "ck_tile/ref/naive_grouped_conv_bwd_data_gpu.hpp"
 #include "ck_tile/ref/naive_grouped_conv_bwd_weight_gpu.hpp"
@@ -16,6 +17,7 @@
 namespace {
 
 using namespace ck_tile::builder;
+using namespace ck_tile::builder::test; // For ConvAlgorithm_Reference
 using namespace ck_tile::builder::test_utils;
 
 TEST(ReferenceExecution, Forward_2D_FP16)
