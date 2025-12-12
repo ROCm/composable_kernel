@@ -327,8 +327,7 @@ bool run_grouped_conv_fwd(int do_verification,
             out_strides_vec,
             conv_strides_vec,
             conv_dilations_vec,
-            input_pads_vec,
-            nullptr);
+            input_pads_vec);
 
         HIP_CHECK_ERROR(hipDeviceSynchronize());
 
