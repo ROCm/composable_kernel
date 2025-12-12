@@ -7,9 +7,9 @@ EXE="$BUILD/bin/tile_example_hstu_attention -softmax=1"
 attn_scale=1.0
 ndist=1
 
-dtype = "fp16"
+dtype="fp16"
 
-for hdim in 256 64; do
+for hdim in 96 64; do
     set -x 
 
     ## no masking batched
