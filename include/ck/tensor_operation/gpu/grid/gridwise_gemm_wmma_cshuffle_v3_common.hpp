@@ -3,6 +3,11 @@
 
 #pragma once
 
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
+#include <iostream>
+#include <ostream>
+#endif
+
 #include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
