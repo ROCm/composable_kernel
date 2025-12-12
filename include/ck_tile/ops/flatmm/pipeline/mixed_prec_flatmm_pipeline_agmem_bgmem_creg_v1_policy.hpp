@@ -852,7 +852,7 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr int K_Thread         = TileShape::WarpTile::at(I2) / K_Lane; // 32
         // constexpr index_t num_access_v = static_cast<index_t>(wg_attr_num_access<Problem>);
-        constexpr index_t num_access_v = 2;
+        constexpr index_t num_access_v = 1;
         constexpr int K1               = K_Thread / num_access_v; // 16
 
         return make_static_tile_distribution(

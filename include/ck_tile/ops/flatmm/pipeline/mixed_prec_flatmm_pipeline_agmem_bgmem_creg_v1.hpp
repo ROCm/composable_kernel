@@ -2518,6 +2518,40 @@ struct F8xMXF4FlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
     // static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp * KXdlPack;
     static constexpr index_t flatKPerWarp = get_warp_size() * ContinuousKPerThread;
 };
+template <typename ADataType_,
+          typename BDataType_,
+          typename CDataType_,
+          typename BlockGemmShape_,
+          typename Traits_,
+          GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
+          bool HasHotLoop_                 = true,
+          TailNumber TailNum_              = TailNumber::Full,
+          typename ComputeDataType_        = ADataType_>
+struct MXF4xMXF4FlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
+                                                            BDataType_,
+                                                            CDataType_,
+                                                            BlockGemmShape_,
+                                                            Traits_,
+                                                            Scheduler_,
+                                                            HasHotLoop_,
+                                                            TailNum_,
+                                                            ComputeDataType_>
+{
+    using BlockGemmShape = BlockGemmShape_;
+
+    // using QuantType = BDataType_;
+
+    static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
+
+    static constexpr int ScaleGranularityK = 32;
+
+    static constexpr int ContinuousKPerThread = 32; // it's fixed for fp4
+    static constexpr int MXdlPack             = 2;  // it's fixed for fp4
+    static constexpr int NXdlPack             = 2;  // it's fixed for fp4
+    static constexpr int KXdlPack             = 2;
+    // static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp * KXdlPack;
+    static constexpr index_t flatKPerWarp = get_warp_size() * ContinuousKPerThread;
+};
 
 template <typename Problem, typename PipelinePolicy = F8xMXF4FlatmmPipelineAgBgCrPolicy>
 struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem, PipelinePolicy>
