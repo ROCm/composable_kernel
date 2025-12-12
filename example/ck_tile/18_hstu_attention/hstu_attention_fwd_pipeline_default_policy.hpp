@@ -404,20 +404,32 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
         {
             static_assert(kKVector == kKPack);
 
+            constexpr index_t KSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
+
+            static_assert(KSingleSmemElementSpaceSize == GetKSingleSmemElementSpaceSize<Problem>());
+
+            constexpr index_t SingleSmemElementSpaceSize = GetSingleSmemElementSpaceSize<Problem>();
+
             using KDataType = remove_cvref_t<typename Problem::QKVDataType>;
 
             constexpr index_t DataTypeSize = sizeof(KDataType);
 
+#ifdef __gfx950__
+            // 256 contiguous bytes mapped to 64 banks with each bank 4 contiguous bytes
+            constexpr auto NLdsLayer =
+                (64 * 4 / kKPerBlock / DataTypeSize) < 1 ? 1 : (64 * 4 / kKPerBlock / DataTypeSize);
+#else
             // 128 contiguous bytes mapped to 32 banks with each bank 4 contiguous bytes
             constexpr auto NLdsLayer =
                 (32 * 4 / kKPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / kKPerBlock / DataTypeSize);
+#endif
 
             constexpr auto k_lds_block_desc_0 =
                 make_naive_tensor_descriptor(make_tuple(number<NumKLdsBuffers>{},
                                                         number<kNPerBlock / NLdsLayer>{},
                                                         number<kKPerBlock / kKPack * NLdsLayer>{},
                                                         number<kKPack>{}),
-                                             make_tuple(number<kKPerBlock * kNPerBlock>{},
+                                             make_tuple(number<SingleSmemElementSpaceSize>{},
                                                         number<kKPerBlock * NLdsLayer>{},
                                                         number<kKPack>{},
                                                         number<1>{}),
