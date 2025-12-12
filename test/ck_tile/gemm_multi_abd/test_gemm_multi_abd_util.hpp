@@ -23,6 +23,28 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
+template <typename PrecType, ck_tile::index_t M_Warp_Tile>
+constexpr ck_tile::index_t get_k_warp_tile()
+{
+#if CK_TILE_USE_WMMA
+    return 16;
+#else
+#if defined(CK_GFX950_SUPPORT)
+    constexpr bool is_8bit_float =
+        std::is_same_v<PrecType, ck_tile::fp8_t> || std::is_same_v<PrecType, ck_tile::bf8_t>;
+    if constexpr(M_Warp_Tile == 32)
+        return is_8bit_float ? 64 : 16;
+    else
+        return is_8bit_float ? 128 : 32;
+#else
+    if constexpr(M_Warp_Tile == 32)
+        return 16;
+    else
+        return 32;
+#endif
+#endif
+}
+
 template <typename A0DataType,
           typename B0DataType,
           typename AccDataType,
@@ -103,17 +125,25 @@ class TestCkTileGemmMultiABD : public ::testing::Test
                                                                    DsDataType::size()>& args,
                                const ck_tile::stream_config& s)
     {
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = 32;
+        constexpr ck_tile::index_t M_Tile = 128;
+        constexpr ck_tile::index_t N_Tile = 128;
+        constexpr ck_tile::index_t K_Tile = 64;
 
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
 
+#if CK_TILE_USE_WMMA
+        using ADataType =
+            ck_tile::remove_cvref_t<std::tuple_element_t<ck_tile::number<0>{}, AsDataType>>;
+        constexpr ck_tile::index_t M_Warp_Tile = 16;
+        constexpr ck_tile::index_t N_Warp_Tile = 16;
+        constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<ADataType, N_Warp_Tile>();
+#else
         constexpr ck_tile::index_t M_Warp_Tile = 32;
         constexpr ck_tile::index_t N_Warp_Tile = 32;
         constexpr ck_tile::index_t K_Warp_Tile = 16;
+#endif
 
         constexpr bool DoubleSmemBuffer = false;
 
