@@ -6,64 +6,91 @@
 #include <ostream>
 #include <string_view>
 #include <variant>
+#include <bit>
+#include <array>
 
 namespace ck_tile::builder {
 
 enum class DataType
 {
+    UNDEFINED_DATA_TYPE = 0,
     FP32,
     FP16,
     BF16,
     FP8,
+    INT32,
     I8,
     U8
 };
 
-// Memory layouts for 1D convolution tensors.
-// G: Group, N: Batch, K: Output Channel, C: Input Channel, W: Width
-// Enum defines Input, Weight, and Output tensor layouts respectively.
-enum class GroupConvLayout1D
+enum class TensorLayout
 {
-    GNWC_GKXC_GNWK,
-    NWGC_GKXC_NWGK,
-    NGCW_GKXC_NGKW,
-    NGCW_GKCX_NGKW
-};
+    UNDEFINED_TENSOR_LAYOUT = 0,
 
-// Memory layouts for 2D convolution tensors.
-// G: Group, N: Batch, K: Output Channel, C: Input Channel, Y: Height, X: Width, H: Height
-// Enum defines Input, Weight, and Output tensor layouts respectively.
-enum class GroupConvLayout2D
-{
-    GNHWC_GKYXC_GNHWK,
-    NHWGC_GKYXC_NHWGK,
-    NGCHW_GKYXC_NGKHW,
-    NGCHW_GKCYX_NGKHW
-};
+    // Bias tensors
+    GC,
+    G_C_strided,
+    G_K_strided,
 
-// Memory layouts for 3D convolution tensors.
-// G: Group, N: Batch, K: Output Channel, C: Input Channel, Z: Depth, Y: Height, X: Width, D: Depth,
-// H: Height Enum defines Input, Weight, and Output tensor layouts respectively.
-enum class GroupConvLayout3D
-{
-    GNDHWC_GKZYXC_GNDHWK,
-    NDHWGC_GKZYXC_NDHWGK,
-    NGCDHW_GKZYXC_NGKDHW,
-    NGCDHW_GKCZYX_NGKDHW,
-};
+    // 1D conv input tensor
+    GNCW,
+    GNWC,
+    NWGC,
+    NGCW,
+    G_NW_C_strided,
 
-struct GroupConvLayout
-{
-    union
-    {
-        GroupConvLayout1D _1d;
-        GroupConvLayout2D _2d;
-        GroupConvLayout3D _3d;
-    };
+    // 2D conv input tensor
+    GNCHW,
+    GNHWC,
+    NHWGC,
+    NGCHW,
+    G_NHW_C_strided,
 
-    constexpr GroupConvLayout(GroupConvLayout1D layout) : _1d(layout) {}
-    constexpr GroupConvLayout(GroupConvLayout2D layout) : _2d(layout) {}
-    constexpr GroupConvLayout(GroupConvLayout3D layout) : _3d(layout) {}
+    // 3D conv input tensor
+    GNCDHW,
+    GNDHWC,
+    NDHWGC,
+    NGCDHW,
+    G_NDHW_C_strided,
+
+    // 1D conv weight tensor
+    GKXC,
+    GKCX,
+    KXGC,
+    G_K_X_C_strided,
+
+    // 2D conv weight tensor
+    GKYXC,
+    GKCYX,
+    KYXGC,
+    G_K_YX_C_strided,
+
+    // 3D conv weight tensor
+    GKZYXC,
+    GKCZYX,
+    KZYXGC,
+    G_K_ZYX_C_strided,
+
+    // 1D conv output tensor
+    GNKW,
+    GNWK,
+    NWGK,
+    NGKW,
+    G_NW_K_strided,
+
+    // 2D conv output tensor
+    GNKHW,
+    GNHWK,
+    NHWGK,
+    NGKHW,
+    G_NHW_K_strided,
+
+    // 3D conv output tensor
+    GNKDHW,
+    GNDHWK,
+    NDHWGK,
+    NGKDHW,
+    G_NDHW_K_strided
 };
 
 // Direction of the convolution operation.
@@ -77,13 +104,11 @@ enum class ConvDirection
 // Fused element-wise operations.
 enum class ElementwiseOperation
 {
-    BIAS,
-    BIAS_CLAMP,
     BIAS_BNORM_CLAMP,
-    BILINEAR,
-    CLAMP,
     SCALE,
-    PASS_THROUGH
+    CLAMP,
+    PASS_THROUGH,
+    SCALEADD_SCALEADD_RELU
 };
 
 // Enums for pipeline versions & schedulers
@@ -118,6 +143,15 @@ enum struct GemmSpecialization
     MKOPadding,
     NKOPadding,
     MNKOPadding
+};
+
+// Enums for the CK Tile convolution specialization.
+enum class TileConvSpecialization
+{
+    DEFAULT,
+    FILTER_1X1_PAD0,
+    FILTER_1X1_STRIDE1_PAD0,
+    FILTER_3x3
 };
 
 // Enums for the forward convolution specialization.
@@ -178,210 +212,267 @@ enum class ConvAlgorithmSpecialization
     LARGE_TENSOR
 };
 
-// ostream operator overloads for enum classes
-inline std::ostream& operator<<(std::ostream& os, DataType dt)
+// toString methods for enum classes
+inline std::string_view toString(DataType dt)
 {
     using enum DataType;
     switch(dt)
     {
-    case FP16: return os << "FP16";
-    case FP32: return os << "FP32";
-    case BF16: return os << "BF16";
-    case FP8: return os << "FP8";
-    case I8: return os << "I8";
-    case U8: return os << "U8";
-    default: return os << "Unknown";
+    case FP16: return "FP16";
+    case FP32: return "FP32";
+    case BF16: return "BF16";
+    case FP8: return "FP8";
+    case INT32: return "INT32";
+    case I8: return "I8";
+    case U8: return "U8";
+    case UNDEFINED_DATA_TYPE: return "UNDEFINED_DATA_TYPE";
+    default: return "Unknown";
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, ConvDirection dir)
+inline std::string_view toString(ConvDirection dir)
 {
     using enum ConvDirection;
     switch(dir)
     {
-    case FORWARD: return os << "Forward";
-    case BACKWARD_DATA: return os << "Backward Data";
-    case BACKWARD_WEIGHT: return os << "Backward Weight";
-    default: return os << "Unknown";
+    case FORWARD: return "Forward";
+    case BACKWARD_DATA: return "Backward Data";
+    case BACKWARD_WEIGHT: return "Backward Weight";
+    default: return "Unknown";
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, GroupConvLayout1D layout)
-{
-    using enum GroupConvLayout1D;
-    switch(layout)
-    {
-    case GNWC_GKXC_GNWK: return os << "GNWC_GKXC_GNWK";
-    case NWGC_GKXC_NWGK: return os << "NWGC_GKXC_NWGK";
-    case NGCW_GKXC_NGKW: return os << "NGCW_GKXC_NGKW";
-    case NGCW_GKCX_NGKW: return os << "NGCW_GKCX_NGKW";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, GroupConvLayout2D layout)
-{
-    using enum GroupConvLayout2D;
-    switch(layout)
-    {
-    case GNHWC_GKYXC_GNHWK: return os << "GNHWC_GKYXC_GNHWK";
-    case NHWGC_GKYXC_NHWGK: return os << "NHWGC_GKYXC_NHWGK";
-    case NGCHW_GKYXC_NGKHW: return os << "NGCHW_GKYXC_NGKHW";
-    case NGCHW_GKCYX_NGKHW: return os << "NGCHW_GKCYX_NGKHW";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, GroupConvLayout3D layout)
-{
-    using enum GroupConvLayout3D;
-    switch(layout)
-    {
-    case GNDHWC_GKZYXC_GNDHWK: return os << "GNDHWC_GKZYXC_GNDHWK";
-    case NDHWGC_GKZYXC_NDHWGK: return os << "NDHWGC_GKZYXC_NDHWGK";
-    case NGCDHW_GKZYXC_NGKDHW: return os << "NGCDHW_GKZYXC_NGKDHW";
-    case NGCDHW_GKCZYX_NGKDHW: return os << "NGCDHW_GKCZYX_NGKDHW";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, ElementwiseOperation op)
+inline std::string_view toString(ElementwiseOperation op)
 {
     using enum ElementwiseOperation;
     switch(op)
     {
-    case BIAS: return os << "BIAS";
-    case BIAS_CLAMP: return os << "BIAS_CLAMP";
-    case BIAS_BNORM_CLAMP: return os << "BIAS_BNORM_CLAMP";
-    case BILINEAR: return os << "BILINEAR";
-    case CLAMP: return os << "CLAMP";
-    case SCALE: return os << "SCALE";
-    case PASS_THROUGH: return os << "PASS_THROUGH";
-    default: return os << "Unknown";
+    case CLAMP: return "CLAMP";
+    case SCALE: return "SCALE";
+    case PASS_THROUGH: return "PASS_THROUGH";
+    case BIAS_BNORM_CLAMP: return "BIAS_BNORM_CLAMP";
+    case SCALEADD_SCALEADD_RELU: return "SCALEADD_SCALEADD_RELU";
+    default: return "Unknown";
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, PipelineVersion ver)
+inline std::string_view toString(PipelineVersion ver)
 {
     using enum PipelineVersion;
     switch(ver)
     {
-    case V1: return os << "V1";
-    case V2: return os << "V2";
-    case V3: return os << "V3";
-    case V4: return os << "V4";
-    case V5: return os << "V5";
-    case WEIGHT_ONLY: return os << "WEIGHT_ONLY";
-    default: return os << "Unknown";
+    case V1: return "V1";
+    case V2: return "V2";
+    case V3: return "V3";
+    case V4: return "V4";
+    case V5: return "V5";
+    case WEIGHT_ONLY: return "WEIGHT_ONLY";
+    default: return "Unknown";
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, GemmSpecialization spec)
+inline std::string_view toString(GemmSpecialization spec)
 {
     using enum GemmSpecialization;
     switch(spec)
     {
-    case Default: return os << "Default";
-    case MPadding: return os << "MPadding";
-    case NPadding: return os << "NPadding";
-    case KPadding: return os << "KPadding";
-    case MNPadding: return os << "MNPadding";
-    case MKPadding: return os << "MKPadding";
-    case NKPadding: return os << "NKPadding";
-    case MNKPadding: return os << "MNKPadding";
-    case OPadding: return os << "OPadding";
-    case MOPadding: return os << "MOPadding";
-    case NOPadding: return os << "NOPadding";
-    case KOPadding: return os << "KOPadding";
-    case MNOPadding: return os << "MNOPadding";
-    case MKOPadding: return os << "MKOPadding";
-    case NKOPadding: return os << "NKOPadding";
-    case MNKOPadding: return os << "MNKOPadding";
-    default: return os << "Unknown";
+    case Default: return "Default";
+    case MPadding: return "MPadding";
+    case NPadding: return "NPadding";
+    case KPadding: return "KPadding";
+    case MNPadding: return "MNPadding";
+    case MKPadding: return "MKPadding";
+    case NKPadding: return "NKPadding";
+    case MNKPadding: return "MNKPadding";
+    case OPadding: return "OPadding";
+    case MOPadding: return "MOPadding";
+    case NOPadding: return "NOPadding";
+    case KOPadding: return "KOPadding";
+    case MNOPadding: return "MNOPadding";
+    case MKOPadding: return "MKOPadding";
+    case NKOPadding: return "NKOPadding";
+    case MNKOPadding: return "MNKOPadding";
+    default: return "Unknown";
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, ConvFwdSpecialization spec)
+inline std::string_view toString(ConvFwdSpecialization spec)
 {
     using enum ConvFwdSpecialization;
     switch(spec)
     {
-    case DEFAULT: return os << "DEFAULT";
-    case FILTER_1X1_PAD0: return os << "FILTER_1X1_PAD0";
-    case FILTER_1X1_STRIDE1_PAD0: return os << "FILTER_1X1_STRIDE1_PAD0";
-    case FILTER_3x3: return os << "FILTER_3x3";
-    default: return os << "Unknown";
+    case DEFAULT: return "DEFAULT";
+    case FILTER_1X1_PAD0: return "FILTER_1X1_PAD0";
+    case FILTER_1X1_STRIDE1_PAD0: return "FILTER_1X1_STRIDE1_PAD0";
+    case FILTER_3x3: return "FILTER_3x3";
+    default: return "Unknown";
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, ConvBwdDataSpecialization spec)
+inline std::string_view toString(ConvBwdDataSpecialization spec)
 {
     using enum ConvBwdDataSpecialization;
     switch(spec)
     {
-    case DEFAULT: return os << "DEFAULT";
-    case FILTER_1X1_STRIDE1_PAD0: return os << "FILTER_1X1_STRIDE1_PAD0";
-    default: return os << "Unknown";
+    case DEFAULT: return "DEFAULT";
+    case FILTER_1X1_STRIDE1_PAD0: return "FILTER_1X1_STRIDE1_PAD0";
+    default: return "Unknown";
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, ConvBwdWeightSpecialization spec)
+inline std::string_view toString(ConvBwdWeightSpecialization spec)
 {
     using enum ConvBwdWeightSpecialization;
     switch(spec)
     {
-    case DEFAULT: return os << "DEFAULT";
-    case FILTER_1X1_STRIDE1_PAD0: return os << "FILTER_1X1_STRIDE1_PAD0";
-    case FILTER_1X1_PAD0: return os << "FILTER_1X1_PAD0";
-    case ODD_C: return os << "ODD_C";
-    default: return os << "Unknown";
+    case DEFAULT: return "DEFAULT";
+    case FILTER_1X1_STRIDE1_PAD0: return "FILTER_1X1_STRIDE1_PAD0";
+    case FILTER_1X1_PAD0: return "FILTER_1X1_PAD0";
+    case ODD_C: return "ODD_C";
+    default: return "Unknown";
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, GemmPadding padding)
+inline std::string_view toString(GemmPadding padding)
 {
     using enum GemmPadding;
     switch(padding)
     {
-    case DEFAULT: return os << "DEFAULT";
-    case M_PADDING: return os << "M_PADDING";
-    case N_PADDING: return os << "N_PADDING";
-    case K_PADDING: return os << "K_PADDING";
-    case MN_PADDING: return os << "MN_PADDING";
-    case MK_PADDING: return os << "MK_PADDING";
-    case NK_PADDING: return os << "NK_PADDING";
-    case MNK_PADDING: return os << "MNK_PADDING";
-    case O_PADDING: return os << "O_PADDING";
-    case MO_PADDING: return os << "MO_PADDING";
-    case NO_PADDING: return os << "NO_PADDING";
-    case KO_PADDING: return os << "KO_PADDING";
-    case MNO_PADDING: return os << "MNO_PADDING";
-    case MKO_PADDING: return os << "MKO_PADDING";
-    case NKO_PADDING: return os << "NKO_PADDING";
-    case MNKO_PADDING: return os << "MNKO_PADDING";
-    default: return os << "Unknown";
+    case DEFAULT: return "DEFAULT";
+    case M_PADDING: return "M_PADDING";
+    case N_PADDING: return "N_PADDING";
+    case K_PADDING: return "K_PADDING";
+    case MN_PADDING: return "MN_PADDING";
+    case MK_PADDING: return "MK_PADDING";
+    case NK_PADDING: return "NK_PADDING";
+    case MNK_PADDING: return "MNK_PADDING";
+    case O_PADDING: return "O_PADDING";
+    case MO_PADDING: return "MO_PADDING";
+    case NO_PADDING: return "NO_PADDING";
+    case KO_PADDING: return "KO_PADDING";
+    case MNO_PADDING: return "MNO_PADDING";
+    case MKO_PADDING: return "MKO_PADDING";
+    case NKO_PADDING: return "NKO_PADDING";
+    case MNKO_PADDING: return "MNKO_PADDING";
+    default: return "Unknown";
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, PipelineScheduler sched)
+inline std::string_view toString(PipelineScheduler sched)
 {
     using enum PipelineScheduler;
     switch(sched)
     {
-    case DEFAULT: return os << "DEFAULT";
-    case INTRAWAVE: return os << "INTRAWAVE";
-    case INTERWAVE: return os << "INTERWAVE";
-    default: return os << "Unknown";
+    case DEFAULT: return "DEFAULT";
+    case INTRAWAVE: return "INTRAWAVE";
+    case INTERWAVE: return "INTERWAVE";
+    default: return "Unknown";
     }
 }
 
-// ostream operator overload for std::variant of layout types
-inline std::ostream&
-operator<<(std::ostream& os,
-           const std::variant<GroupConvLayout1D, GroupConvLayout2D, GroupConvLayout3D>& layout)
+inline std::string_view toString(TensorLayout layout)
 {
-    std::visit([&os](const auto& l) { os << l; }, layout);
-    return os;
+    using enum TensorLayout;
+    switch(layout)
+    {
+    case GNCW: return "GNCW";
+    case GNWC: return "GNWC";
+    case NWGC: return "NWGC";
+    case NGCW: return "NGCW";
+    case G_NW_C_strided: return "G_NW_C_strided";
+    case GNCHW: return "GNCHW";
+    case GNHWC: return "GNHWC";
+    case NHWGC: return "NHWGC";
+    case NGCHW: return "NGCHW";
+    case G_NHW_C_strided: return "G_NHW_C_strided";
+    case GNCDHW: return "GNCDHW";
+    case GNDHWC: return "GNDHWC";
+    case NDHWGC: return "NDHWGC";
+    case NGCDHW: return "NGCDHW";
+    case G_NDHW_C_strided: return "G_NDHW_C_strided";
+    case GKXC: return "GKXC";
+    case GKCX: return "GKCX";
+    case KXGC: return "KXGC";
+    case G_K_X_C_strided: return "G_K_X_C_strided";
+    case GKYXC: return "GKYXC";
+    case GKCYX: return "GKCYX";
+    case KYXGC: return "KYXGC";
+    case G_K_YX_C_strided: return "G_K_YX_C_strided";
+    case GKZYXC: return "GKZYXC";
+    case GKCZYX: return "GKCZYX";
+    case KZYXGC: return "KZYXGC";
+    case G_K_ZYX_C_strided: return "G_K_ZYX_C_strided";
+    case GNKW: return "GNKW";
+    case GNWK: return "GNWK";
+    case NWGK: return "NWGK";
+    case NGKW: return "NGKW";
+    case G_NW_K_strided: return "G_NW_K_strided";
+    case GNKHW: return "GNKHW";
+    case GNHWK: return "GNHWK";
+    case NHWGK: return "NHWGK";
+    case NGKHW: return "NGKHW";
+    case G_NHW_K_strided: return "G_NHW_K_strided";
+    case GNKDHW: return "GNKDHW";
+    case GNDHWK: return "GNDHWK";
+    case NDHWGK: return "NDHWGK";
+    case NGKDHW: return "NGKDHW";
+    case G_NDHW_K_strided: return "G_NDHW_K_strided";
+    case GC: return "GC";
+    case G_C_strided: return "G_C_strided";
+    case G_K_strided: return "G_K_strided";
+    case UNDEFINED_TENSOR_LAYOUT: return "UNDEFINED_TENSOR_LAYOUT";
+    default: return "Unknown";
+    }
+}
+
+// ostream operator overloads for enum classes
+inline std::ostream& operator<<(std::ostream& os, DataType dt) { return os << toString(dt); }
+
+inline std::ostream& operator<<(std::ostream& os, ConvDirection dir) { return os << toString(dir); }
+
+inline std::ostream& operator<<(std::ostream& os, ElementwiseOperation op)
+{
+    return os << toString(op);
+}
+
+inline std::ostream& operator<<(std::ostream& os, PipelineVersion ver)
+{
+    return os << toString(ver);
+}
+
+inline std::ostream& operator<<(std::ostream& os, GemmSpecialization spec)
+{
+    return os << toString(spec);
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvFwdSpecialization spec)
+{
+    return os << toString(spec);
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvBwdDataSpecialization spec)
+{
+    return os << toString(spec);
+}
+
+inline std::ostream& operator<<(std::ostream& os, ConvBwdWeightSpecialization spec)
+{
+    return os << toString(spec);
+}
+
+inline std::ostream& operator<<(std::ostream& os, GemmPadding padding)
+{
+    return os << toString(padding);
+}
+
+inline std::ostream& operator<<(std::ostream& os, PipelineScheduler sched)
+{
+    return os << toString(sched);
+}
+
+inline std::ostream& operator<<(std::ostream& os, TensorLayout layout)
+{
+    return os << toString(layout);
 }
 
 // ostream operator overload for std::variant of convolution specializations
