@@ -64,7 +64,7 @@ BOOL_MAP_DROPOUT = {
     False: "no_dropout",
 }
 
-INT_MAP_MAX_K = {hd: f"maxk_{hd}" for hd in [64, 128, 256]}
+INT_MAP_MAX_K = {hd: f"maxk_{hd}" for hd in [64, 96, 128, 256]}
 
 TYPE_CTYPE_MAP = {
     "fp16": "ck_tile::fp16_t",
@@ -159,7 +159,7 @@ def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
                                     file.write(forward_instance)
 
 if __name__ == "__main__":
-    headdims_fwd = [64, 128, 256]
+    headdims_fwd = [64, 96, 128, 256]
 
     this_dir = os.path.dirname(__file__)
     output_dir = Path(this_dir) / "instances"
