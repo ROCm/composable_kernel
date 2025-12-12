@@ -69,8 +69,10 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
                          const float max_accumulated_value)
 {
-    using ComputeType =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+    using ComputeType = std::conditional_t<
+        std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>,
+        ADataType,
+        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>>;
     // Calculate thresholds
     const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
         ck_tile::integer_divide_ceil(K, kbatch));
@@ -211,6 +213,7 @@ struct GemmConfigPreshuffleB_BQuant_Prefill : public GemmConfigBase
 
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
+    static constexpr int kBlockPerCu       = 2;
 };
 
 template <typename PrecType>

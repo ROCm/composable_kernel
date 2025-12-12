@@ -29,13 +29,14 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     using ALayout                   = std::tuple_element_t<0, Tuple>;
     using BLayout                   = std::tuple_element_t<1, Tuple>;
     using CLayout                   = std::tuple_element_t<2, Tuple>;
-    using ADataType                 = std::tuple_element_t<3, Tuple>;
-    using BDataType                 = std::tuple_element_t<4, Tuple>;
-    using QDataType                 = std::tuple_element_t<5, Tuple>;
-    using CDataType                 = std::tuple_element_t<6, Tuple>;
-    static constexpr auto QuantType = std::tuple_element_t<7, Tuple>::value;
-    using GemmConfig                = std::tuple_element_t<8, Tuple>;
-    using QuantGroupSize            = std::tuple_element_t<9, Tuple>;
+    using AQLayout                  = std::tuple_element_t<3, Tuple>;
+    using ADataType                 = std::tuple_element_t<4, Tuple>;
+    using BDataType                 = std::tuple_element_t<5, Tuple>;
+    using QDataType                 = std::tuple_element_t<6, Tuple>;
+    using CDataType                 = std::tuple_element_t<7, Tuple>;
+    static constexpr auto QuantType = std::tuple_element_t<8, Tuple>::value;
+    using GemmConfig                = std::tuple_element_t<9, Tuple>;
+    using QuantGroupSize            = std::tuple_element_t<10, Tuple>;
     using AccDataType               = float; // accumulate always in float
 
     // Get the quant-type specific data types from traits
@@ -85,6 +86,9 @@ class TestCkTileGemmQuantBase : public ::testing::Test
 
         using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
+        // Re-use the AQLayout for BQLayout
+        using BQLayout = AQLayout;
+
         using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
                                                                kPadN,
                                                                kPadK,
@@ -94,8 +98,8 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                                                BLayout,
                                                                CLayout,
                                                                QuantType,
-                                                               ALayout,
-                                                               BLayout,
+                                                               AQLayout,
+                                                               BQLayout,
                                                                GemmConfig::TransposeC,
                                                                DoubleSmemBuffer,
                                                                false,
@@ -127,8 +131,10 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                              const ck_tile::index_t kbatch,
                              const float max_accumulated_value)
     {
-        using ComputeType =
-            std::conditional_t<sizeof(ADataType_) < sizeof(BDataType_), ADataType_, BDataType_>;
+        using ComputeType = std::conditional_t<
+            std::is_same_v<BDataType_, ck_tile::pk_fp4_raw_t>,
+            ADataType_,
+            std::conditional_t<sizeof(ADataType_) < sizeof(BDataType_), ADataType_, BDataType_>>;
         // Calculate thresholds
         const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType_, AccDataType_>(
             ck_tile::integer_divide_ceil(K, kbatch));

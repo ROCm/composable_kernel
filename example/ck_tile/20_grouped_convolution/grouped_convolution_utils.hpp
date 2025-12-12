@@ -132,3 +132,9 @@ auto create_args(int argc, char* argv[])
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
+
+struct InvokerResult
+{
+    float ave_time;
+    ck_tile::index_t split_k;
+};

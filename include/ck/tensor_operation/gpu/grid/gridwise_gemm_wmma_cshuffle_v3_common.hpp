@@ -16,6 +16,7 @@
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_wave_tiles.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_thread_tiles.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_thread_tiles_preshuffle.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_wmma_selector.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r2.hpp"
@@ -59,6 +60,48 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
             p_shared, splitk_batch_offset, karg, epilogue_args);
+
+#if defined(__gfx11__)
+    }
+#endif
+#else
+    ignore = karg;
+#endif
+}
+
+template <typename GridwiseGemm,
+          bool HasMainKBlockLoop,
+          InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+          index_t MinimumOccupancy = 1,
+          TailNumber TailNum       = TailNumber::Full>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+#endif
+    kernel_gemm_b_preshuffle_wmma_cshuffle_v3(typename GridwiseGemm::Argument karg)
+{
+#if(defined(__gfx11__) || defined(__gfx12__))
+#if defined(__gfx11__)
+    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+    using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
+    if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
+                   (std::is_same_v<e_data_type, ck::half_t> ||
+                    std::is_same_v<e_data_type, ck::bhalf_t>)))
+    {
+#endif
+        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueCShuffle>();
+        __shared__ char p_shared[LDS_size];
+
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
+
+        const index_t num_k_per_block = math::integer_divide_ceil(karg.K, GridwiseGemm::KPack);
+        const index_t k_id            = blockIdx.z * num_k_per_block;
+
+        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+
+        GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
+            p_shared, splitk_batch_offset, karg, epilogue_args, k_id);
 
 #if defined(__gfx11__)
     }
@@ -118,6 +161,7 @@ template <typename ALayout,
           typename ComputeTypeB,
           bool PermuteA,
           bool PermuteB,
+          bool IsBPreShuffled          = false,
           bool ForceThreadTileTransfer = false> // only needed for convolution (limitation)
 struct GridwiseGemm_wmma_cshuffle_v3_base
 {
@@ -160,7 +204,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     static constexpr index_t KInnerB = ck::math::integer_divide_ceil(BK1Value, KPerWmmaBlk);
 
-    static constexpr index_t KInner = ck::math::min(KInnerA, KInnerB);
+    static constexpr index_t KInner = IsBPreShuffled ? KInnerB : ck::math::min(KInnerA, KInnerB);
 
     static constexpr index_t KPack =
         KInner *
@@ -193,7 +237,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
     static constexpr bool IsAWaveTransferApplicable =
         !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
         GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
-        BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8;
+        BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8 && !IsBPreShuffled;
 
     static constexpr bool IsBWaveTransferApplicable =
         !ForceThreadTileTransfer && NumBTensor == 1 && BPackedSize == 1 &&
@@ -246,37 +290,50 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4;
 
     using BTransfer = typename std::conditional<
-        IsBWaveTransferApplicable,
-        ABTransferWaveTiles<BLayout,
-                            tensor_layout::gemm::ColumnMajor,
-                            LDSTypeB,
-                            BlockSize,
-                            NPerBlock,
-                            KPerBlock,
-                            NPerWmma,
-                            KPack,
-                            BK1Value,
-                            WaveSize>,
-        ABTransferThreadTiles<BLayout,
-                              tensor_layout::gemm::ColumnMajor,
-                              LDSTypeB,
-                              BlockSize,
-                              NPerBlock,
-                              KPerBlock,
-                              NPerWmma,
-                              BK1Value,
-                              KPack,
-                              KInner,
-                              KPerWmmaBlk,
-                              UseBlockPaddingB,
-                              PermuteB,
-                              BBlockTransferThreadClusterLengths_BK0_N_BK1,
-                              BBlockTransferThreadClusterArrangeOrder,
-                              BBlockTransferSrcAccessOrder,
-                              BBlockTransferSrcVectorDim,
-                              BBlockTransferSrcScalarPerVector,
-                              BBlockTransferDstScalarPerVector_BK1,
-                              BThreadTransferSrcResetCoordinateAfterRun>>::type;
+        IsBPreShuffled,
+        ABTransferThreadTilesPreShuffle<BLayout,
+                                        tensor_layout::gemm::ColumnMajor,
+                                        NPerBlock,
+                                        KPerBlock,
+                                        NPerWmma,
+                                        NPerBlock / NPerWmma / NRepeat,
+                                        BK1Value,
+                                        WaveSize,
+                                        KPack,
+                                        BBlockTransferSrcScalarPerVector,
+                                        BThreadTransferSrcResetCoordinateAfterRun>,
+        typename std::conditional<
+            IsBWaveTransferApplicable,
+            ABTransferWaveTiles<BLayout,
+                                tensor_layout::gemm::ColumnMajor,
+                                LDSTypeB,
+                                BlockSize,
+                                NPerBlock,
+                                KPerBlock,
+                                NPerWmma,
+                                KPack,
+                                BK1Value,
+                                WaveSize>,
+            ABTransferThreadTiles<BLayout,
+                                  tensor_layout::gemm::ColumnMajor,
+                                  LDSTypeB,
+                                  BlockSize,
+                                  NPerBlock,
+                                  KPerBlock,
+                                  NPerWmma,
+                                  BK1Value,
+                                  KPack,
+                                  KInner,
+                                  KPerWmmaBlk,
+                                  UseBlockPaddingB,
+                                  PermuteB,
+                                  BBlockTransferThreadClusterLengths_BK0_N_BK1,
+                                  BBlockTransferThreadClusterArrangeOrder,
+                                  BBlockTransferSrcAccessOrder,
+                                  BBlockTransferSrcVectorDim,
+                                  BBlockTransferSrcScalarPerVector,
+                                  BBlockTransferDstScalarPerVector_BK1,
+                                  BThreadTransferSrcResetCoordinateAfterRun>>::type>::type;
 
     static_assert(!(is_same_v<remove_cvref_t<LDSTypeB>, pk_i4_t> &&
                     GemmSpec != tensor_operation::device::GemmSpecialization::Default),
@@ -581,7 +638,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                            MRepeat,
                                                            NRepeat,
                                                            KPack,
-                                                           KInner>())>;
+                                                           KInner,
+                                                           false,
+                                                           IsBPreShuffled>())>;
 
     // Used to create obj in global function and pass it to Run method
     using EpilogueCShuffle =
@@ -906,11 +965,17 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
-        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+        constexpr auto a_block_space_size_aligned =
+            ATransfer::IsLDSNeeded()
+                ? math::integer_least_multiple(a_block_desc_ak0_m_ak1.GetElementSpaceSize(),
+                                               max_lds_align)
+                : 0;
 
-        constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
+        constexpr auto b_block_space_size_aligned =
+            BTransfer::IsLDSNeeded()
+                ? math::integer_least_multiple(b_block_desc_bk0_n_bk1.GetElementSpaceSize(),
+                                               max_lds_align)
+                : 0;
 
         // LDS allocation for C shuffle in LDS
         constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
@@ -943,6 +1008,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
               typename BGridDesc_BK0_N_K1,
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
               typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename AScaleStruct,
               typename BScaleStruct,
               typename EpilogueArgument,
               bool HasMainKBlockLoop,
@@ -965,8 +1031,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                const index_t& block_m_id,
                                const index_t& block_n_id,
                                const index_t& num_k_block_per_scale,
+                               AScaleStruct& a_scale_struct,
                                BScaleStruct& b_scale_struct,
-                               EpilogueArgument& epilogue_args)
+                               EpilogueArgument& epilogue_args,
+                               const index_t k_id = 0)
     {
         const auto as_grid_buf = generate_tuple(
             [&](auto i) {
@@ -998,7 +1066,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                  AsDataType,
                                                  AElementwiseOperation,
                                                  BlockwiseGemmPipe::GlobalBufferNum>(
-                as_grid_desc_ak0_m_ak1, a_block_desc_ak0_m_ak1, a_element_op, block_m_id);
+                as_grid_desc_ak0_m_ak1, a_block_desc_ak0_m_ak1, a_element_op, block_m_id, k_id);
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
@@ -1007,21 +1075,21 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                  BsDataType,
                                                  BElementwiseOperation,
                                                  BlockwiseGemmPipe::GlobalBufferNum>(
-                bs_grid_desc_bk0_n_bk1, b_block_desc_bk0_n_bk1, b_element_op, block_n_id);
+                bs_grid_desc_bk0_n_bk1, b_block_desc_bk0_n_bk1, b_element_op, block_n_id, k_id);
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         // Cast after lds
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSTypeA*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+        auto a_block_buf = ATransfer::GetBuffer(static_cast<LDSTypeA*>(p_shared),
+                                                a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            reinterpret_cast<LDSTypeB*>(static_cast<char*>(p_shared) + a_block_space_size_aligned *
-                                                                           sizeof(LDSTypeA) /
-                                                                           APackedSize),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+        auto b_block_buf =
+            BTransfer::GetBuffer(reinterpret_cast<LDSTypeB*>(static_cast<char*>(p_shared) +
+                                                             a_block_space_size_aligned *
+                                                                 sizeof(LDSTypeA) / APackedSize),
+                                 b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = ATransfer::GetBlockStep();
         constexpr auto b_block_slice_copy_step = BTransfer::GetBlockStep();
@@ -1048,6 +1116,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             b_block_buf,
             b_block_slice_copy_step,
             c_thread_buf,
+            a_scale_struct,
             b_scale_struct,
             num_k_block_main_loop,
             num_k_block_per_scale);
