@@ -65,7 +65,7 @@ jobs:
         -DTHEROCK_USE_EXTERNAL_ROCM_LIBRARIES=ON
         -DTHEROCK_ROCM_LIBRARIES_SOURCE_DIR=../
       amdgpu_families: "gfx94X-dcgpu"
-      test_runs_on: "linux-mi325-1gpu-ossci-rocm"
+      test_runs_on: "linux-mi325-1gpu-ossci-rocm-frac"
 
   therock_ci_summary:
     name: TheRock CI Summary

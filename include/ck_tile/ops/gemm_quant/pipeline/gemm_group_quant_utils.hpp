@@ -189,9 +189,10 @@ struct tile_distribution_encoding_pattern_aq_transposed_c
 template <typename BlockGemmShape,
           typename WarpGemm,
           index_t BlockSize,
-          index_t YPerTile,
-          index_t XPerTile,
-          index_t YPerQ,
+          index_t KPerTile,
+          index_t NPerTile,
+          index_t NPerQ,
+          typename BQLayout    = tensor_layout::gemm::ColumnMajor,
           bool PreshuffleQuant = false>
 struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
 {
@@ -210,36 +211,41 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     /// @brief Creates a 2D tile distribution for BQ (B-matrix quantization scales)
     ///
     /// This function determines the optimal thread distribution pattern for loading and applying
-    /// quantization scales to the B matrix based on the quantization group size (XPerQ) relative
+    /// quantization scales to the B matrix based on the quantization group size (NPerQ) relative
     /// to warp dimensions.
     ///
     /// Three distinct distribution patterns are handled:
     ///
-    /// 1. Fine-grained quantization (XPerQ < WarpGemm::kN):
+    /// 1. Fine-grained quantization (NPerQ < WarpGemm::kN):
     ///    - Multiple quantization groups exist within a single warp's N-dimension
-    ///    - Each warp processes multiple scales (WarpGemm::kN / XPerQ scales per warp)
-    ///    - Distribution includes explicit replication factor (XR = XPerQ) for scale broadcast
-    ///    - Example: XPerQ=8, WarpGemm::kN=16, NWarps=4 → 2 scales per warp
+    ///    - Each warp processes multiple scales (WarpGemm::kN / NPerQ scales per warp)
+    ///    - Distribution includes explicit replication factor (XR = NPerQ) for scale broadcast
+    ///    - Example: NPerQ=8, WarpGemm::kN=16, NWarps=4 → 2 scales per warp
     ///
-    /// 2. Medium-grained quantization (WarpGemm::kN <= XPerQ <= WarpGemm::kN * NWarps):
+    /// 2. Medium-grained quantization (WarpGemm::kN <= NPerQ <= WarpGemm::kN * NWarps):
     ///    - Each warp handles exactly one quantization scale
-    ///    - Scales are distributed across warps with replication factor XR = XPerQ / WarpGemm::kN
-    ///    - Example: XPerQ=64, WarpGemm::kN=16, NWarps=4 → 1 scale per warp, XR=4
+    ///    - Scales are distributed across warps with replication factor XR = NPerQ / WarpGemm::kN
+    ///    - Example: NPerQ=64, WarpGemm::kN=16, NWarps=4 → 1 scale per warp, XR=4
     ///
-    /// 3. Coarse-grained quantization (XPerQ > WarpGemm::kN * NWarps):
+    /// 3. Coarse-grained quantization (NPerQ > WarpGemm::kN * NWarps):
     ///    - Quantization group spans multiple warps
     ///    - All warps share the same scale value
-    ///    - Example: XPerQ=128, WarpGemm::kN=16, NWarps=4 → all warps use same scale
+    ///    - Example: NPerQ=128, WarpGemm::kN=16, NWarps=4 → all warps use same scale
     ///
     /// @return A static tile distribution encoding for the BQ scale tensor
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
+        // Preshuffle only supported for ColumnMajor currently
+        static_assert(!(PreshuffleQuant && std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>),
+                      "PreshuffleQuant only supported for ColumnMajor BQLayout");
+
         if constexpr(PreshuffleQuant)
         {
+            // ColumnMajor only for preshuffle
             constexpr index_t X1 = warp_size;
-            constexpr index_t X0 = XPerTile / warp_size;
+            constexpr index_t X0 = NPerTile / warp_size;
             constexpr index_t Y1 = NWarps;
-            constexpr index_t Y0 = YPerTile / Y1;
+            constexpr index_t Y0 = KPerTile / Y1;
 
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps>,
@@ -251,52 +257,97 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
         }
         else
         {
-            if constexpr(YPerQ < WarpGemm::kN)
+            if constexpr(NPerQ < WarpGemm::kN)
             {
                 // Case 1: Fine-grained - multiple quantization scales within a single warp
-                constexpr index_t X  = XPerTile;             // Full X dimension of tile
-                constexpr index_t XR = 1;                    // No Y replication needed
-                constexpr index_t Y0 = NIterPerWarp;         // Iterations per warp in N-dim
-                constexpr index_t Y1 = NWarps;               // Number of warps in N-dim
-                constexpr index_t Y2 = WarpGemm::kN / YPerQ; // Number of scales per warp
-                constexpr index_t YR = YPerQ;                // Elements per quantization group
+                // N dimension needs to be partitioned the same way regardless of layout
+                constexpr index_t NR = 1;                    // No N replication needed
+                constexpr index_t N0 = NIterPerWarp;         // Iterations per warp in N-dim
+                constexpr index_t N1 = NWarps;               // Number of warps in N-dim
+                constexpr index_t N2 = WarpGemm::kN / NPerQ; // Number of scales per warp
 
-                static_assert(Y0 * Y1 * Y2 == YPerTile,
-                              "Y0, Y1, Y2 must cover the blocktile along Y.");
+                static_assert(N0 * N1 * N2 == NPerTile,
+                              "N0, N1, N2 must cover the blocktile along N dimension.");
 
-                return make_static_tile_distribution(
-                    tile_distribution_encoding<sequence<MWarps, XR, YR>,
-                                               tuple<sequence<Y0, Y1, Y2>, sequence<X>>,
-                                               tuple<sequence<0, 1>, sequence<0, 1, 0>>,
-                                               tuple<sequence<0, 1>, sequence<1, 2, 2>>,
-                                               sequence<1, 2>,
-                                               sequence<0, 0>>{});
+                if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>)
+                {
+                    // ColumnMajor: [(N0, N1, N2), K] - N on Y-axis, partition Y
+                    return make_static_tile_distribution(
+                        tile_distribution_encoding<sequence<MWarps, NR, NPerQ>,
+                                                   tuple<sequence<N0, N1, N2>, sequence<KPerTile>>,
+                                                   tuple<sequence<0, 1>, sequence<0, 1, 0>>,
+                                                   tuple<sequence<0, 1>, sequence<1, 2, 2>>,
+                                                   sequence<1, 2>,
+                                                   sequence<0, 0>>{});
+                }
+                else
+                {
+                    // RowMajor: [K, (N0, N1, N2)] - N on X-axis, partition X
+                    return make_static_tile_distribution(
+                        tile_distribution_encoding<sequence<MWarps, NR, NPerQ>,
+                                                   tuple<sequence<KPerTile>, sequence<N0, N1, N2>>,
+                                                   tuple<sequence<0, 2>, sequence<0, 2, 0>>,
+                                                   tuple<sequence<0, 1>, sequence<1, 2, 2>>,
+                                                   sequence<2, 1>,
+                                                   sequence<0, 0>>{});
+                }
             }
-            else if constexpr(YPerQ <= WarpGemm::kN * NWarps)
+            else if constexpr(NPerQ <= WarpGemm::kN * NWarps)
             {
                 // Case 2: Medium-grained - one quantization scale per warp
-                constexpr auto YR = YPerQ / WarpGemm::kN; // Scale replication factor
-                constexpr auto Y1 = NWarps / YR;          // Warps per unique scale
-                constexpr auto Y0 = YPerTile / Y1;        // Iterations to cover X dimension
-                return make_static_tile_distribution(
-                    tile_distribution_encoding<sequence<MWarps, YR, get_warp_size()>,
-                                               tuple<sequence<Y0, Y1>, sequence<XPerTile>>,
-                                               tuple<sequence<0, 1, 0>, sequence<0>>,
-                                               tuple<sequence<0, 1, 1>, sequence<2>>,
-                                               sequence<1, 2>,
-                                               sequence<0, 0>>{});
+                constexpr auto NR = NPerQ / WarpGemm::kN; // Scale replication factor
+                constexpr auto N1 = NWarps / NR;          // Warps per unique scale
+                constexpr auto N0 = NPerTile / N1;        // Iterations to cover N dimension
+
+                if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>)
+                {
+                    // ColumnMajor: [(N0, N1), K] - N on Y-axis
+                    return make_static_tile_distribution(
+                        tile_distribution_encoding<sequence<MWarps, NR, get_warp_size()>,
+                                                   tuple<sequence<N0, N1>, sequence<KPerTile>>,
+                                                   tuple<sequence<0, 1, 0>, sequence<0>>,
+                                                   tuple<sequence<0, 1, 1>, sequence<2>>,
+                                                   sequence<1, 2>,
+                                                   sequence<0, 0>>{});
+                }
+                else
+                {
+                    // RowMajor: [K, (N0, N1)] - N on X-axis
+                    return make_static_tile_distribution(
+                        tile_distribution_encoding<sequence<MWarps, NR, get_warp_size()>,
+                                                   tuple<sequence<KPerTile>, sequence<N0, N1>>,
+                                                   tuple<sequence<0, 2, 0>, sequence<0>>,
+                                                   tuple<sequence<0, 1, 1>, sequence<2>>,
+                                                   sequence<2, 1>,
+                                                   sequence<0, 0>>{});
+                }
             }
-            else // XPerQ > WarpGemm::kN * NWarps
+            else // NPerQ > WarpGemm::kN * NWarps
             {
                 // Case 3: Coarse-grained - quantization group spans all warps
                 // All warps in N-dimension share the same quantization scale
-                return make_static_tile_distribution(
-                    tile_distribution_encoding<sequence<MWarps, NWarps, get_warp_size()>,
-                                               tuple<sequence<YPerTile>, sequence<XPerTile>>,
-                                               tuple<sequence<0, 0>, sequence<0>>,
-                                               tuple<sequence<0, 1>, sequence<2>>,
-                                               sequence<2, 1>,
-                                               sequence<0, 0>>{});
+                if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>)
+                {
+                    // ColumnMajor: [N, K]
+                    return make_static_tile_distribution(
+                        tile_distribution_encoding<sequence<MWarps, NWarps, get_warp_size()>,
+                                                   tuple<sequence<NPerTile>, sequence<KPerTile>>,
+                                                   tuple<sequence<0, 0>, sequence<0>>,
+                                                   tuple<sequence<0, 1>, sequence<2>>,
+                                                   sequence<1, 2>,
+                                                   sequence<0, 0>>{});
+                }
+                else
+                {
+                    // RowMajor: [K, N]
+                    return make_static_tile_distribution(
+                        tile_distribution_encoding<sequence<MWarps, NWarps, get_warp_size()>,
+                                                   tuple<sequence<KPerTile>, sequence<NPerTile>>,
+                                                   tuple<sequence<0, 0>, sequence<0>>,
+                                                   tuple<sequence<0, 1>, sequence<2>>,
+                                                   sequence<2, 1>,
+                                                   sequence<0, 0>>{});
+                }
             }
         }
     }

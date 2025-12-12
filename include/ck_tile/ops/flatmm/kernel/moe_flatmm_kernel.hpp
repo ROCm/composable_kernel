@@ -595,16 +595,44 @@ struct MoeFlatmmKernel
             }
         }();
 
-        index_t kFlatK = kargs.K * BlockGemmShape::WarpTile::at(I1); // TODO (support splitK)
-        index_t kFlatN = kargs.N * kargs.K / kFlatK;
-
         const auto& b_flat_tensor_view = [&]() {
-            return make_naive_tensor_view<address_space_enum::global>(
-                b_flat_ptr,
-                make_tuple(kFlatN - kargs.n_padded_zeros / NPerXdl, kFlatK),
-                make_tuple(kFlatK, 1),
-                number<FlatmmPipeline::GetVectorSizeB()>{},
-                number<1>{});
+            if constexpr(!FlatmmPipeline::BPreShufflePermute)
+            {
+                index_t kFlatK =
+                    kargs.K * BlockGemmShape::WarpTile::at(I1); // TODO (support splitK)
+                index_t kFlatN = kargs.N * kargs.K / kFlatK;
+
+                return make_naive_tensor_view<address_space_enum::global,
+                                              memory_operation_enum::set,
+                                              FlatmmPipeline::BMemNTType>(
+                    b_flat_ptr,
+                    make_tuple(kFlatN - kargs.n_padded_zeros / NPerXdl, kFlatK),
+                    make_tuple(kFlatK, 1),
+                    number<FlatmmPipeline::GetVectorSizeB()>{},
+                    number<1>{});
+            }
+            else
+            {
+                index_t kFlatK  = FlatmmPipeline::flatKPerWarp;
+                index_t kFlatN0 = (kargs.N >> 4);
+                index_t kFlatK0 = (kargs.K >> 7);
+
+                auto b_tensor_view_naive = make_naive_tensor_view<address_space_enum::global,
+                                                                  memory_operation_enum::set,
+                                                                  FlatmmPipeline::BMemNTType>(
+                    b_flat_ptr,
+                    make_tuple(kFlatK0, kFlatN0 - kargs.n_padded_zeros / NPerXdl, kFlatK),
+                    make_tuple(kFlatK * (kFlatN0 - kargs.n_padded_zeros / NPerXdl), kFlatK, 1),
+                    number<FlatmmPipeline::GetVectorSizeB()>{},
+                    number<1>{});
+                return transform_tensor_view(
+                    b_tensor_view_naive,
+                    make_tuple(
+                        make_pass_through_transform(kFlatN0 - kargs.n_padded_zeros / NPerXdl),
+                        make_merge_transform_v3_division_mod(make_tuple(kFlatK0, kFlatK))),
+                    make_tuple(sequence<1>{}, sequence<0, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
         }();
 
         // TODO: enable vector write for C in ColMajor
@@ -1259,12 +1287,12 @@ struct MoeFlatmmKernel
                     auto fused_token =
                         kargs.p_sorted_token_ids[row_idx]; // topk-idx[31:24] + token_idx[23:0]
 
-                    index_t scatter_token_id = fused_token & token_id_mask;
+                    index_t scatter_token_id    = fused_token & token_id_mask;
+                    c_scatter_valids[mIter][m0] = (scatter_token_id < kargs.NumTokens);
                     if constexpr(IsInputGemm)
                         scatter_token_id =
                             scatter_token_id * kargs.TopK + (fused_token >> token_id_offset);
                     c_scatter_offsets[mIter][m0] = scatter_token_id * kargs.stride_C;
-                    c_scatter_valids[mIter][m0]  = (scatter_token_id < kargs.NumTokens);
                 });
             });
 

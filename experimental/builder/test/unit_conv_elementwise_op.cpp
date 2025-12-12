@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <type_traits>
 
-#include "ck_tile/builder/factory/helpers/conv_elementwise_op.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
 
 namespace {
 
