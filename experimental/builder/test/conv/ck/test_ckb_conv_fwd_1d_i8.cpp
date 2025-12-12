@@ -3,6 +3,7 @@
 
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
+#include "utils/conv_algorithm_type_utils.hpp"
 
 namespace {
 
@@ -14,13 +15,17 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Instance_1D_FP32_ChannelsFirst_scale)
 {
+    using enum ck_tile::builder::ConvDirection;
+    using enum ck_tile::builder::DataType;
+    using enum ck_tile::builder::TensorLayout;
+
     constexpr ConvSignature FwdConvSignature{.spatial_dim            = 1,
-                                             .direction              = ConvDirection::FORWARD,
-                                             .data_type              = DataType::I8,
-                                             .accumulation_data_type = DataType::INT32,
-                                             .input  = {.config = {.layout = TensorLayout::GNWC}},
-                                             .weight = {.config = {.layout = TensorLayout::GKXC}},
-                                             .output = {.config = {.layout = TensorLayout::GNWK}}};
+                                             .direction              = FORWARD,
+                                             .data_type              = I8,
+                                             .accumulation_data_type = INT32,
+                                             .input                  = {.config = {.layout = GNWC}},
+                                             .weight                 = {.config = {.layout = GKXC}},
+                                             .output = {.config = {.layout = GNWK}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}
@@ -31,8 +36,10 @@ TEST(FwdConvInstances,
             .with_prefetch_config(1, 0, PipelineScheduler::DEFAULT);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+
+    const auto expected_transfer_parameters = to_string(FwdConvAlgorithm);
     run_test<Builder>({"DeviceGroupedConvFwdMultipleD_Wmma_CShuffle",
-                       "128,64,64,64",
+                       expected_transfer_parameters,
                        "GNWC,GKXC,EmptyTuple,GNWK",
                        "PassThrough,PassThrough,PassThrough",
                        "Default"});
