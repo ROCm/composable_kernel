@@ -32,7 +32,7 @@ auto create_args(int argc, char* argv[])
         .insert("prec",
                 "fp8",
                 "Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, "
-                "or bf8i4")
+                "bf8i4 or bf16fp4")
         .insert("warmup", "50", "Number of iterations before benchmarking the kernel")
         .insert("repeat", "1000", "Number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
@@ -97,6 +97,8 @@ void bquant_quantgrouped_fp8i4_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_bf8i4_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_bf16fp4_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_preshuffleb_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_preshufflequant_instance_factory(
@@ -128,6 +130,7 @@ int main(int argc, char* argv[])
     bquant_quantgrouped_bf8_instance_factory(lut);
     bquant_quantgrouped_fp8i4_instance_factory(lut);
     bquant_quantgrouped_bf8i4_instance_factory(lut);
+    bquant_quantgrouped_bf16fp4_instance_factory(lut);
     bquant_quantgrouped_preshuffleb_instance_factory(lut);
     bquant_quantgrouped_preshufflequant_instance_factory(lut);
     bquant_quantgrouped_preshuffleb_preshufflequant_instance_factory(lut);
