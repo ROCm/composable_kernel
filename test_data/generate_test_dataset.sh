@@ -117,9 +117,9 @@ done
 # Setup GPU array if GPUs are requested
 if [ $NUM_GPUS -gt 0 ]; then
     # Auto-detect available GPUs
-    AVAILABLE_GPUS=$(rocm-smi --showid 2>/dev/null | grep -oP 'GPU\[\K[0-9]+' | sort -n | tail -1)
-    if [ -n "$AVAILABLE_GPUS" ]; then
-        MAX_AVAILABLE=$((AVAILABLE_GPUS + 1))
+    AVAILABLE_GPUS_COUNT=$(rocm-smi --showid 2>/dev/null | grep -oP 'GPU\[\K[0-9]+' | wc -l)
+    if [ "$AVAILABLE_GPUS_COUNT" -gt 0 ]; then
+        MAX_AVAILABLE=$AVAILABLE_GPUS_COUNT
     else
         MAX_AVAILABLE=0
     fi
