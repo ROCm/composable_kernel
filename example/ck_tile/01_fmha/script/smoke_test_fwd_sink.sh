@@ -1,4 +1,5 @@
 #!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # TODO: run this script from CK root or build directory
 #EXE="/code/composable_kernel/build/bin/tile_example_fmha_fwd"
 set -euo pipefail
