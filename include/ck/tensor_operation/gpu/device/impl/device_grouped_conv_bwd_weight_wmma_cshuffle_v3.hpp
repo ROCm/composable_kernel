@@ -506,7 +506,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
             std::copy(begin(a_g_n_k_wos_lengths) + spatial_offset,
                       end(a_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
-
+#if !DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
             if(split_k < 0)
             {
                 ck::index_t gemmM, gemmN, gemmK;
@@ -532,6 +532,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
                 }
             }
             else
+#endif
             {
                 k_batch_ = split_k;
             }
@@ -1034,6 +1035,12 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+#if DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
+        if(arg.k_batch_ < 0)
+        {
+            return false;
+        }
+#endif
         const index_t GemmM = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
         const index_t GemmN = arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I1);
         const index_t GemmK = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) *
