@@ -644,8 +644,6 @@ def cmake_build(Map conf=[:]){
                 echo "SCCACHE_REDIS: \$SCCACHE_REDIS"
                 echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \$SCCACHE_C_CUSTOM_CACHE_BUSTER"
                 echo "JENKINS_STAGE_NAME: \$JENKINS_STAGE_NAME"
-                echo "Build path:"
-                echo "$(pwd)"
                 
                 echo "=== STARTING CONTINUOUS MONITORING ==="
                 ../script/monitor_sccache_during_build.sh build_monitor &
