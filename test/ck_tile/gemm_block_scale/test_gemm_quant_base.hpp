@@ -22,19 +22,19 @@ template <ck_tile::QuantType QT>
 struct QuantTypeTraits;
 
 template <typename TTuple, size_t Index, typename DefaultType, typename Enable = void>
-struct SafeTupleElement {
+struct SafeTupleElement
+{
     using type = DefaultType;
 };
 
 template <typename TTuple, size_t Index, typename DefaultType>
-struct SafeTupleElement<
-    TTuple, 
-    Index, 
-    DefaultType, 
-    std::enable_if_t<(Index < std::tuple_size_v<TTuple>)>> 
-	{
-    	using type = std::tuple_element_t<Index, TTuple>;
-	};
+struct SafeTupleElement<TTuple,
+                        Index,
+                        DefaultType,
+                        std::enable_if_t<(Index < std::tuple_size_v<TTuple>)>>
+{
+    using type = std::tuple_element_t<Index, TTuple>;
+};
 
 template <typename TTuple, size_t Index, typename DefaultType>
 using SafeTupleElement_t = typename SafeTupleElement<TTuple, Index, DefaultType>::type;
@@ -57,7 +57,7 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     using QuantGroupSize            = std::tuple_element_t<10, Tuple>;
     using AQuantGroupSize           = QuantGroupSize;
     using BQuantGroupSize           = SafeTupleElement_t<Tuple, 11, QuantGroupSize>;
-	using BQLayout                  = SafeTupleElement_t<Tuple, 12, AQLayout>;
+    using BQLayout                  = SafeTupleElement_t<Tuple, 12, AQLayout>;
     using AccDataType               = float; // accumulate always in float
 
     // Get the quant-type specific data types from traits
