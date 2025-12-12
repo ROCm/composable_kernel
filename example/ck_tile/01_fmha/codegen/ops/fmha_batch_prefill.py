@@ -24,8 +24,15 @@ from codegen.cpp_symbol_map import (
 )
 from codegen.utils import update_file
 
-
-DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "bf8": 8}
+DTYPE_BITS = {
+    "fp32": 32,
+    "fp16": 16,
+    "bf16": 16,
+    "fp8": 8,
+    "fp8bf16": 8,
+    "fp8fp32": 8,
+    "bf8": 8,
+}
 
 K0_MAX_SUBMAX_MAP = {32: 32, 64: 64, 96: 128, 128: 128, 256: 256}
 
@@ -580,7 +587,7 @@ class KernelComponentFactory:
             return {
                 128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
             }  # fmt: skip
-        elif dtype == ["fp8bf16"]:
+        elif dtype in ["fp8bf16"]:
             return {
                 128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
             }  # fmt: skip
@@ -604,11 +611,11 @@ class KernelComponentFactory:
                 ["t", "f"],
             ):
                 pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask))  # fmt: skip
-        elif dtype == ["fp8bf16"]:
+        elif dtype in ["fp8bf16"]:
             # no need lse/dropout kernels
             for logits, qscale, mask, bias in itertools.product(
                 ["t", "f"],
-                ["no", "pertensor"],
+                ["pertensor"],
                 get_mask_map(mask_impl).keys(),
                 ["no"],
             ):
@@ -622,7 +629,7 @@ class CustomFactory(KernelComponentFactory):
     @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
         result = KernelComponentFactory.get_hdim_tile_size_dict(dtype)
-        if dtype == "fp16" or dtype == "bf16":
+        if dtype in ["fp16", "bf16"]:
             if 128 in result.keys():
                 result[128].insert(0, FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint("get_num_blocks(128) < num_cus * min_cu_util_rate")))  # fmt: skip
         return result
@@ -708,7 +715,6 @@ def get_fwd_blobs(
                     cond = dtype in ["fp16", "bf16", "fp8bf16"]
                     cond &= mode == "group"
                     cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_qscale == "no"
                     if not cond:
                         continue
                 # aiter::mha_batch_prefill C++ api integration
