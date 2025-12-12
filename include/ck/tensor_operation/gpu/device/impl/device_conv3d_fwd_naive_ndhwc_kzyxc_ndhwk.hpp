@@ -150,106 +150,28 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
             using WeiLayout = ck::tensor_layout::convolution::GKCZYX;
             using OutLayout = ck::tensor_layout::convolution::GNKDHW;
 
-            // Emulate launch_and_time_kernel behavior
-            if(stream_config.time_kernel_)
-            {
-                // Warm up
-                for(int i = 0; i < stream_config.cold_niters_; ++i)
-                {
-                    ref::naive_conv_fwd<InLayout,
-                                        WeiLayout,
-                                        OutLayout,
-                                        InDataType,
-                                        WeiDataType,
-                                        OutDataType,
-                                        InElementwiseOperation,
-                                        WeiElementwiseOperation,
-                                        OutElementwiseOperation>(arg.p_in_,
-                                                                 arg.p_wei_,
-                                                                 arg.p_out_,
-                                                                 in_lengths,
-                                                                 in_strides,
-                                                                 wei_lengths,
-                                                                 wei_strides,
-                                                                 out_lengths,
-                                                                 out_strides,
-                                                                 conv_strides_vec,
-                                                                 conv_dilations_vec,
-                                                                 input_pads_vec,
-                                                                 stream_config.stream_id_);
-                }
-
-                // Timed runs
-                const int nrepeat = stream_config.nrepeat_;
-                hipEvent_t start, stop;
-                hip_check_error(hipEventCreate(&start));
-                hip_check_error(hipEventCreate(&stop));
-
-                hip_check_error(hipDeviceSynchronize());
-                hip_check_error(hipEventRecord(start, stream_config.stream_id_));
-
-                for(int i = 0; i < nrepeat; ++i)
-                {
-                    ref::naive_conv_fwd<InLayout,
-                                        WeiLayout,
-                                        OutLayout,
-                                        InDataType,
-                                        WeiDataType,
-                                        OutDataType,
-                                        InElementwiseOperation,
-                                        WeiElementwiseOperation,
-                                        OutElementwiseOperation>(arg.p_in_,
-                                                                 arg.p_wei_,
-                                                                 arg.p_out_,
-                                                                 in_lengths,
-                                                                 in_strides,
-                                                                 wei_lengths,
-                                                                 wei_strides,
-                                                                 out_lengths,
-                                                                 out_strides,
-                                                                 conv_strides_vec,
-                                                                 conv_dilations_vec,
-                                                                 input_pads_vec,
-                                                                 stream_config.stream_id_);
-                }
-
-                hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-                hip_check_error(hipEventSynchronize(stop));
-
-                float total_time = 0;
-                hip_check_error(hipEventElapsedTime(&total_time, start, stop));
-
-                hip_check_error(hipEventDestroy(start));
-                hip_check_error(hipEventDestroy(stop));
-
-                return total_time / nrepeat;
-            }
-            else
-            {
-                // No timing, just run once
-                ref::naive_conv_fwd<InLayout,
-                                    WeiLayout,
-                                    OutLayout,
-                                    InDataType,
-                                    WeiDataType,
-                                    OutDataType,
-                                    InElementwiseOperation,
-                                    WeiElementwiseOperation,
-                                    OutElementwiseOperation>(arg.p_in_,
-                                                             arg.p_wei_,
-                                                             arg.p_out_,
-                                                             in_lengths,
-                                                             in_strides,
-                                                             wei_lengths,
-                                                             wei_strides,
-                                                             out_lengths,
-                                                             out_strides,
-                                                             conv_strides_vec,
-                                                             conv_dilations_vec,
-                                                             input_pads_vec,
-                                                             stream_config.stream_id_);
-                return 0;
-            }
+            // No timing, just run once
+            ref::naive_conv_fwd<InLayout,
+                                WeiLayout,
+                                OutLayout,
+                                InDataType,
+                                WeiDataType,
+                                OutDataType,
+                                InElementwiseOperation,
+                                WeiElementwiseOperation,
+                                OutElementwiseOperation>(arg.p_in_,
+                                                         arg.p_wei_,
+                                                         arg.p_out_,
+                                                         in_lengths,
+                                                         in_strides,
+                                                         wei_lengths,
+                                                         wei_strides,
+                                                         out_lengths,
+                                                         out_strides,
+                                                         conv_strides_vec,
+                                                         conv_dilations_vec,
+                                                         input_pads_vec,
+                                                         stream_config.stream_id_);
         }
 
         // polymorphic
