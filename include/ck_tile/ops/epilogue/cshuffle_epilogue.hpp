@@ -35,7 +35,8 @@ template <typename AsDataType_,
           bool FixedVectorSize_        = false,
           index_t VectorSizeC_         = 1,
           bool TiledMMAPermuteN_       = false,
-          index_t BlockedXDLN_PerWarp_ = 1> // The number of continuous xdl_output per warp
+          index_t BlockedXDLN_PerWarp_ = 1, // The number of continuous xdl_output per warp
+          bool DoubleSmemBuffer_       = false>
 struct CShuffleEpilogueProblem
 {
     using AsDataType                                       = remove_cvref_t<AsDataType_>;
@@ -59,6 +60,7 @@ struct CShuffleEpilogueProblem
     static constexpr bool FixedVectorSize                  = FixedVectorSize_;
     static constexpr index_t VectorSizeC                   = VectorSizeC_;
     static constexpr index_t BlockedXDLN_PerWarp           = BlockedXDLN_PerWarp_;
+    static constexpr bool DoubleSmemBuffer                 = DoubleSmemBuffer_;
     static constexpr bool TiledMMAPermuteN                 = TiledMMAPermuteN_;
     static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
     static constexpr index_t NumDTensor                    = DsDataType::size();
@@ -112,6 +114,7 @@ struct CShuffleEpilogue
     static constexpr bool FixedVectorSize                  = Problem::FixedVectorSize;
     static constexpr bool TiledMMAPermuteN                 = Problem::TiledMMAPermuteN;
     static constexpr index_t BlockedXDLN_PerWarp           = Problem::BlockedXDLN_PerWarp;
+    static constexpr bool DoubleSmemBuffer                 = Problem::DoubleSmemBuffer;
     static constexpr index_t VectorSizeC                   = Problem::VectorSizeC;
     static constexpr index_t MPerIteration                 = MPerXdl * MWave;
     static constexpr index_t NPerIteration                 = NPerXdl * NWave;
@@ -202,31 +205,20 @@ struct CShuffleEpilogue
     /**
      * @brief Shuffle tile configuration parameters check and aligment
      *
-     * @details Return tuple(1, 1) if shuffle_tile values are too large for SMEM
-     * or are not aligned with tile sizes.
+     * @details Return tuple(1, 1) if shuffle_tile values are too large for SMEM.
      */
     template <index_t m_shuffle_tile, index_t n_shuffle_tile>
     CK_TILE_HOST_DEVICE static constexpr auto AlignShuffleTileWithSmem()
     {
         constexpr index_t m_val = MPerXdl * MWave * m_shuffle_tile;
         constexpr index_t n_val = NPerXdl * NWave * n_shuffle_tile;
-        // Check MNXdlPerWavePerShuffle selection
-        if constexpr(kMPerBlock % m_val != 0 || kNPerBlock % n_val != 0)
-        {
-            // Not aligned with Tile, skip
-            return std::make_tuple(1, 1);
-        }
-        else
-        {
-            // Check if block size size will not exceed SMEM size
-            constexpr index_t smem_size = m_val * n_val * sizeof(ODataType);
-            if constexpr(smem_size > get_smem_capacity())
-            {
-                // Too large
-                return std::make_tuple(1, 1);
-            }
-        }
-        return std::make_tuple(m_shuffle_tile, n_shuffle_tile);
+
+        constexpr auto shuffle_tile =
+            m_val * n_val * sizeof(ODataType) > get_smem_capacity() || DoubleSmemBuffer
+                ? std::make_tuple(1, 1)
+                : std::make_tuple(m_shuffle_tile, n_shuffle_tile);
+
+        return shuffle_tile;
     }
 
     /**

@@ -310,7 +310,7 @@ struct GroupedGemmKernel
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
 
-            __shared__ char smem_ptr_1[GetSmemSize()];
+            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
             RunGemmWithPipelineSelection2LDS(a_ptr,
                                              b_ptr,
                                              c_ptr,

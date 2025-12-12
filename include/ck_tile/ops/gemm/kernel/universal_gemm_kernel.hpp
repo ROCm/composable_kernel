@@ -1084,7 +1084,7 @@ struct UniversalGemmKernel
 
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            __shared__ char smem_ptr_1[GetSmemSize()];
+            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
             if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
                            EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                            is_any_of<EDataType, fp16_t, bf16_t>::value))
@@ -1169,7 +1169,7 @@ struct UniversalGemmKernel
             // Run the GEMM
             if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
-                __shared__ char smem_ptr_1[GetSmemSize()];
+                __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
                 if constexpr(!(EpiloguePipeline::MemoryOperation ==
                                    memory_operation_enum::atomic_add &&
                                EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&

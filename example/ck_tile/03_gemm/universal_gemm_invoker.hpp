@@ -81,7 +81,12 @@ struct UniversalInvoker
                                                  GemmConfig::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation,
-                                                 GemmConfig::NumWaveGroups>>;
+                                                 GemmConfig::NumWaveGroups,
+                                                 false, /*FixedVectorSize_*/
+                                                 1,     /*VectorSizeC_*/
+                                                 false, /*TiledMMAPermuteN_*/
+                                                 1,     /*BlockedXDLN_PerWarp_*/
+                                                 DoubleSmemBuffer /*DoubleSmemBuffer*/>>;
 
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
