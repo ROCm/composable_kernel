@@ -357,9 +357,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
               << " C_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::CDataType>::name
               << " QuantMode = " << quant_type_to_string(QuantMode)
               << " PreshuffleQuant = " << (GemmConfig::PreshuffleQuant ? "true" : "false") << " : "
-              << " PreshuffleB = " << (GemmConfig::PreshuffleB ? "true" : "false") << " : "
-              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
+              << " PreshuffleB = \n"
+              << (GemmConfig::PreshuffleB ? "true" : "false") << " : " << ave_time << " ms, "
+              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     return ave_time;
 }

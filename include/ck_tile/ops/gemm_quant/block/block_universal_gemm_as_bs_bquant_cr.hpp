@@ -349,6 +349,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                             constexpr index_t reg_offset = nIter;
                             auto pull_from_lane =
                                 (__lane_id() & (WarpGemm::kN - 1)) * Traits::KQPerBlock + kQScale;
+
                             auto& scale_reg = bq_block_tensor.get_thread_buffer()[reg_offset];
                             // cross lane ops
                             uint32_t scale_reg_dword;
@@ -368,19 +369,20 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
 
                             float scale_reg_f = Base::cvt_scale_to_fp32(gathered_scale_reg);
 
-                            printf("block_id: %d, warp_id: %d, thread_id(): %d, nIter: %d, lane_id(): "
-                                   "%u, kQScale: %d, pull_from_lane: %u, scale_reg: %f, "
-                                   "scale_reg_f: %f\n",
-                                   get_block_id(),
-                                   get_warp_id(),
-                                   get_thread_id(),
-                                   static_cast<int>(nIter),
-                                   __lane_id(),
-                                   static_cast<int>(kQScale),
-                                   pull_from_lane,
-                                   scale_reg,
-                                   scale_reg_f);
-                            
+                            // printf("block_id: %d, warp_id: %d, thread_id(): %d, nIter: %d,
+                            // lane_id(): "
+                            //        "%u, kQScale: %d, pull_from_lane: %u, scale_reg: %f, "
+                            //        "scale_reg_f: %f\n",
+                            //        get_block_id(),
+                            //        get_warp_id(),
+                            //        get_thread_id(),
+                            //        static_cast<int>(nIter),
+                            //        __lane_id(),
+                            //        static_cast<int>(kQScale),
+                            //        pull_from_lane,
+                            //        scale_reg,
+                            //        scale_reg_f);
+
                             static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                                 [&](auto c_row) {
                                     c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=

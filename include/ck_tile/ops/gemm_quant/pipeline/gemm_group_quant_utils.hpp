@@ -245,56 +245,70 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             if constexpr(NPerQ <= WarpGemm::kN)
             {
                 constexpr auto N1  = BlockGemmShape::kK / KPerQ; // 2
-                constexpr auto N0  = WarpGemm::kN / NPerQ; //BlockGemmShape::kN / KPerQ;  // 1
+                constexpr auto N0  = WarpGemm::kN / NPerQ; // BlockGemmShape::kN / KPerQ;  // 1
                 constexpr auto N2  = 1;
-                constexpr auto NR1 = NPerQ;                       // 16
+                constexpr auto NR1 = NPerQ;                            // 16
                 constexpr auto NR0 = warp_size / (N0 * N1 * N2 * NR1); // 64/(1*2*1*16)=2
-                constexpr auto K1  = NWarps;                      // 4
-                constexpr auto K0  = KPerTile / K1;               // 1
+                constexpr auto K1  = NWarps;                           // 4
+                constexpr auto K0  = KPerTile / K1;                    // 1
                 constexpr auto KR  = 1;
-
-                
 
                 return make_static_tile_distribution(
                     tile_distribution_encoding<
                         sequence<MWarps, NR0, NR1, KR>,
                         tuple<sequence<K0, K1>, sequence<N0, N1, N2>>,
-                        tuple<sequence<0, 1>, sequence<0, 2, 0, 2, 0>>, // (Mwarp, Nwarp),(XR0, X0, XR1, X1, YR)
+                        tuple<sequence<0, 1>, sequence<0, 2, 0, 2, 0>>, // (Mwarp, Nwarp),(XR0, X0,
+                                                                        // XR1, X1, YR)
                         tuple<sequence<0, 1>, sequence<1, 0, 2, 1, 3>>, // (1, 4), (2, 1, 16, 2, 1)
                         sequence<1, 2>,
                         sequence<0, 2>>{});
             }
-            else if constexpr(NPerQ <= WarpGemm::kN * NWarps)
+            else if constexpr(NPerQ < WarpGemm::kN * NWarps)
             {
-                constexpr auto KR = NPerQ / WarpGemm::kN; // Scale replication factor 32/16 = 2
-                constexpr auto K1 = NWarps / KR;          // Warps per unique scale 4/2 = 2
-                constexpr auto K0 = KPerTile / K1;        // Iterations to cover N dimension 4/2 = 2
+                constexpr auto KR  = NPerQ / WarpGemm::kN; // Scale replication factor 64/16 = 4
+                constexpr auto K1  = NWarps / KR;          // Warps per unique scale 4/4 = 1
+                constexpr auto K0  = KPerTile / K1; // Iterations to cover N dimension 4/1 = 4
                 constexpr auto N1  = BlockGemmShape::kK / KPerQ; // 2
-                constexpr auto N0  = 1; //NPerQ/WarpGemm::kN;  // 2
+                constexpr auto N0  = 1;                          // NPerQ/WarpGemm::kN;  // 1
                 constexpr auto N2  = 1;
-                constexpr auto NR1 = NPerQ;                       // 32
+                constexpr auto NR1 = NPerQ;                            // 32
                 constexpr auto NR0 = warp_size / (N0 * N1 * N2 * NR1); // 64/(1*2*1*32)=1
 
-                if(get_block_id() == 0 && get_thread_id() == 0)
-                {
-                    // Debug print to verify values
-                    printf("PreshuffleQuant Medium-grained: MWarps: %d, K1=%d, KR=%d, get_warp_size(): %d, K0=%d, N0=%d\n",
-                           MWarps,
-                           K1,
-                           KR,
-                           get_warp_size(),
-                           K0,
-                           N0);
-                }
-               
+                // if(get_block_id() == 0 && get_thread_id() == 0)
+                // {
+                //     // Debug print to verify values
+                //     printf("PreshuffleQuant Medium-grained: MWarps: %d, K1=%d, KR=%d,
+                //     get_warp_size(): %d, K0=%d, N0=%d\n",
+                //            MWarps,
+                //            K1,
+                //            KR,
+                //            get_warp_size(),
+                //            K0,
+                //            N0);
+                // }
+
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<MWarps, NR0, NR1, KR>,
-                                                tuple<sequence<K0, K1>, sequence<N0, N1, N2>>,
-                                                tuple<sequence<0, 1, 0>, sequence<0, 2, 0, 2>>,
-                                                tuple<sequence<0, 1, 3>, sequence<1, 0, 2, 1>>,
-                                                sequence<1, 2>,
-                                                sequence<0, 2>>{});
-                
+                                               tuple<sequence<K0, K1>, sequence<N0, N1, N2>>,
+                                               tuple<sequence<0, 1, 0>, sequence<0, 2, 0, 2>>,
+                                               tuple<sequence<0, 1, 3>, sequence<1, 0, 2, 1>>,
+                                               sequence<1, 2>,
+                                               sequence<0, 2>>{});
+            }
+            else
+            {
+                constexpr auto N1  = BlockGemmShape::kK / KPerQ; // 2
+                constexpr auto N0  = 1;                          // NPerQ/WarpGemm::kN;  // 1
+                constexpr auto N2  = 1;
+                constexpr auto NR1 = 32;                               // 32
+                constexpr auto NR0 = warp_size / (N0 * N1 * N2 * NR1); // 64/(1*2*1*32)=1
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<MWarps, NWarps, NR0, NR1>,
+                                               tuple<sequence<KPerTile>, sequence<N0, N1, N2>>,
+                                               tuple<sequence<0, 0>, sequence<0, 2, 0, 2>>,
+                                               tuple<sequence<0, 1>, sequence<2, 0, 3, 1>>,
+                                               sequence<1, 2>,
+                                               sequence<0, 2>>{});
             }
         }
         else
