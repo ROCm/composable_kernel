@@ -5,10 +5,10 @@
 
 namespace ck {
 
-#if defined(__gfx12__)
 enum struct AmdBufferCoherenceEnum
 {
     DefaultCoherence = 0, // default value
+#if defined(__gfx12__)
     // Temporal hint
     RT    = 0, // regular temporal
     NT    = 1, // non temporal
@@ -16,7 +16,7 @@ enum struct AmdBufferCoherenceEnum
     LU    = 3, // last use (load op)
     WB    = 3, // same as HT, overrides WR in far cache (store op)
     NT_RT = 4, // non temporal for near cache, regular for far cache
-    RT_NT = 5, // regualr for near cache, non-temporal for far cache
+    RT_NT = 5, // regular for near cache, non-temporal for far cache
     NT_HT = 6, // non temporal for near cache, high priority for far cache
     NT_WB = 7, // non temporal for near cache, WB for far cache
                // (store op, reserved for load op)
@@ -65,31 +65,31 @@ enum struct AmdBufferCoherenceEnum
     SYSTEM_RT_NT = RT_NT | SYSTEM,
     SYSTEM_NT_HT = NT_HT | SYSTEM,
     SYSTEM_NT_WB = NT_WB | SYSTEM,
-};
+// gfx94: bit 0 = sc0, bit 1 = nt, bit 3 = swz, bit 4 = sc1
+// SC[1:0] System Cache level: 0=wave, 1=group, 2=device, 3=system
+// NT Non-Temporal: 0=expect temporal reuse; 1=do not expect temporal reuse
+#elif defined(__gfx942__)
+
+    WAVE   = 0,
+    GROUP  = 1,
+    DEVICE = 16,
+    SYSTEM = 17,
+    NT0    = 0,
+    NT1    = 2,
+
+    WAVE_NT0   = NT0 | WAVE,
+    WAVE_NT1   = NT1 | WAVE,
+    GROUP_NT0  = NT0 | GROUP,
+    GROUP_NT1  = NT1 | GROUP,
+    DEVICE_NT0 = NT0 | DEVICE,
+    DEVICE_NT1 = NT1 | DEVICE,
+    SYSTEM_NT0 = NT0 | SYSTEM,
+    SYSTEM_NT1 = NT1 | SYSTEM,
 #else
-// memory coherency bit for buffer store/load instruction
-// check ISA manual for each GFX target
-// e.g. for
-// https://www.amd.com/system/files/TechDocs/instinct-mi200-cdna2-instruction-set-architecture.pdf,
-// page 67~68
-enum struct AmdBufferCoherenceEnum
-{
-    DefaultCoherence = 0, // default value
-    GLC              = 1,
-    SLC              = 2,
-    GLC_SLC          = 3,
-    // gfx94: bit 0 = sc0, bit 1 = nt, bit 3 = swz, bit 4 = sc1
-    // SC[1:0] System Cache level: 0=wave, 1=group, 2=device, 3=system
-    // NT Non-Temporal: 0=expect temporal reuse; 1=do not expect temporal reuse
-    WAVE_NT0   = 0,
-    WAVE_NT1   = 2,
-    GROUP_NT0  = 1,
-    GROUP_NT1  = 3,
-    DEVICE_NT0 = 16,
-    DEVICE_NT1 = 18,
-    SYSTEM_NT0 = 17,
-    SYSTEM_NT1 = 19,
-};
+    GLC     = 1,
+    SLC     = 2,
+    GLC_SLC = 3,
 #endif
+};
 
 } // namespace ck
