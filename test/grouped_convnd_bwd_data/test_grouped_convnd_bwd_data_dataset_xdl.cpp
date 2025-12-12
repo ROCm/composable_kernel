@@ -6,7 +6,6 @@
 #include <initializer_list> // C++ initializer list support (unused here)
 #include <vector>           // C++ vector container - stores test cases
 #include <string>           // String operations
-#include <filesystem>       // C++17 filesystem for binary-relative paths
 #include <gtest/gtest.h>    // Google Test framework - provides TEST_P, INSTANTIATE_TEST_SUITE_P
 
 #include "profiler/profile_grouped_conv_bwd_data_impl.hpp" // The actual GPU profiler that does convolution work
@@ -14,41 +13,13 @@
 
 using namespace ck::tensor_layout::convolution; // Import tensor layout names (GNHWK, GKYXC, etc.)
 
-namespace fs = std::filesystem;
-
-// Helper function to find test_data directory relative to the test binary
-static std::string GetTestDataPath()
-{
-    // Get the path to the current executable
-    fs::path exe_path = fs::read_symlink("/proc/self/exe");
-
-    // Get the directory containing the executable
-    fs::path current_dir = exe_path.parent_path();
-
-    // Search for test_data directory by going up the directory tree
-    // This makes the code robust regardless of build directory depth
-    while(current_dir != current_dir.root_path())
-    {
-        fs::path test_data_path = current_dir / "test_data";
-        if(fs::exists(test_data_path) && fs::is_directory(test_data_path))
-        {
-            return test_data_path.string();
-        }
-        current_dir = current_dir.parent_path();
-    }
-
-    // If not found, return empty string
-    std::cerr << "ERROR: Could not find test_data directory relative to executable" << std::endl;
-    return "";
-}
-
 // Load CSV data for 2D tests
 static std::vector<ck::utils::conv::ConvParam> Get2DTestCases()
 {
     static std::vector<ck::utils::conv::ConvParam> test_cases;
     if(test_cases.empty())
     {
-        std::string test_data_dir = GetTestDataPath();
+        std::string test_data_dir = ck::test::GetTestDataPath();
         if(test_data_dir.empty())
         {
             std::cerr << "FATAL: test_data directory not found" << std::endl;
@@ -71,7 +42,7 @@ static std::vector<ck::utils::conv::ConvParam> Get3DTestCases()
     static std::vector<ck::utils::conv::ConvParam> test_cases;
     if(test_cases.empty())
     {
-        std::string test_data_dir = GetTestDataPath();
+        std::string test_data_dir = ck::test::GetTestDataPath();
         if(test_data_dir.empty())
         {
             std::cerr << "FATAL: test_data directory not found" << std::endl;

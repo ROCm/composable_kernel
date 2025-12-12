@@ -4,6 +4,7 @@
 #pragma once
 
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,6 +14,34 @@
 
 namespace ck {
 namespace test {
+
+namespace fs = std::filesystem;
+
+// Helper function to find test_data directory relative to the test binary
+static std::string GetTestDataPath()
+{
+    // Get the path to the current executable
+    fs::path exe_path = fs::read_symlink("/proc/self/exe");
+
+    // Get the directory containing the executable
+    fs::path current_dir = exe_path.parent_path();
+
+    // Search for test_data directory by going up the directory tree
+    // This makes the code robust regardless of build directory depth
+    while(current_dir != current_dir.root_path())
+    {
+        fs::path test_data_path = current_dir / "test_data";
+        if(fs::exists(test_data_path) && fs::is_directory(test_data_path))
+        {
+            return test_data_path.string();
+        }
+        current_dir = current_dir.parent_path();
+    }
+
+    // If not found, return empty string
+    std::cerr << "ERROR: Could not find test_data directory relative to executable" << std::endl;
+    return "";
+}
 
 // CSV Reader Function for Loading Test Cases
 // Reads convolution parameters from CSV file and returns vector of ConvParam structures
