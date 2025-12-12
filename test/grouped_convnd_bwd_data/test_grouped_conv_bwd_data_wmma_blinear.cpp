@@ -53,23 +53,44 @@ class TestGroupedConvndBwdData : public ::testing::Test
     std::vector<ck::utils::conv::ConvParam> conv_params;
     std::vector<ck::index_t> split_ks{1};
 
-    struct SimpleDeviceMem
-{
-    SimpleDeviceMem() = delete;
-
-    SimpleDeviceMem(std::size_t mem_size) : p_mem_{}
+    void RunReference(ck::utils::conv::ConvParam& conv_param,
+                      Tensor<InDataType>& in_host,
+                      Tensor<WeiDataType>& wei,
+                      Tensor<OutDataType>& out)
     {
-        (void)hipMalloc(static_cast<void**>(&p_mem_), mem_size);
+  
+        auto ref_conv =
+            ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
+                                                             InDataType,
+                                                             WeiDataType,
+                                                             OutDataType,
+                                                             InElementOp,
+                                                             WeiElementOp,
+                                                             OutElementOp,
+                                                             0, /*Num A Elementwise Tensors*/
+                                                             0, /*Num B Elementwise Tensors*/
+                                                             0>();
+
+        auto ref_invoker = ref_conv.MakeInvoker();
+
+        auto ref_argument = ref_conv.MakeArgument(in_host,
+                                                  wei,
+                                                  out,
+                                                  conv_param.conv_filter_strides_,
+                                                  conv_param.conv_filter_dilations_,
+                                                  conv_param.input_left_pads_,
+                                                  conv_param.input_right_pads_,
+                                                   InElementOp{alpha,beta},
+                                                  WeiElementOp{},
+                                                 OutElementOp{},
+                                                  {},
+                                                  {},
+                                                  {});
+
+        ref_invoker.Run(ref_argument);
     }
-
-    void* GetDeviceBuffer() { return p_mem_; }
-
-    ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
-
-    void* p_mem_;
-};
    
-    bool PerformConvDataScale(ck::utils::conv::ConvParam& conv_param, const ck::index_t split_k)
+    bool PerformConvDataBilinear(ck::utils::conv::ConvParam& conv_param, const ck::index_t split_k)
     {
         bool passed = true;
       
@@ -257,7 +278,7 @@ class TestGroupedConvndBwdData : public ::testing::Test
         {
             for(auto& param : conv_params)
             {
-                pass = pass && PerformConvDataScale(param, split_k);
+                pass = pass && PerformConvDataBilinear(param, split_k);
             }
         }
         EXPECT_TRUE(pass);
