@@ -103,17 +103,15 @@ concept IsXdlAlgorithm =
     SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
     SpecifiesSourceAccessOrder<T> && SpecifiesFwdConvSpecialization<T> &&
     SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> &&
-    SpecifiesNumGroupsToMerge<T> &&
-    SpecifiesLoopScheduler<T>
+    SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T>;
 
-    // WMMA-based kernel (uses Wavefront Matrix-Matrix Accumulate instructions)
-    template <typename T>
-    concept IsWmmaAlgorithm =
-        ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
-        SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> &&
-        SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T> &&
-        SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-        SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
+// WMMA-based kernel (uses Wavefront Matrix-Matrix Accumulate instructions)
+template <typename T>
+concept IsWmmaAlgorithm =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConvSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
 
 // Specialized DL kernel for specific NHWC/KYXC/NHWK data layouts
 template <typename T>
