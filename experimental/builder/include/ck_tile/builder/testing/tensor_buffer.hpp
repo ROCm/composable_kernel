@@ -170,6 +170,13 @@ struct TensorDescriptor
         return get_element_space_size() * data_type_sizeof(DT);
     }
 
+    /// @brief Get the rank of the tensor.
+    ///
+    /// This function computes the rank of the tensor: the number of dimensions
+    /// stored. Both `get_lengths()` and `get_strides()` return spans which are
+    /// equal to this value in length.
+    size_t rank() const { return this->inner_descriptor_.get_num_of_dimension(); }
+
     private:
     ck_tile::HostTensorDescriptor inner_descriptor_;
 };

@@ -20,16 +20,12 @@ using testing::StrEq;
 
 std::vector<size_t> make_packed_strides_row_major(std::span<const size_t> lengths)
 {
-    if(lengths.size() == 0)
-        return {};
-
     std::vector<size_t> strides(lengths.size());
-    strides[strides.size() - 1] = 1;
-    size_t i                    = strides.size() - 1;
-    while(i > 0)
+    size_t numel = 1;
+    for(int i = lengths.size(); i > 0; --i)
     {
-        --i;
-        strides[i] = strides[i + 1] * lengths[i + 1];
+        strides[i - 1] = numel;
+        numel *= lengths[i - 1];
     }
     return strides;
 }
@@ -135,7 +131,7 @@ TEST(ValidationReport, SingleIncorrect)
 
     const auto errors = report.get_errors();
 
-    EXPECT_THAT(errors.size(), Eq(1));
+    ASSERT_THAT(errors.size(), Eq(1));
     EXPECT_THAT(errors[0].tensor_name, StrEq("incorrect"));
     EXPECT_THAT(errors[0].wrong_elements, Eq(2));
     EXPECT_THAT(errors[0].total_elements, Eq(descriptor.get_element_space_size()));
@@ -155,7 +151,7 @@ TEST(ValidationReport, MultipleSomeIncorrect)
         fill_tensor_buffer(desc, a.get(), [](auto& value, size_t i) {
             value = ck::type_convert<ck::bhalf_t>(i % 100);
         });
-        fill_tensor_buffer(desc, a.get(), [](auto& value, size_t i) {
+        fill_tensor_buffer(desc, b.get(), [](auto& value, size_t i) {
             value = ck::type_convert<ck::bhalf_t>(i % 101);
         });
 
@@ -194,16 +190,16 @@ TEST(ValidationReport, MultipleSomeIncorrect)
         fill_tensor_buffer(
             desc, a.get(), [](auto& value, [[maybe_unused]] size_t i) { value = 1; });
         fill_tensor_buffer(
-            desc, a.get(), [](auto& value, [[maybe_unused]] size_t i) { value = 555; });
+            desc, b.get(), [](auto& value, [[maybe_unused]] size_t i) { value = 555; });
 
         report.check("incorrect 2", desc, b.get(), a.get());
     }
 
     const auto errors = report.get_errors();
 
-    EXPECT_THAT(errors.size(), Eq(2));
+    ASSERT_THAT(errors.size(), Eq(2));
     EXPECT_THAT(errors[0].tensor_name, StrEq("incorrect 1"));
-    EXPECT_THAT(errors[0].wrong_elements, Eq(46840429));
+    EXPECT_THAT(errors[0].wrong_elements, Eq(46840334));
     EXPECT_THAT(errors[1].tensor_name, StrEq("incorrect 2"));
     EXPECT_THAT(errors[1].wrong_elements, Eq(482800));
 }
