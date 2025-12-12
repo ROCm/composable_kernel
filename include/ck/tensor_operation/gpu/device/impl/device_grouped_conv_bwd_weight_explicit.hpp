@@ -341,7 +341,7 @@ struct DeviceGroupedConvBwdWeight_Explicit
 #if DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
         if constexpr(!IsTwoStageNeeded)
         {
-            if(arg.split_k_ < 0)
+            if(arg.k_batch_ < 0)
             {
                 return false;
             }
