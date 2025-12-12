@@ -44,8 +44,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         static const bool kPadK = false;
 
         static const int kBlockPerCu         = 1;
-        static const ck_tile::index_t M_Tile = 256;
-        static const ck_tile::index_t N_Tile = 256;
+        static const ck_tile::index_t M_Tile = 128;
+        static const ck_tile::index_t N_Tile = 128;
         static const ck_tile::index_t K_Tile = 128;
 
         static const ck_tile::index_t M_Warp = 2;
@@ -782,3 +782,6 @@ using TestCkTileGroupedGemmQuant_AQuant = TestCkTileGroupedGemmQuant<Tuple>;
 
 template <typename Tuple>
 using TestCkTileGroupedGemmQuant_BQuant = TestCkTileGroupedGemmQuant<Tuple>;
+
+template <typename Tuple>
+using TestCkTileGroupedGemmQuant_BQuant_PreshuffleB = TestCkTileGroupedGemmQuant<Tuple>;
