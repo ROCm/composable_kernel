@@ -43,13 +43,14 @@ template <bool kPadM_,
           bool UseStructuredSparsity_ = false,
           bool UsePersistentKernel_   = false,
           index_t NumWaveGroups_      = 1,
-          bool Preshuffle_            = false>
+          bool Preshuffle_            = false,
+          int VectorSize_             = 16>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM            = kPadM_;
     static constexpr bool kPadN            = kPadN_;
     static constexpr bool kPadK            = kPadK_;
-    static constexpr int _VectorSize       = 16;
+    static constexpr int _VectorSize       = VectorSize_;
     static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
 
     using AsLayout = AsLayout_;
