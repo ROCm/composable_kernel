@@ -31,7 +31,6 @@ void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_default_pip
                                        ConvBwdWeightDefault,
                                        BlockGemmPipelineScheduler::Intrawave,
                                        BlockGemmPipelineVersion::v1>{});
-    ;
 }
 
 } // namespace instance

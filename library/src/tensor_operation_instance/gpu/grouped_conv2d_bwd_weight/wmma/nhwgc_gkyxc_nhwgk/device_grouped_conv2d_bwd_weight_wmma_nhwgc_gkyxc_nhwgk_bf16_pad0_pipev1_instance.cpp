@@ -22,7 +22,6 @@ void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_pad0_pipev
                                                            PassThrough,
                                                            PassThrough>>>& instances)
 {
-
     add_device_operation_instances(instances,
                                    device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_instances<
                                        2,

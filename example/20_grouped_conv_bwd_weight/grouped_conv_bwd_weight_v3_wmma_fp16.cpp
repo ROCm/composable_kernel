@@ -20,16 +20,16 @@ using DeviceConvBwdWeightInstance =
         NDimSpatial,
         ck::tuple_element_t<NDimSpatial - 1,
                             ck::Tuple<ck::tensor_layout::convolution::GNWC,
-                                      ck::tensor_layout::convolution::GNHWC,
-                                      ck::tensor_layout::convolution::GNDHWC>>,
+                                      ck::tensor_layout::convolution::NHWGC,
+                                      ck::tensor_layout::convolution::NDHWGC>>,
         ck::tuple_element_t<NDimSpatial - 1,
                             ck::Tuple<ck::tensor_layout::convolution::GKXC,
                                       ck::tensor_layout::convolution::GKYXC,
                                       ck::tensor_layout::convolution::GKZYXC>>,
         ck::tuple_element_t<NDimSpatial - 1,
                             ck::Tuple<ck::tensor_layout::convolution::GNWK,
-                                      ck::tensor_layout::convolution::GNHWK,
-                                      ck::tensor_layout::convolution::GNDHWK>>,
+                                      ck::tensor_layout::convolution::NHWGK,
+                                      ck::tensor_layout::convolution::NDHWGK>>,
         InDataType,           // InDataType
         WeiDataType,          // WeiDataType
         OutDataType,          // OutDataType
@@ -64,7 +64,7 @@ using DeviceConvBwdWeightInstance =
         1,                    // CShuffleMRepeatPerShuffle
         1,                    // CShuffleNRepeatPerShuffle
         S<1, 32, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        128 / (sizeof(WeiDataType) * CHAR_BIT)>; // CShuffleBlockTransferScalarPerVector_NPerBlock
+        4>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,

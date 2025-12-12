@@ -482,7 +482,7 @@ struct DeviceGroupedConvBwdWeight_Explicit
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvBwdWeight_Explicit"
+        str << "DeviceGroupedConvBwdWeight_Explicit_Xdl"
             << "<" << DeviceGemmV3Op{}.GetTypeString() << ">";
         // clang-format on
 
