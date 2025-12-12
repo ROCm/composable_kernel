@@ -1,4 +1,4 @@
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #include "impl/conv_signature_types.hpp"
@@ -26,13 +26,13 @@ constexpr auto SIGNATURE =
 constexpr ckt::Args<SIGNATURE> ARGS = {
     .lengths =
         {
-            .batch_size      = 123,
+            .batch_size      = 17,
             .groups          = 5,
             .input_channels  = 13,
-            .output_channels = 341,
+            .output_channels = 44,
             .image =
                 {
-                    .width  = 514,
+                    .width  = 99,
                     .height = 125,
                 },
             .filter =
@@ -67,11 +67,9 @@ TEST(ConvFwdTesting, MakeDescriptors)
         return std::vector(lengths.begin(), lengths.end());
     };
 
-    EXPECT_THAT(get_lengths(ARGS.make_input_descriptor()),
-                ElementsAreArray({5, 123, 13, 125, 514}));
-    EXPECT_THAT(get_lengths(ARGS.make_weight_descriptor()), ElementsAreArray({5, 341, 13, 4, 9}));
-    EXPECT_THAT(get_lengths(ARGS.make_output_descriptor()),
-                ElementsAreArray({5, 123, 341, 122, 506}));
+    EXPECT_THAT(get_lengths(ARGS.make_input_descriptor()), ElementsAreArray({5, 17, 13, 125, 99}));
+    EXPECT_THAT(get_lengths(ARGS.make_weight_descriptor()), ElementsAreArray({5, 44, 13, 4, 9}));
+    EXPECT_THAT(get_lengths(ARGS.make_output_descriptor()), ElementsAreArray({5, 17, 44, 122, 91}));
 }
 
 TEST(ConvFwdTesting, Alloc)

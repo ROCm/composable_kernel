@@ -34,14 +34,14 @@ using Instance = Builder::Instance;
 TEST(Fwd2DFp16_CShufV3_GNHWC, Create)
 {
     const auto expected_transfer_parameters = to_string(ALGORITHM);
-    run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-                       expected_transfer_parameters,
-                       "Default",
-                       "Intrawave",
-                       "v3",
-                       "GNHWC,GKYXC,EmptyTuple,GNHWK",
-                       "PassThrough,PassThrough,PassThrough",
-                       "MNKPadding"});
+    cku::run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
+                            expected_transfer_parameters,
+                            "Default",
+                            "Intrawave",
+                            "v3",
+                            "GNHWC,GKYXC,EmptyTuple,GNHWK",
+                            "PassThrough,PassThrough,PassThrough",
+                            "MNKPadding"});
 }
 
 TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
