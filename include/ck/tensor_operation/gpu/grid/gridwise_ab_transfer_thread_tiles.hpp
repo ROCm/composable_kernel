@@ -388,11 +388,11 @@ struct ABTransferThreadTiles
             // 1 - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma - K1
             return transform_tensor_descriptor(
                 BlockDesc{},
-                make_tuple(
-                    make_unmerge_transform(make_tuple(Number<ABK0 / KRow>{}, KRow, Number<1>{})),
-                    make_unmerge_transform(
-                        make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
-                    make_pass_through_transform(Number<ABK1>{})),
+                make_tuple(make_unmerge_transform(make_tuple(
+                               Number<ABK0 / KRow>{}, KRow, Number<KPack / KRow / ABK1>{})),
+                           make_unmerge_transform(make_tuple(
+                               Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                           make_pass_through_transform(Number<ABK1>{})),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<2, 4, 0>{}, Sequence<1, 3, 5>{}, Sequence<6>{}));
         }

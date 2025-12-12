@@ -16,10 +16,12 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
-          bool HasHotLoop_                 = true,
-          TailNumber TailNum_              = TailNumber::Full,
-          typename ComputeDataType_        = ADataType_>
+          GemmPipelineScheduler Scheduler_      = GemmPipelineScheduler::Intrawave,
+          bool HasHotLoop_                      = true,
+          TailNumber TailNum_                   = TailNumber::Full,
+          amd_buffer_coherence_enum BMemNTType_ = amd_buffer_coherence_enum::coherence_default,
+          bool BPreShufflePermute_              = false,
+          typename ComputeDataType_             = ADataType_>
 struct F16xMXF4FlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
                                                              ADataType_,
                                                              CDataType_,
@@ -28,6 +30,8 @@ struct F16xMXF4FlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
                                                              Scheduler_,
                                                              HasHotLoop_,
                                                              TailNum_,
+                                                             BMemNTType_,
+                                                             BPreShufflePermute_,
                                                              ComputeDataType_>
 {
     using BlockGemmShape = BlockGemmShape_;
@@ -182,6 +186,9 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
 
     // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
     static constexpr bool DoubleSmemBuffer = false;
+
+    static constexpr auto BMemNTType         = Problem::BMemNTType;
+    static constexpr bool BPreShufflePermute = Problem::BPreShufflePermute;
 
     CK_TILE_HOST_DEVICE static constexpr auto
     SchedulerPerM(index_t dsread_perM, index_t dswrite_perM, index_t load_perM)
