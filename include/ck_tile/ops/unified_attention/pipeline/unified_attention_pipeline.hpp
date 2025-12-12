@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/unified_attention/pipeline/unified_attention_pipeline_default_policy.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_v3_pipeline.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 #define ENABLE_ASM_MARKER 1
 #if ENABLE_ASM_MARKER
@@ -33,217 +34,6 @@
 #endif
 
 namespace ck_tile {
-
-template <typename PipelineProblem, bool kIsMasking>
-struct CoreLoopScheduler;
-
-template <typename PipelineProblem>
-struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/true>
-{
-    template <ck_tile::index_t WaveGroup, ck_tile::index_t Phase>
-    CK_TILE_DEVICE static constexpr void schedule(ck_tile::number<WaveGroup>,
-                                                  ck_tile::number<Phase>)
-    {
-        using namespace ck_tile;
-
-        if constexpr(WaveGroup == 0)
-        {
-            if constexpr(Phase == 0)
-            {
-                static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x200, 2, 0); // TRANS
-                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                });
-            }
-            else if constexpr(Phase == 1)
-            {
-                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
-            }
-            else if constexpr(Phase == 2)
-            {
-#if !CK_TILE_DISABLE_PACKED_FP32
-                __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
-#endif
-                static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
-                });
-            }
-            else if constexpr(Phase == 3)
-            {
-                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
-            }
-        }
-        else
-        {
-            if constexpr(Phase == 0)
-            {
-                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
-            }
-            else if constexpr(Phase == 1)
-            {
-                static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x200, 2, 0); // TRANS
-                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                });
-            }
-            else if constexpr(Phase == 2)
-            {
-                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
-            }
-            else if constexpr(Phase == 3)
-            {
-#if !CK_TILE_DISABLE_PACKED_FP32
-                __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
-#endif
-                static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
-                });
-            }
-        }
-    }
-};
-
-template <typename PipelineProblem>
-struct CoreLoopScheduler<PipelineProblem, /*kIsMasking=*/false>
-{
-    template <ck_tile::index_t WaveGroup, ck_tile::index_t Phase>
-    CK_TILE_DEVICE static constexpr void schedule(ck_tile::number<WaveGroup>,
-                                                  ck_tile::number<Phase>)
-    {
-        using namespace ck_tile;
-
-        if constexpr(WaveGroup == 0)
-        {
-            if constexpr(Phase == 0)
-            {
-                static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x200, 2, 0); // TRANS
-                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                });
-            }
-            else if constexpr(Phase == 1)
-            {
-                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
-            }
-            else if constexpr(Phase == 2)
-            {
-#if !CK_TILE_DISABLE_PACKED_FP32
-                __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
-#endif
-                static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
-                });
-            }
-            else if constexpr(Phase == 3)
-            {
-                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
-            }
-        }
-        else
-        {
-            if constexpr(Phase == 0)
-            {
-                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
-            }
-            else if constexpr(Phase == 1)
-            {
-                static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x200, 2, 0); // TRANS
-                    __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                });
-            }
-            else if constexpr(Phase == 2)
-            {
-                __builtin_amdgcn_sched_group_barrier(0x002, 2, 0); // VALU
-                __builtin_amdgcn_sched_group_barrier(0x004, 4, 0); // SALU
-            }
-            else if constexpr(Phase == 3)
-            {
-#if !CK_TILE_DISABLE_PACKED_FP32
-                __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
-#endif
-                static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
-                });
-            }
-        }
-    }
-};
-
-namespace detail {
-CK_TILE_DEVICE float fma_impl_vsv(float a, float b, float c)
-{
-#if CK_TILE_DISABLE_PACKED_FP32
-    return a * b + c;
-#else
-    float result;
-    asm volatile("v_fma_f32 %[result], %[a], %[b], %[c]"
-                 : [result] "=v"(result)
-                 : [a] "v"(a), [b] "s"(b), [c] "v"(c));
-    return result;
-#endif
-}
-
-CK_TILE_DEVICE float add_impl_vv(float lhs, float rhs)
-{
-    float result;
-    asm volatile("v_add_f32_e32 %[result], %[lhs], %[rhs]"
-                 : [result] "=v"(result)
-                 : [lhs] "v"(lhs), [rhs] "v"(rhs));
-    return result;
-}
-
-CK_TILE_DEVICE float mul_impl_vv(float lhs, float rhs)
-{
-    float result;
-    asm volatile("v_mul_f32_e32 %[result], %[lhs], %[rhs]"
-                 : [result] "=v"(result)
-                 : [lhs] "v"(lhs), [rhs] "v"(rhs));
-    return result;
-}
-
-CK_TILE_DEVICE fp16x2_t cvt_pk_fp16_f32(float a, float b)
-{
-    fp16x2_t result;
-    asm volatile("v_cvt_pk_f16_f32 %[result], %[a], %[b]"
-                 : [result] "=v"(result)
-                 : [a] "v"(a), [b] "v"(b));
-    return result;
-}
-
-CK_TILE_DEVICE bf16x2_t cvt_pk_bf16_f32(float a, float b)
-{
-    bf16x2_t result;
-    asm volatile("v_cvt_pk_bf16_f32 %[result], %[a], %[b]"
-                 : [result] "=v"(result)
-                 : [a] "v"(a), [b] "v"(b));
-    return result;
-}
-
-CK_TILE_DEVICE fp32x2_t pk_mul_f32(fp32x2_t lhs, fp32x2_t rhs)
-{
-    fp32x2_t result;
-    asm volatile("v_pk_mul_f32 %[result], %[lhs], %[rhs]"
-                 : [result] "=v"(result)
-                 : [lhs] "v"(lhs), [rhs] "v"(rhs));
-    return result;
-}
-} // namespace detail
 
 template <typename Problem_, typename Policy_ = UnifiedAttentionPipelineDefaultPolicy>
 struct UnifiedAttentionPipeline
@@ -377,23 +167,24 @@ struct UnifiedAttentionPipeline
               typename SAccElementFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction>
-    CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
-                                   const QElementFunction& q_element_func,
-                                   const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
-                                   [[maybe_unused]] const KElementFunction& k_element_func,
-                                   const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
-                                   [[maybe_unused]] const VElementFunction& v_element_func,
-                                   const index_t num_blocks,
-                                   const index_t num_blocks_start,
-                                   const void* block_tables_ptr,
-                                   index_t block_table_offset,
-                                   const index_t kv_page_size_in_blocks,
-                                   [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
-                                   const PComputeElementFunction& p_compute_element_func,
-                                   const OAccElementFunction& o_acc_element_func,
-                                   FmhaMask mask,
-                                   float scale_s,
-                                   void* smem_ptr) const
+    CK_TILE_DEVICE auto operator()(
+        const QDramBlockWindowTmp& q_dram_block_window_tmp, // kBlockM * kHeadDimPadded tile
+        const QElementFunction& q_element_func,
+        const KDramBlockWindowTmp& k_dram_block_window_tmp, // kPageBlockSize * kHeadDimPadded tile
+        [[maybe_unused]] const KElementFunction& k_element_func,
+        const VDramBlockWindowTmp& v_dram_block_window_tmp, // kHeadDimPadded * kPageBlockSize tile
+        [[maybe_unused]] const VElementFunction& v_element_func,
+        const index_t num_blocks,
+        const index_t num_blocks_start,
+        const void* block_tables_ptr,
+        index_t block_table_offset,
+        const index_t kv_page_size_in_blocks,
+        [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
+        const PComputeElementFunction& p_compute_element_func,
+        const OAccElementFunction& o_acc_element_func,
+        FmhaMask mask,
+        float scale_s,
+        void* smem_ptr) const
     {
         using namespace ck_tile;
         static_assert(
@@ -1224,17 +1015,18 @@ struct UnifiedAttentionPipeline
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp>
-    CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
-                                   const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
-                                   const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
-                                   const index_t num_blocks,
-                                   const index_t num_blocks_start,
-                                   const void* block_tables_ptr,
-                                   index_t block_table_offset,
-                                   const index_t kv_page_size_in_blocks,
-                                   FmhaMask mask,
-                                   float scale_s,
-                                   void* smem_ptr) const
+    CK_TILE_DEVICE auto operator()(
+        const QDramBlockWindowTmp& q_dram_block_window_tmp, // kBlockM * kHeadDimPadded tile
+        const KDramBlockWindowTmp& k_dram_block_window_tmp, // kPageBlockSize * kHeadDimPadded tile
+        const VDramBlockWindowTmp& v_dram_block_window_tmp, // kHeadDimPadded * kPageBlockSize tile
+        const index_t num_blocks,
+        const index_t num_blocks_start,
+        const void* block_tables_ptr,
+        index_t block_table_offset,
+        const index_t kv_page_size_in_blocks,
+        FmhaMask mask,
+        float scale_s,
+        void* smem_ptr) const
     {
         using namespace ck_tile;
 

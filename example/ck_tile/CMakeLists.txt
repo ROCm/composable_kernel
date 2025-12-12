@@ -4,7 +4,6 @@
 include_directories(AFTER
   ${CMAKE_CURRENT_LIST_DIR}
 )
-add_subdirectory(01_unified_attention)
 add_subdirectory(01_fmha)
 add_subdirectory(02_layernorm2d)
 add_subdirectory(03_gemm)
@@ -30,4 +29,4 @@ add_subdirectory(36_pooling)
 add_subdirectory(38_block_scale_gemm)
 add_subdirectory(40_streamk_gemm)
 add_subdirectory(41_batched_contraction)
-
+add_subdirectory(42_unified_attention)

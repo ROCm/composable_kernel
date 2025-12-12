@@ -1,6 +1,6 @@
 #!/bin/sh
 # TODO: run this script from CK root or build directory
-EXE="$(find . -name tile_example_fmha_fwd -type f | head -n 1)"
+EXE="$(find . -name tile_example_unified_attention -type f | head -n 1)"
 VALID=0
 
 for prec in "fp16" "bf16" ; do
