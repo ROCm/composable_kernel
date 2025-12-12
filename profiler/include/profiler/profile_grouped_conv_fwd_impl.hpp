@@ -273,11 +273,21 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             std::stringstream out_ss;
             out_ss << "CK best configuration:" << std::endl
                 << "name: " << best_op_name << std::endl
-                << "avg_time: " << best_avg_time << std::endl
-                << "SplitK: " << 1 << std::endl;
+                << "avg_time: " << best_avg_time << std::endl;
             out << out_ss.str();
             out.close();
+            std::cout << "Saved the best configuration to log file: " << log_file << std::endl;
         }
+        else 
+        {
+            std::cerr << "Warning: cannot open log file: " << log_file << std::endl;
+            exit(1);
+        }
+    }
+    else {
+        std::cout << "Note: set environment variable CK_PROFILER_LOG_FILE to save the best "
+                     "configuration to a log file"
+                  << std::endl;
     }
               
     if(instance_index != -1)

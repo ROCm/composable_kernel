@@ -51,11 +51,11 @@ def run_ck_profiler_cmd(cmd_args, profiler_type, bin_path, results_file, log_to_
     env["CK_PROFILER_LOG_FILE"] = results_file
     env["CK_TILE_PROFILER_LOG_FILE"] = results_file
 
+    timeoutInSec = 300 * 60 # 300 minutes timeout
     if log_to_stdout:
-      subprocess.run(cmd) 
+      subprocess.run(cmd, timeout=timeoutInSec, env=env) 
     else:
       with open(os.devnull, 'w') as devnull:
-        timeoutInSec = 300 * 60 # 300 minutes timeout
         try:
           subprocess.run(cmd, stdout=devnull, stderr=devnull, timeout=timeoutInSec, env=env)
         except subprocess.TimeoutExpired:
@@ -416,19 +416,14 @@ def main():
     if not os.path.exists(args.results_path):
         os.makedirs(args.results_path)
 
-    results_file = os.path.join(args.results_path, f"ck_results_{args.data_type}_{os.getpid()}.txt")
+    # Get computer host name
+    hostname = os.uname().nodename.split('.')[0]
+
+    results_file = os.path.join(args.results_path, f"ck_results_{hostname}_{args.data_type}_{os.getpid()}.txt")
 
     data_type_arg = data_type_str_to_profiler_arg(args.data_type)
 
     for i, cmd in enumerate(profiler_commands):
-        cmd_concatenated_str = ' '.join(cmd)
-        print(f"\n####################################################################################################################")
-        print(f"Running command {i + 1}/{len(profiler_commands)}: {cmd_concatenated_str}")
-        print(f"######################################################################################################################")
-        # with open(results_file, 'a') as f:
-        #   f.write(cmd_concatenated_str + "\n")
-        # run_ck_profiler_cmd(cmd, ProfilerType.CK_TILE, args.bin_path, results_file, args.log_to_stdout)
-
         # Set the correct data type based on user input
         cmd[1] = data_type_arg
 
@@ -437,6 +432,15 @@ def main():
 
         # We don't want to run verification. We assume CK already works correctly.
         cmd[3] = '0'  # Set verification flag to 0 (no verification)
+
+        cmd_concatenated_str = ' '.join(cmd)
+        print(f"\n####################################################################################################################")
+        print(f"Running command {i + 1}/{len(profiler_commands)}: {cmd_concatenated_str}")
+        print(f"######################################################################################################################")
+  
+        # Print the command to the output file
+        with open(results_file, 'a') as f:
+          f.write(cmd_concatenated_str + "\n")
 
         run_ck_profiler_cmd(cmd, ProfilerType.CK, args.bin_path, results_file, args.log_to_stdout)
   
