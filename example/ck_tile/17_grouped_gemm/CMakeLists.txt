@@ -1,4 +1,7 @@
-if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a")
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+if(GPU_TARGETS MATCHES "gfx94|gfx95")
   add_executable(tile_example_grouped_gemm grouped_gemm.cpp)
   add_executable(tile_example_quant_grouped_gemm quant_grouped_gemm.cpp)
   add_executable(tile_example_grouped_gemm_preshuffle grouped_gemm_preshuffle.cpp)

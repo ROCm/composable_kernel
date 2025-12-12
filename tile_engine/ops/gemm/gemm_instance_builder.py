@@ -337,13 +337,6 @@ class GemmKernelBuilder:
             "compv4": "ck_tile::GemmPipelineAgBgCrCompV4",
         }
 
-        # Map pipeline names to base pipeline for hot loop detection
-        base_pipeline_map = {
-            "mem": "ck_tile::BaseGemmPipelineAgBgCrMem",
-            "compv3": "ck_tile::BaseGemmPipelineAgBgCrCompV3",
-            "compv4": "ck_tile::BaseGemmPipelineAgBgCrCompV4",
-        }
-
         # Map scheduler names to the correct enum values
         scheduler_type_map = {
             "intrawave": "ck_tile::GemmPipelineScheduler::Intrawave",
@@ -423,33 +416,10 @@ struct SelectedKernel {{
     
     // Tile partitioner
     using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
-    
-    // Traits
-    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;
-    
-    // Pipeline problem
-    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
-        ADataType,
-        BDataType,
-        AccDataType,
-        TileShape,
-        Traits>;
-    
-    // Base pipeline for hot loop detection
-    using BaseGemmPipeline = {base_pipeline_map.get(pipeline)}<GemmPipelineProblem>;
 
     static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
-        const ck_tile::index_t k_grain = args.k_batch * TileK;
-        const ck_tile::index_t K_split = (args.K + k_grain - 1) / k_grain * TileK;
-        const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
-        const bool has_hot_loop = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
         
-        float ave_time{{0}};
-
-        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {{
-            constexpr bool has_hot_loop_v = has_hot_loop_.value;
-            constexpr auto tail_number_v = tail_number_.value;
+        const auto Run = [&](const auto memory_operation_) {{
             constexpr auto scheduler = {scheduler_type_map.get(scheduler)};
             [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;
 
@@ -462,9 +432,7 @@ struct SelectedKernel {{
                                                 ALayout, BLayout, CLayout, TransposeC,
                                                 UseStructuredSparsity, UsePersistentKernel,
                                                 NumWaveGroups, Preshuffle>,
-                scheduler,
-                has_hot_loop_v,
-                tail_number_v>;
+                scheduler>;
             
             using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;
             
@@ -542,28 +510,23 @@ struct SelectedKernel {{
             
             // Launch kernel
             constexpr int kBlockPerCu = {k_block_per_cu};
-            ave_time = ck_tile::launch_kernel(
+            float ave_time = ck_tile::launch_kernel(
                 stream,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
             
             return ave_time;
         }};
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
-            if(args.k_batch == 1) {{
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                            ck_tile::memory_operation_enum::set>{{}});
-            }} else {{
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                            ck_tile::memory_operation_enum::atomic_add>{{}});
-            }}
-        }};
+        float ave_time = 0.f;
 
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        if(args.k_batch == 1) {{
+            ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                        ck_tile::memory_operation_enum::set>{{}});
+        }} else {{
+            ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                        ck_tile::memory_operation_enum::atomic_add>{{}});
+        }}
+
         return ave_time;
     }}
 }};
