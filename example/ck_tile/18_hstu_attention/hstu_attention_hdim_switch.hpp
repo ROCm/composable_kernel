@@ -13,6 +13,11 @@
             constexpr ck_tile::index_t CONST_NAME = 64;                \
             __VA_ARGS__();                                             \
         }                                                              \
+        else if(HDIM_1 <= 96 && HDIM_2 <= 96)                          \
+        {                                                              \
+            constexpr ck_tile::index_t CONST_NAME = 96;                \
+            __VA_ARGS__();                                             \
+        }                                                              \
         else if(HDIM_1 <= 128 && HDIM_2 <= 128)                        \
         {                                                              \
             constexpr ck_tile::index_t CONST_NAME = 128;               \
