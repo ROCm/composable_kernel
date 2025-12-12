@@ -356,6 +356,8 @@ wait
 echo "All 3D models processed!"
 echo ""
 
+# Disable trap on successful completion
+trap - SIGINT SIGTERM EXIT
 
 echo ""
 echo "Step 3: Converting MIOpen commands to CSV test cases"
@@ -452,9 +454,6 @@ fi
 if [ -f "conv_test_set_3d_dataset.csv" ]; then
     COUNT_3D=$(grep -v "^#" conv_test_set_3d_dataset.csv | tail -n +2 | wc -l)
 fi
-
-# Disable trap on successful completion
-trap - SIGINT SIGTERM EXIT
 
 echo ""
 echo "=========================================="
