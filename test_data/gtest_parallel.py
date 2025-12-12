@@ -1,3 +1,10 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# This file has been modified to allow round-robin GPU scheduling.
+# Original file can be found at
+# https://github.com/google/gtest-parallel/blob/cd488bdedc1d2cffb98201a17afc1b298b0b90f1/gtest_parallel.py
+# Changes from the original file are subject to the following license:
+# SPDX-License-Identifier: MIT
+#
 # Copyright 2013 Google Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,13 +19,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file has been modified to allow round-robin GPU scheduling.
-# Original file can be found at
-# https://github.com/google/gtest-parallel/blob/cd488bdedc1d2cffb98201a17afc1b298b0b90f1/gtest_parallel.py
-# Changes from the original file are subject to the following license:
-#
-# Copyright © Advanced Micro Devices, Inc., or its affiliates.
-# SPDX-License-Identifier: MIT
 import errno
 from functools import total_ordering
 import gzip
