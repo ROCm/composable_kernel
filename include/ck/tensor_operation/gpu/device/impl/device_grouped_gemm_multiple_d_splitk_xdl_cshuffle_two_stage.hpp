@@ -358,15 +358,25 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
                 const index_t stride_a = gemm_descs[i].stride_A_;
                 const index_t stride_b = gemm_descs[i].stride_B_;
-                const index_t stride_e = gemm_descs[i].stride_C_;
 
                 const index_t m_padded  = GridwiseGemm64::CalculateMPadded(M);
                 const index_t n_padded  = GridwiseGemm64::CalculateNPadded(N);
                 const index_t k_padded  = GridwiseGemm64::CalculateKPadded(K, K_BATCH);
                 const index_t k0_padded = GridwiseGemm64::CalculateK0Padded(K, K_BATCH);
 
+                // Two different strides are needed for TwoStage split-K:
+                // 1. workspace_stride (below): Padded stride for intermediate workspace (C grid)
+                //    - Must match block tiling, so uses n_padded (RowMajor) or m_padded
+                //    (ColumnMajor)
+                //    - Used by GEMM kernel to write workspace tiles
+                // 2. gemm_descs[i].stride_C_: User-provided stride for final output (E tensor)
+                //    - May be non-padded, matches user's requested output layout
+                //    - Used by elementwise kernel to write final results
+                const index_t workspace_stride =
+                    is_same<tensor_layout::gemm::RowMajor, ELayout>::value ? n_padded : m_padded;
+
                 const auto c_grid_desc_m_n =
-                    GridwiseGemm64::MakeCGridDescriptor_M_N(M, N, stride_e);
+                    GridwiseGemm64::MakeCGridDescriptor_M_N(M, N, workspace_stride);
 
                 DsGridDesc_M_N ds_grid_desc_m_n;
                 DsGridPointer p_ds_grid;
@@ -415,7 +425,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                                                K,
                                                stride_a,
                                                stride_b,
-                                               stride_e,
+                                               workspace_stride,
                                                m_padded,
                                                n_padded,
                                                k_padded,
