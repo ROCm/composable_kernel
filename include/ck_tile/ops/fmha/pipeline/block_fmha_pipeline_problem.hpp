@@ -63,6 +63,73 @@ struct BlockFmhaPipelineProblem
     static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr bool kHasSink          = Traits::kHasSink;
+};
+
+template <typename QDataType_,
+          typename KDataType_,
+          typename VDataType_,
+          typename SaccDataType_,
+          typename SMPLComputeDataType_,
+          typename BiasDataType_,
+          typename RandValOutputDataType_,
+          typename LSEDataType_,
+          typename PDataType_,
+          typename OaccDataType_,
+          typename ODataType_,
+          typename BlockFmhaShape_,
+          bool kIsGroupMode_,
+          typename AttentionVariant_,
+          typename FmhaMask_,
+          bool kUseTrLoad_,
+          int kPageBlockSize_,
+          typename Traits_>
+struct BlockFmhaBatchPrefillPipelineProblem
+{
+    using QDataType             = remove_cvref_t<QDataType_>;
+    using KDataType             = remove_cvref_t<KDataType_>;
+    using VDataType             = remove_cvref_t<VDataType_>;
+    using SaccDataType          = remove_cvref_t<SaccDataType_>;
+    using SMPLComputeDataType   = remove_cvref_t<SMPLComputeDataType_>;
+    using BiasDataType          = remove_cvref_t<BiasDataType_>;
+    using RandValOutputDataType = remove_cvref_t<RandValOutputDataType_>;
+    using LSEDataType           = remove_cvref_t<LSEDataType_>;
+    using PDataType             = remove_cvref_t<PDataType_>;
+    using OaccDataType          = remove_cvref_t<OaccDataType_>;
+    using ODataType             = remove_cvref_t<ODataType_>;
+    using BlockFmhaShape        = remove_cvref_t<BlockFmhaShape_>;
+    using AttentionVariant      = remove_cvref_t<AttentionVariant_>;
+    using FmhaMask              = remove_cvref_t<FmhaMask_>;
+    using Traits                = remove_cvref_t<Traits_>;
+
+    static constexpr index_t kNumGemm0Warps = BlockFmhaShape::NumGemm0Warps;
+    static constexpr index_t kNumGemm1Warps = BlockFmhaShape::NumGemm1Warps;
+    static constexpr index_t kBlockSize     = BlockFmhaShape::NumWarps * get_warp_size();
+    static constexpr index_t kPageBlockSize = kPageBlockSize_;
+    static constexpr index_t kPageShiftSize = []() constexpr {
+        index_t shift = 0;
+        index_t val   = kPageBlockSize_;
+        while(val > 1)
+        {
+            val >>= 1;
+            shift++;
+        }
+        return shift;
+    }();
+    static constexpr bool kIsGroupMode = kIsGroupMode_;
+    static constexpr bool kUseTrLoad   = kUseTrLoad_;
+
+    // attributes from traits
+    static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = Traits::kHasLogitsSoftCap;
+    static constexpr bool kSkipMinSeqlenQ   = Traits::kSkipMinSeqlenQ;
+    static constexpr auto BiasEnum          = Traits::BiasEnum;
+    static constexpr bool kStoreLSE         = Traits::kStoreLSE;
+    static constexpr bool kHasDropout       = Traits::kHasDropout;
+    static constexpr auto QScaleEnum        = Traits::QScaleEnum;
+    static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr bool kIsSglangLayout   = Traits::kIsSglangLayout;
 };
 

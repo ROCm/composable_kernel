@@ -56,6 +56,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
     static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
     static constexpr auto QScaleEnum        = FmhaPipeline::Problem::QScaleEnum;
     static constexpr bool kIsSglangLayout   = FmhaPipeline::kIsSglangLayout;
+    static constexpr index_t kPageBlockSize = FmhaPipeline::kPageBlockSize;
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
@@ -102,6 +103,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) +
             (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) + (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
             (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) +
+            (kIsSglangLayout ? "_sglang" : "_vllm" ) + (_SS_("_pg") + _TS_(kPageBlockSize)) + 
             (QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE ? _SS_("_nqscale") : (_SS_("_") + BlockAttentionQuantScaleEnumToStr<QScaleEnum>::name));
         #undef _SS_
         #undef _TS_

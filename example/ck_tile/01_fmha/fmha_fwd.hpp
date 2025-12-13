@@ -531,9 +531,7 @@ struct fmha_batch_prefill_args
     ck_tile::index_t page_block_size;
     void* kv_indptr;
     void* kv_page_indices;
-#if 1 // we assume page_block_size=1 for now
     void* kv_last_page_lens;
-#endif
 
     float scale_s;
     float scale_p;
@@ -1130,9 +1128,7 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.page_block_size,
                                          args.kv_indptr,
                                          args.kv_page_indices,
-#if 1 // we assume page_block_size=1 for now
                                          args.kv_last_page_lens,
-#endif
                                          args.scale_s,
                                          args.scale_p,
                                          args.scale_o,
@@ -1178,9 +1174,7 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.page_block_size,
                                          args.kv_indptr,
                                          args.kv_page_indices,
-#if 1 // we assume page_block_size=1 for now
                                          args.kv_last_page_lens,
-#endif
                                          args.scale_s,
                                          args.scale_p,
                                          args.scale_o,
@@ -1244,7 +1238,6 @@ template <ck_tile::index_t HDim_,
           bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_ = false,
           bool kHasSink_        = false>
-          bool kIsSglangLayout_ = false>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1271,7 +1264,60 @@ struct fmha_fwd_traits_
     static constexpr bool kUseTrLoad                 = kUseTrLoad_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
     static constexpr bool kHasSink                   = kHasSink_;
+};
+
+template <ck_tile::index_t HDim_,
+          typename DataType_,
+          bool kIsGroupMode_,
+          ck_tile::index_t kM0_,
+          ck_tile::index_t kN0_,
+          ck_tile::index_t kK0_,
+          ck_tile::index_t kN1_,
+          ck_tile::index_t kK1_,
+          ck_tile::index_t kK0BlockLength_,
+          bool kIsVLayoutRowMajor_,
+          ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum_,
+          bool kHasLogitsSoftCap_,
+          typename FmhaMask_,
+          ck_tile::BlockAttentionBiasEnum BiasEnum_,
+          bool kStoreLse_,
+          bool kHasDropout_,
+          ck_tile::BlockAttentionQuantScaleEnum QScaleEnum_,
+          bool kPadS_,
+          bool kPadSK_,
+          bool kPadD_,
+          bool kPadDv_,
+          bool kUseTrLoad_,
+          bool kSkipMinSeqlenQ_            = false,
+          bool kIsSglangLayout_            = false,
+          ck_tile::index_t kPageBlockSize_ = 1>
+struct fmha_fwd_batch_prefill_traits_
+{
+    static constexpr ck_tile::index_t HDim           = HDim_;
+    using DataType                                   = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode               = kIsGroupMode_;
+    static constexpr ck_tile::index_t kM0            = kM0_;
+    static constexpr ck_tile::index_t kN0            = kN0_;
+    static constexpr ck_tile::index_t kK0            = kK0_;
+    static constexpr ck_tile::index_t kN1            = kN1_;
+    static constexpr ck_tile::index_t kK1            = kK1_;
+    static constexpr ck_tile::index_t kK0BlockLength = kK0BlockLength_;
+    static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
+    static constexpr auto FmhaPipelineEnum           = FmhaPipelineEnum_;
+    static constexpr bool kHasLogitsSoftCap          = kHasLogitsSoftCap_;
+    using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
+    static constexpr auto BiasEnum                   = BiasEnum_;
+    static constexpr bool kStoreLse                  = kStoreLse_;
+    static constexpr bool kHasDropout                = kHasDropout_;
+    static constexpr auto QScaleEnum                 = QScaleEnum_;
+    static constexpr bool kPadS                      = kPadS_;
+    static constexpr bool kPadSK                     = kPadSK_;
+    static constexpr bool kPadD                      = kPadD_;
+    static constexpr bool kPadDv                     = kPadDv_;
+    static constexpr bool kUseTrLoad                 = kUseTrLoad_;
+    static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
     static constexpr bool kIsSglangLayout            = kIsSglangLayout_;
+    static constexpr ck_tile::index_t kPageBlockSize = kPageBlockSize_;
 };
 
 template <typename Traits_, typename Arch = void>
@@ -1520,9 +1566,10 @@ float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,
                         fmha_fwd_appendkv_args,
                         const ck_tile::stream_config&);
 
-struct fmha_batch_prefill_traits: public fmha_fwd_traits
+struct fmha_batch_prefill_traits : public fmha_fwd_traits
 {
     bool is_sglang_layout = true;
+    int page_size         = 1;
 };
 
 float fmha_batch_prefill(fmha_batch_prefill_traits,

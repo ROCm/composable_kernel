@@ -99,8 +99,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr index_t kK1            = BlockFmhaShape::kK1;
     static constexpr index_t kQKHeaddim     = BlockFmhaShape::kQKHeaddim;
     static constexpr index_t kSubQKHeaddim  = BlockFmhaShape::kSubQKHeaddim;
-    static constexpr index_t kPageBlockSize = 16;
-    static constexpr index_t kPageShiftSize = 4;
+    static constexpr index_t kPageBlockSize = Problem::kPageBlockSize;
+    static constexpr index_t kPageShiftSize = Problem::kPageShiftSize;
     static constexpr auto I0                = number<0>{};
     static constexpr auto I1                = number<1>{};
     static constexpr auto I2                = number<2>{};

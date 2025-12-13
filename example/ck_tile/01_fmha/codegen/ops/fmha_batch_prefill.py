@@ -52,7 +52,7 @@ using fmha_shape_{F_idx} = ck_tile::TileFmhaShape<fmha_block_tile_{F_idx},
                                       ck_tile::sequence<{F_wm1}, {F_wn1}, {F_wk1}>,
                                       {F_vlayout}>;
 
-using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
+using fmha_trait_{F_idx} = ck_tile::TileFmhaBatchPrefillTraits<{F_spad},
                                                     {F_skpad},
                                                     {F_dpad},
                                                     {F_dvpad},
@@ -64,13 +64,14 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_qscale},
                                                     {F_occupancy},
                                                     false,
-                                                    {F_sglang_layout}>;
+                                                    {F_sglang_layout},
+                                                    {F_page_size}>;
 
 using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
 
 using fmha_mask_{F_idx} = {F_mask};
 
-using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaPipelineProblem<
+using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaBatchPrefillPipelineProblem<
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::QDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::VDataType,
@@ -87,6 +88,7 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaPipelineProblem<
     fmha_variant_{F_idx},
     fmha_mask_{F_idx},
     false,
+    {F_page_size},
     fmha_trait_{F_idx}>;
 
 using fmha_pipeline_{F_idx} = {F_pipeline}<
@@ -100,8 +102,8 @@ using fmha_epilogue_{F_idx} =
 using fmha_kernel_{F_idx} =
     ck_tile::FmhaBatchPrefillWithPagedKVCacheKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
 
-using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
-                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, false, {F_sglang_layout}>;
+using trait_{F_idx} = fmha_fwd_batch_prefill_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
+                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, false, false, {F_sglang_layout}, {F_page_size}>;
 
 #include <iostream>
 
@@ -179,8 +181,8 @@ FMHA_FWD_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v
 """
 
 FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.qscale_type == {F_qscale_check}) &&
-                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint}) && (t.is_sglang_layout == {F_sglang_layout})) {{
-                using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, false, {F_sglang_layout}>;
+                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint}) && (t.is_sglang_layout == {F_sglang_layout}) && (t.page_size == {F_page_size})) {{
+                using trait_ = fmha_fwd_batch_prefill_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, false, false, {F_sglang_layout}, {F_page_size}>;
                 return fmha_batch_prefill_<trait_>(s, a);
             }}
 """
@@ -226,12 +228,13 @@ class FmhaFwdApiTrait:
     dvpad: str
     constraint: CppConstraint
     cache_layout : str
+    page_size: int = 1  # page block size
 
     @property
     def name(self) -> str:
         return (
             f"{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0max}-"
-            + f"{self.vlayout}-{self.logits}-{self.mask}-{self.bias}-{self.lse}-{self.dropout}-{self.qscale}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.cache_layout}"
+            + f"{self.vlayout}-{self.logits}-{self.mask}-{self.bias}-{self.lse}-{self.dropout}-{self.qscale}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.cache_layout}-p{self.page_size}"
         )
 
     @property
@@ -442,6 +445,7 @@ class FmhaFwdApiPool:
                         F_hdim=hdim,
                         F_dtype=FWD_DTYPE_MAP[dtype],
                         F_sglang_layout=BOOL_MAP[trait.cache_layout],
+                        F_page_size=trait.page_size,
                     )
                 if_j = "if" if j == 0 else "else if"
                 per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(
@@ -499,6 +503,7 @@ class FmhaFwdKernel:
     F_tile: FmhaFwdTileSize
     F_pipeline: FmhaFwdPipeline
     mask_impl: str
+    F_page_size: int = 1  # page block size
 
     @property
     def template(self) -> str:
@@ -540,13 +545,14 @@ class FmhaFwdKernel:
             F_mask=get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
             F_mode=MODE_MAP[self.F_mode],
             F_pipeline=FMHA_BATCH_PREFILL_PIPELINE_MAP[self.F_pipeline.tag],
+            F_page_size=self.F_page_size,
         )
 
     @property
     def name(self) -> str:
         # TODO: we don't encode idx here
         return (
-            f"fmha_batch_prefill_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_"
+            f"fmha_batch_prefill_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_p{self.F_page_size}_"
             + self.F_tile.name
             + "_"
             + self.F_pipeline.name
@@ -581,6 +587,7 @@ class FmhaFwdKernel:
             dvpad=self.F_pipeline.F_dvpad,
             constraint=self.F_tile.F_constraint & self.F_pipeline.F_constraint,
             cache_layout=self.F_pipeline.F_sglang_layout,
+            page_size=self.F_page_size,
         )
 
 
@@ -666,70 +673,76 @@ def get_fwd_blobs(
                     or pipeline.F_logits == "f"
                 ):
                     continue
-                k = FmhaFwdKernel(
-                    F_idx=0,
-                    F_hdim=hdim,
-                    F_dtype=dtype,
-                    F_mode=mode,
-                    F_tile=tile,
-                    F_pipeline=pipeline,
-                    mask_impl=mask_impl,
-                )
-                if kernel_filter != "":
-                    if not fnmatch.fnmatch(k.name, kernel_filter):
-                        continue
-                if optdim_list != [-1]:
-                    if hdim not in optdim_list:
-                        continue
-                # 2 - Flash attention integration
-                if receipt in (2, 3):
-                    cond = dtype in ["fp16", "bf16"]
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_bias in ["no", "alibi"]
-                    cond &= pipeline.F_qscale == "no"
-                    if not cond:
-                        continue
-                # PyTorch integration
-                elif receipt == 4:
-                    cond = dtype in ["fp16", "bf16"]
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_bias in ["no", "bias"]
-                    cond &= pipeline.F_qscale == "no"
-                    if not cond:
-                        continue
-                # Aiter(mha_fwd) integration
-                elif receipt == 100:
-                    cond = dtype in ["fp16", "bf16"]
-                    cond &= mode == "batch"
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_qscale == "no"
-                    if not cond:
-                        continue
-                # Aiter(mha_batch_prefill) integration
-                elif receipt == 200:
-                    cond = dtype in ["fp16", "bf16"]
-                    cond &= mode == "group"
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_qscale == "no"
-                    if not cond:
-                        continue
-                # aiter::mha_batch_prefill C++ api integration
-                elif receipt == 600:
-                    cond = dtype in ["fp16", "bf16"]
-                    cond &= mode == "group"
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_qscale == "no"
-                    if not cond:
-                        continue
+                
+                # Generate kernels for both page_size=16 and page_size=32
+                for page_size in [1, 16]:
+                    k = FmhaFwdKernel(
+                        F_idx=0,
+                        F_hdim=hdim,
+                        F_dtype=dtype,
+                        F_mode=mode,
+                        F_tile=tile,
+                        F_pipeline=pipeline,
+                        mask_impl=mask_impl,
+                        F_page_size=page_size,
+                    )
+                    if kernel_filter != "":
+                        if not fnmatch.fnmatch(k.name, kernel_filter):
+                            continue
+                    if optdim_list != [-1]:
+                        if hdim not in optdim_list:
+                            continue
+                    if pipeline.F_sglang_layout == 't' and page_size != 1:
+                        continue  # sglang_layout with page_size > 1 not supported yet
+                    # 2 - Flash attention integration
+                    if receipt in (2, 3):
+                        cond = dtype in ["fp16", "bf16"]
+                        cond &= pipeline.F_vlayout == "row"
+                        cond &= pipeline.F_bias in ["no", "alibi"]
+                        cond &= pipeline.F_qscale == "no"
+                        if not cond:
+                            continue
+                    # PyTorch integration
+                    elif receipt == 4:
+                        cond = dtype in ["fp16", "bf16"]
+                        cond &= pipeline.F_vlayout == "row"
+                        cond &= pipeline.F_bias in ["no", "bias"]
+                        cond &= pipeline.F_qscale == "no"
+                        if not cond:
+                            continue
+                    # Aiter(mha_fwd) integration
+                    elif receipt == 100:
+                        cond = dtype in ["fp16", "bf16"]
+                        cond &= mode == "batch"
+                        cond &= pipeline.F_vlayout == "row"
+                        cond &= pipeline.F_qscale == "no"
+                        if not cond:
+                            continue
+                    # Aiter(mha_batch_prefill) integration
+                    elif receipt == 200:
+                        cond = dtype in ["fp16", "bf16"]
+                        cond &= mode == "group"
+                        cond &= pipeline.F_vlayout == "row"
+                        cond &= pipeline.F_qscale == "no"
+                        if not cond:
+                            continue
+                    # aiter::mha_batch_prefill C++ api integration
+                    elif receipt == 600:
+                        cond = dtype in ["fp16", "bf16"]
+                        cond &= mode == "group"
+                        cond &= pipeline.F_vlayout == "row"
+                        cond &= pipeline.F_qscale == "no"
+                        if not cond:
+                            continue
 
-                # fp32 only
-                if receipt == 800 or receipt == 801:
-                    cond = dtype == "fp32"
-                    if not cond:
-                        continue
+                    # fp32 only
+                    if receipt == 800 or receipt == 801:
+                        cond = dtype == "fp32"
+                        if not cond:
+                            continue
 
-                api_pool.register_traits(k.api_trait())
-                gen.append(k)
+                    api_pool.register_traits(k.api_trait())
+                    gen.append(k)
 
     return (api_pool, gen)
 
