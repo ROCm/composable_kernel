@@ -11,6 +11,11 @@
 #include <vector>
 #include <algorithm>
 
+std::ostream& operator<<(std::ostream& os, hipError_t status)
+{
+    return os << hipGetErrorString(status);
+}
+
 namespace ck_tile::test {
 
 // Wagner-Fischer Algorithm for Computing Edit Distance and Inline Diff
@@ -295,6 +300,43 @@ void InstanceMatcher::DescribeTo(std::ostream* os) const { *os << expected_; }
 void InstanceMatcher::DescribeNegationTo(std::ostream* os) const
 {
     *os << "is not equal to " << expected_;
+}
+
+bool HipStatusMatcher::MatchAndExplain(hipError_t actual,
+                                       ::testing::MatchResultListener* listener) const
+{
+    (void)listener;
+
+    if(actual == expected_)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void HipStatusMatcher::DescribeTo(std::ostream* os) const { *os << hipGetErrorString(expected_); }
+
+void HipStatusMatcher::DescribeNegationTo(std::ostream* os) const
+{
+    if(expected_ == hipSuccess)
+    {
+        *os << "any error";
+    }
+    else
+    {
+        *os << "isn't equal to " << hipGetErrorString(expected_);
+    }
+}
+
+::testing::Matcher<hipError_t> HipSuccess()
+{
+    return ::testing::MakeMatcher(new HipStatusMatcher(hipSuccess));
+}
+
+::testing::Matcher<hipError_t> HipError(hipError_t error)
+{
+    return ::testing::MakeMatcher(new HipStatusMatcher(error));
 }
 
 } // namespace ck_tile::test

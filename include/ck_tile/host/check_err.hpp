@@ -52,9 +52,19 @@ template <typename ComputeDataType, typename OutDataType, typename AccDataType =
 CK_TILE_HOST double get_relative_threshold(const int number_of_accumulations = 1)
 {
 
-    static_assert(
-        is_any_of<ComputeDataType, F8, BF8, F16, BF16, F32, pk_int4_t, I8, I32, int>::value,
-        "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
+    static_assert(is_any_of<ComputeDataType,
+                            F8,
+                            BF8,
+                            F16,
+                            BF16,
+                            F32,
+                            pk_fp4_t,
+                            pk_fp4_raw_t,
+                            pk_int4_t,
+                            I8,
+                            I32,
+                            int>::value,
+                  "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
 
     double compute_error = 0;
     if constexpr(is_any_of<ComputeDataType, pk_int4_t, I8, I32, int>::value)
@@ -113,9 +123,19 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
                                            const int number_of_accumulations = 1)
 {
 
-    static_assert(
-        is_any_of<ComputeDataType, F8, BF8, F16, BF16, F32, pk_int4_t, I8, I32, int>::value,
-        "Warning: Unhandled ComputeDataType for setting up the absolute threshold!");
+    static_assert(is_any_of<ComputeDataType,
+                            F8,
+                            BF8,
+                            F16,
+                            BF16,
+                            F32,
+                            pk_fp4_t,
+                            pk_fp4_raw_t,
+                            pk_int4_t,
+                            I8,
+                            I32,
+                            int>::value,
+                  "Warning: Unhandled ComputeDataType for setting up the absolute threshold!");
 
     auto expo            = std::log2(std::abs(max_possible_num));
     double compute_error = 0;

@@ -280,7 +280,7 @@ struct UniversalGemmKernel
         using Kernel      = UniversalGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
         const auto kernel = kentry<1, Kernel, KernelArgs>;
         int occupancy;
-        hip_check_error(
+        ck_tile::hip_check_error(
             hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize().x, 0));
 
         const int grid_size = get_available_compute_units(s) * occupancy;
