@@ -29,6 +29,8 @@ DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "bf8": 8}
 
 K0_MAX_SUBMAX_MAP = {32: 32, 64: 64, 96: 128, 128: 128, 256: 256}
 
+SUPPORTED_PAGE_SIZE = [1, 1024]
+
 FMHA_BATCH_PREFILL_PIPELINE_MAP = {
     "qr_async": "ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsync",
 }
@@ -674,8 +676,8 @@ def get_fwd_blobs(
                 ):
                     continue
                 
-                # Generate kernels for both page_size=16 and page_size=32
-                for page_size in [1, 16]:
+                # Generate kernels for both page_size=16 and page_size=1024
+                for page_size in SUPPORTED_PAGE_SIZE:
                     k = FmhaFwdKernel(
                         F_idx=0,
                         F_hdim=hdim,

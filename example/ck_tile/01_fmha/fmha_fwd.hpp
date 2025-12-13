@@ -1566,10 +1566,22 @@ float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,
                         fmha_fwd_appendkv_args,
                         const ck_tile::stream_config&);
 
-struct fmha_batch_prefill_traits : public fmha_fwd_traits
+struct fmha_batch_prefill_traits
 {
-    bool is_sglang_layout = true;
-    int page_size         = 1;
+    int hdim_q;
+    int hdim_v;
+    std::string data_type;
+    bool is_group_mode;
+    bool is_v_rowmajor;
+    bool has_logits_soft_cap;
+    mask_enum mask_type;
+    bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
+    bool has_lse;
+    bool has_dropout;
+    quant_scale_enum qscale_type;
+    bool skip_min_seqlen_q = false;
+    bool is_sglang_layout  = true;
+    int page_size          = 1;
 };
 
 float fmha_batch_prefill(fmha_batch_prefill_traits,
