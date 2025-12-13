@@ -115,7 +115,7 @@ float fmha_batch_prefill_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_b
 {{
     using k_ = fmha_kernel_{F_idx};
     if(s.log_level_ > 0)
-        std::cout << ", " << k_::GetName() << std::flush;
+        std::cout << ", {F_kname}" << std::flush;
     auto [kargs, grids] = fmha_batch_prefill_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
@@ -501,6 +501,7 @@ class FmhaFwdKernel:
     @property
     def template(self) -> str:
         return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_KERNEL_BODY.format(
+            F_kname=self.name,
             F_idx=self.F_idx,
             F_hdim=self.F_hdim,
             F_dtype=FWD_DTYPE_MAP[self.F_dtype],
