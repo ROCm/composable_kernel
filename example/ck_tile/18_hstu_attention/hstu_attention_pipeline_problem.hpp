@@ -100,7 +100,7 @@ struct HstuAttentionFwdPipelineProblem
     CK_TILE_HOST_DEVICE static constexpr auto GetQDramTileAccessMaxVectorSize()
     {
         constexpr index_t kMPerBlock = HstuAttentionTileSetting::kM0;
-        constexpr index_t kKPerBlock = HstuAttentionTileSetting::kSubQKHeaddim;
+        constexpr index_t kKPerBlock = HstuAttentionTileSetting::kQKHeaddim;
 
         return GetDramTileAccessMaxVectorSize<QKVDataType, kBlockSize, kMPerBlock, kKPerBlock>();
     }
@@ -108,7 +108,7 @@ struct HstuAttentionFwdPipelineProblem
     CK_TILE_HOST_DEVICE static constexpr auto GetKDramTileAccessMaxVectorSize()
     {
         constexpr index_t kNPerBlock = HstuAttentionTileSetting::kN0Sub;
-        constexpr index_t kKPerBlock = HstuAttentionTileSetting::kSubQKHeaddim;
+        constexpr index_t kKPerBlock = HstuAttentionTileSetting::kQKHeaddim;
 
         return GetDramTileAccessMaxVectorSize<QKVDataType, kBlockSize, kNPerBlock, kKPerBlock>();
     }
