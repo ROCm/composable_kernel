@@ -527,11 +527,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
         }
         else
         {
-#if defined(__gfx11__)
-            // TODO: remove this restriction
-            static_assert(ScaleBlockM >= MPerWmma,
-                          "ScaleBlockM must be greater equal than MPerWmma");
-#endif
             static_assert(
                 ScaleBlockK >=
                     WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::
