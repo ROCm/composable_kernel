@@ -585,7 +585,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                BElementwiseOperation b_element_op,
                                CDEElementwiseOperation cde_element_op,
                                EpilogueArgument& epilogue_args,
-                               const index_t k_id = 0)
+                               const index_t A_k_id = 0,
+                               const index_t B_k_id = 0)
     {
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
@@ -653,7 +654,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                     a_scale_struct,
                                     b_scale_struct,
                                     epilogue_args,
-                                    k_id);
+                                    A_k_id,
+                                    B_k_id);
     }
 
     template <bool HasMainKBlockLoop,
@@ -702,7 +704,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                Argument& karg,
                                const Block2CTileMap& block_2_ctile_map,
                                EpilogueArgument& epilogue_args,
-                               const index_t k_id = 0)
+                               const index_t A_k_id = 0,
+                               const index_t B_k_id = 0)
     {
         // shift A matrices pointer for splitk
         AsGridPointer p_as_grid_splitk;
@@ -737,7 +740,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                  karg.b_element_op,
                                  karg.cde_element_op,
                                  epilogue_args,
-                                 k_id);
+                                 A_k_id,
+                                 B_k_id);
     }
 
     // Wrapper function to have __global__ function in common
@@ -750,14 +754,20 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                const SplitKBatchOffset& splitk_batch_offset,
                                Argument& karg,
                                EpilogueArgument& epilogue_args,
-                               const index_t k_id = 0)
+                               const index_t A_k_id = 0,
+                               const index_t B_k_id = 0)
     {
         Run<HasMainKBlockLoop,
             EGlobalMemoryDataOperation,
             TailNum,
             Block2CTileMap,
-            EpilogueArgument>(
-            p_shared, splitk_batch_offset, karg, DefaultBlock2CTileMap(karg), epilogue_args, k_id);
+            EpilogueArgument>(p_shared,
+                              splitk_batch_offset,
+                              karg,
+                              DefaultBlock2CTileMap(karg),
+                              epilogue_args,
+                              A_k_id,
+                              B_k_id);
     }
 
     __device__ static auto DefaultBlock2CTileMap(const Problem& problem)
@@ -880,6 +890,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                     a_scale_struct,
                                     b_scale_struct,
                                     epilogue_args,
+                                    k_idx,
                                     k_idx,
                                     karg.KBatch);
     }
