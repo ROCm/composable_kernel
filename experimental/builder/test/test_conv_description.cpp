@@ -4,8 +4,9 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
-#include <ck_tile/builder/conv_builder.hpp>
-#include <ck_tile/builder/reflect/conv_description.hpp>
+#include "ck_tile/builder/conv_builder.hpp"
+#include "ck_tile/builder/reflect/conv_description.hpp"
+#include "ck_tile/builder/reflect/conv_describe.hpp"
 #include "testing_utils.hpp"
 #include "impl/conv_signature_types.hpp"
 #include "impl/conv_algorithm_types.hpp"
