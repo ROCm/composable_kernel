@@ -1,0 +1,3 @@
+# Ignore all cached and generated data files
+*
+!.gitignore

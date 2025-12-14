@@ -46,3 +46,7 @@ ck4inductor = "python/ck4inductor"
 
 [tool.setuptools.dynamic]
 version = { attr = "ck4inductor.__version__" }
+
+[tool.ruff]
+[tool.ruff.lint.per-file-ignores]
+"script/analyze_build/notebooks/*.ipynb" = ["E402"]
