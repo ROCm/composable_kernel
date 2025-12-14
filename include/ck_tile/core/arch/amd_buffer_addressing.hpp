@@ -1669,8 +1669,8 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
 
             fp16x2_t tmp1 =
                 llvm_amdgcn_raw_buffer_load_fp16x2(src_wave_buffer_resource,
-                                                   src_thread_addr_offset,
-                                                   src_wave_addr_offset + 4 * sizeof(fp16_t),
+                                                   src_thread_addr_offset + 4 * sizeof(fp16_t),
+                                                   src_wave_addr_offset,
                                                    static_cast<index_t>(coherence));
 
             // Combine the two loads into a 6-element buffer
@@ -1779,8 +1779,8 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
 
             int16x2_t tmp1 =
                 llvm_amdgcn_raw_buffer_load_i16x2(src_wave_buffer_resource,
-                                                  src_thread_addr_offset,
-                                                  src_wave_addr_offset + 4 * sizeof(bf16_t),
+                                                  src_thread_addr_offset + 4 * sizeof(bf16_t),
+                                                  src_wave_addr_offset,
                                                   static_cast<index_t>(coherence));
 
             // Combine the two loads into a 6-element buffer
