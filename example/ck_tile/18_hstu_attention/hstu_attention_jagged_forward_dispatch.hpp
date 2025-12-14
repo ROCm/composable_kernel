@@ -58,7 +58,7 @@ struct jagged_forward_causal_softmax_bias_dropout_dispatch
     {
         constexpr ck_tile::index_t occupancy = -1;
 
-        const bool pad_headdim_qk = !(param.hdim_qk % HstuAttentionTileSetting::kSubQKHeaddim == 0);
+        const bool pad_headdim_qk = !(param.hdim_qk % HstuAttentionTileSetting::kQKHeaddim == 0);
         const bool pad_headdim_v  = !(param.hdim_v % HstuAttentionTileSetting::kN1 == 0);
 
         // no need to check seqlen_q since it is not used as fastest dim,

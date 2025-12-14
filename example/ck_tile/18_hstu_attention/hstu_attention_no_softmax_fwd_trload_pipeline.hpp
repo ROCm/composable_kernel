@@ -55,7 +55,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
     static constexpr bool kPadSeqLenQ   = Traits::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK   = Traits::kPadSeqLenK;
     static constexpr bool kPadHeadDimQK = Traits::kPadHeadDimQK;
-    static constexpr bool kPadHeadDimV = (kQKHeaddim < kSubQKHeaddim) ? true : Traits::kPadHeadDimV;
+    static constexpr bool kPadHeadDimV  = Traits::kPadHeadDimV;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -126,9 +126,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
               typename OAccElementFunction,
               typename HstuMask>
     CK_TILE_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*kSubQKHeaddim tile
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*kQKHeaddim tile
                const QElementFunction& q_element_func,
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*kSubQKHeaddim tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*kQKHeaddim tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
@@ -150,8 +150,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
         static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kN0 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kSubQKHeaddim ==
-                              KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
+                          kQKHeaddim == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                           kN1 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                           kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
@@ -183,7 +182,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
         auto q_dram_window =
             make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kM0>{}, number<kSubQKHeaddim>{}),
+                             make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
                              q_dram_block_window_tmp.get_window_origin(),
                              Policy::template MakeQDramTileDistribution<Problem>());
 
@@ -193,7 +192,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kN0Sub>{}, number<kSubQKHeaddim>{}),
+                             make_tuple(number<kN0Sub>{}, number<kQKHeaddim>{}),
                              {seqlen_k_start, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
 
@@ -219,7 +218,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
             q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
         auto q_lds_write_window = make_tile_window(
             q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
-        // when kSubQKHeaddim > kQKHeaddim, read window is actually smaller than write window
         auto q_lds_read_window =
             make_tile_window(q_lds,
                              make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
@@ -234,25 +232,15 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         auto k_lds_window = make_tile_window(
             k_lds, Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
-        using k_lds_write_window_type = decltype(get_slice_tile(
-            k_lds_window, sequence<0, 0>{}, sequence<kN0Sub, kSubQKHeaddim>{}));
-
-        // when kSubQKHeaddim > kQKHeaddim, read window is actually smaller than write window
-        using k_lds_read_window_type = decltype(get_slice_tile(
+        using k_lds_window_type = decltype(get_slice_tile(
             k_lds_window, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
 
-        statically_indexed_array<k_lds_write_window_type, NumKVLdsBuffers> k_lds_write_windows;
-        statically_indexed_array<k_lds_read_window_type, NumKVLdsBuffers> k_lds_read_windows;
+        statically_indexed_array<k_lds_window_type, NumKVLdsBuffers> k_lds_windows;
 
         static_for<0, NumKVLdsBuffers, 1>{}([&](auto i_buf) {
-            k_lds_write_windows[i_buf] =
-                get_slice_tile(k_lds_window,
-                               sequence<i_buf * kN0Sub, 0>{},
-                               sequence<(i_buf + 1) * kN0Sub, kSubQKHeaddim>{});
-            k_lds_read_windows[i_buf] =
-                get_slice_tile(k_lds_window,
-                               sequence<i_buf * kN0Sub, 0>{},
-                               sequence<(i_buf + 1) * kN0Sub, kQKHeaddim>{});
+            k_lds_windows[i_buf] = get_slice_tile(k_lds_window,
+                                                  sequence<i_buf * kN0Sub, 0>{},
+                                                  sequence<(i_buf + 1) * kN0Sub, kQKHeaddim>{});
         });
 
         // V tile in LDS
@@ -351,7 +339,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         {
             // STAGE 1, Gemm_0 ( S = Q@K )
             static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                store_tile(k_lds_write_windows[number<i_n0 % NumKVLdsBuffers>{}],
+                store_tile(k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}],
                            k_tiles[i_n0],
                            partition_index);
 
@@ -366,7 +354,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                 block_sync_lds();
 
                 // execute current unroll of gemm_0
-                gemm_0(sacc_tile, q_tile, k_lds_read_windows[number<i_n0 % NumKVLdsBuffers>{}]);
+                gemm_0(sacc_tile, q_tile, k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}]);
 
                 sacc_tile = tile_elementwise_in(s_acc_element_func, sacc_tile);
 
@@ -481,8 +469,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
               typename BiasDramBlockWindowTmp,
               typename HstuMask>
     CK_TILE_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*kSubQKHeaddim tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*KSubQKHeaddim tile
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*kQKHeaddim tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*KQKHeaddim tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                HstuMask mask,

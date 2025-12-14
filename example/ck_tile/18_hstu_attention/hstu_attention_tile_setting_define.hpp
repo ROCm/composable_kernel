@@ -52,7 +52,7 @@ struct HstuAttentionFwdTileSettingClass
 
     static constexpr index_t kM0    = BlockTile::at(number<0>{}); // tile size along q seqlen
     static constexpr index_t kN0    = BlockTile::at(number<1>{}); // tile size along k seqlen
-    static constexpr index_t kN0Sub = BlockTile::at(number<2>{}); // tile size along k seqlen
+    static constexpr index_t kN0Sub = BlockTile::at(number<2>{}); // tile size for dividing kN0
     static constexpr index_t kN1    = BlockTile::at(number<3>{}); // tile size along v head_dim
     static constexpr index_t kK1    = BlockTile::at(number<4>{}); // tile size along kv gemm unroll
     static constexpr index_t kQKHeaddim =
@@ -60,6 +60,8 @@ struct HstuAttentionFwdTileSettingClass
                                     // once (or repeately load Q as a whole tile)
 
     static constexpr index_t kSubQKHeaddim = ceil_to_qualified_tile_length(kQKHeaddim);
+
+    static_assert(kSubQKHeaddim % kN1 == 0, "Check failed!");
 };
 
 } // namespace ck_tile

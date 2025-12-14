@@ -573,7 +573,7 @@ struct HstuAttentionFwdKernel
                 number<1>{});
             return pad_tensor_view(q_dram_naive,
                                    make_tuple(number<HstuAttentionPipeline::kM0>{},
-                                              number<HstuAttentionPipeline::kSubQKHeaddim>{}),
+                                              number<HstuAttentionPipeline::kQKHeaddim>{}),
                                    sequence<false, kPadHeadDimQK>{});
         }();
         const auto k_dram = [&]() {
@@ -586,7 +586,7 @@ struct HstuAttentionFwdKernel
 
             return pad_tensor_view(k_dram_naive,
                                    make_tuple(number<HstuAttentionPipeline::kN0>{},
-                                              number<HstuAttentionPipeline::kSubQKHeaddim>{}),
+                                              number<HstuAttentionPipeline::kQKHeaddim>{}),
                                    sequence<false, kPadHeadDimQK>{});
         }();
         const auto v_dram = [&]() {
@@ -624,14 +624,14 @@ struct HstuAttentionFwdKernel
             make_tile_window(q_dram,
                              [&]() {
                                  return make_tuple(number<HstuAttentionPipeline::kM0>{},
-                                                   number<HstuAttentionPipeline::kSubQKHeaddim>{});
+                                                   number<HstuAttentionPipeline::kQKHeaddim>{});
                              }(),
                              {i_m0, 0});
 
         auto k_dram_window =
             make_tile_window(k_dram,
                              make_tuple(number<HstuAttentionPipeline::kN0>{},
-                                        number<HstuAttentionPipeline::kSubQKHeaddim>{}),
+                                        number<HstuAttentionPipeline::kQKHeaddim>{}),
                              {0, 0});
 
         auto v_dram_window = make_tile_window(
