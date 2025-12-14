@@ -126,7 +126,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
 
             constexpr index_t kBlockSize = Problem::kBlockSize;
             constexpr index_t kMPerBlock = GetQKBlockGemmSingleRepM<Problem>();
-            constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
+            constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
             return Problem::template GetDramTileAccessMaxVectorSize<QDataType,
                                                                     kBlockSize,
@@ -193,11 +193,16 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetKSingleSmemElementSpaceSize()
     {
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
         constexpr index_t kKPack     = GetSmemKPackK<Problem>();
         constexpr index_t kKVector   = GetAlignmentK<Problem>();
 
-        if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
+        // for hdim96 and hdim160
+        if constexpr(kKPerBlock < Problem::HstuAttentionTileSetting::kSubQKHeaddim)
+        {
+            return kKPerBlock * kNPerBlock;
+        }
+        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
         {
             static_assert(kKVector == kKPack);
 
@@ -244,11 +249,20 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
         constexpr index_t kMPerBlock = Problem::kLoadWholeQTileOnceThroughLds
                                            ? Problem::HstuAttentionTileSetting::kM0
                                            : GetQKBlockGemmSingleRepM<Problem>();
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
         constexpr index_t kKPack     = GetSmemKPackQ<Problem>();
         constexpr index_t kKVector   = GetAlignmentQ<Problem>();
 
-        if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
+        // for hdim96 and hdim160, use simplest layout
+        if constexpr(kKPerBlock < Problem::HstuAttentionTileSetting::kSubQKHeaddim)
+        {
+            return make_naive_tensor_descriptor(
+                make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
+                make_tuple(number<kKPerBlock>{}, number<1>{}),
+                number<kKVector>{},
+                number<1>{});
+        }
+        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
         {
             static_assert(kKVector == kKPack);
 
@@ -331,25 +345,56 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = GetQKBlockGemmSingleRepM<Problem>();
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
         constexpr index_t kKVector = GetAlignmentQ<Problem>();
+        constexpr index_t OtherK   = kKPerBlock / kKVector;
 
-        constexpr index_t KPerThread     = kKVector;
-        constexpr index_t KThreads       = kKPerBlock / KPerThread;
-        constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
-        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
-        constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+        if constexpr(kKPerBlock == Problem::HstuAttentionTileSetting::kSubQKHeaddim)
+        // for kKPerBlock=32,64,128,256
+        {
+            static_assert((OtherK & (OtherK - 1)) == 0, "Check failed!");
 
-        // for Q-Tile [64, 128], the encoding is [4W * 4E * 4T, 16T * 8E]
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<NumWarps, MPerThread, MThreadPerWarp>,
-                                             sequence<KThreads, KPerThread>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<1, 1>>{});
+            constexpr index_t KPerThread = kKVector;
+            constexpr index_t KThreads   = OtherK;
+
+            constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+
+            // for Q-Tile [64, 128], the encoding is [4W * 4E * 4T,  16T * 8E]
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<NumWarps, MPerThread, MThreadPerWarp>,
+                                                 sequence<KThreads, KPerThread>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<0>, sequence<2, 0>>,
+                                           sequence<1, 2>,
+                                           sequence<1, 1>>{});
+        }
+        else // for kKPerBlock=96,160
+        {
+            static_assert((OtherK & (OtherK - 1)) != 0, "Check failed!");
+
+            // ToDo: need more considieration for hdim72
+            constexpr index_t KRepPerThread = (OtherK % 3 == 0) ? 3 : 5;
+            constexpr index_t KThreads      = OtherK / KRepPerThread;
+
+            static_assert((KThreads & (KThreads - 1)) == 0, "Check failed!");
+
+            constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<NumWarps, MPerThread, MThreadPerWarp>,
+                                                 sequence<KRepPerThread, KThreads, kKVector>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<0>, sequence<2, 1>>,
+                                           sequence<1, 2, 2>,
+                                           sequence<1, 0, 2>>{});
+        };
     }
 
     template <typename Problem>
@@ -357,25 +402,56 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0;
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
         constexpr index_t kKVector = GetAlignmentQ<Problem>();
+        constexpr index_t OtherK   = kKPerBlock / kKVector;
 
-        constexpr index_t KPerThread     = kKVector;
-        constexpr index_t KThreads       = kKPerBlock / KPerThread;
-        constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
-        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
-        constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+        if constexpr(kKPerBlock == Problem::HstuAttentionTileSetting::kSubQKHeaddim)
+        // for kKPerBlock=32,64,128,256
+        {
+            static_assert((OtherK & (OtherK - 1)) == 0, "Check failed!");
 
-        // for Q-Tile [64, 128], the encoding is [4W * 4E * 4T, 16T * 8E]
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<NumWarps, MPerThread, MThreadPerWarp>,
-                                             sequence<KThreads, KPerThread>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<1, 1>>{});
+            constexpr index_t KPerThread = kKVector;
+            constexpr index_t KThreads   = OtherK;
+
+            constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+
+            // for Q-Tile [64, 128], the encoding is [4W * 4E * 4T,  16T * 8E]
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<NumWarps, MPerThread, MThreadPerWarp>,
+                                                 sequence<KThreads, KPerThread>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<0>, sequence<2, 0>>,
+                                           sequence<1, 2>,
+                                           sequence<1, 1>>{});
+        }
+        else // for kKPerBlock=96,160
+        {
+            static_assert((OtherK & (OtherK - 1)) != 0, "Check failed!");
+
+            // ToDo: need more considieration for hdim72
+            constexpr index_t KRepPerThread = (OtherK % 3 == 0) ? 3 : 5;
+            constexpr index_t KThreads      = OtherK / KRepPerThread;
+
+            static_assert((KThreads & (KThreads - 1)) == 0, "Check failed!");
+
+            constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<NumWarps, MPerThread, MThreadPerWarp>,
+                                                 sequence<KRepPerThread, KThreads, kKVector>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<0>, sequence<2, 1>>,
+                                           sequence<1, 2, 2>,
+                                           sequence<1, 0, 2>>{});
+        };
     }
 
     template <typename Problem>
@@ -383,11 +459,36 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     {
         constexpr index_t NumKLdsBuffers = GetNumKVLdsBuffers<Problem>();
         constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN0Sub;
-        constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
+        constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kQKHeaddim;
         constexpr index_t kKPack         = GetSmemKPackK<Problem>();
         constexpr index_t kKVector       = GetAlignmentK<Problem>();
 
-        if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
+        // for hdim96 and hdim160, use simplest layout
+        if constexpr(kKPerBlock < Problem::HstuAttentionTileSetting::kSubQKHeaddim)
+        {
+            constexpr index_t KSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
+
+            static_assert(KSingleSmemElementSpaceSize == GetKSingleSmemElementSpaceSize<Problem>());
+
+            constexpr index_t SingleSmemElementSpaceSize = GetSingleSmemElementSpaceSize<Problem>();
+
+            constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
+                make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{}, number<kKPerBlock>{}),
+                make_tuple(number<SingleSmemElementSpaceSize>{}, number<kKPerBlock>{}, number<1>{}),
+                number<kKVector>{},
+                number<1>{});
+
+            constexpr auto k_lds_block_desc = transform_tensor_descriptor(
+                k_lds_block_desc_0,
+                make_tuple(make_merge_transform(
+                               make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{})),
+                           make_pass_through_transform(number<kKPerBlock>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+
+            return k_lds_block_desc;
+        }
+        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
         {
             static_assert(kKVector == kKPack);
 
@@ -500,24 +601,52 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
         constexpr index_t kKVector = GetAlignmentK<Problem>();
+        constexpr index_t OtherK   = kKPerBlock / kKVector;
 
-        constexpr index_t KPerThread     = kKVector;
-        constexpr index_t KThreads       = kKPerBlock / KPerThread;
-        constexpr index_t NThreadPerWarp = get_warp_size() / KThreads;
-        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
-        constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
+        if constexpr(kKPerBlock == Problem::HstuAttentionTileSetting::kSubQKHeaddim)
+        // for kKPerBlock=32,64,128,256
+        {
+            static_assert((OtherK & (OtherK - 1)) == 0, "Check failed!");
 
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<NPerThread, NumWarps, NThreadPerWarp>,
-                                             sequence<KThreads, KPerThread>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
+            constexpr index_t KPerThread = kKVector;
+            constexpr index_t KThreads   = OtherK;
+
+            constexpr index_t NThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<NPerThread, NumWarps, NThreadPerWarp>,
+                                                 sequence<KThreads, KPerThread>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 0>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 1>>{});
+        }
+        else // for kKPerBlock=96,160
+        {
+            static_assert((OtherK & (OtherK - 1)) != 0, "Check failed!");
+
+            constexpr index_t KRepPerThread = (OtherK % 3 == 0) ? 3 : 5;
+            constexpr index_t KThreads      = OtherK / KRepPerThread;
+
+            constexpr index_t NThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<NPerThread, NumWarps, NThreadPerWarp>,
+                                                 sequence<KRepPerThread, KThreads, kKVector>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 1>>,
+                                           sequence<1, 2, 2>,
+                                           sequence<0, 0, 2>>{});
+        };
     }
 
     template <typename Problem>
