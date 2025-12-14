@@ -5,6 +5,8 @@
 
 #include "testing_utils.hpp"
 
+using ck_tile::test::HipError;
+using ck_tile::test::HipSuccess;
 using ck_tile::test::InstanceMatcher;
 using ck_tile::test::InstanceSet;
 using ck_tile::test::StringEqWithDiff;
@@ -95,4 +97,13 @@ TEST(InstanceMatcher, ExplainMatchResult)
                                  "- rattlesnake\n"
                                  "Unexpected: 1\n"
                                  "- python\n"));
+}
+
+TEST(HipStatusMatcher, Basic)
+{
+    EXPECT_THAT(hipSuccess, HipSuccess());
+    EXPECT_THAT(hipErrorInvalidValue, HipError(hipErrorInvalidValue));
+    EXPECT_THAT(hipErrorInvalidValue, Not(HipSuccess()));
+    EXPECT_THAT(hipSuccess, Not(HipError(hipErrorInvalidValue)));
+    EXPECT_THAT(hipErrorOutOfMemory, Not(HipError(hipErrorInvalidValue)));
 }
