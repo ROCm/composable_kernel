@@ -247,7 +247,6 @@ struct MoeFlatmmKernel
                                             std::is_same_v<ADataType, pk_fp4_t>;
     static constexpr bool BMXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
 
-    static_assert(AQUANT_Pipeline);
     static_assert(BMXFP4_Pipeline);
     static constexpr bool MXF8F6F4MFMA    =
 #ifdef __gfx950__
