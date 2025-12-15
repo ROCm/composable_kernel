@@ -32,7 +32,9 @@ void add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_odd_mn_instanc
         PassThrough,
         PassThrough,
         PassThrough,
-        device_gemm_wmma_universal_km_kn_mn_irregular_odd_mn_instances<BF16, Intrawave>>(instances);
+        device_gemm_wmma_universal_km_kn_mn_irregular_odd_mn_instances<BF16,
+                                                                       Intrawave,
+                                                                       GemmMNKPadding>>(instances);
 }
 
 void add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_odd_mn_instances(
@@ -58,7 +60,9 @@ void add_device_grouped_convnd_bwd_weight_wmma_bf16_bf16_bf16_exp_odd_mn_instanc
         PassThrough,
         PassThrough,
         PassThrough,
-        device_gemm_wmma_universal_km_kn_mn_irregular_odd_mn_instances<BF16, Intrawave>>(instances);
+        device_gemm_wmma_universal_km_kn_mn_irregular_odd_mn_instances<BF16,
+                                                                       Intrawave,
+                                                                       GemmMNKPadding>>(instances);
 }
 
 } // namespace instance
