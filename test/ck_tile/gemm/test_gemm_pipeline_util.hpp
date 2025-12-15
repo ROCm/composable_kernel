@@ -205,7 +205,11 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                              false, /*TiledMMAPermuteN_*/
                                              1,     /*BlockedXDLN_PerWarp_*/
                                              DoubleSmemBuffer /*DoubleSmemBuffer*/>>;
+        
+        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        const auto kargs   = Kernel::MakeKernelArgs(args);
 
+        const dim3 blocks = Kernel::BlockSize();
         dim3 grids;
         if constexpr(Persistent)
         {
@@ -215,7 +219,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
         {
             grids = Kernel::GridSize(args.M, args.N, args.k_batch);
         }
-        const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {

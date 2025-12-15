@@ -77,7 +77,6 @@ struct UniversalInvoker
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
-                                             memory_operation,
                                              GemmConfig::NumWaveGroups,
                                              false, /*FixedVectorSize_*/
                                              1,     /*VectorSizeC_*/

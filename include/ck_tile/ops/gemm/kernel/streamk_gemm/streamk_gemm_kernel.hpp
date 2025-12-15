@@ -584,7 +584,9 @@ struct StreamKKernel
                             }
                         }
 
-                        auto& c_block_window = gemm_tile_windows.at(UniversalGemmKernel::I3);
+                        auto c_block_window =
+                            UniversalGemmKernel::template MakeCBlockWindows<TilePartitioner::MemoryOperation>(
+                                c_ptr, kargs, i_m, i_n);
                         EpiloguePipeline{}(
                             c_block_window, accum_block_tile, ds_block_window, smem_ptr_0);
                     }
@@ -607,7 +609,9 @@ struct StreamKKernel
                         // tensor.
                         if(tile_started && !partner_in_tile)
                         {
-                            auto& c_block_window = gemm_tile_windows.at(UniversalGemmKernel::I3);
+                            auto c_block_window =
+                                UniversalGemmKernel::template MakeCBlockWindows<TilePartitioner::MemoryOperation>(
+                                    c_ptr, kargs, i_m, i_n);
                             EpiloguePipeline{}(
                                 c_block_window, accum_block_tile, ds_block_window, smem_ptr_0);
                             break;
