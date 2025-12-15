@@ -3,6 +3,7 @@
 
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
+#include "utils/conv_algorithm_type_utils.hpp"
 
 namespace {
 
@@ -12,14 +13,17 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP32_ChannelsFirst)
 {
-    constexpr ConvSignature FwdConvSignature{
-        .spatial_dim            = 3,
-        .direction              = ConvDirection::FORWARD,
-        .data_type              = DataType::FP32,
-        .accumulation_data_type = DataType::FP32,
-        .input                  = {.config = {.layout = TensorLayout::NGCDHW}},
-        .weight                 = {.config = {.layout = TensorLayout::GKCZYX}},
-        .output                 = {.config = {.layout = TensorLayout::NGKDHW}}};
+    using enum ck_tile::builder::ConvDirection;
+    using enum ck_tile::builder::DataType;
+    using enum ck_tile::builder::TensorLayout;
+
+    constexpr ConvSignature FwdConvSignature{.spatial_dim            = 3,
+                                             .direction              = FORWARD,
+                                             .data_type              = FP32,
+                                             .accumulation_data_type = FP32,
+                                             .input  = {.config = {.layout = NGCDHW}},
+                                             .weight = {.config = {.layout = GKCZYX}},
+                                             .output = {.config = {.layout = NGKDHW}}};
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
@@ -31,8 +35,10 @@ TEST(FwdConvInstances,
             .with_block_gemm(BlockGemmDesc_v1_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+
+    const auto expected_transfer_parameters = to_string(FwdConvAlgorithm);
     run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-                       "256,256,256,32",
+                       expected_transfer_parameters,
                        "Filter1x1Pad0",
                        "Intrawave",
                        "v1",
