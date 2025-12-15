@@ -32,13 +32,20 @@ std::array<size_t, RANK> make_packed_strides_row_major(const std::array<size_t, 
     return strides;
 }
 
+template <ckb::DataType DT, size_t RANK>
+ckt::TensorDescriptor<DT, RANK>
+make_packed_descriptor_row_major(const std::array<size_t, RANK>& lengths)
+{
+    return ckt::TensorDescriptor<DT, RANK>(lengths, make_packed_strides_row_major(lengths));
+}
+
 template <ckb::DataType DT, size_t RANK, typename F>
-void fill_tensor(const ckt::TensorDescriptor<DT, RANK>& descriptor, void* buffer, F f)
+void fill_tensor(const ckt::TensorDescriptor<DT, RANK>& desc, void* buffer, F f)
 {
     std::array<size_t, RANK> strides;
-    std::copy(descriptor.get_strides().begin(), descriptor.get_strides().end(), strides.begin());
+    std::copy(desc.get_strides().begin(), desc.get_strides().end(), strides.begin());
 
-    ckt::tensor_foreach(descriptor.get_lengths(), [buffer, f, strides](auto index) {
+    ckt::tensor_foreach(desc.get_lengths(), [buffer, f, strides](auto index) {
         using CKType      = typename ckb::factory::internal::DataTypeToCK<DT>::type;
         auto* ptr         = static_cast<CKType*>(buffer);
         const auto offset = ckt::calculate_offset(index, strides);
@@ -48,9 +55,9 @@ void fill_tensor(const ckt::TensorDescriptor<DT, RANK>& descriptor, void* buffer
 }
 
 template <ckb::DataType DT, size_t RANK, typename F>
-void fill_tensor_buffer(const ckt::TensorDescriptor<DT, RANK>& descriptor, void* buffer, F f)
+void fill_tensor_buffer(const ckt::TensorDescriptor<DT, RANK>& desc, void* buffer, F f)
 {
-    fill_tensor(descriptor.get_space_descriptor(), buffer, [f](auto index) { return f(index[0]); });
+    fill_tensor(desc.get_space_descriptor(), buffer, [f](auto index) { return f(index[0]); });
 }
 
 TEST(ValidationUtilities, MakePackedStrides)
@@ -64,15 +71,12 @@ TEST(ValidationUtilities, MakePackedStrides)
 
 TEST(ValidationUtilities, FillTensorBuffer)
 {
-    constexpr size_t rank                  = 3;
-    const std::array<size_t, rank> lengths = {31, 54, 13};
-    const auto strides                     = make_packed_strides_row_major(lengths);
-    ckt::TensorDescriptor<ckb::DataType::INT32, rank> descriptor(lengths, strides);
-    auto buffer = ckt::alloc_tensor_buffer(descriptor);
+    auto desc   = make_packed_descriptor_row_major<ckb::DataType::INT32, 3>({31, 54, 13});
+    auto buffer = ckt::alloc_tensor_buffer(desc);
 
-    fill_tensor_buffer(descriptor, buffer.get(), [](size_t i) { return static_cast<uint32_t>(i); });
+    fill_tensor_buffer(desc, buffer.get(), [](size_t i) { return static_cast<uint32_t>(i); });
 
-    std::vector<uint32_t> h_buffer(descriptor.get_element_space_size());
+    std::vector<uint32_t> h_buffer(desc.get_element_space_size());
     ckt::check_hip(hipMemcpy(
         h_buffer.data(), buffer.get(), h_buffer.size() * sizeof(uint32_t), hipMemcpyDeviceToHost));
 
@@ -84,52 +88,44 @@ TEST(ValidationUtilities, FillTensorBuffer)
 
 TEST(ValidationReport, SingleCorrect)
 {
-    constexpr size_t rank                  = 3;
-    const std::array<size_t, rank> lengths = {52, 152, 224};
-    const auto strides                     = make_packed_strides_row_major(lengths);
+    auto desc = make_packed_descriptor_row_major<ckb::DataType::FP32, 3>({52, 152, 224});
 
-    ckt::TensorDescriptor<ckb::DataType::FP32, rank> descriptor(lengths, strides);
-
-    auto a = ckt::alloc_tensor_buffer(descriptor);
-    auto b = ckt::alloc_tensor_buffer(descriptor);
+    auto a = ckt::alloc_tensor_buffer(desc);
+    auto b = ckt::alloc_tensor_buffer(desc);
 
     // Generate a sort-of-random looking sequence
     auto generator = [](size_t i) { return static_cast<float>(i * 10'000'019 % 768'351); };
 
-    fill_tensor_buffer(descriptor, a.get(), generator);
-    fill_tensor_buffer(descriptor, b.get(), generator);
+    fill_tensor_buffer(desc, a.get(), generator);
+    fill_tensor_buffer(desc, b.get(), generator);
 
     ckt::ValidationReport report;
-    report.check("correct", descriptor, b.get(), a.get());
+    report.check("correct", desc, b.get(), a.get());
 
     EXPECT_THAT(report.get_errors().size(), Eq(0));
 }
 
 TEST(ValidationReport, SingleIncorrect)
 {
-    constexpr size_t rank                  = 3;
-    const std::array<size_t, rank> lengths = {100, 100, 100};
-    const auto strides                     = make_packed_strides_row_major(lengths);
+    auto desc = make_packed_descriptor_row_major<ckb::DataType::FP16, 3>({100, 100, 100});
 
-    ckt::TensorDescriptor<ckb::DataType::FP16, rank> descriptor(lengths, strides);
+    auto a = ckt::alloc_tensor_buffer(desc);
+    auto b = ckt::alloc_tensor_buffer(desc);
 
-    auto a = ckt::alloc_tensor_buffer(descriptor);
-    auto b = ckt::alloc_tensor_buffer(descriptor);
-
-    fill_tensor_buffer(descriptor, a.get(), []([[maybe_unused]] size_t i) { return 123; });
-    fill_tensor_buffer(descriptor, b.get(), []([[maybe_unused]] size_t i) {
+    fill_tensor_buffer(desc, a.get(), []([[maybe_unused]] size_t i) { return 123; });
+    fill_tensor_buffer(desc, b.get(), []([[maybe_unused]] size_t i) {
         return i == 12345 ? 456 : i == 999999 ? 1 : 123;
     });
 
     ckt::ValidationReport report;
-    report.check("incorrect", descriptor, b.get(), a.get());
+    report.check("incorrect", desc, b.get(), a.get());
 
     const auto errors = report.get_errors();
 
     ASSERT_THAT(errors.size(), Eq(1));
     EXPECT_THAT(errors[0].tensor_name, StrEq("incorrect"));
     EXPECT_THAT(errors[0].wrong_elements, Eq(2));
-    EXPECT_THAT(errors[0].total_elements, Eq(descriptor.get_element_space_size()));
+    EXPECT_THAT(errors[0].total_elements, Eq(desc.get_element_space_size()));
 }
 
 TEST(ValidationReport, MultipleSomeIncorrect)
@@ -137,10 +133,8 @@ TEST(ValidationReport, MultipleSomeIncorrect)
     ckt::ValidationReport report;
 
     {
-        constexpr size_t rank                  = 4;
-        const std::array<size_t, rank> lengths = {'R', 'O', 'C', 'm'};
-        const auto strides                     = make_packed_strides_row_major(lengths);
-        ckt::TensorDescriptor<ckb::DataType::BF16, rank> desc(lengths, strides);
+        auto desc = make_packed_descriptor_row_major<ckb::DataType::BF16, 4>({'R', 'O', 'C', 'm'});
+
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
 
@@ -153,10 +147,8 @@ TEST(ValidationReport, MultipleSomeIncorrect)
     }
 
     {
-        constexpr size_t rank                  = 3;
-        const std::array<size_t, rank> lengths = {'H', 'I', 'P'};
-        const auto strides                     = make_packed_strides_row_major(lengths);
-        ckt::TensorDescriptor<ckb::DataType::U8, rank> desc(lengths, strides);
+        auto desc = make_packed_descriptor_row_major<ckb::DataType::U8, 3>({'H', 'I', 'P'});
+
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
 
@@ -176,10 +168,8 @@ TEST(ValidationReport, MultipleSomeIncorrect)
     }
 
     {
-        constexpr size_t rank                  = 3;
-        const std::array<size_t, rank> lengths = {'G', 'P', 'U'};
-        const auto strides                     = make_packed_strides_row_major(lengths);
-        ckt::TensorDescriptor<ckb::DataType::INT32, rank> desc(lengths, strides);
+        auto desc = make_packed_descriptor_row_major<ckb::DataType::INT32, 3>({'G', 'P', 'U'});
+
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
 
