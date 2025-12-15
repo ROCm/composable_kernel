@@ -272,7 +272,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         {
             std::stringstream out_ss;
             out_ss << "name: " << best_op_name << std::endl
-                   << "avg_time: " << best_avg_time << std::endl;
+                   << "avg_time: " << best_avg_time << std::endl
                    << "flops: " << best_tflops << std::endl;
             out << out_ss.str();
             out.close();
