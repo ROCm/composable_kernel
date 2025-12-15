@@ -74,9 +74,11 @@ log_with_timestamp "=== SCCACHE MONITORING STARTED ==="
 log_with_timestamp "PID: $$"
 log_with_timestamp "Node: ${NODE_NAME:-$(hostname)}"
 log_with_timestamp "Stage: ${JENKINS_STAGE_NAME:-unknown}"
+log_with_timestamp "WORKSPACE_PATH: ${WORKSPACE_PATH:-not set}"
 log_with_timestamp "SCCACHE_REDIS: ${SCCACHE_REDIS:-not set}"
 log_with_timestamp "CK_SCCACHE: ${CK_SCCACHE:-not set}"
-
+log_with_timestamp "SCCACHE_EXTRAFILES: ${SCCACHE_EXTRAFILES:-not set}"
+log_with_timestamp "SCCACHE_C_CUSTOM_CACHE_BUSTER: ${SCCACHE_C_CUSTOM_CACHE_BUSTER:-not set}"
 
 # Initial state
 log_with_timestamp "=== INITIAL STATE ==="
