@@ -388,33 +388,26 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
         q_tile_type q_tile;
 
-        {
-            static_for<0, kGemmNumRepM, 1>{}([&](auto i_rep) {
-                store_tile(q_lds_write_window, q_dram_tiles[i_rep], partition_index);
+        static_for<0, kGemmNumRepM, 1>{}([&](auto i_rep) {
+            store_tile(q_lds_write_window, q_dram_tiles[i_rep], partition_index);
 
-                // no need to call __builtin_amdgcn_s_barrier() since the tile-slice written
-                // by each wavefront is read by itself
-                __builtin_amdgcn_s_waitcnt(0xc07f);
+            // no need to call __builtin_amdgcn_s_barrier() since the tile-slice written
+            // by each wavefront is read by itself
+            __builtin_amdgcn_s_waitcnt(0xc07f);
 
-                q_reg_tiles[i_rep] = load_tile(q_lds_read_window);
+            q_reg_tiles[i_rep] = load_tile(q_lds_read_window);
 
-                __builtin_amdgcn_s_waitcnt(0xc07f);
+            __builtin_amdgcn_s_waitcnt(0xc07f);
 
-                // the following codes will not generate actual instructions by the compiler
-                set_slice_tile(q_tile,
-                               q_reg_tiles[i_rep],
-                               sequence<i_rep * kGemmSingleRepM, 0>{},
-                               sequence<(i_rep + 1) * kGemmSingleRepM, kQKHeaddim>{});
+            // the following codes will not generate actual instructions by the compiler
+            set_slice_tile(q_tile,
+                           q_reg_tiles[i_rep],
+                           sequence<i_rep * kGemmSingleRepM, 0>{},
+                           sequence<(i_rep + 1) * kGemmSingleRepM, kQKHeaddim>{});
 
-                // no need to call __builtin_amdgcn_s_barrier() since the tile-slice read
-                // by each wavefront is over-written by itself
-            });
-
-            clear_tile(o_acc);
-
-            set_tile(m, -numeric<CompDataType>::infinity());
-            clear_tile(l);
-        };
+            // no need to call __builtin_amdgcn_s_barrier() since the tile-slice read
+            // by each wavefront is over-written by itself
+        });
 
         q_tile = tile_elementwise_in(q_element_func, q_tile);
 
