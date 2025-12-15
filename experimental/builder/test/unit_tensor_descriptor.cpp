@@ -11,7 +11,7 @@ namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
 
 using ::testing::ElementsAreArray;
-using ::testing::Ge;
+using ::testing::Eq;
 
 TEST(TensorDescriptor, Basic)
 {
@@ -37,13 +37,16 @@ TEST(TensorDescriptor, ComputeSize)
 
     // Compute the location of the last item in memory, then add one
     // to get the minimum size.
-    size_t expected_size = 1;
+    size_t expected_size  = 1;
+    size_t expected_numel = 1;
     for(size_t i = 0; i < lengths.size(); ++i)
     {
         expected_size += (lengths[i] - 1) * strides[i];
+        expected_numel *= lengths[i];
     }
 
-    EXPECT_THAT(descriptor.get_element_space_size(), Ge(expected_size));
+    EXPECT_THAT(descriptor.get_element_size(), Eq(expected_numel));
+    EXPECT_THAT(descriptor.get_element_space_size(), Eq(expected_size));
     EXPECT_THAT(descriptor.get_element_space_size_in_bytes(),
-                Ge(expected_size * ckt::data_type_sizeof(dt)));
+                Eq(expected_size * ckt::data_type_sizeof(dt)));
 }

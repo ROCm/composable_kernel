@@ -54,6 +54,11 @@ TEST(DeviceBuffer, AutoFree)
 
     // Trying to use a pointer after freeing should return en error in HIP.
     EXPECT_THAT(hipMemset(ptr, 0xFF, size), HipError(hipErrorInvalidValue));
+
+    // Reset internal HIP error state.
+    // Otherwise, the error may leak into other tests, triggering anything that
+    // checks the output of hipGetLastError();
+    (void)hipGetLastError();
 }
 
 TEST(DeviceBuffer, ThrowsOnOom)
@@ -62,6 +67,11 @@ TEST(DeviceBuffer, ThrowsOnOom)
 
     auto check = [] { auto buffer = ckt::alloc_buffer(size); };
     EXPECT_THAT(check, Throws<ckt::OutOfDeviceMemoryError>());
+
+    // Reset internal HIP error state.
+    // Otherwise, the error may leak into other tests, triggering anything that
+    // checks the output of hipGetLastError();
+    (void)hipGetLastError();
 }
 
 TEST(DeviceBuffer, AllocTensorBuffer)

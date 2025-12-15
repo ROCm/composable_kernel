@@ -4,6 +4,7 @@
 #include "ck_tile/builder/testing/error.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
 #include "ck_tile/builder/testing/validation.hpp"
+#include "ck_tile/builder/testing/tensor_foreach.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include "testing_utils.hpp"
 #include <gtest/gtest.h>
@@ -31,39 +32,25 @@ std::array<size_t, RANK> make_packed_strides_row_major(const std::array<size_t, 
     return strides;
 }
 
-template <int BLOCK_SIZE, ckb::DataType DT, typename F>
-__global__ __launch_bounds__(BLOCK_SIZE) //
-    void fill_kernel(const uint64_t n, void* data, F f)
+template <ckb::DataType DT, size_t RANK, typename F>
+void fill_tensor(const ckt::TensorDescriptor<DT, RANK>& descriptor, void* buffer, F f)
 {
-    using CKType = typename ckb::factory::internal::DataTypeToCK<DT>::type;
-    auto* ptr    = static_cast<CKType*>(data);
+    std::array<size_t, RANK> strides;
+    std::copy(descriptor.get_strides().begin(), descriptor.get_strides().end(), strides.begin());
 
-    const auto gid = blockIdx.x * BLOCK_SIZE + threadIdx.x;
-    for(uint64_t i = gid; i < n; i += gridDim.x * BLOCK_SIZE)
-    {
-        f(ptr[i], i);
-    }
+    ckt::tensor_foreach(descriptor.get_lengths(), [buffer, f, strides](auto index) {
+        using CKType      = typename ckb::factory::internal::DataTypeToCK<DT>::type;
+        auto* ptr         = static_cast<CKType*>(buffer);
+        const auto offset = ckt::calculate_offset(index, strides);
+
+        ptr[offset] = f(index);
+    });
 }
 
 template <ckb::DataType DT, size_t RANK, typename F>
 void fill_tensor_buffer(const ckt::TensorDescriptor<DT, RANK>& descriptor, void* buffer, F f)
 {
-    constexpr int block_size = 256;
-    const auto kernel        = fill_kernel<block_size, DT, F>;
-    int occupancy;
-    ckt::check_hip(hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, block_size, 0));
-
-    int device;
-    ckt::check_hip(hipGetDevice(&device));
-
-    int multiprocessors;
-    ckt::check_hip(
-        hipDeviceGetAttribute(&multiprocessors, hipDeviceAttributeMultiprocessorCount, device));
-
-    const auto num_elements = descriptor.get_element_space_size();
-
-    kernel<<<occupancy * multiprocessors, block_size>>>(num_elements, buffer, f);
-    ckt::check_hip(hipGetLastError());
+    fill_tensor(descriptor.get_space_descriptor(), buffer, [f](auto index) { return f(index[0]); });
 }
 
 TEST(ValidationUtilities, MakePackedStrides)
@@ -83,8 +70,7 @@ TEST(ValidationUtilities, FillTensorBuffer)
     ckt::TensorDescriptor<ckb::DataType::INT32, rank> descriptor(lengths, strides);
     auto buffer = ckt::alloc_tensor_buffer(descriptor);
 
-    fill_tensor_buffer(
-        descriptor, buffer.get(), [](auto& value, size_t i) { value = static_cast<uint32_t>(i); });
+    fill_tensor_buffer(descriptor, buffer.get(), [](size_t i) { return static_cast<uint32_t>(i); });
 
     std::vector<uint32_t> h_buffer(descriptor.get_element_space_size());
     ckt::check_hip(hipMemcpy(
@@ -108,9 +94,7 @@ TEST(ValidationReport, SingleCorrect)
     auto b = ckt::alloc_tensor_buffer(descriptor);
 
     // Generate a sort-of-random looking sequence
-    auto generator = [](auto& value, size_t i) {
-        value = i * static_cast<float>(10'000'019 % 768'351);
-    };
+    auto generator = [](size_t i) { return static_cast<float>(i * 10'000'019 % 768'351); };
 
     fill_tensor_buffer(descriptor, a.get(), generator);
     fill_tensor_buffer(descriptor, b.get(), generator);
@@ -132,10 +116,9 @@ TEST(ValidationReport, SingleIncorrect)
     auto a = ckt::alloc_tensor_buffer(descriptor);
     auto b = ckt::alloc_tensor_buffer(descriptor);
 
-    fill_tensor_buffer(
-        descriptor, a.get(), [](auto& value, [[maybe_unused]] size_t i) { value = 123; });
-    fill_tensor_buffer(descriptor, b.get(), [](auto& value, [[maybe_unused]] size_t i) {
-        value = i == 12345 ? 456 : i == 999999 ? 1 : 123;
+    fill_tensor_buffer(descriptor, a.get(), []([[maybe_unused]] size_t i) { return 123; });
+    fill_tensor_buffer(descriptor, b.get(), []([[maybe_unused]] size_t i) {
+        return i == 12345 ? 456 : i == 999999 ? 1 : 123;
     });
 
     ckt::ValidationReport report;
@@ -161,12 +144,10 @@ TEST(ValidationReport, MultipleSomeIncorrect)
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
 
-        fill_tensor_buffer(desc, a.get(), [](auto& value, size_t i) {
-            value = ck::type_convert<ck::bhalf_t>(i % 100);
-        });
-        fill_tensor_buffer(desc, b.get(), [](auto& value, size_t i) {
-            value = ck::type_convert<ck::bhalf_t>(i % 101);
-        });
+        fill_tensor_buffer(
+            desc, a.get(), [](size_t i) { return ck::type_convert<ck::bhalf_t>(i % 100); });
+        fill_tensor_buffer(
+            desc, b.get(), [](size_t i) { return ck::type_convert<ck::bhalf_t>(i % 101); });
 
         report.check("incorrect 1", desc, b.get(), a.get());
     }
@@ -179,15 +160,15 @@ TEST(ValidationReport, MultipleSomeIncorrect)
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
 
-        fill_tensor_buffer(desc, a.get(), [](auto& value, size_t i) { value = "ROCm"[i % 4]; });
-        fill_tensor_buffer(desc, b.get(), [](auto& value, size_t i) {
+        fill_tensor_buffer(desc, a.get(), [](size_t i) { return "ROCm"[i % 4]; });
+        fill_tensor_buffer(desc, b.get(), [](size_t i) {
             switch(i % 4)
             {
-            case 0: value = 'R'; break;
-            case 1: value = 'O'; break;
-            case 2: value = 'C'; break;
-            case 3: value = 'm'; break;
-            default: value = 'x'; break;
+            case 0: return 'R';
+            case 1: return 'O';
+            case 2: return 'C';
+            case 3: return 'm';
+            default: return 'x';
             }
         });
 
@@ -202,10 +183,8 @@ TEST(ValidationReport, MultipleSomeIncorrect)
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
 
-        fill_tensor_buffer(
-            desc, a.get(), [](auto& value, [[maybe_unused]] size_t i) { value = 1; });
-        fill_tensor_buffer(
-            desc, b.get(), [](auto& value, [[maybe_unused]] size_t i) { value = 555; });
+        fill_tensor_buffer(desc, a.get(), []([[maybe_unused]] size_t i) { return 1; });
+        fill_tensor_buffer(desc, b.get(), []([[maybe_unused]] size_t i) { return 555; });
 
         report.check("incorrect 2", desc, b.get(), a.get());
     }

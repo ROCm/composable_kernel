@@ -62,6 +62,13 @@ bool ValidationReport::check(std::string_view tensor_name,
     std::array<size_t, RANK> strides;
     std::copy(descriptor.get_strides().begin(), descriptor.get_strides().end(), strides.begin());
 
+    // During development and CI, only the kernels that were changed would fail, and so we can
+    // assume that the average case does not have errors. Therefore, split out testing into a
+    // quick test which just counts the incorrect elements, and a more in-depth test that also
+    // returns the indices of the incorrect items.
+
+    // Initial pass: count errors
+
     // Allocate and reset counter
     auto d_error_count = alloc_buffer(sizeof(ErrorCounter));
     check_hip(hipMemset(d_error_count.get(), 0, sizeof(ErrorCounter)));
@@ -83,6 +90,8 @@ bool ValidationReport::check(std::string_view tensor_name,
 
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
+            // We expect the number of errors to be very low, so just use an atomic
+            // for now.
             atomicAdd(reinterpret_cast<ErrorCounter*>(error_count), 1);
         }
     });
@@ -90,6 +99,8 @@ bool ValidationReport::check(std::string_view tensor_name,
     ErrorCounter error_count = 0;
     check_hip(
         hipMemcpy(&error_count, d_error_count.get(), sizeof(ErrorCounter), hipMemcpyDeviceToHost));
+
+    // TODO: Gather detailed coordinates.
 
     reports_.push_back(Case{
         .tensor_name    = std::string(tensor_name),

@@ -192,6 +192,22 @@ struct TensorDescriptor
         return get_element_space_size() * data_type_sizeof(DT);
     }
 
+    /// @brief Get a tensor descriptor for the space backing a tensor.
+    ///
+    /// This function returns a tensor descriptor which represents the buffer space
+    /// required to a tensor with this descriptor. This is mainly useful to process
+    /// buffers with functions which normally operate over tensor descriptors. The
+    /// resulting tensor descriptor describes a 1D tensor with the same number of
+    /// elements as in the space.
+    ///
+    /// @see get_element_space_size()
+    TensorDescriptor<DT, 1> get_space_descriptor() const
+    {
+        std::array<size_t, 1> lengths = {this->get_element_space_size()};
+        std::array<size_t, 1> strides = {1};
+        return TensorDescriptor<DT, 1>(lengths, strides);
+    }
+
     private:
     ck_tile::HostTensorDescriptor inner_descriptor_;
 };

@@ -81,6 +81,9 @@ void tensor_foreach(std::span<const size_t, RANK> shape, F f)
         numel *= shape[i - 1];
     }
 
+    // Reset any errors from previous launches.
+    (void)hipGetLastError();
+
     kernel<<<occupancy * multiprocessors, block_size>>>(numel, shape_scan, f);
     check_hip(hipGetLastError());
 }
