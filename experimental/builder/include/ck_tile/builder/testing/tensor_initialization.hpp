@@ -56,19 +56,7 @@ void init_tensor_buffer_uniform_fp(const DeviceBuffer& buf,
 {
     size_t size = descriptor.get_element_space_size_in_bytes();
 
-    if(size % sizeof(DT) != 0)
-    {
-        throw std::runtime_error("size must be a multiple of datatype size");
-    }
     using ck_type = factory::internal::DataTypeToCK<DT>::type;
-
-    if(std::nextafter(static_cast<ck_type>(min_value), static_cast<ck_type>(max_value)) >=
-       max_value)
-    {
-        // nextafter is not defined for non-standard data types, skip test for now
-        // throw std::runtime_error("Error while filling device tensor with random integer data:
-        // insufficient precision in specified range");
-    }
 
     size_t packed_size = ck::packed_size_v<ck_type>;
     fill_tensor_uniform_rand_fp_values<<<256, 256>>>(reinterpret_cast<ck_type*>(buf.get()),
