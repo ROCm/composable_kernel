@@ -36,15 +36,10 @@ enum class ConvKernelType
 
 // Helper function to initialize and copy a tensor to device
 template <typename DataType>
-void initialize_and_copy_tensor(Tensor<DataType>& host_tensor,
-                                DeviceMem& device_mem,
-                                bool should_initialize)
+void initialize_and_copy_tensor(Tensor<DataType>& host_tensor, DeviceMem& device_mem)
 {
-    if(should_initialize)
-    {
-        host_tensor.GenerateTensorValue(GeneratorTensor_2<DataType>{-5, 5});
-        device_mem.ToDevice(host_tensor.mData.data());
-    }
+    host_tensor.GenerateTensorValue(GeneratorTensor_2<DataType>{-5, 5});
+    device_mem.ToDevice(host_tensor.mData.data());
 }
 
 // Helper to get layout types based on NDimSpatial
@@ -330,18 +325,18 @@ bool test_conv_gpu_ref(const ck::utils::conv::ConvParam& params, ConvKernelType 
     // Initialize and copy tensors based on kernel type
     if(kernel_type == ConvKernelType::Forward)
     {
-        initialize_and_copy_tensor(input, input_dev, true);
-        initialize_and_copy_tensor(weight, weight_dev, true);
+        initialize_and_copy_tensor(input, input_dev);
+        initialize_and_copy_tensor(weight, weight_dev);
     }
     else if(kernel_type == ConvKernelType::BackwardData)
     {
-        initialize_and_copy_tensor(weight, weight_dev, true);
-        initialize_and_copy_tensor(output, output_dev, true);
+        initialize_and_copy_tensor(weight, weight_dev);
+        initialize_and_copy_tensor(output, output_dev);
     }
     else // BackwardWeight
     {
-        initialize_and_copy_tensor(input, input_dev, true);
-        initialize_and_copy_tensor(output, output_dev, true);
+        initialize_and_copy_tensor(input, input_dev);
+        initialize_and_copy_tensor(output, output_dev);
     }
 
     // Dispatch to appropriate implementation
