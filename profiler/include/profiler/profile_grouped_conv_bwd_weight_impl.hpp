@@ -149,7 +149,9 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                 static_cast<WeiDataType*>(wei_ref_buf.GetDeviceBuffer()),
                 static_cast<const OutDataType*>(out_ref_buf.GetDeviceBuffer()),
                 conv_param,
-                nullptr);
+                in_element_op,
+                wei_element_op,
+                out_element_op);
 
             // Copy result back to host
             wei_ref_buf.FromDevice(weight_host_result.mData.data());

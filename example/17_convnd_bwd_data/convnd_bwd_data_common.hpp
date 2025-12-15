@@ -250,7 +250,9 @@ int run_conv_bwd_data(int do_verification,
             reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
             reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
             conv_param,
-            nullptr);
+            in_element_op,
+            wei_element_op,
+            out_element_op);
 
         HIP_CHECK_ERROR(hipDeviceSynchronize());
 
