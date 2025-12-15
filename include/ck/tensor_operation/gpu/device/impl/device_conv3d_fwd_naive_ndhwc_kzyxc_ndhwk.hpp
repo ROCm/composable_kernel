@@ -121,8 +121,14 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
                                 OutDataType,
                                 InElementwiseOperation,
                                 WeiElementwiseOperation,
-                                OutElementwiseOperation>(
-                arg.p_in_, arg.p_wei_, arg.p_out_, arg.params_, stream_config.stream_id_);
+                                OutElementwiseOperation>(arg.p_in_,
+                                                         arg.p_wei_,
+                                                         arg.p_out_,
+                                                         arg.params_,
+                                                         arg.in_element_op_,
+                                                         arg.wei_element_op_,
+                                                         arg.out_element_op_,
+                                                         stream_config.stream_id_);
             return 0; // No timing for naive implementation
         }
 

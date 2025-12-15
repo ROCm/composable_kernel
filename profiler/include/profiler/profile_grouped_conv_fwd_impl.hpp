@@ -136,7 +136,9 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
             reinterpret_cast<OutDataType*>(gpu_ref_out_buf.GetDeviceBuffer()),
             conv_param,
-            nullptr);
+            in_element_op,
+            wei_element_op,
+            out_element_op);
 
         // Copy GPU reference result to host for comparison
         gpu_ref_out_buf.FromDevice(host_output.mData.data());

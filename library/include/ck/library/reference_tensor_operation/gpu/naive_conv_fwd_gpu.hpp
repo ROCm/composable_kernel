@@ -48,14 +48,13 @@ __global__ void naive_conv_fwd_packed(const InDataType* __restrict__ p_in,
                                       index_t dilation_x,
                                       index_t pad_z,
                                       index_t pad_y,
-                                      index_t pad_x)
+                                      index_t pad_x,
+                                      InElementOp in_op,
+                                      WeiElementOp wei_op,
+                                      OutElementOp out_op)
 {
     const long_index_t tid         = blockIdx.x * blockDim.x + threadIdx.x;
     const long_index_t num_threads = blockDim.x * gridDim.x;
-
-    constexpr auto in_op  = InElementOp{};
-    constexpr auto wei_op = WeiElementOp{};
-    constexpr auto out_op = OutElementOp{};
 
     InDataType in_val   = InDataType{0};
     WeiDataType wei_val = WeiDataType{0};
@@ -281,6 +280,9 @@ void naive_conv_fwd(const TIn* p_in,
                     const std::vector<index_t>& conv_strides,
                     const std::vector<index_t>& conv_dilations,
                     const std::vector<index_t>& input_pads,
+                    InElementwiseOperation in_element_op,
+                    WeiElementwiseOperation wei_element_op,
+                    OutElementwiseOperation out_element_op,
                     hipStream_t stream = nullptr)
 {
     // Just call the optimized pack/conv/unpack from the same file
@@ -387,7 +389,10 @@ void naive_conv_fwd(const TIn* p_in,
                                                   conv_dilations[0],
                                                   0,
                                                   0,
-                                                  input_pads[0]);
+                                                  input_pads[0],
+                                                  in_element_op,
+                                                  wei_element_op,
+                                                  out_element_op);
     }
     else if(NDimSpatial == 2)
     {
@@ -422,7 +427,10 @@ void naive_conv_fwd(const TIn* p_in,
                                                   conv_dilations[1],
                                                   0,
                                                   input_pads[0],
-                                                  input_pads[1]);
+                                                  input_pads[1],
+                                                  in_element_op,
+                                                  wei_element_op,
+                                                  out_element_op);
     }
     else // 3D
     {
@@ -457,7 +465,10 @@ void naive_conv_fwd(const TIn* p_in,
                                                   conv_dilations[2],
                                                   input_pads[0],
                                                   input_pads[1],
-                                                  input_pads[2]);
+                                                  input_pads[2],
+                                                  in_element_op,
+                                                  wei_element_op,
+                                                  out_element_op);
     }
 
     // Unpack
@@ -483,7 +494,10 @@ void naive_conv_fwd(const TIn* p_in,
                     const TWei* p_wei,
                     TOut* p_out,
                     const ck::utils::conv::ConvParam& conv_param,
-                    hipStream_t stream = nullptr)
+                    InElementwiseOperation in_element_op   = InElementwiseOperation{},
+                    WeiElementwiseOperation wei_element_op = WeiElementwiseOperation{},
+                    OutElementwiseOperation out_element_op = OutElementwiseOperation{},
+                    hipStream_t stream                     = nullptr)
 {
     const auto ndim = conv_param.num_dim_spatial_;
 
@@ -554,6 +568,9 @@ void naive_conv_fwd(const TIn* p_in,
                                             conv_strides,
                                             conv_dilations,
                                             input_pads,
+                                            in_element_op,
+                                            wei_element_op,
+                                            out_element_op,
                                             stream);
 }
 

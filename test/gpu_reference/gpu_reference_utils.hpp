@@ -91,8 +91,7 @@ bool test_conv_fwd_impl(const ck::utils::conv::ConvParam& params,
         reinterpret_cast<const InDataType*>(input_dev.GetDeviceBuffer()),
         reinterpret_cast<const WeiDataType*>(weight_dev.GetDeviceBuffer()),
         reinterpret_cast<OutDataType*>(output_dev.GetDeviceBuffer()),
-        params,
-        nullptr);
+        params);
 
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
@@ -165,8 +164,7 @@ bool test_conv_bwd_data_impl(const ck::utils::conv::ConvParam& params,
         reinterpret_cast<InDataType*>(input_dev.GetDeviceBuffer()),
         reinterpret_cast<const WeiDataType*>(weight_dev.GetDeviceBuffer()),
         reinterpret_cast<const OutDataType*>(output_dev.GetDeviceBuffer()),
-        params,
-        nullptr);
+        params);
 
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
@@ -239,8 +237,7 @@ bool test_conv_bwd_weight_impl(const ck::utils::conv::ConvParam& params,
         reinterpret_cast<const InDataType*>(input_dev.GetDeviceBuffer()),
         reinterpret_cast<WeiDataType*>(weight_dev.GetDeviceBuffer()),
         reinterpret_cast<const OutDataType*>(output_dev.GetDeviceBuffer()),
-        params,
-        nullptr);
+        params);
 
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
