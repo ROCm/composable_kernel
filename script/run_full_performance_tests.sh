@@ -1,4 +1,7 @@
 #!/bin/bash 
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 #
 # in order to run this script you'd first need to build the ckProfiler executable in ../build/bin/
 # you would also need to set up some environment variables in order to 

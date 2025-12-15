@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -64,6 +64,7 @@ struct GemmTypeConfig<ck_tile::bf8_t>
     using CDataType   = ck_tile::half_t;
 };
 
+template <bool Persistent_>
 struct GemmConfigBase
 {
     static constexpr bool kPadM = false;
@@ -83,10 +84,11 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr bool PreshuffleB               = false;
+    static constexpr bool Persistent                = Persistent_;
 };
 
-template <typename PrecType>
-struct GemmConfigComputeV3_2 : public GemmConfigBase
+template <typename PrecType, bool Persistent>
+struct GemmConfigComputeV3_2 : public GemmConfigBase<Persistent>
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -101,8 +103,8 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 };
 
-template <typename PrecType>
-struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase
+template <typename PrecType, bool Persistent>
+struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase<Persistent>
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -119,6 +121,66 @@ struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase
 
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;
+};
+
+template <ck_tile::QuantType QuantMode>
+struct GemmQuantConfig;
+
+template <>
+struct GemmQuantConfig<ck_tile::QuantType::TensorQuant>
+{
+    template <typename PrecType, bool Persistent>
+    using GemmConfig = GemmConfigComputeV3_2<PrecType, Persistent>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<GemmProblem>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmProblem>;
+};
+
+template <>
+struct GemmQuantConfig<ck_tile::QuantType::RowColQuant>
+{
+    template <typename PrecType, bool Persistent>
+    using GemmConfig = GemmConfigComputeV3_2<PrecType, Persistent>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<GemmProblem>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmProblem>;
+};
+
+template <>
+struct GemmQuantConfig<ck_tile::QuantType::AQuantGrouped>
+{
+    template <typename PrecType, bool Persistent>
+    using GemmConfig = GemmConfigComputeV3_2<PrecType, Persistent>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using GemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<GemmProblem>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmProblem>;
+};
+
+template <>
+struct GemmQuantConfig<ck_tile::QuantType::BQuantGrouped>
+{
+    template <typename PrecType, bool Persistent>
+    using GemmConfig = GemmConfigPreshuffleB_Bquant_prefill<PrecType, Persistent>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using GemmPipeline = std::conditional_t<PreshuffleB == true,
+                                            ck_tile::WPQuantBPipelineAgBgCrV2<GemmProblem>,
+                                            ck_tile::BQuantGemmPipelineAgBgCrCompV3<GemmProblem>>;
+
+    template <typename GemmProblem, bool PreshuffleB = false>
+    using BaseGemmPipeline =
+        std::conditional_t<PreshuffleB == true,
+                           ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmProblem>,
+                           ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmProblem>>;
 };
 
 using grouped_gemm_kargs = ck_tile::QuantGroupedGemmHostArgs;
@@ -148,8 +210,9 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK")
-        .insert("quant_mode", "bquant", "Choose bquant (default), tensor, or rowcol")
-        .insert("init", "0", "0. Random, 2. One(s) (Constant)");
+        .insert("quant_mode", "bquant", "Choose aquant, bquant (default), tensor, or rowcol")
+        .insert("init", "0", "0. Random, 2. One(s) (Constant)")
+        .insert("persistent", "0", "Kernel persistency. 0: non-persistent. 1: persistent.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

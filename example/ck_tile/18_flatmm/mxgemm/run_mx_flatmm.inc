@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 template <typename PrecActType,
           typename PrecWeightType,
@@ -71,27 +71,24 @@ int run_mx_flatmm_with_layouts(int argc,
 
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_host);
-        ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
-        ck_tile::FillUniformDistribution<ScaleType>{-2.f, 2.f}(scale_a);
-        ck_tile::FillUniformDistribution<ScaleType>{-2.f, 2.f}(scale_b);
+        ck_tile::FillUniformDistribution<>{0.0f, 1.0f}(a_host);
+        ck_tile::FillUniformDistribution<>{-.5f, .5f}(b_origin_host);
+        ck_tile::FillUniformDistribution<>{-2.f, 2.f}(scale_a);
+        ck_tile::FillUniformDistribution<>{-2.f, 2.f}(scale_b);
     }
     else if(init_method == 1)
     {
-        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
-        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
-        ck_tile::FillUniformDistribution<ScaleType>{1.f, 1.f}(scale_a);
-        ck_tile::FillUniformDistribution<ScaleType>{1.f, 1.f}(scale_b);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(b_origin_host);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_a);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_b);
     }
     else
     {
         throw std::runtime_error("wrong! Unexpected init_method");
     }
 
-    ck_tile::HostTensor<BDataType> b_shuffled_host(
-        ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
-    preShuffleWeight<FlatmmConfig>(b_origin_host.begin(), b_shuffled_host.begin(), N, K);
-
+    const auto b_shuffled_host  = preShuffleWeight<FlatmmConfig::N_Warp_Tile>(b_origin_host);
     const auto scale_a_shuffled = preShuffleScale<FlatmmConfig, true>(scale_a);
     const auto scale_b_shuffled = preShuffleScale<FlatmmConfig, false>(scale_b);
 
@@ -163,5 +160,5 @@ int run_mx_flatmm_with_layouts(int argc,
         std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
 
-    return pass;
+    return pass ? 0 : -1;
 }

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -17,17 +17,46 @@ struct GemmPipelineAgBgCrImplBase
     using BsLayout       = remove_cvref_t<typename Problem::BsLayoutTuple>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
-    using ALayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
-    using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-    using BLayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
+    using ADataType   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+    using ALayout     = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
+    using BInDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+    using BDataType =
+        std::conditional_t<std::is_same_v<BInDataType, pk_fp4_raw_t>, ADataType, BInDataType>;
+    using BLayout = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 #if defined(__gfx950__)
-    static constexpr bool is_a_load_tr = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
-    static constexpr bool is_b_load_tr = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+    // The combination of pk_int4_t and transposed loading causes compilation errors.
+    // Therefore do not use transposed loading in this case.
+    // Also, transpose load (ds_read_tr) requires specific tile distribution patterns
+    // that only work for certain K warp tile sizes based on data type size:
+    // - For 1-byte types (fp8/bf8): K warp tile <= 64
+    // - For 2-byte types (fp16/bf16): K warp tile <= 32
+    static constexpr bool is_a_load_tr = []() {
+        using WarpTile                  = typename BlockGemmShape::WarpTile;
+        constexpr index_t kKWarpTile    = WarpTile::at(number<2>{});
+        constexpr index_t kMaxKWarpTile = (sizeof(ADataType) == 1) ? 64 : 32;
+        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else if constexpr(kKWarpTile > kMaxKWarpTile)
+            return false;
+        else
+            return std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+    }();
+
+    static constexpr bool is_b_load_tr = []() {
+        using WarpTile                  = typename BlockGemmShape::WarpTile;
+        constexpr index_t kKWarpTile    = WarpTile::at(number<2>{});
+        constexpr index_t kMaxKWarpTile = (sizeof(BDataType) == 1) ? 64 : 32;
+        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else if constexpr(kKWarpTile > kMaxKWarpTile)
+            return false;
+        else
+            return std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+    }();
 #else
     static constexpr bool is_a_load_tr = false;
     static constexpr bool is_b_load_tr = false;
@@ -80,19 +109,21 @@ struct GemmPipelineAgBgCrImplBase
             load_tile(dst_block_tile, lds_tile_window);
     }
 
+    template <typename OverrideADataType = ADataType, typename OverrideBDataType = BDataType>
     CK_TILE_DEVICE auto GetABLdsTensorViews(void* p_smem) const
     {
         // A tile in LDS
-        ADataType* __restrict__ p_a_lds = static_cast<ADataType*>(p_smem);
-        constexpr auto a_lds_block_desc = Policy::template MakeALdsBlockDescriptor<Problem>();
+        OverrideADataType* __restrict__ p_a_lds = static_cast<OverrideADataType*>(p_smem);
+        constexpr auto a_lds_block_desc =
+            Policy::template MakeALdsBlockDescriptor<Problem, OverrideADataType>();
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
         // TODO: LDS alignment should come from Policy!
         constexpr index_t a_lds_block_space_size_aligned = integer_least_multiple(
-            sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16);
+            sizeof(OverrideADataType) * a_lds_block_desc.get_element_space_size(), 16);
 
         // B tile in LDS
-        BDataType* __restrict__ p_b_lds = static_cast<BDataType*>(
+        OverrideBDataType* __restrict__ p_b_lds = static_cast<OverrideBDataType*>(
             static_cast<void*>(static_cast<char*>(p_smem) + a_lds_block_space_size_aligned));
         constexpr auto b_lds_block_desc = Policy::template MakeBLdsBlockDescriptor<Problem>();
         auto b_lds_block = make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);
@@ -241,12 +272,17 @@ struct GemmPipelineAgBgCrImplBase
         }();
         auto b_copy_lds_window = make_tile_window(b_lds_block_view, b_lds_shape, {0, 0});
 
+        using BLdsDataType =
+            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
+                               typename Problem::ADataType,
+                               typename Problem::BDataType>;
+
         auto b_lds_load_tile_distr = []() {
             if constexpr(is_b_load_tr)
                 return make_static_tile_distribution(
-                    typename InputTileDistributionTraits<
-                        typename BLdsLoadTileDistr::DstrEncode,
-                        typename Problem::BDataType>::TransposedDstrEncode{});
+                    typename InputTileDistributionTraits<typename BLdsLoadTileDistr::DstrEncode,
+                                                         BLdsDataType>::TransposedDstrEncode{});
+
             else
                 return BLdsLoadTileDistr{};
         }();

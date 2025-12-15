@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -17,6 +17,20 @@
 #include "ck_tile/core/tensor/null_tensor.hpp"
 
 namespace ck_tile {
+// Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
+template <typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          typename offset_t,
+          typename = std::enable_if_t<std::is_class_v<TileWindow_>>>
+CK_TILE_DEVICE auto load_tile_with_offset(const TileWindow_& tile_window,
+                                          offset_t offset,
+                                          number<i_access>                     = {},
+                                          bool_constant<oob_conditional_check> = {})
+{
+    return tile_window.load_with_offset(
+        offset, number<i_access>{}, bool_constant<oob_conditional_check>{});
+}
 
 template <typename TileWindow_, index_t i_access = -1, bool oob_conditional_check = true>
 CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
@@ -47,6 +61,24 @@ CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
     // Load element_wise API works only when the input typle is a tuple-tyupe
     return tile_window[number<0>{}].load(
         tile_window, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
+}
+
+// Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
+template <typename DistributedTensor_,
+          typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          typename offset_t,
+          typename = std::enable_if_t<std::is_class_v<std::remove_cv_t<DistributedTensor_>> &&
+                                      std::is_class_v<TileWindow_>>>
+CK_TILE_DEVICE auto load_tile_with_offset(DistributedTensor_& dst_tile,
+                                          const TileWindow_& tile_window,
+                                          offset_t offset,
+                                          number<i_access>                     = {},
+                                          bool_constant<oob_conditional_check> = {})
+{
+    return tile_window.load_with_offset(
+        offset, dst_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 template <typename DistributedTensor_,
@@ -112,17 +144,36 @@ CK_TILE_DEVICE auto load_tile_raw(T& tile,
         tile, number<i_access>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
 }
 
+// Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
 template <typename LdsTileWindow_,
           typename TileWindow_,
           index_t i_access           = -1,
-          bool oob_conditional_check = true>
-CK_TILE_DEVICE auto async_load_tile(LdsTileWindow_&& lds_tile,
-                                    const TileWindow_& tile_window,
-                                    number<i_access>                     = {},
-                                    bool_constant<oob_conditional_check> = {})
+          bool oob_conditional_check = true,
+          bool static_move_ys        = false,
+          typename = std::enable_if_t<std::is_class_v<remove_cvref_t<LdsTileWindow_>> &&
+                                      std::is_class_v<TileWindow_>>>
+CK_TILE_DEVICE void async_load_tile_with_offset(LdsTileWindow_&& lds_tile,
+                                                const TileWindow_& tile_window,
+                                                index_t offset,
+                                                number<i_access>                         = {},
+                                                bool_constant<oob_conditional_check> occ = {},
+                                                bool_constant<static_move_ys> smy        = {})
 {
-    return tile_window.async_load(
-        lds_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
+    tile_window.async_load_with_offset(offset, lds_tile, number<i_access>{}, occ, smy);
+}
+
+template <typename LdsTileWindow_,
+          typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          bool static_move_ys        = false>
+CK_TILE_DEVICE void async_load_tile(LdsTileWindow_&& lds_tile,
+                                    const TileWindow_& tile_window,
+                                    number<i_access>                         = {},
+                                    bool_constant<oob_conditional_check> occ = {},
+                                    bool_constant<static_move_ys> smy        = {})
+{
+    async_load_tile_with_offset(lds_tile, tile_window, 0, number<i_access>{}, occ, smy);
 }
 
 template <typename LdsTileWindow_,
@@ -130,19 +181,19 @@ template <typename LdsTileWindow_,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
           bool pre_nop               = false>
-CK_TILE_DEVICE auto async_load_tile_raw(LdsTileWindow_&& lds_tile,
+CK_TILE_DEVICE void async_load_tile_raw(LdsTileWindow_&& lds_tile,
                                         const TileWindow_& tile_window,
                                         number<i_access>                     = {},
                                         bool_constant<oob_conditional_check> = {},
                                         bool_constant<pre_nop>               = {})
 {
-    return tile_window.async_load_raw(lds_tile,
-                                      number<i_access>{},
-                                      bool_constant<oob_conditional_check>{},
-                                      bool_constant<pre_nop>{});
+    tile_window.async_load_raw(lds_tile,
+                               number<i_access>{},
+                               bool_constant<oob_conditional_check>{},
+                               bool_constant<pre_nop>{});
 }
 
-CK_TILE_DEVICE auto async_load_fence(index_t cnt = 0)
+CK_TILE_DEVICE void async_load_fence(index_t cnt = 0)
 {
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }

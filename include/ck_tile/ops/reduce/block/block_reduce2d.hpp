@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -425,7 +425,7 @@ struct BlockReduce2dCrossWarpSync
 
         if constexpr(num_reduce_warps == 1)
             return;
-
+        block_sync_lds();
         // Each warp's lane 0 writes its partial results to shared memory
         const index_t smem_offset = warp_id;
         if(lane_id == 0)

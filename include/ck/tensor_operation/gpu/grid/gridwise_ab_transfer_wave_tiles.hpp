@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -21,6 +21,8 @@ template <typename ABLayout,
           index_t WaveSize>
 struct ABTransferWaveTiles
 {
+    __device__ static constexpr bool IsLDSNeeded() { return true; }
+
     static_assert(!(is_same_v<remove_cvref_t<LDSTypeAB>, pk_i4_t>),
                   "wave tile transfer method does not support pk_i4_t");
     static constexpr auto I0 = Number<0>{};
@@ -264,7 +266,8 @@ struct ABTransferWaveTiles
     __device__ static auto GetBlockTransfer(GridDescriptor& grid_descriptor,
                                             BlockDescriptor& block_descriptor,
                                             ABElementwiseOperation& ab_element_op,
-                                            const index_t block_mn_id)
+                                            const index_t block_mn_id,
+                                            const index_t)
     {
         // Note: GlobalBufferNum is currently not used but it will be needed
         // once we add other pipelines. It is currently needed only for
@@ -313,14 +316,16 @@ struct ABTransferWaveTiles
         // This is a block descriptor used to read LDS memory into register
         // It's defined in a way consistent with the existing implementation to
         // avoid changes in the pipelines
-        return make_naive_tensor_descriptor(make_tuple(Number<KPerBlock / KPack>{},
+        return make_naive_tensor_descriptor(make_tuple(I1,
                                                        Number<MNRepeat>{},
+                                                       Number<KPerBlock / KPack>{},
                                                        Number<MNWaves>{},
                                                        Number<MNKRow>{},
                                                        Number<MNPerWmma>{},
                                                        Number<ABK1Value>{}),
-                                            make_tuple(Number<KPack * MNPerWmma>{},
+                                            make_tuple(I0,
                                                        Number<KPerBlock * MNPerWmma * MNWaves>{},
+                                                       Number<KPack * MNPerWmma>{},
                                                        Number<KPerBlock * MNPerWmma>{},
                                                        Number<MNPerWmma * ABK1Value>{},
                                                        Number<ABK1Value>{},
@@ -337,6 +342,12 @@ struct ABTransferWaveTiles
     __device__ static constexpr index_t GetKDimension(const GridDescriptor& grid_desc)
     {
         return grid_desc.GetLength(I1) * KPack;
+    }
+
+    template <typename LDSType, typename IndexType>
+    __device__ static auto GetBuffer(LDSType* p_shared_AB, const IndexType& size)
+    {
+        return make_dynamic_buffer<AddressSpaceEnum::Lds>(p_shared_AB, size);
     }
 };
 

@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_custom_target(example_contraction)
 add_custom_target(example_contraction_scale)
 add_custom_target(example_contraction_bilinear)

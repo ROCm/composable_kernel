@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -68,7 +68,9 @@ void add_device_grouped_conv3d_fwd_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 Scale>>>& instances);
+#endif
 
+#ifdef CK_ENABLE_TF32
 void add_device_grouped_conv3d_fwd_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
@@ -149,22 +151,24 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                      is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK> &&
                      DLayouts::Size() == 0)
         {
-#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
+#ifdef CK_ENABLE_TF32
                 if constexpr(is_same_v<ComputeType, TF32>)
                 {
                     add_device_grouped_conv3d_fwd_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
                         op_ptrs);
                 }
-                else
+#endif
+#ifdef CK_ENABLE_FP32
+                if constexpr(is_same_v<ComputeType, float>)
                 {
                     add_device_grouped_conv3d_fwd_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                         op_ptrs);
                 }
-            }
 #endif
+            }
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                          is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)

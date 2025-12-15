@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
@@ -383,6 +383,7 @@ half_t log(half_t x) { return static_cast<half_t>(__logf(static_cast<float>(x)))
 #endif
 
 using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
+using fp32x2_t = float __attribute__((ext_vector_type(2)));
 
 CK_TILE_HOST fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
 {
@@ -401,4 +402,9 @@ CK_TILE_DEVICE fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
     return c;
 }
 
+CK_TILE_HOST_DEVICE
+constexpr fp16x2_t fp32x2_to_fp16x2(const fp32x2_t& x)
+{
+    return fp16x2_t{float_to_fp16(x.x), float_to_fp16(x.y)};
+}
 } // namespace ck_tile

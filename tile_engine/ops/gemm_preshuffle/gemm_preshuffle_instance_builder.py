@@ -1,5 +1,5 @@
-## Copyright © Advanced Micro Devices, Inc. or its affiliates.
-## SPDX-License-Identifier: MIT
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
 
 import argparse
 import os
@@ -8,15 +8,34 @@ import itertools
 import logging
 import multiprocessing
 import concurrent.futures
-
 from pathlib import Path
+import importlib.util
 
-from commons.validation_utils import (
-    is_tile_config_valid,
-    is_trait_combination_valid,
-    get_dtype_string,
-    get_abc_layouts,
-)
+
+def _import_validation_utils():
+    """Import validation utilities from commons directory."""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+
+    # Load the module dynamically
+    spec = importlib.util.spec_from_file_location(
+        "validation_utils",
+        os.path.join(parent_dir, "commons", "gemm_validation_utils.py"),
+    )
+    validation_utils = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validation_utils)
+
+    return validation_utils
+
+
+# Import validation functions
+_validation_utils = _import_validation_utils()
+is_tile_config_valid = _validation_utils.is_tile_config_valid
+is_trait_combination_valid = _validation_utils.is_trait_combination_valid
+get_dtype_string = _validation_utils.get_dtype_string
+get_abc_layouts = _validation_utils.get_abc_layouts
+
+logging.basicConfig(level=logging.INFO)
 
 
 class GemmPreshuffleKernelBuilder:
@@ -305,6 +324,8 @@ class GemmPreshuffleKernelBuilder:
             b_datatype = self.datatype
             c_datatype = self.datatype
 
+            layout = self.layout
+
             # Special handling for certain data types
             if self.datatype in ["fp8", "bf8"]:
                 c_datatype = "fp16"
@@ -324,6 +345,7 @@ class GemmPreshuffleKernelBuilder:
                 b_datatype,
                 c_datatype,
                 pipeline,
+                layout,
                 self.gpu_target,
             )
 
@@ -462,35 +484,24 @@ struct SelectedKernel {{
     using BaseGemmPipeline = {base_pipeline_map.get(pipeline, "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2")}<GemmPipelineProblem>;
 
     static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
-        const ck_tile::index_t k_grain = args.k_batch * TileK;
-        const ck_tile::index_t K_split = (args.K + k_grain - 1) / k_grain * TileK;
-        const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
-        const bool has_hot_loop = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-        
-        float ave_time{{0}};
+        constexpr auto scheduler = {scheduler_type_map.get(scheduler, "ck_tile::GemmPipelineScheduler::Default")};
 
-        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {{
-            constexpr bool has_hot_loop_v = has_hot_loop_.value;
-            constexpr auto tail_number_v = tail_number_.value;
-            constexpr auto scheduler = {scheduler_type_map.get(scheduler, "ck_tile::GemmPipelineScheduler::Default")};
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+            ADataType,
+            BDataType,
+            AccDataType,
+            TileShape,
+            ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                            ALayout, BLayout, CLayout, TransposeC,
+                                            UseStructuredSparsity, UsePersistentKernel,
+                                            NumWaveGroups, Preshuffle>,
+            scheduler>;
+        
+        using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2")}<UniversalGemmProblem>;
+
+        const auto Run = [&](const auto memory_operation_) {{
             [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
-                ADataType,
-                BDataType,
-                AccDataType,
-                TileShape,
-                ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                                ALayout, BLayout, CLayout, TransposeC,
-                                                UseStructuredSparsity, UsePersistentKernel,
-                                                NumWaveGroups, Preshuffle>,
-                scheduler,
-                has_hot_loop_v,
-                tail_number_v>;
-            
-            using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2")}<UniversalGemmProblem>;
-            
             // Epilogue
 """
 
@@ -568,29 +579,18 @@ struct SelectedKernel {{
             
             // Launch kernel
             constexpr int kBlockPerCu = {k_block_per_cu};
-            ave_time = ck_tile::launch_kernel(
+            return ck_tile::launch_kernel(
                 stream,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
-            
-            return ave_time;
         }};
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
-            if(args.k_batch == 1) {{
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                            ck_tile::memory_operation_enum::set>{{}});
-            }} else {{
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                            ck_tile::memory_operation_enum::atomic_add>{{}});
-            }}
-        }};
-
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-        return ave_time;
+        if(args.k_batch == 1) {{
+            return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                        ck_tile::memory_operation_enum::set>{{}});
+        }} else {{
+            return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                        ck_tile::memory_operation_enum::atomic_add>{{}});
+        }}
     }}
 }};
 """

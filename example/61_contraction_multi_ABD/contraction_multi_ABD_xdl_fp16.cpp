@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -18,6 +18,10 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/numeric.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 using Row    = ck::tensor_layout::gemm::RowMajor;
 using Bypass = ck::tensor_layout::BypassLayoutVerification;

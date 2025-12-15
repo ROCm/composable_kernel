@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -552,6 +552,15 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
                     });
                 });
             }
+#if defined(__gfx9__)
+            else
+            {
+                // Workaround for a compiler issue: sometimes there are not enough wait-states
+                // between v_mfma_f32... and v_accvgpr_read_b32 instructions if they are separated
+                // by s_cbranch.
+                tile_elementwise_inout([](auto& x) { asm("; force move to %0" : "+v"(x)); }, s_acc);
+            }
+#endif
 
             {
                 bool need_perpixel_check = mask.IsEdgeTile(

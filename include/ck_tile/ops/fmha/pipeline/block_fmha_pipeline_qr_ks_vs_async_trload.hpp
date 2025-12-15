@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -37,7 +37,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
-    static constexpr bool kKLoadOnce = BlockFmhaShape::kM0 >= 64;
+    static constexpr bool kKLoadOnce = BlockFmhaShape::kM0 > 64;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -69,6 +69,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasUnevenSplits  = true;
+    static constexpr bool kHasSink          = Problem::kHasSink;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
@@ -90,6 +91,8 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentRandVal =
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentRandVal<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::kBlockPerCu != -1)

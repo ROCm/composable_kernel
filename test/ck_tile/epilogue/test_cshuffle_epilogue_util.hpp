@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -130,7 +130,7 @@ auto run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
 
     constexpr index_t kMPerBlock = Problem::kMPerBlock;
     constexpr index_t kNPerBlock = Problem::kNPerBlock;
-    constexpr index_t kBlockSize = Problem::kBlockSize;
+    index_t kBlockSize = ck_tile::is_wave32() ? Problem::kBlockSize / 2 : Problem::kBlockSize;
 
     std::cout << "Running CShuffleEpilogue test with M=" << M << ", N=" << N
               << ", MPerBlock=" << kMPerBlock << ", NPerBlock=" << kNPerBlock

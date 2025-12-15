@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -17,6 +17,10 @@
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm_layernorm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 // This example demonstrate a single kernel that runs GEMM layer and laynorm in one fused kernel
 //

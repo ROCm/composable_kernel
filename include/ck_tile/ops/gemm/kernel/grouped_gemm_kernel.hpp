@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -190,7 +190,7 @@ struct GroupedGemmKernel
      */
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
-        using ConstantPointer = const void CK_CONSTANT_ADDRESS_SPACE*;
+        using ConstantPointer = const void CK_TILE_CONSTANT_ADDRESS_SPACE*;
         const auto kernel     = kentry<1, Kernel, ConstantPointer, index_t>;
         int occupancy;
         HIP_CHECK_ERROR(
@@ -310,7 +310,7 @@ struct GroupedGemmKernel
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
 
-            __shared__ char smem_ptr_1[GetSmemSize()];
+            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
             RunGemmWithPipelineSelection2LDS(a_ptr,
                                              b_ptr,
                                              c_ptr,
@@ -518,7 +518,7 @@ struct GroupedGemmKernel
 
     // For non-persistent kernels
     template <bool U = UsePersistentKernel, typename = std::enable_if_t<!U>>
-    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+    CK_TILE_DEVICE void operator()(const void CK_TILE_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    index_t group_count) const
     {
         const index_t block_id   = ck_tile::get_block_1d_id();
@@ -541,7 +541,7 @@ struct GroupedGemmKernel
     template <bool U   = UsePersistentKernel,
               typename = std::enable_if_t<U>,
               typename = void> // extra template parameter to avoid redefinition
-    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+    CK_TILE_DEVICE void operator()(const void CK_TILE_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    const index_t group_count) const
     {
         const index_t grid_size  = ck_tile::get_grid_size();
@@ -561,6 +561,7 @@ struct GroupedGemmKernel
                 const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
                     0, kargs.M, kargs.N, (block_id - block_start) % grid_size_2d);
                 Run(kargs, block_idx_2d, (block_id - block_start) / grid_size_2d);
+                block_sync_lds();
                 block_id = block_id + grid_size; // advance to next block
                 // NOTE: this check is redundant but helps the compiler avoid spilling some VGPR
                 if(block_id >= cum_grid_size)

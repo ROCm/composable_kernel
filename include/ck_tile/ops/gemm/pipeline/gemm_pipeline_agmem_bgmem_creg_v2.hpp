@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,11 +9,34 @@
 
 namespace ck_tile {
 
+template <typename Problem>
+struct BaseGemmPipelineAGmemBGmemCRegV2
+{
+    static constexpr index_t PrefetchStages   = 2;
+    static constexpr index_t PrefillStages    = 1;
+    static constexpr index_t GlobalBufferNum  = 1;
+    static constexpr bool UsePersistentKernel = Problem::Traits::UsePersistentKernel;
+
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
+
+    CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t) { return true; }
+
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t)
+    {
+        return TailNumber::Empty;
+    }
+
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func, bool, TailNumber)
+    {
+        return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Empty>{});
+    }
+};
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
 template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV2DefaultPolicy>
-struct GemmPipelineAGmemBGmemCRegV2
+struct GemmPipelineAGmemBGmemCRegV2 : public BaseGemmPipelineAGmemBGmemCRegV2<Problem>
 {
     using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
     using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
@@ -69,6 +92,13 @@ struct GemmPipelineAGmemBGmemCRegV2
 
     // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
     static constexpr bool DoubleSmemBuffer = false;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
+    {
+        // clang-format off
+        return "BASIC_V2";
+        // clang-format on
+    }
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {

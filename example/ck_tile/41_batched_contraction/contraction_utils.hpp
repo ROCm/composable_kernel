@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -42,17 +42,83 @@ using AccDataType = ContractionTypes::AccDataType;
 using EDataType   = ContractionTypes::EDataType;
 using DDataType   = ContractionTypes::DDataType;
 
+void print_help(const char* program_name)
+{
+    std::cout << "\n";
+    std::cout << "Batched Tensor Contraction with element-wise fusion\n";
+    std::cout << "E[G,M,N] = element_wise_op(contraction(A[G,M,K], B[G,N,K]), D0, D1, ...)\n";
+    std::cout << "(Supports multiple D tensors with configurable element-wise operations)\n\n";
+
+    std::cout << "Usage: " << program_name << " [OPTIONS]\n\n";
+
+    std::cout << "Dimension Arguments (comma-separated, no spaces):\n";
+    std::cout << "  -g_dims=<dims>   Batch dimensions      (default: \"1,2\")\n";
+    std::cout << "  -m_dims=<dims>   M (row) dimensions    (default: \"4,256\")\n";
+    std::cout << "  -n_dims=<dims>   N (column) dimensions (default: \"16,128\")\n";
+    std::cout << "  -k_dims=<dims>   K (contract) dims     (default: \"64\")\n";
+    std::cout << "  -num_d=<int>     Number of D tensors   (default: 2, range: 0-4)\n\n";
+
+    std::cout << "Custom Stride Arguments (for testing non-contiguous tensors):\n";
+    std::cout << "  -strides_a=<s>   A tensor strides (comma-separated, empty = auto)\n";
+    std::cout << "  -strides_b=<s>   B tensor strides (comma-separated, empty = auto)\n";
+    std::cout << "  -strides_e=<s>   E tensor strides (comma-separated, empty = auto)\n";
+    std::cout << "  -strides_ds=<s>  D tensors strides (semicolon-separated, empty = same as E)\n";
+    std::cout << "  Example: -strides_a=\"32768,128,1\" -strides_ds=\"512,2,1;1024,4,1\"\n\n";
+
+    std::cout << "Layout Arguments:\n";
+    std::cout
+        << "  -a_layout=<R|C>  A tensor layout (R=Row-major, C=Column-major, default: \"R\")\n";
+    std::cout << "  -b_layout=<R|C>  B tensor layout (default: \"C\")\n";
+    std::cout << "  -e_layout=<R|C>  E tensor layout (default: \"R\")\n\n";
+
+    std::cout << "Examples:\n";
+    std::cout << "  Single batch (12 batches of 256×128):\n";
+    std::cout << "    " << program_name
+              << " -g_dims=\"12\" -m_dims=\"256\" -n_dims=\"128\" -k_dims=\"64\"\n\n";
+
+    std::cout << "  2D batch grid (2×3=6 batches):\n";
+    std::cout << "    " << program_name
+              << " -g_dims=\"2,3\" -m_dims=\"128\" -n_dims=\"128\" -k_dims=\"64\"\n\n";
+
+    std::cout << "  Multi-dimensional (flattened to M=128, N=128, K=128):\n";
+    std::cout << "    " << program_name
+              << " -g_dims=\"4\" -m_dims=\"8,16\" -n_dims=\"32,4\" -k_dims=\"16,8\"\n\n";
+
+    std::cout << "Other Options:\n";
+    std::cout << "  -v=<0|1>         Validation (0=off, 1=on, default: 1)\n";
+    std::cout << "  -split_k=<int>   Split-K value (default: 1)\n";
+    std::cout << "  -warmup=<int>    Warmup iterations (default: 5)\n";
+    std::cout << "  -repeat=<int>    Benchmark iterations (default: 10)\n";
+    std::cout << "  -log=<0|1>       Logging level (default: 1)\n";
+    std::cout << "  -help            Show this help\n\n";
+}
+
 auto create_args(int argc, char* argv[])
 {
+    // Check for --help flag
+    for(int i = 1; i < argc; ++i)
+    {
+        std::string arg = argv[i];
+        if(arg == "--help" || arg == "-h" || arg == "-help")
+        {
+            print_help(argv[0]);
+            std::exit(0);
+        }
+    }
+
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m_dims", "4,256", "M dimensions separated by comma (e.g., '16,32' for 2D M)")
         .insert("n_dims", "16,128", "N dimensions separated by comma (e.g., '32,32' for 2D N)")
         .insert("k_dims", "64", "K dimensions separated by comma (e.g., '64,32' for 2D K)")
         .insert(
             "g_dims", "1,2", "G dimensions separated by comma (e.g., '4,2' for 2D, '2,3,4' for 3D)")
-        .insert("stride_a", "0", "Custom A tensor leading dimension stride (0 = auto)")
-        .insert("stride_b", "0", "Custom B tensor leading dimension stride (0 = auto)")
-        .insert("stride_e", "0", "Custom E tensor leading dimension stride (0 = auto)")
+        .insert("num_d", "2", "Number of D (auxiliary input) tensors")
+        .insert("strides_a", "", "A tensor strides (comma-separated, empty = auto/contiguous)")
+        .insert("strides_b", "", "B tensor strides (comma-separated, empty = auto/contiguous)")
+        .insert("strides_e", "", "E tensor strides (comma-separated, empty = auto/contiguous)")
+        .insert("strides_ds",
+                "",
+                "D tensors strides (semicolon-separated for multiple, empty = same as E)")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Col by default")
         .insert("e_layout", "R", "E tensor data layout - Row by default")

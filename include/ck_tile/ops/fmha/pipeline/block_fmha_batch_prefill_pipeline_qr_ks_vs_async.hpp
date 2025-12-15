@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -87,6 +87,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr index_t kAlignmentO = Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentRandVal =
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentRandVal<Problem>();
 
 #if CK_TILE_FMHA_FWD_FAST_EXP2
     static constexpr auto R_LOG2E = 1.0 / log2e_v<SaccDataType>;
@@ -704,12 +706,12 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             const auto p = [&]() {
 #if CK_TILE_FMHA_FLOAT_TO_FLOAT16_RTN
                 // For fp32 to fp16,
-                // impl::cast_tile_pk_fp16_fp32 would cause precision issue,
+                // impl::cast_tile_pkrtz_fp16_fp32 would cause precision issue,
                 // since it uses __builtin_amdgcn_cvt_pkrtz, which is round to zero.
                 return cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 #else
                 if constexpr(std::is_same_v<PDataType, fp16_t>)
-                    return impl::cast_tile_pk_fp16_fp32<PDataType>(
+                    return impl::cast_tile_pkrtz_fp16_fp32<PDataType>(
                         tile_elementwise_in(p_compute_element_func, p_compute));
                 else
                     return cast_tile<PDataType>(

@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include <gtest/gtest.h>
 
 #include "ck_tile/core.hpp"
@@ -15,6 +14,9 @@
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile_flatmm()
 {
+#if CK_TILE_USE_WMMA
+    return 16;
+#else
 #if defined(CK_GFX950_SUPPORT)
     if constexpr(M_Warp_Tile == 32)
         return sizeof(PrecType) == 2 ? 16 : 64;
@@ -25,6 +27,7 @@ constexpr ck_tile::index_t get_k_warp_tile_flatmm()
         return sizeof(PrecType) == 2 ? 16 : 32;
     else
         return sizeof(PrecType) == 2 ? 32 : 64;
+#endif
 #endif
 }
 
@@ -102,13 +105,40 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
     auto shuffle_b(const ck_tile::HostTensor<T>& t)
     {
         assert(t.get_lengths().size() == 2);
-        int n_                = t.get_lengths()[1];
-        int k_                = t.get_lengths()[0];
-        constexpr int divisor = N_Warp_Tile == 32 ? 2 : 4;
-        ck_tile::HostTensor<T> t_view(
-            {n_ / N_Warp_Tile, N_Warp_Tile, k_ / K_Warp_Tile, divisor, K_Warp_Tile / divisor});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+        int n_ = t.get_lengths()[1];
+        int k_ = t.get_lengths()[0];
+
+        if(ck_tile::is_gfx12_supported())
+        {
+            constexpr int divisor      = 2;
+            constexpr int kABK1PerLane = 8;
+            constexpr int kABK0PerLane = K_Warp_Tile / divisor / kABK1PerLane;
+            ck_tile::HostTensor<T> t_view({n_ / N_Warp_Tile,
+                                           N_Warp_Tile,
+                                           k_ / K_Warp_Tile,
+                                           kABK0PerLane,
+                                           divisor,
+                                           kABK1PerLane});
+            std::copy(t.begin(), t.end(), t_view.begin());
+            return ck_tile::reference_permute(t_view, {0, 2, 4, 1, 3, 5});
+        }
+        else
+        {
+            int divisor = 1;
+            if(ck_tile::is_gfx11_supported())
+            {
+                divisor = 1;
+            }
+            else
+            {
+                assert(is_wave32() == false);
+                divisor = N_Warp_Tile == 32 ? 2 : 4;
+            }
+            ck_tile::HostTensor<T> t_view(
+                {n_ / N_Warp_Tile, N_Warp_Tile, k_ / K_Warp_Tile, divisor, K_Warp_Tile / divisor});
+            std::copy(t.begin(), t.end(), t_view.begin());
+            return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+        }
     }
 
     template <typename ALayout, typename BLayout, typename CLayout>
@@ -116,6 +146,11 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                              const ck_tile::stream_config& s,
                              void* kargs_ptr)
     {
+        constexpr ck_tile::index_t WaveSize     = 32;
+        constexpr ck_tile::index_t MIterPerWarp = M_Tile / (M_Warp * M_Warp_Tile);
+        constexpr bool SupportVectorSize16 =
+            (M_Warp_Tile * K_Warp_Tile * sizeof(ADataType) * MIterPerWarp / WaveSize) % 16 == 0;
+        constexpr int VectorSize = SupportVectorSize16 ? 16 : 8;
 
         using GemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -123,8 +158,6 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
-
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
         // for testing purposes, we can hardcode the values here as we what is compatible with
         // pipeline
@@ -140,59 +173,39 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                              /*UseStructuredSparsity*/ false,
                                              /*Persistent*/ false,
                                              /*NumWaveGroups*/ 1,
-                                             /*Preshuffle*/ true>;
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+                                             /*Preshuffle*/ true,
+                                             VectorSize>;
 
-        using BaseGemmPipeline =
-            ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>;
+        using UniversalGemmProblem =
+            ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  GemmShape,
+                                                  GemmUniversalTraits,
+                                                  ck_tile::GemmPipelineScheduler::Default>;
+        using GemmPipeline =
+            ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<UniversalGemmProblem>;
 
-        const ck_tile::index_t k_grain = gemm_descs[0].k_batch * K_Tile;
-        const ck_tile::index_t K_split = (gemm_descs[0].K + k_grain - 1) / k_grain * K_Tile;
-        const ck_tile::index_t num_loop =
-            ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                       TileParitionerGroupNum,
-                                                       TileParitionerM01>::GetLoopNum(K_split);
-        const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-
-        float ave_time{0};
-
-        const auto Run = [&](const auto has_hot_loop_,
-                             const auto tail_number_,
-                             const auto memory_operation_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
+        const auto Run = [&](const auto memory_operation_) {
             constexpr auto memory_operation = memory_operation_.value;
-            using UniversalGemmProblem =
-                ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                      BDataType,
-                                                      AccDataType,
-                                                      GemmShape,
-                                                      GemmUniversalTraits,
-                                                      ck_tile::GemmPipelineScheduler::Default,
-                                                      has_hot_loop_v,
-                                                      tail_number_v>;
-            using GemmPipeline =
-                ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<UniversalGemmProblem>;
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 CDataType,
-                                                 DsLayout,
-                                                 CLayout,
-                                                 ck_tile::element_wise::PassThrough,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 M_Warp,
-                                                 N_Warp,
-                                                 M_Warp_Tile,
-                                                 N_Warp_Tile,
-                                                 K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+            using GemmEpilogue              = ck_tile::CShuffleEpilogue<
+                             ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                              BDataType,
+                                                              DsDataType,
+                                                              AccDataType,
+                                                              CDataType,
+                                                              DsLayout,
+                                                              CLayout,
+                                                              ck_tile::element_wise::PassThrough,
+                                                              TilePartitioner::MPerBlock,
+                                                              TilePartitioner::NPerBlock,
+                                                              M_Warp,
+                                                              N_Warp,
+                                                              M_Warp_Tile,
+                                                              N_Warp_Tile,
+                                                              K_Warp_Tile,
+                                                              UniversalGemmProblem::TransposeC,
+                                                              memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
             EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
@@ -205,7 +218,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                                          hipMemcpyHostToDevice,
                                                          s.stream_id_));
 
-            ave_time = ck_tile::launch_kernel(
+            return ck_tile::launch_kernel(
                 s,
                 ck_tile::make_kernel<kBlockPerCu>(
                     Kernel{},
@@ -214,25 +227,18 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                     0,
                     ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                     gemm_descs.size()));
-            return ave_time;
         };
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(gemm_descs[0].k_batch == 1)
-            {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::set>{});
-            }
-            else
-            {
-                // EXPECT TO FAIL because splitk is not supported
-                EXPECT_FALSE(true);
-            }
-        };
-
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        if(gemm_descs[0].k_batch == 1)
+        {
+            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::set>{});
+        }
+        else
+        {
+            // EXPECT TO FAIL because splitk is not supported
+            EXPECT_FALSE(true);
+        }
     }
 
     private:
@@ -241,14 +247,18 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                         const ck_tile::stream_config& s,
                                         void* kargs_ptr)
     {
+        constexpr ck_tile::index_t WaveSize     = 32;
+        constexpr ck_tile::index_t MIterPerWarp = M_Tile / (M_Warp * M_Warp_Tile);
+        constexpr bool SupportVectorSize16 =
+            (M_Warp_Tile * K_Warp_Tile * sizeof(ADataType) * MIterPerWarp / WaveSize) % 16 == 0;
+        constexpr int VectorSize = SupportVectorSize16 ? 16 : 8;
+
         using GemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
-
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
         // Enable persistent mode for preshuffle
         using GemmUniversalTraits =
@@ -263,59 +273,38 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                              /*UseStructuredSparsity*/ false,
                                              /*Persistent*/ true, // Enable persistent mode
                                              /*NumWaveGroups*/ 1,
-                                             /*Preshuffle*/ true>;
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+                                             /*Preshuffle*/ true,
+                                             VectorSize>;
 
-        using BaseGemmPipeline =
-            ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>;
-
-        const ck_tile::index_t k_grain = gemm_descs[0].k_batch * K_Tile;
-        const ck_tile::index_t K_split = (gemm_descs[0].K + k_grain - 1) / k_grain * K_Tile;
-        const ck_tile::index_t num_loop =
-            ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                       TileParitionerGroupNum,
-                                                       TileParitionerM01>::GetLoopNum(K_split);
-        const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-
-        float ave_time{0};
-
-        const auto Run = [&](const auto has_hot_loop_,
-                             const auto tail_number_,
-                             const auto memory_operation_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
+        using UniversalGemmProblem =
+            ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  GemmShape,
+                                                  GemmUniversalTraits,
+                                                  ck_tile::GemmPipelineScheduler::Default>;
+        using GemmPipeline =
+            ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<UniversalGemmProblem>;
+        const auto Run = [&](const auto memory_operation_) {
             constexpr auto memory_operation = memory_operation_.value;
-            using UniversalGemmProblem =
-                ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                      BDataType,
-                                                      AccDataType,
-                                                      GemmShape,
-                                                      GemmUniversalTraits,
-                                                      ck_tile::GemmPipelineScheduler::Default,
-                                                      has_hot_loop_v,
-                                                      tail_number_v>;
-            using GemmPipeline =
-                ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<UniversalGemmProblem>;
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 CDataType,
-                                                 DsLayout,
-                                                 CLayout,
-                                                 ck_tile::element_wise::PassThrough,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 M_Warp,
-                                                 N_Warp,
-                                                 M_Warp_Tile,
-                                                 N_Warp_Tile,
-                                                 K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+            using GemmEpilogue              = ck_tile::CShuffleEpilogue<
+                             ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                              BDataType,
+                                                              DsDataType,
+                                                              AccDataType,
+                                                              CDataType,
+                                                              DsLayout,
+                                                              CLayout,
+                                                              ck_tile::element_wise::PassThrough,
+                                                              TilePartitioner::MPerBlock,
+                                                              TilePartitioner::NPerBlock,
+                                                              M_Warp,
+                                                              N_Warp,
+                                                              M_Warp_Tile,
+                                                              N_Warp_Tile,
+                                                              K_Warp_Tile,
+                                                              UniversalGemmProblem::TransposeC,
+                                                              memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
             EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
@@ -328,7 +317,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                                          hipMemcpyHostToDevice,
                                                          s.stream_id_));
 
-            ave_time = ck_tile::launch_kernel(
+            return ck_tile::launch_kernel(
                 s,
                 ck_tile::make_kernel<kBlockPerCu>(
                     Kernel{},
@@ -337,25 +326,18 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                     0,
                     ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                     gemm_descs.size()));
-            return ave_time;
         };
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(gemm_descs[0].k_batch == 1)
-            {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::set>{});
-            }
-            else
-            {
-                // EXPECT TO FAIL because splitk is not supported
-                EXPECT_FALSE(true);
-            }
-        };
-
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        if(gemm_descs[0].k_batch == 1)
+        {
+            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::set>{});
+        }
+        else
+        {
+            // EXPECT TO FAIL because splitk is not supported
+            EXPECT_FALSE(true);
+        }
     }
 
     public:

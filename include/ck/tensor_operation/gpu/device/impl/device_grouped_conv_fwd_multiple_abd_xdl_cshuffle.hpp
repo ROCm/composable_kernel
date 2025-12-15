@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -29,6 +29,7 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
 #ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/conv_describe.hpp"
 #include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 #endif
 
@@ -485,7 +486,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     using GemmADataType = std::conditional_t<!isMultiA && isMultiB, Tuple<ADataType>, ADataType>;
     using GemmBDataType = std::conditional_t<!isMultiB && isMultiA, Tuple<BDataType>, BDataType>;
 
-#define GridwiseGemmMultiABDTemplateParameters                                                  \
+#define CK_GRIDWISE_GEMM_FWD_MULTIPLE_ABD_XDL_CSHUFFLE_TEMPLATE_PARAMETERS                      \
     GemmADataType, GemmBDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType,  \
         EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,       \
         InMemoryDataOperationEnum::Set, NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, \
@@ -502,7 +503,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,              \
         BComputeDataType
 
-#define GridwiseGemmTemplateParameters                                                         \
+#define CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_XDL_CSHUFFLE_TEMPLATE_PARAMETERS                       \
     GemmADataType, GemmBDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType, \
         EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,      \
         NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerXDL,  \
@@ -518,7 +519,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,             \
         BComputeDataType, DoElementwiseBeforeCShuffle
 
-#define GridwiseGemmCTransposeTemplateParameters                                               \
+#define CK_GRIDWISE_GEMM_FWD_CTRANSPOSE_XDL_CSHUFFLE_TEMPLATE_PARAMETERS                       \
     GemmBDataType, GemmADataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType, \
         EDataType, BElementwiseOperation, AElementwiseOperation, CDEElementwiseOperation,      \
         NumGemmKPrefetchStage, BlockSize, NPerBlock, MPerBlock, KPerBlock, BK1, AK1, NPerXDL,  \
@@ -536,14 +537,17 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     // Use appropriate gridwise gemm
     template <index_t NXdlPerWave_>
-    using GridwiseGemmMultipleABDBase =
-        GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmMultiABDTemplateParameters>;
+    using GridwiseGemmMultipleABDBase = GridwiseGemmMultipleABD_xdl_cshuffle<
+        CK_GRIDWISE_GEMM_FWD_MULTIPLE_ABD_XDL_CSHUFFLE_TEMPLATE_PARAMETERS>;
     template <index_t NXdlPerWave_>
-    using GridwiseGemmMultipleDBase =
-        GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>;
+    using GridwiseGemmMultipleDBase = GridwiseGemmMultipleD_xdl_cshuffle<
+        CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_XDL_CSHUFFLE_TEMPLATE_PARAMETERS>;
     template <index_t NXdlPerWave_>
-    using GridwiseGemmMultipleDCTransposeBase =
-        GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmCTransposeTemplateParameters>;
+    using GridwiseGemmMultipleDCTransposeBase = GridwiseGemmMultipleD_xdl_cshuffle<
+        CK_GRIDWISE_GEMM_FWD_CTRANSPOSE_XDL_CSHUFFLE_TEMPLATE_PARAMETERS>;
+#undef CK_GRIDWISE_GEMM_FWD_MULTIPLE_ABD_XDL_CSHUFFLE_TEMPLATE_PARAMETERS
+#undef CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_XDL_CSHUFFLE_TEMPLATE_PARAMETERS
+#undef CK_GRIDWISE_GEMM_FWD_CTRANSPOSE_XDL_CSHUFFLE_TEMPLATE_PARAMETERS
 
     using GridwiseGemm64 =
         std::conditional_t<isMultiA || isMultiB,
@@ -2076,6 +2080,21 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                       "instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp "
                       "for the given template parameters.");
         return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        static_assert(ck_tile::reflect::conv::HasConvTraits<DeviceOp>,
+                      "ConvTraits specialization not found for this device operation. "
+                      "If you modified the template parameters of this class, ensure that "
+                      "the corresponding ConvTraits specialization in "
+                      "ck_tile/builder/reflect/conv_traits.hpp is updated to match, or that "
+                      "InstanceTraits in "
+                      "ck_tile/builder/reflect/"
+                      "instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp "
+                      "provides all required members for ConvTraits to work.");
+        return std::make_unique<ck_tile::reflect::conv::ConvDescription>(
+            ck_tile::reflect::describe<DeviceOp>());
     }
 #endif
 

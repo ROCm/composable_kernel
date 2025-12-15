@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -29,7 +29,7 @@ void preShuffleBuffer(const InOutDataType* src, InOutDataType* dst, int N, int K
 {
     int KPack = 16;
     int NLane = NXdl;
-    int KLane = 64 / NLane;
+    int KLane = ck::get_warp_size() / NLane;
 
     int K0 = K / (KLane * KPack);
     // K -> K0 KLane KPack

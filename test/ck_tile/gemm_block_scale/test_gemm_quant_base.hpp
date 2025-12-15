@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -29,13 +29,14 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     using ALayout                   = std::tuple_element_t<0, Tuple>;
     using BLayout                   = std::tuple_element_t<1, Tuple>;
     using CLayout                   = std::tuple_element_t<2, Tuple>;
-    using ADataType                 = std::tuple_element_t<3, Tuple>;
-    using BDataType                 = std::tuple_element_t<4, Tuple>;
-    using QDataType                 = std::tuple_element_t<5, Tuple>;
-    using CDataType                 = std::tuple_element_t<6, Tuple>;
-    static constexpr auto QuantType = std::tuple_element_t<7, Tuple>::value;
-    using GemmConfig                = std::tuple_element_t<8, Tuple>;
-    using QuantGroupSize            = std::tuple_element_t<9, Tuple>;
+    using AQLayout                  = std::tuple_element_t<3, Tuple>;
+    using ADataType                 = std::tuple_element_t<4, Tuple>;
+    using BDataType                 = std::tuple_element_t<5, Tuple>;
+    using QDataType                 = std::tuple_element_t<6, Tuple>;
+    using CDataType                 = std::tuple_element_t<7, Tuple>;
+    static constexpr auto QuantType = std::tuple_element_t<8, Tuple>::value;
+    using GemmConfig                = std::tuple_element_t<9, Tuple>;
+    using QuantGroupSize            = std::tuple_element_t<10, Tuple>;
     using AccDataType               = float; // accumulate always in float
 
     // Get the quant-type specific data types from traits
@@ -69,13 +70,24 @@ class TestCkTileGemmQuantBase : public ::testing::Test
         constexpr bool kPadM = false;
         constexpr bool kPadN = false;
         constexpr bool kPadK = false;
-
+        // WP pipeline requires per-thread tile size aligned to Problem::VectorLoadSize.
+        // static_assert((WG::kM * WG::kK * sizeof(ADataType) * MIterPerWarp / WaveSize) %
+        // VectorLoadSize == 0). gfx9 cards match the requirements but it fails on gfx12. so we only
+        // need to check the limitation on RDNA cards, i.e. assume wave size is 32.
+        constexpr ck_tile::index_t WaveSize     = 32;
+        constexpr ck_tile::index_t MIterPerWarp = M_Tile / (M_Warp * M_Warp_Tile);
+        constexpr bool SupportVectorSize16 =
+            (M_Warp_Tile * K_Warp_Tile * sizeof(ADataType) * MIterPerWarp / WaveSize) % 16 == 0;
+        constexpr int VectorSize = PreshuffleB ? (SupportVectorSize16 ? 16 : 8) : 16;
         using CodegenGemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
         using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
+
+        // Re-use the AQLayout for BQLayout
+        using BQLayout = AQLayout;
 
         using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
                                                                kPadN,
@@ -86,10 +98,12 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                                                BLayout,
                                                                CLayout,
                                                                QuantType,
-                                                               ALayout,
-                                                               BLayout,
+                                                               AQLayout,
+                                                               BQLayout,
                                                                GemmConfig::TransposeC,
-                                                               DoubleSmemBuffer>;
+                                                               DoubleSmemBuffer,
+                                                               false,
+                                                               VectorSize>;
 
         // Let the derived class create the appropriate pipeline and epilogue
         static_cast<Derived*>(this)
@@ -117,8 +131,10 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                              const ck_tile::index_t kbatch,
                              const float max_accumulated_value)
     {
-        using ComputeType =
-            std::conditional_t<sizeof(ADataType_) < sizeof(BDataType_), ADataType_, BDataType_>;
+        using ComputeType = std::conditional_t<
+            std::is_same_v<BDataType_, ck_tile::pk_fp4_raw_t>,
+            ADataType_,
+            std::conditional_t<sizeof(ADataType_) < sizeof(BDataType_), ADataType_, BDataType_>>;
         // Calculate thresholds
         const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType_, AccDataType_>(
             ck_tile::integer_divide_ceil(K, kbatch));

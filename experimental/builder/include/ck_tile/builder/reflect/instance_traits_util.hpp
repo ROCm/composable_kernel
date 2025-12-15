@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 // Utility functions and helpers for instance_traits.hpp
@@ -8,26 +8,32 @@
 #pragma once
 
 #include <array>
-#include <string>
-#include <concepts>
-#include <string_view>
-#include <sstream>
-#include <type_traits>
-#include <limits.h>
 #include <cmath>
-#include <ostream>
+#include <concepts>
 #include <iostream>
-#include <ck/utility/data_type.hpp>
-#include <ck/utility/sequence.hpp>
-#include <ck/utility/blkgemmpipe_scheduler.hpp>
-#include <ck/utility/loop_scheduler.hpp>
-#include <ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp>
-#include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
-#include <ck_tile/ops/common/tensor_layout.hpp>
-#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
+#include <limits.h>
+#include <ostream>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/pipeline_enum.hpp"
+#include "ck/utility/scheduler_enum.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck_tile/core/container/tuple.hpp"
+#include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/float8.hpp"
+#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/ops/grouped_convolution/utils/convolution_specialization.hpp"
+#include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
 
 namespace ck_tile::reflect::detail {
 
@@ -38,7 +44,7 @@ namespace impl {
 template <typename T>
 consteval std::string_view type_name_impl()
 {
-    if constexpr(std::is_same_v<T, ck::half_t>)
+    if constexpr(std::is_same_v<T, ck::half_t> || std::is_same_v<T, ck_tile::half_t>)
         return "fp16";
     else if constexpr(std::is_same_v<T, float>)
         return "fp32";
@@ -50,11 +56,11 @@ consteval std::string_view type_name_impl()
         return "s8";
     else if constexpr(std::is_same_v<T, int32_t>)
         return "s32";
-    else if constexpr(std::is_same_v<T, ck::bhalf_t>)
+    else if constexpr(std::is_same_v<T, ck::bhalf_t> || std::is_same_v<T, ck_tile::bf16_t>)
         return "bf16";
-    else if constexpr(std::is_same_v<T, ck::f8_t>)
+    else if constexpr(std::is_same_v<T, ck::f8_t> || std::is_same_v<T, ck_tile::fp8_t>)
         return "fp8";
-    else if constexpr(std::is_same_v<T, ck::bf8_t>)
+    else if constexpr(std::is_same_v<T, ck::bf8_t> || std::is_same_v<T, ck_tile::bf8_t>)
         return "bf8";
     else
         return std::string_view{}; // Return empty for supported types
@@ -168,6 +174,17 @@ constexpr std::string_view pipeline_scheduler_name(ck::BlockGemmPipelineSchedule
     }
 }
 
+constexpr std::string_view pipeline_scheduler_name(ck_tile::GemmPipelineScheduler sched)
+{
+    using enum ck_tile::GemmPipelineScheduler;
+    switch(sched)
+    {
+    case Default: return "Default";
+    case Intrawave: return "Intrawave";
+    case Interwave: return "Interwave";
+    }
+}
+
 // Convert BlockGemmPipelineVersion enum to string
 constexpr std::string_view pipeline_version_name(ck::BlockGemmPipelineVersion ver)
 {
@@ -203,6 +220,26 @@ constexpr std::string_view loop_scheduler_name(ck::LoopScheduler sched)
     {
     case Default: return "Default";
     case Interwave: return "Interwave";
+    }
+}
+
+// Convert TailNumber enum to string
+constexpr std::string_view tail_number_name(ck_tile::TailNumber tail_num)
+{
+    using enum ck_tile::TailNumber;
+    switch(tail_num)
+    {
+    case Odd: return "Odd";
+    case Even: return "Even";
+    case One: return "One";
+    case Two: return "Two";
+    case Three: return "Three";
+    case Four: return "Four";
+    case Five: return "Five";
+    case Six: return "Six";
+    case Seven: return "Seven";
+    case Empty: return "Empty";
+    case Full: return "Full";
     }
 }
 
@@ -356,17 +393,53 @@ constexpr std::string tuple_name()
     }(static_cast<T*>(nullptr));
 }
 
+template <typename T>
+    requires requires { []<typename... Ts>(ck_tile::tuple<Ts...>*) {}(static_cast<T*>(nullptr)); }
+constexpr std::string tuple_name()
+{
+    return []<typename... Ts>(ck_tile::tuple<Ts...>*) constexpr {
+        if constexpr(sizeof...(Ts) == 0)
+        {
+            return std::string("EmptyTuple");
+        }
+        else if constexpr((IsLayoutType<Ts> && ...))
+        {
+            // Lambda wrapper for layout_name
+            auto layout_name_fn = []<typename U>() { return layout_name<U>(); };
+            return detail::build_list_string<decltype(layout_name_fn), Ts...>("tuple",
+                                                                              layout_name_fn);
+        }
+        else if constexpr((IsDataType<Ts> && ...))
+        {
+            // Lambda wrapper for type_name
+            auto type_name_fn = []<typename U>() { return type_name<U>(); };
+            return detail::build_list_string<decltype(type_name_fn), Ts...>("tuple", type_name_fn);
+        }
+        else
+        {
+            static_assert((IsLayoutType<Ts> && ...) || (IsDataType<Ts> && ...),
+                          "tuple elements must be all layouts or all data types, not mixed");
+            return std::string{}; // unreachable
+        }
+    }(static_cast<T*>(nullptr));
+}
+
 // Concept to check if a type is a ck::Tuple
 template <typename T>
 concept IsCkTuple =
     requires { []<typename... Ts>(ck::Tuple<Ts...>*) {}(static_cast<T*>(nullptr)); };
+
+// Concept to check if a type is a ck_tile::tuple
+template <typename T>
+concept IsCkTileTuple =
+    requires { []<typename... Ts>(ck_tile::tuple<Ts...>*) {}(static_cast<T*>(nullptr)); };
 
 // Deduces whether to use tuple_name or type_name
 // Handles both scalar data types and ck::Tuple types
 template <typename T>
 constexpr std::string type_or_type_tuple_name()
 {
-    if constexpr(IsCkTuple<T>)
+    if constexpr(IsCkTuple<T> || IsCkTileTuple<T>)
     {
         return tuple_name<T>();
     }
