@@ -143,20 +143,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                      wei_device_result.mDesc.GetElementSpaceSize());
         wei_device_ref_buf.SetZero();
 
-        // Convert arrays to vectors for GPU reference API
-        std::vector<ck::index_t> in_lengths_vec(input_lengths.begin(), input_lengths.end());
-        std::vector<ck::index_t> in_strides_vec(input_strides.begin(), input_strides.end());
-        std::vector<ck::index_t> wei_lengths_vec(filter_lengths.begin(), filter_lengths.end());
-        std::vector<ck::index_t> wei_strides_vec(weights_strides.begin(), weights_strides.end());
-        std::vector<ck::index_t> out_lengths_vec(output_lengths.begin(), output_lengths.end());
-        std::vector<ck::index_t> out_strides_vec(output_strides.begin(), output_strides.end());
-        std::vector<ck::index_t> conv_strides_vec(conv_filter_strides.begin(),
-                                                  conv_filter_strides.end());
-        std::vector<ck::index_t> conv_dilations_vec(conv_filter_dilations.begin(),
-                                                    conv_filter_dilations.end());
-        std::vector<ck::index_t> input_pads_vec(input_left_pads.begin(), input_left_pads.end());
-
-        // Call new GPU reference function with lengths and strides
+        // Call GPU reference function with ConvParam and layout types
         using InLayout  = InputLayout<NDimSpatial>;
         using WeiLayout = WeightLayout<NDimSpatial>;
         using OutLayout = OutputLayout<NDimSpatial>;
@@ -173,16 +160,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
             reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
             reinterpret_cast<WeiDataType*>(wei_device_ref_buf.GetDeviceBuffer()),
             reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            in_lengths_vec,
-            in_strides_vec,
-            wei_lengths_vec,
-            wei_strides_vec,
-            out_lengths_vec,
-            out_strides_vec,
-            conv_strides_vec,
-            conv_dilations_vec,
-            input_pads_vec,
-            nullptr);
+            conv_param);
 
         HIP_CHECK_ERROR(hipDeviceSynchronize());
 
