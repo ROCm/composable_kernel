@@ -3,13 +3,9 @@
 
 #pragma once
 
-#include <iostream>
-#include <fstream>
-#include <iomanip>
-
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "gemm_streamk_benchmark.hpp"
+#include "gemm_preshuffle_benchmark.hpp"
 
 class GemmProfiler
 {
@@ -22,26 +18,28 @@ class GemmProfiler
 
     // Overload for single kernel benchmarking
     void benchmark(GemmProblem& gemm_problem,
-                   std::function<float(const ck_tile::StreamKHostArgs&,
-                                       const ck_tile::stream_config&)> kernel_func)
+                   std::function<float(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>
+                       kernel_func,
+                   KernelConfig& config)
     {
         // Create a vector with a single callable that returns both name and time
-        std::vector<std::function<std::tuple<std::string, float>(ck_tile::StreamKHostArgs&,
+        std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&,
                                                                  const ck_tile::stream_config&)>>
             callables;
 
         callables.push_back(
-            [kernel_func](ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& stream) {
+            [kernel_func](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {
                 float time = kernel_func(args, stream);
                 return std::make_tuple(std::string(KERNEL_NAME), time);
             });
 
-        benchmark(gemm_problem, callables);
+        benchmark(gemm_problem, callables, config);
     }
 
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
-                       ck_tile::StreamKHostArgs&, const ck_tile::stream_config&)>>& callables)
+                       ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables,
+                   KernelConfig& config)
     {
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
@@ -63,8 +61,8 @@ class GemmProfiler
 
         if(setting_.init_method_ == 0)
         {
-            ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+            ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_k_n);
         }
         else if(setting_.init_method_ == 1)
         {
@@ -73,8 +71,8 @@ class GemmProfiler
         }
         else if(setting_.init_method_ == 2)
         {
-            ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
-            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
+            ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n);
         }
         else
         {
@@ -82,51 +80,21 @@ class GemmProfiler
             b_k_n.SetZero();
         }
 
-        if(gemm_problem.structured_sparsity_)
-        {
-            ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
-        }
-
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
         ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
-        {
-            // Permute vector pk_i4x4 data for device implementation
-            ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-            // permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
-            permute_vectors_i4x4_b(b_k_n_dev);
-            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
-        }
-        else
-        {
-            b_k_n_dev_buf.ToDevice(b_k_n.data());
-        }
-
-        a_m_k_dev_buf.ToDevice(a_m_k.data());
-        c_m_n_dev_buf.SetZero();
-        c_m_n_dev_result.SetZero();
-
-        ck_tile::StreamKHostArgs gemm_args{a_m_k_dev_buf.GetDeviceBuffer(),
-                                           b_k_n_dev_buf.GetDeviceBuffer(),
-                                           c_m_n_dev_buf.GetDeviceBuffer(),
-                                           gemm_problem.m_,
-                                           gemm_problem.n_,
-                                           gemm_problem.k_,
-                                           gemm_problem.stride_a_,
-                                           gemm_problem.stride_b_,
-                                           gemm_problem.stride_c_};
-
-        ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
+        // Reference Verification
+        ck_tile::HostTensor<CDataType> c_m_n_ref(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
+        c_m_n_ref.SetZero();
 
         if(setting_.verify_)
         {
             gemm_host_reference(setting_.verify_,
                                 a_m_k,
                                 b_k_n,
-                                c_m_n_host_result,
+                                c_m_n_ref,
                                 a_m_k_dev_buf,
                                 b_k_n_dev_buf,
                                 gemm_problem.m_,
@@ -137,8 +105,45 @@ class GemmProfiler
                                 gemm_problem.stride_c_);
         }
 
-        for(auto& callable : callables)
+        // Kerenl Execution
+
+        a_m_k_dev_buf.ToDevice(a_m_k.data());
+        c_m_n_dev_buf.SetZero();
+        c_m_n_dev_result.SetZero();
+
+        for(const auto& callable : callables)
         {
+            ck_tile::index_t N_Warp_Tile = std::get<1>(config.warp_tile_dims);
+            ck_tile::index_t K_Warp_Tile = std::get<2>(config.warp_tile_dims);
+            ck_tile::index_t N_Tile      = std::get<1>(config.tile_dims);
+            ck_tile::index_t N_Warp      = std::get<1>(config.warp_dims);
+
+            ck_tile::HostTensor<BDataType> b_shuffle_host = [&]() {
+                if(config.permuteN)
+                {
+                    return shuffle_b_permuteN(b_k_n, N_Warp_Tile, K_Warp_Tile, N_Tile, N_Warp);
+                }
+                else
+                {
+                    return shuffle_b(b_k_n, N_Warp_Tile, K_Warp_Tile);
+                }
+            }();
+
+            b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
+
+            ck_tile::GemmHostArgs gemm_args = {
+                a_m_k_dev_buf.GetDeviceBuffer(),
+                b_k_n_dev_buf.GetDeviceBuffer(),
+                c_m_n_dev_buf.GetDeviceBuffer(),
+                gemm_problem.split_k_,
+                gemm_problem.m_,
+                gemm_problem.n_,
+                gemm_problem.k_,
+                gemm_problem.stride_a_,
+                gemm_problem.stride_b_,
+                gemm_problem.stride_c_,
+            };
+
             auto kernel_run_result = callable(gemm_args,
                                               ck_tile::stream_config{nullptr,
                                                                      true,
@@ -148,30 +153,21 @@ class GemmProfiler
                                                                      setting_.is_gpu_timer_,
                                                                      setting_.flush_cache_,
                                                                      setting_.rotating_count_});
-            process_result(gemm_problem,
-                           c_m_n_dev_buf,
-                           c_m_n_host_result,
-                           c_m_n_dev_result,
-                           kernel_run_result);
+
+            process_result(
+                gemm_problem, c_m_n_dev_buf, c_m_n_ref, c_m_n_dev_result, kernel_run_result);
         }
     }
 
     void process_result(const GemmProblem& gemm_problem,
                         ck_tile::DeviceMem& c_m_n_dev_buf,
-                        ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                        ck_tile::HostTensor<CDataType>& c_m_n_ref,
                         ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                         const std::tuple<std::string, float>& kernel_run_result)
     {
         auto [name, avg_time] = kernel_run_result;
-        auto dp_persistent =
-            SelectedKernel::UsePersistentKernel ? "PersistentKernel" : "NonPersistentKernel";
-        auto reduction_strategy =
-            SelectedKernel::reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic
-                ? "Atomic"
-                : "Reduction";
 
-        KernelInstance kernel_instance{
-            name, dp_persistent, reduction_strategy, gemm_problem, {-1.0f, -1.0f, -1.0f}};
+        KernelInstance kernel_instance{name, gemm_problem, {-1.0f, -1.0f, -1.0f}};
 
         // compute performance metric
         std::size_t flop     = std::size_t(2) * gemm_problem.m_ * gemm_problem.n_ * gemm_problem.k_;
@@ -191,10 +187,10 @@ class GemmProfiler
 
         // verify result
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+
         bool verified_correct =
             !setting_.verify_ ||
-            compare(
-                name, gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_host_result);
+            compare(name, gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_ref);
 
         if(verified_correct)
         {
@@ -250,15 +246,13 @@ class GemmProfiler
                     file << "rocm_version,device_name,"
                          << "split_k,m,n,k,stride_a,stride_b,stride_c,"
                          << "dtype_a,dtype_b,dtype_acc,dtype_c," << "layout_a,layout_b,layout_c,"
-                         << "structured_sparsity," << "dp_persistent," << "reduction_strategy,"
-                         << "name," << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
+                         << "structured_sparsity," << "name,"
+                         << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
                 }
 
-                const auto& problem            = kernel_instance.problem_;
-                const auto& name               = kernel_instance.name_;
-                const auto& dp_persistent      = kernel_instance.dp_persistent_;
-                const auto& reduction_strategy = kernel_instance.reduction_strategy_;
-                const auto& perf               = kernel_instance.perf_result_;
+                const auto& problem = kernel_instance.problem_;
+                const auto& name    = kernel_instance.name_;
+                const auto& perf    = kernel_instance.perf_result_;
 
                 file << get_rocm_version() << "," << ck_tile::get_device_name() << ","
                      << problem.split_k_ << "," << problem.m_ << "," << problem.n_ << ","
@@ -266,8 +260,7 @@ class GemmProfiler
                      << problem.stride_c_ << "," << problem.dtype_a_ << "," << problem.dtype_b_
                      << "," << problem.dtype_acc_ << "," << problem.dtype_c_ << ","
                      << problem.layout_a_ << "," << problem.layout_b_ << "," << problem.layout_c_
-                     << "," << problem.structured_sparsity_ << "," << dp_persistent << ","
-                     << reduction_strategy << "," << name << "," << std::fixed
+                     << "," << problem.structured_sparsity_ << "," << name << "," << std::fixed
                      << std::setprecision(4) << perf.latency_ << "," << std::fixed
                      << std::setprecision(4) << perf.tflops_ << "," << std::fixed
                      << std::setprecision(4) << perf.bandwidth_ << "," << get_metric_name(metric)
