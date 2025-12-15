@@ -628,6 +628,7 @@ def cmake_build(Map conf=[:]){
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
             sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${check_arch_name()}.json"
             archiveArtifacts "ck_build_trace_${check_arch_name()}.json"
+            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${check_arch_name()}.json"
             if (params.NINJA_BUILD_TRACE || params.BUILD_INSTANCES_ONLY){
                 if (params.NINJA_FTIME_TRACE) {
                     echo "running ClangBuildAnalyzer"
