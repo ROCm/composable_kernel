@@ -391,25 +391,18 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
 
-    if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped ||
-                 QuantMode == ck_tile::QuantType::BQuantGrouped)
-    {
-        if(K % QuantGroupSize::kK != 0)
-        {
-            throw std::runtime_error(
-                "K must be aligned with QuantGroupSize for AQuantGrouped/BQuantGrouped mode");
-        }
-    }
     ck_tile::index_t AQK, BQK, BQN = 0;
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
     {
-        AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
-        BQK = 0;                      // No B quantization
+        AQK = ck_tile::integer_divide_ceil(
+            K, QuantGroupSize::kK); // Group quantization: AQK = K / GroupSize
+        BQK = 0;                    // No B quantization
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
-        AQK = 0;                      // No A quantization
-        BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
+        AQK = 0; // No A quantization
+        BQK = ck_tile::integer_divide_ceil(
+            K, QuantGroupSize::kK); // Group quantization: BQK = K / GroupSize
         BQN = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||

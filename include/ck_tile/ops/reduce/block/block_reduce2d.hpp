@@ -425,7 +425,7 @@ struct BlockReduce2dCrossWarpSync
 
         if constexpr(num_reduce_warps == 1)
             return;
-
+        block_sync_lds();
         // Each warp's lane 0 writes its partial results to shared memory
         const index_t smem_offset = warp_id;
         if(lane_id == 0)

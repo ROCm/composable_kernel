@@ -7,46 +7,46 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 
-struct GemmConfigBase
+struct GemmConfigurationBase
 {
-    static constexpr bool kPadM = true;
-    static constexpr bool kPadN = true;
-    static constexpr bool kPadK = true;
+    static constexpr bool PAD_M = true;
+    static constexpr bool PAD_N = true;
+    static constexpr bool PAD_K = true;
 
-    static constexpr bool PermuteA = false;
-    static constexpr bool PermuteB = false;
+    static constexpr bool PERMUTE_A = false;
+    static constexpr bool PERMUTE_B = false;
 
-    static constexpr bool TransposeC            = false;
-    static constexpr bool UseStructuredSparsity = false;
+    static constexpr bool TRANSPOSE_C             = false;
+    static constexpr bool USE_STRUCTURED_SPARSITY = false;
 
-    static constexpr int kBlockPerCu                = 1;
-    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
-    static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool Preshuffle                = false;
-    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr int BLOCK_PER_CU                 = 1;
+    static constexpr auto SCHEDULER                   = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr ck_tile::index_t NUM_WAVE_GROUPS = 1;
+    static constexpr bool PRESHUFFLE                  = false;
+    static constexpr bool DOUBLE_SMEM_BUFFER          = false;
 };
 
-template <typename PrecType, bool Persistent_>
-struct GemmConfigMemoryInterwave : public GemmConfigBase
+template <typename PrecisionType, bool IsPersistent>
+struct GemmConfigurationMemoryInterwave : public GemmConfigurationBase
 {
-    static constexpr ck_tile::index_t M_Tile = 256;
-    static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 16;
+    static constexpr ck_tile::index_t M_TILE = 256;
+    static constexpr ck_tile::index_t N_TILE = 256;
+    static constexpr ck_tile::index_t K_TILE = 16;
 
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
-    static constexpr ck_tile::index_t K_Warp = 1;
+    static constexpr ck_tile::index_t M_WARP = 2;
+    static constexpr ck_tile::index_t N_WARP = 2;
+    static constexpr ck_tile::index_t K_WARP = 1;
 
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
+    static constexpr ck_tile::index_t M_WARP_TILE = 32;
+    static constexpr ck_tile::index_t N_WARP_TILE = 32;
+    static constexpr ck_tile::index_t K_WARP_TILE = sizeof(PrecisionType) == 2 ? 8 : 16;
 
-    static constexpr bool Persistent = Persistent_;
-    static constexpr auto Scheduler  = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr bool PERSISTENT = IsPersistent;
+    static constexpr auto SCHEDULER  = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
 template <typename ADataType_, typename BDataType_ = ADataType_, typename CDataType_ = ADataType_>
-struct StreamKGemmTypeConfig
+struct StreamKGemmTypeConfiguration
 {
     using ADataType   = ADataType_;
     using BDataType   = BDataType_;
@@ -54,7 +54,7 @@ struct StreamKGemmTypeConfig
     using CDataType   = CDataType_;
 };
 
-auto create_args(int argc, char* argv[])
+auto createArgs(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m", "512", "m dimension")

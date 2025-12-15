@@ -24,10 +24,12 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     target_compile_options(test_tile_gemm_quant_bquant PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
     # BQuant tests (with PreshuffleB)
-    add_gtest_executable(test_tile_gemm_quant_bquant_preshuffle 
-        test_gemm_quant_bquant_preshuffle.cpp
-    )
-    target_compile_options(test_tile_gemm_quant_bquant_preshuffle PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+    # disabling this test until it can be built within reasonable time!
+    # currently taking ~50 minutes on gfx12!
+    #add_gtest_executable(test_tile_gemm_quant_bquant_preshuffle
+    #    test_gemm_quant_bquant_preshuffle.cpp
+    #)
+    #target_compile_options(test_tile_gemm_quant_bquant_preshuffle PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
     # RowColQuant tests
     add_gtest_executable(test_tile_gemm_quant_rowcol 
