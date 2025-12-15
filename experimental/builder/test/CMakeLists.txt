@@ -78,7 +78,8 @@ add_ck_builder_test(test_ckb_conv_builder
     test_fwd_instance_traits.cpp
     test_bwd_data_instance_traits.cpp
     test_instance_traits_util.cpp
-
+    unit_device_buffer.cpp
+    unit_tensor_descriptor.cpp
     unit_conv_elementwise_op.cpp
     unit_conv_tensor_layout.cpp
     unit_conv_tensor_type.cpp
@@ -144,8 +145,8 @@ add_ck_builder_test(test_ckb_build_fwd_instances
     conv/ck/test_ckb_conv_fwd_3d_fp32.cpp
     conv/ck_tile/test_ckb_conv_fwd_2d_fp16_v3.cpp
     conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
-    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp
-    )
+    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp)
+target_link_libraries(test_ckb_build_fwd_instances PRIVATE utility)
 
 
 ################################################################################
