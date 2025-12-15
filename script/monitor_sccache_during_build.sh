@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # Continuous monitoring script for sccache during builds
 # Usage: ./monitor_sccache_during_build.sh [log_prefix] &
 
