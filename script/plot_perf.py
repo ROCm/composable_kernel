@@ -100,15 +100,46 @@ def parse_times(input_file):
     
     return cmd_time_dict
 
+class DeviceInfo:
+    def __init__(self, device_type, peak_int8_tflops, peak_fp16_tflops, peak_bandwidth):
+        self.device_type = device_type
+        self.peak_int8_tflops = peak_int8_tflops
+        self.peak_fp16_tflops = peak_fp16_tflops
+        self.peak_bandwidth = peak_bandwidth  # in TB/s
+
+mi300x_device = DeviceInfo(
+    device_type="MI300X",
+    peak_int8_tflops=2614.9,
+    peak_fp16_tflops=1307.4,
+    peak_bandwidth=5.3  # HBM bandwidth 5.3 TB/s
+)
+
+rx9070xt_device = DeviceInfo(
+    device_type="RX9070XT",
+    peak_int8_tflops=779.0,
+    peak_fp16_tflops=195.0,
+    peak_bandwidth=0.705  # GDDR bandwidth 0.705 TB/s
+)
+
+def get_ridge_point(device_type, data_type):
+    if device_type == "MI300X":
+        if data_type == "int8":
+            return mi300x_device.peak_int8_tflops / mi300x_device.peak_bandwidth
+        elif data_type == "fp16":
+            return mi300x_device.peak_fp16_tflops / mi300x_device.peak_bandwidth
+    elif device_type == "RX9070XT":
+        if data_type == "int8":
+            return rx9070xt_device.peak_int8_tflops / rx9070xt_device.peak_bandwidth
+        elif data_type == "fp16":
+            return rx9070xt_device.peak_fp16_tflops / rx9070xt_device.peak_bandwidth
+    else:
+        raise ValueError(f"Unsupported device type: {device_type}")
+
 def plot_roofline(times_int8, times_fp16, output_file, device_type):
     if device_type == "MI300X":
-        peak_int8_tflops = 2614.9
-        peak_fp16_tflops = 1307.4
-        peak_bandwidth = 5.3  # HBM bandwidth 5.3 TB/s
+        dev_info = mi300x_device
     elif device_type == "RX9070XT":
-        peak_int8_tflops = 779.0
-        peak_fp16_tflops = 195.0
-        peak_bandwidth = 0.705  # GDDR bandwidth 0.705 TB/s
+        dev_info = rx9070xt_device
     else:
         raise ValueError(f"Unsupported device type: {device_type}")
 
@@ -126,8 +157,8 @@ def plot_roofline(times_int8, times_fp16, output_file, device_type):
 
     plt.figure(figsize=(10, 6))
     ai = np.logspace(-1, 4, 100)
-    int8_perf = np.minimum(peak_int8_tflops, ai * peak_bandwidth)
-    fp16_perf = np.minimum(peak_fp16_tflops, ai * peak_bandwidth)
+    int8_perf = np.minimum(dev_info.peak_int8_tflops, ai * dev_info.peak_bandwidth)
+    fp16_perf = np.minimum(dev_info.peak_fp16_tflops, ai * dev_info.peak_bandwidth)
     plt.loglog(ai, int8_perf, label='int8 Roofline', color='blue')
     plt.loglog(ai, fp16_perf, label='fp16 Roofline', color='orange')
 
@@ -182,6 +213,16 @@ def plot_perf(times_int8, times_fp16, output_file, device_type):
                          cmap='RdBu_r', s=100, alpha=0.8, 
                          vmin=-50, vmax=50, edgecolors='black', linewidth=0.5)
     
+    # Get ridge points and plot them as horizontal lines
+    int8_ridge_ai = get_ridge_point(device_type, "int8")
+    fp16_ridge_ai = get_ridge_point(device_type, "fp16")
+    plt.axhline(y=int8_ridge_ai, color='blue', linestyle='--', xmax=100, label='int8 ridge point')
+    plt.axhline(y=fp16_ridge_ai, color='orange', linestyle='--', xmax=100, label='fp16 ridge point')
+
+    ## Add legend for ridge points
+    plt.text(n_samples*0.6, int8_ridge_ai*1.1, 'int8 mem bound → comp bound transition', color='blue')
+    plt.text(n_samples*0.6, fp16_ridge_ai*1.1, 'fp16 mem bound → comp bound transition', color='orange')
+
     plt.colorbar(scatter, label='Speedup (%)')
     plt.yscale('log')
     plt.title(title)
@@ -203,7 +244,7 @@ def main():
   if not os.path.exists(output_base_dir):
     os.makedirs(output_base_dir)
 
-  output_plot_file = f"navi_perf_int8_vs_fp16_{args.label}.png" if args.label else "navi_perf_int8_vs_fp16.png" 
+  output_plot_file = f"perf_int8_vs_fp16_{args.label}.png" if args.label else "navi_perf_int8_vs_fp16.png" 
   output_path = os.path.join(output_base_dir, output_plot_file)
   plot_perf(times_int8, times_fp16, output_path, args.device_type)
 
