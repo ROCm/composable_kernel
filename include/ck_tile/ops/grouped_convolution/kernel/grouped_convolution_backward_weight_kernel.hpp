@@ -1005,7 +1005,7 @@ struct GroupedConvolutionBackwardWeightKernel
 
             if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
-                __shared__ char smem_ptr_1[GetSmemSize()];
+                __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
                 if constexpr(!(EpiloguePipeline::MemoryOperation ==
                                    memory_operation_enum::atomic_add &&
                                GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
