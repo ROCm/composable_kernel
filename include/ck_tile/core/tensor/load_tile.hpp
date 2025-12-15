@@ -48,19 +48,26 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
  *       and an elementwise function. For each A = A0, A1… AN, the elementwise function
  *       is additionally applied during a single read.
  */
-template <typename... TileWindow_,
+template <typename FirstTileWindow_,
+          typename... RestTileWindow_,
           typename ElementWise_,
+          typename DstDataType_      = typename FirstTileWindow_::Base::DataType,
           index_t i_access           = -1,
           bool oob_conditional_check = true>
-CK_TILE_DEVICE auto load_tile_with_elementwise(const ck_tile::tuple<TileWindow_...>& tile_windows,
-                                               ElementWise_ elementwise,
-                                               number<i_access>                     = {},
-                                               bool_constant<oob_conditional_check> = {})
+CK_TILE_DEVICE auto
+load_tile_with_elementwise(const ck_tile::tuple<FirstTileWindow_, RestTileWindow_...>& tile_windows,
+                           ElementWise_ elementwise,
+                           DstDataType_                         = {},
+                           number<i_access>                     = {},
+                           bool_constant<oob_conditional_check> = {})
 {
     // TODO: Tile windows should work with unknown number of params
     // Load element_wise API works only when the input type is a tuple-type
-    return tile_windows[number<0>{}].load(
-        tile_windows, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
+    return tile_windows[number<0>{}].load(tile_windows,
+                                          elementwise,
+                                          DstDataType_{},
+                                          number<i_access>{},
+                                          bool_constant<oob_conditional_check>{});
 }
 
 // Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.

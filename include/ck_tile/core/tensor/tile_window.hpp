@@ -184,15 +184,17 @@ struct tile_window_with_static_distribution
      */
     template <typename... TileWindow_,
               typename ElementWise_,
+              typename DstDataType_,
               index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true>
     CK_TILE_DEVICE auto load(const ck_tile::tuple<TileWindow_...>& tile_windows,
                              ElementWise_ elementwise,
+                             DstDataType_                         = {},
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
         constexpr auto tile_dstr = typename Base::TileDstr{};
-        auto dst_tensor = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
+        auto dst_tensor          = make_static_distributed_tensor<DstDataType_>(tile_dstr);
         load(dst_tensor,
              tile_windows,
              elementwise,
@@ -208,7 +210,7 @@ struct tile_window_with_static_distribution
               bool oob_conditional_check  = true>
     CK_TILE_DEVICE void load(DistributedTensor& dst_tensor,
                              const ck_tile::tuple<TileWindow_...>& tile_windows,
-                             ElementWise_ elementwise,
+                             ElementWise_ elementwise             = {},
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
