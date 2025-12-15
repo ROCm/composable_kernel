@@ -1,4 +1,4 @@
-// Copyright (c) advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -27,10 +27,6 @@ void init_tensor_buffer_uniform_int(const DeviceBuffer& buf,
 {
     size_t size = descriptor.get_element_space_size_in_bytes();
 
-    if(size % sizeof(DT) != 0)
-    {
-        throw std::runtime_error("size must be a multiple of datatype size");
-    }
     if(max_val - min_val <= 1)
     {
         throw std::runtime_error("Error while filling device tensor with random integer data: max "
