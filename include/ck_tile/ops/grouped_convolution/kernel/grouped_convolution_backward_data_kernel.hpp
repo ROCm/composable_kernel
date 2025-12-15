@@ -624,7 +624,7 @@ struct GroupedConvolutionBackwardDataKernel
     IsSupportedArgument(const GroupedConvBwdDataKernelArgsSpecialized& kargs)
     {
         if constexpr(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                      is_any_of<OutDataType, fp16_t, bf16_t>::value)
+                     is_any_of<OutDataType, fp16_t, bf16_t>::value)
         {
             if(kargs.k_batch != 1)
             {
@@ -904,13 +904,12 @@ struct GroupedConvolutionBackwardDataKernel
                 a_ptr, b_ptr, ds_ptr, c_ptr, kargs, group_id);
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
 
-        const index_t num_loop =
-            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitted_k));
-        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
+        const index_t num_loop  = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitted_k));
+        const bool has_hot_loop = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
-        auto gemm_tile_windows = MakeGemmTileWindows(
-            gemm_pad_views, block_idx_m, block_idx_n, block_idx_k);
+        auto gemm_tile_windows =
+            MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, block_idx_k);
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window = gemm_tile_windows.at(I0);
@@ -961,12 +960,11 @@ struct GroupedConvolutionBackwardDataKernel
                 a_ptr, b_ptr, ds_ptr, c_ptr, kargs, group_id);
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
 
-        const index_t num_loop =
-            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitted_k));
-        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
+        const index_t num_loop  = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitted_k));
+        const bool has_hot_loop = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
-        auto gemm_tile_windows    = MakeGemmTileWindows(
-            gemm_pad_views, block_idx_m, block_idx_n, block_idx_k);
+        auto gemm_tile_windows =
+            MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, block_idx_k);
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window = gemm_tile_windows.at(I0);
@@ -1055,8 +1053,8 @@ struct GroupedConvolutionBackwardDataKernel
         const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
         const index_t KRead = amd_wave_read_first_lane((gemm_k + K_t - 1) / K_t * K1);
 
-        const index_t i_k = amd_wave_read_first_lane(split_k_idx * KRead);
-        const index_t splitted_k  = amd_wave_read_first_lane(KRead);
+        const index_t i_k        = amd_wave_read_first_lane(split_k_idx * KRead);
+        const index_t splitted_k = amd_wave_read_first_lane(KRead);
 
         // options
         // conv_bwd_data = Out * Weight = In
