@@ -73,34 +73,10 @@ if(DL_KERNELS)
 endif()
 
 list(APPEND GROUPED_CONV2D_BWD_WEIGHT
-        wmma/gnhwc_gkyxc_gnhwk/device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_instance.cpp
-        wmma/gnhwc_gkyxc_gnhwk/device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_f16_default_pipev1_instance.cpp
-        wmma/gnhwc_gkyxc_gnhwk/device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_f16_pad0_pipev1_instance.cpp
-        wmma/gnhwc_gkyxc_gnhwk/device_grouped_conv2d_bwd_weight_wmma_gnhwc_gkyxc_gnhwk_f16_instance.cpp
-
-        wmma/ngchw_gkcyx_ngkhw/device_grouped_conv2d_bwd_weight_wmma_ngchw_gkcyx_ngkhw_f16_instance.cpp
-        wmma/ngchw_gkcyx_ngkhw/device_grouped_conv2d_bwd_weight_wmma_ngchw_gkcyx_ngkhw_bf16_instance.cpp
-        wmma/ngchw_gkcyx_ngkhw/device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkcyx_ngkhw_f16_pipev1_instance.cpp
-        wmma/ngchw_gkcyx_ngkhw/device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkcyx_ngkhw_f16_pipev1_part2_instance.cpp
-        wmma/ngchw_gkcyx_ngkhw/device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkcyx_ngkhw_bf16_pipev1_instance.cpp
-        wmma/ngchw_gkcyx_ngkhw/device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkcyx_ngkhw_bf16_pipev1_part2_instance.cpp
-
-        wmma/ngchw_gkyxc_ngkhw/device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkyxc_ngkhw_f16_pipev1_instance.cpp
-        wmma/ngchw_gkyxc_ngkhw/device_grouped_conv2d_bwd_weight_two_stage_wmma_ngchw_gkyxc_ngkhw_bf16_pipev1_instance.cpp
-
         wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
-        wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_default_pipev1_instance.cpp
-        wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_pad0_pipev1_instance.cpp
         wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_bf16_pipev1_instance.cpp
-        wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_bf16_pipev1_part2_instance.cpp
-        wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_bf16_pipev1_irregular_instance.cpp
-        wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_f32_bf16_instance.cpp
         wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_instance.cpp
-        wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_default_pipev1_instance.cpp
-        wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_pad0_pipev1_instance.cpp
         wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_pipev1_instance.cpp
-        wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_pipev1_part2_instance.cpp
-        wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_pipev1_irregular_instance.cpp
         )
 
 add_instance_library(device_grouped_conv2d_bwd_weight_instance ${GROUPED_CONV2D_BWD_WEIGHT})

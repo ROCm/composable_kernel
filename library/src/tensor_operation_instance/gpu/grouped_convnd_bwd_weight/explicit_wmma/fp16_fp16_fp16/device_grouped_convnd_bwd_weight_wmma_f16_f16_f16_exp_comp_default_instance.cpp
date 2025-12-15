@@ -32,7 +32,7 @@ void add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_comp_default_inst
         PassThrough,
         PassThrough,
         PassThrough,
-        device_gemm_wmma_universal_km_kn_mn_comp_instances<F16, GemmDefault>>(instances);
+        device_gemm_wmma_universal_km_kn_mn_GemmDefault_instances<F16>>(instances);
 }
 
 void add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_comp_default_instances(
@@ -58,7 +58,7 @@ void add_device_grouped_convnd_bwd_weight_wmma_f16_f16_f16_exp_comp_default_inst
         PassThrough,
         PassThrough,
         PassThrough,
-        device_gemm_wmma_universal_km_kn_mn_comp_instances<F16, GemmDefault>>(instances);
+        device_gemm_wmma_universal_km_kn_mn_GemmDefault_instances<F16>>(instances);
 }
 
 } // namespace instance
