@@ -159,7 +159,17 @@ struct TensorDescriptor
     /// @see get_lengths()
     Sizes get_strides() const { return Sizes(inner_descriptor_.get_strides()); }
 
-    /// @brief Compute total tensor size in elements.
+    /// @brief Compute conceptual tensor size in elements.
+    ///
+    /// This function returns the size of the tensor in elements. This function only
+    /// takes the lengths into account, not the strides. In order to allocate memory
+    /// for the tensor, use `get_element_space_size()`.
+    ///
+    /// @see get_lengths
+    /// @see get_element_space_size
+    size_t get_element_size() const { return inner_descriptor_.get_element_size(); }
+
+    /// @brief Compute total tensor space size in elements.
     ///
     /// This function returns the total size of the memory backing a tensor with
     /// this descriptor in *elements*, including required extra size for strides.
