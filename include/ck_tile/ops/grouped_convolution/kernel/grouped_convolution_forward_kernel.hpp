@@ -1181,7 +1181,7 @@ struct GroupedConvolutionForwardKernel
 
             if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
-                __shared__ char smem_ptr_1[GetSmemSize()];
+                __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
                 if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                                is_any_of<OutDataType, fp16_t, bf16_t>::value))
                 {

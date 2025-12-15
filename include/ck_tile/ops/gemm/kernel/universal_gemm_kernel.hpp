@@ -1093,7 +1093,7 @@ struct UniversalGemmKernel
 
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            __shared__ char smem_ptr_1[GetSmemSize()];
+            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
             RunGemm2LDS(as_ptr,
                         bs_ptr,
                         kargs.ds_ptr,
@@ -1169,7 +1169,7 @@ struct UniversalGemmKernel
             // Run the GEMM
             if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
-                __shared__ char smem_ptr_1[GetSmemSize()];
+                __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
                 RunGemm2LDS(as_ptr,
                             bs_ptr,
                             kargs.ds_ptr,

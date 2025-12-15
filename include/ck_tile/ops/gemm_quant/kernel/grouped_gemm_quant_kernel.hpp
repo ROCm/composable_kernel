@@ -325,7 +325,7 @@ struct QuantGroupedGemmKernel
                      kQuantType == QuantType::BQuantGrouped)
         {
 
-            __shared__ char smem_ptr_1[GetSmemSize()];
+            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
             RunGemmWithPipelineSelection2LDS(a_ptr,
                                              b_ptr,
                                              aq_ptr,
