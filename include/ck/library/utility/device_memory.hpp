@@ -91,13 +91,6 @@ void DeviceMem::FillUniformRandFp(float min_value, float max_value)
         throw std::runtime_error("wrong! not entire DeviceMem will be filled");
     }
 
-    if(std::nextafter(min_value, max_value) >= max_value)
-    {
-        // nextafter is not defined for non-standard data types, skip test for now
-        // throw std::runtime_error("Error while filling device tensor with random integer data:
-        // insufficient precision in specified range");
-    }
-
     size_t packed_size = packed_size_v<T>;
     fill_tensor_uniform_rand_fp_values<<<256, 256>>>(
         static_cast<T*>(mpDeviceBuf), min_value, max_value, (mMemSize * packed_size) / sizeof(T));
@@ -106,10 +99,6 @@ void DeviceMem::FillUniformRandFp(float min_value, float max_value)
 template <typename T>
 void DeviceMem::FillNormalRandFp(float sigma, float mean)
 {
-    if(mMemSize % sizeof(T) != 0)
-    {
-        throw std::runtime_error("wrong! not entire DeviceMem will be filled");
-    }
 
     fill_tensor_norm_rand_fp_values<<<256, 256>>>(
         static_cast<T*>(mpDeviceBuf), sigma, mean, mMemSize / sizeof(T));
