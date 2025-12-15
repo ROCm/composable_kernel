@@ -8,7 +8,6 @@ include(gtest)
 ################################################################################
 
 # Helper function to create a gtest executable with common properties
-# All builder tests share the same compilation settings and dependencies
 function(add_ck_tile_profiler_test test_name)
     add_executable(${test_name} ${ARGN})
     target_compile_features(${test_name} PRIVATE cxx_std_20)
@@ -48,10 +47,10 @@ add_custom_target(build-regression-ck-tile-profiler DEPENDS ${TILE_CONV_REGRESSI
 # Target to run only regression tests (builds and runs all regression test executables)
 # Use this before submitting changes to catch integration issues
 add_custom_target(regression-ck-tile-profiler
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "BUILDER_REGRESSION"
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "CK_TILE_PROFILER_REGRESSION"
     DEPENDS build-regression-ck-tile-profiler
     USES_TERMINAL
-    COMMENT "Running experimental builder regression tests..."
+    COMMENT "Running experimental ck tile conv profiler regression tests..."
 )
 
 message(STATUS "  Regression tests: ${TILE_CONV_REGRESSION_TESTS}")
