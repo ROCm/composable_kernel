@@ -386,18 +386,12 @@ class GemmKernelBuilder:
         }
 
         instance_code = self.populate_kernel_header(kernel_name)
-        instance_code += self.populate_kernel_dtype_layout(self.kernel_name_prefix)
+        instance_code += self.populate_kernel_dtype_layout()
         instance_code += self.populate_strut_begin(kernel_name)
         instance_code += self.populate_tile_config(tile_config)
-        instance_code += self.populate_trait_config(
-            self.kernel_name_prefix, trait_combo
-        )
-        instance_code += self.populate_initialization(
-            self.kernel_name_prefix, base_pipeline_map, pipeline
-        )
-        instance_code += self.populate_launch(
-            self.kernel_name_prefix,
-            scheduler_type_map,
+        instance_code += self.populate_trait_config(trait_combo)
+        instance_code += self.populate_initialization(base_pipeline_map, pipeline)
+        instance_code += self.populate_launch(scheduler_type_map,
             scheduler,
             pipeline_impl_map,
             pipeline,
@@ -700,7 +694,7 @@ struct SelectedKernel {{
             using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2")}<UniversalGemmProblem>;"""
 
         # Epilogue
-        instance_code += self.populate_epilogue(self.kernel_name_prefix, epilogue)
+        instance_code += self.populate_epilogue(epilogue)
 
         # Kernel type
         if self.kernel_name_prefix == "gemm_multi_d":

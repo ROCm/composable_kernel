@@ -56,12 +56,12 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
                     (
                         tile_config,
                         trait_combo,
+                        self.kernel_name_prefix,
                         self.working_path,
                         self.gpu_target,
                         self.datatype,
                         self.layout,
                         self.config_json,
-                        self.kernel_name_prefix,
                     )
                 )
         print(
@@ -124,17 +124,17 @@ def _generate_single_kernel_individual(work_item):
     (
         tile_config,
         trait_combo,
+        kernel_name_prefix,
         working_path,
         gpu_target,
         datatype,
         layout,
         config_json,
-        kernel_name_prefix,
     ) = work_item
 
     # Create a temporary builder instance for this worker
     builder = GemmUniversalKernelBuilder(
-        working_path, gpu_target, datatype, layout, config_json
+        kernel_name_prefix, working_path, gpu_target, datatype, layout, config_json
     )
 
     try:
@@ -226,6 +226,7 @@ def main():
     )
 
     kernel_name_prefix = "gemm_universal"
+    
     builder = GemmUniversalKernelBuilder(
         kernel_name_prefix,
         args.working_path,
