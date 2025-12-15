@@ -691,12 +691,12 @@ struct GroupedConvolutionBackwardWeightKernel
     }
 
     template <typename TensorView>
-    CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views, const index_t k_batch)
+    CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views)
     {
         const auto& a_pad_view = [&]() {
             const auto& a_tensor_view = views.at(I0);
             return pad_tensor_view(a_tensor_view,
-                                   make_tuple(number<TilePartitioner::KPerBlock>{} * k_batch,
+                                   make_tuple(number<TilePartitioner::KPerBlock>{},
                                               number<TilePartitioner::MPerBlock>{}),
                                    sequence<true, true>{});
         }();
@@ -704,7 +704,7 @@ struct GroupedConvolutionBackwardWeightKernel
         const auto& b_pad_view = [&]() {
             const auto& b_tensor_view = views.at(I1);
             return pad_tensor_view(b_tensor_view,
-                                   make_tuple(number<TilePartitioner::KPerBlock>{} * k_batch,
+                                   make_tuple(number<TilePartitioner::KPerBlock>{},
                                               number<TilePartitioner::NPerBlock>{}),
                                    sequence<true, true>{});
         }();
@@ -810,7 +810,7 @@ struct GroupedConvolutionBackwardWeightKernel
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
                 a_ptr, b_ptr, ds_ptr, c_ptr, kargs);
 
-        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple, kargs.k_batch);
+        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
             MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, block_idx_k);
 
@@ -860,7 +860,7 @@ struct GroupedConvolutionBackwardWeightKernel
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
                 a_ptr, b_ptr, ds_ptr, c_ptr, kargs);
-        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple, kargs.k_batch);
+        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
             MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, block_idx_k);
 
