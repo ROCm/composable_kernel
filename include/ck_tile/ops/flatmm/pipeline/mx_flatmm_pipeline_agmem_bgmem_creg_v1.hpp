@@ -23,7 +23,7 @@ template <typename ADataType_,
           bool BPreShufflePermute_              = false,
           typename ComputeDataType_             = ADataType_>
 struct MXFlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
-                                                       BDataType_,
+                                                       ADataType_,
                                                        CDataType_,
                                                        BlockGemmShape_,
                                                        Traits_,
@@ -470,31 +470,9 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         // __builtin_amdgcn_sched_barrier(0);
     }
 
-    template <typename... Args>
-    CK_TILE_DEVICE auto operator()(Args&&... args) const
-    {
-        auto c_warp_tensors = Run_(std::forward<Args>(args)...);
-
-        // Block GEMM Acc register tile
-        using CWarpDstr = typename WG::CWarpDstr;
-        constexpr auto c_warp_y_lengths =
-            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-        auto c_block_tile                   = BlockFlatmm{}.MakeCBlockTile();
-        static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                c_block_tile.set_y_sliced_thread_data(
-                    merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                    c_warp_tensors(mIter)(nIter).get_thread_buffer());
-            });
-        });
-        return c_block_tile;
-    }
-
     CK_TILE_HOST_DEVICE static constexpr auto GetADramTileDistribution()
     {
-        return PipelinePolicy::template MakeMX_ADramTileDistribution<Problem>();
+        return PipelinePolicy::template MakeADramTileDistribution<Problem>();
     }
 
     template <typename... Args>
@@ -706,7 +684,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         statically_indexed_array<decltype(load_tile(a_warp_window_pong)), m_preload> a_warp_tensor;
 
         // preload A00,A10... from lds
-        s_waitcnt_barrier</*vmcnt*/ Bload_num + ScaleAload_num + ScaleBload_num>();
+        s_waitcnt_barrier</*vmcnt*/ dswrite_num_perK>();
         static_for<0, m_preload, 1>{}([&](auto loadIter) {
             constexpr auto mIter = loadIter % MXdlPack;
             constexpr auto kIter = loadIter / MXdlPack;
@@ -908,15 +886,15 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
             HotLoopScheduler();
         };
 
-         if constexpr(HasHotLoop)
-         {
-             index_t iCounter = (num_loop - 1) / 2;
-             while(iCounter > 0)
-             {
-                 main_body_implx2();
-                 iCounter--;
-             }
-         }
+        if constexpr(HasHotLoop)
+        {
+            index_t iCounter = (num_loop - 1) / 2;
+            do
+            {
+                main_body_implx2();
+                iCounter--;
+            } while(iCounter > 0);
+        }
 
         // TAIL
         if constexpr(TailNum == TailNumber::Even)
