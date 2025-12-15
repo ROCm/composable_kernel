@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_universal_gemm_as_bs_cr.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 
@@ -35,10 +37,21 @@ struct UniversalGemmBasePolicy
 #if defined(__gfx950__)
     // The combination of pk_int4_t and transposed loading causes numerical errors.
     // Therefore do not use transposed loading in this case.
+    // Also, transpose load (ds_read_tr) requires specific tile distribution patterns
+    // that only work for certain K warp tile sizes based on data type size:
+    // - For 1-byte types (fp8/bf8): K warp tile <= 64
+    // - For 2-byte types (fp16/bf16): K warp tile <= 32
     template <typename Problem>
     static constexpr bool is_a_load_tr = []() {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using ADataType              = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType              = remove_cvref_t<typename Problem::BDataType>;
+        using WarpTile               = typename Problem::BlockGemmShape::WarpTile;
+        constexpr index_t kKWarpTile = WarpTile::at(number<2>{});
+        // Max K warp tile for transpose load based on data type size
+        constexpr index_t kMaxKWarpTile = (sizeof(ADataType) == 1) ? 64 : 32;
         if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
         else
             return std::is_same_v<remove_cvref_t<typename Problem::ALayout>,
@@ -47,8 +60,14 @@ struct UniversalGemmBasePolicy
 
     template <typename Problem>
     static constexpr bool is_b_load_tr = []() {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using BDataType              = remove_cvref_t<typename Problem::BDataType>;
+        using WarpTile               = typename Problem::BlockGemmShape::WarpTile;
+        constexpr index_t kKWarpTile = WarpTile::at(number<2>{});
+        // Max K warp tile for transpose load based on data type size
+        constexpr index_t kMaxKWarpTile = (sizeof(BDataType) == 1) ? 64 : 32;
         if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
         else
             return std::is_same_v<remove_cvref_t<typename Problem::BLayout>,
@@ -85,13 +104,12 @@ struct UniversalGemmBasePolicy
             return DefaultBTileAccessPattern;
     }
 
-    template <typename Problem>
+    template <typename Problem,
+              typename OverrideADataType = remove_cvref_t<typename Problem::ADataType>>
     CK_TILE_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
-        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-
-        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
+        using ALayout               = remove_cvref_t<typename Problem::ALayout>;
+        using ADataType             = OverrideADataType;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t KPack     = GetSmemPackA<Problem>();
@@ -285,8 +303,11 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        using BLayout   = remove_cvref_t<typename Problem::BLayout>;
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using BLayout = remove_cvref_t<typename Problem::BLayout>;
+        using BDataType =
+            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
+                               typename Problem::ADataType,
+                               typename Problem::BDataType>;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -527,7 +548,7 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem, bool IsWave32Host = false>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeA()
     {
         using AsLayout              = remove_cvref_t<typename Problem::AsLayoutTuple>;
         using AsDataType            = remove_cvref_t<typename Problem::AsDataTypeTuple>;
@@ -536,6 +557,11 @@ struct UniversalGemmBasePolicy
 
         using ALayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
         using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+
+        if constexpr(Problem::FixedVectorSize)
+        {
+            return Problem::VectorSizeA;
+        }
 
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -556,15 +582,23 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem, bool IsWave32Host = false>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeB()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeB()
     {
         using BsLayout              = remove_cvref_t<typename Problem::BsLayoutTuple>;
         using BsDataType            = remove_cvref_t<typename Problem::BsDataTypeTuple>;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        using BLayout               = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
+        using BInDataType           = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
 
-        using BLayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
-        using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+        using BDataType = std::conditional_t<std::is_same_v<BInDataType, pk_fp4_raw_t>,
+                                             typename Problem::ADataType,
+                                             typename Problem::BDataType>;
+
+        if constexpr(Problem::FixedVectorSize)
+        {
+            return Problem::VectorSizeB;
+        }
 
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -701,13 +735,17 @@ struct UniversalGemmBasePolicy
     {
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
+        constexpr index_t KPerBlock = std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>
+                                          ? Problem::BlockGemmShape::kK / 2
+                                          : Problem::BlockGemmShape::kK;
         constexpr index_t VecLoadSize =
-            Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>();
+            std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>
+                ? 4
+                : (Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>());
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
-
-        using BLayout = remove_cvref_t<
-            std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;
+        using BLayout                   = remove_cvref_t<
+                              std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -813,10 +851,12 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr index_t GetSmemSizeB()
     {
-        constexpr index_t smem_size_b =
-            integer_least_multiple(sizeof(typename Problem::BDataType) *
-                                       Problem::BlockGemmShape::kN * Problem::BlockGemmShape::kK,
-                                   16);
+        using BDataType =
+            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
+                               typename Problem::ADataType,
+                               typename Problem::BDataType>;
+        constexpr index_t smem_size_b = integer_least_multiple(
+            sizeof(BDataType) * Problem::BlockGemmShape::kN * Problem::BlockGemmShape::kK, 16);
         return smem_size_b;
     }
 
@@ -854,8 +894,10 @@ struct UniversalGemmPipelineAgBgCrPolicy
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
         using ATypeToUse =
             std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
-        using BTypeToUse =
-            std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
+        using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
+                                                  std::is_same_v<BDataType, pk_fp4_raw_t>,
+                                              ADataType,
+                                              BDataType>;
 
         using WarpGemm = WarpGemmDispatcher<ATypeToUse,
                                             BTypeToUse,

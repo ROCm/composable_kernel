@@ -19,6 +19,8 @@ template <typename ADataType_,
           GemmPipelineScheduler Scheduler_      = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                      = true,
           TailNumber TailNum_                   = TailNumber::Full,
+          amd_buffer_coherence_enum BMemNTType_ = amd_buffer_coherence_enum::coherence_default,
+          bool BPreShufflePermute_              = false,
           typename ComputeDataType_             = ADataType_>
 struct MXFlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
                                                        BDataType_,
@@ -28,6 +30,8 @@ struct MXFlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
                                                        Scheduler_,
                                                        HasHotLoop_,
                                                        TailNum_,
+                                                       BMemNTType_,
+                                                       BPreShufflePermute_,
                                                        ComputeDataType_>
 {
     using BlockGemmShape = BlockGemmShape_;
@@ -128,8 +132,8 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
     static constexpr index_t KXdlPack          = Problem::KXdlPack;
     static constexpr index_t ScaleGranularityK = Problem::ScaleGranularityK;
 
-    static constexpr index_t AK1 = 16 /*dwordx4*/ * APackedSize / sizeof(ADataType);
-    static constexpr index_t BK1 = 16 /*dwordx4*/ * BPackedSize / sizeof(BDataType);
+    static constexpr index_t AK1 = Problem::VectorLoadSize / sizeof(ADataType);
+    static constexpr index_t BK1 = Problem::VectorLoadSize / sizeof(BDataType);
 
     static constexpr index_t m_preload = (MIterPerWarp * KIterPerWarp >= DsReadPreload)
                                              ? DsReadPreload
@@ -493,6 +497,27 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         return PipelinePolicy::template MakeMX_ADramTileDistribution<Problem>();
     }
 
+    template <typename... Args>
+    CK_TILE_DEVICE auto operator()(Args&&... args) const
+    {
+        auto c_warp_tensors = Run_(std::forward<Args>(args)...);
+
+        // Block GEMM Acc register tile
+        using CWarpDstr = typename WG::CWarpDstr;
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+        auto c_block_tile                   = BlockFlatmm{}.MakeCBlockTile();
+        static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                c_block_tile.set_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                    c_warp_tensors(mIter)(nIter).get_thread_buffer());
+            });
+        });
+        return c_block_tile;
+    }
 
     template <typename ADramBlockWindowTmp,
               typename BFlatBlockWindowTmp,
@@ -523,17 +548,12 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
 
         using CWarpTensor = typename WG::CWarpTensor;
 
-        // auto a_dram_window =
-        //     make_tile_window(PipelinePolicy::template MakeMX_AAsyncLoadDramDescriptor<Problem>(
-        //                          a_copy_dram_window_tmp.get_bottom_tensor_view()),
-        //                      a_copy_dram_window_tmp.get_window_lengths(),
-        //                      a_copy_dram_window_tmp.get_window_origin(),
-        //                      PipelinePolicy::template MakeMX_ADramTileDistribution<Problem>());
-        auto a_dram_window = replace_bottom_tensor_view(
-            PipelinePolicy::template MakeMX_AAsyncLoadDramDescriptor<Problem>(
-            // PipelinePolicy::template Make_F8AAsyncLoadDramDescriptor<Problem>(
-                a_copy_dram_window_tmp.get_bottom_tensor_view()),
-            a_copy_dram_window_tmp);
+        auto a_dram_window =
+            make_tile_window(PipelinePolicy::template MakeMX_AAsyncLoadDramDescriptor<Problem>(
+                                 a_copy_dram_window_tmp.get_bottom_tensor_view()),
+                             a_copy_dram_window_tmp.get_window_lengths(),
+                             a_copy_dram_window_tmp.get_window_origin(),
+                             PipelinePolicy::template MakeMX_ADramTileDistribution<Problem>());
 
         __builtin_amdgcn_sched_barrier(0);
 
