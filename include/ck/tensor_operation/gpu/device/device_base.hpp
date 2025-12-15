@@ -8,8 +8,13 @@
 #include <sstream>
 #include <regex>
 #include <optional>
+#include <memory>
 
 #include "ck/stream_config.hpp"
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
+#endif
 #endif
 #include "ck/utility/get_id.hpp"
 
@@ -227,6 +232,12 @@ struct BaseOperator
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
     virtual std::string GetTypeString() const { return ""; }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    // Return a description object for this operator, or nullptr if not supported.
+    virtual std::unique_ptr<ck_tile::reflect::Description> describe() const { return nullptr; }
+#endif
+
     virtual std::string GetInstanceString() const { return ""; }
 
     virtual std::string GetTypeIdName() const { return typeid(*this).name(); }

@@ -5,6 +5,7 @@
 #include <gmock/gmock.h>
 #include <concepts>
 
+#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
 #include <ck_tile/builder/reflect/conv_traits.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp>
@@ -12,6 +13,12 @@
 
 namespace {
 
+using ck_tile::builder::ConvDirection;
+using ck_tile::builder::DataType;
+using ck_tile::builder::ElementwiseOperation;
+using ck_tile::builder::PipelineScheduler;
+using ck_tile::builder::PipelineVersion;
+using ck_tile::builder::TensorLayout;
 using ::testing::ElementsAre;
 
 // Test fixture for ConvTraits tests
@@ -84,15 +91,13 @@ TEST_F(ConvTraitsTest, ConvFwdTraitsExtraction)
 
     // Verify signature information
     EXPECT_EQ(Traits::spatial_dim, 2);
-    EXPECT_EQ(Traits::direction, ck_tile::builder::ConvDirection::FORWARD);
+    EXPECT_EQ(Traits::direction, ConvDirection::FORWARD);
     EXPECT_THAT(Traits::layout,
-                ::testing::ElementsAre(ck_tile::builder::TensorLayout::GNHWC,
-                                       ck_tile::builder::TensorLayout::GKYXC,
-                                       ck_tile::builder::TensorLayout::GNHWK));
-    EXPECT_EQ(Traits::data_type, ck_tile::builder::DataType::FP16);
-    EXPECT_EQ(Traits::input_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::weight_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::output_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
+                ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
+    EXPECT_EQ(Traits::data_type, DataType::FP16);
+    EXPECT_EQ(Traits::input_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(Traits::weight_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(Traits::output_element_op, ElementwiseOperation::PASS_THROUGH);
 
     // Verify specializations
     EXPECT_EQ(Traits::gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
@@ -145,8 +150,8 @@ TEST_F(ConvTraitsTest, ConvFwdTraitsExtraction)
     EXPECT_EQ(Traits::c_tile_transfer.scalar_per_vector, 8);
 
     // Verify pipeline configuration
-    EXPECT_EQ(Traits::pipeline_scheduler, ck_tile::builder::PipelineScheduler::INTRAWAVE);
-    EXPECT_EQ(Traits::pipeline_version, ck_tile::builder::PipelineVersion::V1);
+    EXPECT_EQ(Traits::pipeline_scheduler, PipelineScheduler::INTRAWAVE);
+    EXPECT_EQ(Traits::pipeline_version, PipelineVersion::V1);
 }
 
 // Test ConvTraits with DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
@@ -214,15 +219,13 @@ TEST_F(ConvTraitsTest, ConvFwdBaseTraitsExtraction)
 
     // Verify signature information
     EXPECT_EQ(Traits::spatial_dim, 2);
-    EXPECT_EQ(Traits::direction, ck_tile::builder::ConvDirection::FORWARD);
+    EXPECT_EQ(Traits::direction, ConvDirection::FORWARD);
     EXPECT_THAT(Traits::layout,
-                ::testing::ElementsAre(ck_tile::builder::TensorLayout::GNHWC,
-                                       ck_tile::builder::TensorLayout::GKYXC,
-                                       ck_tile::builder::TensorLayout::GNHWK));
-    EXPECT_EQ(Traits::data_type, ck_tile::builder::DataType::FP16);
-    EXPECT_EQ(Traits::input_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::weight_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::output_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
+                ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
+    EXPECT_EQ(Traits::data_type, DataType::FP16);
+    EXPECT_EQ(Traits::input_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(Traits::weight_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(Traits::output_element_op, ElementwiseOperation::PASS_THROUGH);
 
     // Verify specializations
     EXPECT_EQ(Traits::gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
@@ -300,15 +303,13 @@ TEST_F(ConvTraitsTest, ConvFwdLargeTensorTraitsExtraction)
 
     // Verify signature information
     EXPECT_EQ(Traits::spatial_dim, 2);
-    EXPECT_EQ(Traits::direction, ck_tile::builder::ConvDirection::FORWARD);
+    EXPECT_EQ(Traits::direction, ConvDirection::FORWARD);
     EXPECT_THAT(Traits::layout,
-                ::testing::ElementsAre(ck_tile::builder::TensorLayout::GNHWC,
-                                       ck_tile::builder::TensorLayout::GKYXC,
-                                       ck_tile::builder::TensorLayout::GNHWK));
-    EXPECT_EQ(Traits::data_type, ck_tile::builder::DataType::FP16);
-    EXPECT_EQ(Traits::input_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::weight_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::output_element_op, ck_tile::builder::ElementwiseOperation::PASS_THROUGH);
+                ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
+    EXPECT_EQ(Traits::data_type, DataType::FP16);
+    EXPECT_EQ(Traits::input_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(Traits::weight_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(Traits::output_element_op, ElementwiseOperation::PASS_THROUGH);
 
     // Verify specializations
     EXPECT_EQ(Traits::gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
