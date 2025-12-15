@@ -226,7 +226,6 @@ def main():
     )
 
     kernel_name_prefix = "gemm_universal"
-    
     builder = GemmUniversalKernelBuilder(
         kernel_name_prefix,
         args.working_path,
