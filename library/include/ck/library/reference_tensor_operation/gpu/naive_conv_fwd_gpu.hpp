@@ -7,8 +7,7 @@
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
-#include "ck/library/reference_tensor_operation/gpu/pack_unpack_kernels.hpp"
-#include "ck/library/reference_tensor_operation/gpu/naive_conv_layout_utils.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -305,24 +304,30 @@ void naive_conv_fwd(const TIn* p_in,
     index_t C = wei_lengths[2]; // Total C
     index_t K = wei_lengths[1]; // Total K per group
 
-    // Allocate packed buffers
-    TIn* p_in_packed;
-    TWei* p_wei_packed;
-    TOut* p_out_packed;
-    HIP_CHECK_ERROR(hipMalloc(&p_in_packed, in_total * sizeof(TIn)));
-    HIP_CHECK_ERROR(hipMalloc(&p_wei_packed, wei_total * sizeof(TWei)));
-    HIP_CHECK_ERROR(hipMalloc(&p_out_packed, out_total * sizeof(TOut)));
+    // Allocate packed buffers using RAII wrapper to prevent memory leaks
+    SimpleDeviceMem in_packed_buf(in_total * sizeof(TIn));
+    SimpleDeviceMem wei_packed_buf(wei_total * sizeof(TWei));
+    SimpleDeviceMem out_packed_buf(out_total * sizeof(TOut));
 
-    // Allocate device arrays
-    index_t *d_in_lengths, *d_in_strides, *d_wei_lengths, *d_wei_strides, *d_out_lengths,
-        *d_out_strides;
+    TIn* p_in_packed   = static_cast<TIn*>(in_packed_buf.GetDeviceBuffer());
+    TWei* p_wei_packed = static_cast<TWei*>(wei_packed_buf.GetDeviceBuffer());
+    TOut* p_out_packed = static_cast<TOut*>(out_packed_buf.GetDeviceBuffer());
+
+    // Allocate device arrays using RAII wrapper
     const size_t dim_count = in_lengths.size();
-    HIP_CHECK_ERROR(hipMalloc(&d_in_lengths, dim_count * sizeof(index_t)));
-    HIP_CHECK_ERROR(hipMalloc(&d_in_strides, dim_count * sizeof(index_t)));
-    HIP_CHECK_ERROR(hipMalloc(&d_wei_lengths, dim_count * sizeof(index_t)));
-    HIP_CHECK_ERROR(hipMalloc(&d_wei_strides, dim_count * sizeof(index_t)));
-    HIP_CHECK_ERROR(hipMalloc(&d_out_lengths, dim_count * sizeof(index_t)));
-    HIP_CHECK_ERROR(hipMalloc(&d_out_strides, dim_count * sizeof(index_t)));
+    SimpleDeviceMem in_lengths_buf(dim_count * sizeof(index_t));
+    SimpleDeviceMem in_strides_buf(dim_count * sizeof(index_t));
+    SimpleDeviceMem wei_lengths_buf(dim_count * sizeof(index_t));
+    SimpleDeviceMem wei_strides_buf(dim_count * sizeof(index_t));
+    SimpleDeviceMem out_lengths_buf(dim_count * sizeof(index_t));
+    SimpleDeviceMem out_strides_buf(dim_count * sizeof(index_t));
+
+    index_t* d_in_lengths  = static_cast<index_t*>(in_lengths_buf.GetDeviceBuffer());
+    index_t* d_in_strides  = static_cast<index_t*>(in_strides_buf.GetDeviceBuffer());
+    index_t* d_wei_lengths = static_cast<index_t*>(wei_lengths_buf.GetDeviceBuffer());
+    index_t* d_wei_strides = static_cast<index_t*>(wei_strides_buf.GetDeviceBuffer());
+    index_t* d_out_lengths = static_cast<index_t*>(out_lengths_buf.GetDeviceBuffer());
+    index_t* d_out_strides = static_cast<index_t*>(out_strides_buf.GetDeviceBuffer());
 
     HIP_CHECK_ERROR(hipMemcpy(
         d_in_lengths, in_lengths.data(), dim_count * sizeof(index_t), hipMemcpyHostToDevice));
@@ -461,16 +466,7 @@ void naive_conv_fwd(const TIn* p_in,
 
     HIP_CHECK_ERROR(hipGetLastError());
 
-    // Free buffers
-    HIP_CHECK_ERROR(hipFree(p_in_packed));
-    HIP_CHECK_ERROR(hipFree(p_wei_packed));
-    HIP_CHECK_ERROR(hipFree(p_out_packed));
-    HIP_CHECK_ERROR(hipFree(d_in_lengths));
-    HIP_CHECK_ERROR(hipFree(d_in_strides));
-    HIP_CHECK_ERROR(hipFree(d_wei_lengths));
-    HIP_CHECK_ERROR(hipFree(d_wei_strides));
-    HIP_CHECK_ERROR(hipFree(d_out_lengths));
-    HIP_CHECK_ERROR(hipFree(d_out_strides));
+    // Memory automatically freed by SimpleDeviceMem destructors
 }
 
 // Overload that takes ConvParam directly
