@@ -421,11 +421,11 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     {
         AQK = ck_tile::integer_divide_ceil(
             K, QuantGroupSize::kK); // Group quantization: AQK = K / GroupSize
-        BQK = 0;                       // No B quantization
+        BQK = 0;                    // No B quantization
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
-        AQK = 0;                       // No A quantization
+        AQK = 0; // No A quantization
         BQK = ck_tile::integer_divide_ceil(
             K, QuantGroupSize::kK); // Group quantization: BQK = K / GroupSize
         BQN = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
