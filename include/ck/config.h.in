@@ -58,7 +58,6 @@
 #ifndef CK_ENABLE_TF32
 #define CK_ENABLE_TF32 "ON"
 #endif
-#endif
 #ifndef CK_ENABLE_FP64
 #define CK_ENABLE_FP64 "ON"
 #endif
