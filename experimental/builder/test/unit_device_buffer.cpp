@@ -5,7 +5,7 @@
 #include "testing_utils.hpp"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <vector>
+#include <array>
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
@@ -66,9 +66,10 @@ TEST(DeviceBuffer, ThrowsOnOom)
 
 TEST(DeviceBuffer, AllocTensorBuffer)
 {
-    std::vector<size_t> lengths = {128, 128, 128};
-    std::vector<size_t> strides = {128 * 128, 128, 1};
-    ckt::TensorDescriptor<ckb::DataType::FP32> descriptor(lengths, strides);
+    constexpr size_t rank            = 3;
+    std::array<size_t, rank> lengths = {128, 128, 128};
+    std::array<size_t, rank> strides = {128 * 128, 128, 1};
+    ckt::TensorDescriptor<ckb::DataType::FP32, rank> descriptor(lengths, strides);
 
     auto buffer = ckt::alloc_tensor_buffer(descriptor);
 

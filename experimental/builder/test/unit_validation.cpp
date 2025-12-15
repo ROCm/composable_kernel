@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <span>
-#include <vector>
+#include <array>
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
@@ -18,11 +18,12 @@ using testing::ElementsAreArray;
 using testing::Eq;
 using testing::StrEq;
 
-std::vector<size_t> make_packed_strides_row_major(std::span<const size_t> lengths)
+template <size_t RANK>
+std::array<size_t, RANK> make_packed_strides_row_major(const std::array<size_t, RANK>& lengths)
 {
-    std::vector<size_t> strides(lengths.size());
-    size_t numel = 1;
-    for(int i = lengths.size(); i > 0; --i)
+    std::array<size_t, RANK> strides = {};
+    size_t numel                     = 1;
+    for(int i = RANK; i > 0; --i)
     {
         strides[i - 1] = numel;
         numel *= lengths[i - 1];
@@ -44,33 +45,42 @@ __global__ __launch_bounds__(BLOCK_SIZE) //
     }
 }
 
-template <ckb::DataType DT, typename F>
-void fill_tensor_buffer(const ckt::TensorDescriptor<DT>& descriptor, void* buffer, F f)
+template <ckb::DataType DT, size_t RANK, typename F>
+void fill_tensor_buffer(const ckt::TensorDescriptor<DT, RANK>& descriptor, void* buffer, F f)
 {
     constexpr int block_size = 256;
     const auto kernel        = fill_kernel<block_size, DT, F>;
     int occupancy;
     ckt::check_hip(hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, block_size, 0));
 
+    int device;
+    ckt::check_hip(hipGetDevice(&device));
+
+    int multiprocessors;
+    ckt::check_hip(
+        hipDeviceGetAttribute(&multiprocessors, hipDeviceAttributeMultiprocessorCount, device));
+
     const auto num_elements = descriptor.get_element_space_size();
 
-    kernel<<<occupancy, block_size>>>(num_elements, buffer, f);
+    kernel<<<occupancy * multiprocessors, block_size>>>(num_elements, buffer, f);
     ckt::check_hip(hipGetLastError());
 }
 
 TEST(ValidationUtilities, MakePackedStrides)
 {
-    const std::vector<size_t> lengths = {5125, 623, 1177, 1534};
-    const auto strides                = make_packed_strides_row_major(lengths);
+    constexpr size_t rank                  = 4;
+    const std::array<size_t, rank> lengths = {5125, 623, 1177, 1534};
+    const auto strides                     = make_packed_strides_row_major(lengths);
 
     EXPECT_THAT(strides, ElementsAreArray({623 * 1177 * 1534, 1177 * 1534, 1534, 1}));
 }
 
 TEST(ValidationUtilities, FillTensorBuffer)
 {
-    const std::vector<size_t> lengths = {31, 54, 13};
-    const auto strides                = make_packed_strides_row_major(lengths);
-    ckt::TensorDescriptor<ckb::DataType::INT32> descriptor(lengths, strides);
+    constexpr size_t rank                  = 3;
+    const std::array<size_t, rank> lengths = {31, 54, 13};
+    const auto strides                     = make_packed_strides_row_major(lengths);
+    ckt::TensorDescriptor<ckb::DataType::INT32, rank> descriptor(lengths, strides);
     auto buffer = ckt::alloc_tensor_buffer(descriptor);
 
     fill_tensor_buffer(
@@ -88,10 +98,11 @@ TEST(ValidationUtilities, FillTensorBuffer)
 
 TEST(ValidationReport, SingleCorrect)
 {
-    const std::vector<size_t> lengths = {52, 152, 224};
-    const auto strides                = make_packed_strides_row_major(lengths);
+    constexpr size_t rank                  = 3;
+    const std::array<size_t, rank> lengths = {52, 152, 224};
+    const auto strides                     = make_packed_strides_row_major(lengths);
 
-    ckt::TensorDescriptor<ckb::DataType::FP32> descriptor(lengths, strides);
+    ckt::TensorDescriptor<ckb::DataType::FP32, rank> descriptor(lengths, strides);
 
     auto a = ckt::alloc_tensor_buffer(descriptor);
     auto b = ckt::alloc_tensor_buffer(descriptor);
@@ -112,10 +123,11 @@ TEST(ValidationReport, SingleCorrect)
 
 TEST(ValidationReport, SingleIncorrect)
 {
-    const std::vector<size_t> lengths = {100, 100, 100};
-    const auto strides                = make_packed_strides_row_major(lengths);
+    constexpr size_t rank                  = 3;
+    const std::array<size_t, rank> lengths = {100, 100, 100};
+    const auto strides                     = make_packed_strides_row_major(lengths);
 
-    ckt::TensorDescriptor<ckb::DataType::FP16> descriptor(lengths, strides);
+    ckt::TensorDescriptor<ckb::DataType::FP16, rank> descriptor(lengths, strides);
 
     auto a = ckt::alloc_tensor_buffer(descriptor);
     auto b = ckt::alloc_tensor_buffer(descriptor);
@@ -142,9 +154,10 @@ TEST(ValidationReport, MultipleSomeIncorrect)
     ckt::ValidationReport report;
 
     {
-        const std::vector<size_t> lengths = {'R', 'O', 'C', 'm'};
-        const auto strides                = make_packed_strides_row_major(lengths);
-        ckt::TensorDescriptor<ckb::DataType::BF16> desc(lengths, strides);
+        constexpr size_t rank                  = 4;
+        const std::array<size_t, rank> lengths = {'R', 'O', 'C', 'm'};
+        const auto strides                     = make_packed_strides_row_major(lengths);
+        ckt::TensorDescriptor<ckb::DataType::BF16, rank> desc(lengths, strides);
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
 
@@ -159,9 +172,10 @@ TEST(ValidationReport, MultipleSomeIncorrect)
     }
 
     {
-        const std::vector<size_t> lengths = {'H', 'I', 'P'};
-        const auto strides                = make_packed_strides_row_major(lengths);
-        ckt::TensorDescriptor<ckb::DataType::U8> desc(lengths, strides);
+        constexpr size_t rank                  = 3;
+        const std::array<size_t, rank> lengths = {'H', 'I', 'P'};
+        const auto strides                     = make_packed_strides_row_major(lengths);
+        ckt::TensorDescriptor<ckb::DataType::U8, rank> desc(lengths, strides);
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
 
@@ -181,9 +195,10 @@ TEST(ValidationReport, MultipleSomeIncorrect)
     }
 
     {
-        const std::vector<size_t> lengths = {'G', 'P', 'U'};
-        const auto strides                = make_packed_strides_row_major(lengths);
-        ckt::TensorDescriptor<ckb::DataType::INT32> desc(lengths, strides);
+        constexpr size_t rank                  = 3;
+        const std::array<size_t, rank> lengths = {'G', 'P', 'U'};
+        const auto strides                     = make_packed_strides_row_major(lengths);
+        ckt::TensorDescriptor<ckb::DataType::INT32, rank> desc(lengths, strides);
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
 

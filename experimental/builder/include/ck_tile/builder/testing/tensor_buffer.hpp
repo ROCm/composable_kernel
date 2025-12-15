@@ -101,8 +101,10 @@ inline DeviceBuffer alloc_buffer(size_t size)
 /// @note All strides are still in _elements_.
 ///
 /// @tparam DT The conceptual data type of the tensor elements. This need not be the
-///   type that the data is actually stored as in memory.
-template <DataType DT>
+/// type that the data is actually stored as in memory.
+/// @tparam RANK The tensor "rank": the number of conceptial spatial dimensions that
+/// the tensor covers.
+template <DataType DT, size_t RANK>
 struct TensorDescriptor
 {
     // For now, the implementation of this type is based on
@@ -110,9 +112,20 @@ struct TensorDescriptor
     // reimplementing the `HostTensorDescriptor` for the 3rd time. You can regard
     // the use of `ck_tile::HostTensorDescriptor` here as an implementation detail.
 
+    /// @brief Tensor sizes alias
+    ///
+    /// This alias represents a std::span which holds a non-owning view of tensor
+    /// dimensions. There is one item for each dimension in the tensor, and each
+    /// item corresponds with the value for that dimension.
+    using Sizes = std::span<const size_t, RANK>;
+
     /// The conceptual data type of the tensor elements. This need not be the type
     /// that the data is actually stored as in memory.
     constexpr static DataType data_type = DT;
+
+    /// The tensor "rank": the number of conceptial spatial dimensions that the
+    /// tensor covers.
+    constexpr static size_t rank = RANK;
 
     /// @brief Create a tensor descriptor from lengths and strides.
     ///
@@ -122,8 +135,7 @@ struct TensorDescriptor
     ///   elements. Each element of `strides`` corresponds to one at the same index
     ///   in `lengths`, the amount of elements to skip in memory to find the next
     ///   element along that axis.
-    TensorDescriptor(std::span<const size_t> lengths, std::span<const size_t> strides)
-        : inner_descriptor_(lengths, strides)
+    TensorDescriptor(Sizes lengths, Sizes strides) : inner_descriptor_(lengths, strides)
     {
         // TODO: Validation of strides? For now we just delegate the details of the
         // construction to the CK Tile HostTensorDescriptor.
@@ -136,7 +148,7 @@ struct TensorDescriptor
     ///   that.
     ///
     /// @see get_strides()
-    std::span<const size_t> get_lengths() const { return inner_descriptor_.get_lengths(); }
+    Sizes get_lengths() const { return Sizes(inner_descriptor_.get_lengths()); }
 
     /// Query the in-memory strides of the tensor.
     ///
@@ -145,7 +157,7 @@ struct TensorDescriptor
     ///   tensor  dimensions.
     ///
     /// @see get_lengths()
-    std::span<const size_t> get_strides() const { return inner_descriptor_.get_strides(); }
+    Sizes get_strides() const { return Sizes(inner_descriptor_.get_strides()); }
 
     /// @brief Compute total tensor size in elements.
     ///
@@ -170,13 +182,6 @@ struct TensorDescriptor
         return get_element_space_size() * data_type_sizeof(DT);
     }
 
-    /// @brief Get the rank of the tensor.
-    ///
-    /// This function computes the rank of the tensor: the number of dimensions
-    /// stored. Both `get_lengths()` and `get_strides()` return spans which are
-    /// equal to this value in length.
-    size_t rank() const { return this->inner_descriptor_.get_num_of_dimension(); }
-
     private:
     ck_tile::HostTensorDescriptor inner_descriptor_;
 };
@@ -189,15 +194,18 @@ struct TensorDescriptor
 /// required size.
 ///
 /// @tparam DT The conceptual datatype of the elements of the tensor.
+/// @tparam RANK The conceptual rank (number of dimensions) of the tensor.
+///
 /// @param descriptor A descriptor of the memory layout of the tensor to allocate.
+///
 /// @throws OutOfDeviceMemoryError if memory allocation failed.
 ///
 /// @see TensorDescriptor
 /// @see DeviceBuffer
 /// @see OutOfDeviceMemoryError
 /// @see hipMalloc()
-template <DataType DT>
-DeviceBuffer alloc_tensor_buffer(const TensorDescriptor<DT>& descriptor)
+template <DataType DT, size_t RANK>
+DeviceBuffer alloc_tensor_buffer(const TensorDescriptor<DT, RANK>& descriptor)
 {
     return alloc_buffer(descriptor.get_element_space_size_in_bytes());
 }

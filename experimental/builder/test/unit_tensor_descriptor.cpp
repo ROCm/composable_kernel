@@ -5,7 +5,7 @@
 #include "testing_utils.hpp"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <vector>
+#include <array>
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
@@ -15,11 +15,12 @@ using ::testing::Ge;
 
 TEST(TensorDescriptor, Basic)
 {
-    constexpr auto dt           = ckb::DataType::FP16;
-    std::vector<size_t> lengths = {123, 456, 789};
-    std::vector<size_t> strides = {456 * 789, 789, 1};
+    constexpr auto dt                = ckb::DataType::FP16;
+    constexpr size_t rank            = 3;
+    std::array<size_t, rank> lengths = {123, 456, 789};
+    std::array<size_t, rank> strides = {456 * 789, 789, 1};
 
-    ckt::TensorDescriptor<dt> descriptor(lengths, strides);
+    ckt::TensorDescriptor<dt, rank> descriptor(lengths, strides);
 
     EXPECT_THAT(descriptor.get_lengths(), ElementsAreArray(lengths));
     EXPECT_THAT(descriptor.get_strides(), ElementsAreArray(strides));
@@ -27,11 +28,12 @@ TEST(TensorDescriptor, Basic)
 
 TEST(TensorDescriptor, ComputeSize)
 {
-    constexpr auto dt           = ckb::DataType::FP32;
-    std::vector<size_t> lengths = {305, 130, 924};
-    std::vector<size_t> strides = {1000 * 1000, 1, 1000};
+    constexpr auto dt             = ckb::DataType::FP32;
+    constexpr size_t rank         = 3;
+    std::array<size_t, 3> lengths = {305, 130, 924};
+    std::array<size_t, 3> strides = {1000 * 1000, 1, 1000};
 
-    ckt::TensorDescriptor<dt> descriptor(lengths, strides);
+    ckt::TensorDescriptor<dt, rank> descriptor(lengths, strides);
 
     // Compute the location of the last item in memory, then add one
     // to get the minimum size.

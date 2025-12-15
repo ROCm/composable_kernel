@@ -28,9 +28,9 @@ struct ValidationReport
         bool is_ok() const { return wrong_elements == 0; }
     };
 
-    template <DataType DT>
+    template <DataType DT, size_t RANK>
     bool check(std::string_view tensor_name,
-               const TensorDescriptor<DT>& descriptor,
+               const TensorDescriptor<DT, RANK>& descriptor,
                const void* actual,
                const void* expected,
                double rtol = 1e-3,
@@ -50,14 +50,13 @@ struct ValidationReport
     std::vector<Case> reports_;
 };
 
-template <DataType DT, int BLOCK_SIZE>
+template <DataType DT, int RANK, int BLOCK_SIZE>
 __global__ __launch_bounds__(BLOCK_SIZE) //
     void compare_kernel(const uint64_t numel,
                         const void* actual_data,
                         const void* expected_data,
-                        int rank,
-                        const size_t* shape_scan,
-                        const size_t* strides,
+                        std::array<size_t, RANK> shape_scan,
+                        std::array<size_t, RANK> strides,
                         ErrorCounter* error_count,
                         double rtol,
                         double atol)
@@ -72,7 +71,7 @@ __global__ __launch_bounds__(BLOCK_SIZE) //
     {
         size_t offset = 0;
         auto idx      = flat_idx;
-        for(int i = 0; i < rank; ++i)
+        for(int i = 0; i < RANK; ++i)
         {
             const auto scanned_dim = shape_scan[i];
             const auto axis_idx    = idx / scanned_dim;
@@ -94,41 +93,32 @@ __global__ __launch_bounds__(BLOCK_SIZE) //
     }
 }
 
-template <DataType DT>
+template <DataType DT, int RANK>
 bool ValidationReport::check(std::string_view tensor_name,
-                             const TensorDescriptor<DT>& descriptor,
+                             const TensorDescriptor<DT, RANK>& descriptor,
                              const void* actual,
                              const void* expected,
                              double rtol,
                              double atol)
 {
     constexpr int block_size = 256;
-    const auto kernel        = compare_kernel<DT, block_size>;
+    const auto kernel        = compare_kernel<DT, RANK, block_size>;
 
     int occupancy;
     check_hip(hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, block_size, 0));
 
-    const auto rank    = descriptor.rank();
-    const auto shape   = descriptor.get_lengths();
-    const auto strides = descriptor.get_strides();
+    const auto shape = descriptor.get_lengths();
 
-    std::vector<size_t> shape_scan(rank);
+    std::array<size_t, RANK> shape_scan;
     size_t numel = 1;
-    for(int i = rank; i > 0; --i)
+    for(int i = RANK; i > 0; --i)
     {
         shape_scan[i - 1] = numel;
         numel *= shape[i - 1];
     }
 
-    // Allocate & upload scanned shape
-    auto d_shape_scan = alloc_buffer(sizeof(size_t) * rank);
-    check_hip(hipMemcpy(
-        d_shape_scan.get(), shape_scan.data(), sizeof(size_t) * rank, hipMemcpyHostToDevice));
-
-    // Allocate & upload strides
-    auto d_strides = alloc_buffer(sizeof(size_t) * rank);
-    check_hip(
-        hipMemcpy(d_strides.get(), strides.data(), sizeof(size_t) * rank, hipMemcpyHostToDevice));
+    std::array<size_t, RANK> strides;
+    std::copy(descriptor.get_strides().begin(), descriptor.get_strides().end(), strides.begin());
 
     // Allocate and reset counter
     auto d_error_count = alloc_buffer(sizeof(ErrorCounter));
@@ -137,9 +127,8 @@ bool ValidationReport::check(std::string_view tensor_name,
     kernel<<<occupancy, block_size>>>(numel,
                                       actual,
                                       expected,
-                                      rank,
-                                      reinterpret_cast<const size_t*>(d_shape_scan.get()),
-                                      reinterpret_cast<const size_t*>(d_strides.get()),
+                                      shape_scan,
+                                      strides,
                                       reinterpret_cast<ErrorCounter*>(d_error_count.get()),
                                       rtol,
                                       atol);

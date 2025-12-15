@@ -61,6 +61,14 @@ struct Args<SIGNATURE>
     constexpr static auto WEIGHT_TYPE = SIGNATURE.data_type;
     constexpr static auto OUTPUT_TYPE = SIGNATURE.data_type;
 
+    constexpr static int INPUT_RANK  = 3 + SPATIAL_DIM;
+    constexpr static int WEIGHT_RANK = 3 + SPATIAL_DIM;
+    constexpr static int OUTPUT_RANK = 3 + SPATIAL_DIM;
+
+    using InputDescriptor  = TensorDescriptor<INPUT_TYPE, INPUT_RANK>;
+    using WeightDescriptor = TensorDescriptor<WEIGHT_TYPE, WEIGHT_RANK>;
+    using OutputDescriptor = TensorDescriptor<OUTPUT_TYPE, OUTPUT_RANK>;
+
     // TODO: We shouldn't need to call into an internal namespace here.
     using Ops = factory::internal::ElementwiseOps<SIGNATURE>;
 
@@ -87,7 +95,7 @@ struct Args<SIGNATURE>
     /// This function returns the `TensorDescriptor` corresponding to
     /// the input-tensor of the convolution problem. This can then
     /// be used to, for example, allocate memory.
-    TensorDescriptor<INPUT_TYPE> make_input_descriptor() const
+    InputDescriptor make_input_descriptor() const
     {
         // TODO: We're using old CK functionality to compute the right
         // values here, mainly because CK tile does not support the
@@ -98,31 +106,34 @@ struct Args<SIGNATURE>
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
              typename Layouts::ALayout>(param);
-        return TensorDescriptor<INPUT_TYPE>(desc.GetLengths(), desc.GetStrides());
+        using Sizes = typename InputDescriptor::Sizes;
+        return InputDescriptor(Sizes(desc.GetLengths()), Sizes(desc.GetStrides()));
     }
 
     /// This function returns the `TensorDescriptor` corresponding to
     /// the weight-tensor of  the convolution problem. This can then
     /// be used to, for example, allocate memory.
-    TensorDescriptor<WEIGHT_TYPE> make_weight_descriptor() const
+    WeightDescriptor make_weight_descriptor() const
     {
         // See note in implementation of `make_input_descriptor`.
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<
              typename Layouts::BLayout>(param);
-        return TensorDescriptor<WEIGHT_TYPE>(desc.GetLengths(), desc.GetStrides());
+        using Sizes = typename WeightDescriptor::Sizes;
+        return WeightDescriptor(Sizes(desc.GetLengths()), Sizes(desc.GetStrides()));
     }
 
     /// This function returns the `TensorDescriptor` corresponding to
     /// the output-tensor of the convolution problem. This can then
     /// be used to, for example, allocate memory.
-    TensorDescriptor<OUTPUT_TYPE> make_output_descriptor() const
+    OutputDescriptor make_output_descriptor() const
     {
         // See note in implementation of `make_input_descriptor`.
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<
              typename Layouts::ELayout>(param);
-        return TensorDescriptor<OUTPUT_TYPE>(desc.GetLengths(), desc.GetStrides());
+        using Sizes = typename OutputDescriptor::Sizes;
+        return OutputDescriptor(Sizes(desc.GetLengths()), Sizes(desc.GetStrides()));
     }
 
     /// Convert the Args structure into a CK conv_param structure. This
