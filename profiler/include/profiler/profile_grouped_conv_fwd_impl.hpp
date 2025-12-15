@@ -271,9 +271,9 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         if(out.is_open())
         {
             std::stringstream out_ss;
-            out_ss << "CK best configuration:" << std::endl
-                << "name: " << best_op_name << std::endl
-                << "avg_time: " << best_avg_time << std::endl;
+            out_ss << "name: " << best_op_name << std::endl
+                   << "avg_time: " << best_avg_time << std::endl;
+                   << "flops: " << best_tflops << std::endl;
             out << out_ss.str();
             out.close();
             std::cout << "Saved the best configuration to log file: " << log_file << std::endl;

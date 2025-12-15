@@ -27,7 +27,9 @@ def parse_cli_args():
     parser.add_argument("--results-path", type=str, dest="results_path", required=False, help="Path to store profiler results.", default=".")
     parser.add_argument("--analyze-file", type=str, dest="analyze_file", required=False, help="Path to store analysis results.", default="")
     parser.add_argument("--data-type", type=str, dest="data_type", required=False, help="Data type for the profiler (e.g., fp16, fp32).", default="fp16")
-    
+    parser.add_argument("--start-idx", type=int, dest="start_idx", required=False, help="Start index for test cases.", default=0)
+    parser.add_argument("--end-idx", type=int, dest="end_idx", required=False, help="End index for test cases.", default=-1)
+
     args, unknown_args = parser.parse_known_args()
     
     if unknown_args:
@@ -423,7 +425,8 @@ def main():
 
     data_type_arg = data_type_str_to_profiler_arg(args.data_type)
 
-    for i, cmd in enumerate(profiler_commands):
+    commands = profiler_commands[args.start_idx:args.end_idx]
+    for i, cmd in enumerate(commands):
         # Set the correct data type based on user input
         cmd[1] = data_type_arg
 
@@ -435,7 +438,7 @@ def main():
 
         cmd_concatenated_str = ' '.join(cmd)
         print(f"\n####################################################################################################################")
-        print(f"Running command {i + 1}/{len(profiler_commands)}: {cmd_concatenated_str}")
+        print(f"Running command {i + 1}/{len(commands)}: {cmd_concatenated_str}")
         print(f"######################################################################################################################")
   
         # Print the command to the output file
