@@ -279,8 +279,7 @@ __global__ void naive_conv_bwd_data_packed(InDataType* __restrict__ p_in,
     }
 }
 
-// GPU reference backward data convolution - takes lengths/strides directly
-// Used by both standalone tests and profiler
+// GPU reference backward data convolution - takes ConvParam directly
 template <typename InLayout,
           typename WeiLayout,
           typename OutLayout,
@@ -293,23 +292,37 @@ template <typename InLayout,
 void naive_conv_bwd_data(TIn* p_in,
                          const TWei* p_wei,
                          const TOut* p_out,
-                         const std::vector<index_t>& in_lengths,
-                         const std::vector<index_t>& in_strides,
-                         const std::vector<index_t>& wei_lengths,
-                         const std::vector<index_t>& wei_strides,
-                         const std::vector<index_t>& out_lengths,
-                         const std::vector<index_t>& out_strides,
-                         const std::vector<index_t>& conv_strides,
-                         const std::vector<index_t>& conv_dilations,
-                         const std::vector<index_t>& input_pads,
-                         InElementwiseOperation in_element_op,
-                         WeiElementwiseOperation wei_element_op,
-                         OutElementwiseOperation out_element_op,
-                         hipStream_t stream = nullptr)
+                         const ck::utils::conv::ConvParam& conv_param,
+                         InElementwiseOperation in_element_op   = InElementwiseOperation{},
+                         WeiElementwiseOperation wei_element_op = WeiElementwiseOperation{},
+                         OutElementwiseOperation out_element_op = OutElementwiseOperation{},
+                         hipStream_t stream                     = nullptr)
 {
-    constexpr int block_size = 256;
+    const auto ndim = conv_param.num_dim_spatial_;
 
-    // Calculate total elements
+    // Build lengths vectors with per-group C and K
+    // ConvParam stores total C and K, but naive kernels expect per-group
+    const index_t C_per_group = conv_param.C_ / conv_param.G_;
+    const index_t K_per_group = conv_param.K_ / conv_param.G_;
+
+    std::vector<index_t> in_lengths  = {static_cast<index_t>(conv_param.G_),
+                                        static_cast<index_t>(conv_param.N_),
+                                        static_cast<index_t>(C_per_group)};
+    std::vector<index_t> wei_lengths = {static_cast<index_t>(conv_param.G_),
+                                        static_cast<index_t>(K_per_group),
+                                        static_cast<index_t>(C_per_group)};
+    std::vector<index_t> out_lengths = {static_cast<index_t>(conv_param.G_),
+                                        static_cast<index_t>(conv_param.N_),
+                                        static_cast<index_t>(K_per_group)};
+
+    for(index_t i = 0; i < ndim; ++i)
+    {
+        in_lengths.push_back(static_cast<index_t>(conv_param.input_spatial_lengths_[i]));
+        wei_lengths.push_back(static_cast<index_t>(conv_param.filter_spatial_lengths_[i]));
+        out_lengths.push_back(static_cast<index_t>(conv_param.output_spatial_lengths_[i]));
+    }
+
+    // Calculate total elements for buffer allocation
     long_index_t in_total = 1, wei_total = 1, out_total = 1;
     for(auto l : in_lengths)
         in_total *= l;
@@ -318,16 +331,7 @@ void naive_conv_bwd_data(TIn* p_in,
     for(auto l : out_lengths)
         out_total *= l;
 
-    // Determine NDimSpatial from length array size
-    index_t NDimSpatial = in_lengths.size() - 3;
-
-    // Extract dimensions
-    index_t G = in_lengths[0];
-    index_t N = in_lengths[1];
-    index_t C = in_lengths[2];
-    index_t K = wei_lengths[1];
-
-    // Allocate packed buffers using RAII wrapper to prevent memory leaks
+    // Allocate packed buffers
     SimpleDeviceMem in_packed_buf(in_total * sizeof(TIn));
     SimpleDeviceMem wei_packed_buf(wei_total * sizeof(TWei));
     SimpleDeviceMem out_packed_buf(out_total * sizeof(TOut));
@@ -336,7 +340,18 @@ void naive_conv_bwd_data(TIn* p_in,
     TWei* p_wei_packed = static_cast<TWei*>(wei_packed_buf.GetDeviceBuffer());
     TOut* p_out_packed = static_cast<TOut*>(out_packed_buf.GetDeviceBuffer());
 
-    // Allocate device arrays using RAII wrapper
+    // Compute strides and allocate device arrays for pack/unpack
+    constexpr bool in_channel_last  = is_channel_last_layout<InLayout>();
+    constexpr bool wei_channel_last = is_channel_last_layout<WeiLayout>();
+    constexpr bool out_channel_last = is_channel_last_layout<OutLayout>();
+
+    std::vector<index_t> in_strides =
+        compute_conv_tensor_strides(in_lengths, ndim, in_channel_last);
+    std::vector<index_t> wei_strides =
+        compute_conv_tensor_strides(wei_lengths, ndim, wei_channel_last);
+    std::vector<index_t> out_strides =
+        compute_conv_tensor_strides(out_lengths, ndim, out_channel_last);
+
     const size_t dim_count = in_lengths.size();
     SimpleDeviceMem in_lengths_buf(dim_count * sizeof(index_t));
     SimpleDeviceMem in_strides_buf(dim_count * sizeof(index_t));
@@ -365,19 +380,32 @@ void naive_conv_bwd_data(TIn* p_in,
     HIP_CHECK_ERROR(hipMemcpy(
         d_out_strides, out_strides.data(), dim_count * sizeof(index_t), hipMemcpyHostToDevice));
 
-    // Pack output and weight (inputs to bwd data)
-    int out_grid = (out_total + block_size - 1) / block_size;
-    pack_strided_tensor<<<out_grid, block_size, 0, stream>>>(
+    // Pack output and weight tensors to contiguous layout (inputs to bwd data)
+    constexpr int block_size = 256;
+    pack_strided_tensor<TOut><<<(out_total + block_size - 1) / block_size, block_size, 0, stream>>>(
         p_out, p_out_packed, d_out_lengths, d_out_strides, dim_count, out_total);
-
-    int wei_grid = (wei_total + block_size - 1) / block_size;
-    pack_strided_tensor<<<wei_grid, block_size, 0, stream>>>(
+    pack_strided_tensor<TWei><<<(wei_total + block_size - 1) / block_size, block_size, 0, stream>>>(
         p_wei, p_wei_packed, d_wei_lengths, d_wei_strides, dim_count, wei_total);
 
-    // Run backward data convolution
-    int in_grid = (in_total + block_size - 1) / block_size;
+    // Build conv parameter vectors for kernel invocation
+    std::vector<index_t> conv_strides(ndim);
+    std::vector<index_t> conv_dilations(ndim);
+    std::vector<index_t> input_pads(ndim);
+    for(index_t i = 0; i < ndim; ++i)
+    {
+        conv_strides[i]   = static_cast<index_t>(conv_param.conv_filter_strides_[i]);
+        conv_dilations[i] = static_cast<index_t>(conv_param.conv_filter_dilations_[i]);
+        input_pads[i]     = static_cast<index_t>(conv_param.input_left_pads_[i]);
+    }
 
-    if(NDimSpatial == 1)
+    // Run backward data convolution kernel on packed data
+    const index_t G   = conv_param.G_;
+    const index_t N   = conv_param.N_;
+    const index_t C   = C_per_group;
+    const index_t K   = K_per_group;
+    const int in_grid = (in_total + block_size - 1) / block_size;
+
+    if(ndim == 1)
     {
         naive_conv_bwd_data_packed<1,
                                    TIn,
@@ -415,7 +443,7 @@ void naive_conv_bwd_data(TIn* p_in,
                                                  wei_element_op,
                                                  out_element_op);
     }
-    else if(NDimSpatial == 2)
+    else if(ndim == 2)
     {
         naive_conv_bwd_data_packed<2,
                                    TIn,
@@ -493,106 +521,12 @@ void naive_conv_bwd_data(TIn* p_in,
     }
 
     // Unpack result back to strided layout
-    unpack_to_strided_tensor<<<in_grid, block_size, 0, stream>>>(
+    unpack_to_strided_tensor<TIn><<<in_grid, block_size, 0, stream>>>(
         p_in_packed, p_in, d_in_lengths, d_in_strides, dim_count, in_total);
 
     HIP_CHECK_ERROR(hipGetLastError());
 
     // Memory automatically freed by SimpleDeviceMem destructors
-}
-
-// Overload that takes ConvParam directly
-template <typename InLayout,
-          typename WeiLayout,
-          typename OutLayout,
-          typename TIn,
-          typename TWei,
-          typename TOut,
-          typename InElementwiseOperation,
-          typename WeiElementwiseOperation,
-          typename OutElementwiseOperation>
-void naive_conv_bwd_data(TIn* p_in,
-                         const TWei* p_wei,
-                         const TOut* p_out,
-                         const ck::utils::conv::ConvParam& conv_param,
-                         InElementwiseOperation in_element_op   = InElementwiseOperation{},
-                         WeiElementwiseOperation wei_element_op = WeiElementwiseOperation{},
-                         OutElementwiseOperation out_element_op = OutElementwiseOperation{},
-                         hipStream_t stream                     = nullptr)
-{
-    const auto ndim = conv_param.num_dim_spatial_;
-
-    // Build lengths vectors with per-group C and K
-    // ConvParam stores total C and K, but naive kernels expect per-group
-    const index_t C_per_group = conv_param.C_ / conv_param.G_;
-    const index_t K_per_group = conv_param.K_ / conv_param.G_;
-
-    std::vector<index_t> in_lengths  = {static_cast<index_t>(conv_param.G_),
-                                        static_cast<index_t>(conv_param.N_),
-                                        static_cast<index_t>(C_per_group)};
-    std::vector<index_t> wei_lengths = {static_cast<index_t>(conv_param.G_),
-                                        static_cast<index_t>(K_per_group),
-                                        static_cast<index_t>(C_per_group)};
-    std::vector<index_t> out_lengths = {static_cast<index_t>(conv_param.G_),
-                                        static_cast<index_t>(conv_param.N_),
-                                        static_cast<index_t>(K_per_group)};
-
-    for(index_t i = 0; i < ndim; ++i)
-    {
-        in_lengths.push_back(static_cast<index_t>(conv_param.input_spatial_lengths_[i]));
-        wei_lengths.push_back(static_cast<index_t>(conv_param.filter_spatial_lengths_[i]));
-        out_lengths.push_back(static_cast<index_t>(conv_param.output_spatial_lengths_[i]));
-    }
-
-    // Use helper functions for layout-aware stride computation
-    constexpr bool in_channel_last  = is_channel_last_layout<InLayout>();
-    constexpr bool wei_channel_last = is_channel_last_layout<WeiLayout>();
-    constexpr bool out_channel_last = is_channel_last_layout<OutLayout>();
-
-    std::vector<index_t> in_strides =
-        compute_conv_tensor_strides(in_lengths, ndim, in_channel_last);
-    std::vector<index_t> wei_strides =
-        compute_conv_tensor_strides(wei_lengths, ndim, wei_channel_last);
-    std::vector<index_t> out_strides =
-        compute_conv_tensor_strides(out_lengths, ndim, out_channel_last);
-
-    // Build conv parameter vectors
-    std::vector<index_t> conv_strides(ndim);
-    std::vector<index_t> conv_dilations(ndim);
-    std::vector<index_t> input_pads(ndim);
-
-    for(index_t i = 0; i < ndim; ++i)
-    {
-        conv_strides[i]   = static_cast<index_t>(conv_param.conv_filter_strides_[i]);
-        conv_dilations[i] = static_cast<index_t>(conv_param.conv_filter_dilations_[i]);
-        input_pads[i]     = static_cast<index_t>(conv_param.input_left_pads_[i]);
-    }
-
-    // Call the existing implementation
-    naive_conv_bwd_data<InLayout,
-                        WeiLayout,
-                        OutLayout,
-                        TIn,
-                        TWei,
-                        TOut,
-                        InElementwiseOperation,
-                        WeiElementwiseOperation,
-                        OutElementwiseOperation>(p_in,
-                                                 p_wei,
-                                                 p_out,
-                                                 in_lengths,
-                                                 in_strides,
-                                                 wei_lengths,
-                                                 wei_strides,
-                                                 out_lengths,
-                                                 out_strides,
-                                                 conv_strides,
-                                                 conv_dilations,
-                                                 input_pads,
-                                                 in_element_op,
-                                                 wei_element_op,
-                                                 out_element_op,
-                                                 stream);
 }
 
 } // namespace ref
