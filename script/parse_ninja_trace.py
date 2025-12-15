@@ -5,6 +5,7 @@ import json
 import os
 import sys
 
+
 def read_json_file(file_path):
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -15,6 +16,7 @@ def read_json_file(file_path):
         except json.JSONDecodeError as e:
             raise json.JSONDecodeError(f"Invalid JSON format: {e}", e.doc, e.pos)
     return data
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
