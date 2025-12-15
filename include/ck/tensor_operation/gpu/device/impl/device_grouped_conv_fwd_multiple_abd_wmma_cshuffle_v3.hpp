@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -454,6 +454,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         BComputeDataType,
         false, // PermuteA
         false, // PermuteB
+        false, // IsBPreShuffled
         true>; // ForceThreadTileTransfer
 
     // TODO: Previously available template param DoElementwiseBeforeCShuffle!
@@ -527,6 +528,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
 
         false, // PermuteB
         false, // PermuteA
+        false, // IsBPreShuffled
         true>; // ForceThreadTileTransfer
 
     using GridwiseGemmCTranspose =
