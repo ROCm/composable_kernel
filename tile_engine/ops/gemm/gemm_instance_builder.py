@@ -59,7 +59,7 @@ class GemmKernelBuilder:
     def _list_kernels(self):
         """Write kernel list to file for CMake to read (with comprehensive validation)"""
         # Get configurations using comprehensive validation
-        tile_configs = self._get_tile_configs(self.kernel_name_prefix)
+        tile_configs = self._get_tile_configs()
         trait_combos = self._generate_trait_combinations()
 
         kernel_list = []
