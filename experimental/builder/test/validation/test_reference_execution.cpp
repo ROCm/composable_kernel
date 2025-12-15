@@ -21,8 +21,6 @@ using namespace ck_tile::builder::test_utils;
 
 TEST(ReferenceExecution, Forward_2D_FP16)
 {
-    // Test: Can we call Run() method on reference kernel?
-
     // Note: When you don't specify .operation, it defaults to PassThrough
     // Reference implementation only supports PassThrough elementwise operations
     constexpr ConvSignature sig{.spatial_dim            = 2,
@@ -60,10 +58,7 @@ TEST(ReferenceExecution, Forward_2D_FP16)
     std::vector<ck_tile::long_index_t> dilations{1, 1};
     std::vector<ck_tile::long_index_t> left_pads{1, 1};
 
-    // Test: Can we call Run()?
     RefKernel ref_kernel;
-
-    // This should compile and execute:
     ref_kernel.Run(reinterpret_cast<const ck::half_t*>(in_dev.GetDeviceBuffer()),
                    reinterpret_cast<const ck::half_t*>(wei_dev.GetDeviceBuffer()),
                    reinterpret_cast<ck::half_t*>(out_dev.GetDeviceBuffer()),

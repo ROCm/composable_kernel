@@ -77,7 +77,6 @@ add_ck_builder_test(test_ckb_conv_builder
     test_conv_builder.cpp
     test_fwd_instance_traits.cpp
     test_bwd_data_instance_traits.cpp
-    test_reference_instance_traits.cpp
     test_instance_traits_util.cpp
 
     unit_conv_elementwise_op.cpp
@@ -90,8 +89,10 @@ add_ck_builder_test(test_ckb_conv_builder
     add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
 
     # GPU reference validation tests (in validation/ folder)
-    # 1. Reference kernel execution
-    add_ck_builder_test(test_ckb_reference_execution validation/test_reference_execution.cpp)
+    # 1. Reference kernel execution and InstanceTraits
+    add_ck_builder_test(test_ckb_reference_execution 
+        validation/test_reference_execution.cpp
+        validation/test_reference_instance_traits.cpp)
     target_link_libraries(test_ckb_reference_execution PRIVATE utility)
     
     # Note: Optimized kernel validation tests will be added after merging dev branch

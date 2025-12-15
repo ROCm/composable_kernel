@@ -14,87 +14,12 @@
 #include "ck_tile/builder/factory/reference_backward_data_factory.hpp"
 #include "ck_tile/builder/factory/reference_backward_weight_factory.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
 #include <sstream>
 
 namespace ck_tile::reflect {
 
 namespace internal {
-
-// Helper: Map TensorLayout enum to actual CK layout type
-template <builder::TensorLayout Layout>
-struct LayoutEnumToType;
-
-// 2D Input layouts
-template <>
-struct LayoutEnumToType<builder::TensorLayout::NHWGC>
-{
-    using type = ck::tensor_layout::convolution::NHWGC;
-};
-
-template <>
-struct LayoutEnumToType<builder::TensorLayout::GNHWC>
-{
-    using type = ck::tensor_layout::convolution::GNHWC;
-};
-
-template <>
-struct LayoutEnumToType<builder::TensorLayout::NGCHW>
-{
-    using type = ck::tensor_layout::convolution::NGCHW;
-};
-
-template <>
-struct LayoutEnumToType<builder::TensorLayout::GNCHW>
-{
-    using type = ck::tensor_layout::convolution::GNCHW;
-};
-
-// 2D Weight layouts
-template <>
-struct LayoutEnumToType<builder::TensorLayout::GKYXC>
-{
-    using type = ck::tensor_layout::convolution::GKYXC;
-};
-
-template <>
-struct LayoutEnumToType<builder::TensorLayout::GKCYX>
-{
-    using type = ck::tensor_layout::convolution::GKCYX;
-};
-
-template <>
-struct LayoutEnumToType<builder::TensorLayout::KYXGC>
-{
-    using type = ck::tensor_layout::convolution::KYXGC;
-};
-
-// 2D Output layouts
-template <>
-struct LayoutEnumToType<builder::TensorLayout::NHWGK>
-{
-    using type = ck::tensor_layout::convolution::NHWGK;
-};
-
-template <>
-struct LayoutEnumToType<builder::TensorLayout::GNHWK>
-{
-    using type = ck::tensor_layout::convolution::GNHWK;
-};
-
-template <>
-struct LayoutEnumToType<builder::TensorLayout::NGKHW>
-{
-    using type = ck::tensor_layout::convolution::NGKHW;
-};
-
-template <>
-struct LayoutEnumToType<builder::TensorLayout::GNKHW>
-{
-    using type = ck::tensor_layout::convolution::GNKHW;
-};
-
-// TODO: Add 1D and 3D layouts as needed
 
 // Common traits shared by all reference implementations
 template <auto SIGNATURE>
@@ -103,10 +28,13 @@ struct ReferenceCommonTraits
     // Spatial dimension
     static constexpr int kSpatialDim = SIGNATURE.spatial_dim;
 
-    // Layouts - map from enum to type
-    using InLayout  = typename LayoutEnumToType<SIGNATURE.input.config.layout>::type;
-    using WeiLayout = typename LayoutEnumToType<SIGNATURE.weight.config.layout>::type;
-    using OutLayout = typename LayoutEnumToType<SIGNATURE.output.config.layout>::type;
+    // Layouts - map from enum to type using existing helper
+    using InLayout =
+        typename builder::factory::internal::LayoutToCK<SIGNATURE.input.config.layout>::type;
+    using WeiLayout =
+        typename builder::factory::internal::LayoutToCK<SIGNATURE.weight.config.layout>::type;
+    using OutLayout =
+        typename builder::factory::internal::LayoutToCK<SIGNATURE.output.config.layout>::type;
 
     // Data types - extract from factory's type helper
     using Types       = builder::factory::internal::FwdConvTensorDataTypes<SIGNATURE>;
