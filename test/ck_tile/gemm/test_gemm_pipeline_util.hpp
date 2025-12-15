@@ -184,28 +184,27 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                BDataType,
-                                                DsDataType,
-                                                AccDataType,
-                                                CDataType,
-                                                DsLayout,
-                                                CLayout,
-                                                ck_tile::element_wise::PassThrough,
-                                                TilePartitioner::MPerBlock,
-                                                TilePartitioner::NPerBlock,
-                                                M_Warp,
-                                                N_Warp,
-                                                M_Warp_Tile,
-                                                N_Warp_Tile,
-                                                K_Warp_Tile,
-                                                UniversalGemmProblem::TransposeC,
-                                                1,     /*kNumWaveGroups_*/
-                                                false, /*FixedVectorSize_*/
-                                                1,     /*VectorSizeC_*/
-                                                false, /*TiledMMAPermuteN_*/
-                                                1,     /*BlockedXDLN_PerWarp_*/
-                                                DoubleSmemBuffer /*DoubleSmemBuffer*/>>;
-
+                                             BDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             DsLayout,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC,
+                                             1,     /*kNumWaveGroups_*/
+                                             false, /*FixedVectorSize_*/
+                                             1,     /*VectorSizeC_*/
+                                             false, /*TiledMMAPermuteN_*/
+                                             1,     /*BlockedXDLN_PerWarp_*/
+                                             DoubleSmemBuffer /*DoubleSmemBuffer*/>>;
 
         dim3 grids;
         if constexpr(Persistent)
