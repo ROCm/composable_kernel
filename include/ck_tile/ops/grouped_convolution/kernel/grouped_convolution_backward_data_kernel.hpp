@@ -602,24 +602,6 @@ struct GroupedConvolutionBackwardDataKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    struct SplitKBatchOffset
-    {
-        __device__ SplitKBatchOffset(const GroupedConvBwdDataKernelArgsSpecialized& kargs,
-                                     const index_t gemm_k,
-                                     const index_t k_id)
-        {
-            constexpr auto K1   = TilePartitioner::KPerBlock;
-            const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
-            const index_t KRead = amd_wave_read_first_lane((gemm_k + K_t - 1) / K_t * K1);
-
-            block_idx_k = amd_wave_read_first_lane(k_id * KRead);
-            splitted_k  = amd_wave_read_first_lane(KRead);
-        }
-
-        index_t splitted_k;
-        index_t block_idx_k;
-    };
-
     CK_TILE_HOST static bool
     IsSupportedArgument(const GroupedConvBwdDataKernelArgsSpecialized& kargs)
     {
@@ -1047,7 +1029,6 @@ struct GroupedConvolutionBackwardDataKernel
             __builtin_amdgcn_readfirstlane(blockIdZ - split_n_idx * kargs.k_batch);
 
         const index_t gemm_k = kargs.a_grid_descs_m_k[group_id].get_length(I1);
-        const SplitKBatchOffset splitk_batch_offset(kargs, gemm_k, split_k_idx);
 
         constexpr auto K1   = TilePartitioner::KPerBlock;
         const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
