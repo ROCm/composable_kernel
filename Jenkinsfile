@@ -627,27 +627,9 @@ def cmake_build(Map conf=[:]){
         // Start sccache monitoring
         if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
             sh """
-                echo "=== MAKING SCRIPTS EXECUTABLE ==="
                 chmod +x ../script/monitor_sccache_during_build.sh
-                
-                echo "=== SETTING UP DEBUG ENVIRONMENT ==="
                 mkdir -p logs
-                export CK_SCCACHE="${env.CK_SCCACHE}"
-                export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
-                export ROCM_PATH=/opt/rocm
-                export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
-                export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
-                export WORKSPACE_PATH="${env.WORKSPACE}"
-                
-                echo "Environment for debug scripts:"
-                echo "CK_SCCACHE: \$CK_SCCACHE"
-                echo "SCCACHE_REDIS: \$SCCACHE_REDIS"
-                echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \$SCCACHE_C_CUSTOM_CACHE_BUSTER"
-                echo "JENKINS_STAGE_NAME: \$JENKINS_STAGE_NAME"
-                echo "WORKSPACE_PATH: \$WORKSPACE_PATH"
-                
-                echo "=== STARTING CONTINUOUS MONITORING ==="
                 ../script/monitor_sccache_during_build.sh build_monitor &
                 MONITOR_PID=\$!
                 echo "Monitor PID: \$MONITOR_PID"
@@ -677,11 +659,6 @@ def cmake_build(Map conf=[:]){
                         kill \$MONITOR_PID 2>/dev/null || echo "Monitor already stopped"
                         rm -f monitor.pid
                     fi
-                    echo "=== CONTINUOUS MONITORING STOPPED ==="
-                    
-                    # List monitoring logs
-                    echo "=== MONITORING LOGS ==="
-                    ls -la logs/*monitor*.log 2>/dev/null || echo "No monitoring logs found"
                 """
                 
                 // Archive the monitoring logs

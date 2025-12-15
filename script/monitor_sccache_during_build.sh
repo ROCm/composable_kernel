@@ -9,9 +9,9 @@ LOG_PREFIX=${1:-"sccache_monitor"}
 
 # Include stage name in log filename if available
 STAGE_SUFFIX=""
-if [ -n "${JENKINS_STAGE_NAME}" ]; then
+if [ -n "${STAGE_NAME}" ]; then
     # Convert stage name to filename-safe format (replace spaces and special chars with underscores)
-    STAGE_SAFE=$(echo "${JENKINS_STAGE_NAME}" | sed 's/[^a-zA-Z0-9]/_/g' | sed 's/__*/_/g' | sed 's/^_\|_$//g')
+    STAGE_SAFE=$(echo "${STAGE_NAME}" | sed 's/[^a-zA-Z0-9]/_/g' | sed 's/__*/_/g' | sed 's/^_\|_$//g')
     STAGE_SUFFIX="_${STAGE_SAFE}"
 fi
 
@@ -70,18 +70,20 @@ test_redis_connectivity() {
 cleanup() {
     log_with_timestamp "=== FINAL SCCACHE STATS EXIT ==="
     log_with_timestamp "$(get_sccache_stats)"
+    echo "=== CONTINUOUS MONITORING STOPPED ==="
+    # List monitoring logs
+    echo "=== MONITORING LOGS ==="
+    ls -la logs/*monitor*.log 2>/dev/null || echo "No monitoring logs found"
 }
 trap cleanup EXIT
 
 log_with_timestamp "=== SCCACHE MONITORING STARTED ==="
 log_with_timestamp "PID: $$"
 log_with_timestamp "Node: ${NODE_NAME:-$(hostname)}"
-log_with_timestamp "Stage: ${JENKINS_STAGE_NAME:-unknown}"
-log_with_timestamp "WORKSPACE_PATH: ${WORKSPACE_PATH:-not set}"
-log_with_timestamp "SCCACHE_REDIS: ${SCCACHE_REDIS:-not set}"
-log_with_timestamp "CK_SCCACHE: ${CK_SCCACHE:-not set}"
-log_with_timestamp "SCCACHE_EXTRAFILES: ${SCCACHE_EXTRAFILES:-not set}"
+log_with_timestamp "Stage: ${STAGE_NAME:-unknown}"
+log_with_timestamp "WORKSPACE_PATH: ${WORKSPACE:-not set}"
 log_with_timestamp "SCCACHE_C_CUSTOM_CACHE_BUSTER: ${SCCACHE_C_CUSTOM_CACHE_BUSTER:-not set}"
+log_with_timestamp "CK_SCCACHE: ${CK_SCCACHE:-not set}"
 
 # Initial state
 log_with_timestamp "=== INITIAL STATE ==="
