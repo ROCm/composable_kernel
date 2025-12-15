@@ -20,6 +20,11 @@ namespace ck_tile::reflect {
 class Description
 {
     public:
+    Description()                              = default;
+    Description(const Description&)            = default;
+    Description(Description&&)                 = default;
+    Description& operator=(const Description&) = default;
+    Description& operator=(Description&&)      = default;
     /// @brief Virtual destructor for proper cleanup of derived classes
     virtual ~Description() = default;
 
@@ -34,6 +39,32 @@ class Description
     /// @brief Generate a string representation of the instance
     /// @return A string that represents the instance
     virtual std::string instance_string() const = 0;
+};
+
+/// @brief A specialized Description that only supports instance_string()
+/// This is a helper class for kernels that don't yet have full ConvDescription support.
+/// The brief() and detailed() methods return "not supported" placeholders.
+class InstanceStringDescription : public Description
+{
+    public:
+    /// @brief Construct with an instance string
+    /// @param instance The instance string to store
+    explicit InstanceStringDescription(std::string instance) : instance_(std::move(instance)) {}
+
+    /// @brief Returns "not supported" as brief descriptions are not implemented
+    /// @return A placeholder string indicating the feature is not supported
+    std::string brief() const override { return "not supported"; }
+
+    /// @brief Returns "not supported" as detailed descriptions are not implemented
+    /// @return A placeholder string indicating the feature is not supported
+    std::string detailed() const override { return "not supported"; }
+
+    /// @brief Returns the stored instance string
+    /// @return The instance string provided during construction
+    std::string instance_string() const override { return instance_; }
+
+    private:
+    std::string instance_; ///< The stored instance string
 };
 
 } // namespace ck_tile::reflect
