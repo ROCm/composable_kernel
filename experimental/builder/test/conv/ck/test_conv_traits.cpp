@@ -5,6 +5,7 @@
 #include <gmock/gmock.h>
 #include <concepts>
 
+#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
 #include <ck_tile/builder/reflect/conv_traits.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp>
