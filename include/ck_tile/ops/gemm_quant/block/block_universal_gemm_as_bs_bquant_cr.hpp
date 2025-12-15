@@ -61,6 +61,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
         using ADataType       = remove_cvref_t<typename Problem::ADataType>;
         using BDataType       = remove_cvref_t<typename Problem::BDataType>;
         using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
+        using BLayout         = remove_cvref_t<typename Problem::BLayout>;
         using BQLayout        = remove_cvref_t<typename Problem::BQLayout>;
         using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
         using CDataType       = remove_cvref_t<typename Problem::CDataType>;
@@ -156,9 +157,11 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
     using CDataType       = remove_cvref_t<typename Traits::CDataType>;
 
     // BDataType gets converted from PkInt4 during loading
-    using OverrideBDataType =
-        std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
-
+    using OverrideBDataType = std::conditional_t<
+        std::is_same_v<BDataType, pk_int4_t> &&
+            std::is_same_v<typename Traits::BLayout, tensor_layout::gemm::RowMajor>,
+        ADataType,
+        BDataType>;
     using Base = BlockGemmBQuantBase<Problem_>;
 
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;

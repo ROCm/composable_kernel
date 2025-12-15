@@ -879,6 +879,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             traits.has_logits_soft_cap = 0.f < logits_soft_cap;
             traits.mask_type           = mask.type;
             traits.bias_type           = bias.type;
+            traits.has_sink            = mask.sink > 0 ? true : false;
             traits.has_lse             = lse;
 
             if constexpr(std::is_same_v<fmha_fwd_traits, std::decay_t<decltype(traits)>>)
@@ -1042,6 +1043,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
             args.window_size_left  = mask.left;
             args.window_size_right = mask.right;
+            args.sink_size         = mask.sink;
             args.mask_type         = static_cast<ck_tile::index_t>(mask.type);
 
             if constexpr(std::is_same_v<fmha_fwd_args, std::decay_t<decltype(args)>>)
@@ -1645,7 +1647,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 ck_tile::reference_batched_masking<SaccDataType>(
                     s_host_ref,
                     ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                        mask.left, mask.right, real_seqlen_q, real_seqlen_k));
+                        mask.left, mask.right, mask.sink, real_seqlen_q, real_seqlen_k));
             }
             else
             {
@@ -1657,6 +1659,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
                             mask.left,
                             mask.right,
+                            mask.sink,
                             real_seqlen_q,
                             real_seqlen_k,
                             mask.type == mask_enum::mask_top_left));
@@ -1666,6 +1669,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
                             mask.left,
                             mask.right,
+                            mask.sink,
                             real_seqlen_q,
                             real_seqlen_k,
                             mask.type == mask_enum::mask_top_left));
