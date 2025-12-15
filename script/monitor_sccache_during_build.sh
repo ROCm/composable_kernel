@@ -63,7 +63,7 @@ test_redis_connectivity() {
     fi
 }
 
-# Executes a final dump of the sccache stats
+# Gets the last sccache stats before exiting
 cleanup() {
     log_with_timestamp "=== FINAL SCCACHE STATS EXIT ==="
     log_with_timestamp "$(get_sccache_stats)"
@@ -82,6 +82,7 @@ log_with_timestamp "SCCACHE_C_CUSTOM_CACHE_BUSTER: ${SCCACHE_C_CUSTOM_CACHE_BUST
 
 # Initial state
 log_with_timestamp "=== INITIAL STATE ==="
+# Reset sscache stats
 sccache --zero-stats
 log_with_timestamp "$(get_sccache_stats) $(test_redis_connectivity)"
 
