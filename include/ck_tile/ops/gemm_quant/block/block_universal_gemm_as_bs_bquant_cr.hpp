@@ -20,7 +20,7 @@ namespace ck_tile {
 template <typename Problem_,
           typename Policy_     = BlockGemmASmemBSmemCRegV1DefaultPolicy,
           index_t UnaryOpSize_ = 8>
-struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
+struct BQuantBlockUniversalGemmAsBsCr
 {
     private:
     template <typename PipelineProblem_, typename GemmPolicy_>
@@ -132,7 +132,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
             std::is_same_v<typename Traits::BLayout, tensor_layout::gemm::RowMajor>,
         ADataType,
         BDataType>;
-    using Base = BlockGemmBQuantBase;
+    using Base = BlockGemmQuantBase;
 
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 

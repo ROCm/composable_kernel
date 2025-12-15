@@ -420,23 +420,23 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
     {
         AQK = ck_tile::integer_divide_ceil(
-            K, QuantGroupSize::kK); // Group quantization: AQK = K / GroupSize
-        BQK = 0;                    // No B quantization
+            K, AQuantGroupSize::kK); // Group quantization: AQK = K / GroupSize
+        BQK = 0;                     // No B quantization
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
         AQK = 0; // No A quantization
         BQK = ck_tile::integer_divide_ceil(
-            K, QuantGroupSize::kK); // Group quantization: BQK = K / GroupSize
-        BQN = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
+            K, BQuantGroupSize::kK); // Group quantization: BQK = K / GroupSize
+        BQN = ck_tile::integer_divide_ceil(N, BQuantGroupSize::kN);
     }
     else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
     {
         AQK = ck_tile::integer_divide_ceil(
-            K, QuantGroupSize::kK); // Group quantization: AQK = K / GroupSize
+            K, AQuantGroupSize::kK); // Group quantization: AQK = K / GroupSize
         BQK = ck_tile::integer_divide_ceil(
-            K, QuantGroupSize::kK); // Group quantization: BQK = K / GroupSize
-        BQN = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
+            K, BQuantGroupSize::kK); // Group quantization: BQK = K / GroupSize
+        BQN = ck_tile::integer_divide_ceil(N, BQuantGroupSize::kN);
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
                       QuantMode == ck_tile::QuantType::TensorQuant)
