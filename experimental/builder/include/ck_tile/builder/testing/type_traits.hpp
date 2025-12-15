@@ -44,7 +44,7 @@ constexpr size_t data_type_sizeof(DataType data_type)
     case DataType::I8_I8: return 1;
     case DataType::U8: return 1;
     }
-    return 0;  // Should never reach here
+    return 0; // Should never reach here
 }
 
 } // namespace ck_tile::builder::test
