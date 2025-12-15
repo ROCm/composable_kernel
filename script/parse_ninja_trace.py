@@ -9,7 +9,7 @@ def read_json_file(file_path):
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    with open(file_path, "r", encoding='utf-8') as file:
+    with open(file_path, "r", encoding="utf-8") as file:
         try:
             data = json.load(file)
         except json.JSONDecodeError as e:
@@ -28,7 +28,7 @@ if __name__ == "__main__":
         print("JSON parsed successfully!")
         threshold = 15  # max number of minutes for compilation
         for i in range(len(parsed_data)):
-            if parsed_data[i]['dur'] > threshold * 60000000:
+            if parsed_data[i]["dur"] > threshold * 60000000:
                 print(
                     f"build duration of {parsed_data[i]['name']}  exceeds {threshold} minutes! actual build time: {parsed_data[i]['dur'] / 60000000:.2f} minutes!"
                 )
