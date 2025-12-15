@@ -77,6 +77,7 @@ add_ck_builder_test(test_ckb_conv_builder
     test_conv_builder.cpp
     test_fwd_instance_traits.cpp
     test_bwd_data_instance_traits.cpp
+    test_reference_instance_traits.cpp
     test_instance_traits_util.cpp
 
     unit_conv_elementwise_op.cpp

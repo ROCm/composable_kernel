@@ -32,6 +32,11 @@ struct ReferenceBackwardWeightFactory
 
     struct Instance
     {
+        // Store template parameters for InstanceTraits reflection
+        static constexpr auto kSignature = SIGNATURE;
+        static constexpr auto kAlgorithm = ALGORITHM;
+        static constexpr auto kVersion   = VERSION;
+
         // Use common argument structure (const input, mutable weight_grad, const output_grad)
         using Argument =
             internal::ReferenceConvArgument<const InDataType*, WeiDataType*, const OutDataType*>;

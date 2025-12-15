@@ -32,6 +32,11 @@ struct ReferenceForwardFactory
 
     struct Instance
     {
+        // Store template parameters for InstanceTraits reflection
+        static constexpr auto kSignature = SIGNATURE;
+        static constexpr auto kAlgorithm = ALGORITHM;
+        static constexpr auto kVersion   = VERSION;
+
         // Use common argument structure (const input, const weight, mutable output)
         using Argument =
             internal::ReferenceConvArgument<const InDataType*, const WeiDataType*, OutDataType*>;
