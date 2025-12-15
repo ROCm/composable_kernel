@@ -636,16 +636,9 @@ def cmake_build(Map conf=[:]){
                 echo \$MONITOR_PID > monitor.pid
             """
         }
-
-        def build_start_time = System.currentTimeMillis()
-
         try {
             //build CK
             sh cmd
-
-            def build_end_time = System.currentTimeMillis()
-            def build_duration = (build_end_time - build_start_time) / 1000
-            echo "Build completed in ${build_duration} seconds"
         } catch (Exception buildError) {
             echo "Build failed: ${buildError.getMessage()}"
             throw buildError
