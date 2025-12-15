@@ -20,6 +20,9 @@ template <ConvSignatureDescriptor auto SIGNATURE,
     requires ConvDirectionIsBackwardData<SIGNATURE>
 struct ReferenceBackwardDataFactory
 {
+    // Validate that only PassThrough elementwise operations are specified
+    static constexpr auto kValidation = (internal::ValidateReferenceSignature<SIGNATURE>(), 0);
+
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
 

@@ -4,9 +4,39 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/builder/conv_signature_concepts.hpp"
+#include "ck_tile/builder/types.hpp"
 #include <vector>
 
 namespace ck_tile::builder::factory::internal {
+
+// Validation helper: Ensure reference implementation only receives PassThrough elementwise ops
+template <auto SIGNATURE>
+consteval void ValidateReferenceSignature()
+{
+    using namespace ck_tile::builder;
+
+    // Check input elementwise operation
+    static_assert(
+        !HasTensorOp<decltype(SIGNATURE.input)> ||
+            SIGNATURE.input.operation.elementwise_operation == ElementwiseOperation::PASS_THROUGH,
+        "Reference implementation does not support elementwise operations on input tensor. "
+        "Input operation must be PassThrough (or not specified).");
+
+    // Check weight elementwise operation
+    static_assert(
+        !HasTensorOp<decltype(SIGNATURE.weight)> ||
+            SIGNATURE.weight.operation.elementwise_operation == ElementwiseOperation::PASS_THROUGH,
+        "Reference implementation does not support elementwise operations on weight tensor. "
+        "Weight operation must be PassThrough (or not specified).");
+
+    // Check output elementwise operation
+    static_assert(
+        !HasTensorOp<decltype(SIGNATURE.output)> ||
+            SIGNATURE.output.operation.elementwise_operation == ElementwiseOperation::PASS_THROUGH,
+        "Reference implementation does not support elementwise operations on output tensor. "
+        "Output operation must be PassThrough (or not specified).");
+}
 
 // Common argument structure for reference convolution implementations
 // Template parameters allow different const qualifiers for each direction

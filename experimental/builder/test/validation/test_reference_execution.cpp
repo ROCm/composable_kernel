@@ -12,7 +12,6 @@
 #include "ck/library/utility/check_err.hpp"
 #include <gtest/gtest.h>
 #include <vector>
-#include <cstdlib>
 
 namespace {
 
@@ -24,6 +23,8 @@ TEST(ReferenceExecution, Forward_2D_FP16)
 {
     // Test: Can we call Run() method on reference kernel?
 
+    // Note: When you don't specify .operation, it defaults to PassThrough
+    // Reference implementation only supports PassThrough elementwise operations
     constexpr ConvSignature sig{.spatial_dim            = 2,
                                 .direction              = ConvDirection::FORWARD,
                                 .data_type              = DataType::FP16,
@@ -84,6 +85,8 @@ TEST(ReferenceExecution, Forward_2D_FP16)
 
 TEST(ReferenceExecution, BackwardData_2D_FP16)
 {
+    // Note: When you don't specify .operation, it defaults to PassThrough
+    // Reference implementation only supports PassThrough elementwise operations
     constexpr ConvSignature sig{.spatial_dim            = 2,
                                 .direction              = ConvDirection::BACKWARD_DATA,
                                 .data_type              = DataType::FP16,
@@ -137,6 +140,8 @@ TEST(ReferenceExecution, BackwardData_2D_FP16)
 
 TEST(ReferenceExecution, BackwardWeight_2D_FP16)
 {
+    // Note: When you don't specify .operation, it defaults to PassThrough
+    // Reference implementation only supports PassThrough elementwise operations
     constexpr ConvSignature sig{.spatial_dim            = 2,
                                 .direction              = ConvDirection::BACKWARD_WEIGHT,
                                 .data_type              = DataType::FP16,
