@@ -108,49 +108,11 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            // Build lengths and strides for the new naive_conv_fwd API
-            index_t G  = arg.params_.G_;
-            index_t N  = arg.params_.N_;
-            index_t C  = arg.params_.C_;
-            index_t K  = arg.params_.K_;
-            index_t Di = arg.params_.input_spatial_lengths_[0];
-            index_t Hi = arg.params_.input_spatial_lengths_[1];
-            index_t Wi = arg.params_.input_spatial_lengths_[2];
-            index_t Z  = arg.params_.filter_spatial_lengths_[0];
-            index_t Y  = arg.params_.filter_spatial_lengths_[1];
-            index_t X  = arg.params_.filter_spatial_lengths_[2];
-            index_t Do = arg.out_spatial_lengths_[0];
-            index_t Ho = arg.out_spatial_lengths_[1];
-            index_t Wo = arg.out_spatial_lengths_[2];
-
-            // Input layout: GNCDHW
-            std::vector<index_t> in_lengths = {G, N, C, Di, Hi, Wi};
-            std::vector<index_t> in_strides = {
-                N * C * Di * Hi * Wi, C * Di * Hi * Wi, Di * Hi * Wi, Hi * Wi, Wi, 1};
-
-            // Weight layout: GKCZYX
-            std::vector<index_t> wei_lengths = {G, K, C, Z, Y, X};
-            std::vector<index_t> wei_strides = {
-                K * C * Z * Y * X, C * Z * Y * X, Z * Y * X, Y * X, X, 1};
-
-            // Output layout: GNKDHW
-            std::vector<index_t> out_lengths = {G, N, K, Do, Ho, Wo};
-            std::vector<index_t> out_strides = {
-                N * K * Do * Ho * Wo, K * Do * Ho * Wo, Do * Ho * Wo, Ho * Wo, Wo, 1};
-
-            // Convert long_index_t vectors to index_t
-            std::vector<index_t> conv_strides_vec(arg.params_.conv_filter_strides_.begin(),
-                                                  arg.params_.conv_filter_strides_.end());
-            std::vector<index_t> conv_dilations_vec(arg.params_.conv_filter_dilations_.begin(),
-                                                    arg.params_.conv_filter_dilations_.end());
-            std::vector<index_t> input_pads_vec(arg.params_.input_left_pads_.begin(),
-                                                arg.params_.input_left_pads_.end());
-
             using InLayout  = ck::tensor_layout::convolution::GNCDHW;
             using WeiLayout = ck::tensor_layout::convolution::GKCZYX;
             using OutLayout = ck::tensor_layout::convolution::GNKDHW;
 
-            // No timing, just run once
+            // Use simplified ConvParam-based API
             ref::naive_conv_fwd<InLayout,
                                 WeiLayout,
                                 OutLayout,
@@ -159,19 +121,9 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
                                 OutDataType,
                                 InElementwiseOperation,
                                 WeiElementwiseOperation,
-                                OutElementwiseOperation>(arg.p_in_,
-                                                         arg.p_wei_,
-                                                         arg.p_out_,
-                                                         in_lengths,
-                                                         in_strides,
-                                                         wei_lengths,
-                                                         wei_strides,
-                                                         out_lengths,
-                                                         out_strides,
-                                                         conv_strides_vec,
-                                                         conv_dilations_vec,
-                                                         input_pads_vec,
-                                                         stream_config.stream_id_);
+                                OutElementwiseOperation>(
+                arg.p_in_, arg.p_wei_, arg.p_out_, arg.params_, stream_config.stream_id_);
+            return 0; // No timing for naive implementation
         }
 
         // polymorphic

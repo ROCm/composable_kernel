@@ -98,27 +98,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
         // Allocate GPU reference output buffer
         DeviceMem gpu_ref_in_buf(sizeof(InDataType) * in_host.mDesc.GetElementSpaceSize());
 
-        // Convert descriptor lengths/strides to vectors for GPU reference
-        std::vector<index_t> in_lengths_vec(in_g_n_c_wis_desc.GetLengths().begin(),
-                                            in_g_n_c_wis_desc.GetLengths().end());
-        std::vector<index_t> in_strides_vec(in_g_n_c_wis_desc.GetStrides().begin(),
-                                            in_g_n_c_wis_desc.GetStrides().end());
-        std::vector<index_t> wei_lengths_vec(wei_g_k_c_xs_desc.GetLengths().begin(),
-                                             wei_g_k_c_xs_desc.GetLengths().end());
-        std::vector<index_t> wei_strides_vec(wei_g_k_c_xs_desc.GetStrides().begin(),
-                                             wei_g_k_c_xs_desc.GetStrides().end());
-        std::vector<index_t> out_lengths_vec(out_g_n_k_wos_desc.GetLengths().begin(),
-                                             out_g_n_k_wos_desc.GetLengths().end());
-        std::vector<index_t> out_strides_vec(out_g_n_k_wos_desc.GetStrides().begin(),
-                                             out_g_n_k_wos_desc.GetStrides().end());
-        std::vector<index_t> strides_vec(conv_param.conv_filter_strides_.begin(),
-                                         conv_param.conv_filter_strides_.end());
-        std::vector<index_t> dilations_vec(conv_param.conv_filter_dilations_.begin(),
-                                           conv_param.conv_filter_dilations_.end());
-        std::vector<index_t> pads_vec(conv_param.input_left_pads_.begin(),
-                                      conv_param.input_left_pads_.end());
-
-        // Call GPU reference with stride-based interface
+        // Call GPU reference with ConvParam directly
         ref::naive_conv_bwd_data<InLayout,
                                  WeiLayout,
                                  OutLayout,
@@ -131,15 +111,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
             reinterpret_cast<InDataType*>(gpu_ref_in_buf.GetDeviceBuffer()),
             reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
             reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            in_lengths_vec,
-            in_strides_vec,
-            wei_lengths_vec,
-            wei_strides_vec,
-            out_lengths_vec,
-            out_strides_vec,
-            strides_vec,
-            dilations_vec,
-            pads_vec,
+            conv_param,
             nullptr);
 
         // Copy GPU reference result to host for comparison

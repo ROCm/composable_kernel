@@ -8,6 +8,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/reference_tensor_operation/gpu/pack_unpack_kernels.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_layout_utils.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -473,6 +474,94 @@ void naive_conv_bwd_weight(const TIn* p_in,
     HIP_CHECK_ERROR(hipFree(d_wei_strides));
     HIP_CHECK_ERROR(hipFree(d_out_lengths));
     HIP_CHECK_ERROR(hipFree(d_out_strides));
+}
+
+// Overload that takes ConvParam directly
+template <typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          typename TIn,
+          typename TWei,
+          typename TOut,
+          typename InElementwiseOperation,
+          typename WeiElementwiseOperation,
+          typename OutElementwiseOperation>
+void naive_conv_bwd_weight(const TIn* p_in,
+                           TWei* p_wei_grad,
+                           const TOut* p_out,
+                           const ck::utils::conv::ConvParam& conv_param,
+                           hipStream_t stream = nullptr)
+{
+    const auto ndim = conv_param.num_dim_spatial_;
+
+    // Build lengths vectors with per-group C and K
+    // ConvParam stores total C and K, but naive kernels expect per-group
+    const index_t C_per_group = conv_param.C_ / conv_param.G_;
+    const index_t K_per_group = conv_param.K_ / conv_param.G_;
+
+    std::vector<index_t> in_lengths  = {static_cast<index_t>(conv_param.G_),
+                                        static_cast<index_t>(conv_param.N_),
+                                        static_cast<index_t>(C_per_group)};
+    std::vector<index_t> wei_lengths = {static_cast<index_t>(conv_param.G_),
+                                        static_cast<index_t>(K_per_group),
+                                        static_cast<index_t>(C_per_group)};
+    std::vector<index_t> out_lengths = {static_cast<index_t>(conv_param.G_),
+                                        static_cast<index_t>(conv_param.N_),
+                                        static_cast<index_t>(K_per_group)};
+
+    for(index_t i = 0; i < ndim; ++i)
+    {
+        in_lengths.push_back(static_cast<index_t>(conv_param.input_spatial_lengths_[i]));
+        wei_lengths.push_back(static_cast<index_t>(conv_param.filter_spatial_lengths_[i]));
+        out_lengths.push_back(static_cast<index_t>(conv_param.output_spatial_lengths_[i]));
+    }
+
+    // Use helper functions for layout-aware stride computation
+    constexpr bool in_channel_last  = is_channel_last_layout<InLayout>();
+    constexpr bool wei_channel_last = is_channel_last_layout<WeiLayout>();
+    constexpr bool out_channel_last = is_channel_last_layout<OutLayout>();
+
+    std::vector<index_t> in_strides =
+        compute_conv_tensor_strides(in_lengths, ndim, in_channel_last);
+    std::vector<index_t> wei_strides =
+        compute_conv_tensor_strides(wei_lengths, ndim, wei_channel_last);
+    std::vector<index_t> out_strides =
+        compute_conv_tensor_strides(out_lengths, ndim, out_channel_last);
+
+    // Build conv parameter vectors
+    std::vector<index_t> conv_strides(ndim);
+    std::vector<index_t> conv_dilations(ndim);
+    std::vector<index_t> input_pads(ndim);
+
+    for(index_t i = 0; i < ndim; ++i)
+    {
+        conv_strides[i]   = static_cast<index_t>(conv_param.conv_filter_strides_[i]);
+        conv_dilations[i] = static_cast<index_t>(conv_param.conv_filter_dilations_[i]);
+        input_pads[i]     = static_cast<index_t>(conv_param.input_left_pads_[i]);
+    }
+
+    // Call the existing implementation
+    naive_conv_bwd_weight<InLayout,
+                          WeiLayout,
+                          OutLayout,
+                          TIn,
+                          TWei,
+                          TOut,
+                          InElementwiseOperation,
+                          WeiElementwiseOperation,
+                          OutElementwiseOperation>(p_in,
+                                                   p_wei_grad,
+                                                   p_out,
+                                                   in_lengths,
+                                                   in_strides,
+                                                   wei_lengths,
+                                                   wei_strides,
+                                                   out_lengths,
+                                                   out_strides,
+                                                   conv_strides,
+                                                   conv_dilations,
+                                                   input_pads,
+                                                   stream);
 }
 
 } // namespace ref

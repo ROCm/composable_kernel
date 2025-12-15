@@ -27,19 +27,6 @@
 namespace ck {
 namespace test {
 
-// Dimension structure for test utilities
-// K and C are PER-GROUP dimensions (not total)
-struct ConvDims
-{
-    index_t N, K, C, G;
-    index_t Di, Hi, Wi;
-    index_t Z, Y, X;
-    index_t Do, Ho, Wo;
-    index_t stride_z, stride_y, stride_x;
-    index_t dilation_z, dilation_y, dilation_x;
-    index_t pad_z, pad_y, pad_x;
-};
-
 enum class ConvKernelType
 {
     Forward,
@@ -57,58 +44,6 @@ void initialize_and_copy_tensor(Tensor<DataType>& host_tensor,
     {
         host_tensor.GenerateTensorValue(GeneratorTensor_2<DataType>{-5, 5});
         device_mem.ToDevice(host_tensor.mData.data());
-    }
-}
-
-// Helper to compute row-major strides from lengths
-inline std::vector<index_t> compute_row_major_strides(const std::vector<index_t>& lengths)
-{
-    std::vector<index_t> strides(lengths.size());
-    index_t stride = 1;
-    for(int i = lengths.size() - 1; i >= 0; --i)
-    {
-        strides[i] = stride;
-        stride *= lengths[i];
-    }
-    return strides;
-}
-
-// Helper to convert ConvDims to vectors for GPU reference interface
-inline void extract_conv_vectors(const ConvDims& dims,
-                                 index_t NDimSpatial,
-                                 std::vector<index_t>& in_lengths,
-                                 std::vector<index_t>& wei_lengths,
-                                 std::vector<index_t>& out_lengths,
-                                 std::vector<index_t>& conv_strides,
-                                 std::vector<index_t>& conv_dilations,
-                                 std::vector<index_t>& input_pads)
-{
-    if(NDimSpatial == 1)
-    {
-        in_lengths     = {dims.G, dims.N, dims.C, dims.Wi};
-        wei_lengths    = {dims.G, dims.K, dims.C, dims.X};
-        out_lengths    = {dims.G, dims.N, dims.K, dims.Wo};
-        conv_strides   = {dims.stride_x};
-        conv_dilations = {dims.dilation_x};
-        input_pads     = {dims.pad_x};
-    }
-    else if(NDimSpatial == 2)
-    {
-        in_lengths     = {dims.G, dims.N, dims.C, dims.Hi, dims.Wi};
-        wei_lengths    = {dims.G, dims.K, dims.C, dims.Y, dims.X};
-        out_lengths    = {dims.G, dims.N, dims.K, dims.Ho, dims.Wo};
-        conv_strides   = {dims.stride_y, dims.stride_x};
-        conv_dilations = {dims.dilation_y, dims.dilation_x};
-        input_pads     = {dims.pad_y, dims.pad_x};
-    }
-    else // 3D
-    {
-        in_lengths     = {dims.G, dims.N, dims.C, dims.Di, dims.Hi, dims.Wi};
-        wei_lengths    = {dims.G, dims.K, dims.C, dims.Z, dims.Y, dims.X};
-        out_lengths    = {dims.G, dims.N, dims.K, dims.Do, dims.Ho, dims.Wo};
-        conv_strides   = {dims.stride_z, dims.stride_y, dims.stride_x};
-        conv_dilations = {dims.dilation_z, dims.dilation_y, dims.dilation_x};
-        input_pads     = {dims.pad_z, dims.pad_y, dims.pad_x};
     }
 }
 
@@ -141,32 +76,14 @@ bool test_conv_fwd_impl(const ck::utils::conv::ConvParam& params,
                         const std::vector<index_t>& out_lengths_cpu,
                         DeviceMem& input_dev,
                         DeviceMem& weight_dev,
-                        DeviceMem& output_dev,
-                        const ConvDims& dims)
+                        DeviceMem& output_dev)
 {
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
     using OutElementOp = tensor_operation::element_wise::PassThrough;
     using Layouts      = ConvLayoutTypes<NDimSpatial>;
 
-    // Extract vectors from ConvDims
-    std::vector<index_t> in_lengths, wei_lengths, out_lengths;
-    std::vector<index_t> conv_strides_vec, conv_dilations_vec, input_pads_vec;
-    extract_conv_vectors(dims,
-                         NDimSpatial,
-                         in_lengths,
-                         wei_lengths,
-                         out_lengths,
-                         conv_strides_vec,
-                         conv_dilations_vec,
-                         input_pads_vec);
-
-    // Compute strides
-    auto in_strides  = compute_row_major_strides(in_lengths);
-    auto wei_strides = compute_row_major_strides(wei_lengths);
-    auto out_strides = compute_row_major_strides(out_lengths);
-
-    // Call GPU reference with stride-based interface
+    // Call GPU reference with ConvParam directly
     ref::naive_conv_fwd<typename Layouts::InLayout,
                         typename Layouts::WeiLayout,
                         typename Layouts::OutLayout,
@@ -179,15 +96,7 @@ bool test_conv_fwd_impl(const ck::utils::conv::ConvParam& params,
         reinterpret_cast<const InDataType*>(input_dev.GetDeviceBuffer()),
         reinterpret_cast<const WeiDataType*>(weight_dev.GetDeviceBuffer()),
         reinterpret_cast<OutDataType*>(output_dev.GetDeviceBuffer()),
-        in_lengths,
-        in_strides,
-        wei_lengths,
-        wei_strides,
-        out_lengths,
-        out_strides,
-        conv_strides_vec,
-        conv_dilations_vec,
-        input_pads_vec,
+        params,
         nullptr);
 
     HIP_CHECK_ERROR(hipDeviceSynchronize());
@@ -241,32 +150,14 @@ bool test_conv_bwd_data_impl(const ck::utils::conv::ConvParam& params,
                              const std::vector<index_t>& in_lengths_cpu,
                              DeviceMem& weight_dev,
                              DeviceMem& output_dev,
-                             DeviceMem& input_dev,
-                             const ConvDims& dims)
+                             DeviceMem& input_dev)
 {
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
     using OutElementOp = tensor_operation::element_wise::PassThrough;
     using Layouts      = ConvLayoutTypes<NDimSpatial>;
 
-    // Extract vectors from ConvDims
-    std::vector<index_t> in_lengths, wei_lengths, out_lengths;
-    std::vector<index_t> conv_strides_vec, conv_dilations_vec, input_pads_vec;
-    extract_conv_vectors(dims,
-                         NDimSpatial,
-                         in_lengths,
-                         wei_lengths,
-                         out_lengths,
-                         conv_strides_vec,
-                         conv_dilations_vec,
-                         input_pads_vec);
-
-    // Compute strides
-    auto in_strides  = compute_row_major_strides(in_lengths);
-    auto wei_strides = compute_row_major_strides(wei_lengths);
-    auto out_strides = compute_row_major_strides(out_lengths);
-
-    // Call GPU reference with stride-based interface
+    // Call GPU reference with ConvParam directly
     ref::naive_conv_bwd_data<typename Layouts::InLayout,
                              typename Layouts::WeiLayout,
                              typename Layouts::OutLayout,
@@ -279,15 +170,7 @@ bool test_conv_bwd_data_impl(const ck::utils::conv::ConvParam& params,
         reinterpret_cast<InDataType*>(input_dev.GetDeviceBuffer()),
         reinterpret_cast<const WeiDataType*>(weight_dev.GetDeviceBuffer()),
         reinterpret_cast<const OutDataType*>(output_dev.GetDeviceBuffer()),
-        in_lengths,
-        in_strides,
-        wei_lengths,
-        wei_strides,
-        out_lengths,
-        out_strides,
-        conv_strides_vec,
-        conv_dilations_vec,
-        input_pads_vec,
+        params,
         nullptr);
 
     HIP_CHECK_ERROR(hipDeviceSynchronize());
@@ -341,32 +224,14 @@ bool test_conv_bwd_weight_impl(const ck::utils::conv::ConvParam& params,
                                const std::vector<index_t>& wei_lengths_cpu,
                                DeviceMem& input_dev,
                                DeviceMem& output_dev,
-                               DeviceMem& weight_dev,
-                               const ConvDims& dims)
+                               DeviceMem& weight_dev)
 {
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
     using OutElementOp = tensor_operation::element_wise::PassThrough;
     using Layouts      = ConvLayoutTypes<NDimSpatial>;
 
-    // Extract vectors from ConvDims
-    std::vector<index_t> in_lengths, wei_lengths, out_lengths;
-    std::vector<index_t> conv_strides_vec, conv_dilations_vec, input_pads_vec;
-    extract_conv_vectors(dims,
-                         NDimSpatial,
-                         in_lengths,
-                         wei_lengths,
-                         out_lengths,
-                         conv_strides_vec,
-                         conv_dilations_vec,
-                         input_pads_vec);
-
-    // Compute strides
-    auto in_strides  = compute_row_major_strides(in_lengths);
-    auto wei_strides = compute_row_major_strides(wei_lengths);
-    auto out_strides = compute_row_major_strides(out_lengths);
-
-    // Call GPU reference with stride-based interface
+    // Call GPU reference with ConvParam directly
     ref::naive_conv_bwd_weight<typename Layouts::InLayout,
                                typename Layouts::WeiLayout,
                                typename Layouts::OutLayout,
@@ -379,15 +244,7 @@ bool test_conv_bwd_weight_impl(const ck::utils::conv::ConvParam& params,
         reinterpret_cast<const InDataType*>(input_dev.GetDeviceBuffer()),
         reinterpret_cast<WeiDataType*>(weight_dev.GetDeviceBuffer()),
         reinterpret_cast<const OutDataType*>(output_dev.GetDeviceBuffer()),
-        in_lengths,
-        in_strides,
-        wei_lengths,
-        wei_strides,
-        out_lengths,
-        out_strides,
-        conv_strides_vec,
-        conv_dilations_vec,
-        input_pads_vec,
+        params,
         nullptr);
 
     HIP_CHECK_ERROR(hipDeviceSynchronize());
@@ -487,103 +344,23 @@ bool test_conv_gpu_ref(const ck::utils::conv::ConvParam& params, ConvKernelType 
         initialize_and_copy_tensor(output, output_dev, true);
     }
 
-    // Extract dimensions based on NDimSpatial
-    index_t Di = 1, Hi = 1, Wi = 1;
-    index_t Z = 1, Y = 1, X = 1;
-    index_t Do = 1, Ho = 1, Wo = 1;
-    index_t stride_z = 1, stride_y = 1, stride_x = 1;
-    index_t dilation_z = 1, dilation_y = 1, dilation_x = 1;
-    index_t pad_z = 0, pad_y = 0, pad_x = 0;
-
-    if(NDimSpatial == 1)
-    {
-        Wi         = params.input_spatial_lengths_[0];
-        X          = params.filter_spatial_lengths_[0];
-        Wo         = params.output_spatial_lengths_[0];
-        stride_x   = params.conv_filter_strides_[0];
-        dilation_x = params.conv_filter_dilations_[0];
-        pad_x      = params.input_left_pads_[0];
-    }
-    else if(NDimSpatial == 2)
-    {
-        Hi         = params.input_spatial_lengths_[0];
-        Wi         = params.input_spatial_lengths_[1];
-        Y          = params.filter_spatial_lengths_[0];
-        X          = params.filter_spatial_lengths_[1];
-        Ho         = params.output_spatial_lengths_[0];
-        Wo         = params.output_spatial_lengths_[1];
-        stride_y   = params.conv_filter_strides_[0];
-        stride_x   = params.conv_filter_strides_[1];
-        dilation_y = params.conv_filter_dilations_[0];
-        dilation_x = params.conv_filter_dilations_[1];
-        pad_y      = params.input_left_pads_[0];
-        pad_x      = params.input_left_pads_[1];
-    }
-    else if(NDimSpatial == 3)
-    {
-        Di         = params.input_spatial_lengths_[0];
-        Hi         = params.input_spatial_lengths_[1];
-        Wi         = params.input_spatial_lengths_[2];
-        Z          = params.filter_spatial_lengths_[0];
-        Y          = params.filter_spatial_lengths_[1];
-        X          = params.filter_spatial_lengths_[2];
-        Do         = params.output_spatial_lengths_[0];
-        Ho         = params.output_spatial_lengths_[1];
-        Wo         = params.output_spatial_lengths_[2];
-        stride_z   = params.conv_filter_strides_[0];
-        stride_y   = params.conv_filter_strides_[1];
-        stride_x   = params.conv_filter_strides_[2];
-        dilation_z = params.conv_filter_dilations_[0];
-        dilation_y = params.conv_filter_dilations_[1];
-        dilation_x = params.conv_filter_dilations_[2];
-        pad_z      = params.input_left_pads_[0];
-        pad_y      = params.input_left_pads_[1];
-        pad_x      = params.input_left_pads_[2];
-    }
-
-    // Create ConvDims structure for kernels
-    // IMPORTANT: Use per-group semantics (matching CPU reference)
-    ConvDims dims;
-    dims.N          = N;
-    dims.K          = K / G; // Per-group K
-    dims.C          = C / G; // Per-group C
-    dims.G          = G;
-    dims.Di         = Di;
-    dims.Hi         = Hi;
-    dims.Wi         = Wi;
-    dims.Z          = Z;
-    dims.Y          = Y;
-    dims.X          = X;
-    dims.Do         = Do;
-    dims.Ho         = Ho;
-    dims.Wo         = Wo;
-    dims.stride_z   = stride_z;
-    dims.stride_y   = stride_y;
-    dims.stride_x   = stride_x;
-    dims.dilation_z = dilation_z;
-    dims.dilation_y = dilation_y;
-    dims.dilation_x = dilation_x;
-    dims.pad_z      = pad_z;
-    dims.pad_y      = pad_y;
-    dims.pad_x      = pad_x;
-
     // Dispatch to appropriate implementation
     // All tensors already in CPU layout (GNCDHW/GKCZYX/GNKDHW)
     // Wrappers will handle all transformations automatically
     if(kernel_type == ConvKernelType::Forward)
     {
         return test_conv_fwd_impl<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-            params, input, weight, out_lengths, input_dev, weight_dev, output_dev, dims);
+            params, input, weight, out_lengths, input_dev, weight_dev, output_dev);
     }
     else if(kernel_type == ConvKernelType::BackwardData)
     {
         return test_conv_bwd_data_impl<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-            params, weight, output, in_lengths, weight_dev, output_dev, input_dev, dims);
+            params, weight, output, in_lengths, weight_dev, output_dev, input_dev);
     }
     else // BackwardWeight
     {
         return test_conv_bwd_weight_impl<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-            params, input, output, wei_lengths, input_dev, output_dev, weight_dev, dims);
+            params, input, output, wei_lengths, input_dev, output_dev, weight_dev);
     }
 }
 

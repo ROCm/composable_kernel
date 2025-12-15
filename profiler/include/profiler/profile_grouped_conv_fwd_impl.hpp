@@ -122,21 +122,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         // Allocate GPU reference output buffer
         DeviceMem gpu_ref_out_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
 
-        // Convert arrays to vectors for GPU reference
-        std::vector<index_t> in_lengths_vec(a_g_n_c_wis_lengths.begin(), a_g_n_c_wis_lengths.end());
-        std::vector<index_t> in_strides_vec(a_g_n_c_wis_strides.begin(), a_g_n_c_wis_strides.end());
-        std::vector<index_t> wei_lengths_vec(b_g_k_c_xs_lengths.begin(), b_g_k_c_xs_lengths.end());
-        std::vector<index_t> wei_strides_vec(b_g_k_c_xs_strides.begin(), b_g_k_c_xs_strides.end());
-        std::vector<index_t> out_lengths_vec(e_g_n_k_wos_lengths.begin(),
-                                             e_g_n_k_wos_lengths.end());
-        std::vector<index_t> out_strides_vec(e_g_n_k_wos_strides.begin(),
-                                             e_g_n_k_wos_strides.end());
-        std::vector<index_t> strides_vec(conv_filter_strides.begin(), conv_filter_strides.end());
-        std::vector<index_t> dilations_vec(conv_filter_dilations.begin(),
-                                           conv_filter_dilations.end());
-        std::vector<index_t> pads_vec(input_left_pads.begin(), input_left_pads.end());
-
-        // Call GPU reference with stride-based interface
+        // Call GPU reference with ConvParam directly
         ref::naive_conv_fwd<InLayout,
                             WeiLayout,
                             OutLayout,
@@ -149,15 +135,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
             reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
             reinterpret_cast<OutDataType*>(gpu_ref_out_buf.GetDeviceBuffer()),
-            in_lengths_vec,
-            in_strides_vec,
-            wei_lengths_vec,
-            wei_strides_vec,
-            out_lengths_vec,
-            out_strides_vec,
-            strides_vec,
-            dilations_vec,
-            pads_vec,
+            conv_param,
             nullptr);
 
         // Copy GPU reference result to host for comparison

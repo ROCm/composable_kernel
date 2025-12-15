@@ -131,6 +131,9 @@ template <ck::index_t NDimSpatial,
           typename WeiElementOp,
           typename OutElementOp,
           typename DeviceConvNDFwdInstance,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
           typename ComputeDataType = OutDataType>
 bool run_grouped_conv_fwd(int do_verification,
                           int init_method,
@@ -283,30 +286,7 @@ bool run_grouped_conv_fwd(int do_verification,
         DeviceMem out_device_ref_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
         out_device_ref_buf.SetZero();
 
-        // Call new GPU reference function with lengths and strides
-        using InLayout  = ck::tensor_layout::convolution::GNCDHW;
-        using WeiLayout = ck::tensor_layout::convolution::GKCZYX;
-        using OutLayout = ck::tensor_layout::convolution::GNKDHW;
-
-        std::vector<ck::index_t> in_lengths_vec(a_g_n_c_wis_lengths.begin(),
-                                                a_g_n_c_wis_lengths.end());
-        std::vector<ck::index_t> in_strides_vec(a_g_n_c_wis_strides.begin(),
-                                                a_g_n_c_wis_strides.end());
-        std::vector<ck::index_t> wei_lengths_vec(b_g_k_c_xs_lengths.begin(),
-                                                 b_g_k_c_xs_lengths.end());
-        std::vector<ck::index_t> wei_strides_vec(b_g_k_c_xs_strides.begin(),
-                                                 b_g_k_c_xs_strides.end());
-        std::vector<ck::index_t> out_lengths_vec(e_g_n_k_wos_lengths.begin(),
-                                                 e_g_n_k_wos_lengths.end());
-        std::vector<ck::index_t> out_strides_vec(e_g_n_k_wos_strides.begin(),
-                                                 e_g_n_k_wos_strides.end());
-        std::vector<ck::index_t> conv_strides_vec(conv_param.conv_filter_strides_.begin(),
-                                                  conv_param.conv_filter_strides_.end());
-        std::vector<ck::index_t> conv_dilations_vec(conv_param.conv_filter_dilations_.begin(),
-                                                    conv_param.conv_filter_dilations_.end());
-        std::vector<ck::index_t> input_pads_vec(conv_param.input_left_pads_.begin(),
-                                                conv_param.input_left_pads_.end());
-
+        // Call GPU reference with ConvParam directly, using the correct layout types
         ck::ref::naive_conv_fwd<InLayout,
                                 WeiLayout,
                                 OutLayout,
@@ -319,15 +299,7 @@ bool run_grouped_conv_fwd(int do_verification,
             reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
             reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
             reinterpret_cast<OutDataType*>(out_device_ref_buf.GetDeviceBuffer()),
-            in_lengths_vec,
-            in_strides_vec,
-            wei_lengths_vec,
-            wei_strides_vec,
-            out_lengths_vec,
-            out_strides_vec,
-            conv_strides_vec,
-            conv_dilations_vec,
-            input_pads_vec);
+            conv_param);
 
         HIP_CHECK_ERROR(hipDeviceSynchronize());
 

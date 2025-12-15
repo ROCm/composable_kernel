@@ -82,7 +82,10 @@ template <ck::index_t NDimSpatial,
           typename InElementOp,
           typename WeiElementOp,
           typename OutElementOp,
-          typename DeviceConvNdBwdDataInstance>
+          typename DeviceConvNdBwdDataInstance,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout>
 int run_conv_bwd_data(int do_verification,
                       int init_method,
                       bool time_kernel,
@@ -233,48 +236,7 @@ int run_conv_bwd_data(int do_verification,
         DeviceMem in_device_ref_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
         in_device_ref_buf.SetZero();
 
-        // Prepare lengths and strides arrays
-        std::array<ck::index_t, NDimSpatial + 3> in_g_n_c_wis_lengths{};
-        std::array<ck::index_t, NDimSpatial + 3> in_g_n_c_wis_strides{};
-        std::array<ck::index_t, NDimSpatial + 3> wei_g_k_c_xs_lengths{};
-        std::array<ck::index_t, NDimSpatial + 3> wei_g_k_c_xs_strides{};
-        std::array<ck::index_t, NDimSpatial + 3> out_g_n_k_wos_lengths{};
-        std::array<ck::index_t, NDimSpatial + 3> out_g_n_k_wos_strides{};
-
-        auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
-
-        copy(in_g_n_c_wis_desc.GetLengths(), in_g_n_c_wis_lengths);
-        copy(in_g_n_c_wis_desc.GetStrides(), in_g_n_c_wis_strides);
-        copy(wei_g_k_c_xs_desc.GetLengths(), wei_g_k_c_xs_lengths);
-        copy(wei_g_k_c_xs_desc.GetStrides(), wei_g_k_c_xs_strides);
-        copy(out_g_n_k_wos_desc.GetLengths(), out_g_n_k_wos_lengths);
-        copy(out_g_n_k_wos_desc.GetStrides(), out_g_n_k_wos_strides);
-
-        // Convert to vectors for GPU reference API
-        std::vector<ck::index_t> in_lengths_vec(in_g_n_c_wis_lengths.begin(),
-                                                in_g_n_c_wis_lengths.end());
-        std::vector<ck::index_t> in_strides_vec(in_g_n_c_wis_strides.begin(),
-                                                in_g_n_c_wis_strides.end());
-        std::vector<ck::index_t> wei_lengths_vec(wei_g_k_c_xs_lengths.begin(),
-                                                 wei_g_k_c_xs_lengths.end());
-        std::vector<ck::index_t> wei_strides_vec(wei_g_k_c_xs_strides.begin(),
-                                                 wei_g_k_c_xs_strides.end());
-        std::vector<ck::index_t> out_lengths_vec(out_g_n_k_wos_lengths.begin(),
-                                                 out_g_n_k_wos_lengths.end());
-        std::vector<ck::index_t> out_strides_vec(out_g_n_k_wos_strides.begin(),
-                                                 out_g_n_k_wos_strides.end());
-        std::vector<ck::index_t> conv_strides_vec(conv_param.conv_filter_strides_.begin(),
-                                                  conv_param.conv_filter_strides_.end());
-        std::vector<ck::index_t> conv_dilations_vec(conv_param.conv_filter_dilations_.begin(),
-                                                    conv_param.conv_filter_dilations_.end());
-        std::vector<ck::index_t> input_pads_vec(conv_param.input_left_pads_.begin(),
-                                                conv_param.input_left_pads_.end());
-
-        // Call new GPU reference function with lengths and strides
-        using InLayout  = ck::tensor_layout::convolution::GNCDHW;
-        using WeiLayout = ck::tensor_layout::convolution::GKCZYX;
-        using OutLayout = ck::tensor_layout::convolution::GNKDHW;
-
+        // Call GPU reference with ConvParam directly, using the correct layout types
         ck::ref::naive_conv_bwd_data<InLayout,
                                      WeiLayout,
                                      OutLayout,
@@ -287,15 +249,7 @@ int run_conv_bwd_data(int do_verification,
             reinterpret_cast<InDataType*>(in_device_ref_buf.GetDeviceBuffer()),
             reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
             reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            in_lengths_vec,
-            in_strides_vec,
-            wei_lengths_vec,
-            wei_strides_vec,
-            out_lengths_vec,
-            out_strides_vec,
-            conv_strides_vec,
-            conv_dilations_vec,
-            input_pads_vec,
+            conv_param,
             nullptr);
 
         HIP_CHECK_ERROR(hipDeviceSynchronize());

@@ -126,31 +126,6 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             // GPU reference
             std::cout << "Running GPU reference implementation..." << std::endl;
 
-            // Convert to vectors for GPU reference interface
-            std::vector<index_t> in_lengths_vec, in_strides_vec;
-            std::vector<index_t> wei_lengths_vec, wei_strides_vec;
-            std::vector<index_t> out_lengths_vec, out_strides_vec;
-            std::vector<index_t> conv_strides_vec, conv_dilations_vec, input_pads_vec;
-
-            for(const auto& l : in_g_n_c_wis_desc.GetLengths())
-                in_lengths_vec.push_back(l);
-            for(const auto& s : in_g_n_c_wis_desc.GetStrides())
-                in_strides_vec.push_back(s);
-            for(const auto& l : wei_g_k_c_xs_desc.GetLengths())
-                wei_lengths_vec.push_back(l);
-            for(const auto& s : wei_g_k_c_xs_desc.GetStrides())
-                wei_strides_vec.push_back(s);
-            for(const auto& l : out_g_n_k_wos_desc.GetLengths())
-                out_lengths_vec.push_back(l);
-            for(const auto& s : out_g_n_k_wos_desc.GetStrides())
-                out_strides_vec.push_back(s);
-            for(const auto& s : conv_param.conv_filter_strides_)
-                conv_strides_vec.push_back(s);
-            for(const auto& d : conv_param.conv_filter_dilations_)
-                conv_dilations_vec.push_back(d);
-            for(const auto& p : conv_param.input_left_pads_)
-                input_pads_vec.push_back(p);
-
             // Allocate device memory for reference
             DeviceMem in_ref_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
             DeviceMem wei_ref_buf(sizeof(WeiDataType) *
@@ -160,7 +135,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             in_ref_buf.ToDevice(input.mData.data());
             out_ref_buf.ToDevice(output.mData.data());
 
-            // Call GPU reference
+            // Call GPU reference with ConvParam directly
             ck::ref::naive_conv_bwd_weight<InLayout,
                                            WeiLayout,
                                            OutLayout,
@@ -173,15 +148,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                 static_cast<const InDataType*>(in_ref_buf.GetDeviceBuffer()),
                 static_cast<WeiDataType*>(wei_ref_buf.GetDeviceBuffer()),
                 static_cast<const OutDataType*>(out_ref_buf.GetDeviceBuffer()),
-                in_lengths_vec,
-                in_strides_vec,
-                wei_lengths_vec,
-                wei_strides_vec,
-                out_lengths_vec,
-                out_strides_vec,
-                conv_strides_vec,
-                conv_dilations_vec,
-                input_pads_vec,
+                conv_param,
                 nullptr);
 
             // Copy result back to host
