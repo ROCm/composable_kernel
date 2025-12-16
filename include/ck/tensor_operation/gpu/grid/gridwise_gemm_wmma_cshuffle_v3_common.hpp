@@ -101,7 +101,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
 
         GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
-            p_shared, splitk_batch_offset, karg, epilogue_args, 0, k_id);
+            p_shared,
+            splitk_batch_offset,
+            karg,
+            epilogue_args,
+            0, /* A_k_id == 0 (we shift the pointer for splitk) */
+            k_id);
 
 #if defined(__gfx11__)
     }
