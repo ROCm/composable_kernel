@@ -91,13 +91,10 @@ namespace ck_tile::builder::factory {
 
 // Reference algorithm (simplest implementation for validation)
 template <typename T>
-consteval bool IsReferenceAlgorithm()
-{
-    return ConvAlgorithmDescriptor<T> && requires {
-        { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
-        requires T::specialization == ConvAlgorithmSpecialization::REFERENCE;
-    };
-}
+concept IsReferenceAlgorithm = ConvAlgorithmDescriptor<T> && requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::REFERENCE;
+};
 
 // CK Tile kernel
 template <typename T>
@@ -158,11 +155,11 @@ constexpr auto make_conv_instance()
     else if constexpr(ConvDirectionIsForward<SIGNATURE>)
     {
         // Check for reference algorithm first (simplest check)
-        if constexpr(IsReferenceAlgorithm<AlgoType>())
+        if constexpr(IsReferenceAlgorithm<AlgoType>)
         {
             return typename ReferenceForwardFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(IsXdlV3Algorithm<AlgoType>())
+        else if constexpr(IsXdlV3Algorithm<AlgoType>)
         {
             return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
@@ -195,7 +192,7 @@ constexpr auto make_conv_instance()
     else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
     {
         // Check for reference algorithm
-        if constexpr(IsReferenceAlgorithm<AlgoType>())
+        if constexpr(IsReferenceAlgorithm<AlgoType>)
         {
             return typename ReferenceBackwardDataFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
@@ -211,7 +208,7 @@ constexpr auto make_conv_instance()
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
         // Check for reference algorithm
-        if constexpr(IsReferenceAlgorithm<AlgoType>())
+        if constexpr(IsReferenceAlgorithm<AlgoType>)
         {
             return
                 typename ReferenceBackwardWeightFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
