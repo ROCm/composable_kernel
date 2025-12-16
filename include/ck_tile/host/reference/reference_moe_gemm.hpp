@@ -18,7 +18,7 @@ template <typename ADataType,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC,
-          int MoeGemmKind       = 0, // 0: gemm1_gate_only, 1: gemm1_gate_up, 2: gemm2, 3:gemm1_split_k
+          int MoeGemmKind = 0, // 0: gemm1_gate_only, 1: gemm1_gate_up, 2: gemm2, 3:gemm1_split_k
           typename ActivationOp = identity>
 __global__ void moe_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
                                 const ck_tile::index_t* p_sorted_expert_ids_,
@@ -44,10 +44,10 @@ __global__ void moe_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
                                 float* expert_bias_ptr)
 {
     constexpr auto is_split_k = MoeGemmKind == 3;
-    int idx       = blockIdx.x * blockDim.x + threadIdx.x;
-    int problem_N = MoeGemmKind == 1 ? N / 2 : N;
-    int row       = idx / problem_N; // Compute row index
-    int col       = idx % problem_N; // Compute column index
+    int idx                   = blockIdx.x * blockDim.x + threadIdx.x;
+    int problem_N             = MoeGemmKind == 1 ? N / 2 : N;
+    int row                   = idx / problem_N; // Compute row index
+    int col                   = idx % problem_N; // Compute column index
 
     index_t gather_token_id  = 0;
     index_t scatter_token_id = 0;
@@ -222,9 +222,9 @@ __global__ void moe_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
         else
         {
             // moe gemm2 don't use activation.
-            auto weight = is_split_k?
-                  ck_tile::type_convert<AccDataType>(1.0f) : expert_weight_ptr[row];
-            CDataType res = ck_tile::type_convert<CDataType>((acc + bias) * weight);
+            auto weight =
+                is_split_k ? ck_tile::type_convert<AccDataType>(1.0f) : expert_weight_ptr[row];
+            CDataType res   = ck_tile::type_convert<CDataType>((acc + bias) * weight);
             using ResV2Type = std::conditional_t<std::is_same_v<CDataType, ck_tile::half_t>,
                                                  ck_tile::fp16x2_t,
                                                  ck_tile::bf16x2_t>;
@@ -252,7 +252,7 @@ template <typename ADataType,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC,
-          int MoeGemmKind       = 0, // 0: gemm1_gate_only, 1: gemm1_gate_up, 2: gemm2, 3:gemm1_split_k
+          int MoeGemmKind = 0, // 0: gemm1_gate_only, 1: gemm1_gate_up, 2: gemm2, 3:gemm1_split_k
           typename ActivationOp = identity>
 void reference_moe_gemm_gpu(const index_t* p_sorted_token_ids_,
                             const index_t* p_sorted_expert_ids_,

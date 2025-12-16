@@ -197,9 +197,9 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
                       << "problem: " << CodegenPipelineProblem::GetName() << "\n"
                       << "pipeline: " << CodegenFlatmmPipeline::GetName() << "\n"
                       << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << "\n"
-                      << "k_batch: " << kargs.k_batch
-                      << std::endl;
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << "\n"
+                      << "k_batch: " << kargs.k_batch << std::endl;
         }
 
         if(s.flush_cache_)
