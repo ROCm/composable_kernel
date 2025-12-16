@@ -2184,12 +2184,11 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
         if constexpr(HasHotLoop)
         {
             index_t iCounter = (num_loop - 1) / 2;
-	    do
-	    {
+            while(iCounter > 0)
+            {
                 main_body_implx2();
                 iCounter--;
             }
-            while(iCounter > 0);
         }
 
         // TAIL

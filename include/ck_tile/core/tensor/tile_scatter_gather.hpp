@@ -641,6 +641,8 @@ struct tile_scatter_gather
         });
     }
 
+
+    // TODO: fix with swizzle
     template <typename LdsTileWindow_,
               index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true,
@@ -652,7 +654,6 @@ struct tile_scatter_gather
                                                bool_constant<oob_conditional_check> = {},
                                                bool_constant<static_move_ys>        = {}) const
     {
-	// async_load(lds_tile);
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
         using LdsDataType   = typename LdsTileWindow::DataType;
 

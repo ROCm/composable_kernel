@@ -513,6 +513,8 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
 
         using BlockFlatmmPolicy = BlockFlatmmASmemBSmemCRegV1CustomPolicy<
             typename Problem::ADataType,
+            // BlockGemmASmemBSmemCRegV1CustomPolicy<typename
+            // Problem::ADataType,
             typename Problem::BDataType,
             typename Problem::CDataType,
             BlockWarps,
