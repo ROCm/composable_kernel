@@ -265,7 +265,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
     // We need to investigate if it makes sense to remove cshuffle for smaller types
     static constexpr bool UseDirectStore = is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
                                            sizeof(ComputeTypeB) == 2 && sizeof(EDataType) == 2 &&
-                                           NumDTensor == 0;
+                                           NumDTensor == 0 && (NRepeat % 2) == 0;
 #else
     static constexpr bool IsAWaveTransferApplicable = false;
     static constexpr bool IsBWaveTransferApplicable = false;
