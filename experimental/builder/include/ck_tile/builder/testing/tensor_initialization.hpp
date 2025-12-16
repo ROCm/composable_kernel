@@ -72,7 +72,7 @@ void init_tensor_buffer_normal_fp(const DeviceBuffer& buf,
                                   float mean)
 {
     size_t size = descriptor.get_element_space_size_in_bytes();
-    
+
     using ck_type      = factory::internal::DataTypeToCK<DT>::type;
     size_t packed_size = ck::packed_size_v<ck_type>;
     fill_tensor_norm_rand_fp_values<<<256, 256>>>(
