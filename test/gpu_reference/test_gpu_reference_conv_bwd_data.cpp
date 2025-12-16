@@ -63,12 +63,6 @@ TEST(GpuReferenceConvBwdData, Conv2DFP32GroupedG4)
     EXPECT_TRUE(result);
 }
 
-// ============================================================================
-// Tests for layouts where G is NOT the leading dimension (expected to FAIL)
-// These isolate the GPU reference bug found in grouped convolutions
-// ============================================================================
-
-// 2D Conv: NHWGC layout (G is not leading dimension in input)
 TEST(GpuReferenceConvBwdData, Conv2DFP32GroupedNHWGC_GKYXC_NHWGK)
 {
     auto params = test::conv_test_shapes::get_2d_grouped_g2();
@@ -97,7 +91,6 @@ TEST(GpuReferenceConvBwdData, Conv2DFP16GroupedNHWGC_GKYXC_NHWGK)
     EXPECT_TRUE(result);
 }
 
-// 2D Conv: NGCHW layout (G is between N and C in input)
 TEST(GpuReferenceConvBwdData, Conv2DFP32GroupedNGCHW_GKYXC_NGKHW)
 {
     auto params = test::conv_test_shapes::get_2d_grouped_g2();
@@ -126,7 +119,6 @@ TEST(GpuReferenceConvBwdData, Conv2DFP16GroupedNGCHW_GKYXC_NGKHW)
     EXPECT_TRUE(result);
 }
 
-// 2D Conv: NGCHW layout with GKCYX weight layout
 TEST(GpuReferenceConvBwdData, Conv2DFP32GroupedNGCHW_GKCYX_NGKHW)
 {
     auto params = test::conv_test_shapes::get_2d_grouped_g2();
@@ -155,7 +147,6 @@ TEST(GpuReferenceConvBwdData, Conv2DFP16GroupedNGCHW_GKCYX_NGKHW)
     EXPECT_TRUE(result);
 }
 
-// 3D Conv: NDHWGC layout (G is not leading dimension in input)
 TEST(GpuReferenceConvBwdData, Conv3DFP32GroupedNDHWGC_GKZYXC_NDHWGK)
 {
     auto params = test::conv_test_shapes::get_3d_small();
@@ -194,7 +185,6 @@ TEST(GpuReferenceConvBwdData, Conv3DFP16GroupedNDHWGC_GKZYXC_NDHWGK)
     EXPECT_TRUE(result);
 }
 
-// 3D Conv: NGCDHW layout (G is between N and C in input)
 TEST(GpuReferenceConvBwdData, Conv3DFP32GroupedNGCDHW_GKCZYX_NGKDHW)
 {
     auto params = test::conv_test_shapes::get_3d_small();
