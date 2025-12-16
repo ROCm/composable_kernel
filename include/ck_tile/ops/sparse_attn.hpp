@@ -1,6 +1,5 @@
-// SPDX-License-Identifier: MIT
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
-
+// SPDX-License-Identifier: MIT
 #pragma once
 
 #include "ck_tile/ops/sparse_attn/block/block_fmha_pipeline_qr_ks_vs_async_jenga.hpp"
