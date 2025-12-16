@@ -223,8 +223,8 @@ struct tile_scatter_gather
         {
             auto partition_index = get_partition_index(tile_distribution);
 
-            auto use_lane_id_0 = partition_index;
-            use_lane_id_0[1]   = 0;
+            auto use_lane_id_0                         = partition_index;
+            use_lane_id_0[1]                           = 0;
             const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
                 tile_distribution.get_ps_ys_to_xs_adaptor(),
                 container_concat(use_lane_id_0, array<index_t, NDimY>{0}));
@@ -248,7 +248,8 @@ struct tile_scatter_gather
                     SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{});
 
                 constexpr auto idx_diff_ps_ys = container_concat(
-                    generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}), idx_diff_ys);
+                    generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                    idx_diff_ys);
 
                 move_window_adaptor_and_bottom_tensor_thread_coordinate(
                     window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
@@ -641,7 +642,6 @@ struct tile_scatter_gather
         });
     }
 
-
     // TODO: fix with swizzle
     template <typename LdsTileWindow_,
               index_t i_access_unsupport_ = -1,
@@ -725,7 +725,9 @@ struct tile_scatter_gather
 
                 auto mixed_bottom_thread_coord = bottom_tensor_thread_coord;
                 mixed_bottom_thread_coord.get_hidden_index()[number<0>{}] += page_offset;
-		// printf("lane %d,off_ori %d, offx %d, offy %d, off_page %d\n", threadIdx.x, bottom_tensor_thread_coord.get_offset(), mixed_bottom_thread_coord.get_offset(), dram_ys_offset, page_offset);
+                // printf("lane %d,off_ori %d, offx %d, offy %d, off_page %d\n", threadIdx.x,
+                // bottom_tensor_thread_coord.get_offset(), mixed_bottom_thread_coord.get_offset(),
+                // dram_ys_offset, page_offset);
 
                 if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
                 {
@@ -748,7 +750,7 @@ struct tile_scatter_gather
                 // Move thread coordinate if not last access
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
                 {
-                    constexpr auto idx_diff_ys    = SFC_Ys::get_forward_step(iAccess);
+                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
                         [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
@@ -1071,10 +1073,10 @@ struct tile_scatter_gather
     //   per-thread coordinate for window adaptor
     //   per-thread coordinate for bottom tensor
     array<tuple<WindowAdaptorCoord, BottomTensorCoord>, NumCoord> pre_computed_coords_;
-    std::conditional_t<
-        BottomTensorView::buffer_view::get_address_space() == address_space_enum::global,
-        array<tuple<WindowAdaptorCoord, BottomTensorCoord>, NumCoord>,
-        std::byte>
+    std::conditional_t<BottomTensorView::buffer_view::get_address_space() ==
+                           address_space_enum::global,
+                       array<tuple<WindowAdaptorCoord, BottomTensorCoord>, NumCoord>,
+                       std::byte>
         pre_computed_warp_coords_;
 };
 
@@ -1090,7 +1092,7 @@ make_tile_scatter_gather(const TensorView_& tensor_view,
                          const WindowLengths_& window_lengths,
                          const multi_index<TensorView_::get_num_of_dimension()>& origin,
                          const StaticTileDistribution_& tile_distribution,
-                         const StaticPageIndexArray_& page_idx, //perbytes
+                         const StaticPageIndexArray_& page_idx, // perbytes
                          number<HsGatherDim> = {},
                          number<NumCoord>    = {})
 {

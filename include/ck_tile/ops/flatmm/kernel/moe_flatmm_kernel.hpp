@@ -248,7 +248,7 @@ struct MoeFlatmmKernel
     static constexpr bool BMXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
 
     static_assert(BMXFP4_Pipeline);
-    static constexpr bool MXF8F6F4MFMA    =
+    static constexpr bool MXF8F6F4MFMA =
 #ifdef __gfx950__
         AQUANT_Pipeline && BMXFP4_Pipeline;
 #else
@@ -673,40 +673,38 @@ struct MoeFlatmmKernel
             }
         }();
 
-        auto scale_m_desc = kargs.scale_m;
+        auto scale_m_desc           = kargs.scale_m;
         constexpr int AGranularityK = decltype(scale_m_desc)::GranularityK;
 
         const auto& scale_a_tensor_view = [&]() {
-            if constexpr(AQUANT_Pipeline)
-            {
-				constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(I0);
-				constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I0);
-				index_t scale_m_packs = kargs.M / (MXFP4M_Pack * MThreadPerXdl);
-				index_t scale_k_packs = kargs.K / (MXFP4K_Pack * AGranularityK * KThreadPerXdl);
-				// Pack 2x2 e8m0 over M/K dimension into 1 int32_t to trigger dword width load
-				const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
-					make_tuple(scale_m_packs, scale_k_packs, KThreadPerXdl, MThreadPerXdl));
-				const auto scale_a_desc = transform_tensor_descriptor(
-					scale_a_naive_desc,
-					make_tuple(make_merge_transform(make_tuple(scale_m_packs, MThreadPerXdl)),
-							   make_merge_transform(make_tuple(scale_k_packs, KThreadPerXdl))),
-					make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
-					make_tuple(sequence<0>{}, sequence<1>{}));
-				return make_tensor_view<address_space_enum::global>(
-					reinterpret_cast<const int32_t*>(scale_m_desc.ptr), scale_a_desc);
-            }
+            constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(I0);
+            constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I0);
+            index_t scale_m_packs       = kargs.M / (MXFP4M_Pack * MThreadPerXdl);
+            index_t scale_k_packs       = kargs.K / (MXFP4K_Pack * AGranularityK * KThreadPerXdl);
+            // Pack 2x2 e8m0 over M/K dimension into 1 int32_t to trigger dword width load
+            const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
+                make_tuple(scale_m_packs, scale_k_packs, KThreadPerXdl, MThreadPerXdl));
+            const auto scale_a_desc = transform_tensor_descriptor(
+                scale_a_naive_desc,
+                make_tuple(make_merge_transform(make_tuple(scale_m_packs, MThreadPerXdl)),
+                           make_merge_transform(make_tuple(scale_k_packs, KThreadPerXdl))),
+                make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+            return make_tensor_view<address_space_enum::global>(
+                reinterpret_cast<const int32_t*>(scale_m_desc.ptr), scale_a_desc);
         }();
 
         auto scale_n = kargs.scale_n;
 
-        constexpr int BGranularityK = decltype(scale_n)::GranularityK;
+        constexpr int BGranularityK  = decltype(scale_n)::GranularityK;
         const auto scale_b_flat_view = [&]() {
             if constexpr(AQUANT_Pipeline)
             {
-                index_t scale_k    = BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
+                index_t scale_k =
+                    BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
                 constexpr int NThreadPerXdl = BlockGemmShape::WarpTile::at(I1);
                 constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I1);
-                index_t scale_n_packs = kargs.N / (MXFP4N_Pack * NThreadPerXdl);
+                index_t scale_n_packs       = kargs.N / (MXFP4N_Pack * NThreadPerXdl);
                 index_t scale_k_packs = kargs.K / (MXFP4K_Pack * BGranularityK * KThreadPerXdl);
                 const auto scale_b_navie_desc = make_naive_tensor_descriptor_packed(
                     make_tuple(scale_n_packs, scale_k_packs, KThreadPerXdl, NThreadPerXdl));
@@ -718,12 +716,14 @@ struct MoeFlatmmKernel
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 return make_tensor_view<address_space_enum::global>(
-                    reinterpret_cast<const int32_t*>(scale_n.ptr) + expert_id * kargs.N * scale_k / 4, scale_b_desc);
-
+                    reinterpret_cast<const int32_t*>(scale_n.ptr) +
+                        expert_id * kargs.N * scale_k / 4,
+                    scale_b_desc);
             }
             else
             {
-                index_t scale_k    = BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
+                index_t scale_k =
+                    BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
                 index_t FlatScaleK = scale_k * N_Pack * BlockGemmShape::WarpTile::at(I1);
                 index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
 
@@ -737,7 +737,6 @@ struct MoeFlatmmKernel
                     number<1>{});
             }
         }();
-
 
         return make_tuple(a_tensor_view,
                           b_flat_tensor_view,
@@ -839,7 +838,8 @@ struct MoeFlatmmKernel
             //                  make_tuple(number<TilePartitioner::MPerBlock>{},
             //                             number<TilePartitioner::KPerBlock / GranularityK>{}),
             //                  {coord_m, 0});
-            make_tile_window(views.at(I3),
+            make_tile_window(
+                views.at(I3),
                 make_tuple(number<TilePartitioner::MPerBlock / M_Pack>{},
                            number<TilePartitioner::KPerBlock / (GranularityK * K_Pack)>{}),
                 {coord_m / M_Pack, 0});
@@ -851,18 +851,20 @@ struct MoeFlatmmKernel
         auto b_scale_block_window = [&]() {
             if constexpr(MXF8F6F4MFMA)
             {
-                return make_tile_window(views.at(I4),
+                return make_tile_window(
+                    views.at(I4),
                     make_tuple(number<TilePartitioner::NPerBlock / N_Pack>{},
                                number<TilePartitioner::KPerBlock / (GranularityK * K_Pack)>{}),
                     {coord_n / N_Pack, 0});
             }
             else
             {
-                return make_tile_window(views.at(I4),
-                                 make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                                            number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
-                                                   XDLPerLoadScaleB / GranularityK>{}),
-                                 {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
+                return make_tile_window(
+                    views.at(I4),
+                    make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                               number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
+                                      XDLPerLoadScaleB / GranularityK>{}),
+                    {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
             }
         }();
 
@@ -969,7 +971,6 @@ struct MoeFlatmmKernel
                                               a_dram_dist,
                                               a_offsets); // K DRAM tile window for
 
-
         auto c_block_tile = [&] {
             if constexpr(BMXFP4_Pipeline)
             {
@@ -977,25 +978,27 @@ struct MoeFlatmmKernel
                 // so don't need extra processing
                 if constexpr(AQUANT_Pipeline)
                 {
-                    return FlatmmPipeline{}(a_gather_block_tile,
-                    // return FlatmmPipeline{}(a_block_window,
-                                            b_block_window,
-                                            a_scale_block_window, // weight scale with granularityK = 32
-                                            b_scale_block_window, // weight scale with granularityK = 32
-                                            num_loop,
-                                            // kargs.k_padded_zeros,
-                                            smem_ptr_ping,
-                                            smem_ptr_pong);
+                    return FlatmmPipeline{}(
+                        a_gather_block_tile,
+                        // return FlatmmPipeline{}(a_block_window,
+                        b_block_window,
+                        a_scale_block_window, // weight scale with granularityK = 32
+                        b_scale_block_window, // weight scale with granularityK = 32
+                        num_loop,
+                        // kargs.k_padded_zeros,
+                        smem_ptr_ping,
+                        smem_ptr_pong);
                 }
                 else
                 {
-                    return FlatmmPipeline{}(a_gather_block_tile,
-                                            b_block_window,
-                                            b_scale_block_window, // weight scale with granularityK = 32
-                                            num_loop,
-                                            kargs.k_padded_zeros,
-                                            smem_ptr_ping,
-                                            smem_ptr_pong);
+                    return FlatmmPipeline{}(
+                        a_gather_block_tile,
+                        b_block_window,
+                        b_scale_block_window, // weight scale with granularityK = 32
+                        num_loop,
+                        kargs.k_padded_zeros,
+                        smem_ptr_ping,
+                        smem_ptr_pong);
                 }
             }
             else
@@ -1049,7 +1052,9 @@ struct MoeFlatmmKernel
             constexpr int ScaleGranularityN = decltype(kargs.scale_n)::GranularityMN;
 
             constexpr index_t scale_stride_m = ScaleGranularityM == 0 ? 0  // per-tensor scale
+                                                                      : 1; // per-token scale
             constexpr index_t scale_stride_n = ScaleGranularityN == 0 ? 0  // per-tensor scale
+                                                                      : 1; // per-channel scale
 
             auto output_acc_tile_distr =
                 make_static_tile_distribution(detail::make_embed_tile_distribution_encoding(
@@ -1068,10 +1073,10 @@ struct MoeFlatmmKernel
             constexpr index_t kM2 = 4;                         // Val-dim
             constexpr index_t kM1 = get_warp_size() / NPerXdl; // Thr-dim
             constexpr index_t kM0 = MPerXdl / kM1 / kM2;       // Var-dim
-        
+
             constexpr index_t ScaleMRepeat = MRepeat * kM0 * kM2;
             statically_indexed_array<index_t, ScaleMRepeat> scale_m_offsets;
-        
+
             if constexpr(!BMXFP4_Pipeline)
                 static_for<0, MRepeat, 1>{}([&](auto mIter) {
                     static_for<0, kM0, 1>{}([&](auto m0) {

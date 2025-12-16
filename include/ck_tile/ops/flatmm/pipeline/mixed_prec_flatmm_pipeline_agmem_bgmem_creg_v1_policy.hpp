@@ -249,8 +249,7 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     static constexpr int KXdlPack = 2;
 
     template <typename Problem>
-    static inline constexpr auto wg_attr_num_access =
-           WGAttrNumAccessEnum::Single;
+    static inline constexpr auto wg_attr_num_access = WGAttrNumAccessEnum::Single;
     //     std::is_same_v<remove_cvref_t<typename Problem::ADataType>, pk_fp4_t>
     //         ? WGAttrNumAccessEnum::Single
     //         : WGAttrNumAccessEnum::Double;
@@ -399,10 +398,11 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
         constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
 
-        constexpr index_t K2 = MPerBlock == 16 ? GetSmemPackA<Problem>() * APackedSize/ 4:
-	          GetSmemPackA<Problem>() * APackedSize; // f4=32; f8=16
-        constexpr index_t K1 = kDramLoadPackBytes * APackedSize / K2; // 8
-        constexpr index_t K0 = KPerBlock / (K1 * K2);                 // KPerBlock/256
+        constexpr index_t K2 = MPerBlock == 16
+                                   ? GetSmemPackA<Problem>() * APackedSize / 4
+                                   : GetSmemPackA<Problem>() * APackedSize; // f4=32; f8=16
+        constexpr index_t K1 = kDramLoadPackBytes * APackedSize / K2;       // 8
+        constexpr index_t K0 = KPerBlock / (K1 * K2);                       // KPerBlock/256
 
         constexpr index_t M2 = get_warp_size() / K1;        // 8
         constexpr index_t M1 = BlockSize / get_warp_size(); // 4
@@ -544,7 +544,7 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr int K_Lane = 64 / M_Lane; // 4
 
-        constexpr int K_Thread         = TileShape::WarpTile::at(I2) / K_Lane; // 32
+        constexpr int K_Thread = TileShape::WarpTile::at(I2) / K_Lane; // 32
         // constexpr index_t num_access_v = static_cast<index_t>(wg_attr_num_access<Problem>);
         constexpr index_t num_access_v = 2;
         constexpr int K1               = K_Thread / num_access_v; // 16

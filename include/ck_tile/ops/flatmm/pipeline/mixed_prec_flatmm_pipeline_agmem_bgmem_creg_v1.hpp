@@ -1303,7 +1303,8 @@ struct F8xMXF4FlatmmPipelineProblem : FlatmmPipelineProblem<ADataType_,
 };
 
 template <typename Problem, typename PipelinePolicy = F8xMXF4FlatmmPipelineAgBgCrPolicy>
-struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem, PipelinePolicy>
+struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1
+    : FlatmmPipelineAGmemBGmemCRegV1<Problem, PipelinePolicy>
 {
     using Underlying = FlatmmPipelineAGmemBGmemCRegV1<Problem, PipelinePolicy>;
 
@@ -1383,8 +1384,10 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
     static constexpr index_t KXdlPack          = Problem::KXdlPack;
     static constexpr index_t ScaleGranularityK = Problem::ScaleGranularityK;
 
-    static constexpr index_t AK1 = Problem::VectorLoadSize / sizeof(ADataType) * APackedSize; // 16 / 1 = 16
-    static constexpr index_t BK1 = Problem::VectorLoadSize / sizeof(BDataType) * BPackedSize; // 16 / 1 * 2 = 32
+    static constexpr index_t AK1 =
+        Problem::VectorLoadSize / sizeof(ADataType) * APackedSize; // 16 / 1 = 16
+    static constexpr index_t BK1 =
+        Problem::VectorLoadSize / sizeof(BDataType) * BPackedSize; // 16 / 1 * 2 = 32
 
     static constexpr index_t m_preload = (MIterPerWarp * KIterPerWarp >= DsReadPreload)
                                              ? DsReadPreload
@@ -1395,8 +1398,9 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
 
     static constexpr index_t mfma_per_wg = 1; // 950 only
 
-    static constexpr index_t dsread_per_wg = WG::kM * WG::kK / AK1 / WaveSize; // 16 * 128 / 16 / 64 = 2
-    static_assert((WG::kM * WG::kK) % (AK1 * WaveSize) == 0);   // 16 * 128 %  16 * 64
+    static constexpr index_t dsread_per_wg =
+        WG::kM * WG::kK / AK1 / WaveSize;                     // 16 * 128 / 16 / 64 = 2
+    static_assert((WG::kM * WG::kK) % (AK1 * WaveSize) == 0); // 16 * 128 %  16 * 64
 
     static constexpr index_t dsread_num_perK  = dsread_per_wg * MIterPerWarp;
     static constexpr index_t dswrite_num_perK = dsread_num_perK / NWarp;
@@ -1765,7 +1769,7 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
 
         auto a_dram_window = replace_bottom_tensor_view(
             PipelinePolicy::template MakeMXFP4_AAsyncLoadDramDescriptor<Problem>(
-            // PipelinePolicy::template Make_F8AAsyncLoadDramDescriptor<Problem>(
+                // PipelinePolicy::template Make_F8AAsyncLoadDramDescriptor<Problem>(
                 a_copy_dram_window_tmp.get_bottom_tensor_view()),
             a_copy_dram_window_tmp);
 
@@ -1777,11 +1781,11 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
 
         constexpr auto a_lds_block_desc =
             PipelinePolicy::template MakeMXFP4_ALdsBlockDescriptor<Problem>();
-            // PipelinePolicy::template MakeF8_ReadALdsBlockDescriptor<Problem>();
+        // PipelinePolicy::template MakeF8_ReadALdsBlockDescriptor<Problem>();
 
         constexpr auto a_load_lds_block_desc =
             PipelinePolicy::template MakeMXFP4_ALdsBlockDescriptor<Problem>();
-            // PipelinePolicy::template MakeF8_WriteALdsBlockDescriptor<Problem>();
+        // PipelinePolicy::template MakeF8_WriteALdsBlockDescriptor<Problem>();
 
         auto a_lds_block_ping_load =
             make_tensor_view<address_space_enum::lds>(p_a_lds_ping, a_load_lds_block_desc);
@@ -2318,7 +2322,7 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Pr
                                     // warp GEMM
                                     WG{}.template
                                     operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
-                                   //  operator()<MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
+                                        //  operator()<MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
                                         c_warp_tensor,
                                         a_warp_tensor(number<AwarpIter>{}),
                                         b_warp_tensor_pong(nIter_pack * number<NXdlPack>{} + inxdl)(
