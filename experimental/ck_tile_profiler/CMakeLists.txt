@@ -4,7 +4,9 @@
 include_directories(BEFORE
     ${CMAKE_CURRENT_LIST_DIR}/include/ck_tile_profiler
 )
-add_subdirectory(src)
+if (CK_EXPERIMENTAL_BUILDER)
+    add_subdirectory(src)
+endif()
 if(BUILD_TESTING)
     add_subdirectory(test)
 endif()

@@ -649,6 +649,9 @@ def cmake_build(Map conf=[:]){
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
                         sh 'ninja check-builder'
                     }
+                    if (params.RUN_CK_TILE_CONV_TESTS && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+                        sh 'ninja check-ck-tile-conv'
+                    }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
@@ -676,6 +679,9 @@ def cmake_build(Map conf=[:]){
                     }
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
                         sh 'ninja check-builder'
+                    }
+                    if (params.RUN_CK_TILE_CONV_TESTS && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+                        sh 'ninja check-ck-tile-conv'
                     }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
@@ -1241,6 +1247,10 @@ pipeline {
             name: "RUN_INDUCTOR_TESTS",
             defaultValue: true,
             description: "Run inductor codegen tests (default: ON)")
+        booleanParam(
+            name: "RUN_CK_TILE_CONV_TESTS",
+            defaultValue: true,
+            description: "Run CK_TILE_CONV_TESTS tests (default: ON)")
         booleanParam(
             name: "RUN_BUILDER_TESTS",
             defaultValue: true,

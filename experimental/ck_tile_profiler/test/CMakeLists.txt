@@ -46,7 +46,7 @@ add_custom_target(build-regression-ck-tile-profiler DEPENDS ${TILE_CONV_REGRESSI
 
 # Target to run only regression tests (builds and runs all regression test executables)
 # Use this before submitting changes to catch integration issues
-add_custom_target(regression-ck-tile-profiler
+add_custom_target(check-ck-tile-conv
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "CK_TILE_PROFILER_REGRESSION"
     DEPENDS build-regression-ck-tile-profiler
     USES_TERMINAL
