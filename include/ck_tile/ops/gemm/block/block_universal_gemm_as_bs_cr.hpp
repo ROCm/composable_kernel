@@ -228,10 +228,10 @@ struct BlockUniversalGemmAsBsCr
                           "The ADataType and BDataType as defined in "
                           "traits should be the same as correspoinding block window data type!");
 
-            load_and_convert_tile<ADataType, ATypeToUse, UnaryOpSize_, ALoadTranspose>(
-                a_warp_tile_, a_block_window);
-            load_and_convert_tile<BDataType, BTypeToUse, UnaryOpSize_, BLoadTranspose>(
-                b_warp_tile_, b_block_window);
+            load_and_convert_tile<ATypeToUse, UnaryOpSize_, ALoadTranspose>(a_warp_tile_,
+                                                                            a_block_window);
+            load_and_convert_tile<BTypeToUse, UnaryOpSize_, BLoadTranspose>(b_warp_tile_,
+                                                                            b_block_window);
             // hot loop:
             static_for<0, GemmTraits::KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
@@ -294,10 +294,10 @@ struct BlockUniversalGemmAsBsCr
                                           bool_constant<ALoadTranspose> = {},
                                           bool_constant<BLoadTranspose> = {})
         {
-            load_and_convert_tile<ADataType, ATypeToUse, UnaryOpSize_, ALoadTranspose>(
-                a_warp_tile_, a_block_window);
-            load_and_convert_tile<BDataType, BTypeToUse, UnaryOpSize_, BLoadTranspose>(
-                b_warp_tile_, b_block_window);
+            load_and_convert_tile<ATypeToUse, UnaryOpSize_, ALoadTranspose>(a_warp_tile_,
+                                                                            a_block_window);
+            load_and_convert_tile<BTypeToUse, UnaryOpSize_, BLoadTranspose>(b_warp_tile_,
+                                                                            b_block_window);
         }
 
         // C += A * B
@@ -425,10 +425,10 @@ struct BlockUniversalGemmAsBsCr
             auto b_lds_gemm_window = make_tile_window(
                 b_block_window.get_bottom_tensor_view(), b_lds_shape, b_offset, b_lds_load_distr);
 
-            load_and_convert_tile<ADataType, ATypeToUse, UnaryOpSize_, ALoadTranspose>(
-                a_warp_tile_, a_lds_gemm_window);
-            load_and_convert_tile<BDataType, BTypeToUse, UnaryOpSize_, BLoadTranspose>(
-                b_warp_tile_, b_lds_gemm_window);
+            load_and_convert_tile<ATypeToUse, UnaryOpSize_, ALoadTranspose>(a_warp_tile_,
+                                                                            a_lds_gemm_window);
+            load_and_convert_tile<BTypeToUse, UnaryOpSize_, BLoadTranspose>(b_warp_tile_,
+                                                                            b_lds_gemm_window);
         }
 
         // C += A * B

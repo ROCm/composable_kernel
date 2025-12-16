@@ -248,10 +248,10 @@ struct AQuantBlockUniversalGemmAsBsCr
             // while ADatatype might not be the same as BDataType at the time of problem
             // initialization, we can safely use BDataType here because when A would be int4 we will
             // ensure A is converted to BDataType prior to loading
-            load_and_convert_tile<BDataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
-                a_warp_tile_, a_block_window);
-            load_and_convert_tile<BDataType, ComputeDataType, UnaryOpSize_, BLoadTranspose>(
-                b_warp_tile_, b_block_window);
+            load_and_convert_tile<ComputeDataType, UnaryOpSize_, ALoadTranspose>(a_warp_tile_,
+                                                                                 a_block_window);
+            load_and_convert_tile<ComputeDataType, UnaryOpSize_, BLoadTranspose>(b_warp_tile_,
+                                                                                 b_block_window);
         }
 
         // C += A * B

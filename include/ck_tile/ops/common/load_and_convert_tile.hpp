@@ -28,15 +28,14 @@ struct ConverterLoader
     }
 };
 
-template <typename SrcDataType,
-          typename DstDataType,
+template <typename DstDataType,
           index_t UnaryOpSize,
           bool LoadTranspose = false,
           typename WarpTile,
           typename WarpWindow>
 CK_TILE_DEVICE void load_and_convert_tile(WarpTile& dst, const WarpWindow& src)
 {
-    if constexpr(std::is_same_v<SrcDataType, pk_int4_t>)
+    if constexpr(std::is_same_v<typename WarpWindow::Base::DataType, pk_int4_t>)
     {
         static_assert(!LoadTranspose, "LoadTranspose not supported with pk_int4_t");
         ConverterLoader<DstDataType, UnaryOpSize>::load_interleaved_pk_type(dst, src);
