@@ -790,9 +790,6 @@ struct GridwiseGemm_wmma_cshuffle_v3
     {
         const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
         const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z / karg.KBatch);
-        // const index_t k_idx =
-        //     __builtin_amdgcn_readfirstlane((blockIdx.z - n_idx * karg.KBatch) * num_k_per_block);
-
         // offset base pointer for each work-group
         const long_index_t a_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
