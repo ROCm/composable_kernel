@@ -162,18 +162,54 @@ execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD OUTPUT_VARIABLE COMMI
 configure_file(include/ck/version.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/version.h)
 
 set(ROCM_SYMLINK_LIBS OFF)
-find_package(ROCM REQUIRED PATHS /opt/rocm)
-
-include(ROCMInstallTargets)
-include(ROCMPackageConfigHelpers)
-include(ROCMSetupVersion)
-include(ROCMInstallSymlinks)
-include(ROCMCreatePackage)
+if(NOT WIN32)
+    find_package(ROCM REQUIRED PATHS /opt/rocm)
+    include(ROCMInstallTargets)
+    include(ROCMPackageConfigHelpers)
+    include(ROCMSetupVersion)
+    include(ROCMInstallSymlinks)
+    include(ROCMCreatePackage)
+    include(ROCMCheckTargetIds)
+    rocm_setup_version(VERSION ${version})
+else()
+    # On Windows, provide stub implementations for ROCM CMake functions
+    function(rocm_package_setup_component)
+        # Stub function - does nothing on Windows
+    endfunction()
+    
+    function(rocm_install)
+        # On Windows, use standard CMake install
+        cmake_parse_arguments(ROCM_INSTALL "" "COMPONENT;DESTINATION;EXPORT;FILE" "FILES;TARGETS;DIRECTORY" ${ARGN})
+        if(ROCM_INSTALL_FILES)
+            install(FILES ${ROCM_INSTALL_FILES} DESTINATION ${ROCM_INSTALL_DESTINATION})
+        elseif(ROCM_INSTALL_TARGETS)
+            install(TARGETS ${ROCM_INSTALL_TARGETS} DESTINATION lib EXPORT ${ROCM_INSTALL_TARGETS}Targets OPTIONAL)
+        elseif(ROCM_INSTALL_DIRECTORY)
+            install(DIRECTORY ${ROCM_INSTALL_DIRECTORY} DESTINATION ${ROCM_INSTALL_DESTINATION})
+        elseif(ROCM_INSTALL_EXPORT)
+            # On Windows, silently skip export installation as it's handled differently
+            # The exports are primarily for Linux package management
+        endif()
+    endfunction()
+    
+    function(rocm_create_package)
+        # Stub function - does nothing on Windows
+    endfunction()
+    
+    function(rocm_install_targets)
+        cmake_parse_arguments(ROCM_INSTALL "" "" "TARGETS" ${ARGN})
+        if(ROCM_INSTALL_TARGETS)
+            install(TARGETS ${ROCM_INSTALL_TARGETS} DESTINATION lib)
+        endif()
+    endfunction()
+    
+    function(rocm_check_target_ids OUT_VAR)
+        cmake_parse_arguments(ROCM_CHECK "" "" "TARGETS" ${ARGN})
+        set(${OUT_VAR} ${ROCM_CHECK_TARGETS} PARENT_SCOPE)
+    endfunction()
+endif()
 include(CheckCXXCompilerFlag)
-include(ROCMCheckTargetIds)
 include(TargetFlags)
-
-rocm_setup_version(VERSION ${version})
 
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
 
