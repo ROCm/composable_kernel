@@ -347,10 +347,12 @@ void naive_conv_fwd(const TIn* p_in,
 
     // Pack input and weight tensors to contiguous layout
     constexpr int block_size = 256;
-    pack_strided_tensor<TIn><<<(in_total + block_size - 1) / block_size, block_size, 0, stream>>>(
-        p_in, p_in_packed, d_in_lengths, d_in_strides, dim_count, in_total);
-    pack_strided_tensor<TWei><<<(wei_total + block_size - 1) / block_size, block_size, 0, stream>>>(
-        p_wei, p_wei_packed, d_wei_lengths, d_wei_strides, dim_count, wei_total);
+    strided_copy_kernel<TIn, false>
+        <<<(in_total + block_size - 1) / block_size, block_size, 0, stream>>>(
+            p_in, p_in_packed, d_in_lengths, d_in_strides, dim_count, in_total);
+    strided_copy_kernel<TWei, false>
+        <<<(wei_total + block_size - 1) / block_size, block_size, 0, stream>>>(
+            p_wei, p_wei_packed, d_wei_lengths, d_wei_strides, dim_count, wei_total);
 
     // Build conv parameter vectors for kernel invocation
     std::vector<index_t> conv_strides(ndim);
@@ -482,7 +484,7 @@ void naive_conv_fwd(const TIn* p_in,
     }
 
     // Unpack
-    unpack_to_strided_tensor<TOut><<<out_grid, block_size, 0, stream>>>(
+    strided_copy_kernel<TOut, true><<<out_grid, block_size, 0, stream>>>(
         p_out_packed, p_out, d_out_lengths, d_out_strides, dim_count, out_total);
 
     HIP_CHECK_ERROR(hipGetLastError());
