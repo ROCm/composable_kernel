@@ -86,68 +86,63 @@ class PoolProfiler
 
         // Create input/output tensors based on pool dimension (3D: NDHWC, 2D: NHWC)
         ck_tile::HostTensor<InDataType> in_tensor(
-            pool_problem.poolDim == 3
-                ? std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                           static_cast<std::size_t>(D),
-                                           static_cast<std::size_t>(H),
-                                           static_cast<std::size_t>(W),
-                                           static_cast<std::size_t>(C)}
-                : std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                           static_cast<std::size_t>(H),
-                                           static_cast<std::size_t>(W),
-                                           static_cast<std::size_t>(C)});
+            pool_problem.poolDim == 3 ? std::vector<std::size_t>{static_cast<std::size_t>(N),
+                                                                 static_cast<std::size_t>(D),
+                                                                 static_cast<std::size_t>(H),
+                                                                 static_cast<std::size_t>(W),
+                                                                 static_cast<std::size_t>(C)}
+                                      : std::vector<std::size_t>{static_cast<std::size_t>(N),
+                                                                 static_cast<std::size_t>(H),
+                                                                 static_cast<std::size_t>(W),
+                                                                 static_cast<std::size_t>(C)});
 
         ck_tile::HostTensor<OutDataType> out_tensor(
-            pool_problem.poolDim == 3
-                ? std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                           static_cast<std::size_t>(Do),
-                                           static_cast<std::size_t>(Ho),
-                                           static_cast<std::size_t>(Wo),
-                                           static_cast<std::size_t>(C)}
-                : std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                           static_cast<std::size_t>(Ho),
-                                           static_cast<std::size_t>(Wo),
-                                           static_cast<std::size_t>(C)});
+            pool_problem.poolDim == 3 ? std::vector<std::size_t>{static_cast<std::size_t>(N),
+                                                                 static_cast<std::size_t>(Do),
+                                                                 static_cast<std::size_t>(Ho),
+                                                                 static_cast<std::size_t>(Wo),
+                                                                 static_cast<std::size_t>(C)}
+                                      : std::vector<std::size_t>{static_cast<std::size_t>(N),
+                                                                 static_cast<std::size_t>(Ho),
+                                                                 static_cast<std::size_t>(Wo),
+                                                                 static_cast<std::size_t>(C)});
 
         ck_tile::HostTensor<OutDataType> out_host_result(
-            pool_problem.poolDim == 3
-                ? std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                           static_cast<std::size_t>(Do),
-                                           static_cast<std::size_t>(Ho),
-                                           static_cast<std::size_t>(Wo),
-                                           static_cast<std::size_t>(C)}
-                : std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                           static_cast<std::size_t>(Ho),
-                                           static_cast<std::size_t>(Wo),
-                                           static_cast<std::size_t>(C)});
+            pool_problem.poolDim == 3 ? std::vector<std::size_t>{static_cast<std::size_t>(N),
+                                                                 static_cast<std::size_t>(Do),
+                                                                 static_cast<std::size_t>(Ho),
+                                                                 static_cast<std::size_t>(Wo),
+                                                                 static_cast<std::size_t>(C)}
+                                      : std::vector<std::size_t>{static_cast<std::size_t>(N),
+                                                                 static_cast<std::size_t>(Ho),
+                                                                 static_cast<std::size_t>(Wo),
+                                                                 static_cast<std::size_t>(C)});
 
         ck_tile::HostTensor<IndexDataType> out_index_tensor(
-            pool_problem.outputIndex
-                ? (pool_problem.poolDim == 3
-                       ? std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                                  static_cast<std::size_t>(Do),
-                                                  static_cast<std::size_t>(Ho),
-                                                  static_cast<std::size_t>(Wo),
-                                                  static_cast<std::size_t>(C)}
-                       : std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                                  static_cast<std::size_t>(Ho),
-                                                  static_cast<std::size_t>(Wo),
-                                                  static_cast<std::size_t>(C)})
-                : std::vector<std::size_t>{1});
+            pool_problem.outputIndex ? (pool_problem.poolDim == 3
+                                            ? std::vector<std::size_t>{static_cast<std::size_t>(N),
+                                                                       static_cast<std::size_t>(Do),
+                                                                       static_cast<std::size_t>(Ho),
+                                                                       static_cast<std::size_t>(Wo),
+                                                                       static_cast<std::size_t>(C)}
+                                            : std::vector<std::size_t>{static_cast<std::size_t>(N),
+                                                                       static_cast<std::size_t>(Ho),
+                                                                       static_cast<std::size_t>(Wo),
+                                                                       static_cast<std::size_t>(C)})
+                                     : std::vector<std::size_t>{1});
 
         ck_tile::HostTensor<IndexDataType> out_index_host_result(
-            pool_problem.outputIndex
-                ? (pool_problem.poolDim == 3
-                       ? std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                                  static_cast<std::size_t>(Do),
-                                                  static_cast<std::size_t>(Ho),
-                                                  static_cast<std::size_t>(Wo),
-                                                  static_cast<std::size_t>(C)}
-                       : std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                                  static_cast<std::size_t>(Ho),
-                                                  static_cast<std::size_t>(Wo),
-                                                  static_cast<std::size_t>(C)})
-                : std::vector<std::size_t>{1});
+            pool_problem.outputIndex ? (pool_problem.poolDim == 3
+                                            ? std::vector<std::size_t>{static_cast<std::size_t>(N),
+                                                                       static_cast<std::size_t>(Do),
+                                                                       static_cast<std::size_t>(Ho),
+                                                                       static_cast<std::size_t>(Wo),
+                                                                       static_cast<std::size_t>(C)}
+                                            : std::vector<std::size_t>{static_cast<std::size_t>(N),
+                                                                       static_cast<std::size_t>(Ho),
+                                                                       static_cast<std::size_t>(Wo),
+                                                                       static_cast<std::size_t>(C)})
+                                     : std::vector<std::size_t>{1});
 
         // Initialize input tensor
         if(setting_.init_method_ == 0)
@@ -275,8 +270,8 @@ class PoolProfiler
         std::size_t flop = output_elements * window_size;
 
         // Calculate memory bandwidth
-        std::size_t num_byte = sizeof(InDataType) * N * D * H * W * C +
-                               sizeof(OutDataType) * N * Do * Ho * Wo * C;
+        std::size_t num_byte =
+            sizeof(InDataType) * N * D * H * W * C + sizeof(OutDataType) * N * Do * Ho * Wo * C;
 
         // Update performance results
         kernel_instance.perf_result_.latency_   = avg_time;
@@ -357,15 +352,12 @@ class PoolProfiler
                 {
                     file << "rocm_version,device_name,"
                          << "in_dtype,out_dtype,compute_dtype,index_dtype,"
-                         << "block_shape,reduce_op,pool_dim,"
-                         << "N,D,H,W,C,"
-                         << "window_z,window_y,window_x,"
-                         << "stride_z,stride_y,stride_x,"
+                         << "block_shape,reduce_op,pool_dim," << "N,D,H,W,C,"
+                         << "window_z,window_y,window_x," << "stride_z,stride_y,stride_x,"
                          << "dilation_z,dilation_y,dilation_x,"
                          << "left_pad_z,left_pad_y,left_pad_x,"
-                         << "right_pad_z,right_pad_y,right_pad_x,"
-                         << "output_index,propagate_nan," << "name,"
-                         << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
+                         << "right_pad_z,right_pad_y,right_pad_x," << "output_index,propagate_nan,"
+                         << "name," << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
                 }
 
                 const auto& problem = kernel_instance.problem_;

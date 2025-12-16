@@ -24,8 +24,7 @@
 inline auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser
-        .insert("N", "2", "Batch size N dimension. Default is 2.")
+    arg_parser.insert("N", "2", "Batch size N dimension. Default is 2.")
         .insert("D", "30", "Depth D dimension (for 3D pooling). Default is 30.")
         .insert("H", "30", "Height H dimension. Default is 30.")
         .insert("W", "30", "Width W dimension. Default is 30.")
@@ -49,15 +48,15 @@ inline auto create_args(int argc, char* argv[])
                 "0",
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU. "
                 "Default is 0.")
-        .insert("log",
-                "false",
-                "Whether output kernel instance information or not. Default is false")
+        .insert(
+            "log", "false", "Whether output kernel instance information or not. Default is false")
         .insert("warmup", "20", "The number of warmup iterations. Default is 20.")
         .insert("repeat", "100", "The number of benchmark iterations. Default is 100.")
         .insert("timer", "true", "Whether to use GPU timer. Default is true.")
-        .insert("init",
-                "0",
-                "The method of tensor initialization. 0=random, 1=linear, 2=constant(1). Default is 0.")
+        .insert(
+            "init",
+            "0",
+            "The method of tensor initialization. 0=random, 1=linear, 2=constant(1). Default is 0.")
         .insert("json_output",
                 "false",
                 "Whether to output results in JSON format only. Default is false");
@@ -127,18 +126,20 @@ void run_benchmark(const ck_tile::ArgParser& arg_parser)
         }
 
         // Create shapes using ck_tile::make_tuple
-        const auto input_shape    = ck_tile::make_tuple(N, D, H, W, C);
-        const auto output_shape   = ck_tile::make_tuple(N, Do, Ho, Wo, C);
-        const auto input_strides  = ck_tile::make_tuple(D * H * W * C, H * W * C, W * C, C, 1);
-        const auto output_strides = ck_tile::make_tuple(Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1);
-        const auto window_lengths = ck_tile::make_tuple(Z, Y, X);
-        const auto window_strides = ck_tile::make_tuple(Sz, Sy, Sx);
+        const auto input_shape   = ck_tile::make_tuple(N, D, H, W, C);
+        const auto output_shape  = ck_tile::make_tuple(N, Do, Ho, Wo, C);
+        const auto input_strides = ck_tile::make_tuple(D * H * W * C, H * W * C, W * C, C, 1);
+        const auto output_strides =
+            ck_tile::make_tuple(Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1);
+        const auto window_lengths   = ck_tile::make_tuple(Z, Y, X);
+        const auto window_strides   = ck_tile::make_tuple(Sz, Sy, Sx);
         const auto window_dilations = ck_tile::make_tuple(Dz, Dy, Dx);
         const auto input_left_pads  = ck_tile::make_tuple(LeftPz, LeftPy, LeftPx);
         const auto input_right_pads = ck_tile::make_tuple(RightPz, RightPy, RightPx);
 
         // Allocate host tensors
-        ck_tile::HostTensor<InDataType> in({N, D, H, W, C}, {D * H * W * C, H * W * C, W * C, C, 1});
+        ck_tile::HostTensor<InDataType> in({N, D, H, W, C},
+                                           {D * H * W * C, H * W * C, W * C, C, 1});
         ck_tile::HostTensor<OutDataType> out({N, Do, Ho, Wo, C},
                                              {Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1});
         ck_tile::HostTensor<IndexDataType> out_index(
@@ -172,21 +173,19 @@ void run_benchmark(const ck_tile::ArgParser& arg_parser)
         in_buf.ToDevice(in.data());
 
         // Create host arguments
-        auto host_args =
-            ck_tile::PoolHostArgs<decltype(input_shape), decltype(window_lengths)>{
-                static_cast<InDataType*>(in_buf.GetDeviceBuffer()),
-                static_cast<OutDataType*>(out_buf.GetDeviceBuffer()),
-                OUTPUT_INDEX ? static_cast<IndexDataType*>(out_index_buf.GetDeviceBuffer())
-                             : nullptr,
-                input_shape,
-                output_shape,
-                input_strides,
-                output_strides,
-                window_lengths,
-                window_strides,
-                window_dilations,
-                input_left_pads,
-                input_right_pads};
+        auto host_args = ck_tile::PoolHostArgs<decltype(input_shape), decltype(window_lengths)>{
+            static_cast<InDataType*>(in_buf.GetDeviceBuffer()),
+            static_cast<OutDataType*>(out_buf.GetDeviceBuffer()),
+            OUTPUT_INDEX ? static_cast<IndexDataType*>(out_index_buf.GetDeviceBuffer()) : nullptr,
+            input_shape,
+            output_shape,
+            input_strides,
+            output_strides,
+            window_lengths,
+            window_strides,
+            window_dilations,
+            input_left_pads,
+            input_right_pads};
 
         auto kernel_args = Kernel::MakeKernelArgs(host_args);
 
@@ -335,21 +334,19 @@ void run_benchmark(const ck_tile::ArgParser& arg_parser)
 
         in_buf.ToDevice(in.data());
 
-        auto host_args =
-            ck_tile::PoolHostArgs<decltype(input_shape), decltype(window_lengths)>{
-                static_cast<InDataType*>(in_buf.GetDeviceBuffer()),
-                static_cast<OutDataType*>(out_buf.GetDeviceBuffer()),
-                OUTPUT_INDEX ? static_cast<IndexDataType*>(out_index_buf.GetDeviceBuffer())
-                             : nullptr,
-                input_shape,
-                output_shape,
-                input_strides,
-                output_strides,
-                window_lengths,
-                window_strides,
-                window_dilations,
-                input_left_pads,
-                input_right_pads};
+        auto host_args = ck_tile::PoolHostArgs<decltype(input_shape), decltype(window_lengths)>{
+            static_cast<InDataType*>(in_buf.GetDeviceBuffer()),
+            static_cast<OutDataType*>(out_buf.GetDeviceBuffer()),
+            OUTPUT_INDEX ? static_cast<IndexDataType*>(out_index_buf.GetDeviceBuffer()) : nullptr,
+            input_shape,
+            output_shape,
+            input_strides,
+            output_strides,
+            window_lengths,
+            window_strides,
+            window_dilations,
+            input_left_pads,
+            input_right_pads};
 
         auto kernel_args = Kernel::MakeKernelArgs(host_args);
 

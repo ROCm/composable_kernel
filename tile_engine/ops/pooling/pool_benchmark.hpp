@@ -83,8 +83,7 @@ struct PoolProblem
            << "    \"rightPadY\": " << problem.rightPadY << ",\n"
            << "    \"rightPadX\": " << problem.rightPadX << ",\n"
            << "    \"outputIndex\": " << (problem.outputIndex ? "true" : "false") << ",\n"
-           << "    \"propagateNan\": " << (problem.propagateNan ? "true" : "false")
-           << "\n"
+           << "    \"propagateNan\": " << (problem.propagateNan ? "true" : "false") << "\n"
            << "}";
         return os;
     }
@@ -175,8 +174,8 @@ bool compare_pool_results(std::string instanceName,
 {
     bool pass = ck_tile::check_err(out_dev_result, out_host_result, "Error: Incorrect results!");
 
-    std::cout << "For " << instanceName << " verification result is: "
-              << (pass ? "correct" : "fail") << std::endl;
+    std::cout << "For " << instanceName
+              << " verification result is: " << (pass ? "correct" : "fail") << std::endl;
 
     return pass;
 }
@@ -189,8 +188,8 @@ bool compare_pool_index_results(std::string instanceName,
     bool pass = ck_tile::check_err(
         out_index_dev_result, out_index_host_result, "Error: Incorrect index results!");
 
-    std::cout << "For " << instanceName << " index verification result is: "
-              << (pass ? "correct" : "fail") << std::endl;
+    std::cout << "For " << instanceName
+              << " index verification result is: " << (pass ? "correct" : "fail") << std::endl;
 
     return pass;
 }
