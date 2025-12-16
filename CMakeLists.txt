@@ -777,6 +777,9 @@ if(CK_EXPERIMENTAL_BUILDER)
         ${PROJECT_SOURCE_DIR}/experimental/builder/include/ck_tile/builder
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile
     )
+
+    set(CK_TILE_SRC_FOLDER ${CMAKE_SOURCE_DIR}/include/ck_tile/)
+    rocm_install(DIRECTORY ${CK_TILE_SRC_FOLDER} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile)
 endif()
 
 if(CK_EXPERIMENTAL_PROFILER)
