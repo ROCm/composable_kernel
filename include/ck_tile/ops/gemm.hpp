@@ -1,6 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
-
 #pragma once
 
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bgmem_creg_v1.hpp"
@@ -34,9 +33,10 @@
 #include "ck_tile/ops/gemm/kernel/gemm_multi_d_kernel.hpp"
 #include "ck_tile/ops/gemm/kernel/gemm_tile_partitioner.hpp"
 #include "ck_tile/ops/gemm/kernel/grouped_gemm_kernel.hpp"
-#include "ck_tile/ops/gemm/kernel/streamk_gemm_kernel.hpp"
-#include "ck_tile/ops/gemm/kernel/streamk_gemm_tile_partitioner.hpp"
-#include "ck_tile/ops/gemm/kernel/streamk_gemm_tile_partitioner_impl.hpp"
+#include "ck_tile/ops/gemm/kernel/streamk_gemm/streamk_gemm_coherency.hpp"
+#include "ck_tile/ops/gemm/kernel/streamk_gemm/streamk_gemm_kernel.hpp"
+#include "ck_tile/ops/gemm/kernel/streamk_gemm/streamk_gemm_tile_partitioner.hpp"
+#include "ck_tile/ops/gemm/kernel/streamk_gemm/streamk_gemm_tile_partitioner_impl.hpp"
 #include "ck_tile/ops/gemm/kernel/universal_gemm_kernel.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_async.hpp"

@@ -834,12 +834,14 @@ def Build_CK(Map conf=[:]){
                     if (params.hipTensor_test && arch == "gfx90a" ){
                         // build and test hipTensor on gfx90a node
                         sh """#!/bin/bash
-                            rm -rf "${params.hipTensor_branch}".zip
-                            rm -rf hipTensor-"${params.hipTensor_branch}"
-                            wget https://github.com/ROCm/hipTensor/archive/refs/heads/"${params.hipTensor_branch}".zip
-                            unzip -o "${params.hipTensor_branch}".zip
+                            rm -rf rocm-libraries
+                            git clone --no-checkout --filter=blob:none https://github.com/ROCm/rocm-libraries.git
+                            cd rocm-libraries
+                            git sparse-checkout init --cone
+                            git sparse-checkout set projects/hiptensor
+                            git checkout "${params.hipTensor_branch}"
                         """
-                        dir("hipTensor-${params.hipTensor_branch}"){
+                        dir("rocm-libraries/projects/hiptensor"){
                             sh """#!/bin/bash
                                 mkdir -p build
                                 ls -ltr
@@ -1474,15 +1476,19 @@ pipeline {
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cd ../build && \
                                            ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 test_grouped_convnd_fwd_dataset_xdl && \
+                                           make -j64 test_grouped_convnd_fwd_dataset_xdl \
+                                           test_grouped_convnd_bwd_data_dataset_xdl \
+                                           test_grouped_convnd_bwd_weight_dataset_xdl && \
                                            cd ../test_data && \
                                            # Dataset generation modes:
                                            # - small: ~60 test cases (minimal, quick testing - 3 models, 2 batch sizes, 2 image sizes)
                                            # - half: ~300 test cases (moderate coverage - 16 models, 3 batch sizes, 5 image sizes), ~ 17 hours testing time
                                            # - full: ~600 test cases (comprehensive - 16 models, 5 batch sizes, 9 image sizes), ~ 40 hours testing time
-                                           ./generate_test_dataset.sh half && \
+                                           ./generate_test_dataset.sh small && \
                                            cd ../build && \
-                                           ./bin/test_grouped_convnd_fwd_dataset_xdl"""
+                                           ./bin/test_grouped_convnd_fwd_dataset_xdl && \
+                                           ./bin/test_grouped_convnd_bwd_data_dataset_xdl && \
+                                           ./bin/test_grouped_convnd_bwd_weight_dataset_xdl"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)

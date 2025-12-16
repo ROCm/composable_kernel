@@ -62,6 +62,7 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kHasDropout       = Traits::kHasDropout;
     static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
+    static constexpr bool kHasSink          = Traits::kHasSink;
 };
 
 template <typename QDataType_,
@@ -114,6 +115,7 @@ struct BlockFmhaFwdPagedKVPipelineProblem
     static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
     static constexpr bool kIsPagedKV        = Traits::kIsPagedKV;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
+    static constexpr bool kHasSink          = Traits::kHasSink;
 };
 
 template <typename QDataType_,
@@ -167,6 +169,7 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     static constexpr bool kHasUnevenSplits           = kIsGroupMode || Traits::kHasUnevenSplits;
     static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
     static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
+    static constexpr bool kHasSink                   = Traits::kHasSink;
 };
 
 // extract tile size attributes to remove dependency on traits

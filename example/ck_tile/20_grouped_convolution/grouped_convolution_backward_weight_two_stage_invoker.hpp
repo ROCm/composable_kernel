@@ -17,8 +17,8 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
               typename DsDataType     = ck_tile::tuple<>,
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    static float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
-                                         const ck_tile::stream_config& s)
+    static InvokerResult grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
+                                                 const ck_tile::stream_config& s)
     {
         using WorkspaceDataType = float;
 
@@ -118,9 +118,9 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                               sizeof(WorkspaceDataType));
             ck_tile::GroupedConvBwdWeightHostArgs ws_args =
                 ck_tile::GroupedConvBwdWeightHostArgs(args);
-            auto c_ptr      = ws_args.wei_ptr;
-            ws_args.wei_ptr = ws_m_n_dev_buf.GetDeviceBuffer();
-            auto kargs      = Kernel::MakeKernelArgs(ws_args);
+            auto c_ptr       = ws_args.wei_ptr;
+            ws_args.wei_ptr  = ws_m_n_dev_buf.GetDeviceBuffer();
+            const auto kargs = Kernel::MakeKernelArgs(ws_args);
 
             const dim3 grids  = Kernel::GridSize(kargs);
             const dim3 blocks = Kernel::BlockSize();
@@ -184,7 +184,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
             }
 
             auto preprocess = [&]() {
-                if(args.k_batch > 1)
+                if(kargs.k_batch > 1)
                     ck_tile::hip_check_error(
                         hipMemsetAsync(ws_args.wei_ptr,
                                        0,
@@ -192,7 +192,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                        s.stream_id_));
             };
 
-            return ck_tile::launch_kernel_time_mask(
+            const auto ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 preprocess,
                 ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs),
@@ -206,6 +206,10 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                     ck_tile::make_tuple(shape[1], 1), // Output Stride
                     input_tensors,
                     static_cast<WeiDataType*>(c_ptr)));
+
+            const auto split_k = kargs.k_batch;
+
+            return InvokerResult{ave_time, split_k};
         };
 
         if(args.k_batch == 1)
