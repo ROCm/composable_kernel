@@ -246,7 +246,9 @@ class PoolBenchmark:
         }
 
         print(f"\nBenchmarking N={N}, D={D}, H={H}, W={W}, C={C}")
-        print(f"  Window: {window_z}x{window_y}x{window_x}, Stride: {stride_z}x{stride_y}x{stride_x}")
+        print(
+            f"  Window: {window_z}x{window_y}x{window_x}, Stride: {stride_z}x{stride_y}x{stride_x}"
+        )
 
         for kernel_path in kernels:
             kernel_info = self.extract_kernel_info(kernel_path)
@@ -325,9 +327,17 @@ class PoolBenchmark:
                 for sz, sy, sx in stride_sizes:
                     results = self.benchmark_problem_size(
                         kernels,
-                        N, D, H, W, C,
-                        window_z=wz, window_y=wy, window_x=wx,
-                        stride_z=sz, stride_y=sy, stride_x=sx,
+                        N,
+                        D,
+                        H,
+                        W,
+                        C,
+                        window_z=wz,
+                        window_y=wy,
+                        window_x=wx,
+                        stride_z=sz,
+                        stride_y=sy,
+                        stride_x=sx,
                         pool_dim=pool_dim,
                         verify=1 if verify else 0,
                         warmup=warmup,
@@ -340,7 +350,9 @@ class PoolBenchmark:
 
                     best = self.find_best_kernel(results)
                     if best:
-                        key = f"N{N}_D{D}_H{H}_W{W}_C{C}_w{wz}x{wy}x{wx}_s{sz}x{sy}x{sx}"
+                        key = (
+                            f"N{N}_D{D}_H{H}_W{W}_C{C}_w{wz}x{wy}x{wx}_s{sz}x{sy}x{sx}"
+                        )
                         best_kernels[key] = best
                         print(
                             f"Best for {key}: {best['name']} ({best['bandwidth_gb_s']:.2f} GB/s, {best['time_ms']:.2f}ms)"
@@ -408,7 +420,8 @@ class PoolBenchmark:
                 }
             reduce_op_stats[reduce_op]["count"] += 1
             reduce_op_stats[reduce_op]["best_bandwidth"] = max(
-                reduce_op_stats[reduce_op]["best_bandwidth"], result.get("bandwidth_gb_s", 0)
+                reduce_op_stats[reduce_op]["best_bandwidth"],
+                result.get("bandwidth_gb_s", 0),
             )
 
             data_type = config.get("data_type", "unknown")
@@ -420,7 +433,8 @@ class PoolBenchmark:
                 }
             data_type_stats[data_type]["count"] += 1
             data_type_stats[data_type]["best_bandwidth"] = max(
-                data_type_stats[data_type]["best_bandwidth"], result.get("bandwidth_gb_s", 0)
+                data_type_stats[data_type]["best_bandwidth"],
+                result.get("bandwidth_gb_s", 0),
             )
 
         output_data = {
@@ -608,4 +622,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

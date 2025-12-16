@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(POOL_DATATYPE "fp16;fp32" CACHE STRING "List of datatypes for Pool (semicolon-separated)")
 set(POOL_REDUCE_OP "max;avg" CACHE STRING "List of reduce operations for Pool (semicolon-separated)")
 set(POOL_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
