@@ -278,20 +278,14 @@ void naive_conv_fwd(const TIn* p_in,
 {
     const auto ndim = conv_param.num_dim_spatial_;
 
-    // Build lengths vectors with per-group C and K
-    // ConvParam stores total C and K, but naive kernels expect per-group
-    const index_t C_per_group = conv_param.C_ / conv_param.G_;
-    const index_t K_per_group = conv_param.K_ / conv_param.G_;
+    const index_t G = conv_param.G_;
+    const index_t N = conv_param.N_;
+    const index_t C = conv_param.C_;
+    const index_t K = conv_param.K_;
 
-    std::vector<index_t> in_lengths  = {static_cast<index_t>(conv_param.G_),
-                                        static_cast<index_t>(conv_param.N_),
-                                        static_cast<index_t>(C_per_group)};
-    std::vector<index_t> wei_lengths = {static_cast<index_t>(conv_param.G_),
-                                        static_cast<index_t>(K_per_group),
-                                        static_cast<index_t>(C_per_group)};
-    std::vector<index_t> out_lengths = {static_cast<index_t>(conv_param.G_),
-                                        static_cast<index_t>(conv_param.N_),
-                                        static_cast<index_t>(K_per_group)};
+    std::vector<index_t> in_lengths  = {G, N, C};
+    std::vector<index_t> wei_lengths = {G, K, C};
+    std::vector<index_t> out_lengths = {G, N, K};
 
     for(index_t i = 0; i < ndim; ++i)
     {
@@ -377,10 +371,6 @@ void naive_conv_fwd(const TIn* p_in,
     }
 
     // Run convolution kernel on packed data
-    const index_t G    = conv_param.G_;
-    const index_t N    = conv_param.N_;
-    const index_t C    = C_per_group;
-    const index_t K    = K_per_group;
     const int out_grid = (out_total + block_size - 1) / block_size;
 
     if(ndim == 1)
