@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 import os
 import argparse
 import importlib.util
@@ -61,7 +64,8 @@ class GemmPreshuffleKernelBuilder(GemmKernelBuilder):
                         self.gpu_target,
                         self.datatype,
                         self.layout,
-                        self.config_json,                    )
+                        self.config_json,
+                    )
                 )
 
         print(
