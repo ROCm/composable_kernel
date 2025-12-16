@@ -907,7 +907,6 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                     k_idx);
     }
 
-
     // Run method for convolution (grid descriptors are passed as arguments,
     // not generated internally)
     template <typename AGridDesc_AK0_M_K1,

@@ -213,7 +213,7 @@ struct DeviceOperationInstanceFactory<
 
 #ifdef CK_USE_WMMA
 
-  if constexpr(NumDimSpatial == 3)
+        if constexpr(NumDimSpatial == 3)
         {
             if constexpr(is_same_v<InLayout, NDHWGC> && is_same_v<WeiLayout, GKZYXC> &&
                          is_same_v<OutLayout, NDHWGK>)
@@ -244,8 +244,6 @@ struct DeviceOperationInstanceFactory<
         return op_ptrs;
     }
 };
-
-
 
 } // namespace instance
 } // namespace device

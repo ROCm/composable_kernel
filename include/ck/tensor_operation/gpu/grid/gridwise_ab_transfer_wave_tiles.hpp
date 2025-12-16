@@ -267,7 +267,7 @@ struct ABTransferWaveTiles
                                             BlockDescriptor& block_descriptor,
                                             ABElementwiseOperation& ab_element_op,
                                             const index_t block_mn_id,
-                                        const index_t )
+                                            const index_t)
     {
         // Note: GlobalBufferNum is currently not used but it will be needed
         // once we add other pipelines. It is currently needed only for

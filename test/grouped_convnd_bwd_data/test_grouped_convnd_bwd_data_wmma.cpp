@@ -1,6 +1,5 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -82,7 +81,7 @@ using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWK, GKZYXC, GNDHWC>
                                        std::tuple<float, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<ck::half_t, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>>;
-        
+
 template <typename Tuple>
 class TestGroupedConvndBwdDataWmma2d : public TestGroupedConvndBwdDataWmma<Tuple>
 {

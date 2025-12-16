@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_wmma_v3_instances.hpp"
@@ -26,11 +26,11 @@ void add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkyxc_ngchw_f16_instances(
     add_device_operation_instances(
         instances,
         device_grouped_conv_bwd_data_wmma_v3_f16_generic_instances<2,
-                                                                  NGKHW,
-                                                                  GKYXC,
-                                                                  Empty_Tuple,
-                                                                  NGCHW,
-                                                                  ConvBwdDataDefault>{});
+                                                                   NGKHW,
+                                                                   GKYXC,
+                                                                   Empty_Tuple,
+                                                                   NGCHW,
+                                                                   ConvBwdDataDefault>{});
 }
 
 } // namespace instance

@@ -22,8 +22,8 @@ using OutElementOp = PassThrough;
 using WeiElementOp = PassThrough;
 using InElementOp  = PassThrough;
 
-static constexpr auto  BlkGemmPipeSched    = ck::BlockGemmPipelineScheduler::Intrawave;
-static constexpr auto  BlkGemmPipelineVer    = ck::BlockGemmPipelineVersion::v1;
+static constexpr auto BlkGemmPipeSched   = ck::BlockGemmPipelineScheduler::Intrawave;
+static constexpr auto BlkGemmPipelineVer = ck::BlockGemmPipelineVersion::v1;
 
 // clang-format off
 using DeviceConvInstance = ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3

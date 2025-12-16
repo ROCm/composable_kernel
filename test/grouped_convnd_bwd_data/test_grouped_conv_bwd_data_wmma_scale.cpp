@@ -23,7 +23,6 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 
-
 using ::ck::DeviceMem;
 using ::ck::HostTensorDescriptor;
 using ::ck::Tensor;
@@ -32,49 +31,54 @@ template <typename Tuple>
 class TestGroupedConvndBwdData : public ::testing::Test
 {
     protected:
-    using F16 = ck::half_t;
-    using InDataType  = std::tuple_element_t<0, Tuple>;;
-     using WeiDataType  =std::tuple_element_t<0, Tuple>;;
-      using OutDataType  = std::tuple_element_t<0, Tuple>;;
-      using ComputeDataType = InDataType;
-using InLayout    = std::tuple_element_t<3, Tuple>;;
-using WeiLayout   = std::tuple_element_t<2, Tuple>;;
-using OutLayout   = std::tuple_element_t<1, Tuple>;;
-    using WeiElementOp  = ck::tensor_operation::element_wise::PassThrough;
-    using InElementOp = ck::tensor_operation::element_wise::Scale;
+    using F16        = ck::half_t;
+    using InDataType = std::tuple_element_t<0, Tuple>;
+    ;
+    using WeiDataType = std::tuple_element_t<0, Tuple>;
+    ;
+    using OutDataType = std::tuple_element_t<0, Tuple>;
+    ;
+    using ComputeDataType = InDataType;
+    using InLayout        = std::tuple_element_t<3, Tuple>;
+    ;
+    using WeiLayout = std::tuple_element_t<2, Tuple>;
+    ;
+    using OutLayout = std::tuple_element_t<1, Tuple>;
+    ;
+    using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using InElementOp  = ck::tensor_operation::element_wise::Scale;
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+    using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
 
-    using Scale = ck::tensor_operation::element_wise::Scale;
+    using Scale                              = ck::tensor_operation::element_wise::Scale;
     static constexpr ck::index_t NDimSpatial = 3;
     static constexpr float alpha             = 2.2;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
     std::vector<ck::index_t> split_ks{1};
 
-
-        void RunReference(ck::utils::conv::ConvParam& conv_param,
+    void RunReference(ck::utils::conv::ConvParam& conv_param,
                       Tensor<InDataType>& in_host,
                       Tensor<WeiDataType>& wei,
                       Tensor<OutDataType>& out)
     {
         auto ref_conv =
             ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
-                                                               InDataType,
-                                                               WeiDataType,
-                                                               OutDataType,
-                                                               InElementOp,
-                                                               WeiElementOp,
-                                                               OutElementOp,
-                                                               0, /*Num A Elementwise Tensors*/
-                                                               0, /*Num B Elementwise Tensors*/
-                                                               0,
-                                                               ComputeDataType> /*Num D Elementwise Tensors*/
+                                                             InDataType,
+                                                             WeiDataType,
+                                                             OutDataType,
+                                                             InElementOp,
+                                                             WeiElementOp,
+                                                             OutElementOp,
+                                                             0, /*Num A Elementwise Tensors*/
+                                                             0, /*Num B Elementwise Tensors*/
+                                                             0,
+                                                             ComputeDataType> /*Num D Elementwise
+                                                                                 Tensors*/
             {};
 
-        auto ref_invoker  = ref_conv.MakeInvoker();
+        auto ref_invoker = ref_conv.MakeInvoker();
 
-       
         auto ref_argument = ref_conv.MakeArgument(in_host,
                                                   wei,
                                                   out,
@@ -84,17 +88,16 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
                                                   conv_param.input_right_pads_,
                                                   InElementOp{alpha},
                                                   WeiElementOp{},
-                                                 OutElementOp{});
+                                                  OutElementOp{});
 
         ref_invoker.Run(ref_argument);
     }
 
-  
     bool PerformConvDataScale(ck::utils::conv::ConvParam& conv_param, const ck::index_t split_k)
     {
         bool passed = true;
-      
-           const auto out_g_n_k_wos_desc =
+
+        const auto out_g_n_k_wos_desc =
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
 
@@ -114,19 +117,18 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
         std::cout << "in: " << in_host.mDesc << std::endl;
         std::cout << "wei: " << wei.mDesc << std::endl;
         std::cout << "out: " << out.mDesc << std::endl;
-        
-    DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
 
-   
-       out_device_buf.ToDevice(out.mData.data());
-       wei_device_buf.ToDevice(wei.mData.data());
+        DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
+        DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
+        DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
+
+        out_device_buf.ToDevice(out.mData.data());
+        wei_device_buf.ToDevice(wei.mData.data());
 
         // reset input to zero
         in_device_buf.SetZero();
 
-       std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
+        std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> out_strides{};
         std::array<ck::index_t, NDimSpatial + 3> wei_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> wei_strides{};
@@ -136,8 +138,7 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
         std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
         std::array<ck::index_t, NDimSpatial> input_left_pads{};
         std::array<ck::index_t, NDimSpatial> input_right_pads{};
-      
-        
+
         auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 
         copy(out_g_n_k_wos_desc.GetLengths(), out_lengths);
@@ -151,24 +152,25 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
         copy(conv_param.input_left_pads_, input_left_pads);
         copy(conv_param.input_right_pads_, input_right_pads);
 
-         RunReference(conv_param, in_host, wei, out);
-   
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
-                                                                        OutLayout,
-                                                                        WeiLayout,
-                                                                        ck::Tuple<>,
-                                                                        InLayout,
-                                                                        OutDataType,
-                                                                        WeiDataType,
-                                                                        ck::Tuple<>,
-                                                                        InDataType,
-                                                                        PassThrough,
-                                                                        PassThrough,
-                                                                        Scale>;
+        RunReference(conv_param, in_host, wei, out);
 
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
+        using DeviceOp =
+            ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
+                                                                            OutLayout,
+                                                                            WeiLayout,
+                                                                            ck::Tuple<>,
+                                                                            InLayout,
+                                                                            OutDataType,
+                                                                            WeiDataType,
+                                                                            ck::Tuple<>,
+                                                                            InDataType,
+                                                                            PassThrough,
+                                                                            PassThrough,
+                                                                            Scale>;
+
+        // get device op instances
+        const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            DeviceOp>::GetInstances();
 
         int num_kernel = 0;
 
@@ -176,24 +178,24 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
         {
             auto& op_ptr      = op_ptrs[i];
             auto argument_ptr = op_ptr->MakeArgumentPointer(out_device_buf.GetDeviceBuffer(),
-                                                        wei_device_buf.GetDeviceBuffer(),
-                                                        {},
-                                                        in_device_buf.GetDeviceBuffer(),
-                                                        out_lengths,
-                                                        out_strides,
-                                                        wei_lengths,
-                                                        wei_strides,
-                                                        {},
-                                                        {},
-                                                        in_lengths,
-                                                        in_strides,
-                                                        conv_filter_strides,
-                                                        conv_filter_dilations,
-                                                        input_left_pads,
-                                                        input_right_pads,
-                                                        PassThrough{},
-                                                        PassThrough{},
-                                                        Scale{2.2});
+                                                            wei_device_buf.GetDeviceBuffer(),
+                                                            {},
+                                                            in_device_buf.GetDeviceBuffer(),
+                                                            out_lengths,
+                                                            out_strides,
+                                                            wei_lengths,
+                                                            wei_strides,
+                                                            {},
+                                                            {},
+                                                            in_lengths,
+                                                            in_strides,
+                                                            conv_filter_strides,
+                                                            conv_filter_dilations,
+                                                            input_left_pads,
+                                                            input_right_pads,
+                                                            PassThrough{},
+                                                            PassThrough{},
+                                                            Scale{2.2});
 
             DeviceMem workspace_buf(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
             op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_buf.GetDeviceBuffer());
@@ -205,23 +207,23 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
             {
                 num_kernel++;
                 float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
-               in_device_buf.FromDevice(in_device.mData.data());
+                in_device_buf.FromDevice(in_device.mData.data());
 
                 using ComputeType_ = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
-                                                             OutDataType,
-                                                             WeiDataType>;
+                                                        OutDataType,
+                                                        WeiDataType>;
                 using ComputeType =
                     std::conditional_t<sizeof(ComputeType_) < sizeof(ComputeDataType),
-                                            ComputeType_,
-                                            ComputeDataType>;
+                                       ComputeType_,
+                                       ComputeDataType>;
                 using AccDataType =
                     std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
                 const ck::index_t num_accums = conv_param.K_;
-               float max_accumulated_value = *std::max_element(in_host.mData.begin(), in_host.mData.end());
+                float max_accumulated_value =
+                    *std::max_element(in_host.mData.begin(), in_host.mData.end());
 
-            
                 const ck::index_t split_k_for_run = split_k;
-              // Calculate thresholds
+                // Calculate thresholds
                 auto rtol = ck::utils::get_relative_threshold<ComputeType, InDataType, AccDataType>(
                     num_accums / split_k_for_run);
                 auto atol = ck::utils::get_absolute_threshold<ComputeType, InDataType, AccDataType>(
@@ -245,13 +247,13 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
                 }
                 else
                 {
-                    passed &= ck::utils::check_err(in_device, in_host, "Error: Incorrect results!", rtol, atol);
-                       std::cout << "Relative error threshold: " << rtol
+                    passed &= ck::utils::check_err(
+                        in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                    std::cout << "Relative error threshold: " << rtol
                               << " Absolute error threshold: " << atol << std::endl;
                 }
-                std::size_t flop =
-                    conv_param.GetFlops() +
-                    3 * conv_param.GetOutputByte<InDataType>() / sizeof(InDataType);
+                std::size_t flop = conv_param.GetFlops() +
+                                   3 * conv_param.GetOutputByte<InDataType>() / sizeof(InDataType);
                 std::size_t num_bytes = conv_param.GetByte<InDataType, WeiDataType, OutDataType>() +
                                         conv_param.GetOutputByte<InDataType>();
 
@@ -265,8 +267,7 @@ using OutLayout   = std::tuple_element_t<1, Tuple>;;
             {
                 std::cerr << op_name << " does not support this problem" << std::endl;
             }
-
-       }
+        }
 
         printf("\033[36mvalids: %d\033[0m\n", num_kernel);
         return passed;
@@ -297,7 +298,6 @@ using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
 using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
-
 using KernelTypes3d = ::testing::Types<std::tuple<float, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<ck::half_t, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>>;
@@ -307,7 +307,7 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
 TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
 {
     this->conv_params.push_back(
-        {3, 1, 64 , 16, 32, {3,3,3} ,{28, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 64, 16, 32, {3, 3, 3}, {28, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
         {3, 2, 16, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
