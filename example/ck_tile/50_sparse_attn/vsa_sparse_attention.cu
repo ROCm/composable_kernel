@@ -6,18 +6,20 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 #include "ck_tile/host/device_memory.hpp"
+#include <type_traits>
 
-ck_tile::HostTensor<DataType>
-vsa_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
-                     ck_tile::HostTensor<DataType>& TK,
-                     ck_tile::HostTensor<DataType>& TV,
-                     ck_tile::HostTensor<int32_t>& TKV_block_idx, // LUT must be int32_t
-                     ck_tile::HostTensor<int32_t>& TKV_blocks,    // valid_block_num must be int32_t
-                     ck_tile::HostTensor<DataType>& Y,
-                     std::optional<ck_tile::HostTensor<DataType>> bias,
-                     std::optional<ck_tile::HostTensor<DataType>> lse,
-                     std::optional<ck_tile::HostTensor<DataType>> seqstart_q,
-                     std::optional<ck_tile::HostTensor<DataType>> seqstart_k,
+template <typename DataType_>
+ck_tile::HostTensor<DataType_>
+vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
+                     ck_tile::HostTensor<DataType_>& TK,
+                     ck_tile::HostTensor<DataType_>& TV,
+                     ck_tile::HostTensor<int32_t>& TKV_block_idx,
+                     ck_tile::HostTensor<int32_t>& TKV_blocks,
+                     ck_tile::HostTensor<DataType_>& Y,
+                     std::optional<ck_tile::HostTensor<DataType_>> bias,
+                     std::optional<ck_tile::HostTensor<DataType_>> lse,
+                     std::optional<ck_tile::HostTensor<DataType_>> seqstart_q,
+                     std::optional<ck_tile::HostTensor<DataType_>> seqstart_k,
                      int bias_type,
                      int batch,
                      int nhead,
@@ -32,8 +34,12 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
                      int max_seqlen_q,
                      int max_seqlen_k)
 {
+    // Determine data type string based on template parameter
     std::string data_type = "fp16";
-    // DataType is determined at compile time via template
+    if constexpr(std::is_same_v<DataType_, ck_tile::bf16_t>)
+    {
+        data_type = "bf16";
+    }
 
     if(max_seqlen_q == 0)
         max_seqlen_q = seqlen_q;
@@ -218,3 +224,26 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
 
     return Y;
 }
+
+// Explicit template instantiations
+template ck_tile::HostTensor<ck_tile::half_t>
+vsa_sparse_attention<ck_tile::half_t>(
+    ck_tile::HostTensor<ck_tile::half_t>&, ck_tile::HostTensor<ck_tile::half_t>&,
+    ck_tile::HostTensor<ck_tile::half_t>&, ck_tile::HostTensor<int32_t>&,
+    ck_tile::HostTensor<int32_t>&, ck_tile::HostTensor<ck_tile::half_t>&,
+    std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
+    std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
+    std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
+    std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
+    int, int, int, int, int, int, int, int, int, bool, bool, int, int);
+
+template ck_tile::HostTensor<ck_tile::bf16_t>
+vsa_sparse_attention<ck_tile::bf16_t>(
+    ck_tile::HostTensor<ck_tile::bf16_t>&, ck_tile::HostTensor<ck_tile::bf16_t>&,
+    ck_tile::HostTensor<ck_tile::bf16_t>&, ck_tile::HostTensor<int32_t>&,
+    ck_tile::HostTensor<int32_t>&, ck_tile::HostTensor<ck_tile::bf16_t>&,
+    std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
+    std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
+    std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
+    std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
+    int, int, int, int, int, int, int, int, int, bool, bool, int, int);

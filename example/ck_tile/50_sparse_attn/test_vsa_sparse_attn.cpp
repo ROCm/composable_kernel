@@ -15,9 +15,6 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/core.hpp"
 
-// Define DataType before including the header
-using DataType = ck_tile::half_t;
-
 #include "jenga_sparse_attention.h"
 #include "fmha_fwd_trek.hpp"
 
@@ -363,29 +360,29 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         // Warmup
         for(int i = 0; i < warmup; ++i)
         {
-            vsa_sparse_attention(q_host,
-                                 k_host,
-                                 v_host,
-                                 lut_host,
-                                 valid_block_num_host,
-                                 output_host,
-                                 bias_opt,
-                                 lse_opt,
-                                 seqstart_q_opt,
-                                 seqstart_k_opt,
-                                 bias_type,
-                                 batch,
-                                 nhead,
-                                 nhead_k,
-                                 seqlen_q,
-                                 seqlen_k,
-                                 hdim_q,
-                                 hdim_v,
-                                 mode,
-                                 i_perm,
-                                 o_perm,
-                                 seqlen_q,
-                                 seqlen_k);
+            vsa_sparse_attention<T>(q_host,
+                                    k_host,
+                                    v_host,
+                                    lut_host,
+                                    valid_block_num_host,
+                                    output_host,
+                                    bias_opt,
+                                    lse_opt,
+                                    seqstart_q_opt,
+                                    seqstart_k_opt,
+                                    bias_type,
+                                    batch,
+                                    nhead,
+                                    nhead_k,
+                                    seqlen_q,
+                                    seqlen_k,
+                                    hdim_q,
+                                    hdim_v,
+                                    mode,
+                                    i_perm,
+                                    o_perm,
+                                    seqlen_q,
+                                    seqlen_k);
         }
 
         // Benchmark
@@ -394,29 +391,29 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
 
         for(int i = 0; i < repeat; ++i)
         {
-            vsa_sparse_attention(q_host,
-                                 k_host,
-                                 v_host,
-                                 lut_host,
-                                 valid_block_num_host,
-                                 output_host,
-                                 bias_opt,
-                                 lse_opt,
-                                 seqstart_q_opt,
-                                 seqstart_k_opt,
-                                 bias_type,
-                                 batch,
-                                 nhead,
-                                 nhead_k,
-                                 seqlen_q,
-                                 seqlen_k,
-                                 hdim_q,
-                                 hdim_v,
-                                 mode,
-                                 i_perm,
-                                 o_perm,
-                                 seqlen_q,
-                                 seqlen_k);
+            vsa_sparse_attention<T>(q_host,
+                                    k_host,
+                                    v_host,
+                                    lut_host,
+                                    valid_block_num_host,
+                                    output_host,
+                                    bias_opt,
+                                    lse_opt,
+                                    seqstart_q_opt,
+                                    seqstart_k_opt,
+                                    bias_type,
+                                    batch,
+                                    nhead,
+                                    nhead_k,
+                                    seqlen_q,
+                                    seqlen_k,
+                                    hdim_q,
+                                    hdim_v,
+                                    mode,
+                                    i_perm,
+                                    o_perm,
+                                    seqlen_q,
+                                    seqlen_k);
         }
 
         [[maybe_unused]] auto sync_status2 = hipDeviceSynchronize();
@@ -526,10 +523,7 @@ int main(int argc, char* argv[])
     }
     else if(prec == "bf16")
     {
-        std::cout << "Note: Using bf16 precision" << std::endl;
-        // For bf16, we would need to compile with DataType = ck_tile::bf16_t
-        // For now, run with the compiled DataType
-        test_result = run_test<ck_tile::half_t>(arg_parser);
+        test_result = run_test<ck_tile::bf16_t>(arg_parser);
     }
     else
     {

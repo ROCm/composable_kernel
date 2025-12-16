@@ -33,17 +33,18 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
                        int max_seqlen_q,
                        int max_seqlen_k);
 
-ck_tile::HostTensor<DataType>
-vsa_sparse_attention(ck_tile::HostTensor<DataType>& TQ,
-                     ck_tile::HostTensor<DataType>& TK,
-                     ck_tile::HostTensor<DataType>& TV,
+template <typename DataType_>
+ck_tile::HostTensor<DataType_>
+vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
+                     ck_tile::HostTensor<DataType_>& TK,
+                     ck_tile::HostTensor<DataType_>& TV,
                      ck_tile::HostTensor<int32_t>& TKV_block_idx, // LUT must be int32_t
                      ck_tile::HostTensor<int32_t>& TKV_blocks,    // valid_block_num must be int32_t
-                     ck_tile::HostTensor<DataType>& Y,
-                     std::optional<ck_tile::HostTensor<DataType>> bias,
-                     std::optional<ck_tile::HostTensor<DataType>> lse,
-                     std::optional<ck_tile::HostTensor<DataType>> seqstart_q,
-                     std::optional<ck_tile::HostTensor<DataType>> seqstart_k,
+                     ck_tile::HostTensor<DataType_>& Y,
+                     std::optional<ck_tile::HostTensor<DataType_>> bias,
+                     std::optional<ck_tile::HostTensor<DataType_>> lse,
+                     std::optional<ck_tile::HostTensor<DataType_>> seqstart_q,
+                     std::optional<ck_tile::HostTensor<DataType_>> seqstart_k,
                      int bias_type,
                      int batch,
                      int nhead,
