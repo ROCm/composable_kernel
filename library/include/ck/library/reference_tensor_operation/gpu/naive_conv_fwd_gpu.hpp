@@ -313,16 +313,9 @@ void naive_conv_fwd(const TIn* p_in,
     TOut* p_out_packed = static_cast<TOut*>(out_packed_buf.GetDeviceBuffer());
 
     // Compute strides and allocate device arrays for pack/unpack
-    constexpr bool in_channel_last  = is_channel_last_layout<InLayout>();
-    constexpr bool wei_channel_last = is_channel_last_layout<WeiLayout>();
-    constexpr bool out_channel_last = is_channel_last_layout<OutLayout>();
-
-    std::vector<index_t> in_strides =
-        compute_conv_tensor_strides(in_lengths, ndim, in_channel_last);
-    std::vector<index_t> wei_strides =
-        compute_conv_tensor_strides(wei_lengths, ndim, wei_channel_last);
-    std::vector<index_t> out_strides =
-        compute_conv_tensor_strides(out_lengths, ndim, out_channel_last);
+    std::vector<index_t> in_strides  = compute_conv_tensor_strides<InLayout>(in_lengths, ndim);
+    std::vector<index_t> wei_strides = compute_conv_tensor_strides<WeiLayout>(wei_lengths, ndim);
+    std::vector<index_t> out_strides = compute_conv_tensor_strides<OutLayout>(out_lengths, ndim);
 
     const size_t dim_count = in_lengths.size();
     SimpleDeviceMem in_lengths_buf(dim_count * sizeof(index_t));
