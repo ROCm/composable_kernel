@@ -12,19 +12,21 @@ This project is a prototype for a more general builder pattern for all of compos
 
 ## Design descriptions
 
-- [CK Builder design description](include/ck_tile/builder/README.md) 
+- [CK Builder design description](include/ck_tile/builder/README.md)
+- [CK Builder factory design](include/ck_tile/builder/factory/README.md)
+- [CK Builder testing design](include/ck_tile/builder/testing/README.md)
 
 ## Directory Structure
 
-- `include/ck_tile/builder/`  
+- `include/ck_tile/builder/`
   Core builder headers and public API.
 - `include/ck_tile/builder/reflect`
   Reflection mechanism.
 - `include/ck_tile/builder/factory`
   Compile-time dispatch from builder descriptors to our exisitng specialized convolution kernel implementations.
-- `test/`  
+- `test/`
   Unit tests and example usage of the builder pattern.
-- `CMakeLists.txt`  
+- `CMakeLists.txt`
   CMake configuration for building the experimental builder and its tests.
 
 ## CMake Configuration

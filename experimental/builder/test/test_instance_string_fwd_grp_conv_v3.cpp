@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 #include <ck_tile/builder/reflect/instance_traits.hpp>
+#include <ck_tile/builder/reflect/conv_describe.hpp>
 #include <ck_tile/builder/reflect/conv_description.hpp>
 #include <ck/tensor_operation/gpu/device/device_base.hpp>
 #include <ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_comp_instance.hpp>
@@ -78,14 +79,16 @@ std::string expected_str = "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3"
                            ",fp16"          // BComputeDataType
                            ",false>";       // DirectLoad
 
-// Test GetInstanceString through base class pointer for V3 variant
-TEST(InstanceString, GetInstanceStringReturnsCorrectValueForFwdGrpConvV3)
+// Test describe() through base class pointer for V3 variant
+TEST(InstanceString, DescribeReturnsCorrectValueForFwdGrpConvV3)
 {
     using BaseClass = ck::tensor_operation::device::BaseOperator;
     DeviceInstance device_instance;
     BaseClass* base_ptr = &device_instance;
 
-    EXPECT_EQ(base_ptr->GetInstanceString(), expected_str);
+    auto desc = base_ptr->describe();
+    ASSERT_NE(desc, nullptr);
+    EXPECT_EQ(desc->instance_string(), expected_str);
 }
 
 TEST(InstanceString, DescriptionReturnsCorrectValueForFwdGrpConvV3)

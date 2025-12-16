@@ -144,7 +144,11 @@ class TestCkTileStreamK : public ::testing::Test
 
             using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
-            auto kargs = Kernel::MakeKernelArgs(args);
+            auto kargs                = Kernel::MakeKernelArgs(args);
+            const auto workspace_size = Kernel::GetWorkSpaceSize(kargs);
+            ck_tile::DeviceMem workspace_data(workspace_size);
+            workspace_data.SetZero();
+            kargs.workspace_ptr = workspace_data.GetDeviceBuffer();
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
@@ -183,11 +187,6 @@ class TestCkTileStreamK : public ::testing::Test
         std::cout << "M: " << M << ", N: " << N << ", K: " << K << std::endl;
 
         using namespace ck_tile::literals;
-
-        if(reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
-        {
-            throw std::runtime_error("Reduction Strategy is current unsupported!\n");
-        }
 
         auto f_host_tensor_descriptor = [](std::size_t row,
                                            std::size_t col,
@@ -252,9 +251,25 @@ class TestCkTileStreamK : public ::testing::Test
                                       stride_B,
                                       stride_C};
 
-        ck_tile::index_t num_accumulations_per_tile =
-            invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
+        ck_tile::index_t num_accumulations_per_tile;
+
+        if(reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic)
+        {
+            num_accumulations_per_tile = invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
                 args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
+        }
+        else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
+        {
+            num_accumulations_per_tile =
+                invoke_streamk<ck_tile::StreamKReductionStrategy::Reduction>(
+                    args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
+        }
+        else
+        {
+            num_accumulations_per_tile =
+                invoke_streamk<ck_tile::StreamKReductionStrategy::TreeReduction>(
+                    args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
+        }
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
