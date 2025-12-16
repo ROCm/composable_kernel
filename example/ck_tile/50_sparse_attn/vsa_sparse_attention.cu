@@ -17,7 +17,6 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
                      ck_tile::HostTensor<int32_t>& TKV_blocks,
                      ck_tile::HostTensor<DataType_>& Y,
                      std::optional<ck_tile::HostTensor<DataType_>> bias,
-                     std::optional<ck_tile::HostTensor<DataType_>> lse,
                      std::optional<ck_tile::HostTensor<DataType_>> seqstart_q,
                      std::optional<ck_tile::HostTensor<DataType_>> seqstart_k,
                      int bias_type,
@@ -80,7 +79,6 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
 
     // Optional buffers
     ck_tile::DeviceMem bias_buf(bias ? bias->get_element_space_size_in_bytes() : 0);
-    ck_tile::DeviceMem lse_buf(lse ? lse->get_element_space_size_in_bytes() : 0);
     ck_tile::DeviceMem seqstart_q_buf(seqstart_q ? seqstart_q->get_element_space_size_in_bytes()
                                                  : 0);
     ck_tile::DeviceMem seqstart_k_buf(seqstart_k ? seqstart_k->get_element_space_size_in_bytes()
@@ -88,8 +86,6 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
 
     if(bias)
         bias_buf.ToDevice(bias->data());
-    if(lse)
-        lse_buf.ToDevice(lse->data());
     if(seqstart_q)
         seqstart_q_buf.ToDevice(seqstart_q->data());
     if(seqstart_k)
@@ -156,7 +152,7 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
         args.batch_stride_v = batch_stride_v;
 
         args.bias_ptr = bias ? bias_buf.GetDeviceBuffer() : nullptr;
-        args.lse_ptr  = lse ? lse_buf.GetDeviceBuffer() : nullptr;
+        args.lse_ptr  = nullptr;
         args.o_ptr    = o_buf.GetDeviceBuffer();
 
         args.seqstart_q_ptr = (mode == 1 ? seqstart_q_buf.GetDeviceBuffer() : nullptr);
@@ -205,7 +201,7 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
         traits.has_logits_soft_cap = 0.f < logits_soft_cap;
         traits.mask_type           = mask.type;
         traits.bias_type           = static_cast<bias_enum>(bias_type);
-        traits.has_lse             = lse ? true : false;
+        traits.has_lse             = false;
         traits.do_fp8_static_quant = false;
 
         traits.has_dropout = false;
@@ -234,7 +230,6 @@ vsa_sparse_attention<ck_tile::half_t>(
     std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
     std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
     std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
-    std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
     int, int, int, int, int, int, int, int, int, bool, bool, int, int);
 
 template ck_tile::HostTensor<ck_tile::bf16_t>
@@ -242,7 +237,6 @@ vsa_sparse_attention<ck_tile::bf16_t>(
     ck_tile::HostTensor<ck_tile::bf16_t>&, ck_tile::HostTensor<ck_tile::bf16_t>&,
     ck_tile::HostTensor<ck_tile::bf16_t>&, ck_tile::HostTensor<int32_t>&,
     ck_tile::HostTensor<int32_t>&, ck_tile::HostTensor<ck_tile::bf16_t>&,
-    std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
     std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
     std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
     std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,

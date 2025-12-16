@@ -201,7 +201,6 @@ auto create_args(int argc, char* argv[])
         .insert("iperm", "1", "permute input, 1: b*h*s*d, 0: b*s*h*d")
         .insert("operm", "1", "permute output")
         .insert("bias", "0", "bias type: 0:no bias, 1:elementwise, 2:alibi")
-        .insert("lse", "0", "0:not store lse, 1:store lse")
         .insert("seed", "42", "random seed")
         .insert("warmup", "5", "warmup iterations")
         .insert("repeat", "20", "benchmark iterations")
@@ -218,25 +217,24 @@ template <typename T>
 bool run_test(const ck_tile::ArgParser& arg_parser)
 {
     // Parse arguments
-    int do_validation               = arg_parser.get_int("v");
-    int mode                        = arg_parser.get_int("mode");
-    ck_tile::index_t batch          = arg_parser.get_int("b");
-    ck_tile::index_t nhead          = arg_parser.get_int("h");
-    ck_tile::index_t nhead_k        = arg_parser.get_int("h_k");
-    ck_tile::index_t seqlen_q       = arg_parser.get_int("s");
-    ck_tile::index_t seqlen_k       = arg_parser.get_int("s_k");
-    ck_tile::index_t hdim_q         = arg_parser.get_int("d");
-    ck_tile::index_t hdim_v         = arg_parser.get_int("d_v");
-    ck_tile::index_t block_size     = arg_parser.get_int("block_size");
-    float sparsity                  = arg_parser.get_float("sparsity");
-    bool i_perm                     = arg_parser.get_bool("iperm");
-    bool o_perm                     = arg_parser.get_bool("operm");
-    int bias_type                   = arg_parser.get_int("bias");
-    [[maybe_unused]] bool store_lse = arg_parser.get_bool("lse");
-    uint32_t seed                   = arg_parser.get_uint32("seed");
-    int warmup                      = arg_parser.get_int("warmup");
-    int repeat                      = arg_parser.get_int("repeat");
-    [[maybe_unused]] int kname      = arg_parser.get_int("kname");
+    int do_validation           = arg_parser.get_int("v");
+    int mode                    = arg_parser.get_int("mode");
+    ck_tile::index_t batch      = arg_parser.get_int("b");
+    ck_tile::index_t nhead      = arg_parser.get_int("h");
+    ck_tile::index_t nhead_k    = arg_parser.get_int("h_k");
+    ck_tile::index_t seqlen_q   = arg_parser.get_int("s");
+    ck_tile::index_t seqlen_k   = arg_parser.get_int("s_k");
+    ck_tile::index_t hdim_q     = arg_parser.get_int("d");
+    ck_tile::index_t hdim_v     = arg_parser.get_int("d_v");
+    ck_tile::index_t block_size = arg_parser.get_int("block_size");
+    float sparsity              = arg_parser.get_float("sparsity");
+    bool i_perm                 = arg_parser.get_bool("iperm");
+    bool o_perm                 = arg_parser.get_bool("operm");
+    int bias_type               = arg_parser.get_int("bias");
+    uint32_t seed               = arg_parser.get_uint32("seed");
+    int warmup                  = arg_parser.get_int("warmup");
+    int repeat                  = arg_parser.get_int("repeat");
+    [[maybe_unused]] int kname  = arg_parser.get_int("kname");
 
     // Handle default values
     if(nhead_k < 0)
@@ -343,7 +341,6 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
 
     // Optional tensors
     std::optional<ck_tile::HostTensor<T>> bias_opt       = std::nullopt;
-    std::optional<ck_tile::HostTensor<T>> lse_opt        = std::nullopt;
     std::optional<ck_tile::HostTensor<T>> seqstart_q_opt = std::nullopt;
     std::optional<ck_tile::HostTensor<T>> seqstart_k_opt = std::nullopt;
 
@@ -367,7 +364,6 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
                                     valid_block_num_host,
                                     output_host,
                                     bias_opt,
-                                    lse_opt,
                                     seqstart_q_opt,
                                     seqstart_k_opt,
                                     bias_type,
@@ -398,7 +394,6 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
                                     valid_block_num_host,
                                     output_host,
                                     bias_opt,
-                                    lse_opt,
                                     seqstart_q_opt,
                                     seqstart_k_opt,
                                     bias_type,
