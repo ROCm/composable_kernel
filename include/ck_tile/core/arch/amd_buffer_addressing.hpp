@@ -1413,10 +1413,10 @@ enum struct amd_buffer_coherence_enum
     WAVE_NT1   = 2,
     GROUP_NT0  = 1,
     GROUP_NT1  = 3,
-    DEVICE_NT0 = 8,
-    DEVICE_NT1 = 10,
-    SYSTEM_NT0 = 9,
-    SYSTEM_NT1 = 11,
+    DEVICE_NT0 = 16,
+    DEVICE_NT1 = 18,
+    SYSTEM_NT0 = 17,
+    SYSTEM_NT1 = 19,
 };
 
 template <index_t N,
@@ -1550,9 +1550,10 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
             (std::is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, e8m0_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, pk_int4_t>::value &&
-                 (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32) ||
-             (std::is_same<T, pk_fp4_t>::value &&
-              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16))),
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32)) ||
+            (std::is_same<T, pk_fp4_raw_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (std::is_same<T, pk_fp4_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
     using rtn_type = thread_buffer<T, N>;

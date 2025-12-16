@@ -4,6 +4,7 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "gtest/gtest.h"
+#include <array>
 
 enum StreamKTilePartitionerBaseMethodId
 {
@@ -12,7 +13,8 @@ enum StreamKTilePartitionerBaseMethodId
     GET_TILE_BOUNDARIES,
     GET_TILE_INDEX,
     GET_ITER_BOUNDARIES,
-    GET_OUTPUT_TILE_INDEX
+    GET_OUTPUT_TILE_INDEX,
+    GET_TILE_LOCAL_CTA_INDEX
 };
 
 // Base kernel wrapper class to facilitate testing class device functions.
@@ -136,6 +138,22 @@ struct KernelWrapperSpecialized<TilePartitioner,
     }
 };
 
+template <typename TilePartitioner>
+struct KernelWrapperSpecialized<TilePartitioner,
+                                StreamKTilePartitionerBaseMethodId::GET_TILE_LOCAL_CTA_INDEX>
+    : public KernelWrapper<TilePartitioner>
+{
+
+    using Base = KernelWrapper<TilePartitioner>;
+
+    CK_TILE_DEVICE void operator()(typename Base::KernelArgs kargs)
+    {
+        ck_tile::index_t tile_local_cta_index =
+            kargs.tile_partitioner.get_tile_local_cta_index(kargs.arg1, kargs.arg2);
+        *(static_cast<ck_tile::index_t*>(kargs.result1)) = tile_local_cta_index;
+    }
+};
+
 struct StreamKTilePartitionerBaseExpected
 {
     ck_tile::index_t sk_tiles_;
@@ -243,6 +261,22 @@ struct StreamKTilePartitionerBaseConfigSKOnly : public StreamKTilePartitionerBas
                                              ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
 };
 
+struct StreamKTilePartitionerBaseConfigSKOnlyLargeK : public StreamKTilePartitionerBaseConfig
+{
+    static constexpr ck_tile::index_t M    = 8;
+    static constexpr ck_tile::index_t N    = 2;
+    static constexpr ck_tile::index_t K    = 10;
+    static constexpr ck_tile::index_t GRID = 5;
+
+    static constexpr ck_tile::index_t M_TILE = 4;
+    static constexpr ck_tile::index_t N_TILE = 2;
+    static constexpr ck_tile::index_t K_TILE = 2;
+
+    using GemmShape = ck_tile::TileGemmShape<ck_tile::sequence<M_TILE, N_TILE, K_TILE>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
+};
+
 struct StreamKTilePartitionerBaseConfigEdgeCase : public StreamKTilePartitionerBaseConfig
 {
 
@@ -313,6 +347,38 @@ void test_get_output_tile_index(ck_tile::index_t tile_idx,
     EXPECT_EQ(im, im_expected);
     EXPECT_EQ(in, in_expected);
 };
+
+template <typename Config>
+void test_get_tile_local_cta_idx(ck_tile::index_t tile_iter_start,
+                                 ck_tile::index_t cta_idx,
+                                 ck_tile::index_t expected_tile_local_cta_idx)
+{
+    // Types
+    using TilePartitioner = ck_tile::StreamKTilePartitionerBase<typename Config::GemmShape>;
+    using Kernel =
+        KernelWrapperSpecialized<TilePartitioner,
+                                 StreamKTilePartitionerBaseMethodId::GET_TILE_LOCAL_CTA_INDEX>;
+
+    // Test parameters
+    ck_tile::StreamKTilePartitionerBase<typename Config::GemmShape> tile_partitioner{
+        Config::M, Config::N, Config::K, Config::GRID};
+    ck_tile::DeviceMem tile_local_cta_idx_dev(sizeof(ck_tile::index_t));
+
+    // Launch kernel
+    auto kargs = Kernel::MakeKernelArgs(tile_iter_start,
+                                        cta_idx,
+                                        Config::UNUSED,
+                                        tile_local_cta_idx_dev.GetDeviceBuffer(),
+                                        nullptr,
+                                        tile_partitioner);
+    ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0, 0, 1},
+                           ck_tile::make_kernel<1>(Kernel{}, 1, 1, 0, kargs));
+
+    // Validate results
+    ck_tile::index_t tile_local_cta_idx;
+    tile_local_cta_idx_dev.FromDevice(&tile_local_cta_idx);
+    EXPECT_EQ(tile_local_cta_idx, expected_tile_local_cta_idx);
+}
 
 // Configs for TilePartitioner Child structs
 struct StreamKTilePartitionerV2PersistentExpected
