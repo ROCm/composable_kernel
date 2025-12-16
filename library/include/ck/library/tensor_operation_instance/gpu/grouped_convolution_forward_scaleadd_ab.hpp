@@ -121,22 +121,6 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndh
                                                                 ScaleAdd,
                                                                 PassThrough>>>& instances);
 #endif
-
-#ifdef CK_ENABLE_INT8
-void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-                                                                NDHWGC,
-                                                                GKZYXC,
-                                                                ck::Tuple<>,
-                                                                NDHWGK,
-                                                                ck::Tuple<int8_t, int8_t>,
-                                                                ck::Tuple<int8_t, int8_t>,
-                                                                ck::Tuple<>,
-                                                                int8_t,
-                                                                ScaleAdd,
-                                                                ScaleAdd,
-                                                                PassThrough>>>& instances);
-#endif
 #endif // CK_USE_WMMA
 
 template <ck::index_t NumDimSpatial,
@@ -244,15 +228,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, ck::bhalf_t> && is_same_v<ComputeType, ck::bhalf_t>)
             {
                 add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
-                    op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_INT8
-            if constexpr(is_same_v<InDataType, ck::Tuple<int8_t, int8_t>> &&
-                         is_same_v<WeiDataType, ck::Tuple<int8_t, int8_t>> &&
-                         is_same_v<OutDataType, int8_t> && is_same_v<ComputeType, int8_t>)
-            {
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_int8_instances(
                     op_ptrs);
             }
 #endif
