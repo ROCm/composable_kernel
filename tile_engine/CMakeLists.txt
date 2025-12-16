@@ -6,3 +6,5 @@ include_directories(BEFORE
     )
 
 add_subdirectory(ops/gemm)
+add_subdirectory(ops/gemm_streamk)
+
