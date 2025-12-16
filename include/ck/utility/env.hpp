@@ -86,8 +86,16 @@ struct EnvVar
 
     explicit EnvVar(const char* const name, const T& def_val)
     {
+#if defined(_WIN32) || defined(_WIN64)
+        // On Windows, suppress getenv deprecation warning
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        const char* vp = std::getenv(name);
+#pragma clang diagnostic pop
+#else
         // NOLINTNEXTLINE (concurrency-mt-unsafe)
         const char* vp = std::getenv(name);
+#endif
         if(vp != nullptr) // a value was provided
         {
             is_unset = false;
