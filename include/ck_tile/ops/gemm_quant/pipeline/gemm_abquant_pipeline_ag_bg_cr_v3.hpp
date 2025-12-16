@@ -197,18 +197,16 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
         CK_TILE_DEVICE static void LoadAndConvertATile(ABlockTile_& a_block_tile,
                                                        const ADramWindow& a_dram_window)
         {
-            using DestDataType            = typename ABlockTile_::DataType;
             constexpr index_t UnaryOpSize = 8;
-            load_and_convert_tile<DestDataType, UnaryOpSize>(a_block_tile, a_dram_window);
+            load_and_convert_tile<UnaryOpSize>(a_block_tile, a_dram_window);
         }
 
         template <typename BDramWindow, typename BBlockTile_>
         CK_TILE_DEVICE static void LoadAndConvertBTile(BBlockTile_& b_block_tile,
                                                        const BDramWindow& b_dram_window)
         {
-            using DestDataType            = typename BBlockTile_::DataType;
             constexpr index_t UnaryOpSize = 8;
-            load_and_convert_tile<DestDataType, UnaryOpSize>(b_block_tile, b_dram_window);
+            load_and_convert_tile<UnaryOpSize>(b_block_tile, b_dram_window);
         }
 
         template <bool HasHotLoop,
@@ -343,9 +341,9 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
             LoadAndConvertBTile(b_block_tile, b_copy_dram_window);
             move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
-            Base::template GlobalPrefetch<AQDataType>(
+            Base::GlobalPrefetch(
                 aq_block_tile[currIdx], aq_copy_dram_window, aq_dram_tile_window_step);
-            Base::template GlobalPrefetch<BQDataType>(
+            Base::GlobalPrefetch(
                 bq_block_tile[currIdx], bq_copy_dram_window, bq_dram_tile_window_step);
 
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -432,10 +430,10 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
                     LoadAndConvertBTile(b_block_tile, b_copy_dram_window);
                     move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
-                    Base::template GlobalPrefetch<AQDataType>(aq_block_tile[(currIdx + 1) % 2],
+                    Base::GlobalPrefetch(aq_block_tile[(currIdx + 1) % 2],
                                          aq_copy_dram_window,
                                          aq_dram_tile_window_step);
-                    Base::template GlobalPrefetch<BQDataType>(bq_block_tile[(currIdx + 1) % 2],
+                    Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
                                          bq_copy_dram_window,
                                          bq_dram_tile_window_step);
 
@@ -467,10 +465,10 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
             }
             else
             {
-                Base::template GlobalPrefetch<AQDataType>(aq_block_tile[(currIdx + 1) % 2],
+                Base::GlobalPrefetch(aq_block_tile[(currIdx + 1) % 2],
                                      aq_copy_dram_window,
                                      aq_dram_tile_window_step);
-                Base::template GlobalPrefetch<BQDataType>(bq_block_tile[(currIdx + 1) % 2],
+                Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
                                      bq_copy_dram_window,
                                      bq_dram_tile_window_step);
                 block_gemm(c_block_tile,

@@ -419,8 +419,8 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             // prefetch
             // global read 0
             // auto a_scale_block_tile  = decltype(load_tile(a_scale_copy_dram_window)){};
-            Base::template GlobalPrefetch<BDataType>(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::template GlobalPrefetch<BDataType>(b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
             // BDataType
             auto b_block_tile = make_static_distributed_tensor<BDqDataType>(
                 Policy::template MakeBRegTileDistribution<Problem>());
@@ -480,8 +480,8 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                 Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
             }
 
-            Base::template GlobalPrefetch<BDataType>(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::template GlobalPrefetch<BDataType>(b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
             bq_block_tile = load_tile(bq_copy_dram_window);
             move_tile_window(bq_copy_dram_window, {0, b_scale_dram_tile_window_step});
@@ -544,8 +544,8 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                         Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
                     }
 
-                    Base::template GlobalPrefetch<BDataType>(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-                    Base::template GlobalPrefetch<BDataType>(
+                    Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+                    Base::GlobalPrefetch(
                         b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
                     bq_block_tile = load_tile(bq_copy_dram_window);

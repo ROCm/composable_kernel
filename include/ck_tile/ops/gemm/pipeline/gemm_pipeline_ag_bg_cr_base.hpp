@@ -64,8 +64,7 @@ struct GemmPipelineAgBgCrImplBase
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
-    template <typename DstDataType,
-              index_t UnaryOpSize  = 8,
+    template <index_t UnaryOpSize = 8,
               typename DstBlockTile,
               typename SrcTileWindow,
               typename DramTileWindowStep>
@@ -73,7 +72,7 @@ struct GemmPipelineAgBgCrImplBase
                                        SrcTileWindow& dram_tile_window,
                                        const DramTileWindowStep& dram_tile_window_step) const
     {
-        load_and_convert_tile<DstDataType, UnaryOpSize>(dst_block_tile, dram_tile_window);
+        load_and_convert_tile<UnaryOpSize>(dst_block_tile, dram_tile_window);
         move_tile_window(dram_tile_window, dram_tile_window_step);
     }
 

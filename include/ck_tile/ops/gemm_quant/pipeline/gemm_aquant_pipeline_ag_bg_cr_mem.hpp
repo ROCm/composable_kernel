@@ -174,9 +174,8 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                             ADramWindow& a_dram_window,
                             const DramTileWindowStep& dram_tile_window_step)
         {
-            using DestDataType            = typename ABlockTile_::DataType;
             constexpr index_t UnaryOpSize = 8;
-            load_and_convert_tile<DestDataType, UnaryOpSize>(a_block_tile, a_dram_window);
+            load_and_convert_tile<UnaryOpSize>(a_block_tile, a_dram_window);
             move_tile_window(a_dram_window, dram_tile_window_step);
         }
 
@@ -284,9 +283,9 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             // Global prefetch initialization - DRAM to VGPRs
             LoadAndConvertATile(
                 a_block_tiles.get(I0{}), a_copy_dram_window, a_dram_tile_window_step);
-            Base::template GlobalPrefetch<BDataType>(
+            Base::GlobalPrefetch(
                 b_block_tiles.get(I0{}), b_copy_dram_window, b_dram_tile_window_step);
-            Base::template GlobalPrefetch<AQDataType>(
+            Base::GlobalPrefetch(
                 aq_block_tiles.get(I0{}), aq_copy_dram_window, aq_dram_tile_window_step);
 
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -319,10 +318,10 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 LoadAndConvertATile(a_block_tiles.get(number<prefetch_idx>{}),
                                     a_copy_dram_window,
                                     a_dram_tile_window_step);
-                Base::template GlobalPrefetch<BDataType>(b_block_tiles.get(number<prefetch_idx>{}),
+                Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
                                      b_copy_dram_window,
                                      b_dram_tile_window_step);
-                Base::template GlobalPrefetch<AQDataType>(aq_block_tiles.get(number<prefetch_idx>{}),
+                Base::GlobalPrefetch(aq_block_tiles.get(number<prefetch_idx>{}),
                                      aq_copy_dram_window,
                                      aq_dram_tile_window_step);
             });
@@ -379,10 +378,10 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                         LoadAndConvertATile(a_block_tiles.get(number<prefetch_idx>{}),
                                             a_copy_dram_window,
                                             a_dram_tile_window_step);
-                        Base::template GlobalPrefetch<BDataType>(b_block_tiles.get(number<prefetch_idx>{}),
+                        Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
                                              b_copy_dram_window,
                                              b_dram_tile_window_step);
-                        Base::template GlobalPrefetch<AQDataType>(aq_block_tiles.get(number<prefetch_idx>{}),
+                        Base::GlobalPrefetch(aq_block_tiles.get(number<prefetch_idx>{}),
                                              aq_copy_dram_window,
                                              aq_dram_tile_window_step);
                     });
