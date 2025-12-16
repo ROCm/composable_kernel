@@ -76,14 +76,16 @@ std::string expected_str = "DeviceGroupedConvFwdMultipleD_Wmma_CShuffle"
                            ",Default"       // LoopSched
                            ",v1>";          // PipelineVer
 
-// Test GetInstanceString through base class pointer for WMMA variant
-TEST(InstanceString, GetInstanceStringReturnsCorrectValueForFwdGrpConvWmma)
+// Test describe() through base class pointer for WMMA variant
+TEST(InstanceString, DescribeReturnsCorrectValueForFwdGrpConvWmma)
 {
     using BaseClass = ck::tensor_operation::device::BaseOperator;
     DeviceInstance device_instance;
     BaseClass* base_ptr = &device_instance;
 
-    EXPECT_EQ(base_ptr->GetInstanceString(), expected_str);
+    auto desc = base_ptr->describe();
+    ASSERT_NE(desc, nullptr);
+    EXPECT_EQ(desc->instance_string(), expected_str);
 }
 
 // TODO: Add DescriptionReturnsCorrectValueForFwdGrpConvWmma test once ckr::describe supports WMMA

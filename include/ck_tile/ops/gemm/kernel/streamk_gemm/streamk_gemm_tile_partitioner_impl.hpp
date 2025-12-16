@@ -62,12 +62,23 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_flags
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+CK_TILE_DEVICE index_t
+StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_start_iter(
+    index_t cta_idx) const noexcept
+{
+    // Compute the number of extra iterations done before this CTA. If the cta_idx is less than
+    // extra_iters, the number of extra iterations before the CTA is exactly the cta_idx. Otherwise,
+    // it is extra_iters.
+    index_t extra_iters_before_me = ck_tile::min(cta_idx, extra_iters_);
+    return total_dp_iters_ + cta_idx * iters_per_sk_cta_ + extra_iters_before_me;
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 CK_TILE_DEVICE void
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_iter_boundaries(
     index_t& iter, index_t& iter_end, index_t cta_idx) const noexcept
 {
-    index_t extra_iters_before_me = ck_tile::min(cta_idx, extra_iters_);
-    iter     = total_dp_iters_ + cta_idx * iters_per_sk_cta_ + extra_iters_before_me;
+    iter     = get_start_iter(cta_idx);
     iter_end = iter + iters_per_sk_cta_ + (cta_idx < extra_iters_);
 }
 
@@ -105,6 +116,24 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_local
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+CK_TILE_DEVICE index_t
+StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_tile_local_cta_index(
+    index_t tile_iter_start, index_t cta_idx) const noexcept
+{
+    tile_iter_start = tile_iter_start - (dp_tiles_ * iters_per_tile_);
+
+    // Compute how many WGs fit before this tile starts assuming each WG does an
+    // extra_iter
+    const index_t num_extra_iter_ctas = tile_iter_start / (iters_per_sk_cta_ + 1);
+    // Compute how many WGs fit before this tile starts excluding extra iters
+    const index_t num_non_extra_iter_ctas = (tile_iter_start - extra_iters_) / iters_per_sk_cta_;
+    // Compute the CTA idx for the CTA that starts this tile
+    const index_t coop_group_start =
+        num_extra_iter_ctas < extra_iters_ ? num_extra_iter_ctas : num_non_extra_iter_ctas;
+    return cta_idx - coop_group_start;
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 CK_TILE_DEVICE auto
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_output_tile_index(
     index_t tile_idx) const noexcept -> tuple<index_t, index_t>
@@ -121,7 +150,8 @@ CK_TILE_HOST_DEVICE index_t
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_workspace_size(
     index_t acc_element_bytes) const noexcept
 {
-    if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
+    if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction ||
+                 ReductionStrategy == StreamKReductionStrategy::TreeReduction)
     {
 
         return get_partials_buffer_size(acc_element_bytes) + get_flags_buffer_size();
