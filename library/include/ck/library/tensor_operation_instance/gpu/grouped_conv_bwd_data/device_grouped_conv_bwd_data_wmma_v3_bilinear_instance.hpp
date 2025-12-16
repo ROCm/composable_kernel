@@ -15,7 +15,6 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
@@ -88,7 +87,7 @@ using device_grouped_conv_bwd_data_wmma_v3_bilinear_f16_instances = std::tuple<
              DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16,  Tuple<F16>,   F16,  PassThrough,  PassThrough,    Bilinear,  ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default,    true,  true,   64,    64,    64,    32,   8,   8,   16,   16,       4,       2,  S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>,    2, 8 ,8 , 1, S<4, 16, 1>, S<0, 2, 1>, S<0, 2, 1>, 1,  4, 8, 1, 1, 1, S<1, 16, 1, 4>, S<8,8,8>>,
              DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16,  Tuple<F16>,   F16,  PassThrough,  PassThrough,    Bilinear,  ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0,    true,  true,   128,    128,    128,    32,   8,   8,   16,   16,       8,       2,  S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>,    2, 8 ,8 , 1, S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1,  4, 8, 1, 1, 1, S<1, 16, 1, 8>, S<8,8,8>>,
              DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16,  Tuple<F16>,   F16,  PassThrough,  PassThrough,    Bilinear,  ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default,    true,  true,   128,    128,    128,    32,   8,   8,   16,   16,       8,       2,  S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>,    2, 8 ,8 , 1, S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1,  4, 8, 1, 1, 1, S<1, 16, 1, 8>, S<8,8,8>>
-            // clang-format on
+    // clang-format on
     >;
 
 } // namespace instance

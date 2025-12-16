@@ -63,7 +63,7 @@ using device_grouped_conv_bwd_data_wmma_v3_scale_bf16_instances = std::tuple<
         DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3<NDimSpatial, ALayout, BLayout,   DsLayout, ELayout, BF16, BF16, F32, BF16,   Empty_Tuple, BF16, PassThrough, PassThrough,    Scale,  ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0,    true,  true,   128,    64,    64,    32,   8,   8,   16,   16,       4,       1,  S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>,    2, 8 ,8 , 1, S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1,  1, 8, 1, 1, 1, S<1, 16, 1, 8>, S<8,8,8>>,
         DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3<NDimSpatial, ALayout, BLayout,   DsLayout, ELayout, BF16, BF16, F32, BF16,   Empty_Tuple, BF16, PassThrough, PassThrough,    Scale,  ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0,    true,  true,   256,    128,    128,    32,   8,   8,   16,   16,       8,       1,  S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>,    2, 8 ,8 , 1, S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1,  1, 8, 1, 1, 1, S<1, 16, 1, 16>, S<8,8,8>>
 
-   // clang-format on
+    // clang-format on
     >;
 
 // f16_f16_f32_f16
