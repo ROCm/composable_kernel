@@ -173,6 +173,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     num_k_per_block,
                     karg,
                     epilogue_args);
+                    epilogue_args);
             }
         }
 
@@ -187,8 +188,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = compute_ptr_offset_of_batch;
     ignore = compute_ptr_offset_of_n;
-    ignore = karg;
     ignore = num_k_per_block;
+    ignore = karg;
+    ignore = epilogue_args;
 #endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 }
 
@@ -1444,7 +1446,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "This configuration is not suported!" << " In " << __FILE__ << ":"
+                std::cout << "This configuration is not supported!" << " In " << __FILE__ << ":"
                           << __LINE__ << ", in function: " << __func__ << std::endl;
             }
             return false;
@@ -1456,7 +1458,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    std::cout << "SplitK tests are not suported!" << " In " << __FILE__ << ":"
+                    std::cout << "SplitK tests are not supported!" << " In " << __FILE__ << ":"
                               << __LINE__ << ", in function: " << __func__ << std::endl;
                 }
 
@@ -1468,7 +1470,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "SplitK tests are not suported!" << " In " << __FILE__ << ":"
+                std::cout << "SplitK tests are not supported!" << " In " << __FILE__ << ":"
                           << __LINE__ << ", in function: " << __func__ << std::endl;
             }
 
@@ -1628,7 +1630,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                     {
                         if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                         {
-                            std::cout << "nput_spatial_acum / "
+                            std::cout << "input_spatial_acum / "
                                          "CShuffleBlockTransferScalarPerVector_NPerBlock is wrong!"
                                       << " In " << __FILE__ << ":" << __LINE__
                                       << ", in function: " << __func__ << std::endl;
