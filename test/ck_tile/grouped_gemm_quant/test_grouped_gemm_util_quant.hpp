@@ -85,8 +85,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         constexpr ck_tile::index_t TileParitionerGroupNum = 8;
         constexpr ck_tile::index_t TileParitionerM01      = 4;
         constexpr bool UseGroupedQuant = QuantType == ck_tile::QuantType::AQuantGrouped ||
-                                         QuantType == ck_tile::QuantType::BQuantGrouped ||
-                                         QuantType == ck_tile::QuantType::ABQuantGrouped;
+                                         QuantType == ck_tile::QuantType::BQuantGrouped;
 
         using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 
@@ -169,32 +168,17 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                                                       scheduler,
                                                                       has_hot_loop_v,
                                                                       tail_number_v>,
-                                   std::conditional_t<QuantType == ck_tile::QuantType::BQuantGrouped,
-                                                      ck_tile::GemmBQuantPipelineProblem<ADataType,
-                                                                                         BDataType,
-                                                                                         BQDataType,
-                                                                                         AccDataType,
-                                                                                         GemmShape,
-                                                                                         GemmUniversalTraits,
-                                                                                         QuantGroupSize,
-                                                                                         ADataType,
-                                                                                         scheduler,
-                                                                                         has_hot_loop_v,
-                                                                                         tail_number_v>,
-                                                      ck_tile::GemmABQuantPipelineProblem<ADataType,
-                                                                                          AQDataType,
-                                                                                          BDataType,
-                                                                                          BQDataType,
-                                                                                          AccDataType,
-                                                                                          GemmShape,
-                                                                                          GemmUniversalTraits,
-                                                                                          QuantGroupSize,
-                                                                                          QuantGroupSize,
-                                                                                          TransposeC,
-                                                                                          BDataType,
-                                                                                          scheduler,
-                                                                                          has_hot_loop_v,
-                                                                                          tail_number_v>>>,
+                                   ck_tile::GemmBQuantPipelineProblem<ADataType,
+                                                                      BDataType,
+                                                                      BQDataType,
+                                                                      AccDataType,
+                                                                      GemmShape,
+                                                                      GemmUniversalTraits,
+                                                                      QuantGroupSize,
+                                                                      ADataType,
+                                                                      scheduler,
+                                                                      has_hot_loop_v,
+                                                                      tail_number_v>>,
                 ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
                                                               BDataType,
                                                               AccDataType,
@@ -212,12 +196,9 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                 std::conditional_t<
                     QuantType == ck_tile::QuantType::AQuantGrouped,
                     ck_tile::AQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>,
-                    std::conditional_t<
-                        QuantType == ck_tile::QuantType::BQuantGrouped,
-                        std::conditional_t<PreshuffleB == true,
-                                           ck_tile::WPQuantBPipelineAgBgCrV2<QuantGemmProblem>,
-                                           ck_tile::BQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>>,
-                        ck_tile::ABQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>>>,
+                    std::conditional_t<PreshuffleB == true,
+                                       ck_tile::WPQuantBPipelineAgBgCrV2<QuantGemmProblem>,
+                                       ck_tile::BQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>>>,
                 ck_tile::GemmPipelineAgBgCrCompV3<QuantGemmProblem>>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
@@ -328,8 +309,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             // These are automatically run inside the kernel based on the given input data.
 
             constexpr bool UseGroupedQuant = QuantType == ck_tile::QuantType::AQuantGrouped ||
-                                             QuantType == ck_tile::QuantType::BQuantGrouped ||
-                                             QuantType == ck_tile::QuantType::ABQuantGrouped;
+                                             QuantType == ck_tile::QuantType::BQuantGrouped;
             using QuantGemmProblem = std::conditional_t<
                 UseGroupedQuant,
                 std::conditional_t<QuantType == ck_tile::QuantType::AQuantGrouped,
@@ -341,24 +321,13 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                                                       GemmUniversalTraits,
                                                                       QuantGroupSize,
                                                                       TransposeC>,
-                                   std::conditional_t<QuantType == ck_tile::QuantType::BQuantGrouped,
-                                                      ck_tile::GemmBQuantPipelineProblem<ADataType,
-                                                                                         BDataType,
-                                                                                         BQDataType,
-                                                                                         AccDataType,
-                                                                                         GemmShape,
-                                                                                         GemmUniversalTraits,
-                                                                                         QuantGroupSize>,
-                                                      ck_tile::GemmABQuantPipelineProblem<ADataType,
-                                                                                          AQDataType,
-                                                                                          BDataType,
-                                                                                          BQDataType,
-                                                                                          AccDataType,
-                                                                                          GemmShape,
-                                                                                          GemmUniversalTraits,
-                                                                                          QuantGroupSize,
-                                                                                          QuantGroupSize,
-                                                                                          TransposeC>>>,
+                                   ck_tile::GemmBQuantPipelineProblem<ADataType,
+                                                                      BDataType,
+                                                                      BQDataType,
+                                                                      AccDataType,
+                                                                      GemmShape,
+                                                                      GemmUniversalTraits,
+                                                                      QuantGroupSize>>,
                 ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
                                                               BDataType,
                                                               AccDataType,
@@ -374,12 +343,9 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                 std::conditional_t<
                     QuantType == ck_tile::QuantType::AQuantGrouped,
                     ck_tile::AQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>,
-                    std::conditional_t<
-                        QuantType == ck_tile::QuantType::BQuantGrouped,
-                        std::conditional_t<PreshuffleB == true,
-                                           ck_tile::WPQuantBPipelineAgBgCrV2<QuantGemmProblem>,
-                                           ck_tile::BQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>>,
-                        ck_tile::ABQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>>>,
+                    std::conditional_t<PreshuffleB == true,
+                                       ck_tile::WPQuantBPipelineAgBgCrV2<QuantGemmProblem>,
+                                       ck_tile::BQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>>>,
                 ck_tile::GemmPipelineAgBgCrCompV3<QuantGemmProblem>>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -530,8 +496,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             }
             else if constexpr(QuantType == ck_tile::QuantType::ABQuantGrouped)
             {
-                AQK = K / QuantGroupSize::kK; // Group quantization for A: AQK = K / GroupSize
-                BQK = K / QuantGroupSize::kK; // Group quantization for B: BQK = K / GroupSize
+                AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / QuantGroupSize
+                BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / QuantGroupSize
                 if(K % QuantGroupSize::kK != 0)
                 {
                     throw std::runtime_error(
