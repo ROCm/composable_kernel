@@ -72,7 +72,12 @@ inline bool is_xdl_supported()
            is_gfx12_supported() || is_gfx11_supported();
 }
 
-template <typename ADataType, typename BDataType, index_t MPerXDL, index_t NPerXDL>
+template <typename ADataType,
+          typename BDataType,
+          index_t MPerXDL64,
+          index_t NPerXDL64,
+          index_t MPerXDL32 = MPerXDL64,
+          index_t NPerXDL32 = NPerXDL64>
 inline bool is_xdl_wmma_supported()
 {
     if(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
@@ -82,7 +87,7 @@ inline bool is_xdl_wmma_supported()
     }
     else if(is_gfx12_supported() || is_gfx11_supported())
     {
-        if constexpr((MPerXDL != 16) || (NPerXDL != 16))
+        if constexpr((MPerXDL32 != 16) || (NPerXDL32 != 16))
         {
             return false;
         }
