@@ -220,7 +220,7 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
     fmha_vsa_fwd(fmha_traits, args, stream_config);
 
     // Copy output back to host
-    Y = o_buf.ToHost<DataType>();
+    Y = o_buf.ToHost<DataType_>();
 
     return Y;
 }
