@@ -1712,8 +1712,12 @@ pipeline {
                         execute_args = " "
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", build_type: 'Release', docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3")
-                        cleanWs()
+                        script{
+                            ws("/var/jenkins/ck"){
+                                Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", build_type: 'Release', docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3")
+                                cleanWs()
+                            }
+                        }
                     }
                 }
                 stage("Build CK with SLES15")
@@ -1728,8 +1732,12 @@ pipeline {
                         execute_args = " "
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", build_type: 'Release', docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3")
-                        cleanWs()
+                        script{
+                            ws("/var/jenkins/ck"){
+                                Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", build_type: 'Release', docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3")
+                                cleanWs()
+                            }
+                        }
                     }
                 }
                 stage("Build CK and run Tests on gfx942")
@@ -1744,8 +1752,12 @@ pipeline {
                         execute_args = build_client_examples("gfx942")
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                        cleanWs()
+                        script{
+                            ws("/var/jenkins/ck"){
+                                Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                                cleanWs()
+                            }
+                        }
                     }
                 }
                 stage("Build CK and run Tests on gfx950")
@@ -1760,8 +1772,12 @@ pipeline {
                         execute_args = build_client_examples("gfx950")
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                        cleanWs()
+                        script{
+                            ws("/var/jenkins/ck"){
+                                Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                                cleanWs()
+                            }
+                        }
                     }
                 }
                 stage("Build CK and run Tests on gfx908")
@@ -1776,8 +1792,12 @@ pipeline {
                         execute_args = build_client_examples("gfx908")
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                        cleanWs()
+                        script{
+                            ws("/var/jenkins/ck"){
+                                Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                                cleanWs()
+                            }
+                        }
                     }
                 }
                 stage("Build CK and run Tests on gfx90a")
@@ -1792,8 +1812,12 @@ pipeline {
                         execute_args = build_client_examples("gfx90a")
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                        cleanWs()
+                        script{
+                            ws("/var/jenkins/ck"){
+                                Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                                cleanWs()
+                            }
+                        }
                     }
                 }
                 stage("Build CK instances for all supported targets")
@@ -1827,8 +1851,12 @@ pipeline {
                         execute_args = build_client_examples("gfx10-1-generic")
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                        cleanWs()
+                        script{
+                            ws("/var/jenkins/ck"){
+                                Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                                cleanWs()
+                            }
+                        }
                     }
                 }
                 stage("Build CK and run Tests on gfx1030")
@@ -1843,8 +1871,12 @@ pipeline {
                         execute_args = build_client_examples("gfx10-3-generic")
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                        cleanWs()
+                        script{
+                            ws("/var/jenkins/ck"){
+                                Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                                cleanWs()
+                            }
+                        }
                     }
                 }
                 stage("Build CK and run Tests on gfx11")
@@ -1859,8 +1891,12 @@ pipeline {
                         execute_args = build_client_examples("gfx11-generic")
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                        cleanWs()
+                        script{
+                            ws("/var/jenkins/ck"){
+                                Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                                cleanWs()
+                            }
+                        }
                     }
                 }
                 stage("Build CK and run Tests on gfx1201")
@@ -1875,8 +1911,12 @@ pipeline {
                         execute_args = build_client_examples("gfx12-generic")
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                        cleanWs()
+                        script{
+                            ws("/var/jenkins/ck"){
+                                Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                                cleanWs()
+                            }
+                        }
                     }
                 }
             }
