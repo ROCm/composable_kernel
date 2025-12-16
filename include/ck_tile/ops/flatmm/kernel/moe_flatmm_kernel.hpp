@@ -980,12 +980,10 @@ struct MoeFlatmmKernel
                 {
                     return FlatmmPipeline{}(
                         a_gather_block_tile,
-                        // return FlatmmPipeline{}(a_block_window,
                         b_block_window,
                         a_scale_block_window, // weight scale with granularityK = 32
                         b_scale_block_window, // weight scale with granularityK = 32
                         num_loop,
-                        // kargs.k_padded_zeros,
                         smem_ptr_ping,
                         smem_ptr_pong);
                 }
