@@ -17,6 +17,7 @@
 #endif
 #endif
 #include "ck/utility/get_id.hpp"
+#include "ck/utility/sequence.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -95,6 +96,57 @@ static constexpr auto GetNXdlPerWave2()
                                MXdlPerWave, \
                                IsWave64>(); \
     }
+
+template <index_t BlockSize_,
+          index_t MPerBlock_,
+          index_t NPerBlock_,
+          index_t MPerXDL_,
+          index_t NPerXDL_,
+          index_t MXdlPerWave_,
+          index_t CShuffleMXdlPerWavePerShuffle_,
+          index_t CShuffleNXdlPerWavePerShuffle_,
+          bool IsWave64>
+static constexpr auto GetWarpTileConfig()
+{
+    constexpr auto MXdlPerWave64                   = MXdlPerWave_;
+    constexpr auto MXdlPerWave32                   = MXdlPerWave_ * MPerXDL_ / 16;
+    constexpr auto CShuffleMXdlPerWavePerShuffle32 = CShuffleMXdlPerWavePerShuffle_ * MPerXDL_ / 16;
+
+    constexpr auto NXdlPerWave =
+        IsWave64
+            ? GetNXdlPerWave2<BlockSize_,
+                              MPerBlock_,
+                              NPerBlock_,
+                              MPerXDL_,
+                              NPerXDL_,
+                              MXdlPerWave_,
+                              true>()
+            : GetNXdlPerWave2<BlockSize_, MPerBlock_, NPerBlock_, 16, 16, MXdlPerWave32, false>();
+
+    if constexpr(IsWave64 == false && NXdlPerWave != 0)
+    {
+        constexpr auto CShuffleNXdlPerWavePerShuffle32 =
+            NXdlPerWave >= CShuffleNXdlPerWavePerShuffle_ * NPerXDL_ / 16
+                ? CShuffleNXdlPerWavePerShuffle_ * NPerXDL_ / 16
+                : CShuffleNXdlPerWavePerShuffle_;
+        static_assert(CShuffleNXdlPerWavePerShuffle32 > 0);
+        return Sequence<16,
+                        16,
+                        MXdlPerWave32,
+                        NXdlPerWave,
+                        CShuffleMXdlPerWavePerShuffle32,
+                        CShuffleNXdlPerWavePerShuffle32>{};
+    }
+    else
+    {
+        return Sequence<MPerXDL_,
+                        NPerXDL_,
+                        MXdlPerWave64,
+                        NXdlPerWave,
+                        CShuffleMXdlPerWavePerShuffle_,
+                        CShuffleNXdlPerWavePerShuffle_>{};
+    }
+}
 
 #define INVOKER_RUN_IMPL                                                               \
     float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{}) \
