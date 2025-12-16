@@ -7,6 +7,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Added
 * Added support for explicit GEMM in CK_TILE grouped convolution forward and backward weight.
 * Added TF32 convolution support on gfx942 and gfx950 in CK. It could be enabled/disabled via `DTYPES` of "tf32".
+* Added support for microscaling (MX) FP8/FP4 mixed data types to Flatmm pipeline
 
 ### Changed
 
@@ -35,6 +36,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added pooling kernel in CK_TILE
 * Added top-k sigmoid kernel in CK_TILE
 * Added the blockscale 2D support for CK_TILE GEMM.
+* Added Flatmm pipeline for microscaling (MX) FP8/FP4 data types
 
 ### Changed
 

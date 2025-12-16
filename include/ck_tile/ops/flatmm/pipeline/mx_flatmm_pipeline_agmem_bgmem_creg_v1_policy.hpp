@@ -85,7 +85,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         const auto rows = naive_desc.get_length(number<0>{});
         const auto cols = naive_desc.get_length(number<1>{});
 
-        constexpr index_t K2 = DWORDx4 * APackedSize;        // f4=32; f8=16
+        constexpr index_t K2 = AK1;                          // f4=32; f8=16
         constexpr index_t K1 = kDramLoadPackBytes / DWORDx4; // 8
         const index_t K0     = cols / (K1 * K2);
         const auto col_lens  = make_tuple(K0, number<K1>{}, number<K2>{});
@@ -119,7 +119,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
     CK_TILE_DEVICE static constexpr auto MakeMX_ADramTileDistribution()
     {
-        constexpr index_t K2 = DWORDx4 * APackedSize;                 // f4=32; f8=16
+        constexpr index_t K2 = AK1;                                   // f4=32; f8=16
         constexpr index_t K1 = kDramLoadPackBytes * APackedSize / K2; // 8
         constexpr index_t K0 = KPerBlock / (K1 * K2);                 // KPerBlock/256
 
@@ -141,7 +141,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
     CK_TILE_DEVICE static constexpr auto MakeMX_ALdsBlockDescriptor()
     {
-        constexpr index_t K2 = DWORDx4 * APackedSize;        // f4=32; f8=16
+        constexpr index_t K2 = AK1;                          // f4=32; f8=16
         constexpr index_t K1 = kDramLoadPackBytes / DWORDx4; // 8
         constexpr index_t K0 = KPerBlock / (K1 * K2);        // KPerBlock/256
         static_assert(K0 * K1 * K2 == KPerBlock, "K0, K1, K2 must cover whole KPerBlock!");
