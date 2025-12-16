@@ -189,6 +189,7 @@ set(CKB_SMOKE_TESTS
     test_ckb_inline_diff
     test_ckb_conv_traits
     test_ckb_conv_description
+    test_ckb_reference_execution
 )
 
 foreach(test_target ${CKB_SMOKE_TESTS})
