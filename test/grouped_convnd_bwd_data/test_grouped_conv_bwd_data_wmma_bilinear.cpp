@@ -23,7 +23,6 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 
-
 using ::ck::DeviceMem;
 using ::ck::HostTensorDescriptor;
 using ::ck::Tensor;
@@ -32,23 +31,29 @@ template <typename Tuple>
 class TestGroupedConvndBwdData : public ::testing::Test
 {
     protected:
-    using InDataType  = std::tuple_element_t<0, Tuple>;;
-    using WeiDataType  =std::tuple_element_t<0, Tuple>;;
-    using OutDataType  = std::tuple_element_t<0, Tuple>;;
+    using InDataType = std::tuple_element_t<0, Tuple>;
+    ;
+    using WeiDataType = std::tuple_element_t<0, Tuple>;
+    ;
+    using OutDataType = std::tuple_element_t<0, Tuple>;
+    ;
     using ComputeDataType = InDataType;
-    using InLayout    = std::tuple_element_t<3, Tuple>;;
-    using WeiLayout   = std::tuple_element_t<2, Tuple>;;
-    using OutLayout   = std::tuple_element_t<1, Tuple>;;
-    using WeiElementOp  = ck::tensor_operation::element_wise::PassThrough;
-    using InElementOp = ck::tensor_operation::element_wise::Bilinear;
+    using InLayout        = std::tuple_element_t<3, Tuple>;
+    ;
+    using WeiLayout = std::tuple_element_t<2, Tuple>;
+    ;
+    using OutLayout = std::tuple_element_t<1, Tuple>;
+    ;
+    using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using InElementOp  = ck::tensor_operation::element_wise::Bilinear;
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+    using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
 
-    using Bilinear = ck::tensor_operation::element_wise::Bilinear;
+    using Bilinear                           = ck::tensor_operation::element_wise::Bilinear;
     static constexpr ck::index_t NDimSpatial = 3;
     static constexpr float alpha             = 2.f;
-    static constexpr float beta             = 2.f;
-
+    static constexpr float beta              = 2.f;
+    static constexpr ck::index_t NumDs       = 1;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
     std::vector<ck::index_t> split_ks{1};
@@ -58,7 +63,8 @@ class TestGroupedConvndBwdData : public ::testing::Test
                       Tensor<WeiDataType>& wei,
                       Tensor<OutDataType>& out)
     {
-  
+
+        std::array<Tensor<OutDataType>, NumDs> d_tensors = {in_host};
         auto ref_conv =
             ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
                                                              InDataType,
@@ -69,7 +75,7 @@ class TestGroupedConvndBwdData : public ::testing::Test
                                                              OutElementOp,
                                                              0, /*Num A Elementwise Tensors*/
                                                              0, /*Num B Elementwise Tensors*/
-                                                             0>();
+                                                             NumDs>();
 
         auto ref_invoker = ref_conv.MakeInvoker();
 
@@ -80,21 +86,21 @@ class TestGroupedConvndBwdData : public ::testing::Test
                                                   conv_param.conv_filter_dilations_,
                                                   conv_param.input_left_pads_,
                                                   conv_param.input_right_pads_,
-                                                   InElementOp{alpha,beta},
+                                                  InElementOp{alpha, beta},
                                                   WeiElementOp{},
-                                                 OutElementOp{},
+                                                  OutElementOp{},
                                                   {},
                                                   {},
-                                                  {});
+                                                  d_tensors);
 
         ref_invoker.Run(ref_argument);
     }
-   
+
     bool PerformConvDataBilinear(ck::utils::conv::ConvParam& conv_param, const ck::index_t split_k)
     {
         bool passed = true;
-      
-           const auto out_g_n_k_wos_desc =
+
+        const auto out_g_n_k_wos_desc =
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
 
@@ -114,19 +120,18 @@ class TestGroupedConvndBwdData : public ::testing::Test
         std::cout << "in: " << in_host.mDesc << std::endl;
         std::cout << "wei: " << wei.mDesc << std::endl;
         std::cout << "out: " << out.mDesc << std::endl;
-        
-    DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
 
-   
-       out_device_buf.ToDevice(out.mData.data());
-       wei_device_buf.ToDevice(wei.mData.data());
+        DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
+        DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
+        DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
+
+        out_device_buf.ToDevice(out.mData.data());
+        wei_device_buf.ToDevice(wei.mData.data());
 
         // reset input to zero
         in_device_buf.SetZero();
 
-       std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
+        std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> out_strides{};
         std::array<ck::index_t, NDimSpatial + 3> wei_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> wei_strides{};
@@ -136,8 +141,7 @@ class TestGroupedConvndBwdData : public ::testing::Test
         std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
         std::array<ck::index_t, NDimSpatial> input_left_pads{};
         std::array<ck::index_t, NDimSpatial> input_right_pads{};
-      
-        
+
         auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 
         copy(out_g_n_k_wos_desc.GetLengths(), out_lengths);
@@ -150,48 +154,52 @@ class TestGroupedConvndBwdData : public ::testing::Test
         copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
         copy(conv_param.input_left_pads_, input_left_pads);
         copy(conv_param.input_right_pads_, input_right_pads);
-   
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
-                                                                        OutLayout,
-                                                                        WeiLayout,
-                                                                        ck::Tuple<InLayout>,
-                                                                        InLayout,
-                                                                        OutDataType,
-                                                                        WeiDataType,
-                                                                        ck::Tuple<InDataType>,
-                                                                        InDataType,
-                                                                        PassThrough,
-                                                                        PassThrough,
-                                                                        Bilinear>;
 
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
+        RunReference(conv_param, in_host, wei, out);
+        const std::array<const void*, NumDs> ds = {in_device_buf.GetDeviceBuffer()};
+        using DeviceOp =
+            ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
+                                                                            OutLayout,
+                                                                            WeiLayout,
+                                                                            ck::Tuple<InLayout>,
+                                                                            InLayout,
+                                                                            OutDataType,
+                                                                            WeiDataType,
+                                                                            ck::Tuple<InDataType>,
+                                                                            InDataType,
+                                                                            PassThrough,
+                                                                            PassThrough,
+                                                                            Bilinear>;
+
+        // get device op instances
+        const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            DeviceOp>::GetInstances();
 
         int num_kernel = 0;
 
         for(std::size_t i = 0; i < op_ptrs.size(); ++i)
         {
             auto& op_ptr      = op_ptrs[i];
-            auto argument_ptr = op_ptr->MakeArgumentPointer(out_device_buf.GetDeviceBuffer(),
-                                                        wei_device_buf.GetDeviceBuffer(),
-                                                        {in_device_buf.GetDeviceBuffer()},
-                                                        in_device_buf.GetDeviceBuffer(),
-                                                        out_lengths,
-                                                        out_strides,
-                                                        wei_lengths,
-                                                        wei_strides,
-                                                          {in_lengths},
-                                                          {in_strides},
-                                                        in_lengths,
-                                                        in_strides,
-                                                        conv_filter_strides,
-                                                        conv_filter_dilations,
-                                                        input_left_pads,
-                                                        input_right_pads,
-                                                        PassThrough{},
-                                                        PassThrough{},
-                                                        Bilinear{alpha,beta});
+            auto argument_ptr = op_ptr->MakeArgumentPointer(
+                out_device_buf.GetDeviceBuffer(),
+                wei_device_buf.GetDeviceBuffer(),
+                ds,
+                in_device_buf.GetDeviceBuffer(),
+                out_lengths,
+                out_strides,
+                wei_lengths,
+                wei_strides,
+                std::array<std::array<ck::index_t, NDimSpatial + 3>, NumDs>{in_lengths},
+                std::array<std::array<ck::index_t, NDimSpatial + 3>, NumDs>{in_strides},
+                in_lengths,
+                in_strides,
+                conv_filter_strides,
+                conv_filter_dilations,
+                input_left_pads,
+                input_right_pads,
+                PassThrough{},
+                PassThrough{},
+                Bilinear{alpha, beta});
 
             DeviceMem workspace_buf(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
             op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_buf.GetDeviceBuffer());
@@ -203,23 +211,23 @@ class TestGroupedConvndBwdData : public ::testing::Test
             {
                 num_kernel++;
                 float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
-               in_device_buf.FromDevice(in_device.mData.data());
+                in_device_buf.FromDevice(in_device.mData.data());
 
                 using ComputeType_ = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
-                                                             OutDataType,
-                                                             WeiDataType>;
+                                                        OutDataType,
+                                                        WeiDataType>;
                 using ComputeType =
                     std::conditional_t<sizeof(ComputeType_) < sizeof(ComputeDataType),
-                                            ComputeType_,
-                                            ComputeDataType>;
+                                       ComputeType_,
+                                       ComputeDataType>;
                 using AccDataType =
                     std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
                 const ck::index_t num_accums = conv_param.K_;
-               float max_accumulated_value = *std::max_element(in_host.mData.begin(), in_host.mData.end());
+                float max_accumulated_value =
+                    *std::max_element(in_host.mData.begin(), in_host.mData.end());
 
-            
                 const ck::index_t split_k_for_run = split_k;
-              // Calculate thresholds
+                // Calculate thresholds
                 auto rtol = ck::utils::get_relative_threshold<ComputeType, InDataType, AccDataType>(
                     num_accums / split_k_for_run);
                 auto atol = ck::utils::get_absolute_threshold<ComputeType, InDataType, AccDataType>(
@@ -243,13 +251,13 @@ class TestGroupedConvndBwdData : public ::testing::Test
                 }
                 else
                 {
-                    passed &= ck::utils::check_err(in_device, in_host, "Error: Incorrect results!", rtol, atol);
-                       std::cout << "Relative error threshold: " << rtol
+                    passed &= ck::utils::check_err(
+                        in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                    std::cout << "Relative error threshold: " << rtol
                               << " Absolute error threshold: " << atol << std::endl;
                 }
-                std::size_t flop =
-                    conv_param.GetFlops() +
-                    3 * conv_param.GetOutputByte<InDataType>() / sizeof(InDataType);
+                std::size_t flop = conv_param.GetFlops() +
+                                   3 * conv_param.GetOutputByte<InDataType>() / sizeof(InDataType);
                 std::size_t num_bytes = conv_param.GetByte<InDataType, WeiDataType, OutDataType>() +
                                         conv_param.GetOutputByte<InDataType>();
 
@@ -293,7 +301,6 @@ class TestGroupedConvndBwdData3d : public TestGroupedConvndBwdData<Tuple>
 using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
 using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
-
 
 using KernelTypes3d = ::testing::Types<std::tuple<float, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<ck::half_t, NDHWGK, GKZYXC, NDHWGC>,
