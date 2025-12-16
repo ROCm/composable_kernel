@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 import os
 import json
 from pathlib import Path
@@ -368,7 +371,8 @@ class GemmKernelBuilder:
         instance_code += self.populate_tile_config(tile_config)
         instance_code += self.populate_trait_config(trait_combo)
         instance_code += self.populate_initialization(base_pipeline_map, pipeline)
-        instance_code += self.populate_launch(scheduler_type_map,
+        instance_code += self.populate_launch(
+            scheduler_type_map,
             scheduler,
             pipeline_impl_map,
             pipeline,
@@ -601,16 +605,16 @@ struct SelectedKernel {{
 
     // Launch function
     static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {"""
-        
+
         # Scheduler initialization
         if self.kernel_name_prefix in ["gemm_preshuffle", "gemm_multi_d"]:
             instance_code += f"""
 
         constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
 
-        #Problem Initialization
+        # Problem Initialization
         if self.kernel_name_prefix == "gemm_preshuffle":
-            instance_code += f"""
+            instance_code += """
 
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
                 ADataType,
@@ -623,7 +627,7 @@ struct SelectedKernel {{
                                             NumWaveGroups, Preshuffle>,
                 scheduler>;"""
         elif self.kernel_name_prefix == "gemm_multi_d":
-            instance_code += f"""
+            instance_code += """
 
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
                 ADataType,
@@ -640,17 +644,16 @@ struct SelectedKernel {{
             
         using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
 
-
         # Runfunction body
         instance_code += """
 
         const auto Run = [&](const auto memory_operation_) {"""
-        
+
         # Scheduler initialization
         if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += f"""
             constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
-        
+
         # Memory operation
         instance_code += """
             [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;"""
@@ -669,20 +672,19 @@ struct SelectedKernel {{
                                                 UseStructuredSparsity, UsePersistentKernel,
                                                 NumWaveGroups, Preshuffle>,
                 scheduler>;"""
-        
 
         # GemmPipeline
         if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += f"""
 
             using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
-        
+
         # Epilogue
         instance_code += self.populate_epilogue(epilogue)
 
         # Kernel type
         if self.kernel_name_prefix == "gemm_multi_d":
-            instance_code += f"""
+            instance_code += """
             
             // Kernel type
             using GemmKernelMultiD = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -690,21 +692,21 @@ struct SelectedKernel {{
             // Kernel arguments
             auto kargs = GemmKernelMultiD::MakeKernelArgs(args);
             
-            if (!GemmKernelMultiD::IsSupportedArgument(kargs)) {{
+            if (!GemmKernelMultiD::IsSupportedArgument(kargs)) {
                 throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
-            }}
+            }
 
             // Get grid and block sizes
             const dim3 grids = GemmKernelMultiD::GridSize(args.M, args.N, args.k_batch);
             const dim3 blocks = GemmKernelMultiD::BlockSize();
             
-            if(stream.log_level_ > 0) {{
+            if(stream.log_level_ > 0) {
                 std::cout << "Launching kernel with args: " << GemmKernelMultiD::GetName() << '\\n'
-                          << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
-                          << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
+                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                           << std::endl;
-            }}"""
-            
+            }"""
+
         elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code += f"""
             
@@ -728,7 +730,7 @@ struct SelectedKernel {{
                           << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
                           << std::endl;
             }}"""
-            
+
         instance_code += f"""    
             // Launch kernel
             constexpr int kBlockPerCu = {k_block_per_cu};
@@ -740,7 +742,7 @@ struct SelectedKernel {{
         }};"""
 
         # Run SplitK handler
-        
+
         instance_code += """
 
         float ave_time = 0.f;
