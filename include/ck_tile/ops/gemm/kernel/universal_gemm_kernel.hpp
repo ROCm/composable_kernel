@@ -410,7 +410,7 @@ struct UniversalGemmKernel
             }
         }
 
-        if(kargs.K < TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{}) * kargs.k_batch)
+        if(kargs.K < GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{}) * kargs.k_batch)
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
