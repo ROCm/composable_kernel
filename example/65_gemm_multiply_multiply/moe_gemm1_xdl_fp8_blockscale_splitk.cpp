@@ -510,7 +510,7 @@ int main(int argc, char* argv[])
             {
                 continue;
             }
-            for(int n = 0; n < N; ++n)
+            for(int n = 0; n < 2 * N; ++n)
             {
                 e_t_n_host_result(t, topk_id, n) =
                     ck::type_convert<EDataType>(c_t_k_n(t, topk_id, n));
