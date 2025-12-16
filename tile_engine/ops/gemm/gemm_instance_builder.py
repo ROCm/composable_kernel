@@ -121,7 +121,7 @@ class GemmKernelBuilder:
 
         print(f"Listed {len(kernel_list)} kernel configurations")
 
-    def _get_tile_configs(self, fast_mode=False):
+    def _get_tile_configs(self):
         """Get tile configurations for the current datatype and layout"""
 
         tile_config = self.config["tile_config"]
@@ -188,7 +188,6 @@ class GemmKernelBuilder:
                                                 warp_tile_n,
                                                 warp_tile_k,
                                                 default_pipeline,
-                                                fast_mode=fast_mode,
                                             ):
                                                 configs.append(
                                                     {
@@ -226,67 +225,47 @@ class GemmKernelBuilder:
         warp_tile_n,
         warp_tile_k,
         pipeline,
-        fast_mode=False,
     ):
         """Validate that tile configuration is reasonable"""
-        if fast_mode:
-            # Fast validation for listing - only basic sanity checks
-            if tile_m <= 0 or tile_n <= 0 or tile_k <= 0:
-                return False
-            if warp_m <= 0 or warp_n <= 0 or warp_k <= 0:
-                return False
-            if warp_tile_m <= 0 or warp_tile_n <= 0 or warp_tile_k <= 0:
-                return False
-
-            # Basic divisibility check
-            if tile_m % (warp_m * warp_tile_m) != 0:
-                return False
-            if tile_n % (warp_n * warp_tile_n) != 0:
-                return False
-            if tile_k % (warp_k * warp_tile_k) != 0:
+        # Validate preshuffle specific constraints
+        if (
+            self.config.get("permute_n") is not None
+            and self.config.get("permute_n") is True
+        ):
+            valid = (tile_n / warp_tile_n / warp_n) % 2 == 0
+            if not valid:
                 return False
 
-            return True
-        else:
-            # Validate preshuffle specific constraints
-            if (
-                self.config.get("permute_n") is not None
-                and self.config.get("permute_n") is True
-            ):
-                valid = (tile_n / warp_tile_n / warp_n) % 2 == 0
-                if not valid:
-                    return False
+        # Full validation for generation
+        # Determine data types for validation
+        a_datatype = self.datatype
+        b_datatype = self.datatype
+        c_datatype = self.datatype
 
-            # Full validation for generation
-            # Determine data types for validation
-            a_datatype = self.datatype
-            b_datatype = self.datatype
-            c_datatype = self.datatype
+        layout = self.layout
 
-            layout = self.layout
+        # Special handling for certain data types
+        if self.datatype in ["fp8", "bf8"]:
+            c_datatype = "fp16"
 
-            # Special handling for certain data types
-            if self.datatype in ["fp8", "bf8"]:
-                c_datatype = "fp16"
-
-            # Use the comprehensive validation function
-            return is_tile_config_valid(
-                tile_m,
-                tile_n,
-                tile_k,
-                warp_m,
-                warp_n,
-                warp_k,
-                warp_tile_m,
-                warp_tile_n,
-                warp_tile_k,
-                a_datatype,
-                b_datatype,
-                c_datatype,
-                pipeline,
-                layout,
-                self.gpu_target,
-            )
+        # Use the comprehensive validation function
+        return is_tile_config_valid(
+            tile_m,
+            tile_n,
+            tile_k,
+            warp_m,
+            warp_n,
+            warp_k,
+            warp_tile_m,
+            warp_tile_n,
+            warp_tile_k,
+            a_datatype,
+            b_datatype,
+            c_datatype,
+            pipeline,
+            layout,
+            self.gpu_target,
+        )
 
     def _generate_trait_combinations(self):
         """Generate all combinations of traits"""
@@ -328,9 +307,7 @@ class GemmKernelBuilder:
     def _generate_kernel_instance(self, tile_config, trait_combo):
         """Generate a single kernel instance"""
 
-        k_block_per_cu = self.config.get("k_block_per_cu")
-        if k_block_per_cu is None:
-            k_block_per_cu = 1
+        k_block_per_cu = self.config.get("k_block_per_cu", 1)
 
         (
             pipeline,
@@ -442,7 +419,7 @@ class GemmKernelBuilder:
         if self.datatype in ["fp8", "bf8"]:
             c_type = "fp16"
 
-        # Determine layouts based on self.layout
+        # Assign layouts based on self.layout
         if self.kernel_name_prefix == "gemm_multi_d":
             a_layout, b_layout, c_layout, ds_layout = get_abcd_layouts(self.layout)
         elif (
@@ -674,7 +651,7 @@ struct SelectedKernel {{
             instance_code += f"""
             constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
         
-        # Memory operatio
+        # Memory operation
         instance_code += """
             [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;"""
 

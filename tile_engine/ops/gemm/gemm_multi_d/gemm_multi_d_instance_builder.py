@@ -303,10 +303,10 @@ def main():
             trait_parts[0],  # pipeline
             trait_parts[1],  # epilogue
             trait_parts[2],  # scheduler
-            trait_parts[3] == "True",  # pad_m
-            trait_parts[4] == "True",  # pad_n
-            trait_parts[5] == "True",  # pad_k
-            trait_parts[6] == "True",  # persistent
+            trait_parts[3],  # pad_m
+            trait_parts[4],  # pad_n
+            trait_parts[5],  # pad_k
+            trait_parts[6],  # persistent
         )
 
         # Generate the kernel
