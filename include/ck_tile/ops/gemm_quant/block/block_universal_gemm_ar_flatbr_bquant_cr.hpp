@@ -195,18 +195,6 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                             pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
 
                         float scale_reg_f = cvt_scale_to_fp32(gathered_scale_reg);
-                        printf("get_block_id(): %d, get_thread_id(): %d, nIter: %d, lane_id(): %d, "
-                               "kQScale: %d, pull_from_lane: %d, scale_reg: %f, "
-                               "gathered_scale_reg: %d, scale_reg_f: %f\n",
-                               get_block_id(),
-                               get_thread_id(),
-                               nIter,
-                               __lane_id(),
-                               static_cast<int>(kQScale),
-                               pull_from_lane,
-                               scale_reg,
-                               gathered_scale_reg,
-                               scale_reg_f);
 
                         static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
                             auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];

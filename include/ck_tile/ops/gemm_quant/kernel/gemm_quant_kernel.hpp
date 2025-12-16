@@ -295,40 +295,22 @@ struct QuantGemmKernel
         //       K-dimension groups per block
         // bq_y: Number of quantization groups in K dimension
         //       = Total K groups (QK_B) / groups per block
-        const auto bq_x = N * KPerBlockBQ;    // 2x2 = 4
-        const auto bq_y = QK_B / KPerBlockBQ; // 4/2 = 2
+        const auto bq_x = N * KPerBlockBQ;
+        const auto bq_y = QK_B / KPerBlockBQ;
 
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf("N:%d, QK_B:%d\n", N, QK_B);
-            printf("bq_x: %d, bq_y: %d, getVectorSizeBQ: %d, kPerBlockBQ: %d\n",
-                   bq_x,
-                   bq_y,
-                   GetVectorSizeBQ,
-                   KPerBlockBQ);
-        }
-
-        const auto bq_desc = make_naive_tensor_descriptor(make_tuple(bq_y, bq_x),
-                                                          make_tuple(bq_x, 1),
-                                                          number<GetVectorSizeBQ>{},
-                                                          number<1>{}); // 2x4
+        const auto bq_desc = make_naive_tensor_descriptor(
+            make_tuple(bq_y, bq_x), make_tuple(bq_x, 1), number<GetVectorSizeBQ>{}, number<1>{});
 
         // Step 2: First padding transformation (block-level alignment)
         // ----------------------------------------------------------
         // Pad the X dimension to be a multiple of block_tile_size to ensure
         // each thread block can process complete tiles without edge cases
-        const auto block_tile_size = NPerBlockBQ * KPerBlockBQ; // 2x2 = 4
-
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf("block_tile_size:%d \n", block_tile_size);
-        }
+        const auto block_tile_size = NPerBlockBQ * KPerBlockBQ;
 
         const auto bq_pad0_desc = transform_tensor_descriptor(
             bq_desc,
-            make_tuple(
-                make_pass_through_transform(bq_y),
-                make_right_pad_transform(bq_x, get_padding_size(bq_x, block_tile_size))), // 2,4
+            make_tuple(make_pass_through_transform(bq_y),
+                       make_right_pad_transform(bq_x, get_padding_size(bq_x, block_tile_size))),
             make_tuple(sequence<0>{}, sequence<1>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -337,30 +319,14 @@ struct QuantGemmKernel
         // Split the X dimension into [wave_tile_count_x, wave_tile_size]
         // This separates the work into tiles that can be processed by
         // individual warps/waves
-        const auto pad_bq_x = bq_pad0_desc.get_lengths()[I1]; // 4
-        const auto wave_tile_size =
-            ((QN_B <= WarpTileN) ? (WarpTileN / QN_B) : 1 /*QN_B/WarpTileN*/) *
-            KPerBlockBQ; // 32/16 x 2 = 4 = 2
-        const auto wave_tile_count_x =
-            ck_tile::integer_divide_ceil(pad_bq_x, wave_tile_size); // 4/4 = 1 ==2
-
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf("pad_bq_x:%d, WarpTileN:%d, NPerBlockPQ: %d, KPerBlockBQ: %d, wave_tile_size:"
-                   "%d, wave_tile_count_x: %d\n",
-                   pad_bq_x,
-                   WarpTileN,
-                   NPerBlockBQ,
-                   KPerBlockBQ,
-                   wave_tile_size,
-                   wave_tile_count_x);
-        }
+        const auto pad_bq_x          = bq_pad0_desc.get_lengths()[I1];
+        const auto wave_tile_size    = ((QN_B <= WarpTileN) ? (WarpTileN / QN_B) : 1) * KPerBlockBQ;
+        const auto wave_tile_count_x = ck_tile::integer_divide_ceil(pad_bq_x, wave_tile_size);
 
         const auto bq_unmerge_pad0_desc = transform_tensor_descriptor(
             bq_pad0_desc,
-            make_tuple(
-                make_pass_through_transform(bq_y),
-                make_unmerge_transform(make_tuple(wave_tile_count_x, wave_tile_size))), // 2, 2, 2
+            make_tuple(make_pass_through_transform(bq_y),
+                       make_unmerge_transform(make_tuple(wave_tile_count_x, wave_tile_size))),
             make_tuple(sequence<0>{}, sequence<1>{}),
             make_tuple(sequence<0>{}, sequence<1, 2>{}));
 
@@ -370,11 +336,10 @@ struct QuantGemmKernel
         // This ensures coalesced memory accesses within each warp
         const auto bq_pad1_desc = transform_tensor_descriptor(
             bq_unmerge_pad0_desc,
-            make_tuple(
-                make_pass_through_transform(bq_y),              // 2, 2
-                make_pass_through_transform(wave_tile_count_x), // 1, 2
-                make_right_pad_transform(wave_tile_size,
-                                         get_padding_size(wave_tile_size, get_warp_size()))), // 64
+            make_tuple(make_pass_through_transform(bq_y),
+                       make_pass_through_transform(wave_tile_count_x),
+                       make_right_pad_transform(wave_tile_size,
+                                                get_padding_size(wave_tile_size, get_warp_size()))),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
 
@@ -385,20 +350,14 @@ struct QuantGemmKernel
         // where merged_outer_dim = bq_y * wave_tile_count_x
         // This layout facilitates efficient block-to-data mapping
         const auto pad_wave_size = ck_tile::integer_least_multiple(wave_tile_size, get_warp_size());
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf("pad_wave_size:%d\n", pad_wave_size);
-            printf("Final bq tensor lengths: %d x %d \n", bq_y * wave_tile_count_x, pad_wave_size);
-        }
         const auto bq_merge_pad1_desc = transform_tensor_descriptor(
             bq_pad1_desc,
-            make_tuple(make_merge_transform(make_tuple(bq_y, wave_tile_count_x)), // 4
-                       make_pass_through_transform(pad_wave_size)),               // 64
+            make_tuple(make_merge_transform(make_tuple(bq_y, wave_tile_count_x)),
+                       make_pass_through_transform(pad_wave_size)),
             make_tuple(sequence<0, 1>{}, sequence<2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return make_tensor_view<address_space_enum::global>(bq_ptr, bq_merge_pad1_desc);
-        // return make_tensor_view<address_space_enum::global>(bq_ptr, bq_pad0_desc);
     }
 
     public:
@@ -1118,37 +1077,19 @@ struct QuantGemmKernel
                 if constexpr(PreshuffleQuant)
                 {
                     static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-                    constexpr auto block_n =
-                        TilePartitioner::NPerBlock / QuantGroupSize::kN; // 64 / 32 = 2
+                    constexpr auto block_n = TilePartitioner::NPerBlock / QuantGroupSize::kN;
 
-                    constexpr auto warp_n       = TilePartitioner::BlockGemmShape::WarpTile::at(I1);
-                    constexpr auto warpPerGroup = (QuantGroupSize::kN < warp_n)
-                                                      ? (warp_n / QuantGroupSize::kN)
-                                                      : (QuantGroupSize::kN / warp_n);
-                    constexpr auto bqk_per_block = TilePartitioner::KPerBlock / QuantGroupSize::kK;
-                    constexpr auto tile_window_width = ck_tile::integer_least_multiple(
-                        warp_n * bqk_per_block, get_warp_size()); // 128
+                    constexpr auto warp_n = TilePartitioner::BlockGemmShape::WarpTile::at(I1);
+                    constexpr auto warp_per_group = (QuantGroupSize::kN < warp_n)
+                                                        ? (warp_n / QuantGroupSize::kN)
+                                                        : (QuantGroupSize::kN / warp_n);
+                    constexpr auto bqk_per_block  = TilePartitioner::KPerBlock / QuantGroupSize::kK;
+                    constexpr auto tile_window_width =
+                        ck_tile::integer_least_multiple(warp_n * bqk_per_block, get_warp_size());
                     constexpr auto tile_window_height =
-                        (block_n > warpPerGroup) ? block_n / warpPerGroup : block_n;
+                        (block_n > warp_per_group) ? block_n / warp_per_group : block_n;
 
-                    auto block_n_idx = i_n / TilePartitioner::NPerBlock; // 0,1,2
-
-                    if(get_thread_id() == 0)
-                    {
-                        printf("In MakeGemmTileWindows for BQ with PreshuffleQuant\n");
-                        printf("block_id: %d, block_n: %d, warp_n: %d, warpPerGroup: %d, "
-                               "bqk_per_block: %d, block_n_idx: %d, "
-                               "tile_window_width: %d, tile_window_height: %d, i_n: %d\n",
-                               get_block_id(),
-                               static_cast<int>(block_n),
-                               static_cast<int>(warp_n),
-                               static_cast<int>(warpPerGroup),
-                               static_cast<int>(bqk_per_block),
-                               static_cast<int>(block_n_idx),
-                               tile_window_width,
-                               static_cast<int>(tile_window_height),
-                               static_cast<int>(i_n));
-                    }
+                    auto block_n_idx = i_n / TilePartitioner::NPerBlock;
 
                     return make_tile_window(
                         bq_pad_view,
@@ -1253,15 +1194,6 @@ struct QuantGemmKernel
                 {
                     n = kargs.N;
                 }
-                // if(get_block_id() == 0 && get_thread_id() == 0)
-                // {
-                //     printf("In RunGemm, before GemmPipeline call for BQuantGrouped\n");
-                //     // To print Tile window after bq_pad0_desc
-                //     //  bq_block_window.template print_tile_window_range<BQDataType>(
-                //     //      0, 128, 0, 2, "bq block window");
-                //     bq_block_window.template print_tile_window_range<BQDataType>(
-                //         0, 8, 0, 64, "bq block window");
-                // }
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, n);
             }

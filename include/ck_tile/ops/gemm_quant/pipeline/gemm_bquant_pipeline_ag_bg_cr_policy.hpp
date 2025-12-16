@@ -43,12 +43,11 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BQLayout       = remove_cvref_t<typename Problem::BQLayout>;
         using BlockGemmShape = typename Problem::BlockGemmShape;
 
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
-        constexpr index_t NPerBlockBQ = NPerBlock / Problem::QuantGroupSize::kN;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockBQ = KPerBlock / Problem::QuantGroupSize::kK;
-        // constexpr index_t VecLoadSize  = GetVectorSizeBQ<Problem>();
+        constexpr index_t BlockSize    = Problem::kBlockSize;
+        constexpr index_t NPerBlock    = Problem::BlockGemmShape::kN;
+        constexpr index_t NPerBlockBQ  = NPerBlock / Problem::QuantGroupSize::kN;
+        constexpr index_t KPerBlock    = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlockBQ  = KPerBlock / Problem::QuantGroupSize::kK;
         constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
 
         using WarpTile = typename Problem::BlockGemmShape::WarpTile;

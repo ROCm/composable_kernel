@@ -216,7 +216,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
-                                       [[maybe_unused]] index_t n,
+                                       index_t n,
                                        index_t num_loop,
                                        void* p_smem) const
         {
@@ -308,12 +308,6 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                                  0)
                 : is_bq_row_major ? make_array(KPerBlockBQ, 0)
                                   : make_array(0, KPerBlockBQ);
-            if(get_block_id() == 0 && get_thread_id() == 0)
-            {
-                printf("bq_dram_tile_window_step: %d, %d\n",
-                       bq_dram_tile_window_step[I0{}],
-                       bq_dram_tile_window_step[I1{}]);
-            }
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
