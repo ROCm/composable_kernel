@@ -7,7 +7,7 @@
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
 #include "ck_tile/builder/testing/testing.hpp"
-#include "ck_tile/builder/testing/extent.hpp"
+#include "ck_tile/builder/testing/filter_extent.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
 #include "ck_tile/builder/testing/tensor_initialization.hpp"
 #include "ck_tile/builder/testing/validation.hpp"
@@ -39,12 +39,12 @@ namespace ck_tile::builder::test {
 template <int SPATIAL_DIM>
 struct ConvTensorLengths
 {
-    size_t batch_size          = 1;  // N
-    size_t groups              = 1;  // G
-    size_t input_channels      = 1;  // C
-    size_t output_channels     = 1;  // K
-    Extent<SPATIAL_DIM> image  = {}; // W, H, D
-    Extent<SPATIAL_DIM> filter = {}; // X, Y, Z
+    size_t batch_size                = 1;  // N
+    size_t groups                    = 1;  // G
+    size_t input_channels            = 1;  // C
+    size_t output_channels           = 1;  // K
+    FilterExtent<SPATIAL_DIM> image  = {}; // W, H, D
+    FilterExtent<SPATIAL_DIM> filter = {}; // X, Y, Z
 };
 
 /// @brief `Args` specialization for forward convolution.
@@ -83,10 +83,10 @@ struct Args<SIGNATURE>
     // implementation (based on ConvParam in old CK / CK Tile) does not
     // support strides at all.
 
-    Extent<SPATIAL_DIM> filter_strides;
-    Extent<SPATIAL_DIM> filter_dilation;
-    Extent<SPATIAL_DIM> input_left_pad;
-    Extent<SPATIAL_DIM> input_right_pad;
+    FilterExtent<SPATIAL_DIM> filter_strides;
+    FilterExtent<SPATIAL_DIM> filter_dilation;
+    FilterExtent<SPATIAL_DIM> input_left_pad;
+    FilterExtent<SPATIAL_DIM> input_right_pad;
 
     Ops::AElementwiseOp a_elementwise_op;
     Ops::BElementwiseOp b_elementwise_op;

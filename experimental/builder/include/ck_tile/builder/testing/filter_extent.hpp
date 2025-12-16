@@ -5,28 +5,29 @@
 
 namespace ck_tile::builder::test {
 
-/// This structure describes a 1-, 2-, or 3-D extent. Its used to
-/// communicate 1-, 2- or 3-D sizes and strides of tensors.
-/// Depending on the dimension, the structure will have the `width`,
-/// `height`, and `depth` fields available.
+/// This structure describes a 1-, 2-, or 3-D extent for convolution
+/// filters. Its used to communicate 1-, 2- or 3-D sizes and strides
+/// of tensors, specifically for convolution filters. Depending on the
+/// dimension, the structure will have the `width`, `height`, and
+/// `depth` fields available.
 template <int SPATIAL_DIM>
-struct Extent;
+struct FilterExtent;
 
 template <>
-struct Extent<1>
+struct FilterExtent<1>
 {
     size_t width = 1;
 };
 
 template <>
-struct Extent<2>
+struct FilterExtent<2>
 {
     size_t width  = 1;
     size_t height = 1;
 };
 
 template <>
-struct Extent<3>
+struct FilterExtent<3>
 {
     size_t width  = 1;
     size_t height = 1;
