@@ -23,7 +23,7 @@ This folder contains examples of quant GEMMs using the ck_tile tile-programming 
 - **Preshuffled GEMM**: Shuffle the GEMM of B (weight) matrix in the warp layout and bypass the shared memory to do the GEMM calculation. Best performance solution for GEMM.
 - **TransposeC**: Transpose the C Matrix Output layout to have the best coalesced scale reading
 - **Preshuffled Quant**: Preshuffle the input matrix to load multiple Quant warp blocks along the selected dimension.
-- **Precision**: Supports fp16, bf16, fp8, bf8, int4 (for B Matrix).
+- **Precision**: Supports fp16, bf16, fp8, bf8, int4 (for B Matrix), uint8 (split into two fp4 in the pipeline (for B Matrix)).
 - **Validation**: CPU/GPU validation and error tolerance options.
 
 ## build
@@ -53,7 +53,7 @@ args:
         -stride_b    Tensor B stride (default:0)
         -stride_c    Tensor C stride (default:0)
                -v    0: No validation, 1: Validation on CPU, 2: Validation on GPU (default:1)
-            -prec    Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, or bf8i4 (default for both AQuant and Bquant: fp8)
+            -prec    Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, bf8i4, or bf16fp4 (default for both AQuant and Bquant: fp8)
           -warmup    Number of iterations before benchmarking the kernel (default:50)
           -repeat    Number of iterations to benchmark the kernel (default:1000)
            -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
