@@ -244,12 +244,32 @@ CK_TILE_HOST_DEVICE constexpr index_t min(index_t x, number<Y>)
     return x < Y ? x : Y;
 }
 
+// Helper for variadic min - need to handle mixed integer types explicitly on Windows
+#if defined(_WIN32) || defined(_WIN64)
+// Windows: Add explicit overload for common mixed-type case (unsigned long, size_t, unsigned long long)
+template <typename T1, typename T2, typename T3,
+          typename = std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2> && std::is_integral_v<T3>>>
+CK_TILE_HOST_DEVICE constexpr auto min(T1 x, T2 y, T3 z)
+{
+    using CommonType = std::common_type_t<T1, T2, T3>;
+    return min(static_cast<CommonType>(x), min(static_cast<CommonType>(y), static_cast<CommonType>(z)));
+}
+
+template <typename X, typename... Ys,
+          typename = std::enable_if_t<(sizeof...(Ys) > 2)>>
+CK_TILE_HOST_DEVICE constexpr auto min(X x, Ys... ys)
+{
+    static_assert(sizeof...(Ys) > 0, "not enough argument");
+    return min(x, min(ys...));
+}
+#else
 template <typename X, typename... Ys>
 CK_TILE_HOST_DEVICE constexpr auto min(X x, Ys... ys)
 {
     static_assert(sizeof...(Ys) > 0, "not enough argument");
     return min(x, min(ys...));
 }
+#endif
 
 template <typename T>
 CK_TILE_HOST_DEVICE constexpr T clamp(const T& x, const T& lowerbound, const T& upperbound)
