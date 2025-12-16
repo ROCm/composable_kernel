@@ -570,14 +570,15 @@ struct SelectedKernel {{
 
     // Traits
     using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;"""
-        elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
+        elif self.kernel_name_prefix == "gemm_preshuffle":
             instance_code += """
 
     // Traits
     using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;"""
 
         # Pipeline problem
-        instance_code += """
+        if self.kernel_name_prefix in ["gemm_preshuffle", "gemm_multi_d"]:
+            instance_code += """
 
     // Pipeline problem
     using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
@@ -594,7 +595,7 @@ struct SelectedKernel {{
     // Base pipeline for hot loop detection
     using BaseGemmPipeline = {base_pipeline_map.get(pipeline, "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2")}<GemmPipelineProblem>;"""
 
-        elif self.kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
+        elif self.kernel_name_prefix == "gemm_multi_d":
             instance_code += f"""
 
     // Base pipeline for hot loop detection
@@ -623,38 +624,62 @@ struct SelectedKernel {{
 
     // Launch function
     static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {"""
-
-        # Initialization
-        instance_code += """
-        const ck_tile::index_t k_grain = args.k_batch * TileK;
-        const ck_tile::index_t K_split = (args.K + k_grain - 1) / k_grain * TileK;
-        const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
-        const bool has_hot_loop = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
         
-        float ave_time{0};
-        """
+        # Scheduler initialization
+        if self.kernel_name_prefix in ["gemm_preshuffle", "gemm_multi_d"]:
+            instance_code += f"""
+
+        constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
+
+        #Problem Initialization
+        if self.kernel_name_prefix == "gemm_preshuffle":
+            instance_code += f"""
+
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+                ADataType,
+                BDataType,
+                AccDataType,
+                TileShape,
+                ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                                ALayout, BLayout, CLayout, TransposeC,
+                                                UseStructuredSparsity, UsePersistentKernel,
+                                            NumWaveGroups, Preshuffle>,
+                scheduler>;"""
+        elif self.kernel_name_prefix == "gemm_multi_d":
+            instance_code += f"""
+
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+                ADataType,
+                BDataType,
+                AccDataType,
+                TileShape,
+                ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                                ALayout, BLayout, CLayout, TransposeC>,
+                scheduler>;"""
+
+        # GemmPipeline
+        if self.kernel_name_prefix in ["gemm_preshuffle", "gemm_multi_d"]:
+            instance_code += f"""
+            
+        using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
+
 
         # Runfunction body
         instance_code += """
-        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {
-            constexpr bool has_hot_loop_v = has_hot_loop_.value;
-            constexpr auto tail_number_v = tail_number_.value;"""
 
+        const auto Run = [&](const auto memory_operation_) {"""
+        
         # Scheduler initialization
-        if self.kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
+        if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += f"""
             constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
-        elif self.kernel_name_prefix == "gemm_preshuffle":
-            instance_code += f"""
-            constexpr auto scheduler = {scheduler_type_map.get(scheduler, "ck_tile::GemmPipelineScheduler::Default")};"""
-
+        
         # Memory operatio
         instance_code += """
             [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;"""
 
         # UniversalGemmProblem
-        if self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
+        if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += """
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
@@ -666,33 +691,15 @@ struct SelectedKernel {{
                                                 ALayout, BLayout, CLayout, TransposeC,
                                                 UseStructuredSparsity, UsePersistentKernel,
                                                 NumWaveGroups, Preshuffle>,
-                scheduler,
-                has_hot_loop_v,
-                tail_number_v>;"""
-        elif self.kernel_name_prefix == "gemm_multi_d":
-            instance_code += """
-
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
-                ADataType,
-                BDataType,
-                AccDataType,
-                TileShape,
-                ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                                ALayout, BLayout, CLayout, TransposeC>,
-                scheduler,
-                has_hot_loop_v,
-                tail_number_v>;"""
+                scheduler>;"""
+        
 
         # GemmPipeline
-        if self.kernel_name_prefix in ["gemm_universal", "gemm_multi_d"]:
+        if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += f"""
 
             using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
-        elif self.kernel_name_prefix == "gemm_preshuffle":
-            instance_code += f"""
-
-            using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2")}<UniversalGemmProblem>;"""
-
+        
         # Epilogue
         instance_code += self.populate_epilogue(epilogue)
 
@@ -719,17 +726,8 @@ struct SelectedKernel {{
                           << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
                           << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
                           << std::endl;
-            }}
+            }}"""
             
-            // Launch kernel
-            constexpr int kBlockPerCu = {k_block_per_cu};
-            ave_time = ck_tile::launch_kernel(
-                stream,
-                ck_tile::make_kernel<kBlockPerCu>(GemmKernelMultiD{{}}, grids, blocks, 0, kargs));
-            
-            return ave_time;
-        }};"""
-
         elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code += f"""
             
@@ -752,11 +750,12 @@ struct SelectedKernel {{
                           << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
                           << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
                           << std::endl;
-            }}
+            }}"""
             
+        instance_code += f"""    
             // Launch kernel
             constexpr int kBlockPerCu = {k_block_per_cu};
-            ave_time = ck_tile::launch_kernel(
+            float ave_time = ck_tile::launch_kernel(
                 stream,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
             
@@ -764,24 +763,17 @@ struct SelectedKernel {{
         }};"""
 
         # Run SplitK handler
+        
         instance_code += """
 
-        //Run SplitK handler
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(args.k_batch == 1) {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                            ck_tile::memory_operation_enum::set>{});
-            } else {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                            ck_tile::memory_operation_enum::atomic_add>{});
-            }
-        };
-
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        float ave_time = 0.f;
+        if(args.k_batch == 1) {
+            ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                        ck_tile::memory_operation_enum::set>{});
+        } else {
+            ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                        ck_tile::memory_operation_enum::atomic_add>{});
+        }
         return ave_time;
     }
 };
