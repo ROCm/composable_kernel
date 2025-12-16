@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "ck_tile/ops/sparse_attn/block/block_fmha_pipeline_qr_ks_vs_async_jenga.hpp"
-#include "ck_tile/ops/sparse_attn/block/block_fmha_pipeline_qr_ks_vs_async_vsa.hpp"
 #include "ck_tile/ops/sparse_attn/kernel/fmha_fwd_jenga_kernel.hpp"
 #include "ck_tile/ops/sparse_attn/kernel/fmha_fwd_vsa_kernel.hpp"
+#include "ck_tile/ops/sparse_attn/pipeline/block_fmha_pipeline_qr_ks_vs_async_jenga.hpp"
+#include "ck_tile/ops/sparse_attn/pipeline/block_fmha_pipeline_qr_ks_vs_async_vsa.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/ops/common/streamk_common.hpp"
