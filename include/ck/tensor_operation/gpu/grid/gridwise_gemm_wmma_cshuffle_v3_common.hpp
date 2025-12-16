@@ -531,7 +531,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
         constexpr bool padM = false;
         constexpr bool padK = false;
-        return ATransfer::template MakeGridDescriptor<padM, padK>(base_desc, M, 0, K, 0, 0, AK0);
+        return ATransfer::template MakeGridDescriptor<padM, padK>(base_desc, M, M, K, K, 0, AK0);
     }
 
     __host__ __device__ static auto
@@ -570,7 +570,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
         constexpr bool padN = false;
         constexpr bool padK = false;
-        return BTransfer::template MakeGridDescriptor<padN, padK>(base_desc, N, 0, K, 0, 0, BK0);
+        return BTransfer::template MakeGridDescriptor<padN, padK>(base_desc, N, N, K, K, 0, BK0);
     }
 
     __host__ __device__ static constexpr auto MakeAWmmaTileDescriptor()
