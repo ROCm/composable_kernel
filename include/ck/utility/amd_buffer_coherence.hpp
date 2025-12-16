@@ -67,10 +67,8 @@ enum struct AmdBufferCoherenceEnum
     SYSTEM_NT_WB = NT_WB | SYSTEM,
 
     // GFX942 and GFX950 compatiblity
-    WAVE_NT0   = WAVE_RT,
-    WAVE_NT1   = WAVE_NT,
-    GROUP_NT0  = GROUP_RT,
-    GROUP_NT1  = GROUP_NT,
+    GROUP_NT0  = CU_RT,
+    GROUP_NT1  = CU_NT,
     DEVICE_NT0 = DEVICE_RT,
     DEVICE_NT1 = DEVICE_NT,
     SYSTEM_NT0 = SYSTEM_RT,
