@@ -171,6 +171,7 @@ def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
                 printf '    "buildNumber": "%s",\n' "''' + env.BUILD_NUMBER + '''"
                 printf '    "jobUrl": "%s",\n' "''' + env.RUN_DISPLAY_URL + '''"
                 printf '    "imageName": "%s",\n' "''' + imageName + '''"
+                printf '    "stageName": "%s",\n' "''' + env.STAGE_NAME + '''"
                 printf '    "imageData": "%s",\n' "$IMAGE_BASE64"
                 printf '    "buildTraceName": "%s",\n' "$BUILD_TRACE_WITH_NUMBER"
                 printf '    "buildTraceData": "%s"\n' "$BUILD_TRACE_BASE64"
