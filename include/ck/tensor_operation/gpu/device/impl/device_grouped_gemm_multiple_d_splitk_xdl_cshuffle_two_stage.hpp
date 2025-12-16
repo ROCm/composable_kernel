@@ -226,7 +226,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
     }
 
     using CGridDesc_M_N  = typename GridwiseGemm64::CGridDesc_M_N;
-    using EGridDesc_M_N  = typename GridwiseGemm64::CGridDesc_M_N;
+    using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N<ELayout>(0, 0, 0));
     using DsGridDesc_M_N = decltype(MakeDsGridDescriptor_M_N({}, {}, {}));
     using DsGridPointer  = decltype(MakeDsGridPointer());
     using CDGridDesc_M_N = decltype(concat_tuple(ck::Tuple<CGridDesc_M_N>{}, DsGridDesc_M_N{}));
@@ -339,6 +339,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
             gemm_kernel_args_.reserve(group_count_);
             elementwise_c_grid_descs_m_n_.reserve(group_count_);
+            elementwise_e_grid_descs_m_n_.reserve(group_count_);
             elementwise_d_grid_descs_m_n_.reserve(group_count_);
             ds_grid_pointer_.reserve(group_count_);
             group_grid_size_.reserve(group_count_);
@@ -435,7 +436,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 gemm_kernel_args_.emplace_back(
                     std::move(karg), std::move(grouped_block_2_ctile_map), block_start, block_end);
 
+                // Create E grid descriptor with user-provided stride (not workspace stride)
+                const auto e_grid_desc_m_n =
+                    DeviceOp::MakeEGridDescriptor_M_N<ELayout>(M, N, gemm_descs[i].stride_C_);
+
                 elementwise_c_grid_descs_m_n_.push_back(c_grid_desc_m_n);
+                elementwise_e_grid_descs_m_n_.push_back(e_grid_desc_m_n);
                 elementwise_d_grid_descs_m_n_.push_back(ds_grid_desc_m_n);
                 ds_grid_pointer_.push_back(p_ds_grid);
                 // Store a copy of E pointers for elementwise kernel destination
@@ -558,6 +564,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         std::vector<index_t> group_grid_size_;
 
         std::vector<CGridDesc_M_N> elementwise_c_grid_descs_m_n_;
+        std::vector<EGridDesc_M_N> elementwise_e_grid_descs_m_n_;
         std::vector<DsGridDesc_M_N> elementwise_d_grid_descs_m_n_;
         std::vector<DsGridPointer> ds_grid_pointer_;
         std::vector<void*> e_ptrs_;
@@ -820,12 +827,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                     0,
                     concat_tuple(make_tuple(arg.elementwise_c_grid_descs_m_n_[i]),
                                  arg.elementwise_d_grid_descs_m_n_[i]),
-                    make_tuple(arg.elementwise_c_grid_descs_m_n_[i]),
+                    make_tuple(arg.elementwise_e_grid_descs_m_n_[i]),
                     concat_tuple(make_tuple(arg.gemm_kernel_args_[i].karg_.p_c_grid),
                                  arg.ds_grid_pointer_[i]),
                     type_convert<EDataType*>(arg.e_ptrs_[i]),
-                    Block2TileMap{arg.elementwise_c_grid_descs_m_n_[i].GetLength(I0),
-                                  arg.elementwise_c_grid_descs_m_n_[i].GetLength(I1)},
+                    Block2TileMap{arg.elementwise_e_grid_descs_m_n_[i].GetLength(I0),
+                                  arg.elementwise_e_grid_descs_m_n_[i].GetLength(I1)},
                     arg.cde_element_op_);
             }
             return time;
