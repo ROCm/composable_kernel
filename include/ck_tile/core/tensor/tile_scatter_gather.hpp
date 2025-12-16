@@ -223,26 +223,24 @@ struct tile_scatter_gather
         {
             auto partition_index = get_partition_index(tile_distribution);
 
-            auto use_lane_id_0                         = partition_index;
-            use_lane_id_0[1]                           = 0;
-            const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
+            auto use_lane_id_0                              = partition_index;
+            use_lane_id_0[1]                                = 0;
+            const auto window_adaptor_thread_coord_tmp_warp = make_tensor_adaptor_coordinate(
                 tile_distribution.get_ps_ys_to_xs_adaptor(),
                 container_concat(use_lane_id_0, array<index_t, NDimY>{0}));
 
-            BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
-                window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
-            bottom_tensor_thread_origin_idx_tmp(HsGatherDim) = 0;
-            const auto bottom_tensor_thread_coord_tmp        = make_tensor_coordinate(
-                bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
+            BottomTensorIndex bottom_tensor_thread_origin_idx_tmp_warp =
+                window_origin + window_adaptor_thread_coord_tmp_warp.get_bottom_index();
+            bottom_tensor_thread_origin_idx_tmp_warp(HsGatherDim) = 0;
+            const auto bottom_tensor_thread_coord_tmp_warp =
+                make_tensor_coordinate(bottom_tensor_view_.get_tensor_descriptor(),
+                                       bottom_tensor_thread_origin_idx_tmp_warp);
 
             // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
             // future load/store() calls (might allocate more registers)
-            using Traits = load_store_traits;
-            using SFC_Ys = typename Traits::SFC_Ys;
-
             static_for<0, NumCoord, 1>{}([&](auto iCoord) {
-                auto window_adaptor_thread_coord = window_adaptor_thread_coord_tmp;
-                auto bottom_tensor_thread_coord  = bottom_tensor_thread_coord_tmp;
+                auto window_adaptor_thread_coord = window_adaptor_thread_coord_tmp_warp;
+                auto bottom_tensor_thread_coord  = bottom_tensor_thread_coord_tmp_warp;
 
                 constexpr auto idx_diff_ys =
                     SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{});
@@ -725,9 +723,6 @@ struct tile_scatter_gather
 
                 auto mixed_bottom_thread_coord = bottom_tensor_thread_coord;
                 mixed_bottom_thread_coord.get_hidden_index()[number<0>{}] += page_offset;
-                // printf("lane %d,off_ori %d, offx %d, offy %d, off_page %d\n", threadIdx.x,
-                // bottom_tensor_thread_coord.get_offset(), mixed_bottom_thread_coord.get_offset(),
-                // dram_ys_offset, page_offset);
 
                 if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
                 {
