@@ -1,7 +1,7 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include "ck_tile/builder/testing/tensor_buffer.hpp"
+#include "ck_tile/builder/testing/tensor_descriptor.hpp"
 #include "testing_utils.hpp"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>

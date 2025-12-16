@@ -3,6 +3,7 @@
 
 #include "ck_tile/builder/testing/error.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
+#include "ck_tile/builder/testing/tensor_descriptor.hpp"
 #include "ck_tile/builder/testing/validation.hpp"
 #include "ck_tile/builder/testing/tensor_foreach.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
