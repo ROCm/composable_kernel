@@ -310,7 +310,7 @@ struct GroupedGemmKernel
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
 
-            __shared__ char smem_ptr_1[GetSmemSize()];
+            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
             RunGemmWithPipelineSelection2LDS(a_ptr,
                                              b_ptr,
                                              c_ptr,
@@ -561,6 +561,7 @@ struct GroupedGemmKernel
                 const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
                     0, kargs.M, kargs.N, (block_id - block_start) % grid_size_2d);
                 Run(kargs, block_idx_2d, (block_id - block_start) / grid_size_2d);
+                block_sync_lds();
                 block_id = block_id + grid_size; // advance to next block
                 // NOTE: this check is redundant but helps the compiler avoid spilling some VGPR
                 if(block_id >= cum_grid_size)

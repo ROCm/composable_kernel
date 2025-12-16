@@ -1324,7 +1324,7 @@ struct QuantGemmKernel
         assert(kargs.k_batch == 1);
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            __shared__ char smem_ptr_1[GetSmemSize()];
+            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
 
             RunGemm2LDS(a_ptr,
                         b_ptr,

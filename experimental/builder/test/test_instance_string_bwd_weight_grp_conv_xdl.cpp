@@ -72,14 +72,16 @@ std::string expected_str = "DeviceGroupedConvBwdWeight_Xdl_CShuffle"
                            ",1"             // MaxTransposeTransferSrcScalarPerVector
                            ",1>";           // MaxTransposeTransferDstScalarPerVector
 
-// Test GetInstanceString through base class pointer for backward weight XDL variant
-TEST(InstanceString, GetInstanceStringReturnsCorrectValueForBwdWeightGrpConvXdl)
+// Test describe() through base class pointer for backward weight XDL variant
+TEST(InstanceString, DescribeReturnsCorrectValueForBwdWeightGrpConvXdl)
 {
     using BaseClass = ck::tensor_operation::device::BaseOperator;
     DeviceInstance device_instance;
     BaseClass* base_ptr = &device_instance;
 
-    EXPECT_EQ(base_ptr->GetInstanceString(), expected_str);
+    auto desc = base_ptr->describe();
+    ASSERT_NE(desc, nullptr);
+    EXPECT_EQ(desc->instance_string(), expected_str);
 }
 
 // TODO: Add DescriptionReturnsCorrectValueForBwdWeightGrpConvXdl test once ckr::describe supports
