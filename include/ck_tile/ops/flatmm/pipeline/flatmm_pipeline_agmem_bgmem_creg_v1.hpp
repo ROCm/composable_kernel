@@ -33,8 +33,10 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
         {
 #if defined(__gfx12__)
             return ck_tile::amd_buffer_coherence_enum::WAVE_NT;
-#else
+#elif defined(__gfx942__) || defined(__gfx950__)
             return ck_tile::amd_buffer_coherence_enum::WAVE_NT1;
+#else
+            return ck_tile::amd_buffer_coherence_enum::coherence_default;
 #endif
         }
         return ck_tile::amd_buffer_coherence_enum::coherence_default;
