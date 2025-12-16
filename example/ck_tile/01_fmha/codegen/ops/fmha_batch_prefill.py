@@ -31,6 +31,7 @@ K0_MAX_SUBMAX_MAP = {32: 32, 64: 64, 96: 128, 128: 128, 256: 256}
 
 SUPPORTED_PAGE_SIZE = [1, 1024]
 
+
 FMHA_BATCH_PREFILL_PIPELINE_MAP = {
     "qr_async": "ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsync",
 }
@@ -229,7 +230,7 @@ class FmhaFwdApiTrait:
     dpad: str
     dvpad: str
     constraint: CppConstraint
-    cache_layout : str
+    cache_layout: str
     page_size: int = 1  # page block size
 
     @property
@@ -323,7 +324,7 @@ class FmhaFwdPipeline:
     F_dropout: str  #
     F_qscale: str  # no/pertensor
     F_mask: str  # value from MASK_MAP
-    F_sglang_layout : str  #
+    F_sglang_layout: str  #
     F_constraint: CppConstraint = field(default_factory=lambda: CppConstraint())
 
     @property
@@ -385,8 +386,10 @@ class FmhaFwdPipeline:
         else:
             n += "_nqscale"
 
-        if self.F_sglang_layout == 't' : n += '_sglang'
-        else: n += '_vllm'
+        if self.F_sglang_layout == "t":
+            n += "_sglang"
+        else:
+            n += "_vllm"
 
         return n
 
@@ -542,7 +545,7 @@ class FmhaFwdKernel:
             F_dropout=BOOL_MAP[self.F_pipeline.F_dropout],
             F_qscale=QSCALE_MAP[self.F_pipeline.F_qscale],
             F_occupancy=self.F_tile.F_occupancy,
-            F_sglang_layout = BOOL_MAP[self.F_pipeline.F_sglang_layout],
+            F_sglang_layout=BOOL_MAP[self.F_pipeline.F_sglang_layout],
             F_pipeline_enum=PIPELINE_ENUM_MAP[self.F_pipeline.tag],
             F_mask=get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
             F_mode=MODE_MAP[self.F_mode],
@@ -618,7 +621,7 @@ class KernelComponentFactory:
                 BIAS_MAP.keys(),
                 ["t", "f"],
                 ["t", "f"],
-                ["t", "f"]
+                ["t", "f"],
             ):
                 pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, sglang))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, sglang))  # fmt: skip
@@ -675,7 +678,7 @@ def get_fwd_blobs(
                     or pipeline.F_logits == "f"
                 ):
                     continue
-                
+
                 # Generate kernels for both page_size=16 and page_size=1024
                 for page_size in SUPPORTED_PAGE_SIZE:
                     k = FmhaFwdKernel(
@@ -694,7 +697,7 @@ def get_fwd_blobs(
                     if optdim_list != [-1]:
                         if hdim not in optdim_list:
                             continue
-                    if pipeline.F_sglang_layout == 't' and page_size != 1:
+                    if pipeline.F_sglang_layout == "t" and page_size != 1:
                         continue  # sglang_layout with page_size > 1 not supported yet
                     # 2 - Flash attention integration
                     if receipt in (2, 3):
