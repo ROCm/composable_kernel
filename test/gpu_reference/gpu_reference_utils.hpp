@@ -10,6 +10,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
 // CPU references
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
@@ -42,9 +43,9 @@ void initialize_and_copy_tensor(Tensor<DataType>& host_tensor, DeviceMem& device
     device_mem.ToDevice(host_tensor.mData.data());
 }
 
-// Helper to get layout types based on NDimSpatial
+// Helper to get default layout types based on NDimSpatial
 template <index_t NDimSpatial>
-struct ConvLayoutTypes
+struct DefaultConvLayouts
 {
     using InLayout  = std::conditional_t<NDimSpatial == 3,
                                          tensor_layout::convolution::GNCDHW,
@@ -64,11 +65,16 @@ struct ConvLayoutTypes
 };
 
 // Forward convolution implementation
-template <index_t NDimSpatial, typename InDataType, typename WeiDataType, typename OutDataType>
+template <index_t NDimSpatial,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout>
 bool test_conv_fwd_impl(const ck::utils::conv::ConvParam& params,
                         const Tensor<InDataType>& input_cpu,
                         const Tensor<WeiDataType>& weight_cpu,
-                        const std::vector<index_t>& out_lengths_cpu,
                         DeviceMem& input_dev,
                         DeviceMem& weight_dev,
                         DeviceMem& output_dev)
@@ -76,12 +82,11 @@ bool test_conv_fwd_impl(const ck::utils::conv::ConvParam& params,
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
     using OutElementOp = tensor_operation::element_wise::PassThrough;
-    using Layouts      = ConvLayoutTypes<NDimSpatial>;
 
     // Call GPU reference with ConvParam directly
-    ref::naive_conv_fwd<typename Layouts::InLayout,
-                        typename Layouts::WeiLayout,
-                        typename Layouts::OutLayout,
+    ref::naive_conv_fwd<InLayout,
+                        WeiLayout,
+                        OutLayout,
                         InDataType,
                         WeiDataType,
                         OutDataType,
@@ -105,7 +110,8 @@ bool test_conv_fwd_impl(const ck::utils::conv::ConvParam& params,
 
     Tensor<InDataType> input_ref   = input_cpu;
     Tensor<WeiDataType> weight_ref = weight_cpu;
-    Tensor<OutDataType> output_ref(out_lengths_cpu);
+    Tensor<OutDataType> output_ref(
+        ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(params));
 
     auto ref_conv    = tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                 InDataType,
@@ -128,7 +134,7 @@ bool test_conv_fwd_impl(const ck::utils::conv::ConvParam& params,
     ref_invoker.Run(ref_arg);
 
     // Copy result from device and compare
-    Tensor<OutDataType> output_gpu(out_lengths_cpu);
+    Tensor<OutDataType> output_gpu(output_ref.mDesc);
     output_dev.FromDevice(output_gpu.mData.data());
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
@@ -137,11 +143,16 @@ bool test_conv_fwd_impl(const ck::utils::conv::ConvParam& params,
 }
 
 // Backward data convolution implementation
-template <index_t NDimSpatial, typename InDataType, typename WeiDataType, typename OutDataType>
+template <index_t NDimSpatial,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout>
 bool test_conv_bwd_data_impl(const ck::utils::conv::ConvParam& params,
                              const Tensor<WeiDataType>& weight_cpu,
                              const Tensor<OutDataType>& output_cpu,
-                             const std::vector<index_t>& in_lengths_cpu,
                              DeviceMem& weight_dev,
                              DeviceMem& output_dev,
                              DeviceMem& input_dev)
@@ -149,12 +160,11 @@ bool test_conv_bwd_data_impl(const ck::utils::conv::ConvParam& params,
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
     using OutElementOp = tensor_operation::element_wise::PassThrough;
-    using Layouts      = ConvLayoutTypes<NDimSpatial>;
 
     // Call GPU reference with ConvParam directly
-    ref::naive_conv_bwd_data<typename Layouts::InLayout,
-                             typename Layouts::WeiLayout,
-                             typename Layouts::OutLayout,
+    ref::naive_conv_bwd_data<InLayout,
+                             WeiLayout,
+                             OutLayout,
                              InDataType,
                              WeiDataType,
                              OutDataType,
@@ -176,7 +186,8 @@ bool test_conv_bwd_data_impl(const ck::utils::conv::ConvParam& params,
     std::vector<long_index_t> pads_long(params.input_left_pads_.begin(),
                                         params.input_left_pads_.end());
 
-    Tensor<InDataType> input_ref(in_lengths_cpu);
+    Tensor<InDataType> input_ref(
+        ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(params));
     Tensor<WeiDataType> weight_ref = weight_cpu;
     Tensor<OutDataType> output_ref = output_cpu;
 
@@ -201,7 +212,7 @@ bool test_conv_bwd_data_impl(const ck::utils::conv::ConvParam& params,
     ref_invoker.Run(ref_arg);
 
     // Copy result from device and compare
-    Tensor<InDataType> input_gpu(in_lengths_cpu);
+    Tensor<InDataType> input_gpu(input_ref.mDesc);
     input_dev.FromDevice(input_gpu.mData.data());
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
@@ -210,11 +221,16 @@ bool test_conv_bwd_data_impl(const ck::utils::conv::ConvParam& params,
 }
 
 // Backward weight convolution implementation
-template <index_t NDimSpatial, typename InDataType, typename WeiDataType, typename OutDataType>
+template <index_t NDimSpatial,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout>
 bool test_conv_bwd_weight_impl(const ck::utils::conv::ConvParam& params,
                                const Tensor<InDataType>& input_cpu,
                                const Tensor<OutDataType>& output_cpu,
-                               const std::vector<index_t>& wei_lengths_cpu,
                                DeviceMem& input_dev,
                                DeviceMem& output_dev,
                                DeviceMem& weight_dev)
@@ -222,12 +238,11 @@ bool test_conv_bwd_weight_impl(const ck::utils::conv::ConvParam& params,
     using InElementOp  = tensor_operation::element_wise::PassThrough;
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
     using OutElementOp = tensor_operation::element_wise::PassThrough;
-    using Layouts      = ConvLayoutTypes<NDimSpatial>;
 
     // Call GPU reference with ConvParam directly
-    ref::naive_conv_bwd_weight<typename Layouts::InLayout,
-                               typename Layouts::WeiLayout,
-                               typename Layouts::OutLayout,
+    ref::naive_conv_bwd_weight<InLayout,
+                               WeiLayout,
+                               OutLayout,
                                InDataType,
                                WeiDataType,
                                OutDataType,
@@ -250,7 +265,8 @@ bool test_conv_bwd_weight_impl(const ck::utils::conv::ConvParam& params,
                                         params.input_left_pads_.end());
 
     Tensor<InDataType> input_ref = input_cpu;
-    Tensor<WeiDataType> weight_ref(wei_lengths_cpu);
+    Tensor<WeiDataType> weight_ref(
+        ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(params));
     Tensor<OutDataType> output_ref = output_cpu;
 
     auto ref_conv    = tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
@@ -274,7 +290,7 @@ bool test_conv_bwd_weight_impl(const ck::utils::conv::ConvParam& params,
     ref_invoker.Run(ref_arg);
 
     // Copy result from device and compare
-    Tensor<WeiDataType> weight_gpu(wei_lengths_cpu);
+    Tensor<WeiDataType> weight_gpu(weight_ref.mDesc);
     weight_dev.FromDevice(weight_gpu.mData.data());
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
@@ -283,36 +299,29 @@ bool test_conv_bwd_weight_impl(const ck::utils::conv::ConvParam& params,
 }
 
 // Main test function - dispatches to specific implementations
-template <index_t NDimSpatial, typename InDataType, typename WeiDataType, typename OutDataType>
+template <index_t NDimSpatial,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InLayout  = typename DefaultConvLayouts<NDimSpatial>::InLayout,
+          typename WeiLayout = typename DefaultConvLayouts<NDimSpatial>::WeiLayout,
+          typename OutLayout = typename DefaultConvLayouts<NDimSpatial>::OutLayout>
 bool test_conv_gpu_ref(const ck::utils::conv::ConvParam& params, ConvKernelType kernel_type)
 {
-    // Calculate dimensions
-    const index_t N = params.N_;
-    const index_t K = params.K_;
-    const index_t C = params.C_;
-    const index_t G = params.G_;
+    // Create tensor descriptors using the specified layouts
+    const auto in_g_n_c_wis_desc =
+        ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(params);
 
-    // C and K in params are total channels, divide by G for per-group
-    const index_t C_per_group = C / G;
-    const index_t K_per_group = K / G;
+    const auto wei_g_k_c_xs_desc =
+        ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(params);
 
-    // Create tensors in CPU layout (GNCDHW/GKCZYX/GNKDHW)
-    // The wrappers will handle transformations to/from naive kernel format
-    std::vector<index_t> in_lengths = {G, N, C_per_group};
-    for(auto d : params.input_spatial_lengths_)
-        in_lengths.push_back(static_cast<index_t>(d));
+    const auto out_g_n_k_wos_desc =
+        ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(params);
 
-    std::vector<index_t> wei_lengths = {G, K_per_group, C_per_group};
-    for(auto d : params.filter_spatial_lengths_)
-        wei_lengths.push_back(static_cast<index_t>(d));
-
-    std::vector<index_t> out_lengths = {G, N, K_per_group};
-    for(auto d : params.output_spatial_lengths_)
-        out_lengths.push_back(static_cast<index_t>(d));
-
-    Tensor<InDataType> input(in_lengths);
-    Tensor<WeiDataType> weight(wei_lengths);
-    Tensor<OutDataType> output(out_lengths);
+    // Create tensors using tensor descriptors (supports multiple layouts)
+    Tensor<InDataType> input(in_g_n_c_wis_desc);
+    Tensor<WeiDataType> weight(wei_g_k_c_xs_desc);
+    Tensor<OutDataType> output(out_g_n_k_wos_desc);
 
     // Allocate device memory
     DeviceMem input_dev(input.mData.size() * sizeof(InDataType));
@@ -336,23 +345,39 @@ bool test_conv_gpu_ref(const ck::utils::conv::ConvParam& params, ConvKernelType 
         initialize_and_copy_tensor(output, output_dev);
     }
 
-    // Dispatch to appropriate implementation
-    // All tensors already in CPU layout (GNCDHW/GKCZYX/GNKDHW)
-    // Wrappers will handle all transformations automatically
+    // Dispatch to appropriate implementation with layout types
     if(kernel_type == ConvKernelType::Forward)
     {
-        return test_conv_fwd_impl<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-            params, input, weight, out_lengths, input_dev, weight_dev, output_dev);
+        return test_conv_fwd_impl<NDimSpatial,
+                                  InDataType,
+                                  WeiDataType,
+                                  OutDataType,
+                                  InLayout,
+                                  WeiLayout,
+                                  OutLayout>(
+            params, input, weight, input_dev, weight_dev, output_dev);
     }
     else if(kernel_type == ConvKernelType::BackwardData)
     {
-        return test_conv_bwd_data_impl<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-            params, weight, output, in_lengths, weight_dev, output_dev, input_dev);
+        return test_conv_bwd_data_impl<NDimSpatial,
+                                       InDataType,
+                                       WeiDataType,
+                                       OutDataType,
+                                       InLayout,
+                                       WeiLayout,
+                                       OutLayout>(
+            params, weight, output, weight_dev, output_dev, input_dev);
     }
     else // BackwardWeight
     {
-        return test_conv_bwd_weight_impl<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-            params, input, output, wei_lengths, input_dev, output_dev, weight_dev);
+        return test_conv_bwd_weight_impl<NDimSpatial,
+                                         InDataType,
+                                         WeiDataType,
+                                         OutDataType,
+                                         InLayout,
+                                         WeiLayout,
+                                         OutLayout>(
+            params, input, output, input_dev, output_dev, weight_dev);
     }
 }
 
