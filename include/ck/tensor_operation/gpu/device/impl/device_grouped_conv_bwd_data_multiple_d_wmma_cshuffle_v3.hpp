@@ -181,16 +181,13 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     }
 #endif
 #else
-    ignore = p_shared;
-    ignore = a_grid_desc_ak0_m_ak1;
-    ignore = b_grid_desc_bk0_n_bk1;
-    ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = karg;
+    ignore = gemm_kernel_args;
+    ignore = gemms_count;
     ignore = compute_ptr_offset_of_batch;
     ignore = compute_ptr_offset_of_n;
-    ignore = num_k_per_block;
-    ignore = karg;
-    ignore = epilogue_args;
+    ignore = KBatch;
+
 #endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 }
 
