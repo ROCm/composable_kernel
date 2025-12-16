@@ -68,7 +68,7 @@ enum struct AmdBufferCoherenceEnum
 // gfx94: bit 0 = sc0, bit 1 = nt, bit 3 = swz, bit 4 = sc1
 // SC[1:0] System Cache level: 0=wave, 1=group, 2=device, 3=system
 // NT Non-Temporal: 0=expect temporal reuse; 1=do not expect temporal reuse
-#elif defined(__gfx942__)
+#elif defined(__gfx942__) || defined(__gfx950__)
 
     WAVE   = 0,
     GROUP  = 1,
