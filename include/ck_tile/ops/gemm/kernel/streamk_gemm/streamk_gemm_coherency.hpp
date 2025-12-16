@@ -18,13 +18,8 @@ struct StreamKCoherency<CompilerTarget,
                                                           core::arch::amdgcn_target_id::GFX942,
                                                           core::arch::amdgcn_target_id::GFX950>>
 {
-#if defined(__gfx942__) || defined(__gfx950__)
     static constexpr amd_buffer_coherence_enum BUFFER_COHERENCE =
         amd_buffer_coherence_enum::SYSTEM_NT0;
-#else
-    static constexpr amd_buffer_coherence_enum BUFFER_COHERENCE =
-        amd_buffer_coherence_enum::coherence_default;
-#endif
 };
 
 template <typename CompilerTarget>
@@ -33,13 +28,8 @@ struct StreamKCoherency<CompilerTarget,
                                                           core::arch::amdgcn_target_id::GFX908,
                                                           core::arch::amdgcn_target_id::GFX90A>>
 {
-#if !defined(__gfx942__) && !defined(__gfx950__) && !defined(__gfx12__)
     static constexpr amd_buffer_coherence_enum BUFFER_COHERENCE =
         amd_buffer_coherence_enum::glc_slc;
-#else
-    static constexpr amd_buffer_coherence_enum BUFFER_COHERENCE =
-        amd_buffer_coherence_enum::coherence_default;
-#endif
 };
 
 } // namespace ck_tile

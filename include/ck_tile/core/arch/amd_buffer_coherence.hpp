@@ -70,6 +70,15 @@ enum struct amd_buffer_coherence_enum
     SYSTEM_RT_NT = RT_NT | SYSTEM,
     SYSTEM_NT_HT = NT_HT | SYSTEM,
     SYSTEM_NT_WB = NT_WB | SYSTEM,
+
+    // GFX942 and GFX950 compatiblity
+    WAVE_NT0 = WAVE_RT WAVE_NT1 = WAVE_NT GROUP_NT0 = GROUP_RT GROUP_NT1 = GROUP_NT DEVICE_NT0 =
+        DEVICE_RT DEVICE_NT1 = DEVICE_NT SYSTEM_NT0 = SYSTEM_RT SYSTEM_NT1 = SYSTEM_NT
+            // Other archs compatiblity
+            glc = DEVICE_NT,
+    slc         = SYSTEM_NT,
+    glc_slc     = DEVICE_NT | SYSTEM_NT,
+
 // gfx94: bit 0 = sc0, bit 1 = nt, bit 3 = swz, bit 4 = sc1
 // SC[1:0] System Cache level: 0=wave, 1=group, 2=device, 3=system
 // NT Non-Temporal: 0=expect temporal reuse; 1=do not expect temporal reuse
@@ -90,6 +99,11 @@ enum struct amd_buffer_coherence_enum
     DEVICE_NT1 = NT1 | DEVICE,
     SYSTEM_NT0 = NT0 | SYSTEM,
     SYSTEM_NT1 = NT1 | SYSTEM,
+
+    // Other archs compatiblity
+    glc     = DEVICE_NT1,
+    slc     = SYSTEM_NT1,
+    glc_slc = DEVICE_NT1 | SYSTEM_NT1,
 #else
     glc     = 1,
     slc     = 2,

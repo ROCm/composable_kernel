@@ -1740,16 +1740,6 @@ struct FmhaFwdKernel
             const auto q_dram = [&] {
                 const auto q_dram_naive = [&] {
                     {
-#if defined(__gfx12__)
-                        return make_naive_tensor_view<address_space_enum::global,
-                                                      memory_operation_enum::set,
-                                                      amd_buffer_coherence_enum::SYSTEM_NT>(
-                            q_ptr,
-                            make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                            make_tuple(kargs.stride_q, 1),
-                            number<FmhaPipeline::kAlignmentQ>{},
-                            number<1>{});
-#elif defined(__gfx942__) || defined(__gfx950__)
                         return make_naive_tensor_view<address_space_enum::global,
                                                       memory_operation_enum::set,
                                                       amd_buffer_coherence_enum::SYSTEM_NT1>(
@@ -1758,16 +1748,6 @@ struct FmhaFwdKernel
                             make_tuple(kargs.stride_q, 1),
                             number<FmhaPipeline::kAlignmentQ>{},
                             number<1>{});
-#else
-                        return make_naive_tensor_view<address_space_enum::global,
-                                                      memory_operation_enum::set,
-                                                      amd_buffer_coherence_enum::coherence_default>(
-                            q_ptr,
-                            make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                            make_tuple(kargs.stride_q, 1),
-                            number<FmhaPipeline::kAlignmentQ>{},
-                            number<1>{});
-#endif
                     }
                 }();
 
