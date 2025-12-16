@@ -494,16 +494,6 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                         "K must be divisible by QuantGroupSize::kK for BQuantGrouped mode");
                 }
             }
-            else if constexpr(QuantType == ck_tile::QuantType::ABQuantGrouped)
-            {
-                AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / QuantGroupSize
-                BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / QuantGroupSize
-                if(K % QuantGroupSize::kK != 0)
-                {
-                    throw std::runtime_error(
-                        "K must be divisible by QuantGroupSize::kK for ABQuantGrouped mode");
-                }
-            }
 
             stride_As[i] = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(ALayout{}));
             stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(BLayout{}));
@@ -529,13 +519,6 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             else if constexpr(QuantType == ck_tile::QuantType::BQuantGrouped)
             {
                 stride_AQs[i] = 0; // No A quantization
-                stride_BQs[i] =
-                    ck_tile::get_default_stride(BQK, N, stride_BQs[i], is_row_major(BQLayout()));
-            }
-            else if constexpr(QuantType == ck_tile::QuantType::ABQuantGrouped)
-            {
-                stride_AQs[i] =
-                    ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(AQLayout()));
                 stride_BQs[i] =
                     ck_tile::get_default_stride(BQK, N, stride_BQs[i], is_row_major(BQLayout()));
             }
@@ -578,15 +561,6 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                 aq_tensors.push_back(
                     ck_tile::HostTensor<AQDataType>(ck_tile::host_tensor_descriptor(
                         0, 0, stride_AQs[i], is_row_major(AQLayout{}))));
-                bq_tensors.push_back(
-                    ck_tile::HostTensor<BQDataType>(ck_tile::host_tensor_descriptor(
-                        BQK, N, stride_BQs[i], is_row_major(BQLayout()))));
-            }
-            else if constexpr(QuantType == ck_tile::QuantType::ABQuantGrouped)
-            {
-                aq_tensors.push_back(
-                    ck_tile::HostTensor<AQDataType>(ck_tile::host_tensor_descriptor(
-                        M, AQK, stride_AQs[i], is_row_major(AQLayout{}))));
                 bq_tensors.push_back(
                     ck_tile::HostTensor<BQDataType>(ck_tile::host_tensor_descriptor(
                         BQK, N, stride_BQs[i], is_row_major(BQLayout()))));
@@ -776,18 +750,6 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                               false>(
                     a_m_k_tensors[i], bq_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
             }
-            else if constexpr(QuantType == ck_tile::QuantType::ABQuantGrouped)
-            {
-                ck_tile::reference_gemm_abquant<ADataType,
-                                                AQDataType,
-                                                BDataType,
-                                                BQDataType,
-                                                AccDataType,
-                                                CDataType,
-                                                QuantGroupSize,
-                                                QuantGroupSize>(
-                    a_m_k_tensors[i], aq_tensors[i], b_k_n_tensors[i], bq_tensors[i], c_m_n_host_ref);
-            }
 
             const float max_accumulated_value =
                 *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
@@ -820,6 +782,3 @@ using TestCkTileGroupedGemmQuant_AQuant = TestCkTileGroupedGemmQuant<Tuple>;
 
 template <typename Tuple>
 using TestCkTileGroupedGemmQuant_BQuant = TestCkTileGroupedGemmQuant<Tuple>;
-
-template <typename Tuple>
-using TestCkTileGroupedGemmQuant_ABQuant = TestCkTileGroupedGemmQuant<Tuple>;
