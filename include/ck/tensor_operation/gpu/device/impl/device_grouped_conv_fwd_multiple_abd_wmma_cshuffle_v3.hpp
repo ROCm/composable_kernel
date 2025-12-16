@@ -200,6 +200,7 @@ template <index_t NDimSpatial,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
+          bool UseThreadTileTransfer                  = true,
           typename AComputeDataType =
               decltype(UnpackDataType<is_detected<is_tuple, ADataType>::value,
                                       Number<0>,
@@ -444,10 +445,10 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         BlkGemmPipelineVer,
         AComputeDataType,
         BComputeDataType,
-        false,  // PermuteA
-        false,  // PermuteB
-        false,  // IsBPreShuffled
-        false>; // ForceThreadTileTransfer
+        false,                  // PermuteA
+        false,                  // PermuteB
+        false,                  // IsBPreShuffled
+        UseThreadTileTransfer>; // ForceThreadTileTransfer
 
     // TODO: Previously available template param DoElementwiseBeforeCShuffle!
 
@@ -521,7 +522,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         false, // PermuteB
         false, // PermuteA
         false, // IsBPreShuffled
-        true>; // ForceThreadTileTransfer
+        true>; // ForceThreadTileTransfer (always force it because of limitations in the transfer)
 
     using GridwiseGemmCTranspose =
         std::conditional_t<CTranspose, GridwiseGemmSwappedParams, GridwiseGemm>;
