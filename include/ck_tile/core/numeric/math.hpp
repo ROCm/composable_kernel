@@ -41,9 +41,8 @@ struct scales
     Scale lhs_;
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
 template <typename Scale>
-__host__ __device__ scales(Scale) -> scales<Scale>;
+CK_TILE_HOST_DEVICE_EXTERN scales(Scale) -> scales<Scale>;
 
 template <typename Left = void, typename Right = Left>
 struct plus
@@ -66,8 +65,7 @@ struct plus<void, void>
     }
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ plus() -> plus<void, void>;
+CK_TILE_HOST_DEVICE_EXTERN plus() -> plus<void, void>;
 
 template <typename Left = void, typename Right = Left>
 struct minus
@@ -90,8 +88,7 @@ struct minus<void, void>
     }
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ minus() -> minus<void, void>;
+CK_TILE_HOST_DEVICE_EXTERN minus() -> minus<void, void>;
 
 template <typename Left = void, typename Right = Left>
 struct multiplies
@@ -114,8 +111,7 @@ struct multiplies<void, void>
     }
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ multiplies() -> multiplies<void, void>;
+CK_TILE_HOST_DEVICE_EXTERN multiplies() -> multiplies<void, void>;
 
 template <typename T>
 struct maximize
@@ -345,8 +341,7 @@ struct equal<void, void>
     }
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ equal() -> equal<void, void>;
+CK_TILE_HOST_DEVICE_EXTERN equal() -> equal<void, void>;
 
 template <>
 struct equal<float, float>
@@ -387,8 +382,7 @@ struct less<void, void>
     }
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ less() -> less<void, void>;
+CK_TILE_HOST_DEVICE_EXTERN less() -> less<void, void>;
 
 template <typename Left = void, typename Right = Left>
 struct less_equal
@@ -411,8 +405,7 @@ struct less_equal<void, void>
     }
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ less_equal() -> less_equal<void, void>;
+CK_TILE_HOST_DEVICE_EXTERN less_equal() -> less_equal<void, void>;
 
 template <>
 struct less_equal<float, float>

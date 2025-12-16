@@ -4,22 +4,73 @@
 #pragma once
 
 #include <concepts>
-#include <ck_tile/builder/conv_builder.hpp>
-#include <ck_tile/builder/conv_signature_concepts.hpp>
-#include <ck_tile/builder/reflect/instance_traits.hpp>
-#include <ck_tile/builder/reflect/instance_traits_util.hpp>
-#include <ck_tile/builder/types.hpp>
-#include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
-#include <ck/utility/loop_scheduler.hpp>
-#include <ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp>
-#include <ck_tile/ops/gemm.hpp>
+#include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/utility/pipeline_enum.hpp"
+#include "ck/utility/scheduler_enum.hpp"
+#include "ck_tile/builder/conv_signature_concepts.hpp"
+#include "ck_tile/builder/reflect/conv_types.hpp"
+#include "ck_tile/builder/reflect/instance_traits.hpp"
+#include "ck_tile/builder/reflect/instance_traits_util.hpp"
+#include "ck_tile/builder/types.hpp"
 #include "ck_tile/ops/epilogue.hpp"
-#include <ck_tile/ops/grouped_convolution.hpp>
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/ops/grouped_convolution.hpp"
 
 namespace ck_tile::reflect::conv {
+
+// Forward convolution layout concept - checks for A/B/E layout types
+template <typename T>
+concept HasFwdConvLayouts = requires {
+    typename T::ALayout;
+    typename T::BLayout;
+    typename T::ELayout;
+};
+
+// GEMM specialization concept - checks for kGemmSpecialization member
+template <typename T>
+concept HasGemmSpec = requires {
+    {
+        T::kGemmSpecialization
+    } -> std::convertible_to<ck::tensor_operation::device::GemmSpecialization>;
+};
+
+// Data types concept - checks for ADataType member
+template <typename T>
+concept HasDataTypes = requires { typename T::ADataType; };
+
+// Elementwise operations concept - checks for A/B/CDE elementwise operation types
+template <typename T>
+concept HasElementwiseOps = requires {
+    typename T::AElementwiseOperation;
+    typename T::BElementwiseOperation;
+    typename T::CDEElementwiseOperation;
+};
+
+// Tile parameters concept - checks for tile dimension and transfer members
+template <typename T>
+concept HasTileParams = requires {
+    { T::kKPerBlock } -> std::convertible_to<int>;
+    { T::kMPerBlock } -> std::convertible_to<int>;
+    { T::kNPerBlock } -> std::convertible_to<int>;
+    { T::kAK1 } -> std::convertible_to<int>;
+    { T::kBK1 } -> std::convertible_to<int>;
+    T::kCThreadClusterLengths;
+};
+
+// Comprehensive concept that checks if an instance has all XDL forward convolution traits
+// This concept is used to constrain ConvTraits specialization that expect XDL forward convolutions
+template <typename T>
+concept IsXdlFwdConv = HasFwdConvLayouts<T> && HasGemmSpec<T> && HasDataTypes<T> &&
+                       HasElementwiseOps<T> && HasTileParams<T>;
+
+// Primary concept for checking if a type can be described
+// Currently only forward convolutions are supported, but this can be extended
+// in the future to include backward data and backward weight convolutions
+template <typename T>
+concept HasConvTraits = IsXdlFwdConv<InstanceTraits<T>>;
 
 // Helper metafunctions to convert from ck enums to builder enums
 
@@ -35,16 +86,15 @@ constexpr auto convert_pipeline_version()
 {
     using enum ck::BlockGemmPipelineVersion;
     using enum builder::PipelineVersion;
-    if constexpr(ck_ver == v1)
-        return V1;
-    else if constexpr(ck_ver == v2)
-        return V2;
-    else if constexpr(ck_ver == v3)
-        return V3;
-    else if constexpr(ck_ver == v4)
-        return V4;
-    else if constexpr(ck_ver == v5)
-        return V5;
+
+    switch(ck_ver)
+    {
+    case v1: return V1;
+    case v2: return V2;
+    case v3: return V3;
+    case v4: return V4;
+    case v5: return V5;
+    }
 }
 
 /// @brief Converts a CK PipelineVersion enum to a builder PipelineVersion enum.
@@ -59,14 +109,14 @@ constexpr auto convert_pipeline_version()
 {
     using enum ck::PipelineVersion;
     using enum builder::PipelineVersion;
-    if constexpr(ck_ver == v1)
-        return V1;
-    else if constexpr(ck_ver == v2)
-        return V2;
-    else if constexpr(ck_ver == v4)
-        return V4;
-    else if constexpr(ck_ver == weight_only)
-        return WEIGHT_ONLY;
+
+    switch(ck_ver)
+    {
+    case v1: return V1;
+    case v2: return V2;
+    case v4: return V4;
+    case weight_only: return WEIGHT_ONLY;
+    }
 }
 
 /// @brief Converts a CK BlockGemmPipelineScheduler enum to a builder PipelineScheduler enum.
@@ -82,10 +132,12 @@ constexpr auto convert_pipeline_scheduler()
 {
     using enum ck::BlockGemmPipelineScheduler;
     using enum builder::PipelineScheduler;
-    if constexpr(ck_sched == Intrawave)
-        return INTRAWAVE;
-    else if constexpr(ck_sched == Interwave)
-        return INTERWAVE;
+
+    switch(ck_sched)
+    {
+    case Intrawave: return INTRAWAVE;
+    case Interwave: return INTERWAVE;
+    }
 }
 
 /// @brief Converts a CK LoopScheduler enum to a builder PipelineScheduler enum.
@@ -101,108 +153,26 @@ constexpr auto convert_pipeline_scheduler()
 {
     using enum ck::LoopScheduler;
     using enum builder::PipelineScheduler;
-    if constexpr(ck_sched == Default)
-        return DEFAULT;
-    else if constexpr(ck_sched == Interwave)
-        return INTERWAVE;
+
+    switch(ck_sched)
+    {
+    case Default: return DEFAULT;
+    case Interwave: return INTERWAVE;
+    }
 }
 
-/// @brief Helper structures for organizing trait data with domain-specific naming
-
-/// @brief Data tile dimensions processed by a workgroup.
-/// @details This struct defines the M, N, and K dimensions of the data tile
-/// that a single workgroup (thread block) is responsible for processing in the
-/// underlying GEMM computation.
-struct DataTileInfo
-{
-    int m; ///< M dimension of the tile processed by the workgroup (MPerBlock).
-    int n; ///< N dimension of the tile processed by the workgroup (NPerBlock).
-    int k; ///< K dimension of the tile processed by the workgroup (KPerBlock).
-};
-
-/// @brief Dimensions for an input data tile transfer.
-/// @details Defines the shape of the input tile (A or B matrix) as it is
-/// transferred from global memory to LDS. The tile is conceptually divided
-/// into k0 and k1 dimensions.
-struct InputTileTransferDimensions
-{
-    int k0;     ///< The outer dimension of K, where K = k0 * k1.
-    int m_or_n; ///< The M dimension for the A matrix transfer, or the N dimension for the B matrix.
-    int k1; ///< The inner dimension of K, often corresponding to the vector load size from global
-            ///< memory.
-};
-
-/// @brief Parameters governing the transfer of an input tile.
-/// @details This struct holds configuration details for how an input tile is
-/// loaded from global memory into LDS, including thread clustering, memory
-/// access patterns, and vectorization settings.
-struct InputTileTransferParams
-{
-    int k1; ///< The inner K dimension size, often matching the vectorization width.
-    std::array<int, 3>
-        thread_cluster_dims; ///< Spatial thread distribution over the input data tile; defines how
-                             ///< many threads are arranged on each axis.
-    std::array<int, 3> thread_cluster_order; ///< The order of thread spatial distribution over the
-                                             ///< input tensor dimensions.
-    std::array<int, 3> src_access_order; ///< The order of accessing input tensor axes (e.g., which
-                                         ///< dimension to read first).
-    int src_vector_dim; ///< The index of the axis on which vectorized memory access is performed
-                        ///< (the contiguous dimension).
-    int src_scalar_per_vector;    ///< The size of the vector access instruction; the number of
-                                  ///< elements accessed per thread per instruction.
-    int dst_scalar_per_vector_k1; ///< The size of the vectorized store into LDS memory along the K1
-                                  ///< dimension.
-    bool lds_padding; ///< Flag indicating if padding is used for the LDS tensor to prevent bank
-                      ///< conflicts.
-};
-
-/// @brief Complete information for an input tile transfer.
-/// @details Combines the dimensional information and transfer parameters for
-/// a full description of an input tile's journey from global memory to LDS.
-struct InputTileTransferInfo
-{
-    InputTileTransferDimensions tile_dimensions; ///< The shape and layout of the tile.
-    InputTileTransferParams transfer_params; ///< The parameters for the memory transfer operation.
-};
-
-/// @brief Parameters for the warp-level GEMM computation.
-/// @details Defines the configuration of the GEMM operation performed by each
-/// warp using hardware MFMA (Matrix Fused Multiply-Add) instructions.
-struct WarpGemmParams
-{
-    int gemm_m; ///< The M dimension of a single MFMA instruction (MPerXdl).
-    int gemm_n; ///< The N dimension of a single MFMA instruction (NPerXdl).
-    int m_iter; ///< The number of MFMA iterations along the M dimension of the output tile per
-                ///< wavefront (MXdlPerWave).
-    int n_iter; ///< The number of MFMA iterations along the N dimension of the output tile per
-                ///< wavefront (NXdlPerWave).
-};
-
-/// @brief Parameters for shuffling data between warps (CShuffle optimization).
-/// @details Configures how many MFMA instruction results are processed per
-/// wave in each iteration of the CShuffle routine.
-struct WarpShuffleParams
-{
-    int m_gemms_per_shuffle; ///< Number of MFMA results along the M dimension to process per wave
-                             ///< per shuffle iteration.
-    int n_gemms_per_shuffle; ///< Number of MFMA results along the N dimension to process per wave
-                             ///< per shuffle iteration.
-};
-
-/// @brief Information for the output tile transfer (CShuffle).
-/// @details Describes how the final computed tile (C matrix) is written out from
-/// LDS to global memory, including shuffling, thread clustering, and vectorization.
-struct OutputTileTransferInfo
-{
-    WarpShuffleParams shuffle_params; ///< Configuration for cross-warp data shuffling.
-    // m_block, m_wave_per_xdl, n_block, n_wave_per_xdl
-    std::array<int, 4> thread_cluster_dims; ///< The spatial thread distribution used for storing
-                                            ///< data into the output tensor.
-    int scalar_per_vector; ///< The size of the vectorized memory access when storing data to the
-                           ///< output tensor.
-};
-
 // Helper metafunctions to derive signature information from Instance types
+
+/// @brief Helper function to report unsupported convolution direction with a clear error message.
+template <typename Instance>
+consteval void report_unsupported_conv_direction_error()
+{
+    throw "Unsupported convolution direction detected!\n"
+          "The kernel instance does not have a recognized convolution specialization.\n"
+          "Expected one of: kConvForwardSpecialization, kConvBwdDataSpecialization, or "
+          "kConvBwdWeightSpecialization.\n"
+          "Please verify that your kernel instance is properly configured.";
+}
 
 /// @brief Derives the convolution direction from a device kernel `Instance` type.
 /// @tparam Instance The device kernel instance type.
@@ -213,20 +183,15 @@ constexpr builder::ConvDirection conv_direction()
     using InstTraits = InstanceTraits<Instance>;
 
     if constexpr(requires { &InstTraits::kConvForwardSpecialization; })
-    {
         return builder::ConvDirection::FORWARD;
-    }
     else if constexpr(requires { &InstTraits::kConvBwdDataSpecialization; })
-    {
         return builder::ConvDirection::BACKWARD_DATA;
-    }
     else if constexpr(requires { &InstTraits::kConvBwdWeightSpecialization; })
-    {
         return builder::ConvDirection::BACKWARD_WEIGHT;
-    }
     else
     {
-        return builder::ConvDirection::FORWARD; // Default fallback
+        report_unsupported_conv_direction_error<Instance>();
+        return builder::ConvDirection::FORWARD; // Unreachable
     }
 }
 
@@ -242,188 +207,206 @@ constexpr auto conv_spec()
     if constexpr(requires { InstTraits::kConvForwardSpecialization; })
     {
         using enum ck::tensor_operation::device::ConvolutionForwardSpecialization;
+        using enum builder::ConvFwdSpecialization;
 
-        if constexpr(InstTraits::kConvForwardSpecialization == Default)
+        switch(InstTraits::kConvForwardSpecialization)
         {
-            return builder::ConvFwdSpecialization::DEFAULT;
-        }
-        else if constexpr(InstTraits::kConvForwardSpecialization == Filter1x1Pad0)
-        {
-            return builder::ConvFwdSpecialization::FILTER_1X1_PAD0;
-        }
-        else if constexpr(InstTraits::kConvForwardSpecialization == Filter1x1Stride1Pad0)
-        {
-            return builder::ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0;
-        }
-        else if constexpr(InstTraits::kConvForwardSpecialization == Filter3x3)
-        {
-            return builder::ConvFwdSpecialization::FILTER_3x3;
+        case Default: return DEFAULT;
+        case Filter1x1Pad0: return FILTER_1X1_PAD0;
+        case Filter1x1Stride1Pad0: return FILTER_1X1_STRIDE1_PAD0;
+        case Filter3x3: return FILTER_3x3;
+        case OddC: return ODD_C;
         }
     }
     else if constexpr(requires { InstTraits::kConvBwdDataSpecialization; })
     {
         using enum ck::tensor_operation::device::ConvolutionBackwardDataSpecialization;
+        using enum builder::ConvBwdDataSpecialization;
 
-        if constexpr(InstTraits::kConvBwdDataSpecialization == Default)
+        switch(InstTraits::kConvBwdDataSpecialization)
         {
-            return builder::ConvBwdDataSpecialization::DEFAULT;
-        }
-        else if constexpr(InstTraits::kConvBwdDataSpecialization == Filter1x1Stride1Pad0)
-        {
-            return builder::ConvBwdDataSpecialization::FILTER_1X1_STRIDE1_PAD0;
+        case Default: return DEFAULT;
+        case Filter1x1Stride1Pad0: return FILTER_1X1_STRIDE1_PAD0;
         }
     }
     else if constexpr(requires { InstTraits::kConvBwdWeightSpecialization; })
     {
         using enum ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
+        using enum builder::ConvBwdWeightSpecialization;
 
-        if constexpr(InstTraits::kConvBwdWeightSpecialization == Default)
+        switch(InstTraits::kConvBwdWeightSpecialization)
         {
-            return builder::ConvBwdWeightSpecialization::DEFAULT;
-        }
-        else if constexpr(InstTraits::kConvBwdWeightSpecialization == Filter1x1Stride1Pad0)
-        {
-            return builder::ConvBwdWeightSpecialization::FILTER_1X1_STRIDE1_PAD0;
-        }
-        else if constexpr(InstTraits::kConvBwdWeightSpecialization == Filter1x1Pad0)
-        {
-            return builder::ConvBwdWeightSpecialization::FILTER_1X1_PAD0;
-        }
-        else if constexpr(InstTraits::kConvBwdWeightSpecialization == OddC)
-        {
-            return builder::ConvBwdWeightSpecialization::ODD_C;
+        case Default: return DEFAULT;
+        case Filter1x1Stride1Pad0: return FILTER_1X1_STRIDE1_PAD0;
+        case Filter1x1Pad0: return FILTER_1X1_PAD0;
+        case OddC: return ODD_C;
         }
     }
+}
+
+// Helper variable template to check if CK layout enums match
+template <typename A,
+          typename B,
+          typename E,
+          typename ExpectedA,
+          typename ExpectedB,
+          typename ExpectedE>
+inline constexpr bool layouts_are =
+    std::is_same_v<A, ExpectedA> && std::is_same_v<B, ExpectedB> && std::is_same_v<E, ExpectedE>;
+
+/// @brief Helper function to report unsupported layout combinations with a clear error message.
+/// @details This consteval function is designed to fail at compile time with a descriptive
+/// error message when an unsupported layout combination is encountered.
+template <typename A, typename B, typename E, int SpatialDim>
+consteval void report_unsupported_layout_error()
+{
+    // This will produce a compile-time error with the exception message
+    throw "Unsupported convolution layout combination detected!\n"
+          "The combination of ALayout, BLayout, and ELayout template parameters\n"
+          "is not recognized for the given spatial dimension.\n"
+          "Please verify that your convolution instance uses a supported layout configuration.\n"
+          "Check the conv_layout() function for the list of supported layout combinations.";
 }
 
 /// @brief Derives the grouped convolution layout from a device kernel `Instance` type.
 /// @tparam Instance The device kernel instance type.
-/// @return A `builder::GroupConvLayout{1D|2D|3D}` enum value corresponding to the tensor layouts.
+/// @return An std::array corresponding to the tensor layouts:
+///             index 0 -> Input layout
+///             index 1 -> Weight layout
+///             index 2 -> Output layout
 template <typename Instance>
 constexpr auto conv_layout()
+    requires HasFwdConvLayouts<InstanceTraits<Instance>>
 {
-    using InstTraits = InstanceTraits<Instance>;
-    using ALayout    = typename InstTraits::ALayout;
-    using BLayout    = typename InstTraits::BLayout;
-    using ELayout    = typename InstTraits::ELayout;
+    // Helper lambda to construct layout array
+    auto layouts = [](auto... Ls) { return std::array<builder::TensorLayout, 3>{Ls...}; };
 
-    namespace ctc = ck::tensor_layout::convolution;
+    using A       = typename InstanceTraits<Instance>::ALayout;
+    using B       = typename InstanceTraits<Instance>::BLayout;
+    using E       = typename InstanceTraits<Instance>::ELayout;
+    namespace ctl = ck::tensor_layout::convolution;
+    using enum builder::TensorLayout;
 
-    if constexpr(InstTraits::kSpatialDim == 1)
+    switch(InstanceTraits<Instance>::kSpatialDim)
     {
-        if constexpr(std::is_same_v<ALayout, ctc::GNWC> && std::is_same_v<BLayout, ctc::GKXC> &&
-                     std::is_same_v<ELayout, ctc::GNWK>)
-        {
-            return builder::GroupConvLayout1D::GNWC_GKXC_GNWK;
-        }
-        else if constexpr(std::is_same_v<ALayout, ctc::NWGC> &&
-                          std::is_same_v<BLayout, ctc::GKXC> && std::is_same_v<ELayout, ctc::NWGK>)
-        {
-            return builder::GroupConvLayout1D::NWGC_GKXC_NWGK;
-        }
-        else if constexpr(std::is_same_v<ALayout, ctc::NGCW> &&
-                          std::is_same_v<BLayout, ctc::GKXC> && std::is_same_v<ELayout, ctc::NGKW>)
-        {
-            return builder::GroupConvLayout1D::NGCW_GKXC_NGKW;
-        }
-        else if constexpr(std::is_same_v<ALayout, ctc::NGCW> &&
-                          std::is_same_v<BLayout, ctc::GKCX> && std::is_same_v<ELayout, ctc::NGKW>)
-        {
-            return builder::GroupConvLayout1D::NGCW_GKCX_NGKW;
-        }
+    case 1:
+        if constexpr(layouts_are<A, B, E, ctl::GNWC, ctl::GKXC, ctl::GNWK>)
+            return layouts(GNWC, GKXC, GNWK);
+        if constexpr(layouts_are<A, B, E, ctl::G_NW_C, ctl::G_K_X_C, ctl::G_NW_K>)
+            return layouts(GNWC, GKXC, GNWK);
+        if constexpr(layouts_are<A, B, E, ctl::NWGC, ctl::GKXC, ctl::NWGK>)
+            return layouts(NWGC, GKXC, NWGK);
+        if constexpr(layouts_are<A, B, E, ctl::NGCW, ctl::GKXC, ctl::NGKW>)
+            return layouts(NGCW, GKXC, NGKW);
+        if constexpr(layouts_are<A, B, E, ctl::NGCW, ctl::GKCX, ctl::NGKW>)
+            return layouts(NGCW, GKCX, NGKW);
+        break;
+    case 2:
+        if constexpr(layouts_are<A, B, E, ctl::GNHWC, ctl::GKYXC, ctl::GNHWK>)
+            return layouts(GNHWC, GKYXC, GNHWK);
+        if constexpr(layouts_are<A, B, E, ctl::G_NHW_C, ctl::G_K_YX_C, ctl::G_NHW_K>)
+            return layouts(GNHWC, GKYXC, GNHWK);
+        if constexpr(layouts_are<A, B, E, ctl::NHWGC, ctl::GKYXC, ctl::NHWGK>)
+            return layouts(NHWGC, GKYXC, NHWGK);
+        if constexpr(layouts_are<A, B, E, ctl::NHWGC, ctl::KYXGC, ctl::NHWGK>)
+            return layouts(NHWGC, GKYXC, NHWGK);
+        if constexpr(layouts_are<A, B, E, ctl::NGCHW, ctl::GKYXC, ctl::NGKHW>)
+            return layouts(NGCHW, GKYXC, NGKHW);
+        if constexpr(layouts_are<A, B, E, ctl::NGCHW, ctl::GKCYX, ctl::NGKHW>)
+            return layouts(NGCHW, GKCYX, NGKHW);
+        break;
+    case 3:
+        if constexpr(layouts_are<A, B, E, ctl::GNDHWC, ctl::GKZYXC, ctl::GNDHWK>)
+            return layouts(GNDHWC, GKZYXC, GNDHWK);
+        if constexpr(layouts_are<A, B, E, ctl::G_NDHW_C, ctl::G_K_ZYX_C, ctl::G_NDHW_K>)
+            return layouts(GNDHWC, GKZYXC, GNDHWK);
+        if constexpr(layouts_are<A, B, E, ctl::NDHWGC, ctl::GKZYXC, ctl::NDHWGK>)
+            return layouts(NDHWGC, GKZYXC, NDHWGK);
+        if constexpr(layouts_are<A, B, E, ctl::NGCDHW, ctl::GKZYXC, ctl::NGKDHW>)
+            return layouts(NGCDHW, GKZYXC, NGKDHW);
+        if constexpr(layouts_are<A, B, E, ctl::NGCDHW, ctl::GKCZYX, ctl::NGKDHW>)
+            return layouts(NGCDHW, GKCZYX, NGKDHW);
+        break;
     }
-    else if constexpr(InstTraits::kSpatialDim == 2)
-    {
-        if constexpr(std::is_same_v<ALayout, ctc::GNHWC> && std::is_same_v<BLayout, ctc::GKYXC> &&
-                     std::is_same_v<ELayout, ctc::GNHWK>)
-        {
-            return builder::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
-        }
-        else if constexpr(std::is_same_v<ALayout, ctc::NHWGC> &&
-                          std::is_same_v<BLayout, ctc::GKYXC> &&
-                          std::is_same_v<ELayout, ctc::NHWGK>)
-        {
-            return builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK;
-        }
-        else if constexpr(std::is_same_v<ALayout, ctc::NGCHW> &&
-                          std::is_same_v<BLayout, ctc::GKYXC> &&
-                          std::is_same_v<ELayout, ctc::NGKHW>)
-        {
-            return builder::GroupConvLayout2D::NGCHW_GKYXC_NGKHW;
-        }
-        else if constexpr(std::is_same_v<ALayout, ctc::NGCHW> &&
-                          std::is_same_v<BLayout, ctc::GKCYX> &&
-                          std::is_same_v<ELayout, ctc::NGKHW>)
-        {
-            return builder::GroupConvLayout2D::NGCHW_GKCYX_NGKHW;
-        }
-    }
-    else if constexpr(InstTraits::kSpatialDim == 3)
-    {
-        if constexpr(std::is_same_v<ALayout, ctc::GNDHWC> && std::is_same_v<BLayout, ctc::GKZYXC> &&
-                     std::is_same_v<ELayout, ctc::GNDHWK>)
-        {
-            return builder::GroupConvLayout3D::GNDHWC_GKZYXC_GNDHWK;
-        }
-        else if constexpr(std::is_same_v<ALayout, ctc::NDHWGC> &&
-                          std::is_same_v<BLayout, ctc::GKZYXC> &&
-                          std::is_same_v<ELayout, ctc::NDHWGK>)
-        {
-            return builder::GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK;
-        }
-        else if constexpr(std::is_same_v<ALayout, ctc::NGCDHW> &&
-                          std::is_same_v<BLayout, ctc::GKZYXC> &&
-                          std::is_same_v<ELayout, ctc::NGKDHW>)
-        {
-            return builder::GroupConvLayout3D::NGCDHW_GKZYXC_NGKDHW;
-        }
-        else if constexpr(std::is_same_v<ALayout, ctc::NGCDHW> &&
-                          std::is_same_v<BLayout, ctc::GKCZYX> &&
-                          std::is_same_v<ELayout, ctc::NGKDHW>)
-        {
-            return builder::GroupConvLayout3D::NGCDHW_GKCZYX_NGKDHW;
-        }
-    }
+
+    // If we reach here, the layout combination is not supported
+    // Call consteval function to trigger a compile-time error with a clear message
+    report_unsupported_layout_error<A, B, E, InstanceTraits<Instance>::kSpatialDim>();
+
+    // This return is unreachable but needed to satisfy the compiler
+    return layouts(GNHWC, GKYXC, GNHWK);
+}
+
+/// @brief Helper function to report unsupported data type with a clear error message.
+template <typename ADataType>
+consteval void report_unsupported_data_type_error()
+{
+    throw "Unsupported data type detected!\n"
+          "The ADataType is not recognized.\n"
+          "Supported types are: ck::half_t (FP16), ck::Tuple<ck::half_t, ck::half_t> (FP16_FP16), "
+          "ck::bhalf_t (BF16), ck::Tuple<ck::bhalf_t, ck::bhalf_t> (BF16_BF16), float (FP32), "
+          "ck::Tuple<float, float> (FP32_FP32), double (FP64), ck::f8_t (FP8), ck::bf8_fnuz_t "
+          "(BF8), "
+          "int8_t (I8), ck::Tuple<int8_t, int8_t> (I8_I8), uint8_t (U8).\n"
+          "Please verify that your kernel instance uses a supported data type.";
 }
 
 /// @brief Derives the data type from a device kernel `Instance` type.
-/// @tparam Instance The device kernel instance type.
-/// @return A `builder::DataType` enum value (e.g., FP16, BF16, FP32).
+/// Returns a `builder::DataType` enum value (e.g., FP16, BF16, FP32, BF8).
 template <typename Instance>
 constexpr builder::DataType conv_data_type()
+    requires HasDataTypes<InstanceTraits<Instance>>
 {
     using InstTraits = InstanceTraits<Instance>;
     using ADataType  = typename InstTraits::ADataType;
+    using enum builder::DataType;
 
     if constexpr(std::is_same_v<ADataType, ck::half_t>)
-    {
-        return builder::DataType::FP16;
-    }
+        return FP16;
+    else if constexpr(std::is_same_v<ADataType, ck::Tuple<ck::half_t, ck::half_t>>)
+        return FP16_FP16;
     else if constexpr(std::is_same_v<ADataType, ck::bhalf_t>)
-    {
-        return builder::DataType::BF16;
-    }
+        return BF16;
+    else if constexpr(std::is_same_v<ADataType, ck::Tuple<ck::bhalf_t, ck::bhalf_t>>)
+        return BF16_BF16;
     else if constexpr(std::is_same_v<ADataType, float>)
-    {
-        return builder::DataType::FP32;
-    }
+        return FP32;
+    else if constexpr(std::is_same_v<ADataType, ck::Tuple<float, float>>)
+        return FP32_FP32;
+    else if constexpr(std::is_same_v<ADataType, double>)
+        return FP64;
     else if constexpr(std::is_same_v<ADataType, ck::f8_t>)
-    {
-        return builder::DataType::FP8;
-    }
+        return FP8;
+    else if constexpr(std::is_same_v<ADataType, ck::bf8_fnuz_t>)
+        return BF8;
+    else if constexpr(std::is_same_v<ADataType, ck::bf8_ocp_t>)
+        return BF8;
     else if constexpr(std::is_same_v<ADataType, int8_t>)
-    {
-        return builder::DataType::I8;
-    }
+        return I8;
+    else if constexpr(std::is_same_v<ADataType, ck::Tuple<int8_t, int8_t>>)
+        return I8_I8;
     else if constexpr(std::is_same_v<ADataType, uint8_t>)
-    {
-        return builder::DataType::U8;
-    }
+        return U8;
     else
     {
-        // Default fallback
-        return builder::DataType::FP32;
+        report_unsupported_data_type_error<ADataType>();
+        return FP32; // Unreachable
     }
+}
+
+/// @brief Helper function to report unsupported elementwise operation with a clear error message.
+template <typename ElementwiseOp>
+consteval void report_unsupported_elementwise_op_error()
+{
+    throw "Unsupported elementwise operation detected!\n"
+          "The elementwise operation type is not recognized.\n"
+          "Supported operations are: AddClamp, AddReluAdd, BiasBnormClamp, Bilinear, "
+          "BiasNormalizeInInferClamp, Clamp, ConvInvscale, ConvScale, ConvScaleAdd, "
+          "ConvScaleRelu, Scale, ScaleAdd, PassThrough, ScaleAddScaleAddRelu, DynamicUnaryOp, "
+          "UnaryCombinedOp, Activation_Mul2_Clamp, Activation_Mul_Clamp, Add_Activation_Mul_Clamp, "
+          "Add_Activation_Mul2_Clamp, Add_Mul_Activation_Mul_Clamp, Add_Mul2_Activation_Mul_Clamp, "
+          "UnaryConvert.\n"
+          "Please verify that your kernel instance uses a supported elementwise operation.";
 }
 
 /// @brief Derives the elementwise operation from op type.
@@ -432,34 +415,85 @@ constexpr builder::DataType conv_data_type()
 template <typename ElementwiseOp>
 constexpr builder::ElementwiseOperation elementwise_op()
 {
+    using enum builder::ElementwiseOperation;
     constexpr std::string_view name = detail::elementwise_op_name<ElementwiseOp>();
-    if constexpr(detail::case_insensitive_equal(name, "Bias"))
-    {
-        return builder::ElementwiseOperation::BIAS;
-    }
-    else if constexpr(detail::case_insensitive_equal(name, "BiasClamp"))
-    {
-        return builder::ElementwiseOperation::BIAS_CLAMP;
-    }
+
+    if constexpr(detail::case_insensitive_equal(name, "AddClamp"))
+        return ADD_CLAMP;
+    else if constexpr(detail::case_insensitive_equal(name, "AddReluAdd"))
+        return ADD_RELU_ADD;
     else if constexpr(detail::case_insensitive_equal(name, "BiasBnormClamp"))
-    {
-        return builder::ElementwiseOperation::BIAS_BNORM_CLAMP;
-    }
+        return BIAS_BNORM_CLAMP;
     else if constexpr(detail::case_insensitive_equal(name, "Bilinear"))
-    {
-        return builder::ElementwiseOperation::BILINEAR;
-    }
+        return BILINEAR;
+    else if constexpr(detail::case_insensitive_equal(name, "BiasNormalizeInInferClamp"))
+        return BIAS_BNORM_CLAMP;
     else if constexpr(detail::case_insensitive_equal(name, "Clamp"))
-    {
-        return builder::ElementwiseOperation::CLAMP;
-    }
+        return CLAMP;
+    else if constexpr(detail::case_insensitive_equal(name, "ConvInvscale"))
+        return CONV_INVSCALE;
+    else if constexpr(detail::case_insensitive_equal(name, "ConvScale"))
+        return CONV_SCALE;
+    else if constexpr(detail::case_insensitive_equal(name, "ConvScaleAdd"))
+        return CONV_SCALE_ADD;
+    else if constexpr(detail::case_insensitive_equal(name, "ConvScaleRelu"))
+        return CONV_SCALE_RELU;
     else if constexpr(detail::case_insensitive_equal(name, "Scale"))
-    {
-        return builder::ElementwiseOperation::SCALE;
-    }
+        return SCALE;
+    else if constexpr(detail::case_insensitive_equal(name, "ScaleAdd"))
+        return SCALE_ADD;
     else if constexpr(detail::case_insensitive_equal(name, "PassThrough"))
+        return PASS_THROUGH;
+    else if constexpr(detail::case_insensitive_equal(name, "ScaleAddScaleAddRelu"))
+        return SCALEADD_SCALEADD_RELU;
+    else if constexpr(detail::case_insensitive_equal(name, "DynamicUnaryOp"))
+        return DYNAMIC_UNARY_OP;
+    else if constexpr(detail::case_insensitive_equal(name, "UnaryCombinedOp"))
+        return UNARY_COMBINED_OP;
+    else if constexpr(detail::case_insensitive_equal(name, "Activation_Mul2_Clamp"))
+        return ACTIVATION_MUL2_CLAMP;
+    else if constexpr(detail::case_insensitive_equal(name, "Activation_Mul_Clamp"))
+        return ACTIVATION_MUL_CLAMP;
+    else if constexpr(detail::case_insensitive_equal(name, "Add_Activation_Mul_Clamp"))
+        return ADD_ACTIVATION_MUL_CLAMP;
+    else if constexpr(detail::case_insensitive_equal(name, "Add_Activation_Mul2_Clamp"))
+        return ADD_ACTIVATION_MUL2_CLAMP;
+    else if constexpr(detail::case_insensitive_equal(name, "Add_Mul_Activation_Mul_Clamp"))
+        return ADD_MUL_ACTIVATION_MUL_CLAMP;
+    else if constexpr(detail::case_insensitive_equal(name, "Add_Mul2_Activation_Mul_Clamp"))
+        return ADD_MUL2_ACTIVATION_MUL_CLAMP;
+    else if constexpr(detail::case_insensitive_equal(name, "UnaryConvert"))
+        return UNARY_CONVERT;
+    else if constexpr(detail::case_insensitive_equal(name, "Logistic"))
+        return LOGISTIC;
+    else if constexpr(detail::case_insensitive_equal(name, "ClippedRelu"))
+        return CLIPPED_RELU;
+    else if constexpr(detail::case_insensitive_equal(name, "Swish"))
+        return SWISH;
+    else if constexpr(detail::case_insensitive_equal(name, "Elu"))
+        return ELU;
+    else if constexpr(detail::case_insensitive_equal(name, "Power"))
+        return POWER;
+    else if constexpr(detail::case_insensitive_equal(name, "LeakyRelu"))
+        return LEAKY_RELU;
+    else if constexpr(detail::case_insensitive_equal(name, "UnaryAbs"))
+        return UNARY_ABS;
+    else if constexpr(detail::case_insensitive_equal(name, "Relu"))
+        return RELU;
+    else if constexpr(detail::case_insensitive_equal(name, "SoftRelu"))
+        return SOFT_RELU;
+    else if constexpr(detail::case_insensitive_equal(name, "Sigmoid"))
+        return SIGMOID;
+    else if constexpr(detail::case_insensitive_equal(name, "TanH"))
+        return TANH;
+    else if constexpr(detail::case_insensitive_equal(name, "Gelu"))
+        return GELU;
+    else if constexpr(detail::case_insensitive_equal(name, "Silu"))
+        return SILU;
+    else
     {
-        return builder::ElementwiseOperation::PASS_THROUGH;
+        report_unsupported_elementwise_op_error<ElementwiseOp>();
+        return PASS_THROUGH; // Unreachable
     }
 }
 
@@ -468,6 +502,7 @@ constexpr builder::ElementwiseOperation elementwise_op()
 /// @return A `builder::GemmPadding` enum value corresponding to kernel padding.
 template <typename Instance>
 constexpr builder::GemmPadding gemm_spec()
+    requires HasGemmSpec<InstanceTraits<Instance>>
 {
     using InstTraits = InstanceTraits<Instance>;
     using enum builder::GemmPadding;
@@ -475,69 +510,24 @@ constexpr builder::GemmPadding gemm_spec()
 
     constexpr auto gemm_spec = InstTraits::kGemmSpecialization;
 
-    if constexpr(gemm_spec == Default)
+    switch(gemm_spec)
     {
-        return DEFAULT;
-    }
-    else if constexpr(gemm_spec == MPadding)
-    {
-        return M_PADDING;
-    }
-    else if constexpr(gemm_spec == NPadding)
-    {
-        return N_PADDING;
-    }
-    else if constexpr(gemm_spec == KPadding)
-    {
-        return K_PADDING;
-    }
-    else if constexpr(gemm_spec == MNPadding)
-    {
-        return MN_PADDING;
-    }
-    else if constexpr(gemm_spec == MKPadding)
-    {
-        return MK_PADDING;
-    }
-    else if constexpr(gemm_spec == NKPadding)
-    {
-        return NK_PADDING;
-    }
-    else if constexpr(gemm_spec == MNKPadding)
-    {
-        return MNK_PADDING;
-    }
-    else if constexpr(gemm_spec == OPadding)
-    {
-        return O_PADDING;
-    }
-    else if constexpr(gemm_spec == MOPadding)
-    {
-        return MO_PADDING;
-    }
-    else if constexpr(gemm_spec == NOPadding)
-    {
-        return NO_PADDING;
-    }
-    else if constexpr(gemm_spec == KOPadding)
-    {
-        return KO_PADDING;
-    }
-    else if constexpr(gemm_spec == MNOPadding)
-    {
-        return MNO_PADDING;
-    }
-    else if constexpr(gemm_spec == MKOPadding)
-    {
-        return MKO_PADDING;
-    }
-    else if constexpr(gemm_spec == NKOPadding)
-    {
-        return NKO_PADDING;
-    }
-    else if constexpr(gemm_spec == MNKOPadding)
-    {
-        return MNKO_PADDING;
+    case Default: return DEFAULT;
+    case MPadding: return M_PADDING;
+    case NPadding: return N_PADDING;
+    case KPadding: return K_PADDING;
+    case MNPadding: return MN_PADDING;
+    case MKPadding: return MK_PADDING;
+    case NKPadding: return NK_PADDING;
+    case MNKPadding: return MNK_PADDING;
+    case OPadding: return O_PADDING;
+    case MOPadding: return MO_PADDING;
+    case NOPadding: return NO_PADDING;
+    case KOPadding: return KO_PADDING;
+    case MNOPadding: return MNO_PADDING;
+    case MKOPadding: return MKO_PADDING;
+    case NKOPadding: return NKO_PADDING;
+    case MNKOPadding: return MNKO_PADDING;
     }
 }
 
@@ -552,6 +542,7 @@ struct ConvTraits;
 /// set of traits directly from a fully-formed device kernel `Instance` type.
 /// It uses `InstanceTraits` to access the kernel's template parameters.
 template <HasInstanceTraits Instance>
+    requires IsXdlFwdConv<InstanceTraits<Instance>>
 struct ConvTraits<Instance>
 {
     using InstTraits = InstanceTraits<Instance>;
@@ -674,47 +665,6 @@ struct ConvTraits<Instance>
 
     /// @brief The pipeline scheduler used by the kernel.
     static constexpr auto pipeline_scheduler = get_pipeline_scheduler();
-};
-
-/// @brief Specialization of `ConvTraits` for a `ConvBuilder` type.
-/// @details This specialization provides backward compatibility for reflecting
-/// on kernels defined via the `ConvBuilder` interface. It works by first
-/// creating the `Instance` via the builder, and then delegating
-/// all trait extraction to the `ConvTraits<Instance>` specialization.
-template <builder::ConvSignatureDescriptor auto SIGNATURE,
-          builder::ConvAlgorithmDescriptor auto ALGORITHM,
-          builder::StringLiteral VERSION>
-struct ConvTraits<builder::ConvBuilder<SIGNATURE, ALGORITHM, VERSION>>
-{
-    using Instance = typename builder::ConvBuilder<SIGNATURE, ALGORITHM, VERSION>::Instance;
-
-    // Delegate to Instance-based ConvTraits
-    using InstanceConvTraits = ConvTraits<Instance>;
-
-    // Forward all members from Instance-based traits
-    static constexpr int spatial_dim                  = InstanceConvTraits::spatial_dim;
-    static constexpr builder::ConvDirection direction = InstanceConvTraits::direction;
-    static constexpr auto layout                      = InstanceConvTraits::layout;
-    static constexpr builder::DataType data_type      = InstanceConvTraits::data_type;
-
-    static constexpr builder::ElementwiseOperation input_element_op =
-        InstanceConvTraits::input_element_op;
-    static constexpr builder::ElementwiseOperation weight_element_op =
-        InstanceConvTraits::weight_element_op;
-    static constexpr builder::ElementwiseOperation output_element_op =
-        InstanceConvTraits::output_element_op;
-
-    static constexpr auto gemm_padding        = InstanceConvTraits::gemm_padding;
-    static constexpr auto conv_specialization = InstanceConvTraits::conv_specialization;
-
-    static constexpr int thread_block_size                  = InstanceConvTraits::thread_block_size;
-    static constexpr DataTileInfo tile_dims                 = InstanceConvTraits::tile_dims;
-    static constexpr InputTileTransferInfo a_tile_transfer  = InstanceConvTraits::a_tile_transfer;
-    static constexpr InputTileTransferInfo b_tile_transfer  = InstanceConvTraits::b_tile_transfer;
-    static constexpr WarpGemmParams warp_gemm               = InstanceConvTraits::warp_gemm;
-    static constexpr OutputTileTransferInfo c_tile_transfer = InstanceConvTraits::c_tile_transfer;
-    static constexpr auto pipeline_version                  = InstanceConvTraits::pipeline_version;
-    static constexpr auto pipeline_scheduler = InstanceConvTraits::pipeline_scheduler;
 };
 
 } // namespace ck_tile::reflect::conv
