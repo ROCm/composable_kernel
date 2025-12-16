@@ -47,6 +47,16 @@ struct StreamKTilePartitionerBase
 
     public:
     /**
+     * @brief Calculates the start iteration for the given the cta_idx.
+     * @param cta_idx     The current Stream-K workgroup's index.
+     * @return index_t    The start iteration.
+     * @note It is assumed that the first Stream-K workgroup has a `cta_idx` of zero. If a
+     * non-persistent DP section is used, then a Stream-K workgroup's `cta_idx` should be something
+     * like `blockIdx.x` minus number of DP workgroups.
+     */
+    CK_TILE_DEVICE index_t get_start_iter(index_t cta_idx) const noexcept;
+
+    /**
      * @brief Calculates the start and end iteration given the cta_idx.
      *
      * @param iter_start  Reference to an index_t; will be set to the starting iteration by the
@@ -107,7 +117,17 @@ struct StreamKTilePartitionerBase
     get_local_iter_end(index_t tile_iter_start, index_t iter_end, index_t tile_iter_end) noexcept;
 
     /**
-     * @brief Calculates the workgroups 2D tile index in the C tensor given the 1D tile index.
+     * @brief Calculates the workgroup's local CTA idx within the given tile.
+     *
+     * @param tile_iter_start  The starting tile iteration.
+     * @param cta_idx          The Stream-K workgroup index.
+     * @return index_t         The tile local workgroup index in the tile.
+     */
+    CK_TILE_DEVICE index_t get_tile_local_cta_index(index_t tile_iter_start,
+                                                    index_t cta_idx) const noexcept;
+
+    /**
+     * @brief Calculates the workgroup's 2D tile index in the C tensor given the 1D tile index.
      *
      * @param tile_idx  The 1D tile index in the C tensor for the workgroup.
      * @return index_t  The corresponding 2D tile index in the C tensor for the workgroup.
