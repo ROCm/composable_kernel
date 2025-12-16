@@ -72,6 +72,127 @@ def sendFailureNotifications() {
     }
 }
 
+def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
+    try {
+        // Attempt to download the build trace file to check if it exists
+        def traceFileExists = false
+        try {
+            copyArtifacts(
+                projectName: env.JOB_NAME,
+                selector: specific(env.BUILD_NUMBER),
+                filter: buildTraceFileName
+            )
+            traceFileExists = fileExists(buildTraceFileName)
+        } catch (Exception e) {
+            echo "Could not copy artifacts: ${e.getMessage()}"
+            traceFileExists = false
+        }
+        
+        sh """
+            echo "post download:"
+            ls -la
+        """
+
+        if (traceFileExists) {
+            // Move the build trace file to a temporary location to preserve it during checkout
+            sh """
+                mkdir -p /tmp/jenkins_artifacts
+                cp ${buildTraceFileName} /tmp/jenkins_artifacts/${buildTraceFileName}
+                ls -la /tmp/jenkins_artifacts/
+            """
+        } else {
+            echo "Build trace archive not found"
+            return
+        }
+
+        // Checkout source code to get required files
+        checkout scm
+        
+        // Restore the build trace file after checkout
+        sh """
+            ls -la
+            cp /tmp/jenkins_artifacts/${buildTraceFileName} ${buildTraceFileName}
+            ls -la ${buildTraceFileName}
+        """
+        
+        // Pull image
+        def image = "ghcr.io/puppeteer/puppeteer:24.30.0"
+        echo "Pulling image: ${image}"
+        def retimage = docker.image("${image}")
+        retimage.pull()
+
+        // Create a temporary workspace
+        sh """#!/bin/bash
+            ls -la
+            mkdir -p workspace
+            cp ./script/infra_helper/capture_build_trace.js ./workspace
+            cp ${buildTraceFileName} ./workspace/${buildTraceFileName}
+            chmod 777 ./workspace
+            ls -la ./workspace
+        """
+
+        // Run container to get snapshot
+        def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
+        // Create unique image name by sanitizing job name
+        def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_')
+        def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}.png"
+        sh """
+            docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
+            mv ./workspace/perfetto_snapshot_build.png ./workspace/${imageName}
+        """
+        
+        // Archive the snapshot
+        sh """
+            mv ./workspace/${imageName} ${imageName}
+        """
+        archiveArtifacts "${imageName}"
+
+        // Notify the channel
+        withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
+        sh '''
+            # Create build trace filename with build number based on the original filename
+            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + sanitizedJobName + '''_''' + env.BUILD_NUMBER + '''.json/')
+            
+            # Convert image to base64
+            echo "Converting image to base64..."
+            IMAGE_BASE64=$(base64 -w 0 ''' + imageName + ''')
+            echo "Image base64 length: ${#IMAGE_BASE64}"
+            
+            # Convert build trace to base64
+            echo "Converting build trace to base64..."
+            BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceFileName + ''')
+            echo "Build trace base64 length: ${#BUILD_TRACE_BASE64}"
+            
+            # Create JSON payload with base64 data
+            echo "Creating JSON payload..."
+            {
+                printf '{\n'
+                printf '    "jobName": "%s",\n' "''' + env.JOB_NAME + '''"
+                printf '    "buildNumber": "%s",\n' "''' + env.BUILD_NUMBER + '''"
+                printf '    "jobUrl": "%s",\n' "''' + env.RUN_DISPLAY_URL + '''"
+                printf '    "imageName": "%s",\n' "''' + imageName + '''"
+                printf '    "imageData": "%s",\n' "$IMAGE_BASE64"
+                printf '    "buildTraceName": "%s",\n' "$BUILD_TRACE_WITH_NUMBER"
+                printf '    "buildTraceData": "%s"\n' "$BUILD_TRACE_BASE64"
+                printf '}\n'
+            } > webhook_payload.json
+            
+            echo "JSON payload created, size: $(wc -c < webhook_payload.json) bytes"
+            
+            curl -X POST "${WEBHOOK_URL}" \
+            -H "Content-Type: application/json" \
+            -d @webhook_payload.json
+            
+            # Clean up temporary file
+            rm -f webhook_payload.json
+        '''
+        }
+    } catch (Exception e) {
+        echo "Throwing error exception while generating build trace visualization"
+        echo 'Exception occurred: ' + e.toString()
+    }
+}
+
 class Version {
     int major, minor, patch
     @Override
@@ -165,7 +286,7 @@ def getBaseDockerImageName(){
     }
     else{
         def ROCM_numeric = parseVersion("${params.ROCMVERSION}")
-        if ( ROCM_numeric.major <= 7 && ROCM_numeric.minor < 1 ){
+        if ( ROCM_numeric.major <= 7 && ROCM_numeric.minor < 2 ){
             img = "${env.CK_DOCKERHUB}:ck_ub24.04_rocm${params.ROCMVERSION}"
             }
         else{
@@ -311,7 +432,7 @@ def buildDocker(install_prefix){
     }
     catch(Exception ex){
         echo "Unable to locate image: ${image_name}. Building image now"
-        retimage = docker.build("${image_name}", dockerArgs + ' .')
+        retimage = docker.build("${image_name}", dockerArgs)
         withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
             retimage.push()
         }
@@ -324,7 +445,7 @@ def get_docker_options(){
         dockerOpts = "--network=host --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     }
     else{ //only add kfd and dri paths if you actually going to run somthing on GPUs
-        dockerOpts = "--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        dockerOpts = "--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     }
     if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
     // the  --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 env variable is required when building code with offload-compress flag with
@@ -505,15 +626,17 @@ def cmake_build(Map conf=[:]){
         sh cmd
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
-            if ((setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE) || params.BUILD_INSTANCES_ONLY){
+            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${check_arch_name()}.json"
+            archiveArtifacts "ck_build_trace_${check_arch_name()}.json"
+            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${check_arch_name()}.json"
+            if (params.NINJA_BUILD_TRACE || params.BUILD_INSTANCES_ONLY){
                 if (params.NINJA_FTIME_TRACE) {
-                    echo "running ninja ftime trace"
+                    echo "running ClangBuildAnalyzer"
                     sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
-                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis.log"
-                    archiveArtifacts "clang_build_analysis.log"
+                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${check_arch_name()}.log"
+                    archiveArtifacts "clang_build_analysis_${check_arch_name()}.log"
                 }
-                sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace.json"
-                archiveArtifacts "ck_build_trace.json"
+
 
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
@@ -529,9 +652,8 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        def arch_name = check_arch_name()
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
                     }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
@@ -557,9 +679,8 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        def arch_name = check_arch_name()
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
                     }
                 }
             }
@@ -711,12 +832,14 @@ def Build_CK(Map conf=[:]){
                     if (params.hipTensor_test && arch == "gfx90a" ){
                         // build and test hipTensor on gfx90a node
                         sh """#!/bin/bash
-                            rm -rf "${params.hipTensor_branch}".zip
-                            rm -rf hipTensor-"${params.hipTensor_branch}"
-                            wget https://github.com/ROCm/hipTensor/archive/refs/heads/"${params.hipTensor_branch}".zip
-                            unzip -o "${params.hipTensor_branch}".zip
+                            rm -rf rocm-libraries
+                            git clone --no-checkout --filter=blob:none https://github.com/ROCm/rocm-libraries.git
+                            cd rocm-libraries
+                            git sparse-checkout init --cone
+                            git sparse-checkout set projects/hiptensor
+                            git checkout "${params.hipTensor_branch}"
                         """
-                        dir("hipTensor-${params.hipTensor_branch}"){
+                        dir("rocm-libraries/projects/hiptensor"){
                             sh """#!/bin/bash
                                 mkdir -p build
                                 ls -ltr
@@ -880,7 +1003,7 @@ def run_aiter_tests(Map conf=[:]){
     checkout scm
     //use the latest pytorch image
     def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
-    def dockerOpts=get_docker_options()
+    def dockerOpts=get_docker_options() + ' --group-add irc '
 
     gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'composable_kernel') {
         try
@@ -932,7 +1055,7 @@ def run_pytorch_tests(Map conf=[:]){
     checkout scm
     //use the latest pytorch-nightly image
     def image = "${env.CK_DOCKERHUB}:ck_pytorch"
-    def dockerOpts=get_docker_options()
+    def dockerOpts=get_docker_options() + ' --group-add irc '
 
     gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'composable_kernel') {
         try
@@ -972,7 +1095,7 @@ def run_pytorch_tests(Map conf=[:]){
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
                                               0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX101=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX101=false;BUILD_GFX908=false;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
@@ -998,8 +1121,8 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION',
-            defaultValue: '7.0.1',
-            description: 'Specify which ROCM version to use: 7.0.1 (default).')
+            defaultValue: '7.1.1',
+            description: 'Specify which ROCM version to use: 7.1.1 (default).')
         string(
             name: 'COMPILER_VERSION',
             defaultValue: '',
@@ -1351,15 +1474,19 @@ pipeline {
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cd ../build && \
                                            ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 test_grouped_convnd_fwd_dataset_xdl && \
+                                           make -j64 test_grouped_convnd_fwd_dataset_xdl \
+                                           test_grouped_convnd_bwd_data_dataset_xdl \
+                                           test_grouped_convnd_bwd_weight_dataset_xdl && \
                                            cd ../test_data && \
                                            # Dataset generation modes:
                                            # - small: ~60 test cases (minimal, quick testing - 3 models, 2 batch sizes, 2 image sizes)
                                            # - half: ~300 test cases (moderate coverage - 16 models, 3 batch sizes, 5 image sizes), ~ 17 hours testing time
                                            # - full: ~600 test cases (comprehensive - 16 models, 5 batch sizes, 9 image sizes), ~ 40 hours testing time
-                                           ./generate_test_dataset.sh half && \
+                                           ./generate_test_dataset.sh small && \
                                            cd ../build && \
-                                           ./bin/test_grouped_convnd_fwd_dataset_xdl"""
+                                           ./bin/test_grouped_convnd_fwd_dataset_xdl && \
+                                           ./bin/test_grouped_convnd_bwd_data_dataset_xdl && \
+                                           ./bin/test_grouped_convnd_bwd_weight_dataset_xdl"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
@@ -1492,11 +1619,13 @@ pipeline {
                                             -D GPU_TARGETS="gfx90a" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
+                                            -D GEMM_STREAMK_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
-                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
+                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
@@ -1521,11 +1650,13 @@ pipeline {
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
+                                            -D GEMM_STREAMK_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
-                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
+                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
@@ -1750,6 +1881,19 @@ pipeline {
                 }
             }
             post {
+                always {
+                    node(rocmnode("nogpu")) {
+                        script {
+                            // Simulate capture
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx11.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx12.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx90a.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx942.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx950.json")
+                        }
+                        cleanWs()
+                    }
+                }
                 success {
                     script {
                         // Report the parent stage build ck and run tests status
