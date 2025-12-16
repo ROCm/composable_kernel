@@ -115,7 +115,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
     static constexpr index_t NWarp = config.template at<2>();
 
     static constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WG::kM);
-    static constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);
+    static constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);//512/(4*16)
     static constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
 
     static constexpr index_t KFlatBytesPerBlockPerIter = flatKPerWarp / BPackedSize;
@@ -569,7 +569,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                 constexpr auto packed_n_idx  = nIter / number<NXdlPack>{};
                 constexpr auto packed_n_rank = nIter % number<NXdlPack>{};
                 return b_flat_dram_window.get_load_offset(
-                           tuple<number<packed_n_idx * NXdlPack * NFlatPerBlockPerIter>,
+                           tuple<number<packed_n_idx * NXdlPack * NFlatPerBlockPerIter/*4*/>,
                                  number<0>>{}) +
                        b_flat_dram_window.get_load_offset(
                            tuple<number<packed_n_rank>, number<0>>{});
@@ -659,7 +659,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
             });
         });
         // move Scale B window to next K
-        move_tile_window(scale_b_dram_window, {0, kKPerBlock / (32 * KXdlPack)});
+        move_tile_window(scale_b_dram_window, {0, kKPerBlock / (32/*32个k占一个scale*/ * KXdlPack)});
         __builtin_amdgcn_sched_barrier(0);
 
         // Prefetch A1
@@ -738,7 +738,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                                     operator()<ikxdl * MXdlPack + imxdl, ikxdl * NXdlPack + inxdl>(
                                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
                                         bit_cast<typename WG::AWarpTensor>(
-                                            a_warp_tensor(number<AwarpIter>{})),
+                                            a_warp_tensor(number<AwarpIter>{})),//为什么这里不通过miter和kiter索引？
                                         bit_cast<typename WG::BWarpTensor>(
                                             b_warp_tensor_ping(number<n_iter>{})(number<k_iter>{})),
                                         scale_a_tile_tensor_ping(mIter_pack)(kIter_pack)
@@ -754,6 +754,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                                 {
                                     constexpr auto AmIter              = addr % 2 + addr / 4 * 2;
                                     constexpr auto AkIter              = addr / 2 % 2;
+                                    // if(blockIdx.x==0 && threadIdx.x==0)
                                     a_warp_tensor(number<AwarpIter>{}) = load_tile_with_offset(
                                         a_warp_window_ping,
                                         tuple<number<AmIter * WG::kM>, number<AkIter * WG::kK>>{});
@@ -951,6 +952,8 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                                 {
                                     constexpr auto AmIter              = addr % 2 + addr / 4 * 2;
                                     constexpr auto AkIter              = addr / 2 % 2;
+                                    // if(blockIdx.x==0 && threadIdx.x==0)
+                                    // printf("%d %d\n",AmIter,AkIter);
                                     a_warp_tensor(number<AwarpIter>{}) = load_tile_with_offset(
                                         a_warp_window_ping,
                                         tuple<number<AmIter * WG::kM>, number<AkIter * WG::kK>>{});
@@ -1052,6 +1055,8 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                                 {
                                     constexpr auto AmIter              = addr % 2 + addr / 4 * 2;
                                     constexpr auto AkIter              = addr / 2 % 2;
+                                    // if(blockIdx.x==0 && threadIdx.x==0)
+                                    // printf("%d %d\n",AmIter,AkIter);
                                     a_warp_tensor(number<AwarpIter>{}) = load_tile_with_offset(
                                         a_warp_window_ping,
                                         tuple<number<AmIter * WG::kM>, number<AkIter * WG::kK>>{});

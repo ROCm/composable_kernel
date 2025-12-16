@@ -179,10 +179,11 @@ auto preShuffleWeight(ck_tile::HostTensor<dtype>& src)
     const int K               = src_lengths[0];
     const int N               = src_lengths[1];
     constexpr int packed_size = ck_tile::numeric_traits<dtype>::PackedSize;
-    int KPack                 = 16 * packed_size; // fp4:32 or fp8:16
-    int NLane                 = N_Warp_Tile;
-    int KLane                 = 64 / NLane;
-    int K0                    = K / (KLane * KPack);
+    int KPack =
+        std::is_same_v<dtype, ck_tile::f6x16_pk_t> ? 32 : 16 * packed_size; // fp4/fp6:32 or fp8:16
+    int NLane = N_Warp_Tile;
+    int KLane = 64 / NLane;
+    int K0    = K / (KLane * KPack);
 
     ck_tile::HostTensor<dtype> shuffled(ck_tile::HostTensorDescriptor({N * K}, {1}));
 
@@ -204,6 +205,7 @@ auto preShuffleWeight(ck_tile::HostTensor<dtype>& src)
             int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
                               k1 * KPack * NLane + n1 * KPack + k2;
 
+            std::cout << k << " " << n << " " << outputIndex << std::endl;
             shuffled(outputIndex) = src(k, n);
         }
     }
@@ -343,6 +345,48 @@ int run_mx_flatmm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+
+    {
+        // using BDataType = ck_tile::pk_fp4_t;
+        using BDataType = ck_tile::f6x16_pk_t;
+
+        ck_tile::index_t stride_B = 0;
+        ck_tile::index_t N        = 32;
+        ck_tile::index_t K        = 256;
+        stride_B = ck_tile::get_default_stride(K, N, stride_B, ck_tile::bool_constant<false>{});
+        // is_row_major
+        ck_tile::HostTensor<BDataType> b_origin_host(
+            ck_tile::host_tensor_descriptor(K, N, stride_B, ck_tile::bool_constant<false>{}));
+        std::cout << b_origin_host.get_element_space_size_in_bytes() << std::endl;
+        auto try_pack_unpack = [&] {
+            int pack_k = 16;
+            for(int n = 0; n < N; n++)
+            {
+                for(int k = 0; k < K; k += pack_k)
+                {
+                    for(int k_ = 0; k_ < pack_k; k_++)
+                    {
+                        int value = n * K + k + k_;
+                        b_origin_host(n, k).pack(value, k_);
+                    }
+                }
+            }
+            for(int n = 0; n < N; n++)
+            {
+                for(int k = 0; k < K; k += pack_k)
+                {
+                    for(int k_ = 0; k_ < pack_k; k_++)
+                    {
+                        std::cout << b_origin_host(n, k).unpack(k_) << std::endl;
+                    }
+                }
+            }
+        };
+        try_pack_unpack();
+        auto shuf_b = preShuffleWeight<16>(b_origin_host);
+        return 0;
+    }
+
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return EXIT_FAILURE;

@@ -314,7 +314,9 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
         const auto& b_flat_pad_view = views.at(I1);
         const auto& ds_pad_view     = views.at(I2);
         const auto& e_pad_view      = views.at(I3);
-
+        // printf("%d %d %d\n",TilePartitioner::MPerBlock,TilePartitioner::KPerBlock,TilePartitioner::NPerBlock);
+        // printf("==============\n");
+        // printf("%d %d\n",MXFlatmmPipeline::flatNPerWarp,MXFlatmmPipeline::flatKPerWarp);
         const auto& a_block_window = [&]() {
             static_assert(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>,
                           "A tensor for mx must be RowMajor");

@@ -212,8 +212,8 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         if constexpr(K_Thread == AK1)
             return make_static_tile_distribution(
                 tile_distribution_encoding< //
-                    sequence<NWarps>,
-                    tuple<sequence<MWarps, MXdlPack, MPerXdl>, sequence<K_Lane, AK1>>,
+                    sequence<NWarps>,//4
+                    tuple<sequence<MWarps, MXdlPack, MPerXdl>, sequence<K_Lane, AK1>>,//1,2,16 | 4,32
                     tuple<sequence<1, 0>, sequence<2, 1>>,
                     tuple<sequence<0, 0>, sequence<0, 2>>,
                     sequence<2>,
@@ -339,9 +339,9 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_FlatDramTileDistribution()
     {
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<NWarps>,                      // ?
-                                       tuple<sequence<MWarps, MPerXdl>,       // second direction
-                                             sequence<K_Lane, 1>>,            // first direction
+            tile_distribution_encoding<sequence<NWarps>,//4                      // ?
+                                       tuple<sequence<MWarps, MPerXdl>,//1,16       // second direction
+                                             sequence<K_Lane, 1>>,//4,1            // first direction
                                        tuple<sequence<1, 0>, sequence<2, 1>>, // which direction
                                        tuple<sequence<0, 0>, sequence<0, 1>>, // which index
                                        // <repeat, vec_load>
