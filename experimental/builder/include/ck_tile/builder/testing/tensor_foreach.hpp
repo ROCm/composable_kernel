@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <array>
+#include "ck_tile/builder/testing/tensor_buffer.hpp"
 
 /// This file implements a generic GPU tensor "foreach" function. This
 /// functionality turned out useful in separate parts of the testing
@@ -46,7 +47,7 @@ __global__ __launch_bounds__(BLOCK_SIZE) //
 
 template <size_t RANK>
 __host__ __device__ size_t calculate_offset(const std::array<size_t, RANK>& index,
-                                            const std::array<size_t, RANK>& strides)
+                                            const Extent<RANK>& strides)
 {
     size_t offset = 0;
 #pragma unroll
@@ -58,7 +59,7 @@ __host__ __device__ size_t calculate_offset(const std::array<size_t, RANK>& inde
 }
 
 template <size_t RANK, typename F>
-void tensor_foreach(std::span<const size_t, RANK> shape, F f)
+void tensor_foreach(const Extent<RANK>& shape, F f)
 {
     constexpr int block_size = detail::DEVICE_FOREACH_BLOCK_SIZE;
     const auto kernel        = detail::foreach_kernel<block_size, RANK, F>;
@@ -72,6 +73,11 @@ void tensor_foreach(std::span<const size_t, RANK> shape, F f)
     int multiprocessors;
     check_hip(
         hipDeviceGetAttribute(&multiprocessors, hipDeviceAttributeMultiprocessorCount, device));
+
+    // Pre-scan the shape to help indexing in the kernel.
+    // Note: the order is not that important, so long as the iteration
+    // order in the kernel is from large-to-small. Right layout is the
+    // easiest solution for that.
 
     std::array<size_t, RANK> shape_scan;
     size_t numel = 1;

@@ -106,8 +106,9 @@ struct Args<SIGNATURE>
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
              typename Layouts::ALayout>(param);
-        using Sizes = typename InputDescriptor::Sizes;
-        return InputDescriptor(Sizes(desc.GetLengths()), Sizes(desc.GetStrides()));
+        using Extent = typename InputDescriptor::Extent;
+        return InputDescriptor(Extent::from_vector(desc.GetLengths()),
+                               Extent::from_vector(desc.GetStrides()));
     }
 
     /// This function returns the `TensorDescriptor` corresponding to
@@ -119,8 +120,9 @@ struct Args<SIGNATURE>
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<
              typename Layouts::BLayout>(param);
-        using Sizes = typename WeightDescriptor::Sizes;
-        return WeightDescriptor(Sizes(desc.GetLengths()), Sizes(desc.GetStrides()));
+        using Extent = typename WeightDescriptor::Extent;
+        return WeightDescriptor(Extent::from_vector(desc.GetLengths()),
+                                Extent::from_vector(desc.GetStrides()));
     }
 
     /// This function returns the `TensorDescriptor` corresponding to
@@ -132,8 +134,9 @@ struct Args<SIGNATURE>
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<
              typename Layouts::ELayout>(param);
-        using Sizes = typename OutputDescriptor::Sizes;
-        return OutputDescriptor(Sizes(desc.GetLengths()), Sizes(desc.GetStrides()));
+        using Extent = typename OutputDescriptor::Extent;
+        return OutputDescriptor(Extent::from_vector(desc.GetLengths()),
+                                Extent::from_vector(desc.GetStrides()));
     }
 
     /// Convert the Args structure into a CK conv_param structure. This

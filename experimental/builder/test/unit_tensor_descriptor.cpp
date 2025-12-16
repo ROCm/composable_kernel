@@ -15,10 +15,10 @@ using ::testing::Eq;
 
 TEST(TensorDescriptor, Basic)
 {
-    constexpr auto dt                = ckb::DataType::FP16;
-    constexpr size_t rank            = 3;
-    std::array<size_t, rank> lengths = {123, 456, 789};
-    std::array<size_t, rank> strides = {456 * 789, 789, 1};
+    constexpr auto dt     = ckb::DataType::FP16;
+    constexpr size_t rank = 3;
+    ckt::Extent lengths   = {123, 456, 789};
+    ckt::Extent strides   = {456 * 789, 789, 1};
 
     ckt::TensorDescriptor<dt, rank> descriptor(lengths, strides);
 
@@ -28,15 +28,15 @@ TEST(TensorDescriptor, Basic)
 
 TEST(TensorDescriptor, ComputeSize)
 {
-    constexpr auto dt             = ckb::DataType::FP32;
-    constexpr size_t rank         = 3;
-    std::array<size_t, 3> lengths = {305, 130, 924};
-    std::array<size_t, 3> strides = {1000 * 1000, 1, 1000};
+    constexpr auto dt     = ckb::DataType::FP32;
+    constexpr size_t rank = 3;
+    ckt::Extent lengths   = {305, 130, 924};
+    ckt::Extent strides   = {1000 * 1000, 1, 1000};
 
     ckt::TensorDescriptor<dt, rank> descriptor(lengths, strides);
 
-    // Compute the location of the last item in memory, then add one
-    // to get the minimum size.
+    // Compute the location of the last item in memory,
+    // then add one to get the minimum size.
     size_t expected_size  = 1;
     size_t expected_numel = 1;
     for(size_t i = 0; i < lengths.size(); ++i)

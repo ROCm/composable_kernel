@@ -76,10 +76,7 @@ TEST(DeviceBuffer, ThrowsOnOom)
 
 TEST(DeviceBuffer, AllocTensorBuffer)
 {
-    constexpr size_t rank            = 3;
-    std::array<size_t, rank> lengths = {128, 128, 128};
-    std::array<size_t, rank> strides = {128 * 128, 128, 1};
-    ckt::TensorDescriptor<ckb::DataType::FP32, rank> descriptor(lengths, strides);
+    ckt::TensorDescriptor<ckb::DataType::FP32, 3> descriptor({128, 128, 128}, {128 * 128, 128, 1});
 
     auto buffer = ckt::alloc_tensor_buffer(descriptor);
 

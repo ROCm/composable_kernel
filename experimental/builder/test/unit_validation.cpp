@@ -19,32 +19,10 @@ using testing::ElementsAreArray;
 using testing::Eq;
 using testing::StrEq;
 
-template <size_t RANK>
-std::array<size_t, RANK> make_packed_strides_row_major(const std::array<size_t, RANK>& lengths)
-{
-    std::array<size_t, RANK> strides = {};
-    size_t numel                     = 1;
-    for(int i = RANK; i > 0; --i)
-    {
-        strides[i - 1] = numel;
-        numel *= lengths[i - 1];
-    }
-    return strides;
-}
-
-template <ckb::DataType DT, size_t RANK>
-ckt::TensorDescriptor<DT, RANK>
-make_packed_descriptor_row_major(const std::array<size_t, RANK>& lengths)
-{
-    return ckt::TensorDescriptor<DT, RANK>(lengths, make_packed_strides_row_major(lengths));
-}
-
 template <ckb::DataType DT, size_t RANK, typename F>
 void fill_tensor(const ckt::TensorDescriptor<DT, RANK>& desc, void* buffer, F f)
 {
-    std::array<size_t, RANK> strides;
-    std::copy(desc.get_strides().begin(), desc.get_strides().end(), strides.begin());
-
+    const auto strides = desc.get_strides();
     ckt::tensor_foreach(desc.get_lengths(), [buffer, f, strides](auto index) {
         using CKType      = typename ckb::factory::internal::DataTypeToCK<DT>::type;
         auto* ptr         = static_cast<CKType*>(buffer);
@@ -62,16 +40,17 @@ void fill_tensor_buffer(const ckt::TensorDescriptor<DT, RANK>& desc, void* buffe
 
 TEST(ValidationUtilities, MakePackedStrides)
 {
-    constexpr size_t rank                  = 4;
-    const std::array<size_t, rank> lengths = {5125, 623, 1177, 1534};
-    const auto strides                     = make_packed_strides_row_major(lengths);
+    const ckt::Extent lengths = {5125, 623, 1177, 1534};
+    const auto strides        = ckt::PackedRightLayout{}(lengths);
 
     EXPECT_THAT(strides, ElementsAreArray({623 * 1177 * 1534, 1177 * 1534, 1534, 1}));
 }
 
 TEST(ValidationUtilities, FillTensorBuffer)
 {
-    auto desc   = make_packed_descriptor_row_major<ckb::DataType::INT32, 3>({31, 54, 13});
+    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(ckt::Extent{31, 54, 13},
+                                                           ckt::PackedRightLayout{});
+
     auto buffer = ckt::alloc_tensor_buffer(desc);
 
     fill_tensor_buffer(desc, buffer.get(), [](size_t i) { return static_cast<uint32_t>(i); });
@@ -88,7 +67,8 @@ TEST(ValidationUtilities, FillTensorBuffer)
 
 TEST(ValidationReport, SingleCorrect)
 {
-    auto desc = make_packed_descriptor_row_major<ckb::DataType::FP32, 3>({52, 152, 224});
+    auto desc = ckt::make_descriptor<ckb::DataType::FP32>(ckt::Extent{52, 152, 224},
+                                                          ckt::PackedRightLayout{});
 
     auto a = ckt::alloc_tensor_buffer(desc);
     auto b = ckt::alloc_tensor_buffer(desc);
@@ -107,7 +87,8 @@ TEST(ValidationReport, SingleCorrect)
 
 TEST(ValidationReport, SingleIncorrect)
 {
-    auto desc = make_packed_descriptor_row_major<ckb::DataType::FP16, 3>({100, 100, 100});
+    auto desc = ckt::make_descriptor<ckb::DataType::FP16>(ckt::Extent{100, 100, 100},
+                                                          ckt::PackedRightLayout{});
 
     auto a = ckt::alloc_tensor_buffer(desc);
     auto b = ckt::alloc_tensor_buffer(desc);
@@ -133,7 +114,8 @@ TEST(ValidationReport, MultipleSomeIncorrect)
     ckt::ValidationReport report;
 
     {
-        auto desc = make_packed_descriptor_row_major<ckb::DataType::BF16, 4>({'R', 'O', 'C', 'm'});
+        auto desc = ckt::make_descriptor<ckb::DataType::BF16, 4>({'R', 'O', 'C', 'm'},
+                                                                 ckt::PackedRightLayout{});
 
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
@@ -147,7 +129,8 @@ TEST(ValidationReport, MultipleSomeIncorrect)
     }
 
     {
-        auto desc = make_packed_descriptor_row_major<ckb::DataType::U8, 3>({'H', 'I', 'P'});
+        auto desc =
+            ckt::make_descriptor<ckb::DataType::U8, 3>({'H', 'I', 'P'}, ckt::PackedRightLayout{});
 
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
@@ -168,7 +151,8 @@ TEST(ValidationReport, MultipleSomeIncorrect)
     }
 
     {
-        auto desc = make_packed_descriptor_row_major<ckb::DataType::INT32, 3>({'G', 'P', 'U'});
+        auto desc = ckt::make_descriptor<ckb::DataType::INT32, 3>({'G', 'P', 'U'},
+                                                                  ckt::PackedRightLayout{});
 
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);

@@ -59,8 +59,7 @@ bool ValidationReport::check(std::string_view tensor_name,
                              double rtol,
                              double atol)
 {
-    std::array<size_t, RANK> strides;
-    std::copy(descriptor.get_strides().begin(), descriptor.get_strides().end(), strides.begin());
+    const auto strides = descriptor.get_strides();
 
     // During development and CI, only the kernels that were changed would fail, and so we can
     // assume that the average case does not have errors. Therefore, split out testing into a
