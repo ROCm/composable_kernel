@@ -74,54 +74,85 @@ float invoke_abquant_gemm(int n_warmup,
 
     float ave_time = 0;
 
-    // Persistent TileLoop kernel only
-    std::vector<ck_tile::QuantGemmTransKernelArg> kargs;
-    void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
-    if(args[0].k_batch != 1)
+    if constexpr(!GemmConfig::Persistent)
     {
-        throw std::runtime_error("Split-K not supported yet for persistent kernel");
+        ave_time =
+            grouped_gemm_abquant<GemmConfig,
+                                 ALayout,
+                                 AQLayout,
+                                 BLayout,
+                                 BQLayout,
+                                 CLayout,
+                                 ADataType,
+                                 AQDataType,
+                                 BDataType,
+                                 BQDataType,
+                                 AccDataType,
+                                 CDataType,
+                                 AQuantGroupSize,
+                                 BQuantGroupSize,
+                                 QuantMode>(args,
+                                            ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
+                                            gemm_workspace.GetDeviceBuffer());
     }
+    else
+    {
+        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have
+        // the gemm problems known on the host. Instead, we can just pass the pointer
+        // to the kernel and let the workgroups figure out which tiles to work on.
+        // This is useful when the gemm problems are generated dynamically.
+        // In this example however, we generate the `kargs` using the known gemm_descs,
+        // and copy the gemm descriptions to the device memory.
+        // The contents of the memory pointed to by `kargs_ptr` pointer could be
+        // written by e.g. another kernel from earlier stage.
+        std::vector<ck_tile::QuantGemmTransKernelArg> kargs;
+        void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
+        if(args[0].k_batch != 1)
+        {
+            throw std::runtime_error("Split-K not supported yet for persistent kernel");
+        }
 
-    for(const auto& arg : args)
-    {
-        kargs.emplace_back(ck_tile::QuantGroupedGemmKernelArgs{arg.a_ptr,
-                                                               arg.b_ptr,
-                                                               arg.aq_ptr,
-                                                               arg.bq_ptr,
-                                                               arg.e_ptr,
-                                                               arg.M,
-                                                               arg.N,
-                                                               arg.K,
-                                                               arg.QK_A,
-                                                               arg.QK_B,
-                                                               arg.stride_A,
-                                                               arg.stride_B,
-                                                               arg.stride_E,
-                                                               arg.stride_AQ,
-                                                               arg.stride_BQ,
-                                                               arg.k_batch});
+        for(const auto& arg : args)
+        {
+            kargs.emplace_back(ck_tile::QuantGroupedGemmKernelArgs{arg.a_ptr,
+                                                                   arg.b_ptr,
+                                                                   arg.aq_ptr,
+                                                                   arg.bq_ptr,
+                                                                   arg.e_ptr,
+                                                                   arg.M,
+                                                                   arg.N,
+                                                                   arg.K,
+                                                                   arg.QK_A,
+                                                                   arg.QK_B,
+                                                                   arg.stride_A,
+                                                                   arg.stride_B,
+                                                                   arg.stride_E,
+                                                                   arg.stride_AQ,
+                                                                   arg.stride_BQ,
+                                                                   arg.k_batch});
+        }
+        const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
+        HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
+                                            kargs.data(),
+                                            kargs.size() * sizeof(ck_tile::QuantGemmTransKernelArg),
+                                            hipMemcpyHostToDevice,
+                                            stream.stream_id_));
+        ave_time = grouped_gemm_tileloop<GemmConfig,
+                                         ALayout,
+                                         AQLayout,
+                                         BLayout,
+                                         BQLayout,
+                                         CLayout,
+                                         ADataType,
+                                         AQDataType,
+                                         BDataType,
+                                         BQDataType,
+                                         AccDataType,
+                                         CDataType,
+                                         AQuantGroupSize,
+                                         BQuantGroupSize,
+                                         QuantMode>(stream, group_count, kargs_ptr);
     }
-    const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
-    HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
-                                        kargs.data(),
-                                        kargs.size() * sizeof(ck_tile::QuantGemmTransKernelArg),
-                                        hipMemcpyHostToDevice,
-                                        stream.stream_id_));
-    ave_time = grouped_gemm_tileloop<GemmConfig,
-                                     ALayout,
-                                     AQLayout,
-                                     BLayout,
-                                     BQLayout,
-                                     CLayout,
-                                     ADataType,
-                                     AQDataType,
-                                     BDataType,
-                                     BQDataType,
-                                     AccDataType,
-                                     CDataType,
-                                     AQuantGroupSize,
-                                     BQuantGroupSize,
-                                     QuantMode>(stream, group_count, kargs_ptr);
 
     std::string op_name = "ABQuant Grouped Gemm";
 
@@ -426,11 +457,10 @@ int run_abquant_grouped_gemm_example_with_layouts(int argc,
     return pass;
 }
 
-template <typename PrecType>
+template <typename PrecType, typename GemmConfig>
 int run_abquant_grouped_gemm_example_prec_type(std::string a_layout, 
                                                std::string b_layout,
                                                std::string c_layout,
-                                               [[maybe_unused]] bool persistent,
                                                int argc, 
                                                char* argv[])
 {
@@ -446,9 +476,6 @@ int run_abquant_grouped_gemm_example_prec_type(std::string a_layout,
     using BQDataType     = typename Types::AccDataType;
     using AQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
     using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
-
-    using GemmConfig = typename GemmQuantConfig<ck_tile::QuantType::ABQuantGrouped>::
-        template GemmConfig<PrecType, true>;
 
     // Support RCR, RRR, CRR layouts
     if(a_layout == "R" && b_layout == "C" && c_layout == "R")
@@ -496,6 +523,30 @@ int run_abquant_grouped_gemm_example_prec_type(std::string a_layout,
     }
 }
 
+template <typename PrecType>
+int run_abquant_gemm_example_persistency(std::string a_layout, 
+                                         std::string b_layout, 
+                                         std::string c_layout,
+                                         bool persistent, 
+                                         int argc, 
+                                         char* argv[])
+{
+    if(persistent)
+    {
+        using GemmConfig = typename GemmQuantConfig<ck_tile::QuantType::ABQuantGrouped>::
+            template GemmConfig<PrecType, true>;
+        return run_abquant_grouped_gemm_example_prec_type<PrecType, GemmConfig>(
+            a_layout, b_layout, c_layout, argc, argv);
+    }
+    else
+    {
+        using GemmConfig = typename GemmQuantConfig<ck_tile::QuantType::ABQuantGrouped>::
+            template GemmConfig<PrecType, false>;
+        return run_abquant_grouped_gemm_example_prec_type<PrecType, GemmConfig>(
+            a_layout, b_layout, c_layout, argc, argv);
+    }
+}
+
 int run_abquant_grouped_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -508,7 +559,7 @@ int run_abquant_grouped_gemm_example(int argc, char* argv[])
     const std::string b_layout  = arg_parser.get_str("b_layout");
     const std::string c_layout  = arg_parser.get_str("c_layout");
     const std::string data_type = arg_parser.get_str("prec");
-    const bool persistent       = arg_parser.get_bool("persistent");
+    bool persistent             = arg_parser.get_bool("persistent");
 
     // Validate layout combinations
     if(!((a_layout == "R" && b_layout == "C" && c_layout == "R") ||
@@ -522,12 +573,12 @@ int run_abquant_grouped_gemm_example(int argc, char* argv[])
 
     if(data_type == "fp8")
     {
-        return run_abquant_grouped_gemm_example_prec_type<ck_tile::fp8_t>(
+        return run_abquant_gemm_example_persistency<ck_tile::fp8_t>(
             a_layout, b_layout, c_layout, persistent, argc, argv);
     }
     else if(data_type == "bf8")
     {
-        return run_abquant_grouped_gemm_example_prec_type<ck_tile::bf8_t>(
+        return run_abquant_gemm_example_persistency<ck_tile::bf8_t>(
             a_layout, b_layout, c_layout, persistent, argc, argv);
     }
     else

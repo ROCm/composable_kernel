@@ -143,6 +143,27 @@ inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gem
 {
     return gemm_descs.size() * sizeof(ck_tile::QuantGemmTransKernelArg);
 }
+
+// Forward declaration of the non-persistent version
+template <typename GemmConfig,
+          typename ALayout,
+          typename AQLayout,
+          typename BLayout,
+          typename BQLayout,
+          typename CLayout,
+          typename ADataType,
+          typename AQDataType,
+          typename BDataType,
+          typename BQDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename AQuantGroupSize,
+          typename BQuantGroupSize,
+          ck_tile::QuantType QuantMode = ck_tile::QuantType::ABQuantGrouped>
+float grouped_gemm_abquant(const std::vector<grouped_gemm_kargs>& gemm_descs,
+                           const ck_tile::stream_config& s,
+                           void* kargs_ptr);
+
 // Forward declaration of the tileloop version for persistent kernels
 template <typename GemmConfig,
           typename ALayout,
@@ -157,8 +178,9 @@ template <typename GemmConfig,
           typename AccDataType,
           typename CDataType,
           typename AQuantGroupSize,
-          typename BQuantGroupSize>
-float grouped_gemm_abquant_tileloop(const ck_tile::stream_config& s,
-                                    const ck_tile::index_t num_groups,
-                                    void* kargs_ptr);
+          typename BQuantGroupSize,
+          ck_tile::QuantType QuantMode = ck_tile::QuantType::ABQuantGrouped>
+float grouped_gemm_tileloop(const ck_tile::stream_config& s,
+                            const ck_tile::index_t num_groups,
+                            void* kargs_ptr);
 

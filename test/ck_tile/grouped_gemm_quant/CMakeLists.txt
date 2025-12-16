@@ -17,7 +17,10 @@ endif()
 #     add_gtest_executable(test_ck_tile_grouped_gemm_quant_aquant test_grouped_gemm_quant_aquant.cpp)
 #     target_compile_options(test_ck_tile_grouped_gemm_quant_aquant PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 
-#     add_gtest_executable(test_ck_tile_grouped_gemm_quant_bquant test_grouped_gemm_quant_bquant.cpp)
-#     target_compile_options(test_ck_tile_grouped_gemm_quant_bquant PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-# endif()
+    add_gtest_executable(test_ck_tile_grouped_gemm_quant_bquant test_grouped_gemm_quant_bquant.cpp)
+    target_compile_options(test_ck_tile_grouped_gemm_quant_bquant PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_ck_tile_grouped_gemm_quant_abquant test_grouped_gemm_quant_abquant.cpp)
+    target_compile_options(test_ck_tile_grouped_gemm_quant_abquant PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+endif()
 
