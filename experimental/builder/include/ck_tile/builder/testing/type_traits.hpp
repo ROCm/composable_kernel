@@ -37,6 +37,7 @@ constexpr size_t data_type_sizeof(DataType data_type)
     case DataType::INT32: return 4;
     case DataType::I8: return 1;
     case DataType::U8: return 1;
+    default: throw std::runtime_error("Unhandled data type");
     }
 }
 
