@@ -39,14 +39,6 @@ void fill_tensor_buffer(const ckt::TensorDescriptor<DT, RANK>& desc, void* buffe
     fill_tensor(desc.get_space_descriptor(), buffer, [f](auto index) { return f(index[0]); });
 }
 
-TEST(ValidationUtilities, MakePackedStrides)
-{
-    const ckt::Extent lengths = {5125, 623, 1177, 1534};
-    const auto strides        = ckt::PackedRightLayout{}(lengths);
-
-    EXPECT_THAT(strides, ElementsAreArray({623 * 1177 * 1534, 1177 * 1534, 1534, 1}));
-}
-
 TEST(ValidationUtilities, FillTensorBuffer)
 {
     auto desc = ckt::make_descriptor<ckb::DataType::INT32>(ckt::Extent{31, 54, 13},

@@ -5,6 +5,7 @@
 
 #include <stdexcept>
 #include <array>
+#include <vector>
 #include <sstream>
 #include <concepts>
 #include <hip/hip_runtime.h>
@@ -126,7 +127,7 @@ struct PackedRightLayout
         Extent<RANK> strides = {};
         size_t numel         = 1;
 
-        for(int i = RANK; i > 0; --i)
+        for(size_t i = RANK; i > 0; --i)
         {
             strides[i - 1] = numel;
             numel *= lengths[i - 1];
@@ -168,7 +169,7 @@ struct PackedLeftLayout
         Extent<RANK> strides = {};
         size_t numel         = 1;
 
-        for(int i = 0; i < RANK; ++i)
+        for(size_t i = 0; i < RANK; ++i)
         {
             strides[i] = numel;
             numel *= lengths[i];

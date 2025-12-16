@@ -23,7 +23,7 @@ TEST(ConvTensorType, Exhaustive)
     // a variant is missing.
     switch(type)
     {
-    case UNDEFINED: break;
+    case UNDEFINED_DATA_TYPE: break;
     case FP32: EXPECT_TRUE((check_same<FP32, float>)); break;
     case FP16: EXPECT_TRUE((check_same<FP16, ck::half_t>)); break;
     case BF16: EXPECT_TRUE((check_same<BF16, ck::bhalf_t>)); break;
