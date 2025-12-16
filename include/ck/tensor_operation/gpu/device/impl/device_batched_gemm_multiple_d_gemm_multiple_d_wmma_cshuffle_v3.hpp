@@ -82,7 +82,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         arg.acc_element_op,
         arg.b1_element_op,
         arg.cde1_element_op,
-        arg.block_2_ctile_map);
+        arg.block_2_etile_map);
 #else
     ignore = arg;
 #endif // (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__)
@@ -97,7 +97,7 @@ template <typename ALayout,
           typename D0sLayout,
           typename B1Layout,
           typename D1sLayout,
-          typename CLayout,
+          typename E1Layout,
           typename ADataType,
           typename B0DataType,
           typename D0sDataType,
@@ -160,7 +160,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
                                                      D0sLayout,
                                                      B1Layout,
                                                      D1sLayout,
-                                                     CLayout,
+                                                     E1Layout,
                                                      ADataType,
                                                      B0DataType,
                                                      D0sDataType,
@@ -478,7 +478,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
             e1_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseOp::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     e1_grid_desc_m_n);
-            block_2_ctile_map = GridwiseOp::MakeDefaultBlock2CTileMap(e1_grid_desc_m_n, 1, 1);
+            block_2_etile_map = GridwiseOp::MakeDefaultBlock2ETileMap(e1_grid_desc_m_n, 1, 1);
 
             static_for<0, NumD0Tensor, 1>{}([&](auto i) {
                 using D0DataType = remove_cvref_t<tuple_element_t<i.value, D0sDataType>>;
@@ -559,7 +559,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
         typename GridwiseOp::E1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e1_grid_desc_mblock_mperblock_nblock_nperblock;
 
-        typename GridwiseOp::DefaultBlock2CTileMap block_2_ctile_map;
+        typename GridwiseOp::DefaultBlock2ETileMap block_2_etile_map;
 
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch;
     };
@@ -654,7 +654,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
             return false;
         }
 
-        if constexpr(!(is_same_v<CLayout, tensor_layout::gemm::RowMajor>))
+        if constexpr(!(is_same_v<E1Layout, tensor_layout::gemm::RowMajor>))
         {
             print("DeviceOp: C layout must be Row\n");
             return false;
@@ -681,7 +681,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
                                       arg.b1_grid_desc,
                                       arg.d1s_grid_desc,
                                       arg.e1_grid_desc_m_n,
-                                      arg.block_2_ctile_map))
+                                      arg.block_2_etile_map))
         {
             return false;
         }
@@ -997,13 +997,13 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
             << ALayout::name[0]
             << B0layout::name[0]
             << B1Layout::name[0]
-            << CLayout::name[0] << ", "
+            << E1Layout::name[0] << ", "
             << "A " << DataTypeToString<ADataType>() << ", "
             << "B0 " << DataTypeToString<B0DataType>() << ", "
             << "D0n " << D0sDataType::Size() << ", "
             << "B1 " << DataTypeToString<B1DataType>() << ", "
             << "D1n " << D1sDataType::Size() << ", "
-            << "C " << DataTypeToString<E1DataType>() << ", "
+            << "E1 " << DataTypeToString<E1DataType>() << ", "
             << "Acc " << DataTypeToString<AccDataType>() << ", "
             << "Cshuf " << DataTypeToString<CShuffleDataType>() << ", "
             << BlockSize << ", "
