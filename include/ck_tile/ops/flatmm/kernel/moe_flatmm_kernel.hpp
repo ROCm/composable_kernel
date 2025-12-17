@@ -780,12 +780,12 @@ struct MoeFlatmmKernel
         constexpr int XDLPerLoadScaleB =
             MXFP4_Pipeline ? 4 : 1; // GranularityK32 / XDL16x16x32_K8 = 4
 
-        auto scale_block_window =
-            make_tile_window(views.at(I3),
-                             make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                                        number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
-                                               XDLPerLoadScaleB / GranularityK>{}),
-                             {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
+        auto scale_block_window = make_tile_window(
+            views.at(I3),
+            make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                       number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack * XDLPerLoadScaleB /
+                              (GranularityK == 0 ? 1 : GranularityK)>{}),
+            {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
 
         return make_tuple(a_block_window, b_flat_block_window, c_block_window, scale_block_window);
     }
@@ -867,7 +867,8 @@ struct MoeFlatmmKernel
         index_t scale_k = GranularityK == 0 ? 1 : (kargs.K + GranularityK - 1) / GranularityK;
 
         const auto scale_k_offset =
-            (splitk_batch_offset.b_k_split_offset / GranularityK) * (MXFP4_Pipeline ? N_Pack : 1);
+            (splitk_batch_offset.b_k_split_offset / (GranularityK == 0 ? 1 : GranularityK)) *
+            (MXFP4_Pipeline ? N_Pack : 1);
         const ScaleType* b_flat_scale_ptr = reinterpret_cast<const ScaleType*>(scale_n.ptr) +
                                             scale_k_offset + expert_id * kargs.N * scale_k;
 
