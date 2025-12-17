@@ -706,6 +706,16 @@ struct SelectedKernel {{
                           << std::endl;
             }"""
 
+            instance_code += f"""    
+                // Launch kernel
+                constexpr int kBlockPerCu = {k_block_per_cu};
+                float ave_time = ck_tile::launch_kernel(
+                    stream,
+                    ck_tile::make_kernel<kBlockPerCu>(GemmKernelMultiD{{}}, grids, blocks, 0, kargs));
+                
+                return ave_time;
+            }};"""
+
         elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code += f"""
             
@@ -730,15 +740,15 @@ struct SelectedKernel {{
                           << std::endl;
             }}"""
 
-        instance_code += f"""    
-            // Launch kernel
-            constexpr int kBlockPerCu = {k_block_per_cu};
-            float ave_time = ck_tile::launch_kernel(
-                stream,
-                ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
-            
-            return ave_time;
-        }};"""
+            instance_code += f"""    
+                // Launch kernel
+                constexpr int kBlockPerCu = {k_block_per_cu};
+                float ave_time = ck_tile::launch_kernel(
+                    stream,
+                    ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
+                
+                return ave_time;
+            }};"""
 
         # Run SplitK handler
 
