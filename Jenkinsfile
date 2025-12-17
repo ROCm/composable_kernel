@@ -622,8 +622,45 @@ def cmake_build(Map conf=[:]){
     echo cmd
 
     dir("build"){
-        //build CK
-        sh cmd
+        // Start sccache monitoring
+        if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
+            sh """
+                chmod +x ../script/monitor_sccache_during_build.sh
+                mkdir -p logs
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
+                ../script/monitor_sccache_during_build.sh build_monitor &
+                MONITOR_PID=\$!
+                echo "Monitor PID: \$MONITOR_PID"
+                echo \$MONITOR_PID > monitor.pid
+            """
+        }
+        try {
+            //build CK
+            sh cmd
+        } catch (Exception buildError) {
+            echo "Build failed: ${buildError.getMessage()}"
+            throw buildError
+        } finally {
+            // Stop sccache monitoring
+            if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
+                sh """
+                    # Stop monitoring
+                    if [ -f monitor.pid ]; then
+                        MONITOR_PID=\$(cat monitor.pid)
+                        kill \$MONITOR_PID 2>/dev/null || echo "Monitor already stopped"
+                        rm -f monitor.pid
+                    fi
+                """
+                
+                // Archive the monitoring logs
+                try {
+                    archiveArtifacts artifacts: "logs/*monitor*.log", allowEmptyArchive: true
+                } catch (Exception e) {
+                    echo "Could not archive sccache monitoring logs: ${e.getMessage()}"
+                }
+            }
+        }
+
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
             sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${check_arch_name()}.json"
