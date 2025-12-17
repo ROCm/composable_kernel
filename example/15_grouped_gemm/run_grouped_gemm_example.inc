@@ -272,6 +272,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                          ComputeDataType>(c_device_tensors[i], c_host_tensors[i]);
 #endif
         }
+
+        std::cout << "Verification: " << (pass ? "SUCCESS" : "FAILURE") << "!" << std::endl;
     }
 
     if(config.time_kernel)
@@ -347,8 +349,14 @@ bool run_grouped_gemm_example(int argc, char* argv[])
     for(int i = 0; i < problem_size.group_count; i++)
     {
         problem_size.Ms.push_back(256 + 256 * i);
+
+#ifdef FIX_NK
+        problem_size.Ns.push_back(512);
+        problem_size.Ks.push_back(512);
+#else
         problem_size.Ns.push_back(128 + 128 * i);
         problem_size.Ks.push_back(128 + 64 * i);
+#endif
 
         problem_size.stride_As.push_back(
             get_stride(ALayout{}, problem_size.Ms[i], problem_size.Ks[i]));
