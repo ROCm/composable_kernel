@@ -157,7 +157,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    // Use gemm_padder for consistent descriptor creation (Option 1)
+    // Use gemm_padder for consistent descriptor creation
     static constexpr auto gemm_padder =
         tensor_operation::device::GemmPadder<GemmSpec, index_t, index_t, index_t>{
             MPerBlock, NPerBlock, KPerBlock};
@@ -504,7 +504,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             {
                 gemm_kernel_args_[i].karg_.p_c_grid = p_workspace + offset;
                 // Workspace must accommodate block-aligned writes with padded stride
-                // GEMM writes in MPerBlock×NPerBlock blocks, so needs full MPadded rows
+                // GEMM writes in MPerBlock * NPerBlock blocks, so needs full MPadded rows
                 offset += gemm_kernel_args_[i].karg_.MPadded * gemm_kernel_args_[i].karg_.StrideC;
             }
         }
