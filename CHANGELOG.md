@@ -17,6 +17,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## Composable Kernel 1.2.0 for ROCm 7.2.0
 
 ### Added
+* Added support for fp8 dynamic tensor-wise quantization of fp8 fmha fwd kernel.
 * Added support for bf16 data type to grouped_gemm and grouped_gemm_preshuffle.
 * Added Col-Col-Row-Col layout support for aquant mode in blockscale GEMM.
 * Added support for mixed precision fp8 x bf8 universal GEMM and weight preshuffle GEMM
@@ -91,7 +92,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Optimized
 
 * Optimize the gemm multiply multiply preshuffle & lds bypass with Pack of KGroup and better instruction layout.
-* Added Vectorize Transpose optimization for CK Tile 
+* Added Vectorize Transpose optimization for CK Tile
 * Added the asynchronous copy for gfx950
 
 ### Changed
