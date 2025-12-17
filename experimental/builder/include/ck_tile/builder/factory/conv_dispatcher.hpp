@@ -63,9 +63,7 @@
 #include "ck_tile/builder/factory/conv_fwd_wmma_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_dl_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_large_tensor_factory.hpp"
-#include "ck_tile/builder/factory/reference_forward_factory.hpp"
-#include "ck_tile/builder/factory/reference_backward_data_factory.hpp"
-#include "ck_tile/builder/factory/reference_backward_weight_factory.hpp"
+#include "ck_tile/builder/factory/reference_factory.hpp"
 #include "ck_tile/builder/factory/conv_tile_factory.hpp"
 
 namespace ck_tile::builder::factory {
@@ -146,20 +144,20 @@ constexpr auto make_conv_instance()
 {
     using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
 
+    // Reference algorithm supports all directions
+    if constexpr(IsReferenceAlgorithm<AlgoType>)
+    {
+        return typename ReferenceFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+    }
     // CK Tile supports common factory for each direction
-    if constexpr(IsTileAlgorithm<AlgoType>)
+    else if constexpr(IsTileAlgorithm<AlgoType>)
     {
         return typename ConvTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
     // Forward direction (supports most algorithm variants)
     else if constexpr(ConvDirectionIsForward<SIGNATURE>)
     {
-        // Check for reference algorithm first (simplest check)
-        if constexpr(IsReferenceAlgorithm<AlgoType>)
-        {
-            return typename ReferenceForwardFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(IsXdlV3Algorithm<AlgoType>)
+        if constexpr(IsXdlV3Algorithm<AlgoType>)
         {
             return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
@@ -191,35 +189,18 @@ constexpr auto make_conv_instance()
     // Backward data direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
     {
-        // Check for reference algorithm
-        if constexpr(IsReferenceAlgorithm<AlgoType>)
-        {
-            return typename ReferenceBackwardDataFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else
-        {
-            static_assert(false,
-                          "Backward data convolution: Only reference and tile algorithms supported "
-                          "currently. "
-                          "Optimized kernels (XDL, WMMA, etc.) not yet implemented.");
-        }
+        static_assert(false,
+                      "Backward data convolution: Only reference and tile algorithms supported "
+                      "currently. "
+                      "Optimized kernels (XDL, WMMA, etc.) not yet implemented.");
     }
     // Backward weight direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
-        // Check for reference algorithm
-        if constexpr(IsReferenceAlgorithm<AlgoType>)
-        {
-            return
-                typename ReferenceBackwardWeightFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else
-        {
-            static_assert(false,
-                          "Backward weight convolution: Only reference and tile algorithms "
-                          "supported currently. "
-                          "Optimized kernels (XDL, WMMA, etc.) not yet implemented.");
-        }
+        static_assert(false,
+                      "Backward weight convolution: Only reference and tile algorithms "
+                      "supported currently. "
+                      "Optimized kernels (XDL, WMMA, etc.) not yet implemented.");
     }
     else
     {

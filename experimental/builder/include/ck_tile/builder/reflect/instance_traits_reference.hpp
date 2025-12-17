@@ -10,9 +10,7 @@
 
 #include "instance_traits.hpp"
 #include "instance_traits_util.hpp"
-#include "ck_tile/builder/factory/reference_forward_factory.hpp"
-#include "ck_tile/builder/factory/reference_backward_data_factory.hpp"
-#include "ck_tile/builder/factory/reference_backward_weight_factory.hpp"
+#include "ck_tile/builder/factory/reference_factory.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
 #include <sstream>
