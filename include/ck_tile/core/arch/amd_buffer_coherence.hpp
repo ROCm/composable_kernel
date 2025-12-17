@@ -114,6 +114,8 @@ enum struct amd_buffer_coherence_enum
     glc_slc = 3,
 
     // Other archs compatiblity
+    DEVICE_NT0 = 0,
+    SYSTEM_NT0 = 0,
     DEVICE_NT1 = glc,
     SYSTEM_NT1 = slc,
 #endif
