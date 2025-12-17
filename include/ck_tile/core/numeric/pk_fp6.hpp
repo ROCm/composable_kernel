@@ -64,7 +64,34 @@ struct pk_f6_t
     }
 
     inline uint32_t unpack(const index_t i) const { return unpack(*this, i); }
+
+    float fp6_e2m3_to_float(uint32_t fp6_bits)
+    {
+        fp6_bits = fp6_bits & 0x3F;
+
+        uint32_t sign     = (fp6_bits >> 5) & 0x1; // bit 5
+        uint32_t exponent = (fp6_bits >> 3) & 0x3; // bits 4-3
+        uint32_t mantissa = fp6_bits & 0x7;        // bits 2-0
+
+        float result;
+        if(exponent == 0 && mantissa == 0)
+        {
+            result = 0.f;
+        }
+        else if(exponent != 0)
+        {
+            result               = std::pow(2, exponent - 1);
+            float mantissa_value = 1.0f + mantissa / 8.0f;
+            result *= mantissa_value;
+        }
+        else
+        {
+            result = mantissa / 8.0f;
+        }
+        return sign == 1 ? -1 * result : result;
+    }
 };
+
 using f6x16_pk_t = pk_f6_t<16>;
 template <>
 struct numeric_traits<f6x16_pk_t>
