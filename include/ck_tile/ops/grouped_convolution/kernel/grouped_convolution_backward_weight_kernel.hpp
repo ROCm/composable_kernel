@@ -548,7 +548,7 @@ struct GroupedConvolutionBackwardWeightKernel
 #if defined(__gfx11__)
         if constexpr(EpiloguePipeline::MemoryOperation != ck_tile::memory_operation_enum::set)
         {
-            return false
+            return false;
         }
 #endif
 
