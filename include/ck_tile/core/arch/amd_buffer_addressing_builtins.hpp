@@ -989,6 +989,20 @@ llvm_amdgcn_raw_buffer_load_i32x2(int32x4_t srsrc,
                                   index_t soffset,
                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v2i32");
 
+// dwordx3 - use union to convert between int32x3 and fp16/bf16 types
+union dwordx3_union
+{
+    int32_t as_i32[3];
+    fp16_t as_fp16[6];
+    bf16_t as_bf16[6];
+};
+
+CK_TILE_DEVICE_EXTERN int32x3_t
+llvm_amdgcn_raw_buffer_load_i32x3(int32x4_t srsrc,
+                                  index_t voffset,
+                                  index_t soffset,
+                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v3i32");
+
 CK_TILE_DEVICE_EXTERN int32x4_t
 llvm_amdgcn_raw_buffer_load_i32x4(int32x4_t srsrc,
                                   index_t voffset,
@@ -1531,26 +1545,21 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
         }
         else if constexpr(N == 6)
         {
-            // N = 6: load as fp16x4 + fp16x2, then combine
-            fp16x4_t tmp0 = llvm_amdgcn_raw_buffer_load_fp16x4(src_wave_buffer_resource,
-                                                               src_thread_addr_offset,
-                                                               src_wave_addr_offset,
-                                                               static_cast<index_t>(coherence));
+            // N = 6: load as dwordx3 (12 bytes = 6 fp16), using buffer_load_dwordx3 instruction
+            int32x3_t tmp_i32x3 =
+                llvm_amdgcn_raw_buffer_load_i32x3(src_wave_buffer_resource,
+                                                  src_thread_addr_offset,
+                                                  src_wave_addr_offset,
+                                                  static_cast<index_t>(coherence));
 
-            fp16x2_t tmp1 =
-                llvm_amdgcn_raw_buffer_load_fp16x2(src_wave_buffer_resource,
-                                                   src_thread_addr_offset + 4 * sizeof(fp16_t),
-                                                   src_wave_addr_offset,
-                                                   static_cast<index_t>(coherence));
+            // Use union to reinterpret int32x3 as fp16x6
+            dwordx3_union tmp_union;
+            tmp_union.as_i32[0] = tmp_i32x3[0];
+            tmp_union.as_i32[1] = tmp_i32x3[1];
+            tmp_union.as_i32[2] = tmp_i32x3[2];
 
-            // Combine the two loads into a 6-element buffer
-            thread_buffer<fp16_t, 8> tmp_combined;
-            tmp_combined.template get_as<fp16x4_t>()(number<0>{}) = tmp0;
-            tmp_combined.template get_as<fp16x2_t>()(number<2>{}) = tmp1;
-
-            // Extract first 6 elements
             thread_buffer<fp16_t, N> result;
-            static_for<0, N, 1>{}([&](auto i) { result[i] = tmp_combined[i]; });
+            static_for<0, N, 1>{}([&](auto i) { result[i] = tmp_union.as_fp16[i]; });
 
             return result;
         }
@@ -1598,26 +1607,21 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
         }
         else if constexpr(N == 6)
         {
-            // N = 6: load as i16x4 + i16x2, then combine
-            int16x4_t tmp0 = llvm_amdgcn_raw_buffer_load_i16x4(src_wave_buffer_resource,
-                                                               src_thread_addr_offset,
-                                                               src_wave_addr_offset,
-                                                               static_cast<index_t>(coherence));
-
-            int16x2_t tmp1 =
-                llvm_amdgcn_raw_buffer_load_i16x2(src_wave_buffer_resource,
-                                                  src_thread_addr_offset + 4 * sizeof(bf16_t),
+            // N = 6: load as dwordx3 (12 bytes = 6 bf16), using buffer_load_dwordx3 instruction
+            int32x3_t tmp_i32x3 =
+                llvm_amdgcn_raw_buffer_load_i32x3(src_wave_buffer_resource,
+                                                  src_thread_addr_offset,
                                                   src_wave_addr_offset,
                                                   static_cast<index_t>(coherence));
 
-            // Combine the two loads into a 6-element buffer
-            thread_buffer<bf16_t, 8> tmp_combined;
-            tmp_combined.template get_as<int16x4_t>()(number<0>{}) = tmp0;
-            tmp_combined.template get_as<int16x2_t>()(number<2>{}) = tmp1;
+            // Use union to reinterpret int32x3 as bf16x6
+            dwordx3_union tmp_union;
+            tmp_union.as_i32[0] = tmp_i32x3[0];
+            tmp_union.as_i32[1] = tmp_i32x3[1];
+            tmp_union.as_i32[2] = tmp_i32x3[2];
 
-            // Extract first 6 elements
             thread_buffer<bf16_t, N> result;
-            static_for<0, N, 1>{}([&](auto i) { result[i] = tmp_combined[i]; });
+            static_for<0, N, 1>{}([&](auto i) { result[i] = tmp_union.as_bf16[i]; });
 
             return result;
         }
