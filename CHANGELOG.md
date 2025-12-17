@@ -20,19 +20,19 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for fp8 dynamic tensor-wise quantization of fp8 fmha fwd kernel.
 * Added support for bf16 data type to grouped_gemm and grouped_gemm_preshuffle.
 * Added Col-Col-Row-Col layout support for aquant mode in blockscale GEMM.
-* Added support for mixed precision fp8 x bf8 universal GEMM and weight preshuffle GEMM
-* Added a compute async pipeline in the CK TILE universal GEMM on gfx950
-* Added support for B Tensor type pk_int4_t in the CK TILE weight preshuffle GEMM.
+* Added support for mixed precision fp8 x bf8 universal GEMM and weight preshuffle GEMM.
+* Added a compute async pipeline in the CK Tile universal GEMM on gfx950.
+* Added support for B Tensor type `pk_int4_t` in the CK Tile weight preshuffle GEMM.
 * Added the new api to load different memory sizes to SGPR.
-* Added support for B Tensor Preshuffle in CK TILE Grouped GEMM.
+* Added support for B Tensor preshuffle in CK Tile grouped GEMM.
 * Added a basic copy kernel example and supporting documentation for new CK Tile developers.
-* Added support for grouped_gemm kernels to perform multi_d elementwise operation.
-* Added support for Multiple ABD GEMM
+* Added support for grouped GEMM kernels to perform Multi D elementwise operation.
+* Added support for multiple ABD GEMM.
 * Added benchmarking support for tile engine GEMM Multi D.
-* Added block scaling support in CK_TILE GEMM, allowing flexible use of quantization matrices from either A or B operands.
-* Added the row-wise column-wise quantization for CK_TILE GEMM & CK_TILE Grouped GEMM.
-* Added support for f32 to FMHA (fwd/bwd).
-* Added tensor-wise quantization for CK_TILE GEMM.
+* Added block scaling support in CK Tile GEMM, allowing flexible use of quantization matrices from either A or B operands.
+* Added the row-wise column-wise quantization for CK Tile GEMM and CK Tile grouped GEMM.
+* Added support for f32 to FMHA (forward and backward).
+* Added tensor-wise quantization for CK Tile GEMM.
 * Added support for batched contraction kernel.
 * Added WMMA (gfx12) support for FMHA.
 * Added pooling kernel in CK_TILE
@@ -42,7 +42,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 ### Changed
 
-* Removed `BlockSize` in `make_kernel` and `CShuffleEpilogueProblem` to support Wave32 in CK_TILE (#2594)
+* Removed `BlockSize` in `make_kernel` and `CShuffleEpilogueProblem` to support Wave32 in CK Tile (#2594)
 * Added an optional template parameter `Arch` (`gfx9_t`, `gfx12_t` etc.) to `make_kernel` to support linking multiple object files that have the same kernel compiled for different architectures.
 * FMHA examples and tests can be built for multiple architectures (gfx9, gfx950, gfx12) at the same time.
 
