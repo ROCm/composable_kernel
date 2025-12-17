@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 #include <gtest/gtest.h>
-#include <ck_tile/builder/reflect/instance_traits.hpp>
+#include <ck_tile/builder/reflect/conv_describe.hpp>
 #include <ck_tile/builder/reflect/conv_description.hpp>
-#include <ck/tensor_operation/gpu/device/device_base.hpp>
+#include <ck_tile/builder/reflect/instance_traits.hpp>
 #include <ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_large_tensor_instance.hpp>
+#include <ck/tensor_operation/gpu/device/device_base.hpp>
 
 namespace {
 
@@ -60,14 +61,14 @@ std::string expected_str = "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Ten
                            ",2"             // ABlockTransferSrcVectorDim
                            ",1"             // ABlockTransferSrcScalarPerVector
                            ",8"             // ABlockTransferDstScalarPerVector_AK1
-                           ",1"             // ABlockLdsExtraM
+                           ",true"          // ABlockLdsExtraM
                            ",Seq(4,16,1)"   // BBlockTransferThreadClusterLengths
                            ",Seq(1,0,2)"    // BBlockTransferThreadClusterArrangeOrder
                            ",Seq(1,0,2)"    // BBlockTransferSrcAccessOrder
                            ",2"             // BBlockTransferSrcVectorDim
                            ",1"             // BBlockTransferSrcScalarPerVector
                            ",8"             // BBlockTransferDstScalarPerVector_BK1
-                           ",1"             // BBlockLdsExtraN
+                           ",true"          // BBlockLdsExtraN
                            ",1"             // CShuffleMXdlPerWavePerShuffle
                            ",1"             // CShuffleNXdlPerWavePerShuffle
                            ",Seq(1,16,1,4)" // CDEBlockTransferClusterLengths
@@ -76,14 +77,16 @@ std::string expected_str = "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Ten
                            ",fp16"          // BComputeDataType
                            ",Default>";     // LoopScheduler
 
-// Test GetInstanceString through base class pointer for large tensor variant
-TEST(InstanceString, GetInstanceStringReturnsCorrectValueForFwdGrpConvLargeTensor)
+// Test describe() through base class pointer for large tensor variant
+TEST(InstanceString, DescribeReturnsCorrectValueForFwdGrpConvLargeTensor)
 {
     using BaseClass = ck::tensor_operation::device::BaseOperator;
     DeviceInstance device_instance;
     BaseClass* base_ptr = &device_instance;
 
-    EXPECT_EQ(base_ptr->GetInstanceString(), expected_str);
+    auto desc = base_ptr->describe();
+    ASSERT_NE(desc, nullptr);
+    EXPECT_EQ(desc->instance_string(), expected_str);
 }
 
 TEST(InstanceString, DescriptionReturnsCorrectValueForFwdGrpConvLargeTensor)

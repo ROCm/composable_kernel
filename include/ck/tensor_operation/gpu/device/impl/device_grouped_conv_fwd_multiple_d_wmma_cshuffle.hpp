@@ -25,6 +25,7 @@
 #include "ck/host_utility/io.hpp"
 
 #ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
 #include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp"
 #endif
 
@@ -1018,6 +1019,11 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                       "instance_traits_device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp "
                       "for the given template parameters.");
         return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
     }
 #endif
 };
