@@ -286,8 +286,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3
 
             static_for<0, nDst, 1>{}([&](auto i) {
                 using elm_vector_t = typename remove_cvref_t<decltype(elm_vectors[i])>::type;
-                using scalar_t     = std::remove_cvref_t<
-                        decltype(elm_vectors(i).template AsType<elm_vector_t>()[I0])>;
+                using scalar_t =
+                    remove_cvref_t<decltype(elm_vectors(i).template AsType<elm_vector_t>()[I0])>;
 
                 // This is a bit ugly but necessary to be able to compile f8 instances for grouped
                 // convolution forward. For some reason for that specific type there is an ambiguity
