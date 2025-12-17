@@ -71,7 +71,6 @@
  *
  * **Architecture:**
  * - Uses TensorDescriptorUtils for stride-aware descriptor creation
- * - Custom RunGemm implementation with descriptor-based tensor views
  * - Reuses GemmPipeline and EpiloguePipeline for computation
  * - Split-K support via UniversalGemmKernel utilities
  */
@@ -373,104 +372,6 @@ struct BatchedContractionKernel
     {
         return dim3(
             TilePartitioner::GridSize(kargs.M_total, kargs.N_total), kargs.G_total, kargs.k_batch);
-    }
-
-    /// @brief Executes GEMM computation with descriptor-based tensor views for arbitrary stride
-    /// support
-    ///
-    /// @details This function performs the core GEMM computation using tensor descriptors to handle
-    ///          arbitrary multi-dimensional stride patterns. It creates tensor views from
-    ///          pre-computed descriptors (stored in kargs), applies padding, creates tile windows,
-    ///          and executes the GemmPipeline and EpiloguePipeline.
-    ///
-    /// @param a_ptr Pointer to input tensor A data (after batch and split-K offsets applied)
-    /// @param b_ptr Pointer to input tensor B data (after batch and split-K offsets applied)
-    /// @param ds_ptr Array of pointers to auxiliary D tensor data
-    /// @param e_ptr Pointer to output tensor E data (after batch offset applied)
-    /// @param smem_ptr Pointer to shared memory for tile operations
-    /// @param kargs Kernel arguments containing tensor descriptors and dimension information
-    /// @param k_size Size of K dimension for this split (for split-K support)
-    /// @param i_m Starting M index for this block's tile
-    /// @param i_n Starting N index for this block's tile
-    CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
-                                       const BDataType* b_ptr,
-                                       const std::array<const void*, NumDTensor>& ds_ptr,
-                                       EDataType* e_ptr,
-                                       void* smem_ptr,
-                                       const KernelArgs& kargs,
-                                       const index_t k_size,
-                                       const index_t i_m,
-                                       const index_t i_n)
-    {
-        // Create tensor views from descriptors (supports arbitrary stride patterns)
-        auto a_tensor_view =
-            make_tensor_view<address_space_enum::global>(a_ptr, kargs.a_grid_desc_m_k);
-        auto b_tensor_view =
-            make_tensor_view<address_space_enum::global>(b_ptr, kargs.b_grid_desc_n_k);
-        auto e_tensor_view =
-            make_tensor_view<address_space_enum::global>(e_ptr, kargs.e_grid_desc_m_n);
-
-        // Pad views for boundary handling and optimization (like UniversalGemmKernel)
-        auto a_pad_view = pad_tensor_view(
-            a_tensor_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
-            sequence<false, GemmPipeline::kPadK>{});
-
-        auto b_pad_view = pad_tensor_view(
-            b_tensor_view,
-            make_tuple(number<TilePartitioner::NPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
-            sequence<false, GemmPipeline::kPadK>{});
-
-        auto e_pad_view = pad_tensor_view(
-            e_tensor_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            sequence<false, GemmPipeline::kPadN>{});
-
-        // Create tile windows from PADDED views
-        auto a_block_window = make_tile_window(
-            a_pad_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
-            {i_m, 0});
-
-        auto b_block_window = make_tile_window(
-            b_pad_view,
-            make_tuple(number<TilePartitioner::NPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
-            {i_n, 0});
-
-        auto e_block_window = make_tile_window(
-            e_pad_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            {i_m, i_n});
-
-        // Calculate number of K loops
-        const index_t num_loop =
-            __builtin_amdgcn_readfirstlane(TilePartitioner::GetLoopNum(k_size));
-
-        // Run GEMM Pipeline (same as UniversalGemmKernel, but with descriptor-based windows)
-        using AElementWise = remove_cvref_t<typename GemmPipeline::AElementWise>;
-        using BElementWise = remove_cvref_t<typename GemmPipeline::BElementWise>;
-
-        const auto& c_block_tile = GemmPipeline{}(
-            a_block_window, AElementWise{}, b_block_window, BElementWise{}, num_loop, smem_ptr);
-
-        // Create D windows from descriptors (for each D tensor)
-        auto ds_block_windows = generate_tuple(
-            [&](auto i) {
-                using DDataType        = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
-                const DDataType* d_ptr = static_cast<const DDataType*>(ds_ptr[i]);
-
-                auto d_tensor_view =
-                    make_tensor_view<address_space_enum::global>(d_ptr, kargs.ds_grid_desc_m_n[i]);
-
-                return make_tile_window(d_tensor_view,
-                                        make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                   number<TilePartitioner::NPerBlock>{}),
-                                        {i_m, i_n});
-            },
-            number<NumDTensor>{});
-
-        // Run Epilogue Pipeline with descriptor-based D windows
-        EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_windows, smem_ptr);
     }
 
     CK_TILE_HOST static constexpr KernelArgs
