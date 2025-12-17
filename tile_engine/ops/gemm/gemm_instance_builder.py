@@ -239,7 +239,6 @@ class GemmKernelBuilder:
             if not valid:
                 return False
 
-        # Full validation for generation
         # Determine data types for validation
         a_datatype = self.datatype
         b_datatype = self.datatype
