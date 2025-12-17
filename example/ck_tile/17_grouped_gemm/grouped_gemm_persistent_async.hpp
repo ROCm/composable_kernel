@@ -13,7 +13,7 @@ template <typename GroupedGemKernelParam,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
+float invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
                                     const ck_tile::index_t num_groups,
                                     void* kargs_ptr,
                                     bool splitk)
@@ -90,7 +90,7 @@ void invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
                       << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
         }
 
-        ck_tile::launch_kernel(s,
+        return ck_tile::launch_kernel(s,
                                ck_tile::make_kernel<kBlockPerCu>(
                                    Kernel{},
                                    grids,
@@ -102,13 +102,13 @@ void invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
 
     if(splitk)
     {
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                        ck_tile::memory_operation_enum::atomic_add>{});
     }
     else
     {
 
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                        ck_tile::memory_operation_enum::set>{});
     }
 }

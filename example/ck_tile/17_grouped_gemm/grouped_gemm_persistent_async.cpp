@@ -279,20 +279,18 @@ int run_grouped_gemm_persistent_async_example(ck_tile::ArgParser& arg_parser,
                 return m;
         };
 
-        // Create GEMM descriptor
-        grouped_gemm_kargs desc;
-        desc.M        = M;
-        desc.N        = N;
-        desc.K        = K;
-        desc.k_batch  = kbatch;
-        desc.stride_A = get_stride(a_layout, M, K);
-        desc.stride_B = get_stride(b_layout, K, N);
-        desc.stride_E = get_stride(c_layout, M, N);
-        desc.a_ptr    = a_dev_bufs[i]->GetDeviceBuffer();
-        desc.b_ptr    = b_dev_bufs[i]->GetDeviceBuffer();
-        desc.e_ptr    = c_dev_bufs[i]->GetDeviceBuffer();
-
-        gemm_descs.push_back(desc);
+        gemm_descs.push_back({a_dev_bufs[i]->GetDeviceBuffer(),
+                              b_dev_bufs[i]->GetDeviceBuffer(),
+                              {/*ds_ptr*/},
+                              c_dev_bufs[i]->GetDeviceBuffer(),
+                              kbatch,
+                              M,
+                              N,
+                              K,
+                              get_stride(a_layout, M, K),
+                              get_stride(b_layout, K, N),
+                              {/*stride_Ds*/},
+                              get_stride(c_layout, M, N)});
     }
 
     // Allocate workspace for kernel arguments
@@ -303,12 +301,10 @@ int run_grouped_gemm_persistent_async_example(ck_tile::ArgParser& arg_parser,
     std::vector<ck_tile::GemmTransKernelArg<>> kargs;
     int cumulative_chunks = 0;
 
-    for(int i = 0; i < gemm_descs.size(); ++i)
+    for(const auto& desc : gemm_descs)
     {
-        const auto& desc = gemm_descs[i];
-
         // Calculate chunk offset for this group (if async mode enabled)
-        int chunk_offset = cumulative_chunks;
+        // int chunk_offset = cumulative_chunks;
         if(async_args.enable_async && async_args.tiles_per_chunk_m > 0)
         {
             const int m_tiles = (desc.M + GemmConfig::M_Tile - 1) / GemmConfig::M_Tile;
@@ -330,6 +326,8 @@ int run_grouped_gemm_persistent_async_example(ck_tile::ArgParser& arg_parser,
                                                               desc.stride_E,
                                                               desc.k_batch});
     }
+
+    ck_tile::ignore = cumulative_chunks;
 
     // Copy kernel args to device
     const auto stream = ck_tile::stream_config{nullptr, true, 1, warmup, repeat};
