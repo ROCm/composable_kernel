@@ -112,7 +112,6 @@ struct UniversalGemmBasePolicy
         using ADataType             = OverrideADataType;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t KPack     = GetSmemPackA<Problem>();
 
         if constexpr(is_a_load_tr<Problem>)
         {
@@ -246,6 +245,7 @@ struct UniversalGemmBasePolicy
             }
             else // A is in RowMajor
             {
+                constexpr index_t KPack        = GetSmemPackA<Problem>();
                 constexpr auto DataTypeSize    = sizeof(ADataType);
                 constexpr uint64_t MinLdsLayer = 1ULL;
                 constexpr auto MLdsLayer =
