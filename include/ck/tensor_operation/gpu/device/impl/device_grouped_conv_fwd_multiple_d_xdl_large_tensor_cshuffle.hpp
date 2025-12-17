@@ -25,6 +25,7 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
 #ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/conv_describe.hpp"
 #include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp"
 #endif
 
@@ -1237,6 +1238,22 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
             "instance_traits_device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp "
             "for the given template parameters.");
         return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        static_assert(
+            ck_tile::reflect::conv::HasConvTraits<DeviceOp>,
+            "ConvTraits specialization not found for this device operation. "
+            "If you modified the template parameters of this class, ensure that "
+            "the corresponding ConvTraits specialization in "
+            "ck_tile/builder/reflect/conv_traits.hpp is updated to match, or that "
+            "InstanceTraits in "
+            "ck_tile/builder/reflect/"
+            "instance_traits_device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp "
+            "provides all required members for ConvTraits to work.");
+        return std::make_unique<ck_tile::reflect::conv::ConvDescription>(
+            ck_tile::reflect::describe<DeviceOp>());
     }
 #endif
 };
