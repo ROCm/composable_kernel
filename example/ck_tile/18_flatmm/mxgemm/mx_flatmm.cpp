@@ -205,7 +205,6 @@ auto preShuffleWeight(ck_tile::HostTensor<dtype>& src)
             int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
                               k1 * KPack * NLane + n1 * KPack + k2;
 
-            std::cout << k << " " << n << " " << outputIndex << std::endl;
             shuffled(outputIndex) = src(k, n);
         }
     }
@@ -350,9 +349,9 @@ int main(int argc, char* argv[])
         // using BDataType = ck_tile::pk_fp4_t;
         using BDataType = ck_tile::f6x16_pk_t;
 
-        ck_tile::index_t stride_B = 0;
         ck_tile::index_t N        = 32;
-        ck_tile::index_t K        = 256;
+        ck_tile::index_t K        = 128;
+        ck_tile::index_t stride_B = 0;
         stride_B = ck_tile::get_default_stride(K, N, stride_B, ck_tile::bool_constant<false>{});
         // is_row_major
         ck_tile::HostTensor<BDataType> b_origin_host(
@@ -366,8 +365,9 @@ int main(int argc, char* argv[])
                 {
                     for(int k_ = 0; k_ < pack_k; k_++)
                     {
-                        int value = n * K + k + k_;
-                        b_origin_host(n, k).pack(value, k_);
+                        int value = rand() & 0x3f;
+                        std::cout << value << std::endl;
+                        b_origin_host(k, n).pack(value, k_);
                     }
                 }
             }
@@ -377,7 +377,7 @@ int main(int argc, char* argv[])
                 {
                     for(int k_ = 0; k_ < pack_k; k_++)
                     {
-                        std::cout << b_origin_host(n, k).unpack(k_) << std::endl;
+                        std::cout << b_origin_host(k, n).unpack(k_) << std::endl;
                     }
                 }
             }

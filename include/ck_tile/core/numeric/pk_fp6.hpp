@@ -22,7 +22,7 @@ struct pk_f6_t
     static constexpr index_t vector_size = (packed_size * num_bits_elem) / num_bits_vec_elem;
     // using storage_type = element_type __attribute__((ext_vector_type(vector_size)));
     // storage_type data_{storage_type(0)}; // packed data
-    element_type data_[3]; // packed data
+    element_type data_[vector_size]; // packed data
     using type = pk_f6_t<packed_size>;
     void pack(const uint32_t x, const index_t i)
     {
