@@ -1666,6 +1666,37 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage("Run TILE_ENGINE_GEMM Tests on gfx950")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx950") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                            -D CMAKE_BUILD_TYPE=Release \
+                                            -D GPU_TARGETS="gfx950" \
+                                            -D GEMM_DATATYPE="fp8;fp16" \
+                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
+                                            -D GEMM_STREAMK_LAYOUT="rcr" \
+                                            -D GEMM_MULTI_D_DATATYPE="fp16" \
+                                            -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
+                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
+                                           ninja -j64 benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all && \
+                                           python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
                 stage("Run TILE_ENGINE_GEMM Tests on gfx1201")
                 {
                     when {
