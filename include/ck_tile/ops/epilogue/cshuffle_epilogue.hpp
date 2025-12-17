@@ -35,7 +35,8 @@ template <typename AsDataType_,
           bool FixedVectorSize_        = false,
           index_t VectorSizeC_         = 1,
           bool TiledMMAPermuteN_       = false,
-          index_t BlockedXDLN_PerWarp_ = 1> // The number of continuous xdl_output per warp
+          index_t BlockedXDLN_PerWarp_ = 1, // The number of continuous xdl_output per warp
+          bool DoubleSmemBuffer_       = false>
 struct CShuffleEpilogueProblem
 {
     using AsDataType                                       = remove_cvref_t<AsDataType_>;
@@ -59,6 +60,7 @@ struct CShuffleEpilogueProblem
     static constexpr bool FixedVectorSize                  = FixedVectorSize_;
     static constexpr index_t VectorSizeC                   = VectorSizeC_;
     static constexpr index_t BlockedXDLN_PerWarp           = BlockedXDLN_PerWarp_;
+    static constexpr bool DoubleSmemBuffer                 = DoubleSmemBuffer_;
     static constexpr bool TiledMMAPermuteN                 = TiledMMAPermuteN_;
     static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
     static constexpr index_t NumDTensor                    = DsDataType::size();
@@ -118,6 +120,7 @@ struct CShuffleEpilogue
     static constexpr bool FixedVectorSize                  = Problem::FixedVectorSize;
     static constexpr bool TiledMMAPermuteN                 = Problem::TiledMMAPermuteN;
     static constexpr index_t BlockedXDLN_PerWarp           = Problem::BlockedXDLN_PerWarp;
+    static constexpr bool DoubleSmemBuffer                 = Problem::DoubleSmemBuffer;
     static constexpr index_t VectorSizeC                   = Problem::VectorSizeC;
     static constexpr index_t MPerIteration                 = MPerXdl * MWave;
     static constexpr index_t NPerIteration                 = NPerXdl * NWave;
@@ -204,6 +207,26 @@ struct CShuffleEpilogue
         }
         return max_vector_size / sizeof(DiDataType);
     }
+
+    /**
+     * @brief Shuffle tile configuration parameters check and aligment
+     *
+     * @details Return tuple(1, 1) if shuffle_tile values are too large for SMEM.
+     */
+    template <index_t m_shuffle_tile, index_t n_shuffle_tile>
+    CK_TILE_HOST_DEVICE static constexpr auto AlignShuffleTileWithSmem()
+    {
+        constexpr index_t m_val = MPerXdl * MWave * m_shuffle_tile;
+        constexpr index_t n_val = NPerXdl * NWave * n_shuffle_tile;
+
+        constexpr auto shuffle_tile =
+            m_val * n_val * sizeof(ODataType) > get_smem_capacity() || DoubleSmemBuffer
+                ? std::make_tuple(1, 1)
+                : std::make_tuple(m_shuffle_tile, n_shuffle_tile);
+
+        return shuffle_tile;
+    }
+
     /**
      * @brief Shuffle tile configuration parameters
      *
@@ -214,20 +237,23 @@ struct CShuffleEpilogue
      */
     static constexpr auto shuffle_tile_tuple = [] {
         constexpr index_t elem_per_thread = MPerXdl * NPerXdl / get_warp_size();
-        if constexpr(elem_per_thread >= GetVectorSizeC())
+        if constexpr(elem_per_thread <= GetVectorSizeC())
         {
             return std::make_tuple(1, 1);
         }
         else
         {
-            constexpr index_t num_xdl_shuffles = GetVectorSizeC() / elem_per_thread;
+            constexpr index_t num_xdl_shuffles = elem_per_thread / GetVectorSizeC();
+            static_assert(elem_per_thread % GetVectorSizeC() == 0);
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 static_assert((kMPerBlock % (MPerXdl * MWave) == 0) &&
                                   (kMPerBlock % num_xdl_shuffles == 0),
                               "kMPerBlock must be divisible by MPerXdl*MWave and "
                               "num_xdl_shuffles for CShuffleEpilogue");
-                return std::make_tuple(min(num_xdl_shuffles, kMPerBlock / (MPerXdl * MWave)), 1);
+                return AlignShuffleTileWithSmem<min(num_xdl_shuffles,
+                                                    kMPerBlock / (MPerXdl * MWave)),
+                                                1>();
             }
             else
             {
@@ -235,7 +261,9 @@ struct CShuffleEpilogue
                                   (kNPerBlock % num_xdl_shuffles == 0),
                               "kNPerBlock must be divisible by NPerXdl*NWave and "
                               "num_xdl_shuffles for CShuffleEpilogue");
-                return std::make_tuple(1, min(num_xdl_shuffles, kNPerBlock / (NPerXdl * NWave)));
+                return AlignShuffleTileWithSmem<1,
+                                                min(num_xdl_shuffles,
+                                                    kNPerBlock / (NPerXdl * NWave))>();
             }
         }
     }();
