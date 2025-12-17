@@ -62,7 +62,9 @@ void add_device_grouped_conv3d_bwd_weight_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_ins
                                                                     PassThrough,
                                                                     Scale,
                                                                     PassThrough>>>& instances);
+#endif
 
+#ifdef CK_ENABLE_TF32
 void add_device_grouped_conv3d_bwd_weight_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<3,
                                                                     NDHWGC,
@@ -152,24 +154,26 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<InLayout, NDHWGC> && is_same_v<WeiLayout, GKZYXC> &&
                          is_same_v<OutLayout, NDHWGK>)
             {
-#ifdef CK_ENABLE_FP32
                 if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                              is_same_v<OutDataType, float>)
                 {
                     static_assert(is_same_v<ComputeTypeA, ComputeTypeB>,
                                   "Error: this operator requires the same compute type");
+#ifdef CK_ENABLE_TF32
                     if constexpr(is_same_v<ComputeTypeA, TF32>)
                     {
                         add_device_grouped_conv3d_bwd_weight_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
                             op_ptrs);
                     }
-                    else
+#endif
+#ifdef CK_ENABLE_FP32
+                    if constexpr(is_same_v<ComputeTypeA, float>)
                     {
                         add_device_grouped_conv3d_bwd_weight_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                             op_ptrs);
                     }
-                }
 #endif
+                }
 #ifdef CK_ENABLE_FP16
                 if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                              is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&

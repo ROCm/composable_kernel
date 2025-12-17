@@ -560,15 +560,30 @@ struct GroupedConvolutionBackwardDataKernel
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
+        static constexpr bool EnableSplitImage = GroupedConvTraitsType_::EnableSplitImage;
+        constexpr auto NumGroupsToMerge        = GroupedConvTraitsType_::NumGroupsToMerge;
         // clang-format off
         return concat('_', "grouped_convolution_backward_data", 
             gemm_prec_str<InDataType, WeiDataType>(), 
+            InLayout::name,
+            WeiLayout::name,
+            OutLayout::name,
             "gemm",
             GemmPipeline::GetName(),
             "epilogue",
-            EpiloguePipeline::GetName());
+            EpiloguePipeline::GetName(),
+            getConvSpecializationString(ConvSpecialization),
+            "MergedGroups",
+            NumGroupsToMerge,
+            "SplitImage",
+            EnableSplitImage,
+            "ExplicitGemm",
+            GroupedConvTraitsType_::ExplicitGemm
+        );
         // clang-format on
     }
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetTypeString() { return GetName(); }
 
 #ifdef CK_EXPERIMENTAL_BUILDER
     CK_TILE_HOST std::string GetInstanceString() const
@@ -1033,7 +1048,7 @@ struct GroupedConvolutionBackwardDataKernel
 
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            __shared__ char smem_ptr_1[GetSmemSize()];
+            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
             if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
                            GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                            is_any_of<OutDataType, fp16_t, bf16_t>::value))

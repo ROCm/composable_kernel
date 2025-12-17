@@ -17,8 +17,8 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
               typename DsDataType     = ck_tile::tuple<>,
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    static float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
-                                         const ck_tile::stream_config& s)
+    static InvokerResult grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
+                                                 const ck_tile::stream_config& s)
     {
         using WorkspaceDataType = float;
 
@@ -60,42 +60,9 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
             GroupedConvTraitsType::FixedGemmParams::Persistent,
             ConvConfig::NumWaveGroups>;
 
-        using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
-            OutDataType,
-            InDataType,
-            AccDataType,
-            GemmShape,
-            typename GroupedConvTraitsType::template GroupedConvImplicitGemmTraitsBwdWeight<
-                ConvConfig::NumWaveGroups>,
-            ck_tile::element_wise::PassThrough,
-            ck_tile::element_wise::PassThrough,
-            WeiDataType,
-            GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
-            GroupedConvTraitsType::VectorSizeA,
-            GroupedConvTraitsType::VectorSizeB>;
+        constexpr auto scheduler = ConvConfig::Scheduler;
 
-        using BaseGemmPipeline = typename PipelineTypeTraits<
-            ConvConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
-
-        const ck_tile::index_t gemm_k =
-            args.N_ * std::accumulate(args.output_spatial_lengths_.begin(),
-                                      args.output_spatial_lengths_.end(),
-                                      1,
-                                      std::multiplies<ck_tile::index_t>());
-
-        const ck_tile::index_t k_grain     = args.k_batch * ConvConfig::K_Tile;
-        const ck_tile::index_t K_split     = (gemm_k + k_grain - 1) / k_grain * ConvConfig::K_Tile;
-        const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-        const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-        float ave_time{0};
-
-        const auto Run = [&](const auto has_hot_loop_,
-                             const auto tail_number_,
-                             const auto memory_operation_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
-            constexpr auto scheduler        = ConvConfig::Scheduler;
+        const auto Run = [&](const auto memory_operation_) {
             constexpr auto memory_operation = memory_operation_.value;
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
@@ -105,8 +72,6 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                 GemmShape,
                 GemmUniversalTraits,
                 scheduler,
-                has_hot_loop_v,
-                tail_number_v,
                 ck_tile::element_wise::PassThrough,
                 ck_tile::element_wise::PassThrough,
                 WeiDataType,
@@ -153,9 +118,9 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                               sizeof(WorkspaceDataType));
             ck_tile::GroupedConvBwdWeightHostArgs ws_args =
                 ck_tile::GroupedConvBwdWeightHostArgs(args);
-            auto c_ptr      = ws_args.wei_ptr;
-            ws_args.wei_ptr = ws_m_n_dev_buf.GetDeviceBuffer();
-            auto kargs      = Kernel::MakeKernelArgs(ws_args);
+            auto c_ptr       = ws_args.wei_ptr;
+            ws_args.wei_ptr  = ws_m_n_dev_buf.GetDeviceBuffer();
+            const auto kargs = Kernel::MakeKernelArgs(ws_args);
 
             const dim3 grids  = Kernel::GridSize(kargs);
             const dim3 blocks = Kernel::BlockSize();
@@ -209,7 +174,6 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
             {
                 std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
                           << "shape: " << GemmShape::GetName() << '\n'
-                          << "problem: " << GemmPipelineProblem::GetName() << '\n'
                           << "pipeline: " << GemmPipeline::GetName() << '\n'
                           << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                           << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
@@ -220,7 +184,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
             }
 
             auto preprocess = [&]() {
-                if(args.k_batch > 1)
+                if(kargs.k_batch > 1)
                     ck_tile::hip_check_error(
                         hipMemsetAsync(ws_args.wei_ptr,
                                        0,
@@ -228,7 +192,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                        s.stream_id_));
             };
 
-            ave_time = ck_tile::launch_kernel_time_mask(
+            const auto ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 preprocess,
                 ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs),
@@ -243,21 +207,18 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                     input_tensors,
                     static_cast<WeiDataType*>(c_ptr)));
 
-            return ave_time;
+            const auto split_k = kargs.k_batch;
+
+            return InvokerResult{ave_time, split_k};
         };
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(args.k_batch == 1)
-            {
-                Run(has_hot_loop_, tail_number_, MemoryOpSet{});
-            }
-            else
-            {
-                Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
-            }
-        };
-
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-        return ave_time;
+        if(args.k_batch == 1)
+        {
+            return Run(MemoryOpSet{});
+        }
+        else
+        {
+            return Run(MemoryOpAtomicAdd{});
+        }
     }
 };

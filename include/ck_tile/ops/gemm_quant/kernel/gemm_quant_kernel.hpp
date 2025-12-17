@@ -412,7 +412,8 @@ struct QuantGemmKernel
             return false;
         }
 
-        if constexpr(kQuantType == QuantType::AQuantGrouped)
+        if constexpr(kQuantType == QuantType::AQuantGrouped ||
+                     kQuantType == QuantType::ABQuantGrouped)
         {
             if(kargs.QK_A % GemmPipeline::GetVectorSizeAQ() != 0)
             {
@@ -424,9 +425,9 @@ struct QuantGemmKernel
             }
         }
 
-        if constexpr(kQuantType == QuantType::BQuantGrouped)
+        if constexpr(kQuantType == QuantType::BQuantGrouped ||
+                     kQuantType == QuantType::ABQuantGrouped)
         {
-            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
             if(kargs.QK_B % GemmPipeline::GetVectorSizeBQ() != 0)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
@@ -652,7 +653,9 @@ struct QuantGemmKernel
 
                 return make_tensor_view<address_space_enum::global>(aq_ptr, aq_merge_pad1_desc);
             }
-            else if constexpr(kQuantType == QuantType::AQuantGrouped && !PreshuffleQuant)
+            else if constexpr((kQuantType == QuantType::AQuantGrouped ||
+                               kQuantType == QuantType::ABQuantGrouped) &&
+                              !PreshuffleQuant)
             {
                 if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
                 {
@@ -747,7 +750,6 @@ struct QuantGemmKernel
                                          (splitk_batch_offset.splitted_k /
                                           GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{}));
                         index_t kFlatN = kargs.N * kargs.K / kFlatK;
-
                         return make_naive_tensor_view<address_space_enum::global>(
                             b_ptr,
                             make_tuple(kFlatN, kFlatK),
@@ -757,12 +759,20 @@ struct QuantGemmKernel
                     }
                     else
                     {
-                        return make_naive_tensor_view<address_space_enum::global>(
-                            b_ptr,
-                            make_tuple(kargs.N, splitk_batch_offset.splitted_k),
-                            make_tuple(kargs.stride_B, 1),
-                            number<GemmPipeline::GetVectorSizeB()>{},
-                            number<1>{});
+                        if constexpr(std::is_same_v<BDataType, pk_fp4_raw_t>)
+                            return make_naive_tensor_view<address_space_enum::global>(
+                                b_ptr,
+                                make_tuple(kargs.N, splitk_batch_offset.splitted_k / 2),
+                                make_tuple(kargs.stride_B, 1),
+                                number<GemmPipeline::GetVectorSizeB()>{},
+                                number<1>{});
+                        else
+                            return make_naive_tensor_view<address_space_enum::global>(
+                                b_ptr,
+                                make_tuple(kargs.N, splitk_batch_offset.splitted_k),
+                                make_tuple(kargs.stride_B, 1),
+                                number<GemmPipeline::GetVectorSizeB()>{},
+                                number<1>{});
                     }
                 }
             }
@@ -782,7 +792,9 @@ struct QuantGemmKernel
             {
                 if constexpr(PreshuffleQuant)
                 {
-                    static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                    static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>,
+                                  "PreshuffleQuant with BQuantGrouped currently only supports "
+                                  "ColumnMajor BQ layout");
 
                     return MakePreshuffledQuantTensorView<
                         GemmPipeline::KPerBlockBQ,
@@ -792,15 +804,47 @@ struct QuantGemmKernel
                 }
                 else
                 {
-                    static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
                     using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
-                    return make_naive_tensor_view<address_space_enum::global>(
-                        bq_ptr,
-                        make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN), kargs.QK_B),
-                        make_tuple(kargs.stride_BQ, 1),
-                        number<GemmPipeline::GetVectorSizeBQ()>{},
-                        number<1>{});
+
+                    if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>)
+                    {
+                        // For RowMajor BQ: memory layout is [K/QuantGroupK][N/QuantGroupN]
+                        // Dimensions: [K/QuantGroupK, N/QuantGroupN]
+                        // Strides: [N/QuantGroupN, 1]
+                        return make_naive_tensor_view<address_space_enum::global>(
+                            bq_ptr,
+                            make_tuple(integer_divide_ceil(kargs.K, QuantGroupSize::kK),
+                                       integer_divide_ceil(kargs.N, QuantGroupSize::kN)),
+                            make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN), 1),
+                            number<GemmPipeline::GetVectorSizeBQ()>{},
+                            number<1>{});
+                    }
+                    else
+                    {
+                        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                        // For ColumnMajor BQ: memory layout is [N/QuantGroupN][K/QuantGroupK]
+                        // Dimensions: [N/QuantGroupN, K/QuantGroupK]
+                        // Strides: [K/QuantGroupK, 1]
+                        return make_naive_tensor_view<address_space_enum::global>(
+                            bq_ptr,
+                            make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN),
+                                       integer_divide_ceil(kargs.K, QuantGroupSize::kK)),
+                            make_tuple(integer_divide_ceil(kargs.K, QuantGroupSize::kK), 1),
+                            number<GemmPipeline::GetVectorSizeBQ()>{},
+                            number<1>{});
+                    }
                 }
+            }
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped)
+            {
+                static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                using QuantGroupSize = remove_cvref_t<typename GemmPipeline::BQuantGroupSize>;
+                return make_naive_tensor_view<address_space_enum::global>(
+                    bq_ptr,
+                    make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN), kargs.QK_B),
+                    make_tuple(kargs.stride_BQ, 1),
+                    number<GemmPipeline::GetVectorSizeBQ()>{},
+                    number<1>{});
             }
             else
             {
@@ -864,10 +908,16 @@ struct QuantGemmKernel
             const auto& b_tensor_view = views.at(I2);
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
             {
-                return pad_tensor_view(b_tensor_view,
-                                       make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                  number<TilePartitioner::KPerBlock>{}),
-                                       sequence<false, GemmPipeline::kPadK>{});
+                if constexpr(std::is_same_v<BDataType, pk_fp4_raw_t>)
+                    return pad_tensor_view(b_tensor_view,
+                                           make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                      number<TilePartitioner::KPerBlock / 2>{}),
+                                           sequence<false, GemmPipeline::kPadK>{});
+                else
+                    return pad_tensor_view(b_tensor_view,
+                                           make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                      number<TilePartitioner::KPerBlock>{}),
+                                           sequence<false, GemmPipeline::kPadK>{});
             }
             else
             {
@@ -972,6 +1022,17 @@ struct QuantGemmKernel
                                             {0, i_m});
                 }
             }
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped && !PreshuffleQuant)
+            {
+                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
+                using QuantGroupSize   = remove_cvref_t<typename GemmPipeline::AQuantGroupSize>;
+                constexpr auto block_m = TilePartitioner::MPerBlock;
+                constexpr auto block_k = TilePartitioner::KPerBlock;
+                return make_tile_window(
+                    aq_pad_view,
+                    make_tuple(number<block_m>{}, number<block_k / QuantGroupSize::kK>{}),
+                    {i_m, 0});
+            }
             else if constexpr(kQuantType == QuantType::RowColQuant)
             {
                 return make_tile_window(aq_pad_view,
@@ -999,10 +1060,17 @@ struct QuantGemmKernel
             {
                 if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
                 {
-                    return make_tile_window(b_pad_view,
-                                            make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                       number<TilePartitioner::KPerBlock>{}),
-                                            {i_n, 0});
+                    if constexpr(std::is_same_v<BDataType, pk_fp4_raw_t>)
+                        return make_tile_window(
+                            b_pad_view,
+                            make_tuple(number<TilePartitioner::NPerBlock>{},
+                                       number<TilePartitioner::KPerBlock / 2>{}),
+                            {i_n, 0});
+                    else
+                        return make_tile_window(b_pad_view,
+                                                make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                           number<TilePartitioner::KPerBlock>{}),
+                                                {i_n, 0});
                 }
                 else
                 {
@@ -1024,10 +1092,10 @@ struct QuantGemmKernel
             }
             else if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
+                using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
                 if constexpr(PreshuffleQuant)
                 {
                     static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-                    using QuantGroupSize   = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
                     constexpr auto block_n = TilePartitioner::NPerBlock / QuantGroupSize::kN;
                     constexpr auto warp_n  = TilePartitioner::BlockGemmShape::WarpTile::at(I1);
                     constexpr auto bqk_per_block = TilePartitioner::KPerBlock / QuantGroupSize::kK;
@@ -1043,14 +1111,34 @@ struct QuantGemmKernel
                 }
                 else
                 {
-                    static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-                    using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
-                    return make_tile_window(
-                        bq_pad_view,
-                        make_tuple(number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{},
-                                   number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{}),
-                        {i_n / QuantGroupSize::kN, 0});
+                    if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>)
+                    {
+                        return make_tile_window(
+                            bq_pad_view,
+                            make_tuple(number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{},
+                                       number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{}),
+                            {0, i_n / QuantGroupSize::kN});
+                    }
+                    else
+                    {
+                        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                        return make_tile_window(
+                            bq_pad_view,
+                            make_tuple(number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{},
+                                       number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{}),
+                            {i_n / QuantGroupSize::kN, 0});
+                    }
                 }
+            }
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped)
+            {
+                static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                using QuantGroupSize = remove_cvref_t<typename GemmPipeline::BQuantGroupSize>;
+                return make_tile_window(
+                    bq_pad_view,
+                    make_tuple(number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{},
+                               number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{}),
+                    {i_n / QuantGroupSize::kN, 0});
             }
             else
             {
@@ -1132,6 +1220,26 @@ struct QuantGemmKernel
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, n);
             }
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped)
+            {
+                const auto& aq_block_window = gemm_tile_windows.at(I1);
+                const auto& bq_block_window = gemm_tile_windows.at(I3);
+                index_t m                   = 0;
+                index_t n                   = 0;
+                if constexpr(PreshuffleQuant)
+                {
+                    m = kargs.M;
+                    n = kargs.N;
+                }
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          aq_block_window,
+                                                          bq_block_window,
+                                                          num_loop,
+                                                          smem_ptr_0,
+                                                          m,
+                                                          n);
+            }
             else if constexpr(kQuantType == QuantType::RowColQuant ||
                               kQuantType == QuantType::TensorQuant)
             {
@@ -1143,7 +1251,8 @@ struct QuantGemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I4);
 
-        if constexpr(kQuantType == QuantType::AQuantGrouped ||
+        if constexpr(kQuantType == QuantType::ABQuantGrouped ||
+                     kQuantType == QuantType::AQuantGrouped ||
                      kQuantType == QuantType::BQuantGrouped)
         {
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
@@ -1272,7 +1381,7 @@ struct QuantGemmKernel
         assert(kargs.k_batch == 1);
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            __shared__ char smem_ptr_1[GetSmemSize()];
+            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
 
             RunGemm2LDS(a_ptr,
                         b_ptr,

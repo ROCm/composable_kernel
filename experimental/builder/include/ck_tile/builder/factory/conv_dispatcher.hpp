@@ -59,6 +59,7 @@
 #include "ck_tile/builder/factory/conv_fwd_wmma_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_dl_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_large_tensor_factory.hpp"
+#include "ck_tile/builder/factory/conv_tile_factory.hpp"
 
 namespace ck_tile::builder::factory {
 
@@ -81,83 +82,80 @@ namespace ck_tile::builder::factory {
 //
 // TODO: Make this dispatch logic much more robust and clear for users.
 
+// CK Tile kernel
+template <typename T>
+concept IsTileAlgorithm = ConvAlgorithmDescriptor<T> && SpecifiesTileThreadBlock<T> &&
+                          SpecifiesTileTransfer<T> && SpecifiesTileConvSpecialization<T> &&
+                          SpecifiesTileBlockGemm<T> && SpecifiesTileOptimizations<T>;
+
 // XDL-based kernel with V3 pipeline structure (newer block GEMM pipeline)
 template <typename T>
-consteval bool IsXdlV3Algorithm()
-{
-    return ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
-           SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> &&
-           SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T> &&
-           SpecifiesFwdConcSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-           SpecifiesBlockGemm<T>;
-}
+concept IsXdlV3Algorithm =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConvSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T>;
 
 // Standard XDL-based kernel (uses XDLops hardware instructions for matrix multiply)
 template <typename T>
-consteval bool IsXdlAlgorithm()
-{
-    return ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
-           SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> &&
-           SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T> &&
-           SpecifiesFwdConcSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-           SpecifiesNumPrefetchStages<T> && SpecifiesNumGroupsToMerge<T> &&
-           SpecifiesLoopScheduler<T>;
-}
+concept IsXdlAlgorithm =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConvSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> &&
+    SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T>;
 
 // WMMA-based kernel (uses Wavefront Matrix-Matrix Accumulate instructions)
 template <typename T>
-consteval bool IsWmmaAlgorithm()
-{
-    return ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
-           SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> &&
-           SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T> &&
-           SpecifiesFwdConcSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-           SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
-}
+concept IsWmmaAlgorithm =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConvSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
 
 // Specialized DL kernel for specific NHWC/KYXC/NHWK data layouts
 template <typename T>
-consteval bool IsDlAlgorithm()
-{
-    return ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> &&
-           SpecifiesFwdConcSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-           SpecifiesDlThreadConfig<T> && SpecifiesDlThreadCluster<T> &&
-           SpecifiesDlBlockTransfer<T> && SpecifiesDlEpilogue<T>;
-}
+concept IsDlAlgorithm =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesFwdConvSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesDlThreadConfig<T> && SpecifiesDlThreadCluster<T> &&
+    SpecifiesDlBlockTransfer<T> && SpecifiesDlEpilogue<T>;
 
 // XDL-based kernel with large tensor support
 template <typename T>
-consteval bool IsLargeTensorAlgorithm()
-{
-    return IsXdlAlgorithm<decltype(T::base_algorithm)>() && SpecifiesLargeTensorSupport<T>;
-}
+concept IsLargeTensorAlgorithm =
+    IsXdlAlgorithm<decltype(T::base_algorithm)> && SpecifiesLargeTensorSupport<T>;
 
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
 constexpr auto make_conv_instance()
 {
-    if constexpr(ConvDirectionIsForward<SIGNATURE>)
-    {
-        using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
+    using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
 
-        if constexpr(IsXdlV3Algorithm<AlgoType>())
+    // CK Tile supports common factory for each direction
+    if constexpr(IsTileAlgorithm<AlgoType>)
+    {
+        return typename ConvTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+    }
+    else if constexpr(ConvDirectionIsForward<SIGNATURE>)
+    {
+        if constexpr(IsXdlV3Algorithm<AlgoType>)
         {
             return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(IsXdlAlgorithm<AlgoType>())
+        else if constexpr(IsXdlAlgorithm<AlgoType>)
         {
             return typename ConvFwdXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(IsWmmaAlgorithm<AlgoType>())
+        else if constexpr(IsWmmaAlgorithm<AlgoType>)
         {
             return typename ConvFwdWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(IsDlAlgorithm<AlgoType>())
+        else if constexpr(IsDlAlgorithm<AlgoType>)
         {
             return typename ConvFwdDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(IsLargeTensorAlgorithm<AlgoType>())
+        else if constexpr(IsLargeTensorAlgorithm<AlgoType>)
         {
             return typename ConvFwdLargeTensorFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
