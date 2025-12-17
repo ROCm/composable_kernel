@@ -1087,7 +1087,7 @@ struct QuantGemmKernel
                     constexpr auto tile_window_width =
                         ck_tile::integer_least_multiple(warp_n * bqk_per_block, get_warp_size());
                     constexpr auto tile_window_height =
-                        (block_n > warp_per_group) ? block_n / warp_per_group : block_n;
+                        (QuantGroupSize::kN < warp_n) ? block_n / warp_per_group : block_n;
 
                     auto block_n_idx = i_n / TilePartitioner::NPerBlock;
 
