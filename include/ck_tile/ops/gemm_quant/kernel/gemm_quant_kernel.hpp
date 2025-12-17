@@ -1119,17 +1119,19 @@ struct QuantGemmKernel
                 {
                     static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
                     constexpr auto block_n =
-                        TilePartitioner::NPerBlock / QuantGroupSize::kN; // 64 / 32 = 2
+                        TilePartitioner::NPerBlock / QuantGroupSize::kN; // 128/32 = 4
 
-                    constexpr auto warp_n       = TilePartitioner::BlockGemmShape::WarpTile::at(I1);
+                    constexpr auto warp_n = TilePartitioner::BlockGemmShape::WarpTile::at(I1); // 16
                     constexpr auto warpPerGroup = (QuantGroupSize::kN < warp_n)
                                                       ? (warp_n / QuantGroupSize::kN)
-                                                      : (QuantGroupSize::kN / warp_n);
-                    constexpr auto bqk_per_block = TilePartitioner::KPerBlock / QuantGroupSize::kK;
+                                                      : (QuantGroupSize::kN / warp_n); // 32/16 = 2
+                    constexpr auto bqk_per_block =
+                        TilePartitioner::KPerBlock / QuantGroupSize::kK; // 128 / 128 = 1
                     constexpr auto tile_window_width = ck_tile::integer_least_multiple(
-                        warp_n * bqk_per_block, get_warp_size()); // 128
-                    constexpr auto tile_window_height =
-                        (block_n > warpPerGroup) ? block_n / warpPerGroup : block_n;
+                        warp_n * bqk_per_block, get_warp_size()); // (16 * 1, 64) = 64
+                    constexpr auto tile_window_height = (QuantGroupSize::kN < warp_n)
+                                                            ? block_n / warpPerGroup
+                                                            : block_n; // 4 / 2 = 2
 
                     auto block_n_idx = i_n / TilePartitioner::NPerBlock; // 0,1,2
 
@@ -1253,15 +1255,15 @@ struct QuantGemmKernel
                 {
                     n = kargs.N;
                 }
-                // if(get_block_id() == 0 && get_thread_id() == 0)
-                // {
-                //     printf("In RunGemm, before GemmPipeline call for BQuantGrouped\n");
-                //     // To print Tile window after bq_pad0_desc
-                //     //  bq_block_window.template print_tile_window_range<BQDataType>(
-                //     //      0, 128, 0, 2, "bq block window");
-                //     bq_block_window.template print_tile_window_range<BQDataType>(
-                //         0, 8, 0, 64, "bq block window");
-                // }
+                if(get_block_id() == 0 && get_thread_id() == 0)
+                {
+                    printf("In RunGemm, before GemmPipeline call for BQuantGrouped\n");
+                    // To print Tile window after bq_pad0_desc
+                    //  bq_block_window.template print_tile_window_range<BQDataType>(
+                    //      0, 128, 0, 2, "bq block window");
+                    bq_block_window.template print_tile_window_range<BQDataType>(
+                        0, 8, 0, 32, "bq block window");
+                }
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, n);
             }

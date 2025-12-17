@@ -301,7 +301,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             const BQDramTileWindowStep bq_dram_tile_window_step =
                 (PreshuffleQuant)
-                    ? make_array(((NPerBlockBQ < BlockGemmShape::BlockWarps::at(number<1>{}))
+                    ? make_array(((NPerBlockBQ <= BlockGemmShape::BlockWarps::at(number<1>{}))
                                       ? ck_tile::integer_divide_ceil(n, QuantGroupSize::kN)
                                       : ck_tile::integer_least_multiple(n, NPerBlock) /
                                             BlockGemmShape::WarpTile::at(number<1>{})),
@@ -310,6 +310,14 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                                   : make_array(0, KPerBlockBQ);
             if(get_block_id() == 0 && get_thread_id() == 0)
             {
+                printf("ck_tile::integer_divide_ceil(%d, %d): %d\n",
+                       n,
+                       QuantGroupSize::kN,
+                       ck_tile::integer_divide_ceil(n, QuantGroupSize::kN));
+                printf("ck_tile::integer_least_multiple(%d, %d): %d\n",
+                       n,
+                       NPerBlock,
+                       ck_tile::integer_least_multiple(n, NPerBlock));
                 printf("bq_dram_tile_window_step: %d, %d\n",
                        bq_dram_tile_window_step[I0{}],
                        bq_dram_tile_window_step[I1{}]);
