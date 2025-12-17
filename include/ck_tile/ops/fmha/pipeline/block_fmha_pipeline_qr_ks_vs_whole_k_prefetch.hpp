@@ -35,8 +35,9 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
     static constexpr bool kQLoadOnce = true;
     static_assert(kQLoadOnce == Policy::QLoadOnce);
 
-    static constexpr bool kUseN0Loop      = true;
-    static constexpr bool kIgnoreFastExp2 = true;
+    static constexpr bool kUseN0Loop       = true;
+    static constexpr bool kIgnoreFastExp2  = true;
+    static constexpr bool kIsNaiveHDimLoad = true;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -50,14 +51,14 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
-    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = (kQKHeaddim < kSubQKHeaddim) ? 1 : Problem::kPadHeadDimV;
-    static constexpr auto BiasEnum     = Problem::BiasEnum;
-    static constexpr bool kStoreLSE    = Problem::kStoreLSE;
-    static constexpr bool kHasDropout  = Problem::kHasDropout;
+    static constexpr bool kIsGroupMode      = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ       = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK       = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV;
+    static constexpr auto BiasEnum          = Problem::BiasEnum;
+    static constexpr bool kStoreLSE         = Problem::kStoreLSE;
+    static constexpr bool kHasDropout       = Problem::kHasDropout;
     static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
@@ -135,9 +136,9 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
               typename AttentionVariantParams,
               typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*kSubQKHeaddim tile
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*kQKHeaddim tile
                const QElementFunction& q_element_func,
-               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*kSubQKHeaddim tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*kQKHeaddim tile
                const KElementFunction& k_element_func,
                const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                const VElementFunction& v_element_func,
@@ -170,8 +171,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
         static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kK1 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kSubQKHeaddim ==
-                              KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
+                          kQKHeaddim == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                           kN1 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                           kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
@@ -225,7 +225,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
         auto q_dram_window =
             make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kGemmSingleRepM>{}, number<kSubQKHeaddim>{}),
+                             make_tuple(number<kGemmSingleRepM>{}, number<kQKHeaddim>{}),
                              q_dram_block_window_tmp.get_window_origin(),
                              Policy::template MakeQDramSingleRepMTileDistribution<Problem>());
 
@@ -235,7 +235,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kN0Sub>{}, number<kSubQKHeaddim>{}),
+                             make_tuple(number<kN0Sub>{}, number<kQKHeaddim>{}),
                              {seqlen_k_start, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
 
@@ -271,7 +271,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
             q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
         auto q_lds_write_window = make_tile_window(
             q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
-        // when kSubQKHeaddim > kQKHeaddim, read window is actually smaller than write window
         auto q_lds_read_window =
             make_tile_window(q_lds,
                              make_tuple(number<kGemmSingleRepM>{}, number<kQKHeaddim>{}),
@@ -286,25 +285,15 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
         auto k_lds_window = make_tile_window(
             k_lds, Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
-        using k_lds_write_window_type = decltype(get_slice_tile(
-            k_lds_window, sequence<0, 0>{}, sequence<kN0Sub, kSubQKHeaddim>{}));
-
-        // when kSubQKHeaddim > kQKHeaddim, read window is actually smaller than write window
-        using k_lds_read_window_type = decltype(get_slice_tile(
+        using k_lds_window_type = decltype(get_slice_tile(
             k_lds_window, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
 
-        statically_indexed_array<k_lds_write_window_type, NumKVLdsBuffers> k_lds_write_windows;
-        statically_indexed_array<k_lds_read_window_type, NumKVLdsBuffers> k_lds_read_windows;
+        statically_indexed_array<k_lds_window_type, NumKVLdsBuffers> k_lds_windows;
 
         static_for<0, NumKVLdsBuffers, 1>{}([&](auto i_buf) {
-            k_lds_write_windows[i_buf] =
-                get_slice_tile(k_lds_window,
-                               sequence<i_buf * kN0Sub, 0>{},
-                               sequence<(i_buf + 1) * kN0Sub, kSubQKHeaddim>{});
-            k_lds_read_windows[i_buf] =
-                get_slice_tile(k_lds_window,
-                               sequence<i_buf * kN0Sub, 0>{},
-                               sequence<(i_buf + 1) * kN0Sub, kQKHeaddim>{});
+            k_lds_windows[i_buf] = get_slice_tile(k_lds_window,
+                                                  sequence<i_buf * kN0Sub, 0>{},
+                                                  sequence<(i_buf + 1) * kN0Sub, kQKHeaddim>{});
         });
 
         // V tile in LDS
@@ -434,7 +423,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                     if(seqlen_k_curr < seqlen_k_end - kN0) // not the last iteration
                     {
                         static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                            store_tile(k_lds_write_windows[number<i_n0 % NumKVLdsBuffers>{}],
+                            store_tile(k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}],
                                        tile_elementwise_in(k_element_func, k_tiles[number<i_n0>{}]),
                                        partition_index);
 
@@ -460,9 +449,8 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                             };
 
                             block_sync_lds();
-                            gemm_0(sacc_tile,
-                                   q_tile,
-                                   k_lds_read_windows[number<i_n0 % NumKVLdsBuffers>{}]);
+                            gemm_0(
+                                sacc_tile, q_tile, k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}]);
 
                             sacc_tile     = tile_elementwise_in(s_acc_element_func, sacc_tile);
                             auto tmp_tile = cast_tile<CompDataType>(sacc_tile);
@@ -475,7 +463,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                     else // the iteration is also the last iteration
                     {
                         static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                            store_tile(k_lds_write_windows[number<i_n0 % NumKVLdsBuffers>{}],
+                            store_tile(k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}],
                                        tile_elementwise_in(k_element_func, k_tiles[number<i_n0>{}]),
                                        partition_index);
 
@@ -492,9 +480,8 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                             };
 
                             block_sync_lds();
-                            gemm_0(sacc_tile,
-                                   q_tile,
-                                   k_lds_read_windows[number<i_n0 % NumKVLdsBuffers>{}]);
+                            gemm_0(
+                                sacc_tile, q_tile, k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}]);
 
                             sacc_tile     = tile_elementwise_in(s_acc_element_func, sacc_tile);
                             auto tmp_tile = cast_tile<CompDataType>(sacc_tile);
@@ -510,7 +497,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                     if(seqlen_k_curr < seqlen_k_end - kN0) // intermediate iteration
                     {
                         static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                            store_tile(k_lds_write_windows[number<i_n0 % NumKVLdsBuffers>{}],
+                            store_tile(k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}],
                                        tile_elementwise_in(k_element_func, k_tiles[number<i_n0>{}]),
                                        partition_index);
 
@@ -525,9 +512,8 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                             move_tile_window(k_dram_window, {kN0Sub, 0});
 
                             block_sync_lds();
-                            gemm_0(sacc_tile,
-                                   q_tile,
-                                   k_lds_read_windows[number<i_n0 % NumKVLdsBuffers>{}]);
+                            gemm_0(
+                                sacc_tile, q_tile, k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}]);
 
                             sacc_tile     = tile_elementwise_in(s_acc_element_func, sacc_tile);
                             auto tmp_tile = cast_tile<CompDataType>(sacc_tile);
@@ -540,7 +526,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                     else // last iteration
                     {
                         static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                            store_tile(k_lds_write_windows[number<i_n0 % NumKVLdsBuffers>{}],
+                            store_tile(k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}],
                                        tile_elementwise_in(k_element_func, k_tiles[number<i_n0>{}]),
                                        partition_index);
 
@@ -551,9 +537,8 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                             };
 
                             block_sync_lds();
-                            gemm_0(sacc_tile,
-                                   q_tile,
-                                   k_lds_read_windows[number<i_n0 % NumKVLdsBuffers>{}]);
+                            gemm_0(
+                                sacc_tile, q_tile, k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}]);
 
                             sacc_tile     = tile_elementwise_in(s_acc_element_func, sacc_tile);
                             auto tmp_tile = cast_tile<CompDataType>(sacc_tile);
@@ -568,7 +553,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
             else // only preload one unroll of K for next iteration, used when kM0=128
             {
                 static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                    store_tile(k_lds_write_windows[number<i_n0 % NumKVLdsBuffers>{}],
+                    store_tile(k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}],
                                tile_elementwise_in(k_element_func, k_tiles[I0]),
                                partition_index);
 
@@ -590,7 +575,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
                     block_sync_lds();
 
-                    gemm_0(sacc_tile, q_tile, k_lds_read_windows[number<i_n0 % NumKVLdsBuffers>{}]);
+                    gemm_0(sacc_tile, q_tile, k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}]);
 
                     sacc_tile     = tile_elementwise_in(s_acc_element_func, sacc_tile);
                     auto tmp_tile = cast_tile<CompDataType>(sacc_tile);
