@@ -111,21 +111,30 @@ class GemmProfiler
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
+        struct GemmConfig
+        {
+            ck_tile::index_t N_Warp_Tile;
+            ck_tile::index_t K_Warp_Tile;
+            ck_tile::index_t N_Tile;
+            ck_tile::index_t N_Warp;
+        };
+
         for(const auto& callable : callables)
         {
-            ck_tile::index_t N_Warp_Tile = std::get<1>(config.warp_tile_dims);
-            ck_tile::index_t K_Warp_Tile = std::get<2>(config.warp_tile_dims);
-            ck_tile::index_t N_Tile      = std::get<1>(config.tile_dims);
-            ck_tile::index_t N_Warp      = std::get<1>(config.warp_dims);
+            GemmConfig gemmConfig  = {};
+            gemmConfig.N_Warp_Tile = std::get<1>(config.warp_tile_dims);
+            gemmConfig.K_Warp_Tile = std::get<2>(config.warp_tile_dims);
+            gemmConfig.N_Tile      = std::get<1>(config.tile_dims);
+            gemmConfig.N_Warp      = std::get<1>(config.warp_dims);
 
             ck_tile::HostTensor<BDataType> b_shuffle_host = [&]() {
                 if(config.permuteN)
                 {
-                    return shuffle_b_permuteN(b_k_n, N_Warp_Tile, K_Warp_Tile, N_Tile, N_Warp);
+                    return ck_tile::shuffle_b_permuteN(b_k_n, gemmConfig);
                 }
                 else
                 {
-                    return shuffle_b(b_k_n, N_Warp_Tile, K_Warp_Tile);
+                    return ck_tile::shuffle_b(b_k_n, gemmConfig);
                 }
             }();
 
