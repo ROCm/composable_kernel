@@ -215,7 +215,7 @@ message(STATUS "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 
 # Filter GPU targets to only gfx90a, gfx942
 set(GEMM_GPU_TARGETS_INDIVIDUAL "")
-set(DESIRED_TARGETS "gfx90a;gfx942") # TODO: Add gfx950 when supported
+set(DESIRED_TARGETS "gfx90a;gfx942;gfx950")
 
 foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
     if(target IN_LIST DESIRED_TARGETS)
