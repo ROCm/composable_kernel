@@ -156,10 +156,16 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         ComputeDataType>;
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
+
+    // Use gemm_padder for consistent descriptor creation (Option 1)
+    static constexpr auto gemm_padder =
+        tensor_operation::device::GemmPadder<GemmSpec, index_t, index_t, index_t>{
+            MPerBlock, NPerBlock, KPerBlock};
+
     template <typename ELay>
     static auto MakeEGridDescriptor_M_N(index_t M, index_t N, index_t StrideE)
     {
-        const auto c_grid_desc_m_n = [&]() {
+        const auto e_grid_desc_m_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ELay>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideE, I1));
@@ -170,26 +176,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             }
         }();
 
-        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
-        {
-            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
-            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
-
-            return transform_tensor_descriptor(
-                c_grid_desc_m_n,
-                make_tuple(make_right_pad_transform(M, PadM), make_right_pad_transform(N, PadN)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
-        else
-        {
-
-            return transform_tensor_descriptor(
-                c_grid_desc_m_n,
-                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
+        // Use gemm_padder for consistent padding (same as C descriptor)
+        return gemm_padder.PadCDescriptor_M_N(e_grid_desc_m_n);
     }
 
     static auto MakeDsGridDescriptor_M_N(const std::array<index_t, NumDTensor>& MRaws,
@@ -512,18 +500,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             WorkspaceDataType* p_workspace = reinterpret_cast<WorkspaceDataType*>(p_workspace_);
             std::size_t offset             = 0;
 
-            for(auto& arg : gemm_kernel_args_)
+            for(std::size_t i = 0; i < gemm_kernel_args_.size(); ++i)
             {
-                arg.karg_.p_c_grid = p_workspace + offset;
-                index_t tiles      = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
-                offset += tiles * MPerBlock * NPerBlock;
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "block_start: " << arg.block_start_ << "\n"
-                              << "block_end: " << arg.block_end_ << "\n"
-                              << "tiles: " << tiles << "\n"
-                              << "offset: " << offset << std::endl;
-                }
+                gemm_kernel_args_[i].karg_.p_c_grid = p_workspace + offset;
+                // Workspace must accommodate block-aligned writes with padded stride
+                // GEMM writes in MPerBlock×NPerBlock blocks, so needs full MPadded rows
+                offset += gemm_kernel_args_[i].karg_.MPadded * gemm_kernel_args_[i].karg_.StrideC;
             }
         }
 
@@ -533,8 +515,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
             for(const auto& arg : gemm_kernel_args_)
             {
-                index_t tiles = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
-                size_bytes += tiles * MPerBlock * NPerBlock * sizeof(WorkspaceDataType);
+                // Workspace must accommodate block-aligned writes with padded stride
+                size_bytes += arg.karg_.MPadded * arg.karg_.StrideC * sizeof(WorkspaceDataType);
             }
             return size_bytes;
         }
@@ -542,8 +524,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         std::size_t GetWorkspaceSize(std::size_t group) const
         {
             const auto& arg = gemm_kernel_args_[group];
-            index_t tiles   = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
-            return tiles * MPerBlock * NPerBlock;
+            // Workspace must accommodate block-aligned writes with padded stride
+            return arg.karg_.MPadded * arg.karg_.StrideC;
         }
 
         //  private:
@@ -831,8 +813,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                     concat_tuple(make_tuple(arg.gemm_kernel_args_[i].karg_.p_c_grid),
                                  arg.ds_grid_pointer_[i]),
                     type_convert<EDataType*>(arg.e_ptrs_[i]),
-                    Block2TileMap{arg.elementwise_e_grid_descs_m_n_[i].GetLength(I0),
-                                  arg.elementwise_e_grid_descs_m_n_[i].GetLength(I1)},
+                    Block2TileMap{arg.elementwise_c_grid_descs_m_n_[i].GetLength(I0),
+                                  arg.elementwise_c_grid_descs_m_n_[i].GetLength(I1)},
                     arg.cde_element_op_);
             }
             return time;
