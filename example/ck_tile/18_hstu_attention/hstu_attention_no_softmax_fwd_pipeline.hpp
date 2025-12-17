@@ -336,8 +336,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
                 q_reg_tiles[i_rep] = load_tile(q_lds_read_window);
 
-                __builtin_amdgcn_s_waitcnt(0xc07f);
-
                 // the following codes will not generate actual instructions by the compiler
                 set_slice_tile(q_tile,
                                q_reg_tiles[i_rep],
