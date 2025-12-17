@@ -65,8 +65,10 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t NPerBlockBQ = BlockGemmShape::kN / QuantGroupSize::kN;
-    static constexpr index_t KPerBlockBQ = BlockGemmShape::kK / QuantGroupSize::kK;
+    static constexpr index_t NPerBlockBQ =
+        integer_divide_ceil(BlockGemmShape::kN, QuantGroupSize::kN);
+    static constexpr index_t KPerBlockBQ =
+        integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK);
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
@@ -299,162 +301,173 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                 is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
-            const BQDramTileWindowStep bq_dram_tile_window_step =
-                (PreshuffleQuant)
-                    ? make_array(((NPerBlockBQ < BlockGemmShape::BlockWarps::at(number<1>{}))
-                                      ? ck_tile::integer_divide_ceil(n, QuantGroupSize::kN)
-                                      : ck_tile::integer_least_multiple(n, NPerBlock) /
-                                            BlockGemmShape::WarpTile::at(number<1>{})),
-                                 0)
-                : is_bq_row_major ? make_array(KPerBlockBQ, 0)
-                                  : make_array(0, KPerBlockBQ);
+            const BQDramTileWindowStep bq_dram_tile_window_step = (PreshuffleQuant)
+                ? make_array((
+                      (NPerBlockBQ < BlockGemmShape::BlockWarps::at(number<1>{}))
+                          ? make_array(((NPerBlockBQ < BlockGemmShape::BlockWarps::at(number<1>{}))
+                                            ? ck_tile::integer_divide_ceil(n, QuantGroupSize::kN)
+                                            : ck_tile::integer_least_multiple(n, NPerBlock) /
+                                                  BlockGemmShape::WarpTile::at(number<1>{})),
+                                       0)
+                      : is_bq_row_major ? make_array(KPerBlockBQ, 0)
+                                        : make_array(0, KPerBlockBQ);
 
-            // DRAM prefetch (global read 0)
-            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            // B tile gets converted to A datatype during loading
-            BGlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
-            Base::GlobalPrefetch(
-                bq_block_tile[currIdx], bq_copy_dram_window, bq_dram_tile_window_step);
+                      // DRAM prefetch (global read 0)
+                      Base::GlobalPrefetch(
+                          a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+                      // B tile gets converted to A datatype during loading
+                      BGlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                      Base::GlobalPrefetch(
+                          bq_block_tile[currIdx], bq_copy_dram_window, bq_dram_tile_window_step);
 
-            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+                      tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
-            if constexpr(is_a_col_major && !is_a_load_tr_v())
-            {
-                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                    Policy::template MakeShuffledARegTileDistribution<Problem>());
-                transpose_tile2d(a_shuffle_tmp, a_block_tile);
-                Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-            }
-            else
-            {
-                Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
-            }
+                      if constexpr(is_a_col_major && !is_a_load_tr_v()) {
+                          auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                              Policy::template MakeShuffledARegTileDistribution<Problem>());
+                          transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                          Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                      } else {
+                          Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                      }
 
-            if constexpr(is_b_row_major && !is_b_load_tr_v())
-            {
-                // B datatype is converted to A datatype during loading
-                auto b_shuffle_tmp = make_static_distributed_tensor<OverrideBDataType>(
-                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                transpose_tile2d(b_shuffle_tmp, b_block_tile);
-                Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
-            }
-            else
-            {
-                Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
-            }
+                      if constexpr(is_b_row_major && !is_b_load_tr_v()) {
+                          // B datatype is converted to A datatype during loading
+                          auto b_shuffle_tmp = make_static_distributed_tensor<OverrideBDataType>(
+                              Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                          transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                          Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
+                      } else {
+                          Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                      }
 
-            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            // B tile gets converted to A datatype during loading
-            BGlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                      Base::GlobalPrefetch(
+                          a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+                      // B tile gets converted to A datatype during loading
+                      BGlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
-            block_sync_lds();
+                      block_sync_lds();
 
-            block_gemm.LocalPrefetch(
-                a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
+                      block_gemm.LocalPrefetch(
+                          a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
 
-            __builtin_amdgcn_sched_barrier(0);
+                      __builtin_amdgcn_sched_barrier(0);
 
-            if constexpr(HasHotLoop)
-            {
-                constexpr index_t tail_count =
-                    ((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd)) ? 1 : 2;
-                index_t i = 0;
-                do
-                {
-                    block_sync_lds();
+                      if constexpr(HasHotLoop) {
+                          constexpr index_t tail_count =
+                              ((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd)) ? 1
+                                                                                              : 2;
+                          index_t i = 0;
+                          do
+                          {
+                              block_sync_lds();
 
-                    if constexpr(is_a_col_major && !is_a_load_tr_v())
-                    {
-                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                            Policy::template MakeShuffledARegTileDistribution<Problem>());
-                        transpose_tile2d(a_shuffle_tmp, a_block_tile);
-                        Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-                    }
-                    else
-                    {
-                        Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
-                    }
-                    if constexpr(is_b_row_major && !is_b_load_tr_v())
-                    {
-                        // Note: BDataType PkInt4 gets converted during loading earlier
-                        auto b_shuffle_tmp = make_static_distributed_tensor<OverrideBDataType>(
-                            Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                        transpose_tile2d(b_shuffle_tmp, b_block_tile);
-                        Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
-                    }
-                    else
-                    {
-                        Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
-                    }
+                              if constexpr(is_a_col_major && !is_a_load_tr_v())
+                              {
+                                  auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                                      Policy::template MakeShuffledARegTileDistribution<Problem>());
+                                  transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                                  Base::LocalPrefill(
+                                      a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                              }
+                              else
+                              {
+                                  Base::LocalPrefill(
+                                      a_copy_lds_window, a_block_tile, a_element_func);
+                              }
+                              if constexpr(is_b_row_major && !is_b_load_tr_v())
+                              {
+                                  // Note: BDataType PkInt4 gets converted during loading earlier
+                                  auto b_shuffle_tmp = make_static_distributed_tensor<
+                                      OverrideBDataType>(
+                                      Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                                  transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                                  Base::LocalPrefill(
+                                      b_copy_lds_window, b_shuffle_tmp, b_element_func);
+                              }
+                              else
+                              {
+                                  Base::LocalPrefill(
+                                      b_copy_lds_window, b_block_tile, b_element_func);
+                              }
 
-                    Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-                    // B tile gets converted to A datatype during loading
-                    BGlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
-                    Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
-                                         bq_copy_dram_window,
-                                         bq_dram_tile_window_step);
+                              Base::GlobalPrefetch(
+                                  a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+                              // B tile gets converted to A datatype during loading
+                              BGlobalPrefetch(
+                                  b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                              Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
+                                                   bq_copy_dram_window,
+                                                   bq_dram_tile_window_step);
 
-                    block_gemm(
-                        c_block_tile, bq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
+                              block_gemm(c_block_tile,
+                                         bq_block_tile[currIdx],
+                                         a_lds_gemm_window,
+                                         b_lds_gemm_window);
 
-                    currIdx = (currIdx + 1) % 2;
+                              currIdx = (currIdx + 1) % 2;
 
-                    block_sync_lds();
+                              block_sync_lds();
 
-                    block_gemm.LocalPrefetch(
-                        a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
-                    __builtin_amdgcn_sched_barrier(0);
+                              block_gemm.LocalPrefetch(a_lds_gemm_window,
+                                                       b_lds_gemm_window,
+                                                       is_a_load_tr_v,
+                                                       is_b_load_tr_v);
+                              __builtin_amdgcn_sched_barrier(0);
 
-                    i += 1;
-                } while(i < (num_loop - tail_count));
-            }
-            // tail
-            if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
-            {
-                block_gemm(
-                    c_block_tile, bq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
-            }
-            else
-            {
-                Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
-                                     bq_copy_dram_window,
-                                     bq_dram_tile_window_step);
-                block_gemm(
-                    c_block_tile, bq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
-                block_sync_lds();
+                              i += 1;
+                          } while(i < (num_loop - tail_count));
+                      }
+                      // tail
+                      if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd)) {
+                          block_gemm(c_block_tile,
+                                     bq_block_tile[currIdx],
+                                     a_lds_gemm_window,
+                                     b_lds_gemm_window);
+                      } else {
+                          Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
+                                               bq_copy_dram_window,
+                                               bq_dram_tile_window_step);
+                          block_gemm(c_block_tile,
+                                     bq_block_tile[currIdx],
+                                     a_lds_gemm_window,
+                                     b_lds_gemm_window);
+                          block_sync_lds();
 
-                currIdx = (currIdx + 1) % 2;
+                          currIdx = (currIdx + 1) % 2;
 
-                if constexpr(is_a_col_major)
-                {
-                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                        Policy::template MakeShuffledARegTileDistribution<Problem>());
-                    transpose_tile2d(a_shuffle_tmp, a_block_tile);
-                    Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-                }
-                else
-                {
-                    Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
-                }
-                if constexpr(is_b_row_major)
-                {
-                    // Note: BDataType gets converted during loading from PkInt4
-                    auto b_shuffle_tmp = make_static_distributed_tensor<OverrideBDataType>(
-                        Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                    transpose_tile2d(b_shuffle_tmp, b_block_tile);
-                    Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
-                }
-                else
-                {
-                    Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
-                }
-                block_sync_lds();
-                block_gemm.LocalPrefetch(
-                    a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
-                block_gemm(
-                    c_block_tile, bq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
-            }
-            return c_block_tile;
+                          if constexpr(is_a_col_major)
+                          {
+                              auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                                  Policy::template MakeShuffledARegTileDistribution<Problem>());
+                              transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                              Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                          }
+                          else
+                          {
+                              Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                          }
+                          if constexpr(is_b_row_major)
+                          {
+                              // Note: BDataType gets converted during loading from PkInt4
+                              auto b_shuffle_tmp =
+                                  make_static_distributed_tensor<OverrideBDataType>(
+                                      Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                              transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                              Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
+                          }
+                          else
+                          {
+                              Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                          }
+                          block_sync_lds();
+                          block_gemm.LocalPrefetch(
+                              a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
+                          block_gemm(c_block_tile,
+                                     bq_block_tile[currIdx],
+                                     a_lds_gemm_window,
+                                     b_lds_gemm_window);
+                      } return c_block_tile;
         }
     };
     // Overload for PreshuffleQuant = true
