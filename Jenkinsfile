@@ -598,6 +598,9 @@ def cmake_build(Map conf=[:]){
         if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
             setup_args = " -D CK_EXPERIMENTAL_BUILDER=ON "  + setup_args
         }
+        if (params.RUN_CK_TILE_CONV_TESTS && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+            setup_args = " -D CK_EXPERIMENTAL_PROFILER=ON "  + setup_args
+        }
         setup_cmd = conf.get(
             "setup_cmd",
             """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 " .. """
