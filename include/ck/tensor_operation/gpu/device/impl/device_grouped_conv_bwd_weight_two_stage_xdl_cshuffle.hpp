@@ -257,7 +257,6 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                        KPerBlock / K1Number,
                                        NumGroupsToMerge,
                                        ConvBackwardWeightSpecialization>{};
-
     static constexpr auto conv_to_gemm_transformer_v1 =
         TransformConvBwdWeightToGemm<NDimSpatial,
                                      MPerBlock,
