@@ -7,6 +7,8 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Added
 * Added support for explicit GEMM in CK_TILE grouped convolution forward and backward weight.
 * Added TF32 convolution support on gfx942 and gfx950 in CK. It could be enabled/disabled via `DTYPES` of "tf32".
+* Added attention sink support for FMHA FWD, include qr_ks_vs, qr_async and splitkv pipelines.
+* Added support for microscaling (MX) FP8/FP4 mixed data types to Flatmm pipeline
 
 ### Changed
 
@@ -15,8 +17,8 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## Composable Kernel 1.2.0 for ROCm 7.2.0
 
 ### Added
-
-* Added support for bf16 data type to `grouped_gemm` and `grouped_gemm_preshuffle`.
+* Added support for fp8 dynamic tensor-wise quantization of fp8 fmha fwd kernel.
+* Added support for bf16 data type to grouped_gemm and grouped_gemm_preshuffle.
 * Added Col-Col-Row-Col layout support for aquant mode in blockscale GEMM.
 * Added support for mixed precision fp8 x bf8 universal GEMM and weight preshuffle GEMM.
 * Added a compute async pipeline in the CK Tile universal GEMM on gfx950.
@@ -33,9 +35,10 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added tensor-wise quantization for CK Tile GEMM.
 * Added support for batched contraction kernel.
 * Added WMMA (gfx12) support for FMHA.
-* Added pooling kernel to CK Tile.
-* Added top-k sigmoid kernel to CK Tile.
-* Added the blockscale 2D support for CK Tile GEMM.
+* Added pooling kernel in CK_TILE
+* Added top-k sigmoid kernel in CK_TILE
+* Added the blockscale 2D support for CK_TILE GEMM.
+* Added Flatmm pipeline for microscaling (MX) FP8/FP4 data types
 
 ### Changed
 
@@ -89,7 +92,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Optimized
 
 * Optimize the gemm multiply multiply preshuffle & lds bypass with Pack of KGroup and better instruction layout.
-* Added Vectorize Transpose optimization for CK Tile 
+* Added Vectorize Transpose optimization for CK Tile
 * Added the asynchronous copy for gfx950
 
 ### Changed
