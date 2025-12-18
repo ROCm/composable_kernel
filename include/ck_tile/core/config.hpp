@@ -39,7 +39,11 @@
 #define CK_TILE_DEVICE inline __device__
 #define CK_TILE_HOST_DEVICE inline __host__ __device__
 #define CK_TILE_DEVICE_EXTERN __device__
+#if __clang_major__ < 22
 #define CK_TILE_HOST_DEVICE_EXTERN __host__ __device__
+#else
+#define CK_TILE_HOST_DEVICE_EXTERN
+#endif
 #else
 #define CK_TILE_HOST inline
 #define CK_TILE_DEVICE inline
@@ -357,6 +361,32 @@ struct amdgcn_compiler_target_state
 #endif // __gfx950__
 
     // GFX10
+#if defined(__gfx1010__)
+    static constexpr bool CK_TILE_ARCH_GFX1010 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1010 = false;
+#endif
+#if defined(__gfx1011__)
+    static constexpr bool CK_TILE_ARCH_GFX1011 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1011 = false;
+#endif
+#if defined(__gfx1012__)
+    static constexpr bool CK_TILE_ARCH_GFX1012 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1012 = false;
+#endif
+#if defined(__gfx1013__)
+    static constexpr bool CK_TILE_ARCH_GFX1013 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1013 = false;
+#endif
+#if defined(__gfx10_1_generic__)
+    static constexpr bool CK_TILE_ARCH_GFX10_1_GENERIC = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX10_1_GENERIC = false;
+#endif // __gfx10_1_generic__
+
 #if defined(__gfx1030__)
     static constexpr bool CK_TILE_ARCH_GFX1030 = true;
 #else
@@ -493,6 +523,11 @@ CK_TILE_HOST_DEVICE static constexpr uint32_t count_values_of(T search, Ts... se
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX90A,          \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX942,          \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX950,          \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1010,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1011,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1012,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1013,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX10_1_GENERIC, \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1030,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1031,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1032,         \

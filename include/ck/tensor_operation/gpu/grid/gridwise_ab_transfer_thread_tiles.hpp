@@ -295,7 +295,7 @@ struct ABTransferThreadTiles
                                             BlockDescriptor& block_descriptor,
                                             ABElementwiseOperation& ab_element_op,
                                             const index_t block_mn_id,
-                                            const index_t)
+                                            const index_t k_id)
     {
         constexpr index_t NumABTensor = ABsDataType::Size();
         const index_t mn_block_data_idx_on_grid =
@@ -304,7 +304,7 @@ struct ABTransferThreadTiles
         if constexpr(NumABTensor > 1)
         {
             const auto idx_as_block_begin = generate_tuple(
-                [&](auto) { return make_multi_index(0, mn_block_data_idx_on_grid, 0); },
+                [&](auto) { return make_multi_index(k_id, mn_block_data_idx_on_grid, 0); },
                 Number<NumABTensor>{});
 
             return ThreadGroupTensorSliceTransfer_v7r2<
@@ -357,7 +357,7 @@ struct ABTransferThreadTiles
                 ABThreadTransferSrcResetCoordinateAfterRun,
                 true,
                 GlobalBufferNum>(grid_descriptor[I0],
-                                 make_multi_index(0, mn_block_data_idx_on_grid, 0),
+                                 make_multi_index(k_id, mn_block_data_idx_on_grid, 0),
                                  ab_element_op,
                                  block_descriptor,
                                  make_multi_index(0, 0, 0),
@@ -388,11 +388,11 @@ struct ABTransferThreadTiles
             // 1 - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma - K1
             return transform_tensor_descriptor(
                 BlockDesc{},
-                make_tuple(
-                    make_unmerge_transform(make_tuple(Number<ABK0 / KRow>{}, KRow, Number<1>{})),
-                    make_unmerge_transform(
-                        make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
-                    make_pass_through_transform(Number<ABK1>{})),
+                make_tuple(make_unmerge_transform(make_tuple(
+                               Number<ABK0 / KRow>{}, KRow, Number<KPack / KRow / ABK1>{})),
+                           make_unmerge_transform(make_tuple(
+                               Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                           make_pass_through_transform(Number<ABK1>{})),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<2, 4, 0>{}, Sequence<1, 3, 5>{}, Sequence<6>{}));
         }

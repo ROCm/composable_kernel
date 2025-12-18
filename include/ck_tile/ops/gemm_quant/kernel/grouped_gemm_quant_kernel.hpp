@@ -163,7 +163,6 @@ struct QuantGroupedGemmKernel
 
     static constexpr index_t kBlockSize       = GemmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = GemmPipeline::UsePersistentKernel;
-    static_assert(UsePersistentKernel == true, "UsePersistentKernel must be true");
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -262,10 +261,9 @@ struct QuantGroupedGemmKernel
             auto karg =
                 QuantGroupedGemmKernelArgs{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
                                            type_convert<const BDataType*>(gemm_descs[i].b_ptr),
-                                           type_convert<CDataType*>(gemm_descs[i].e_ptr),
                                            type_convert<const AQDataType*>(gemm_descs[i].aq_ptr),
                                            type_convert<const BQDataType*>(gemm_descs[i].bq_ptr),
-                                           gemm_descs[i].k_batch,
+                                           type_convert<CDataType*>(gemm_descs[i].e_ptr),
                                            M,
                                            N,
                                            K,
@@ -275,7 +273,8 @@ struct QuantGroupedGemmKernel
                                            stride_b,
                                            stride_e,
                                            gemm_descs[i].stride_AQ,
-                                           gemm_descs[i].stride_BQ};
+                                           gemm_descs[i].stride_BQ,
+                                           gemm_descs[i].k_batch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
@@ -326,7 +325,7 @@ struct QuantGroupedGemmKernel
                      kQuantType == QuantType::BQuantGrouped)
         {
 
-            __shared__ char smem_ptr_1[GetSmemSize()];
+            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
             RunGemmWithPipelineSelection2LDS(a_ptr,
                                              b_ptr,
                                              aq_ptr,
@@ -342,16 +341,32 @@ struct QuantGroupedGemmKernel
         else
         {
 
-            RunGemmWithPipelineSelection(a_ptr,
-                                         b_ptr,
-                                         aq_ptr,
-                                         bq_ptr,
-                                         c_ptr,
-                                         smem_ptr_0,
-                                         kargs,
-                                         splitk_batch_offset,
-                                         i_m,
-                                         i_n);
+            if constexpr(UsePersistentKernel)
+            {
+                RunGemmWithPipelineSelection(a_ptr,
+                                             b_ptr,
+                                             aq_ptr,
+                                             bq_ptr,
+                                             c_ptr,
+                                             smem_ptr_0,
+                                             kargs,
+                                             splitk_batch_offset,
+                                             i_m,
+                                             i_n);
+            }
+            else // Non-persistent kernel
+            {
+                Base::RunGemm({a_ptr},
+                              {b_ptr},
+                              aq_ptr,
+                              bq_ptr,
+                              c_ptr,
+                              smem_ptr_0,
+                              kargs,
+                              splitk_batch_offset,
+                              i_m,
+                              i_n);
+            }
         }
     }
 
@@ -451,7 +466,24 @@ struct QuantGroupedGemmKernel
         const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
-        if constexpr(kQuantType == QuantType::BQuantGrouped)
+        if constexpr(kQuantType == QuantType::AQuantGrouped)
+        {
+            const auto& aq_block_window = gemm_tile_windows.at(Base::I1);
+            // Run GEMM pipeline
+            const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
+                                                                          b_block_window,
+                                                                          aq_block_window,
+                                                                          num_loop,
+                                                                          has_hot_loop,
+                                                                          tail_num,
+                                                                          smem_ptr_0);
+
+            auto& c_block_window = gemm_tile_windows.at(Base::I4);
+
+            // Run Epilogue Pipeline
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+        }
+        else if constexpr(kQuantType == QuantType::BQuantGrouped)
         {
             const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
             // Run GEMM pipeline
@@ -494,6 +526,53 @@ struct QuantGroupedGemmKernel
                     c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
             }
         }
+    }
+
+    CK_TILE_DEVICE index_t FindGroupId(const QuantGemmTransKernelArg* gemm_desc_ptr,
+                                       index_t block_id,
+                                       index_t group_count) const
+    {
+        index_t left     = 0;
+        index_t right    = group_count;
+        index_t group_id = index_t((left + right) >> 1);
+
+        while((!(block_id >= gemm_desc_ptr[group_id].block_start &&
+                 block_id < gemm_desc_ptr[group_id].block_end)) &&
+              left <= right)
+        {
+            if(block_id < gemm_desc_ptr[group_id].block_start)
+            {
+                right = group_id;
+            }
+            else
+            {
+                left = group_id;
+            }
+            group_id = index_t((left + right) >> 1);
+        }
+
+        return group_id;
+    }
+
+    // For non-persistent kernels
+    template <bool U = UsePersistentKernel, typename = std::enable_if_t<!U>>
+    CK_TILE_DEVICE void operator()(const void CK_TILE_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                   index_t group_count) const
+    {
+        const index_t block_id   = ck_tile::get_block_1d_id();
+        const auto gemm_desc_ptr = reinterpret_cast<const QuantGemmTransKernelArg*>(
+            cast_pointer_to_generic_address_space(gemm_descs_const));
+
+        const index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
+        const auto& kargs      = gemm_desc_ptr[group_id];
+
+        const auto grid_size_2d = TilePartitioner::GridSize(kargs.group_karg.M, kargs.group_karg.N);
+        const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
+            0,
+            kargs.group_karg.M,
+            kargs.group_karg.N,
+            (block_id - kargs.block_start) % grid_size_2d);
+        Run(kargs.group_karg, block_idx_2d, (block_id - kargs.block_start) / grid_size_2d);
     }
 
     // For persistent kernels

@@ -214,12 +214,30 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
             auto split_k_value     = split_k_list[split_k_id];
             auto split_k_param_str = std::to_string(split_k_value);
-            auto* split_k_arg =
-                dynamic_cast<ck::tensor_operation::device::ArgumentSplitK*>(argument_ptr.get());
-            if(split_k_arg && split_k_value < 0)
+
+            // If split_k was determined by the device implementation, get the resulting value.
+            if(split_k_value < 0)
             {
-                split_k_value     = split_k_arg->k_batch_;
-                split_k_param_str = std::to_string(split_k_value) + " (best occupancy)";
+                auto* split_k_arg =
+                    dynamic_cast<ck::tensor_operation::device::ArgumentSplitK*>(argument_ptr.get());
+                if(split_k_arg)
+                {
+                    split_k_value     = split_k_arg->k_batch_;
+                    split_k_param_str = std::to_string(split_k_value) + " (best occupancy)";
+                }
+                else
+                {
+                    // We may have an implementation whose argument is not derived from
+                    // ArgumentSplitK, which means we can not determine the splitK value. Warn.
+                    printf("Warning: Unable to determine split_k value for this instance!\n");
+                }
+            }
+
+            // Not all device implementation actually do anything with the passed split_k value but
+            // it needs to be positive to determine error tolerances.
+            if(split_k_value < 0)
+            {
+                split_k_value = 1;
             }
 
             const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
@@ -297,12 +315,13 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                      "Error: Incorrect results!",
                                                      rtol,
                                                      atol);
-                    std::cout << "Relative error threshold: " << rtol
-                              << " Absolute error threshold: " << atol << std::endl;
 
                     if(!pass)
                     {
-                        std::cout << "Fail info: " << op_ptr->GetTypeString() << std::endl;
+                        std::cout << "Relative error threshold: " << rtol
+                                  << " Absolute error threshold: " << atol << std::endl;
+                        std::cout << "Fail info: splitK: " << split_k_value << " "
+                                  << op_ptr->GetTypeString() << std::endl;
                     }
 
                     all_pass &= pass;
@@ -329,6 +348,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             }
         }
     }
+
+    printf("\033[36mvalids: %d\033[0m\n", num_kernel);
 
     std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
