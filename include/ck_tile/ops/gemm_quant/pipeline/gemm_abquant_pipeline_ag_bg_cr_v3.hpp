@@ -518,6 +518,368 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
             }
             return c_block_tile;
         }
+
+        template <bool HasHotLoop,
+                  TailNumber TailNum,
+                  typename ADramBlockWindowTmp,
+                  typename BDramBlockWindowTmp,
+                  typename AQDramBlockWindowTmp,
+                  typename BQDramBlockWindowTmp,
+                  typename AElementFunction,
+                  typename BElementFunction>
+        CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                       const AElementFunction& a_element_func,
+                                       const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                       const BElementFunction& b_element_func,
+                                       const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
+                                       const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                       index_t m,
+                                       index_t n,
+                                       index_t num_loop,
+                                       void* p_smem_0,
+                                       void* p_smem_1) const
+        {
+            static_assert(
+                std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
+                    std::is_same_v<BDataType,
+                                   remove_cvref_t<typename BDramBlockWindowTmp::DataType>> &&
+                    std::is_same_v<AQDataType,
+                                   remove_cvref_t<typename AQDramBlockWindowTmp::DataType>> &&
+                    std::is_same_v<BQDataType,
+                                   remove_cvref_t<typename BQDramBlockWindowTmp::DataType>>,
+                "A/B/AQ/BQ Dram block window should have the same data type as appropriate "
+                "([A|B|AQ|BQ]DataType) defined in Problem definition!");
+
+            constexpr bool is_a_col_major =
+                std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+            constexpr bool is_aq_col_major =
+                std::is_same_v<AQLayout, tensor_layout::gemm::ColumnMajor>;
+            constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+            constexpr bool is_bq_row_major =
+                std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>;
+
+            static_assert(is_a_col_major
+                              ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                              : (MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                          "A block window has incorrect lengths for defined ALayout!");
+            static_assert(is_b_row_major
+                              ? (KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                              : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                          "B block window has incorrect lengths for defined BLayout!");
+            static_assert(
+                PreshuffleQuant ||
+                    (is_bq_row_major
+                         ? (KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                            NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                         : (NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                            KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])),
+                "Bq block window has incorrect lengths for defined BqLayout!");
+
+            // Double-Buffering (loop_count=2) for full load/compute overlap.
+            const index_t loop_count = 2;
+
+            using ADramTileWindowStep  = typename ADramBlockWindowTmp::BottomTensorIndex;
+            using BDramTileWindowStep  = typename BDramBlockWindowTmp::BottomTensorIndex;
+            using AQDramTileWindowStep = typename AQDramBlockWindowTmp::BottomTensorIndex;
+            using BQDramTileWindowStep = typename BQDramBlockWindowTmp::BottomTensorIndex;
+
+            // Note: BDataType PkInt4 gets converted during loading, before going to LDS
+            auto&& [a_lds_block_ping, b_lds_block_ping] =
+                Base::template GetABLdsTensorViews<ADataType, OverrideBDataType>(p_smem_0);
+            auto&& [a_lds_block_pong, b_lds_block_pong] =
+                Base::template GetABLdsTensorViews<ADataType, OverrideBDataType>(p_smem_1);
+
+            constexpr auto a_lds_load_tile_distr =
+                make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
+            constexpr auto b_lds_load_tile_distr =
+                make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
+
+            auto&& [a_copy_dram_window, a_copy_lds_window_ping, a_lds_gemm_window_ping] =
+                Base::GetAWindows(a_dram_block_window_tmp, a_lds_block_ping, a_lds_load_tile_distr);
+            auto&& [b_copy_dram_window, b_copy_lds_window_ping, b_lds_gemm_window_ping] =
+                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block_ping, b_lds_load_tile_distr);
+
+            auto&& [a_copy_dram_window_, a_copy_lds_window_pong, a_lds_gemm_window_pong] =
+                Base::GetBWindows(a_dram_block_window_tmp, a_lds_block_pong, a_lds_load_tile_distr);
+            auto&& [b_copy_dram_window_, b_copy_lds_window_pong, b_lds_gemm_window_pong] =
+                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block_pong, b_lds_load_tile_distr);
+
+            auto aq_copy_dram_window = Base::GetAQDramLoadWindow(aq_dram_block_window_tmp);
+            auto bq_copy_dram_window = Base::GetBQDramLoadWindow(bq_dram_block_window_tmp);
+
+            using ABlockTileDistr  = decltype(a_copy_dram_window.get_tile_distribution());
+            using BBlockTileDistr  = decltype(b_copy_dram_window.get_tile_distribution());
+            using AQBlockTileDistr = decltype(aq_copy_dram_window.get_tile_distribution());
+            using BQBlockTileDistr = decltype(bq_copy_dram_window.get_tile_distribution());
+
+            using ABlockTile =
+                decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
+            using BBlockTile =
+                decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
+            using AQBlockTile =
+                decltype(make_static_distributed_tensor<AQDataType>(AQBlockTileDistr{}));
+            using BQBlockTile =
+                decltype(make_static_distributed_tensor<BQDataType>(BQBlockTileDistr{}));
+
+            auto block_gemm = BlockGemm();
+
+            ABlockTile a_block_tile[2];
+            BBlockTile b_block_tile[2];
+            AQBlockTile aq_block_tile[2];
+            BQBlockTile bq_block_tile[2];
+            int currIdx = 0;
+
+            auto c_block_tile = block_gemm.MakeCBlockTile();
+            // A B Data
+            constexpr ADramTileWindowStep a_dram_tile_window_step =
+                is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+            constexpr BDramTileWindowStep b_dram_tile_window_step =
+                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+            // AQ BQ Data
+            const AQDramTileWindowStep aq_dram_tile_window_step =
+                PreshuffleQuant
+                    ? make_array(ck_tile::integer_least_multiple(m, MPerBlock) /
+                                     BlockGemm::WarpGemm::kM,
+                                 0)
+                    : (is_aq_col_major ? make_array(KPerBlockAQ, 0) : make_array(0, KPerBlockAQ));
+            const BQDramTileWindowStep bq_dram_tile_window_step =
+                (PreshuffleQuant) ? make_array(ck_tile::integer_least_multiple(n, NPerBlock) /
+                                                   BlockGemmShape::WarpTile::at(number<1>{}),
+                                               0)
+                : is_bq_row_major ? make_array(KPerBlockBQ, 0)
+                                  : make_array(0, KPerBlockBQ);
+
+            // 1.1 Load A From Dram to Reg
+            LoadAndConvertATile(a_block_tile[currIdx], a_copy_dram_window);
+            move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+            LoadAndConvertBTile(b_block_tile[currIdx], b_copy_dram_window);
+            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+            Base::GlobalPrefetch(
+                aq_block_tile[currIdx], aq_copy_dram_window, aq_dram_tile_window_step);
+            Base::GlobalPrefetch(
+                bq_block_tile[currIdx], bq_copy_dram_window, bq_dram_tile_window_step);
+
+            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+            // 1.2 Store A Reg To LDS
+            if constexpr(is_a_col_major && !is_a_load_tr_v())
+            {
+                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                    Policy::template MakeShuffledARegTileDistribution<Problem>());
+                transpose_tile2d(a_shuffle_tmp, a_block_tile[currIdx]);
+                Base::LocalPrefill(a_copy_lds_window_ping, a_shuffle_tmp, a_element_func);
+            }
+            else
+            {
+                Base::LocalPrefill(a_copy_lds_window_ping, a_block_tile[currIdx], a_element_func);
+            }
+
+            if constexpr(is_b_row_major && !is_b_load_tr_v())
+            {
+                auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                transpose_tile2d(b_shuffle_tmp, b_block_tile[currIdx]);
+                Base::LocalPrefill(b_copy_lds_window_ping, b_shuffle_tmp, b_element_func);
+            }
+            else
+            {
+                Base::LocalPrefill(b_copy_lds_window_ping, b_block_tile[currIdx], b_element_func);
+            }
+
+            // 2.1 Load A From Dram to Reg (2i+1)
+            LoadAndConvertATile(a_block_tile[(currIdx + 1) % 2], a_copy_dram_window);
+            move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+
+            LoadAndConvertBTile(b_block_tile[(currIdx + 1) % 2], b_copy_dram_window);
+            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+
+            Base::GlobalPrefetch(
+                aq_block_tile[(currIdx + 1) % 2], aq_copy_dram_window, aq_dram_tile_window_step);
+            Base::GlobalPrefetch(
+                bq_block_tile[(currIdx + 1) % 2], bq_copy_dram_window, bq_dram_tile_window_step);
+
+            block_sync_lds();
+            // 1.3 LDS TO Gemm Reg (2i)
+            block_gemm.LocalPrefetch(
+                a_lds_gemm_window_ping, b_lds_gemm_window_ping, is_a_load_tr_v, is_b_load_tr_v);
+
+            if constexpr(HasHotLoop)
+            {
+                index_t iCounter = (num_loop - 1) / loop_count;
+                do
+                {
+                    // 1.4 RUN (2i)
+                    block_gemm(c_block_tile,
+                               aq_block_tile[currIdx],
+                               bq_block_tile[currIdx],
+                               a_lds_gemm_window_ping,
+                               b_lds_gemm_window_ping);
+
+                    // 2.2 Store A Reg To LDS (2i+1)
+                    if constexpr(is_a_col_major && !is_a_load_tr_v())
+                    {
+                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                            Policy::template MakeShuffledARegTileDistribution<Problem>());
+                        transpose_tile2d(a_shuffle_tmp, a_block_tile[(currIdx + 1) % 2]);
+                        Base::LocalPrefill(a_copy_lds_window_pong, a_shuffle_tmp, a_element_func);
+                    }
+                    else
+                    {
+                        Base::LocalPrefill(a_copy_lds_window_pong,
+                                           a_block_tile[(currIdx + 1) % 2],
+                                           a_element_func);
+                    }
+                    if constexpr(is_b_row_major && !is_b_load_tr_v())
+                    {
+                        // Note: BDataType PkInt4 gets converted during loading earlier
+                        auto b_shuffle_tmp = make_static_distributed_tensor<OverrideBDataType>(
+                            Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                        transpose_tile2d(b_shuffle_tmp, b_block_tile[(currIdx + 1) % 2]);
+                        Base::LocalPrefill(b_copy_lds_window_pong, b_shuffle_tmp, b_element_func);
+                    }
+                    else
+                    {
+                        Base::LocalPrefill(b_copy_lds_window_pong,
+                                           b_block_tile[(currIdx + 1) % 2],
+                                           b_element_func);
+                    }
+                    block_sync_lds(); // don't remove
+
+                    // 2.3 LDS TO Gemm Reg (2i+1)
+                    block_gemm.LocalPrefetch(a_lds_gemm_window_pong,
+                                             b_lds_gemm_window_pong,
+                                             is_a_load_tr_v,
+                                             is_b_load_tr_v);
+
+                    // 2.4 RUN (2i+1)
+                    block_gemm(c_block_tile,
+                               aq_block_tile[(currIdx + 1) % 2],
+                               bq_block_tile[(currIdx + 1) % 2],
+                               a_lds_gemm_window_pong,
+                               b_lds_gemm_window_pong);
+
+                    // 3.1. Load A From Dram to Reg (2i+2)
+                    LoadAndConvertATile(a_block_tile[currIdx], a_copy_dram_window);
+                    move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+
+                    LoadAndConvertBTile(b_block_tile[currIdx], b_copy_dram_window);
+                    move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+                    Base::GlobalPrefetch(
+                        aq_block_tile[currIdx], aq_copy_dram_window, aq_dram_tile_window_step);
+                    Base::GlobalPrefetch(
+                        bq_block_tile[currIdx], bq_copy_dram_window, bq_dram_tile_window_step);
+
+                    // 3.2 Store A Reg To LDS (2i+2)
+                    if constexpr(is_a_col_major && !is_a_load_tr_v())
+                    {
+                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                            Policy::template MakeShuffledARegTileDistribution<Problem>());
+                        transpose_tile2d(a_shuffle_tmp, a_block_tile[currIdx]);
+                        Base::LocalPrefill(a_copy_lds_window_ping, a_shuffle_tmp, a_element_func);
+                    }
+                    else
+                    {
+                        Base::LocalPrefill(
+                            a_copy_lds_window_ping, a_block_tile[currIdx], a_element_func);
+                    }
+                    if constexpr(is_b_row_major && !is_b_load_tr_v())
+                    {
+                        // Note: BDataType PkInt4 gets converted during loading earlier
+                        auto b_shuffle_tmp = make_static_distributed_tensor<OverrideBDataType>(
+                            Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                        transpose_tile2d(b_shuffle_tmp, b_block_tile[currIdx]);
+                        Base::LocalPrefill(b_copy_lds_window_ping, b_shuffle_tmp, b_element_func);
+                    }
+                    else
+                    {
+                        Base::LocalPrefill(
+                            b_copy_lds_window_ping, b_block_tile[currIdx], b_element_func);
+                    }
+
+                    // block_sync_lds(); // don't remove
+
+                    // 1.1 Load A From Dram to Reg (2i+3)
+                    LoadAndConvertATile(a_block_tile[(currIdx + 1) % 2], a_copy_dram_window);
+                    move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+
+                    LoadAndConvertBTile(b_block_tile[(currIdx + 1) % 2], b_copy_dram_window);
+                    move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+                    Base::GlobalPrefetch(aq_block_tile[(currIdx + 1) % 2],
+                                         aq_copy_dram_window,
+                                         aq_dram_tile_window_step);
+                    Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
+                                         bq_copy_dram_window,
+                                         bq_dram_tile_window_step);
+                    block_sync_lds(); // don't remove
+                    // 3.3 LDS TO Gemm Reg (2i+2)
+                    block_gemm.LocalPrefetch(a_lds_gemm_window_ping,
+                                             b_lds_gemm_window_ping,
+                                             is_a_load_tr_v,
+                                             is_b_load_tr_v);
+                    iCounter--;
+                } while(iCounter > 0);
+            }
+            // tail
+            if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
+            {
+                // 1.4 RUN (2i)
+                block_gemm(c_block_tile,
+                           aq_block_tile[currIdx],
+                           bq_block_tile[currIdx],
+                           a_lds_gemm_window_ping,
+                           b_lds_gemm_window_ping);
+            }
+            else
+            {
+                // 1.4 RUN (2i)
+                block_gemm(c_block_tile,
+                           aq_block_tile[currIdx],
+                           bq_block_tile[currIdx],
+                           a_lds_gemm_window_ping,
+                           b_lds_gemm_window_ping);
+                // 2.2 Store A Reg To LDS (2i+1)
+                if constexpr(is_a_col_major)
+                {
+                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                        Policy::template MakeShuffledARegTileDistribution<Problem>());
+                    transpose_tile2d(a_shuffle_tmp, a_block_tile[(currIdx + 1) % 2]);
+                    Base::LocalPrefill(a_copy_lds_window_pong, a_shuffle_tmp, a_element_func);
+                }
+                else
+                {
+                    Base::LocalPrefill(
+                        a_copy_lds_window_pong, a_block_tile[(currIdx + 1) % 2], a_element_func);
+                }
+                if constexpr(is_b_row_major)
+                {
+                    // Note: BDataType gets converted during loading from PkInt4
+                    auto b_shuffle_tmp = make_static_distributed_tensor<OverrideBDataType>(
+                        Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                    transpose_tile2d(b_shuffle_tmp, b_block_tile[(currIdx + 1) % 2]);
+                    Base::LocalPrefill(b_copy_lds_window_pong, b_shuffle_tmp, b_element_func);
+                }
+                else
+                {
+                    Base::LocalPrefill(
+                        b_copy_lds_window_pong, b_block_tile[(currIdx + 1) % 2], b_element_func);
+                }
+                block_sync_lds(); // don't remove
+                // 2.3 LDS TO Gemm Reg (2i+1)
+                block_gemm.LocalPrefetch(
+                    a_lds_gemm_window_pong, b_lds_gemm_window_pong, is_a_load_tr_v, is_b_load_tr_v);
+
+                // 2.4 RUN (2i+1)
+                block_gemm(c_block_tile,
+                           aq_block_tile[currIdx + 1],
+                           bq_block_tile[currIdx + 1],
+                           a_lds_gemm_window_pong,
+                           b_lds_gemm_window_pong);
+            }
+            return c_block_tile;
+        }
     };
     // Overload for PreshuffleQuant = true
     template <typename ADramBlockWindowTmp,
@@ -545,6 +907,35 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
             n,
             num_loop,
             p_smem);
+    }
+    // GemmPipeline::DoubleSmemBuffer == true
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename AQDramBlockWindowTmp,
+              typename BQDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
+                                   const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem_0,
+                                   void* p_smem_1,
+                                   index_t m = 0,
+                                   index_t n = 0) const
+    {
+
+        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
+            a_dram_block_window_tmp,
+            [](const ADataType& a) { return a; },
+            b_dram_block_window_tmp,
+            [](const BDataType& b) { return b; },
+            aq_dram_block_window_tmp,
+            bq_dram_block_window_tmp,
+            m,
+            n,
+            num_loop,
+            p_smem_0,
+            p_smem_1);
     }
 
     /// @brief Runtime pipeline dispatch operator for grouped GEMM kernels.
