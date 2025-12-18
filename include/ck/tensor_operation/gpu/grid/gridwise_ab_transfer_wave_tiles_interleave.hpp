@@ -79,19 +79,20 @@ struct ABTransferWaveTilesInterleave : ABTransferWaveTiles<ABLayout,
                                                        index_t,
                                                        index_t)
     {
-        // Notes: padding is currently not supported
-        // static_assert(!PadMN && !PadK, "padding is currently not supported");
         const auto base_desc_padded = Base::template PadGridDescriptor<PadMN, PadK>(
             base_desc, sizeMN, MNPad, sizeK, KPad, 0, 0);
+
+        const index_t MN_grid = PadMN ? sizeMN : MNPad;
+        const index_t K_grid  = PadK ? sizeK : KPad;
 
         // Divide the base descriptor MN_K into tiles
         const auto ab_grid_desc_mntiles_ktiles = transform_tensor_descriptor(
             base_desc_padded,
             make_tuple(make_unmerge_transform(make_tuple(
-                           math::integer_divide_ceil(MNPad, Number<MNPerWmma * MNRepeat_Grid>{}),
+                           math::integer_divide_ceil(MN_grid, Number<MNPerWmma * MNRepeat_Grid>{}),
                            Number<MNPerWmma * MNRepeat_Grid>{})),
                        make_unmerge_transform(make_tuple(
-                           math::integer_divide_ceil(KPad, Number<KPack>{}), Number<KPack>{}))),
+                           math::integer_divide_ceil(K_grid, Number<KPack>{}), Number<KPack>{}))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}));
 
@@ -107,8 +108,8 @@ struct ABTransferWaveTilesInterleave : ABTransferWaveTiles<ABLayout,
                 ab_grid_desc_mntiles_ktiles,
                 make_tuple(
                     make_pass_through_transform(
-                        math::integer_divide_ceil(MNPad, Number<MNPerWmma * MNRepeat_Grid>{})),
-                    make_pass_through_transform(math::integer_divide_ceil(KPad, Number<KPack>{})),
+                        math::integer_divide_ceil(MN_grid, Number<MNPerWmma * MNRepeat_Grid>{})),
+                    make_pass_through_transform(math::integer_divide_ceil(K_grid, Number<KPack>{})),
                     make_unmerge_transform(
                         make_tuple(Number<MNPerWmma>{}, Number<MNRepeat_Grid>{})),
                     make_pass_through_transform(Number<KPack>{})),
@@ -119,9 +120,9 @@ struct ABTransferWaveTilesInterleave : ABTransferWaveTiles<ABLayout,
                 transform_tensor_descriptor(
                     ab_grid_desc_mntiles_ktiles_mnrepeat,
                     make_tuple(make_pass_through_transform(math::integer_divide_ceil(
-                                   MNPad, Number<MNPerWmma * MNRepeat_Grid>{})),
+                                   MN_grid, Number<MNPerWmma * MNRepeat_Grid>{})),
                                make_pass_through_transform(
-                                   math::integer_divide_ceil(KPad, Number<KPack>{})),
+                                   math::integer_divide_ceil(K_grid, Number<KPack>{})),
                                make_pass_through_transform(Number<MNRepeat_Grid>{}),
                                make_pass_through_transform(Number<MNPerWmma>{}),
                                make_unmerge_transform(
@@ -140,8 +141,8 @@ struct ABTransferWaveTilesInterleave : ABTransferWaveTiles<ABLayout,
                 ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1,
                 make_tuple(
                     make_pass_through_transform(
-                        math::integer_divide_ceil(MNPad, Number<MNPerWmma * MNRepeat_Grid>{})),
-                    make_pass_through_transform(math::integer_divide_ceil(KPad, Number<KPack>{})),
+                        math::integer_divide_ceil(MN_grid, Number<MNPerWmma * MNRepeat_Grid>{})),
+                    make_pass_through_transform(math::integer_divide_ceil(K_grid, Number<KPack>{})),
                     make_pass_through_transform(Number<MNRepeat_Grid>{}),
                     make_pass_through_transform(Number<MNPerWmma>{}),
                     make_pass_through_transform(Number<MNKRow>{}),

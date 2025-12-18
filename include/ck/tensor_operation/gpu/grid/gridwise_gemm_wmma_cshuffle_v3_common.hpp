@@ -263,9 +263,11 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
 
     // We need to investigate if it makes sense to remove cshuffle for smaller types
+    // Currently we use direct store for NRepeat equal to 4 or 8. For 16 bit type we use at
+    // lease buffer store 64 bit for 16 contiguous threads -> 128 bytes in toral (full cache line)
     static constexpr bool UseDirectStore = is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
                                            sizeof(ComputeTypeB) == 2 && sizeof(EDataType) == 2 &&
-                                           NumDTensor == 0 && (NRepeat % 2) == 0;
+                                           NumDTensor == 0 && (NRepeat == 4 || NRepeat == 8);
 #else
     static constexpr bool IsAWaveTransferApplicable = false;
     static constexpr bool IsBWaveTransferApplicable = false;

@@ -357,15 +357,21 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         const auto out_gemmmraw_gemmnraw_desc =
             conv_to_gemm_transformer.template MakeCDescriptor_M_N<Layout>();
 
+        // Force MN padding on the output tensor. This allows to use Gemm default or only K padding
+        // and remove some instructions in the hot loop (same approach used for gemm universal).
         if constexpr(CTranspose)
         {
-            constexpr auto matrix_padder_trans =
-                MatrixPadder<GemmSpec, index_t, index_t, index_t>{NPerBlock, MPerBlock, KPerBlock};
-            return matrix_padder_trans.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
+            constexpr auto matrix_padder_MN_padding_trans =
+                MatrixPadder<GemmSpecialization::MNPadding, index_t, index_t, index_t>{
+                    NPerBlock, MPerBlock, KPerBlock};
+            return matrix_padder_MN_padding_trans.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
         }
         else
         {
-            return matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
+            constexpr auto matrix_padder_MN_padding =
+                MatrixPadder<GemmSpecialization::MNPadding, index_t, index_t, index_t>{
+                    MPerBlock, NPerBlock, KPerBlock};
+            return matrix_padder_MN_padding.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
         }
     }
 

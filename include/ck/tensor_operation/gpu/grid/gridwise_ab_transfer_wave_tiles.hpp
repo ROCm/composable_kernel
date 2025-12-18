@@ -136,6 +136,9 @@ struct ABTransferWaveTiles
         static_assert(!((PadMN || PadK) && ABDoTranspose),
                       "padding is currently not supported with transpose");
 
+        const index_t MN_grid = PadMN ? sizeMN : MNPad;
+        const index_t K_grid  = PadK ? sizeK : KPad;
+
         const auto base_desc_padded =
             PadGridDescriptor<PadMN, PadK>(base_desc, sizeMN, MNPad, sizeK, KPad, 0, 0);
 
@@ -144,9 +147,9 @@ struct ABTransferWaveTiles
             base_desc_padded,
             make_tuple(
                 make_unmerge_transform(make_tuple(
-                    math::integer_divide_ceil(MNPad, Number<MNPerWmma>{}), Number<MNPerWmma>{})),
-                make_unmerge_transform(
-                    make_tuple(math::integer_divide_ceil(KPad, Number<KPack>{}), Number<KPack>{}))),
+                    math::integer_divide_ceil(MN_grid, Number<MNPerWmma>{}), Number<MNPerWmma>{})),
+                make_unmerge_transform(make_tuple(
+                    math::integer_divide_ceil(K_grid, Number<KPack>{}), Number<KPack>{}))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}));
 
@@ -162,9 +165,9 @@ struct ABTransferWaveTiles
                 transform_tensor_descriptor(
                     ab_grid_desc_mntiles_ktiles,
                     make_tuple(make_pass_through_transform(
-                                   math::integer_divide_ceil(MNPad, Number<MNPerWmma>{})),
+                                   math::integer_divide_ceil(MN_grid, Number<MNPerWmma>{})),
                                make_pass_through_transform(
-                                   math::integer_divide_ceil(KPad, Number<KPack>{})),
+                                   math::integer_divide_ceil(K_grid, Number<KPack>{})),
                                make_pass_through_transform(Number<MNPerWmma>{}),
                                make_unmerge_transform(
                                    make_tuple(Number<MNKRow>{}, Number<KPack / MNKRow>{}))),
@@ -177,8 +180,8 @@ struct ABTransferWaveTiles
                 ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1,
                 make_tuple(
                     make_pass_through_transform(
-                        math::integer_divide_ceil(MNPad, Number<MNPerWmma>{})),
-                    make_pass_through_transform(math::integer_divide_ceil(KPad, Number<KPack>{})),
+                        math::integer_divide_ceil(MN_grid, Number<MNPerWmma>{})),
+                    make_pass_through_transform(math::integer_divide_ceil(K_grid, Number<KPack>{})),
                     make_pass_through_transform(Number<MNPerWmma>{}),
                     make_pass_through_transform(Number<MNKRow>{}),
                     make_freeze_transform(I0)),
@@ -193,9 +196,9 @@ struct ABTransferWaveTiles
                 transform_tensor_descriptor(
                     ab_grid_desc_mntiles_ktiles,
                     make_tuple(make_pass_through_transform(
-                                   math::integer_divide_ceil(MNPad, Number<MNPerWmma>{})),
+                                   math::integer_divide_ceil(MN_grid, Number<MNPerWmma>{})),
                                make_pass_through_transform(
-                                   math::integer_divide_ceil(KPad, Number<KPack>{})),
+                                   math::integer_divide_ceil(K_grid, Number<KPack>{})),
                                make_unmerge_transform(
                                    make_tuple(Number<MNKRow>{}, Number<MNPerWmma / MNKRow>{})),
                                make_pass_through_transform(Number<KPack>{})),
@@ -207,8 +210,8 @@ struct ABTransferWaveTiles
                 ab_grid_desc_mntiles_ktiles_lanegroup_lanelocal_abk1,
                 make_tuple(
                     make_pass_through_transform(
-                        math::integer_divide_ceil(MNPad, Number<MNPerWmma>{})),
-                    make_pass_through_transform(math::integer_divide_ceil(KPad, Number<KPack>{})),
+                        math::integer_divide_ceil(MN_grid, Number<MNPerWmma>{})),
+                    make_pass_through_transform(math::integer_divide_ceil(K_grid, Number<KPack>{})),
                     make_pass_through_transform(Number<MNKRow>{}),
                     make_freeze_transform(I0),
                     make_pass_through_transform(Number<KPack>{})),
