@@ -936,75 +936,28 @@ struct UniversalGemmKernel
         return make_tuple(as_block_window, bs_block_window, ds_block_window, e_block_window);
     }
 
-    /**
-     * @brief Runs single GEMM problem cooperatively by whole workgroup.
-     *
-     * @param as_ptr input As pointer
-     * @param bs_ptr input Bs pointer
-     * @param ds_ptr input Ds pointer
-     * @param e_ptr output E pointer
-     * @param smem_ptr_0 The start memory pointer of the shared memory block.
-     * @param kargs GEMM kernel arguments
-     * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k batch.
-     * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
-     * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
-     *
-     */
-    template <bool UseDefaultScheduler = true>
-    CK_TILE_DEVICE static void RunGemm(const std::array<const ADataType*, NumATensor>& as_ptr,
-                                       const std::array<const BDataType*, NumBTensor>& bs_ptr,
-                                       const std::array<const void*, NumDTensor>& ds_ptr,
-                                       EDataType* e_ptr,
-                                       void* smem_ptr_0,
-                                       const KernelArgs& kargs,
-                                       const SplitKBatchOffset& splitk_batch_offset,
-                                       const index_t block_idx_m,
-                                       const index_t block_idx_n)
-    {
-        // Create Gemm tensor views, pad views and tile windows
-        const auto& gemm_tensor_views_tuple =
-            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset.splitted_k);
-
-        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
-
-        const index_t num_loop =
-            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
-
-        // Run GEMM cooperatively by whole workgroup.
-        const auto& as_block_window = gemm_tile_windows.at(I0);
-        const auto& bs_block_window = gemm_tile_windows.at(I1);
-        const auto& ds_block_window = gemm_tile_windows.at(I2);
-
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            as_block_window, AElementWise{}, bs_block_window, BElementWise{}, num_loop, smem_ptr_0);
-
-        if(UseDefaultScheduler || (get_warp_id() == 0))
-        {
-            // Run Epilogue Pipeline
-            auto& c_block_window = gemm_tile_windows.at(I3);
-
-            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
-        }
-    }
-
     // Version of RunGemm using descriptors
-    template <typename AGridDesc,
-              typename BGridDesc,
+    // FIXME: Currently Templated to XsList to allow both arrays and tuples for convenience, which
+    // doesn't enforce same size nor matching types (as with arrays)
+    template <typename AsList,
+              typename BsList,
+              typename DsList,
+              typename AGridDescs,
+              typename BGridDescs,
+              typename DGridDescs,
               typename EGridDesc,
               bool UseDefaultScheduler = true>
-    CK_TILE_DEVICE static void RunGemmDesc(const std::array<const ADataType*, NumATensor>& as_ptr,
-                                           const std::array<const BDataType*, NumBTensor>& bs_ptr,
-                                           const std::array<const void*, NumDTensor>& ds_ptr,
+    CK_TILE_DEVICE static void RunGemmDesc(const AsList& as_ptr,
+                                           const BsList& bs_ptr,
+                                           const DsList& ds_ptr,
                                            EDataType* e_ptr,
                                            void* smem_ptr_0,
                                            const SplitKBatchOffset& splitk_batch_offset,
                                            const index_t block_idx_m,
                                            const index_t block_idx_n,
-                                           const std::array<AGridDesc, NumATensor>& as_desc,
-                                           const std::array<BGridDesc, NumBTensor>& bs_desc,
-                                           const std::array<EGridDesc, NumDTensor>& ds_desc,
+                                           const AGridDescs& as_desc,
+                                           const BGridDescs& bs_desc,
+                                           const DGridDescs& ds_desc,
                                            const EGridDesc& e_desc)
     {
         // Create tensor views from descriptors (supports arbitrary stride patterns)
@@ -1059,6 +1012,65 @@ struct UniversalGemmKernel
 
             EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
         }
+    }
+
+    /**
+     * @brief Runs single GEMM problem cooperatively by whole workgroup.
+     *
+     * @param as_ptr input As pointer
+     * @param bs_ptr input Bs pointer
+     * @param ds_ptr input Ds pointer
+     * @param e_ptr output E pointer
+     * @param smem_ptr_0 The start memory pointer of the shared memory block.
+     * @param kargs GEMM kernel arguments
+     * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k batch.
+     * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
+     * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
+     *
+     */
+    template <bool UseDefaultScheduler = true>
+    CK_TILE_DEVICE static void RunGemm(const std::array<const ADataType*, NumATensor>& as_ptr,
+                                       const std::array<const BDataType*, NumBTensor>& bs_ptr,
+                                       const std::array<const void*, NumDTensor>& ds_ptr,
+                                       EDataType* e_ptr,
+                                       void* smem_ptr_0,
+                                       const KernelArgs& kargs,
+                                       const SplitKBatchOffset& splitk_batch_offset,
+                                       const index_t block_idx_m,
+                                       const index_t block_idx_n)
+    {
+        const auto& gemm_tensor_views_tuple =
+            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset.splitted_k);
+
+        // FIXME: Refactor to generate descriptors and views separately, then rework signatures
+        // FIXME: pointers need to be extracted as well
+        // FIXME: Fails (at least) 1024x1024x256_splitk2 and 1024x1024x256_splitk4 in
+        //   test_gemm_tile_engine_fp16_rcr_quick_coverage_config_compv3_cshuffle_intrawave_False_False_False_False_32x64x16_2x2x1_16x16x16
+
+        auto as_desc = generate_tuple(
+            [&](auto i) { return gemm_tensor_views_tuple.at(I0)[i].get_tensor_descriptor(); },
+            number<NumATensor>{});
+        auto bs_desc = generate_tuple(
+            [&](auto i) { return gemm_tensor_views_tuple.at(I1)[i].get_tensor_descriptor(); },
+            number<NumBTensor>{});
+        auto ds_desc = generate_tuple(
+            [&](auto i) { return gemm_tensor_views_tuple.at(I2)[i].get_tensor_descriptor(); },
+            number<NumDTensor>{});
+        auto e_desc = gemm_tensor_views_tuple.at(I3).get_tensor_descriptor();
+
+        RunGemmDesc(as_ptr,
+                    bs_ptr,
+                    ds_ptr,
+                    e_ptr,
+                    smem_ptr_0,
+                    splitk_batch_offset,
+                    block_idx_m,
+                    block_idx_n,
+                    as_desc,
+                    bs_desc,
+                    ds_desc,
+                    e_desc);
     }
 
     /**
