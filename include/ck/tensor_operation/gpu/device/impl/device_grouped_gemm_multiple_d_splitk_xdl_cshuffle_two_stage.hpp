@@ -819,8 +819,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                     concat_tuple(make_tuple(arg.gemm_kernel_args_[i].karg_.p_c_grid),
                                  arg.ds_grid_pointer_[i]),
                     type_convert<EDataType*>(arg.e_ptrs_[i]),
-                    Block2TileMap{arg.elementwise_e_grid_descs_m_n_[i].GetLength(I0),
-                                  arg.elementwise_e_grid_descs_m_n_[i].GetLength(I1)},
+                    Block2TileMap{arg.elementwise_c_grid_descs_m_n_[i].GetLength(I0),
+                                  arg.elementwise_c_grid_descs_m_n_[i].GetLength(I1)},
                     arg.cde_element_op_);
             }
             return time;
