@@ -1,0 +1,648 @@
+{
+  "description": "Complete listing of all backward weight convolution instances in the Composable Kernel library",
+  "note": "All instances are pre-compiled and part of the static library. All 9 algorithms are active.",
+  
+  "algorithms": {
+    "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3": {
+      "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle_v3.hpp",
+      "instruction_set": "XDL/MFMA",
+      "version": "v3",
+      "status": "active_recommended",
+      
+      "instances": {
+        "FP32": {
+          "data_type": "FP32",
+          "accumulator": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f32_instances",
+          "instance": {
+            "BlockSize": 64,
+            "MPerBlock": 16,
+            "NPerBlock": 16,
+            "K0PerBlock": 32,
+            "K1": 8,
+            "MPerXDL": 16,
+            "NPerXDL": 16,
+            "MXdlPerWave": 1,
+            "NXdlPerWave": 1,
+            "CBlockTransferScalarPerVector_NWaveNPerXdl": 2
+          }
+        },
+        
+        "FP32_TF32": {
+          "data_type": "FP32",
+          "accumulator": "FP32",
+          "compute_type": "TF32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f32_tf32_instances",
+          "instance": {
+            "BlockSize": 64,
+            "MPerBlock": 16,
+            "NPerBlock": 16,
+            "K0PerBlock": 32,
+            "K1": 8,
+            "MPerXDL": 16,
+            "NPerXDL": 16,
+            "MXdlPerWave": 1,
+            "NXdlPerWave": 1,
+            "ComputeTypeA": "TF32",
+            "ComputeTypeB": "TF32"
+          }
+        },
+        
+        "FP16": {
+          "data_type": "FP16",
+          "accumulator": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f16_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 1, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 32, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 32, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 1, "NXdlPerWave": 4, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 4, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 80, "K0PerBlock": 32, "K1": 8, "MPerXDL": 16, "NPerXDL": 16, "MXdlPerWave": 4, "NXdlPerWave": 5, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2, "note": "Irregular NPerBlock"},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 112, "K0PerBlock": 32, "K1": 8, "MPerXDL": 16, "NPerXDL": 16, "MXdlPerWave": 4, "NXdlPerWave": 7, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2, "note": "Irregular NPerBlock"}
+          ]
+        },
+        
+        "BF16": {
+          "data_type": "BF16",
+          "accumulator": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_bf16_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 1, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 4, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 4, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 80, "K0PerBlock": 32, "K1": 8, "MPerXDL": 16, "NPerXDL": 16, "MXdlPerWave": 4, "NXdlPerWave": 5},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 112, "K0PerBlock": 32, "K1": 8, "MPerXDL": 16, "NPerXDL": 16, "MXdlPerWave": 4, "NXdlPerWave": 7}
+          ]
+        }
+      }
+    },
+    
+    "DeviceGroupedConvBwdWeight_Wmma_CShuffleV3": {
+      "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_wmma_cshuffle_v3.hpp",
+      "instruction_set": "WMMA",
+      "version": "v3",
+      "status": "active_recommended",
+      
+      "instances": {
+        "FP16": {
+          "data_type": "FP16",
+          "accumulator": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_wmma_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_f16_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MPerWmma": 16, "NPerWmma": 16, "MRepeat": 2, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 2},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 32, "K1": 8, "MRepeat": 8, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 32, "K1": 8, "MRepeat": 8, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8, "note": "Extra LDS"},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 64, "K1": 8, "MRepeat": 4, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 64, "K1": 8, "MRepeat": 8, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 48, "NPerBlock": 64, "K0PerBlock": 128, "K1": 8, "MRepeat": 3, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 8, "note": "Irregular MPerBlock=48"},
+            {"BlockSize": 128, "MPerBlock": 96, "NPerBlock": 128, "K0PerBlock": 64, "K1": 8, "MRepeat": 6, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8, "note": "Irregular MPerBlock=96"},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 128, "K1": 8, "MRepeat": 4, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 96, "NPerBlock": 128, "K0PerBlock": 128, "K1": 8, "MRepeat": 6, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 8, "note": "Irregular MPerBlock=96"}
+          ]
+        },
+        
+        "BF16": {
+          "data_type": "BF16",
+          "accumulator": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_wmma_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MRepeat": 2, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 2},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 32, "K1": 8, "MRepeat": 8, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 32, "K1": 8, "MRepeat": 8, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8, "note": "Extra LDS"},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 64, "K1": 8, "MRepeat": 4, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 64, "K1": 8, "MRepeat": 8, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 48, "NPerBlock": 64, "K0PerBlock": 128, "K1": 8, "MRepeat": 3, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 96, "NPerBlock": 128, "K0PerBlock": 64, "K1": 8, "MRepeat": 6, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 128, "K1": 8, "MRepeat": 4, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 96, "NPerBlock": 128, "K0PerBlock": 128, "K1": 8, "MRepeat": 6, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 96, "MPerBlock": 96, "NPerBlock": 96, "K0PerBlock": 48, "K1": 8, "MRepeat": 6, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8}
+          ]
+        }
+      }
+    },
+    
+    "DeviceGroupedConvBwdWeight_Xdl_CShuffle": {
+      "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp",
+      "instruction_set": "XDL/MFMA",
+      "version": "v1",
+      "status": "active_legacy",
+      
+      "instances": {
+        "FP32_generic": {
+          "data_type": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_xdl_c_shuffle_f32_generic_instances",
+          "instance": {
+            "BlockSize": 64,
+            "MPerBlock": 64,
+            "NPerBlock": 64,
+            "K0PerBlock": 4,
+            "K1": 4,
+            "MPerXDL": 32,
+            "NPerXDL": 32,
+            "MXdlPerWave": 2,
+            "NXdlPerWave": 2,
+            "CBlockTransferScalarPerVector_NWaveNPerXdl": 1
+          }
+        },
+        
+        "FP32": {
+          "data_type": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_xdl_c_shuffle_f32_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 1},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 1},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 256, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 4, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 4, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 4, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 128, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 32, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 8, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 1, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 8, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 1}
+          ]
+        },
+        
+        "FP16": {
+          "data_type": "FP16",
+          "accumulator": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_xdl_c_shuffle_f16_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 256, "MPerBlock": 256, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 4, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 4, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 4, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 128, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 32, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8}
+          ]
+        },
+        
+        "BF16": {
+          "data_type": "BF16",
+          "accumulator": "FP32",
+          "note": "Similar instance pattern as FP16, ~15 instances"
+        },
+        
+        "FP32_TF32": {
+          "data_type": "FP32",
+          "compute_type": "TF32",
+          "note": "Similar instance pattern, ~20 instances with TF32 compute"
+        }
+      }
+    },
+    
+    "DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle": {
+      "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_two_stage_xdl_cshuffle.hpp",
+      "instruction_set": "XDL/MFMA",
+      "version": "two_stage",
+      "status": "active",
+      
+      "instances": {
+        "FP16_NHWGC_generic": {
+          "data_type": "FP16",
+          "layout": "NHWGC/GKYXC/NHWGK",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_two_stage_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_f16_generic_instances",
+          "instance": {
+            "BlockSize": 64,
+            "MPerBlock": 16,
+            "NPerBlock": 16,
+            "K0PerBlock": 32,
+            "K1": 8,
+            "MPerXDL": 16,
+            "NPerXDL": 16,
+            "MXdlPerWave": 1,
+            "NXdlPerWave": 1,
+            "NumGroupsToMerge": 1
+          }
+        },
+        
+        "FP16_NHWGC": {
+          "data_type": "FP16",
+          "layout": "NHWGC/GKYXC/NHWGK",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_two_stage_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_f16_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 16, "NPerBlock": 16, "K0PerBlock": 32, "K1": 8, "MPerXDL": 16, "NPerXDL": 16, "MXdlPerWave": 1, "NXdlPerWave": 1, "NumGroupsToMerge": 1},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 32, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 1, "NXdlPerWave": 2, "NumGroupsToMerge": 2},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 1, "NumGroupsToMerge": 2},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 2, "NumGroupsToMerge": 4},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 4, "NumGroupsToMerge": 8},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 1, "NXdlPerWave": 1, "NumGroupsToMerge": 2},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 1, "NumGroupsToMerge": 4},
+            {"BlockSize": 64, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 4, "NXdlPerWave": 1, "NumGroupsToMerge": 8}
+          ]
+        },
+        
+        "FP16_NHWGC_part2": {
+          "data_type": "FP16",
+          "layout": "NHWGC/GKYXC/NHWGK",
+          "template_alias": "device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_f16_part2_instances",
+          "all_instances": [
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 64, "K1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 1, "NXdlPerWave": 1, "NumGroupsToMerge": 1},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 64, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 1, "NumGroupsToMerge": 1},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 64, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 1, "NumGroupsToMerge": 1},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 64, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 1, "NumGroupsToMerge": 1},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 64, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 1, "NumGroupsToMerge": 1},
+            {"BlockSize": 64, "MPerBlock": 16, "NPerBlock": 256, "K0PerBlock": 32, "K1": 8, "MPerXDL": 16, "NPerXDL": 16, "MXdlPerWave": 1, "NXdlPerWave": 16, "NumGroupsToMerge": 8},
+            {"BlockSize": 64, "MPerBlock": 16, "NPerBlock": 128, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 8, "NumGroupsToMerge": 4}
+          ]
+        },
+        
+        "FP16_NHWGC_irregular": {
+          "data_type": "FP16",
+          "layout": "NHWGC/GKYXC/NHWGK",
+          "variant": "irregular block sizes",
+          "template_alias": "device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_f16_irregular_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 48, "NPerBlock": 64, "K0PerBlock": 32, "K1": 8, "MPerXDL": 16, "NPerXDL": 16, "MXdlPerWave": 3, "NXdlPerWave": 4, "NumGroupsToMerge": 1, "note": "Irregular MPerBlock=48"},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 48, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 4, "NXdlPerWave": 3, "NumGroupsToMerge": 1, "note": "Irregular NPerBlock=48"},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 80, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 4, "NXdlPerWave": 5, "NumGroupsToMerge": 1, "note": "Irregular NPerBlock=80"},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 112, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 4, "NXdlPerWave": 7, "NumGroupsToMerge": 1, "note": "Irregular NPerBlock=112"},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 208, "K0PerBlock": 32, "K1": 8, "MXdlPerWave": 4, "NXdlPerWave": 13, "NumGroupsToMerge": 1, "note": "Irregular NPerBlock=208"}
+          ]
+        },
+        
+        "BF16_NHWGC": {
+          "data_type": "BF16",
+          "layout": "NHWGC/GKYXC/NHWGK",
+          "note": "Similar patterns as FP16, multiple pipeline versions (v1, v2, v5)"
+        }
+      }
+    },
+    
+    "DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffleV3": {
+      "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_two_stage_wmma_cshuffle_v3.hpp",
+      "instruction_set": "WMMA",
+      "version": "two_stage_v3",
+      "status": "active",
+      
+      "instances": {
+        "FP16": {
+          "data_type": "FP16",
+          "accumulator": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_two_stage_wmma_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_f16_instances",
+          "instance": {
+            "BlockSize": 32,
+            "MPerBlock": 16,
+            "NPerBlock": 16,
+            "K0PerBlock": 32,
+            "K1": 8,
+            "MPerWmma": 16,
+            "NPerWmma": 16,
+            "MRepeat": 1,
+            "NRepeat": 1,
+            "NumGroupsToMerge": 1,
+            "CBlockTransferScalarPerVector_NPerBlock": 1
+          }
+        },
+        
+        "BF16": {
+          "data_type": "BF16",
+          "accumulator": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_two_stage_wmma_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_bf16_instances",
+          "instance": {
+            "BlockSize": 32,
+            "MPerBlock": 16,
+            "NPerBlock": 16,
+            "K0PerBlock": 32,
+            "K1": 8,
+            "MRepeat": 1,
+            "NRepeat": 1,
+            "NumGroupsToMerge": 1
+          }
+        }
+      }
+    },
+    
+    "DeviceGroupedConvBwdWeight_DL": {
+      "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_dl.hpp",
+      "instruction_set": "Direct Load",
+      "version": "dl",
+      "status": "active",
+      
+      "instances": {
+        "FP32": {
+          "data_type": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_dl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_dl_f32_instances",
+          "instance": {
+            "BlockSize": 256,
+            "MPerBlock": 128,
+            "NPerBlock": 128,
+            "K0PerBlock": 16,
+            "K1": 1,
+            "M1PerThread": 4,
+            "N1PerThread": 4,
+            "KPerThread": 1
+          }
+        },
+        
+        "FP16": {
+          "data_type": "FP16",
+          "accumulator": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_dl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_dl_f16_instances",
+          "instance": {
+            "BlockSize": 256,
+            "MPerBlock": 128,
+            "NPerBlock": 128,
+            "K0PerBlock": 16,
+            "K1": 1,
+            "M1PerThread": 4,
+            "N1PerThread": 4,
+            "KPerThread": 1
+          }
+        },
+        
+        "BF16_mixed": {
+          "data_type": "BF16",
+          "weight_type": "FP32",
+          "output_type": "BF16",
+          "accumulator": "FP32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_dl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_dl_bf16_instances",
+          "instance": {
+            "BlockSize": 256,
+            "MPerBlock": 128,
+            "NPerBlock": 128,
+            "K0PerBlock": 16,
+            "K1": 1,
+            "note": "Mixed precision: BF16 input/output, FP32 weights"
+          }
+        }
+      }
+    },
+    
+    "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle": {
+      "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_multiple_d_xdl_cshuffle.hpp",
+      "instruction_set": "XDL/MFMA",
+      "version": "multiple_d",
+      "status": "active",
+      "fused_operations": ["Bilinear", "Scale"],
+      
+      "instances": {
+        "FP32_Bilinear": {
+          "data_type": "FP32",
+          "element_wise_op": "Bilinear",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_bilinear_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_xdl_c_shuffle_f32_bilinear_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 1, "DsTensors": "Tuple<BLayout>"},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 1},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 256, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 4, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 4, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 4, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 128, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 32, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 4, "K1": 4, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 4}
+          ]
+        },
+        
+        "FP16_Bilinear": {
+          "data_type": "FP16",
+          "element_wise_op": "Bilinear",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_bilinear_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_xdl_c_shuffle_f16_bilinear_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 1, "DsTensors": "Tuple<BLayout>"},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 2},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 256, "MPerBlock": 256, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 4, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 4, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 4, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 128, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 32, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 2, "NXdlPerWave": 1, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MXdlPerWave": 1, "NXdlPerWave": 2, "CBlockTransferScalarPerVector_NWaveNPerXdl": 8}
+          ]
+        }
+      }
+    },
+    
+    "DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3": {
+      "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_multiple_d_wmma_cshuffle_v3.hpp",
+      "instruction_set": "WMMA",
+      "version": "multiple_d_v3",
+      "status": "active",
+      "fused_operations": ["Scale"],
+      
+      "instances": {
+        "FP16_Scale": {
+          "data_type": "FP16",
+          "accumulator": "FP32",
+          "element_wise_op": "Scale",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_wmma_scale_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_weight_wmma_c_shuffle_f16_scale_instances",
+          "all_instances": [
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 32, "K1": 8, "MRepeat": 4, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 2},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 32, "K0PerBlock": 32, "K1": 8, "MRepeat": 2, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 2},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 32, "K1": 8, "MRepeat": 8, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 32, "K1": 8, "MRepeat": 8, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8, "note": "With LDS extra"},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 64, "K1": 8, "MRepeat": 4, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 64, "K1": 8, "MRepeat": 8, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 48, "NPerBlock": 64, "K0PerBlock": 128, "K1": 8, "MRepeat": 3, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 96, "NPerBlock": 128, "K0PerBlock": 64, "K1": 8, "MRepeat": 6, "NRepeat": 2, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 128, "K1": 8, "MRepeat": 4, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 96, "NPerBlock": 128, "K0PerBlock": 128, "K1": 8, "MRepeat": 6, "NRepeat": 1, "CBlockTransferScalarPerVector_NPerBlock": 8}
+          ]
+        },
+        
+        "BF16_Scale": {
+          "data_type": "BF16",
+          "weight_type": "FP32",
+          "output_type": "BF16",
+          "accumulator": "FP32",
+          "element_wise_op": "Scale",
+          "note": "Similar instance pattern as FP16, ~13 instances with mixed precision"
+        }
+      }
+    }
+  },
+  
+  "instance_count_summary": {
+    "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3": {
+      "FP16": 7,
+      "BF16": 7,
+      "FP32": 1,
+      "FP32_TF32": 1,
+      "total": "~16 base instances, multiply by layouts and pipeline variants"
+    },
+    "DeviceGroupedConvBwdWeight_Wmma_CShuffleV3": {
+      "FP16": 9,
+      "BF16": 10,
+      "total": 19
+    },
+    "DeviceGroupedConvBwdWeight_Xdl_CShuffle": {
+      "FP32": 17,
+      "FP32_TF32": 20,
+      "FP16": 16,
+      "BF16": 15,
+      "BF16_F32_BF16_mixed": 14,
+      "FP16_comp_BF8_F8": 15,
+      "total": "~100+"
+    },
+    "DeviceGroupedConvBwdWeight_Wmma_CShuffle": {
+      "note": "3D only, limited instances"
+    },
+    "DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle": {
+      "FP16_NHWGC": 15,
+      "FP16_NHWGC_irregular": 5,
+      "FP16_NGCHW": 15,
+      "BF16_NHWGC": 15,
+      "BF16_NGCHW": 15,
+      "total": "~65+ (across pipev1/v2/v5 and layouts)"
+    },
+    "DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffleV3": {
+      "FP16": 1,
+      "BF16": 1,
+      "total": 2
+    },
+    "DeviceGroupedConvBwdWeight_DL": {
+      "FP32": 1,
+      "FP16": 1,
+      "BF16_mixed": 1,
+      "total": "3 base (multiply by layouts: ~6-9)"
+    },
+    "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle": {
+      "FP32_Bilinear": 15,
+      "FP32_TF32_Bilinear": 14,
+      "FP16_Bilinear": 16,
+      "BF16_Bilinear": 15,
+      "FP16_comp_BF8_F8_Bilinear": 15,
+      "note": "Similar counts for Scale variants",
+      "total": "~100+"
+    },
+    "DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3": {
+      "FP16_Scale": 10,
+      "BF16_Scale": 13,
+      "total": 23
+    }
+  },
+  
+  "file_references_by_algorithm": {
+    "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3": {
+      "implementation": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle_v3.hpp",
+      "instances_header": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_xdl_instance.hpp",
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/gnhwc_gkyxc_gnhwk/device_grouped_conv2d_bwd_weight_v3_xdl_gnhwc_gkyxc_gnhwk_f16_default_pipev1_instance.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_v3_xdl_nhwgc_gkyxc_nhwgk_f16_default_pipev1_instance.cpp"
+      ]
+    },
+    "DeviceGroupedConvBwdWeight_Wmma_CShuffleV3": {
+      "implementation": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_wmma_cshuffle_v3.hpp",
+      "instances_header": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_wmma_instance.hpp",
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_instance.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_instance.cpp"
+      ]
+    },
+    "DeviceGroupedConvBwdWeight_Xdl_CShuffle": {
+      "implementation": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp",
+      "instances_header": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_instance.hpp",
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv1d_bwd_weight/xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_*.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/*/device_grouped_conv2d_bwd_weight_xdl_*_*.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight/xdl/*.cpp"
+      ]
+    },
+    "DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle": {
+      "implementation": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_two_stage_xdl_cshuffle.hpp",
+      "instances_header": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_two_stage_xdl_instance.hpp",
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_*_pipev*.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/ngchw_gkcyx_ngkhw/device_grouped_conv2d_bwd_weight_two_stage_xdl_ngchw_gkcyx_ngkhw_*_pipev*.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/ngchw_gkyxc_ngkhw/device_grouped_conv2d_bwd_weight_two_stage_xdl_ngchw_gkyxc_ngkhw_*_pipev*.cpp"
+      ]
+    },
+    "DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffleV3": {
+      "implementation": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_two_stage_wmma_cshuffle_v3.hpp",
+      "instances_header": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_two_stage_wmma_instance.hpp",
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_*_pipev1_instance.cpp"
+      ]
+    },
+    "DeviceGroupedConvBwdWeight_DL": {
+      "implementation": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_dl.hpp",
+      "instances_header": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_dl_instance.hpp",
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv1d_bwd_weight/dl/device_grouped_conv1d_bwd_weight_dl_*.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/dl/device_grouped_conv2d_bwd_weight_dl_*.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight/dl/device_grouped_conv3d_bwd_weight_dl_*.cpp"
+      ]
+    },
+    "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle": {
+      "implementation": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_multiple_d_xdl_cshuffle.hpp",
+      "instances_headers": [
+        "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_bilinear_instance.hpp",
+        "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_scale_instance.hpp"
+      ],
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight_bilinear/xdl/*.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight_scale/xdl/*.cpp"
+      ]
+    },
+    "DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3": {
+      "implementation": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_multiple_d_wmma_cshuffle_v3.hpp",
+      "instances_header": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_wmma_scale_instance.hpp",
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight_scale/wmma/*.cpp"
+      ]
+    }
+  },
+  
+  "notes": {
+    "total_instances": "Estimated 300-400+ backward weight instances across all 9 algorithms",
+    "instance_multipliers": "Each instance template is instantiated for multiple layout combinations and specializations",
+    "pipeline_variants": "Two-stage and V3 algorithms have multiple pipeline versions, multiplying instance count",
+    "layout_support": "V1 XDL supports more layouts (including NCHW) than V3",
+    "irregular_blocks": "Two-stage and V3 variants support non-power-of-2 block sizes (48, 80, 96, 112, 208)",
+    "fused_operations": "MultipleD variants support Bilinear and Scale fused operations with additional D tensors"
+  }
+}

@@ -1,0 +1,1257 @@
+{
+  "description": "Comprehensive listing of grouped convolution backward algorithms and their instances in the Composable Kernel library",
+  "version": "Complete analysis including all algorithms in static library",
+  "note": "All listed algorithms are part of the static library with pre-compiled instances",
+  
+  "algorithms": {
+    "backward_data": {
+      "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle_v1.hpp",
+        "description": "XDL (Matrix Core) based backward data convolution with CShuffle optimization",
+        "instruction_set": "XDL/MFMA (AMD Matrix Cores)",
+        "status": "active",
+        "features": [
+          "CShuffle optimization",
+          "Multiple spatial dimensions (1D, 2D, 3D)",
+          "Prefetch pipelining",
+          "Supports multiple D tensors for fused operations"
+        ],
+        "data_types": ["FP16", "BF16", "FP32", "TF32", "FP8", "BF8"],
+        "specializations": ["ConvBwdDataDefault", "ConvBwdDataFilter1x1Stride1Pad0"],
+        "instance_header_files": [
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp",
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_bilinear_instance.hpp",
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_scale_instance.hpp",
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_transpose_xdl_instance.hpp"
+        ],
+        "instantiation_cpp_files": {
+          "2D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/xdl/device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/xdl/device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_bf16_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/xdl/device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f32_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/xdl/device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f16_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/xdl/device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_bf16_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/xdl/device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/xdl/device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_instance.cpp",
+            "... (and many more variants)"
+          ],
+          "3D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_data/xdl/*.cpp"
+          ]
+        },
+        "supported_layouts": {
+          "2D": ["GNHWK/GKYXC/GNHWC", "NHWGK/GKYXC/NHWGC", "NGKHW/GKCYX/NGCHW"],
+          "3D": ["GNDHWK/GKZYXC/GNDHWC", "NDHWGK/GKZYXC/NDHWGC"]
+        }
+      },
+      "DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_wmma_cshuffle.hpp",
+        "description": "WMMA (Wave Matrix Multiply Accumulate) based backward data convolution",
+        "instruction_set": "WMMA (16x16 matrix operations)",
+        "status": "active",
+        "features": [
+          "CShuffle optimization",
+          "Flexible block sizes",
+          "Optimized for specific GPU architectures"
+        ],
+        "data_types": ["FP16", "INT8"],
+        "specializations": ["ConvBwdDataDefault", "ConvBwdDataFilter1x1Stride1Pad0"],
+        "instance_header_files": [
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_wmma_f16_instance.hpp",
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_wmma_i8_instance.hpp"
+        ],
+        "instantiation_cpp_files": {
+          "2D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/wmma/device_grouped_conv2d_bwd_data_wmma_gnhwc_gkyxc_gnhwk_f16_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/wmma/device_grouped_conv2d_bwd_data_wmma_gnhwc_gkyxc_gnhwk_f16_1x1s1p0_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/wmma/device_grouped_conv2d_bwd_data_wmma_gnhwc_gkyxc_gnhwk_i8_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/wmma/device_grouped_conv2d_bwd_data_wmma_gnhwc_gkyxc_gnhwk_i8_1x1s1p0_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/wmma/device_grouped_conv2d_bwd_data_wmma_nhwgc_gkyxc_nhwgk_f16_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/wmma/device_grouped_conv2d_bwd_data_wmma_nhwgc_gkyxc_nhwgk_i8_instance.cpp"
+          ],
+          "3D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_data/wmma/*.cpp"
+          ]
+        },
+        "wmma_configuration": {
+          "wmma_size": "16x16",
+          "K1_FP16": 8,
+          "K1_INT8": 16
+        }
+      }
+    },
+    
+    "backward_weight": {
+      "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle_v3.hpp",
+        "description": "Latest XDL-based backward weight convolution with advanced optimizations (version 3)",
+        "instruction_set": "XDL/MFMA (AMD Matrix Cores)",
+        "version": "v3",
+        "status": "active_recommended",
+        "features": [
+          "Latest XDL implementation with CShuffle",
+          "Split-K support with auto-deduction",
+          "Multiple pipeline versions (v1, v2, v3, v4)",
+          "Pipeline schedulers (Intrawave, Interwave)",
+          "Dual LDS buffer support (v4 pipeline)",
+          "Support for non-power-of-2 block sizes"
+        ],
+        "data_types": ["FP16", "BF16", "FP32", "TF32"],
+        "specializations": ["ConvBwdWeightDefault", "ConvBwdWeightFilter1x1Stride1Pad0"],
+        "pipeline_versions": ["v1", "v2", "v3", "v4"],
+        "pipeline_schedulers": ["Intrawave", "Interwave"],
+        "instance_header_files": [
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_xdl_instance.hpp"
+        ],
+        "instantiation_cpp_files": {
+          "2D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/gnhwc_gkyxc_gnhwk/device_grouped_conv2d_bwd_weight_v3_xdl_gnhwc_gkyxc_gnhwk_f16_*.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_v3_xdl_nhwgc_gkyxc_nhwgk_f16_*.cpp"
+          ],
+          "3D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight/xdl/device_grouped_conv3d_bwd_weight_v3_xdl_*.cpp"
+          ]
+        },
+        "sample_instances": {
+          "FP16": [
+            {
+              "BlockSize": 64,
+              "MPerBlock": 32,
+              "NPerBlock": 32,
+              "K0PerBlock": 32,
+              "K1": 8,
+              "MPerXDL": 32,
+              "NPerXDL": 32,
+              "MXdlPerWave": 1,
+              "NXdlPerWave": 1
+            },
+            {
+              "BlockSize": 64,
+              "MPerBlock": 64,
+              "NPerBlock": 80,
+              "K0PerBlock": 32,
+              "K1": 8,
+              "MPerXDL": 16,
+              "NPerXDL": 16,
+              "MXdlPerWave": 4,
+              "NXdlPerWave": 5,
+              "note": "Irregular NPerBlock=80"
+            }
+          ]
+        }
+      },
+      
+      "DeviceGroupedConvBwdWeight_Wmma_CShuffleV3": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_wmma_cshuffle_v3.hpp",
+        "description": "Latest WMMA-based backward weight convolution (version 3)",
+        "instruction_set": "WMMA (16x16 matrix operations)",
+        "version": "v3",
+        "status": "active_recommended",
+        "features": [
+          "WMMA 16x16 matrix operations",
+          "CShuffle optimization",
+          "Pipeline versions and schedulers",
+          "Support for non-power-of-2 block sizes"
+        ],
+        "data_types": ["FP16", "BF16"],
+        "specializations": ["ConvBwdWeightDefault", "ConvBwdWeightFilter1x1Stride1Pad0"],
+        "instance_header_files": [
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_wmma_instance.hpp"
+        ],
+        "instantiation_cpp_files": {
+          "2D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_instance.cpp"
+          ],
+          "3D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight/wmma/*.cpp"
+          ]
+        },
+        "sample_instances": {
+          "FP16": [
+            {
+              "BlockSize": 64,
+              "MPerBlock": 32,
+              "NPerBlock": 32,
+              "K0PerBlock": 32,
+              "K1": 8,
+              "MPerWmma": 16,
+              "NPerWmma": 16,
+              "MRepeat": 2,
+              "NRepeat": 1
+            },
+            {
+              "BlockSize": 128,
+              "MPerBlock": 96,
+              "NPerBlock": 128,
+              "K0PerBlock": 64,
+              "K1": 8,
+              "MRepeat": 6,
+              "NRepeat": 2,
+              "note": "Non-power-of-2 MPerBlock=96"
+            }
+          ]
+        }
+      },
+      
+      "DeviceGroupedConvBwdWeight_Xdl_CShuffle": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp",
+        "description": "Original XDL-based backward weight convolution (version 1)",
+        "instruction_set": "XDL/MFMA",
+        "version": "v1",
+        "status": "active_legacy",
+        "features": [
+          "XDL/MFMA matrix core operations",
+          "CShuffle optimization",
+          "Supports transpose operations for NCHW layouts",
+          "Broader layout support than V3"
+        ],
+        "data_types": ["FP16", "BF16", "FP32", "TF32", "FP8", "BF8"],
+        "specializations": ["ConvBwdWeightDefault", "ConvBwdWeightFilter1x1Stride1Pad0"],
+        "instance_header_files": [
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_instance.hpp"
+        ],
+        "instantiation_cpp_files": {
+          "1D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv1d_bwd_weight/xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_*.cpp"
+          ],
+          "2D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/gnhwc_gkyxc_gnhwk/device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_*.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_*.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/ngchw_gkcyx_ngkhw/device_grouped_conv2d_bwd_weight_xdl_ngchw_gkcyx_ngkhw_*.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/ngchw_gkyxc_ngkhw/device_grouped_conv2d_bwd_weight_xdl_ngchw_gkyxc_ngkhw_*.cpp"
+          ],
+          "3D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight/xdl/*.cpp"
+          ]
+        },
+        "supported_layouts": {
+          "2D": ["GNHWC/GKYXC/GNHWK", "NHWGC/GKYXC/NHWGK", "NGCHW/GKCYX/NGKHW", "NGCHW/GKYXC/NGKHW"],
+          "3D": ["GNDHWC/GKZYXC/GNDHWK", "NDHWGC/GKZYXC/NDHWGK"]
+        }
+      },
+      
+      "DeviceGroupedConvBwdWeight_Wmma_CShuffle": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_wmma_cshuffle.hpp",
+        "description": "Original WMMA-based backward weight for 3D convolutions only",
+        "instruction_set": "WMMA (16x16 matrix operations)",
+        "version": "v1",
+        "status": "active_3d_only",
+        "features": [
+          "WMMA 16x16 matrix operations",
+          "CShuffle optimization",
+          "Specialized for 3D convolutions ONLY",
+          "Different template structure than other WMMA variants"
+        ],
+        "data_types": ["FP16", "BF16", "FP32"],
+        "specializations": ["ConvBwdWeightDefault", "ConvBwdWeightFilter1x1Stride1Pad0"],
+        "spatial_dimensions": ["3D only"],
+        "supported_layouts": {
+          "3D_only": ["NDHWGC/GKZYXC/NDHWGK", "GNDHWC/GKZYXC/GNDHWK"]
+        },
+        "note": "This is NOT a general-purpose WMMA algorithm. It only supports 3D convolutions."
+      },
+      
+      "DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_two_stage_xdl_cshuffle.hpp",
+        "description": "Two-stage XDL-based backward weight for large convolutions",
+        "instruction_set": "XDL/MFMA",
+        "version": "two_stage",
+        "status": "active",
+        "features": [
+          "Two-stage computation with intermediate workspace",
+          "Better memory efficiency for large problems",
+          "XDL matrix core operations",
+          "Multiple pipeline versions (v1, v2, v5)",
+          "Group merging optimization (NumGroupsToMerge)",
+          "Supports irregular block sizes (e.g., MPerBlock=48, NPerBlock=80, NPerBlock=112)"
+        ],
+        "data_types": ["FP16", "BF16"],
+        "specializations": ["ConvBwdWeightDefault", "ConvBwdWeightFilter1x1Stride1Pad0"],
+        "pipeline_versions": ["v1", "v2", "v5"],
+        "instance_header_files": [
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_two_stage_xdl_instance.hpp"
+        ],
+        "instantiation_cpp_files": {
+          "2D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_f16_pipev1_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_f16_pipev2_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_f16_pipev5_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_bf16_pipev*.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/ngchw_gkcyx_ngkhw/device_grouped_conv2d_bwd_weight_two_stage_xdl_ngchw_gkcyx_ngkhw_*.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/ngchw_gkyxc_ngkhw/device_grouped_conv2d_bwd_weight_two_stage_xdl_ngchw_gkyxc_ngkhw_*.cpp"
+          ],
+          "3D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight/xdl/*.cpp"
+          ]
+        },
+        "special_features": {
+          "num_groups_to_merge": "Enables group merging for better performance (1, 2, 4, 8)",
+          "irregular_blocks": "Supports MPerBlock/NPerBlock values like 48, 80, 112, 208"
+        }
+      },
+      
+      "DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffleV3": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_two_stage_wmma_cshuffle_v3.hpp",
+        "description": "Two-stage WMMA-based backward weight convolution",
+        "instruction_set": "WMMA (16x16 matrix operations)",
+        "version": "two_stage_v3",
+        "status": "active",
+        "features": [
+          "Two-stage computation",
+          "WMMA 16x16 matrix operations",
+          "Pipeline versions",
+          "Group merging optimization"
+        ],
+        "data_types": ["FP16", "BF16"],
+        "specializations": ["ConvBwdWeightDefault", "ConvBwdWeightFilter1x1Stride1Pad0"],
+        "instance_header_files": [
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_two_stage_wmma_instance.hpp"
+        ],
+        "instantiation_cpp_files": {
+          "2D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_pipev1_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_bf16_pipev1_instance.cpp"
+          ],
+          "3D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight/wmma/*.cpp"
+          ]
+        }
+      },
+      
+      "DeviceGroupedConvBwdWeight_DL": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_dl.hpp",
+        "description": "Direct Load variant using different memory access pattern",
+        "instruction_set": "Direct Load (no shared memory for A/B matrices)",
+        "version": "dl",
+        "status": "active",
+        "features": [
+          "Direct load memory access pattern",
+          "No shared memory for A/B matrices",
+          "Suitable for specific problem sizes",
+          "Lower shared memory pressure"
+        ],
+        "data_types": ["FP16", "BF16/FP32 (mixed)", "FP32"],
+        "specializations": ["ConvBwdWeightDefault", "ConvBwdWeightFilter1x1Stride1Pad0"],
+        "instance_header_files": [
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_dl_instance.hpp"
+        ],
+        "instantiation_cpp_files": {
+          "1D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv1d_bwd_weight/dl/device_grouped_conv1d_bwd_weight_dl_gnwc_gkxc_gnwk_f16_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv1d_bwd_weight/dl/device_grouped_conv1d_bwd_weight_dl_gnwc_gkxc_gnwk_f32_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv1d_bwd_weight/dl/device_grouped_conv1d_bwd_weight_dl_gnwc_gkxc_gnwk_bf16_f32_bf16_instance.cpp"
+          ],
+          "2D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/dl/device_grouped_conv2d_bwd_weight_dl_gnhwc_gkyxc_gnhwk_f16_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/dl/device_grouped_conv2d_bwd_weight_dl_gnhwc_gkyxc_gnhwk_f32_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/dl/device_grouped_conv2d_bwd_weight_dl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_instance.cpp",
+            "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/dl/device_grouped_conv2d_bwd_weight_dl_nhwgc_gkyxc_nhwgk_*.cpp"
+          ],
+          "3D": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight/dl/*.cpp"
+          ]
+        },
+        "sample_instances": {
+          "FP16": {
+            "BlockSize": 256,
+            "MPerBlock": 128,
+            "NPerBlock": 128,
+            "K0PerBlock": 16,
+            "K1": 1
+          }
+        }
+      },
+      
+      "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_multiple_d_xdl_cshuffle.hpp",
+        "description": "XDL-based backward weight with Multiple D tensor support for fused operations",
+        "instruction_set": "XDL/MFMA",
+        "version": "multiple_d",
+        "status": "active",
+        "features": [
+          "Supports additional input tensors (D tensors)",
+          "Fused element-wise operations (Bilinear, Scale)",
+          "XDL matrix core operations",
+          "CShuffle optimization"
+        ],
+        "data_types": ["FP16", "BF16", "FP32", "TF32", "FP8", "BF8"],
+        "specializations": ["ConvBwdWeightDefault", "ConvBwdWeightFilter1x1Stride1Pad0"],
+        "fused_operations": ["Bilinear", "Scale"],
+        "instance_header_files": [
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_bilinear_instance.hpp",
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_scale_instance.hpp"
+        ],
+        "instantiation_cpp_files": {
+          "3D_bilinear": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight_bilinear/xdl/*.cpp"
+          ],
+          "3D_scale": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight_scale/xdl/*.cpp"
+          ]
+        },
+        "sample_instances": {
+          "FP16_Bilinear": [
+            {
+              "BlockSize": 64,
+              "MPerBlock": 64,
+              "NPerBlock": 64,
+              "K0PerBlock": 4,
+              "K1": 8,
+              "MPerXDL": 32,
+              "NPerXDL": 32,
+              "ElementwiseOp": "Bilinear"
+            }
+          ]
+        }
+      },
+      
+      "DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3": {
+        "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_multiple_d_wmma_cshuffle_v3.hpp",
+        "description": "WMMA-based backward weight with Multiple D tensor support",
+        "instruction_set": "WMMA (16x16 matrix operations)",
+        "version": "multiple_d_v3",
+        "status": "active",
+        "features": [
+          "WMMA 16x16 matrix operations",
+          "Supports fused Scale operation",
+          "CShuffle optimization"
+        ],
+        "data_types": ["FP16", "BF16"],
+        "specializations": ["ConvBwdWeightDefault", "ConvBwdWeightFilter1x1Stride1Pad0"],
+        "fused_operations": ["Scale"],
+        "instance_header_files": [
+          "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_wmma_scale_instance.hpp"
+        ],
+        "instantiation_cpp_files": {
+          "3D_scale": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight_scale/wmma/*.cpp"
+          ]
+        }
+      }
+    }
+  },
+  
+  "template_parameters_detailed": {
+    "XDL_parameters": {
+      "NDimSpatial": {
+        "type": "index_t",
+        "description": "Number of spatial dimensions",
+        "values": [1, 2, 3]
+      },
+      "InLayout": {
+        "type": "typename",
+        "description": "Input tensor layout",
+        "examples": ["GNHWC", "NHWGC", "NGCHW", "GNDHWC", "GNWC"]
+      },
+      "WeiLayout": {
+        "type": "typename",
+        "description": "Weight tensor layout",
+        "examples": ["GKYXC", "GKCYX", "GKZYXC", "GKXC"]
+      },
+      "OutLayout": {
+        "type": "typename",
+        "description": "Output tensor layout",
+        "examples": ["GNHWK", "NHWGK", "NGKHW", "GNDHWK", "GNWK"]
+      },
+      "InDataType": {
+        "type": "typename",
+        "description": "Input data type",
+        "values": ["F16", "BF16", "F32"]
+      },
+      "WeiDataType": {
+        "type": "typename",
+        "description": "Weight data type",
+        "values": ["F16", "BF16", "F32"]
+      },
+      "OutDataType": {
+        "type": "typename",
+        "description": "Output data type",
+        "values": ["F16", "BF16", "F32"]
+      },
+      "AccDataType": {
+        "type": "typename",
+        "description": "Accumulator data type",
+        "values": ["F32", "I32"],
+        "note": "Typically F32 for floating point, I32 for INT8"
+      },
+      "ConvolutionBackwardWeightSpecialization": {
+        "type": "enum",
+        "values": ["Default", "Filter1x1Stride1Pad0"]
+      },
+      "BlockSize": {
+        "type": "index_t",
+        "description": "Total number of threads per block",
+        "typical_values": [32, 64, 96, 128, 256]
+      },
+      "MPerBlock": {
+        "type": "index_t",
+        "description": "M dimension of GEMM tile per block",
+        "typical_values": [16, 32, 48, 64, 80, 96, 112, 128, 208, 256]
+      },
+      "NPerBlock": {
+        "type": "index_t",
+        "description": "N dimension of GEMM tile per block",
+        "typical_values": [16, 32, 48, 64, 80, 96, 112, 128, 208, 256]
+      },
+      "K0PerBlock": {
+        "type": "index_t",
+        "description": "K0 dimension blocking per block",
+        "typical_values": [4, 8, 16, 32, 64, 128]
+      },
+      "K1": {
+        "type": "index_t",
+        "description": "Vector width in K dimension",
+        "FP16_BF16": 8,
+        "FP32": 4,
+        "INT8": 16
+      },
+      "MPerXDL": {
+        "type": "index_t",
+        "description": "M dimension per XDL instruction",
+        "values": [16, 32]
+      },
+      "NPerXDL": {
+        "type": "index_t",
+        "description": "N dimension per XDL instruction",
+        "values": [16, 32]
+      },
+      "MXdlPerWave": {
+        "type": "index_t",
+        "description": "Number of XDL tiles in M dimension per wave",
+        "typical_values": [1, 2, 3, 4, 5, 6, 7, 8, 13]
+      },
+      "NXdlPerWave": {
+        "type": "index_t",
+        "description": "Number of XDL tiles in N dimension per wave",
+        "typical_values": [1, 2, 3, 4, 5, 7, 8, 13, 16]
+      },
+      "ABlockTransferThreadClusterLengths_K0_M_K1": {
+        "type": "Sequence<index_t, index_t, index_t>",
+        "description": "Thread cluster dimensions for A matrix block transfer",
+        "examples": [[4, 8, 1], [4, 16, 1], [4, 32, 1], [8, 8, 1]]
+      },
+      "ABlockTransferThreadClusterArrangeOrder": {
+        "type": "Sequence<index_t, index_t, index_t>",
+        "description": "Thread cluster arrange order for A",
+        "common_value": [2, 0, 1]
+      },
+      "ABlockTransferSrcAccessOrder": {
+        "type": "Sequence<index_t, index_t, index_t>",
+        "description": "Source access order for A block transfer",
+        "common_values": [[1, 0, 2], [2, 0, 1]]
+      },
+      "ABlockTransferSrcVectorDim": {
+        "type": "index_t",
+        "description": "Vector dimension for A source",
+        "typical_value": 1
+      },
+      "ABlockTransferSrcScalarPerVector": {
+        "type": "index_t",
+        "description": "Vector load size for A matrix source",
+        "typical_values": [1, 2, 4, 8, 16]
+      },
+      "ABlockTransferDstScalarPerVector_K1": {
+        "type": "index_t",
+        "description": "Vector store size for A matrix destination in K1 dimension",
+        "typical_values": [1, 2, 4, 8]
+      },
+      "ABlockLdsAddExtraM": {
+        "type": "bool",
+        "description": "Add extra padding in M dimension for LDS to avoid bank conflicts",
+        "typical_values": [false, true]
+      },
+      "BBlockTransferThreadClusterLengths_K0_N_K1": {
+        "type": "Sequence<index_t, index_t, index_t>",
+        "description": "Thread cluster dimensions for B matrix block transfer",
+        "examples": [[4, 8, 1], [4, 16, 1], [4, 32, 1]]
+      },
+      "BBlockTransferSrcScalarPerVector": {
+        "type": "index_t",
+        "description": "Vector load size for B matrix source",
+        "typical_values": [1, 2, 4, 8, 16]
+      },
+      "BBlockTransferDstScalarPerVector_K1": {
+        "type": "index_t",
+        "description": "Vector store size for B matrix destination in K1 dimension",
+        "typical_values": [1, 2, 4, 8]
+      },
+      "BBlockLdsAddExtraN": {
+        "type": "bool",
+        "description": "Add extra padding in N dimension for LDS to avoid bank conflicts"
+      },
+      "CShuffleMXdlPerWavePerShuffle": {
+        "type": "index_t",
+        "description": "M XDL tiles per shuffle operation",
+        "typical_value": 1
+      },
+      "CShuffleNXdlPerWavePerShuffle": {
+        "type": "index_t",
+        "description": "N XDL tiles per shuffle operation",
+        "typical_value": 1
+      },
+      "CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock": {
+        "type": "Sequence<index_t, index_t, index_t, index_t>",
+        "description": "Thread cluster for C matrix output",
+        "examples": [[1, 8, 1, 8], [1, 16, 1, 16], [1, 32, 1, 8]]
+      },
+      "CBlockTransferScalarPerVector_NWaveNPerXdl": {
+        "type": "index_t",
+        "description": "Vector store size for C matrix output",
+        "typical_values": [1, 2, 4, 8]
+      },
+      "BlkGemmPipeSched": {
+        "type": "BlockGemmPipelineScheduler",
+        "description": "Block GEMM pipeline scheduler",
+        "values": ["Intrawave", "Interwave"]
+      },
+      "BlkGemmPipelineVer": {
+        "type": "BlockGemmPipelineVersion",
+        "description": "Block GEMM pipeline version",
+        "values": ["v1", "v2", "v3", "v4", "v5"]
+      },
+      "ComputeTypeA": {
+        "type": "typename",
+        "description": "Compute data type for A matrix",
+        "examples": ["F16", "BF16", "F32", "TF32", "BF8", "F8"],
+        "note": "Can differ from input type, e.g., TF32 for FP32 input, BF8/F8 for FP16"
+      },
+      "ComputeTypeB": {
+        "type": "typename",
+        "description": "Compute data type for B matrix",
+        "examples": ["F16", "BF16", "F32", "TF32", "BF8", "F8"]
+      }
+    },
+    
+    "WMMA_parameters": {
+      "BlockSize": {
+        "type": "index_t",
+        "description": "Total number of threads per block",
+        "typical_values": [32, 64, 96, 128, 256]
+      },
+      "MPerBlock": {
+        "type": "index_t",
+        "description": "M dimension per block",
+        "typical_values": [16, 32, 48, 64, 96, 128, 256]
+      },
+      "NPerBlock": {
+        "type": "index_t",
+        "description": "N dimension per block",
+        "typical_values": [16, 32, 64, 128, 256]
+      },
+      "K0PerBlock": {
+        "type": "index_t",
+        "description": "K0 dimension per block",
+        "typical_values": [4, 8, 32, 64, 128]
+      },
+      "K1": {
+        "type": "index_t",
+        "description": "Vector width",
+        "FP16_BF16": 8,
+        "INT8": 16
+      },
+      "MPerWmma": {
+        "type": "index_t",
+        "description": "M dimension per WMMA instruction",
+        "value": 16,
+        "note": "Fixed at 16 for WMMA"
+      },
+      "NPerWmma": {
+        "type": "index_t",
+        "description": "N dimension per WMMA instruction",
+        "value": 16,
+        "note": "Fixed at 16 for WMMA"
+      },
+      "MRepeat": {
+        "type": "index_t",
+        "description": "Number of WMMA operations in M dimension",
+        "typical_values": [1, 2, 3, 4, 6, 8]
+      },
+      "NRepeat": {
+        "type": "index_t",
+        "description": "Number of WMMA operations in N dimension",
+        "typical_values": [1, 2, 4, 8]
+      }
+    },
+    
+    "TwoStage_specific_parameters": {
+      "NumGroupsToMerge": {
+        "type": "index_t",
+        "description": "Number of groups to merge in two-stage algorithm for better performance",
+        "typical_values": [1, 2, 4, 8]
+      }
+    },
+    
+    "DirectLoad_specific_parameters": {
+      "M1PerThread": {
+        "type": "index_t",
+        "description": "M1 dimension per thread in direct load pattern"
+      },
+      "N1PerThread": {
+        "type": "index_t",
+        "description": "N1 dimension per thread in direct load pattern"
+      }
+    }
+  },
+  
+  "file_references": {
+    "algorithm_implementation_headers": {
+      "path": "include/ck/tensor_operation/gpu/device/impl/",
+      "backward_data": [
+        "device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle_v1.hpp",
+        "device_grouped_conv_bwd_data_multiple_d_wmma_cshuffle.hpp"
+      ],
+      "backward_weight": [
+        "device_grouped_conv_bwd_weight_xdl_cshuffle_v3.hpp",
+        "device_grouped_conv_bwd_weight_wmma_cshuffle_v3.hpp",
+        "device_grouped_conv_bwd_weight_xdl_cshuffle.hpp",
+        "device_grouped_conv_bwd_weight_wmma_cshuffle.hpp",
+        "device_grouped_conv_bwd_weight_two_stage_xdl_cshuffle.hpp",
+        "device_grouped_conv_bwd_weight_two_stage_wmma_cshuffle_v3.hpp",
+        "device_grouped_conv_bwd_weight_dl.hpp",
+        "device_grouped_conv_bwd_weight_multiple_d_xdl_cshuffle.hpp",
+        "device_grouped_conv_bwd_weight_multiple_d_wmma_cshuffle_v3.hpp"
+      ]
+    },
+    
+    "instance_template_headers": {
+      "path": "library/include/ck/library/tensor_operation_instance/gpu/",
+      "backward_data": {
+        "directory": "grouped_conv_bwd_data/",
+        "files": [
+          "device_grouped_conv_bwd_data_xdl_instance.hpp",
+          "device_grouped_conv_bwd_data_wmma_f16_instance.hpp",
+          "device_grouped_conv_bwd_data_wmma_i8_instance.hpp",
+          "device_grouped_conv_bwd_data_xdl_bilinear_instance.hpp",
+          "device_grouped_conv_bwd_data_xdl_scale_instance.hpp",
+          "device_grouped_conv_bwd_data_transpose_xdl_instance.hpp"
+        ]
+      },
+      "backward_weight": {
+        "directory": "grouped_conv_bwd_weight/",
+        "files": [
+          "device_grouped_conv_bwd_weight_v3_xdl_instance.hpp",
+          "device_grouped_conv_bwd_weight_v3_wmma_instance.hpp",
+          "device_grouped_conv_bwd_weight_xdl_instance.hpp",
+          "device_grouped_conv_bwd_weight_two_stage_xdl_instance.hpp",
+          "device_grouped_conv_bwd_weight_two_stage_wmma_instance.hpp",
+          "device_grouped_conv_bwd_weight_dl_instance.hpp",
+          "device_grouped_conv_bwd_weight_xdl_bilinear_instance.hpp",
+          "device_grouped_conv_bwd_weight_xdl_scale_instance.hpp",
+          "device_grouped_conv_bwd_weight_wmma_scale_instance.hpp",
+          "device_grouped_conv_bwd_weight_wmma_bilinear_instance.hpp"
+        ]
+      }
+    },
+    
+    "instantiation_cpp_files": {
+      "path": "library/src/tensor_operation_instance/gpu/",
+      "backward_data": {
+        "1D": "grouped_conv1d_bwd_data/",
+        "2D": "grouped_conv2d_bwd_data/{wmma,xdl}/",
+        "3D": "grouped_conv3d_bwd_data/{wmma,xdl}/"
+      },
+      "backward_weight": {
+        "1D": "grouped_conv1d_bwd_weight/{dl,xdl}/",
+        "2D": "grouped_conv2d_bwd_weight/{dl,wmma,xdl}/",
+        "3D": [
+          "grouped_conv3d_bwd_weight/{dl,wmma,xdl}/",
+          "grouped_conv3d_bwd_weight_bilinear/",
+          "grouped_conv3d_bwd_weight_scale/"
+        ]
+      }
+    }
+  },
+  
+  "layout_configurations": {
+    "backward_data_2D": {
+      "supported_combinations": [
+        {
+          "output_layout": "GNHWK",
+          "weight_layout": "GKYXC",
+          "input_layout": "GNHWC",
+          "description": "Group-first NHWC layout"
+        },
+        {
+          "output_layout": "NHWGK",
+          "weight_layout": "GKYXC",
+          "input_layout": "NHWGC",
+          "description": "NHWC with group dimension at end"
+        },
+        {
+          "output_layout": "NGKHW",
+          "weight_layout": "GKCYX",
+          "input_layout": "NGCHW",
+          "description": "NCHW variant with grouped C"
+        },
+        {
+          "output_layout": "NGKHW",
+          "weight_layout": "GKYXC",
+          "input_layout": "NGCHW",
+          "description": "Mixed layout NCHW/filter-C-last"
+        }
+      ]
+    },
+    "backward_weight_2D": {
+      "supported_combinations": [
+        {
+          "input_layout": "NHWGC",
+          "weight_layout": "GKYXC",
+          "output_layout": "NHWGK",
+          "algorithms": ["All except Wmma_CShuffle (3D only)"]
+        },
+        {
+          "input_layout": "GNHWC",
+          "weight_layout": "GKYXC",
+          "output_layout": "GNHWK",
+          "algorithms": ["XDL variants", "DL"]
+        },
+        {
+          "input_layout": "NGCHW",
+          "weight_layout": "GKCYX",
+          "output_layout": "NGKHW",
+          "algorithms": ["XDL variants (with transpose support)"]
+        },
+        {
+          "input_layout": "NGCHW",
+          "weight_layout": "GKYXC",
+          "output_layout": "NGKHW",
+          "algorithms": ["XDL variants (with transpose support)"]
+        }
+      ]
+    },
+    "backward_weight_3D": {
+      "supported_combinations": [
+        {
+          "input_layout": "GNDHWC",
+          "weight_layout": "GKZYXC",
+          "output_layout": "GNDHWK",
+          "algorithms": ["All"]
+        },
+        {
+          "input_layout": "NDHWGC",
+          "weight_layout": "GKZYXC",
+          "output_layout": "NDHWGK",
+          "algorithms": ["All including Wmma_CShuffle"]
+        }
+      ]
+    }
+  },
+  
+  "statistics": {
+    "total_algorithm_implementations": {
+      "backward_data": 2,
+      "backward_weight": 9,
+      "total": 11
+    },
+    "estimated_instance_counts": {
+      "backward_data": {
+        "XDL_variants": "~200+ instances (FP16, BF16, FP32, TF32, with various optimizations)",
+        "WMMA_variants": "~30 instances (FP16: 14, INT8: 13)"
+      },
+      "backward_weight": {
+        "Xdl_CShuffleV3": "~20 instances (FP16, BF16, FP32 with pipeline variants)",
+        "Wmma_CShuffleV3": "~20 instances (FP16: 9, BF16: 10)",
+        "Xdl_CShuffle_v1": "~50+ instances (FP16, BF16, FP32, TF32, FP8/BF8)",
+        "Wmma_CShuffle_v1": "Limited (3D only)",
+        "TwoStage_Xdl": "~50+ instances (FP16, BF16 with pipev1/v2/v5, regular and irregular)",
+        "TwoStage_Wmma": "~2 instances (FP16, BF16 base configs)",
+        "DL": "~6 instances (FP16, BF16/FP32, FP32 for 1D/2D/3D)",
+        "MultipleD_Xdl": "~30 instances (Bilinear and Scale variants)",
+        "MultipleD_Wmma": "~10 instances (Scale variant)"
+      },
+      "total_estimated": "400-500+ pre-compiled instances"
+    },
+    
+    "data_type_support_matrix": {
+      "FP16": {
+        "backward_data": {
+          "XDL": true,
+          "WMMA": true
+        },
+        "backward_weight": {
+          "Xdl_V3": true,
+          "Wmma_V3": true,
+          "Xdl_V1": true,
+          "Wmma_V1_3D": true,
+          "TwoStage_XDL": true,
+          "TwoStage_WMMA": true,
+          "DL": true,
+          "MultipleD_XDL": true,
+          "MultipleD_WMMA": true
+        }
+      },
+      "BF16": {
+        "backward_data": {
+          "XDL": true,
+          "WMMA": false
+        },
+        "backward_weight": {
+          "Xdl_V3": true,
+          "Wmma_V3": true,
+          "Xdl_V1": true,
+          "Wmma_V1_3D": true,
+          "TwoStage_XDL": true,
+          "TwoStage_WMMA": true,
+          "DL": "mixed (BF16/FP32)",
+          "MultipleD_XDL": "mixed (BF16/FP32)",
+          "MultipleD_WMMA": "mixed (BF16/FP32)"
+        }
+      },
+      "FP32": {
+        "backward_data": {
+          "XDL": true,
+          "WMMA": false
+        },
+        "backward_weight": {
+          "Xdl_V3": true,
+          "Wmma_V3": false,
+          "Xdl_V1": true,
+          "Wmma_V1_3D": true,
+          "TwoStage_XDL": false,
+          "TwoStage_WMMA": false,
+          "DL": true,
+          "MultipleD_XDL": true,
+          "MultipleD_WMMA": false
+        }
+      },
+      "TF32": {
+        "backward_data": {
+          "XDL": "compute_type",
+          "note": "TF32 is compute type, input/output is FP32"
+        },
+        "backward_weight": {
+          "Xdl_V1": "compute_type",
+          "MultipleD_XDL": "compute_type"
+        }
+      },
+      "INT8": {
+        "backward_data": {
+          "WMMA": true
+        },
+        "backward_weight": {
+          "note": "No INT8 backward weight support"
+        }
+      },
+      "FP8_BF8": {
+        "backward_data": {
+          "XDL": "compute_type (newer GPUs)"
+        },
+        "backward_weight": {
+          "Xdl_V1": "compute_type",
+          "MultipleD_XDL": "compute_type"
+        }
+      }
+    }
+  },
+  
+  "instance_examples": {
+    "backward_data_XDL_FP16": {
+      "algorithm": "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1",
+      "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp",
+      "cpp_file": "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/xdl/device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instance.cpp",
+      "instances": [
+        {
+          "BlockSize": 64,
+          "MPerBlock": 64,
+          "NPerBlock": 64,
+          "K0PerBlock": 32,
+          "K1": 8,
+          "MPerXDL": 32,
+          "NPerXDL": 32,
+          "MXdlPerWave": 2,
+          "NXdlPerWave": 2,
+          "specialization": "ConvBwdDataDefault"
+        },
+        {
+          "BlockSize": 256,
+          "MPerBlock": 128,
+          "NPerBlock": 256,
+          "K0PerBlock": 32,
+          "K1": 8,
+          "MPerXDL": 32,
+          "NPerXDL": 32,
+          "MXdlPerWave": 2,
+          "NXdlPerWave": 4
+        }
+      ]
+    },
+    
+    "backward_data_WMMA_FP16": {
+      "algorithm": "DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle",
+      "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_wmma_f16_instance.hpp",
+      "cpp_file": "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_data/wmma/device_grouped_conv2d_bwd_data_wmma_gnhwc_gkyxc_gnhwk_f16_instance.cpp",
+      "instances": [
+        {
+          "BlockSize": 128,
+          "MPerBlock": 64,
+          "NPerBlock": 64,
+          "K0PerBlock": 4,
+          "K1": 8,
+          "MPerWmma": 16,
+          "NPerWmma": 16,
+          "MRepeat": 2,
+          "NRepeat": 2
+        },
+        {
+          "BlockSize": 256,
+          "MPerBlock": 128,
+          "NPerBlock": 256,
+          "K0PerBlock": 8,
+          "K1": 8,
+          "MRepeat": 4,
+          "NRepeat": 4
+        }
+      ]
+    },
+    
+    "backward_weight_XDL_V3_FP16": {
+      "algorithm": "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3",
+      "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_xdl_instance.hpp",
+      "cpp_file": "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_v3_xdl_nhwgc_gkyxc_nhwgk_f16_*.cpp",
+      "instances": [
+        {
+          "BlockSize": 64,
+          "MPerBlock": 32,
+          "NPerBlock": 32,
+          "K0PerBlock": 32,
+          "K1": 8,
+          "MPerXDL": 32,
+          "NPerXDL": 32,
+          "MXdlPerWave": 1,
+          "NXdlPerWave": 1,
+          "pipeline_scheduler": "Intrawave",
+          "pipeline_version": "v1"
+        },
+        {
+          "BlockSize": 64,
+          "MPerBlock": 64,
+          "NPerBlock": 80,
+          "K0PerBlock": 32,
+          "K1": 8,
+          "MPerXDL": 16,
+          "NPerXDL": 16,
+          "MXdlPerWave": 4,
+          "NXdlPerWave": 5,
+          "note": "Irregular NPerBlock=80"
+        }
+      ]
+    },
+    
+    "backward_weight_WMMA_V3_FP16": {
+      "algorithm": "DeviceGroupedConvBwdWeight_Wmma_CShuffleV3",
+      "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_wmma_instance.hpp",
+      "cpp_file": "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/wmma/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_instance.cpp",
+      "instances": [
+        {
+          "BlockSize": 64,
+          "MPerBlock": 32,
+          "NPerBlock": 32,
+          "K0PerBlock": 32,
+          "K1": 8,
+          "MPerWmma": 16,
+          "NPerWmma": 16,
+          "MRepeat": 2,
+          "NRepeat": 1
+        },
+        {
+          "BlockSize": 128,
+          "MPerBlock": 96,
+          "NPerBlock": 128,
+          "K0PerBlock": 64,
+          "K1": 8,
+          "MRepeat": 6,
+          "NRepeat": 2,
+          "note": "Irregular MPerBlock=96"
+        }
+      ]
+    },
+    
+    "backward_weight_XDL_V1_FP16": {
+      "algorithm": "DeviceGroupedConvBwdWeight_Xdl_CShuffle",
+      "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_instance.hpp",
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_*.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/ngchw_gkcyx_ngkhw/device_grouped_conv2d_bwd_weight_xdl_ngchw_gkcyx_ngkhw_f16_instance.cpp"
+      ],
+      "instances": [
+        {
+          "BlockSize": 64,
+          "MPerBlock": 64,
+          "NPerBlock": 64,
+          "K0PerBlock": 4,
+          "K1": 8,
+          "MPerXDL": 32,
+          "NPerXDL": 32,
+          "MXdlPerWave": 2,
+          "NXdlPerWave": 2
+        }
+      ]
+    },
+    
+    "backward_weight_TwoStage_XDL_FP16": {
+      "algorithm": "DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle",
+      "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_two_stage_xdl_instance.hpp",
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_f16_pipev1_instance.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_f16_pipev2_instance.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/xdl/nhwgc_gkyxc_nhwgk/device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_f16_pipev5_instance.cpp"
+      ],
+      "instances": [
+        {
+          "BlockSize": 64,
+          "MPerBlock": 16,
+          "NPerBlock": 16,
+          "K0PerBlock": 32,
+          "K1": 8,
+          "MPerXDL": 16,
+          "NPerXDL": 16,
+          "MXdlPerWave": 1,
+          "NXdlPerWave": 1,
+          "NumGroupsToMerge": 1,
+          "pipeline_version": "v1"
+        },
+        {
+          "BlockSize": 64,
+          "MPerBlock": 64,
+          "NPerBlock": 80,
+          "K0PerBlock": 32,
+          "K1": 8,
+          "MPerXDL": 16,
+          "NPerXDL": 16,
+          "MXdlPerWave": 4,
+          "NXdlPerWave": 5,
+          "NumGroupsToMerge": 1,
+          "note": "Irregular NPerBlock=80"
+        }
+      ]
+    },
+    
+    "backward_weight_DL_FP16": {
+      "algorithm": "DeviceGroupedConvBwdWeight_DL",
+      "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_dl_instance.hpp",
+      "cpp_files": [
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/dl/device_grouped_conv2d_bwd_weight_dl_nhwgc_gkyxc_nhwgk_f16_instance.cpp",
+        "library/src/tensor_operation_instance/gpu/grouped_conv2d_bwd_weight/dl/device_grouped_conv2d_bwd_weight_dl_gnhwc_gkyxc_gnhwk_f16_instance.cpp"
+      ],
+      "instances": [
+        {
+          "BlockSize": 256,
+          "MPerBlock": 128,
+          "NPerBlock": 128,
+          "K0PerBlock": 16,
+          "K1": 1,
+          "M1PerThread": 4,
+          "N1PerThread": 4
+        }
+      ]
+    },
+    
+    "backward_weight_MultipleD_XDL_Bilinear_FP16": {
+      "algorithm": "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle",
+      "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_bilinear_instance.hpp",
+      "cpp_files": [
+            "library/src/tensor_operation_instance/gpu/grouped_conv3d_bwd_weight_bilinear/xdl/*.cpp"
+      ],
+      "instances": [
+        {
+          "BlockSize": 64,
+          "MPerBlock": 64,
+          "NPerBlock": 64,
+          "K0PerBlock": 4,
+          "K1": 8,
+          "MPerXDL": 32,
+          "NPerXDL": 32,
+          "MXdlPerWave": 2,
+          "NXdlPerWave": 2,
+          "ElementwiseOp": "Bilinear",
+          "DsTensors": "Tuple<BLayout>"
+        }
+      ]
+    }
+  },
+  
+  "key_optimizations": {
+    "CShuffle": {
+      "description": "Cross-lane shuffle for efficient data redistribution",
+      "benefit": "Reduces shared memory bank conflicts and improves data reuse"
+    },
+    "Split-K": {
+      "description": "Parallelizes reduction dimension",
+      "algorithms": ["Xdl_CShuffleV3"],
+      "auto_deduction": true,
+      "benefit": "Better occupancy for large K dimensions"
+    },
+    "Pipeline_Versions": {
+      "v1": "Basic pipeline",
+      "v2": "Enhanced prefetching with tail number support (supports tails 1-7)",
+      "v3": "Further optimizations",
+      "v4": "Dual LDS buffer support for improved throughput",
+      "v5": "Advanced prefetching for two-stage algorithms"
+    },
+    "Pipeline_Schedulers": {
+      "Intrawave": "Schedule within wave for lower latency",
+      "Interwave": "Schedule across waves for better occupancy"
+    },
+    "LDS_Padding": {
+      "description": "Extra padding to avoid bank conflicts",
+      "parameters": ["ABlockLdsAddExtraM", "BBlockLdsAddExtraN"]
+    },
+    "Optimized_Loads": {
+      "description": "Specialized instances with optimized memory access patterns",
+      "variants": ["optimized_loads", "16_16 (16x16 XDL)", "vec_transpose"]
+    },
+    "Two_Stage": {
+      "description": "Splits computation into two stages with intermediate workspace",
+      "benefit": "Reduces memory footprint for very large convolutions",
+      "workspace_requirement": true
+    },
+    "Group_Merging": {
+      "description": "Merges multiple groups for better performance",
+      "parameter": "NumGroupsToMerge",
+      "algorithms": ["TwoStage variants"]
+    }
+  },
+  
+  "usage_guidelines": {
+    "recommended_algorithms": {
+      "backward_data": {
+        "modern_GPUs": "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1 with FP16/BF16",
+        "varied_sizes": "DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle",
+        "int8_quantization": "DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle"
+      },
+      "backward_weight": {
+        "new_code_XDL": "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3 (latest optimizations)",
+        "new_code_WMMA": "DeviceGroupedConvBwdWeight_Wmma_CShuffleV3",
+        "large_convolutions": "DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle",
+        "NCHW_layouts": "DeviceGroupedConvBwdWeight_Xdl_CShuffle (v1, has transpose support)",
+        "fused_operations": "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle (Bilinear/Scale)",
+        "3D_WMMA_only": "DeviceGroupedConvBwdWeight_Wmma_CShuffle (3D specific)",
+        "low_memory": "DeviceGroupedConvBwdWeight_DL"
+      }
+    },
+    
+    "instance_selection": {
+      "guidelines": [
+        "Match block sizes to problem dimensions for best occupancy",
+        "Larger blocks (256) generally better for large convolutions",
+        "Smaller blocks (64, 128) for small convolutions or limited resources",
+        "Consider occupancy vs register pressure tradeoffs",
+        "Use specialized 1x1s1p0 instances when applicable",
+        "Test multiple instances to find optimal configuration",
+        "V3 variants use latest optimizations and are recommended",
+        "Two-stage variants use intermediate workspace but save memory"
+      ]
+    },
+    
+    "performance_tips": [
+      "Enable Split-K auto-deduction for V3 XDL (set split_k=-1)",
+      "Use FP16/BF16 on modern AMD GPUs for best performance",
+      "TF32 compute can accelerate FP32 convolutions on supported hardware",
+      "For very large convolutions, consider two-stage algorithms",
+      "For fused operations (e.g., gradient scaling), use MultipleD variants",
+      "NCHW layouts require transpose support (use v1 XDL variants)",
+      "INT8 backward data is only available with WMMA"
+    ]
+  }
+}

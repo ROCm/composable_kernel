@@ -1,0 +1,473 @@
+{
+  "description": "Complete listing of all backward data convolution instances in the Composable Kernel library",
+  "note": "All instances are pre-compiled and part of the static library",
+  
+  "algorithms": {
+    "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1": {
+      "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle_v1.hpp",
+      "instruction_set": "XDL/MFMA",
+      "status": "active",
+      
+      "instances": {
+        "FP16_generic": {
+          "data_type": "FP16",
+          "accumulator": "FP32",
+          "cshuffle_type": "FP16",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_data_xdl_f16_generic_instances",
+          "instance": {
+            "BlockSize": 64,
+            "MPerBlock": 64,
+            "NPerBlock": 64,
+            "K0PerBlock": 32,
+            "AK1": 8,
+            "BK1": 8,
+            "MPerXDL": 32,
+            "NPerXDL": 32,
+            "MXdlPerWave": 2,
+            "NXdlPerWave": 2,
+            "ABlockTransferThreadClusterLengths_K0_M_K1": [4, 16, 1],
+            "ABlockTransferThreadClusterArrangeOrder": [1, 0, 2],
+            "ABlockTransferSrcAccessOrder": [1, 0, 2],
+            "ABlockTransferSrcVectorDim": 2,
+            "ABlockTransferSrcScalarPerVector": 1,
+            "ABlockTransferDstScalarPerVector_K1": 8,
+            "ABlockLdsAddExtraM": 1,
+            "BBlockTransferThreadClusterLengths_K0_N_K1": [4, 8, 1],
+            "BBlockTransferThreadClusterArrangeOrder": [0, 2, 1],
+            "BBlockTransferSrcAccessOrder": [0, 2, 1],
+            "BBlockTransferSrcVectorDim": 1,
+            "BBlockTransferSrcScalarPerVector": 1,
+            "BBlockTransferDstScalarPerVector_K1": 8,
+            "BBlockLdsAddExtraN": 1,
+            "CShuffleMXdlPerWavePerShuffle": 1,
+            "CShuffleNXdlPerWavePerShuffle": 1,
+            "CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock": [1, 16, 1, 4],
+            "CDEBlockTransferScalarPerVector_NPerBlock": 1,
+            "specialization": "ConvBwdDataDefault or Filter1x1Stride1Pad0"
+          }
+        },
+        
+        "FP16_16x16": {
+          "data_type": "FP16",
+          "xdl_size": "16x16",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_data_xdl_f16_16_16_instances",
+          "instances": [
+            {
+              "BlockSize": 64,
+              "MPerBlock": 16,
+              "NPerBlock": 64,
+              "K0PerBlock": 32,
+              "AK1": 8,
+              "BK1": 8,
+              "MPerXDL": 16,
+              "NPerXDL": 16,
+              "MXdlPerWave": 1,
+              "NXdlPerWave": 4,
+              "ABlockTransferSrcScalarPerVector": 8,
+              "BBlockTransferSrcScalarPerVector": 8,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 4
+            },
+            {
+              "BlockSize": 64,
+              "MPerBlock": 16,
+              "NPerBlock": 64,
+              "K0PerBlock": 32,
+              "MPerXDL": 16,
+              "NPerXDL": 16,
+              "MXdlPerWave": 1,
+              "NXdlPerWave": 4,
+              "ABlockTransferSrcScalarPerVector": 8,
+              "BBlockTransferSrcScalarPerVector": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 1
+            },
+            {
+              "BlockSize": 64,
+              "MPerBlock": 16,
+              "NPerBlock": 64,
+              "K0PerBlock": 32,
+              "MXdlPerWave": 1,
+              "NXdlPerWave": 4,
+              "ABlockTransferSrcScalarPerVector": 1,
+              "BBlockTransferSrcScalarPerVector": 8,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 4
+            },
+            {
+              "BlockSize": 64,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 32,
+              "MXdlPerWave": 4,
+              "NXdlPerWave": 1,
+              "ABlockTransferSrcScalarPerVector": 8,
+              "BBlockTransferSrcScalarPerVector": 8,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 4
+            },
+            {
+              "BlockSize": 64,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 32,
+              "MXdlPerWave": 4,
+              "NXdlPerWave": 1,
+              "ABlockTransferSrcScalarPerVector": 8,
+              "BBlockTransferSrcScalarPerVector": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 1
+            },
+            {
+              "BlockSize": 64,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 32,
+              "MXdlPerWave": 4,
+              "NXdlPerWave": 1,
+              "ABlockTransferSrcScalarPerVector": 1,
+              "BBlockTransferSrcScalarPerVector": 8,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 4
+            }
+          ]
+        },
+        
+        "FP16_32x32_optimized_loads": {
+          "data_type": "FP16",
+          "xdl_size": "32x32",
+          "variant": "optimized memory loads",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_data_xdl_f16_optimized_loads_instances",
+          "instances": [
+            {
+              "BlockSize": 256,
+              "MPerBlock": 128,
+              "NPerBlock": 32,
+              "K0PerBlock": 64,
+              "AK1": 16,
+              "BK1": 16,
+              "MPerXDL": 32,
+              "NPerXDL": 32,
+              "MXdlPerWave": 1,
+              "NXdlPerWave": 1,
+              "ABlockTransferSrcScalarPerVector": 16,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 8,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 8
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 128,
+              "NPerBlock": 32,
+              "K0PerBlock": 32,
+              "AK1": 8,
+              "BK1": 8,
+              "MXdlPerWave": 1,
+              "NXdlPerWave": 1,
+              "ABlockTransferSrcScalarPerVector": 8,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 8,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 8
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 128,
+              "NPerBlock": 32,
+              "K0PerBlock": 16,
+              "AK1": 4,
+              "BK1": 4,
+              "MXdlPerWave": 1,
+              "NXdlPerWave": 1,
+              "ABlockTransferSrcScalarPerVector": 4,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 8,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 8
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 128,
+              "NPerBlock": 32,
+              "K0PerBlock": 64,
+              "AK1": 16,
+              "BK1": 16,
+              "ABlockTransferSrcScalarPerVector": 16,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 2,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 2
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 128,
+              "NPerBlock": 32,
+              "K0PerBlock": 32,
+              "ABlockTransferSrcScalarPerVector": 8,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 2,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 2
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 128,
+              "NPerBlock": 32,
+              "K0PerBlock": 16,
+              "ABlockTransferSrcScalarPerVector": 4,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 2,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 2
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 128,
+              "NPerBlock": 32,
+              "K0PerBlock": 64,
+              "ABlockTransferSrcScalarPerVector": 16,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 1,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 1
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 128,
+              "NPerBlock": 32,
+              "K0PerBlock": 32,
+              "ABlockTransferSrcScalarPerVector": 8,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 1,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 1
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 128,
+              "NPerBlock": 32,
+              "K0PerBlock": 16,
+              "ABlockTransferSrcScalarPerVector": 4,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 1,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 1
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 64,
+              "ABlockTransferSrcScalarPerVector": 16,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 8,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 4
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 32,
+              "ABlockTransferSrcScalarPerVector": 8,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 8,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 4
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 16,
+              "ABlockTransferSrcScalarPerVector": 4,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 8,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 4
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 64,
+              "ABlockTransferSrcScalarPerVector": 16,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 2,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 2
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 32,
+              "ABlockTransferSrcScalarPerVector": 8,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 2,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 2
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 16,
+              "ABlockTransferSrcScalarPerVector": 4,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 2,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 2
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 64,
+              "ABlockTransferSrcScalarPerVector": 16,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 1,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 1
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 32,
+              "ABlockTransferSrcScalarPerVector": 8,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 1,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 1
+            },
+            {
+              "BlockSize": 256,
+              "MPerBlock": 64,
+              "NPerBlock": 16,
+              "K0PerBlock": 16,
+              "ABlockTransferSrcScalarPerVector": 4,
+              "ABlockTransferDstScalarPerVector_K1": 4,
+              "BBlockTransferSrcScalarPerVector": 1,
+              "BBlockTransferDstScalarPerVector_K1": 1,
+              "CDEBlockTransferScalarPerVector_NPerBlock": 1
+            }
+          ]
+        },
+        
+        "FP16_32x32_standard": {
+          "data_type": "FP16",
+          "xdl_size": "32x32",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_data_xdl_f16_instances",
+          "instances": [
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 32, "AK1": 8, "BK1": 8, "MPerXDL": 32, "NPerXDL": 32, "MXdlPerWave": 2, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 1},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 32, "MXdlPerWave": 1, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 32, "MXdlPerWave": 2, "NXdlPerWave": 1, "CDEBlockTransferScalarPerVector_NPerBlock": 1},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 32, "MXdlPerWave": 2, "NXdlPerWave": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 256, "NPerBlock": 128, "K0PerBlock": 32, "MXdlPerWave": 4, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 32, "MXdlPerWave": 2, "NXdlPerWave": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 32, "MXdlPerWave": 4, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 32, "MXdlPerWave": 2, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 32, "MXdlPerWave": 2, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 32, "MXdlPerWave": 2, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 32, "MXdlPerWave": 2, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 32, "MXdlPerWave": 2, "NXdlPerWave": 1, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 32, "MXdlPerWave": 1, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 32, "K0PerBlock": 32, "MXdlPerWave": 2, "NXdlPerWave": 1, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 32, "MXdlPerWave": 1, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 32, "K0PerBlock": 32, "MXdlPerWave": 2, "NXdlPerWave": 1, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 32, "MXdlPerWave": 1, "NXdlPerWave": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8}
+          ]
+        }
+      }
+    },
+    
+    "DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle": {
+      "implementation_file": "include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_wmma_cshuffle.hpp",
+      "instruction_set": "WMMA",
+      "status": "active",
+      
+      "instances": {
+        "FP16": {
+          "data_type": "FP16",
+          "accumulator": "FP32",
+          "cshuffle_type": "FP16",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_wmma_f16_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_data_wmma_f16_instances",
+          "all_instances": [
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 8, "MPerWmma": 16, "NPerWmma": 16, "MRepeat": 2, "NRepeat": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 1},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 8, "K1": 8, "MRepeat": 4, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 256, "K0PerBlock": 8, "K1": 8, "MRepeat": 2, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 8, "K1": 8, "MRepeat": 4, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 256, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 8, "K1": 8, "MRepeat": 4, "NRepeat": 1, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 8, "K1": 8, "MRepeat": 2, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 64, "K0PerBlock": 8, "K1": 8, "MRepeat": 4, "NRepeat": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 128, "K0PerBlock": 8, "K1": 8, "MRepeat": 4, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 32, "NPerBlock": 256, "K0PerBlock": 8, "K1": 8, "MRepeat": 1, "NRepeat": 8, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 8, "K1": 8, "MRepeat": 1, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 8, "K1": 8, "MRepeat": 2, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 8, "K1": 8, "MRepeat": 1, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 8, "K1": 8, "MRepeat": 1, "NRepeat": 8, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 32, "MPerBlock": 16, "NPerBlock": 64, "K0PerBlock": 8, "K1": 8, "MRepeat": 1, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 32, "MPerBlock": 64, "NPerBlock": 32, "K0PerBlock": 8, "K1": 8, "MRepeat": 4, "NRepeat": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 32, "MPerBlock": 32, "NPerBlock": 32, "K0PerBlock": 8, "K1": 8, "MRepeat": 2, "NRepeat": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 32, "MPerBlock": 16, "NPerBlock": 32, "K0PerBlock": 8, "K1": 8, "MRepeat": 1, "NRepeat": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8}
+          ]
+        },
+        
+        "INT8": {
+          "data_type": "INT8",
+          "accumulator": "INT32",
+          "cshuffle_type": "INT8",
+          "header_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_wmma_i8_instance.hpp",
+          "template_alias": "device_grouped_conv_bwd_data_wmma_i8_instances",
+          "all_instances": [
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 4, "K1": 16, "MRepeat": 2, "NRepeat": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 1},
+            {"BlockSize": 256, "MPerBlock": 64, "NPerBlock": 256, "K0PerBlock": 8, "K1": 16, "MRepeat": 2, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 256, "K0PerBlock": 8, "K1": 16, "MRepeat": 2, "NRepeat": 8, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 8, "K1": 16, "MRepeat": 2, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 128, "NPerBlock": 256, "K0PerBlock": 8, "K1": 16, "MRepeat": 4, "NRepeat": 8, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 32, "NPerBlock": 256, "K0PerBlock": 8, "K1": 16, "MRepeat": 1, "NRepeat": 8, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 128, "MPerBlock": 256, "NPerBlock": 128, "K0PerBlock": 8, "K1": 16, "MRepeat": 8, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 8, "K1": 16, "MRepeat": 1, "NRepeat": 8, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 64, "NPerBlock": 128, "K0PerBlock": 8, "K1": 16, "MRepeat": 2, "NRepeat": 8, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 128, "K0PerBlock": 8, "K1": 16, "MRepeat": 1, "NRepeat": 8, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 64, "MPerBlock": 32, "NPerBlock": 64, "K0PerBlock": 8, "K1": 16, "MRepeat": 1, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 32, "MPerBlock": 16, "NPerBlock": 64, "K0PerBlock": 8, "K1": 16, "MRepeat": 1, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 32, "MPerBlock": 64, "NPerBlock": 64, "K0PerBlock": 8, "K1": 16, "MRepeat": 4, "NRepeat": 4, "CDEBlockTransferScalarPerVector_NPerBlock": 8},
+            {"BlockSize": 32, "MPerBlock": 32, "NPerBlock": 32, "K0PerBlock": 8, "K1": 16, "MRepeat": 2, "NRepeat": 2, "CDEBlockTransferScalarPerVector_NPerBlock": 8}
+          ]
+        }
+      }
+    }
+  },
+  
+  "instance_count_summary": {
+    "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1": {
+      "FP16": {
+        "generic": 1,
+        "16x16_variants": 6,
+        "32x32_standard": 13,
+        "32x32_optimized_loads": 18,
+        "32x32_nchw": 17,
+        "total_per_layout_specialization": "~50+"
+      },
+      "BF16": "Similar to FP16 (~50+ instances)",
+      "FP32": "~40+ instances (K1=4 instead of 8)",
+      "FP32_TF32": "~30+ instances with TF32 compute",
+      "FP16_comp_BF8_F8": "~20 instances for newer GPUs",
+      "total_estimated": "~200+"
+    },
+    "DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle": {
+      "FP16": 17,
+      "INT8": 13,
+      "total": 30
+    }
+  },
+  
+  "notes": {
+    "instance_variations": "Each instance template can be instantiated for multiple layouts and specializations",
+    "layout_multiplier": "Each instance set is typically instantiated for 2-4 layout combinations",
+    "specialization_multiplier": "Each layout may have 1-2 specializations (Default, Filter1x1Stride1Pad0)",
+    "total_instances": "The actual number of compiled instances is significantly higher when accounting for all layout and specialization combinations"
+  }
+}
