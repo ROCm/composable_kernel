@@ -60,24 +60,24 @@ float invoke_abquant_gemm(int n_warmup,
 
     if constexpr(!GemmConfig::Persistent)
     {
-        ave_time =
-            grouped_gemm_abquant<GemmConfig,
-                                ALayout,
-                                AQLayout,
-                                BLayout,
-                                BQLayout,
-                                CLayout,
-                                ADataType,
-                                AQDataType,
-                                BDataType,
-                                BQDataType,
-                                AccDataType,
-                                CDataType,
-                                AQuantGroupSize,
-                                BQuantGroupSize,
-                                QuantMode>(args,
-                                           ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
-                                           gemm_workspace.GetDeviceBuffer());
+        ave_time = grouped_gemm_abquant<GemmConfig,
+                                        ALayout,
+                                        AQLayout,
+                                        BLayout,
+                                        BQLayout,
+                                        CLayout,
+                                        ADataType,
+                                        AQDataType,
+                                        BDataType,
+                                        BQDataType,
+                                        AccDataType,
+                                        CDataType,
+                                        AQuantGroupSize,
+                                        BQuantGroupSize,
+                                        QuantMode>(
+            args,
+            ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
+            gemm_workspace.GetDeviceBuffer());
     }
     else
     {
@@ -174,13 +174,14 @@ template <typename GemmConfig,
           typename BLayout,
           typename BQLayout,
           typename CLayout>
-int run_abquant_grouped_gemm_example_with_layouts(int argc,
-                                                   char* argv[],
-                                                   const ALayout a_layout                  = ALayout{},
-                                                   const AQLayout aq_layout                = AQLayout{},
-                                                   const BLayout b_layout                  = BLayout{},
-                                                   const BQLayout bq_layout                = BQLayout{},
-                                                   [[maybe_unused]] const CLayout c_layout = CLayout{})
+int run_abquant_grouped_gemm_example_with_layouts(
+    int argc,
+    char* argv[],
+    const ALayout a_layout                  = ALayout{},
+    const AQLayout aq_layout                = AQLayout{},
+    const BLayout b_layout                  = BLayout{},
+    const BQLayout bq_layout                = BQLayout{},
+    [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
     auto [result, arg_parser] = create_args(argc, argv);
 
@@ -284,11 +285,11 @@ int run_abquant_grouped_gemm_example_with_layouts(int argc,
         const ck_tile::index_t M = Ms[i];
         const ck_tile::index_t N = Ns[i];
         const ck_tile::index_t K = Ks[i];
-        
+
         // For ABQuantGrouped, both A and B need quantization
         static_assert(QuantMode == ck_tile::QuantType::ABQuantGrouped,
                       "This file only supports ABQuantGrouped mode");
-        
+
         AQK = K / AQuantGroupSize::kK; // Group quantization: AQK = K / AQuantGroupSize
         BQK = K / BQuantGroupSize::kK; // Group quantization: BQK = K / BQuantGroupSize
         if(K % AQuantGroupSize::kK != 0)
@@ -302,13 +303,11 @@ int run_abquant_grouped_gemm_example_with_layouts(int argc,
                 "K must be divisible by BQuantGroupSize::kK for ABQuantGrouped mode");
         }
 
-        stride_As[i] = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(a_layout));
-        stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
-        stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
-        stride_AQs[i] =
-            ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(aq_layout));
-        stride_BQs[i] =
-            ck_tile::get_default_stride(BQK, N, stride_BQs[i], is_row_major(bq_layout));
+        stride_As[i]  = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(a_layout));
+        stride_Bs[i]  = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
+        stride_Cs[i]  = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
+        stride_AQs[i] = ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(aq_layout));
+        stride_BQs[i] = ck_tile::get_default_stride(BQK, N, stride_BQs[i], is_row_major(bq_layout));
 
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
             ck_tile::host_tensor_descriptor(M, K, stride_As[i], is_row_major(a_layout))));
@@ -321,9 +320,10 @@ int run_abquant_grouped_gemm_example_with_layouts(int argc,
         bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
             ck_tile::host_tensor_descriptor(BQK, N, stride_BQs[i], is_row_major(bq_layout))));
 
-        std::cout << "gemm[" << i << "]" << " a_m_k: " << a_m_k_tensors[i].mDesc
-                  << " b_k_n: " << b_k_n_tensors[i].mDesc << " c_m_n: " << c_m_n_tensors[i].mDesc
-                  << " aq: " << aq_tensors[i].mDesc << " bq: " << bq_tensors[i].mDesc << std::endl;
+        std::cout << "gemm[" << i << "]"
+                  << " a_m_k: " << a_m_k_tensors[i].mDesc << " b_k_n: " << b_k_n_tensors[i].mDesc
+                  << " c_m_n: " << c_m_n_tensors[i].mDesc << " aq: " << aq_tensors[i].mDesc
+                  << " bq: " << bq_tensors[i].mDesc << std::endl;
 
         if(init_method == 2)
         {
@@ -411,7 +411,7 @@ int run_abquant_grouped_gemm_example_with_layouts(int argc,
             ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
                 Ms[i], Ns[i], stride_Cs[i], is_row_major(CLayout{})));
             c_m_n_host_ref.SetZero();
-            
+
             // Reference implementation for ABQuantGrouped
             ck_tile::reference_gemm_abquant<ADataType,
                                             AQDataType,
@@ -445,7 +445,8 @@ int run_abquant_grouped_gemm_example_with_layouts(int argc,
 }
 
 template <typename PrecType, typename GemmConfig, typename BQuantGroupSize>
-int run_abquant_grouped_gemm_example_prec_type_with_bquant(std::string a_layout, std::string b_layout, std::string c_layout, int argc, char* argv[])
+int run_abquant_grouped_gemm_example_prec_type_with_bquant(
+    std::string a_layout, std::string b_layout, std::string c_layout, int argc, char* argv[])
 {
     using Row   = ck_tile::tensor_layout::gemm::RowMajor;
     using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -510,18 +511,27 @@ int run_abquant_grouped_gemm_example_prec_type_with_bquant(std::string a_layout,
 }
 
 template <typename PrecType, typename GemmConfig>
-int run_abquant_grouped_gemm_example_prec_type(std::string a_layout, std::string b_layout, std::string c_layout, std::string bquant_group_size, int argc, char* argv[])
+int run_abquant_grouped_gemm_example_prec_type(std::string a_layout,
+                                               std::string b_layout,
+                                               std::string c_layout,
+                                               std::string bquant_group_size,
+                                               int argc,
+                                               char* argv[])
 {
     if(bquant_group_size == "1x1x128")
     {
         using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
-        return run_abquant_grouped_gemm_example_prec_type_with_bquant<PrecType, GemmConfig, BQuantGroupSize>(
+        return run_abquant_grouped_gemm_example_prec_type_with_bquant<PrecType,
+                                                                      GemmConfig,
+                                                                      BQuantGroupSize>(
             a_layout, b_layout, c_layout, argc, argv);
     }
     else if(bquant_group_size == "1x128x128")
     {
         using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
-        return run_abquant_grouped_gemm_example_prec_type_with_bquant<PrecType, GemmConfig, BQuantGroupSize>(
+        return run_abquant_grouped_gemm_example_prec_type_with_bquant<PrecType,
+                                                                      GemmConfig,
+                                                                      BQuantGroupSize>(
             a_layout, b_layout, c_layout, argc, argv);
     }
     else
@@ -531,20 +541,25 @@ int run_abquant_grouped_gemm_example_prec_type(std::string a_layout, std::string
 }
 
 template <typename PrecType>
-int run_abquant_gemm_example_persistency(
-    std::string a_layout, std::string b_layout, std::string c_layout, bool persistent, std::string bquant_group_size, int argc, char* argv[])
+int run_abquant_gemm_example_persistency(std::string a_layout,
+                                         std::string b_layout,
+                                         std::string c_layout,
+                                         bool persistent,
+                                         std::string bquant_group_size,
+                                         int argc,
+                                         char* argv[])
 {
     if(persistent)
     {
-        using GemmConfig = typename GemmQuantConfig<ck_tile::QuantType::ABQuantGrouped>::
-            template GemmConfig<PrecType, true>;
+        using GemmConfig = typename GemmQuantConfig<
+            ck_tile::QuantType::ABQuantGrouped>::template GemmConfig<PrecType, true>;
         return run_abquant_grouped_gemm_example_prec_type<PrecType, GemmConfig>(
             a_layout, b_layout, c_layout, bquant_group_size, argc, argv);
     }
     else
     {
-        using GemmConfig = typename GemmQuantConfig<ck_tile::QuantType::ABQuantGrouped>::
-            template GemmConfig<PrecType, false>;
+        using GemmConfig = typename GemmQuantConfig<
+            ck_tile::QuantType::ABQuantGrouped>::template GemmConfig<PrecType, false>;
         return run_abquant_grouped_gemm_example_prec_type<PrecType, GemmConfig>(
             a_layout, b_layout, c_layout, bquant_group_size, argc, argv);
     }
@@ -580,4 +595,3 @@ int run_abquant_grouped_gemm_example(int argc, char* argv[])
         throw std::runtime_error("Unsupported data type configuration.");
     }
 }
-
