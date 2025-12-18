@@ -444,8 +444,8 @@ int run_abquant_grouped_gemm_example_with_layouts(int argc,
     return pass;
 }
 
-template <typename PrecType, typename GemmConfig>
-int run_abquant_grouped_gemm_example_prec_type(std::string a_layout, std::string b_layout, std::string c_layout, int argc, char* argv[])
+template <typename PrecType, typename GemmConfig, typename BQuantGroupSize>
+int run_abquant_grouped_gemm_example_prec_type_with_bquant(std::string a_layout, std::string b_layout, std::string c_layout, int argc, char* argv[])
 {
     using Row   = ck_tile::tensor_layout::gemm::RowMajor;
     using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -458,7 +458,6 @@ int run_abquant_grouped_gemm_example_prec_type(std::string a_layout, std::string
     using AQDataType      = typename Types::AccDataType;
     using BQDataType      = typename Types::AccDataType;
     using AQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
-    using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 
     constexpr auto QuantMode = ck_tile::QuantType::ABQuantGrouped;
 
@@ -510,23 +509,44 @@ int run_abquant_grouped_gemm_example_prec_type(std::string a_layout, std::string
     }
 }
 
+template <typename PrecType, typename GemmConfig>
+int run_abquant_grouped_gemm_example_prec_type(std::string a_layout, std::string b_layout, std::string c_layout, std::string bquant_group_size, int argc, char* argv[])
+{
+    if(bquant_group_size == "1x1x128")
+    {
+        using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
+        return run_abquant_grouped_gemm_example_prec_type_with_bquant<PrecType, GemmConfig, BQuantGroupSize>(
+            a_layout, b_layout, c_layout, argc, argv);
+    }
+    else if(bquant_group_size == "1x128x128")
+    {
+        using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
+        return run_abquant_grouped_gemm_example_prec_type_with_bquant<PrecType, GemmConfig, BQuantGroupSize>(
+            a_layout, b_layout, c_layout, argc, argv);
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported BQuantGroupSize! Use 1x1x128 or 1x128x128.");
+    }
+}
+
 template <typename PrecType>
 int run_abquant_gemm_example_persistency(
-    std::string a_layout, std::string b_layout, std::string c_layout, bool persistent, int argc, char* argv[])
+    std::string a_layout, std::string b_layout, std::string c_layout, bool persistent, std::string bquant_group_size, int argc, char* argv[])
 {
     if(persistent)
     {
         using GemmConfig = typename GemmQuantConfig<ck_tile::QuantType::ABQuantGrouped>::
             template GemmConfig<PrecType, true>;
         return run_abquant_grouped_gemm_example_prec_type<PrecType, GemmConfig>(
-            a_layout, b_layout, c_layout, argc, argv);
+            a_layout, b_layout, c_layout, bquant_group_size, argc, argv);
     }
     else
     {
         using GemmConfig = typename GemmQuantConfig<ck_tile::QuantType::ABQuantGrouped>::
             template GemmConfig<PrecType, false>;
         return run_abquant_grouped_gemm_example_prec_type<PrecType, GemmConfig>(
-            a_layout, b_layout, c_layout, argc, argv);
+            a_layout, b_layout, c_layout, bquant_group_size, argc, argv);
     }
 }
 
@@ -538,21 +558,22 @@ int run_abquant_grouped_gemm_example(int argc, char* argv[])
         return -1;
     }
 
-    const std::string a_layout  = arg_parser.get_str("a_layout");
-    const std::string b_layout  = arg_parser.get_str("b_layout");
-    const std::string c_layout  = arg_parser.get_str("c_layout");
-    const std::string data_type = arg_parser.get_str("prec");
-    bool persistent             = arg_parser.get_bool("persistent");
+    const std::string a_layout          = arg_parser.get_str("a_layout");
+    const std::string b_layout          = arg_parser.get_str("b_layout");
+    const std::string c_layout          = arg_parser.get_str("c_layout");
+    const std::string data_type         = arg_parser.get_str("prec");
+    bool persistent                     = arg_parser.get_bool("persistent");
+    const std::string bquant_group_size = arg_parser.get_str("bquant_group_size");
 
     if(data_type == "fp8")
     {
         return run_abquant_gemm_example_persistency<ck_tile::fp8_t>(
-            a_layout, b_layout, c_layout, persistent, argc, argv);
+            a_layout, b_layout, c_layout, persistent, bquant_group_size, argc, argv);
     }
     else if(data_type == "bf8")
     {
         return run_abquant_gemm_example_persistency<ck_tile::bf8_t>(
-            a_layout, b_layout, c_layout, persistent, argc, argv);
+            a_layout, b_layout, c_layout, persistent, bquant_group_size, argc, argv);
     }
     else
     {
