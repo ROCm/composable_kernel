@@ -151,10 +151,9 @@ float grouped_gemm_abquant(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
         if(s.log_level_ > 0)
         {
-            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:"
-                      << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                      << std::endl;
+            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
+                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
+                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
         }
 
         return ave_time = ck_tile::launch_kernel(
@@ -264,10 +263,9 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
         if(s.log_level_ > 0)
         {
-            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:"
-                      << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                      << std::endl;
+            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
+                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
+                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
         }
 
         return ave_time = ck_tile::launch_kernel(
