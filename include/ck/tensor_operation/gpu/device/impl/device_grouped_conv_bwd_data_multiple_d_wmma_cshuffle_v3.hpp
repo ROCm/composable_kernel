@@ -965,6 +965,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 e_g_n_c_wis_strides_transposed[1] * conv_N_per_block_;
 
             num_workgroups_per_Conv_N_ = a_g_n_k_wos_lengths_[I1] / conv_N_per_block_;
+            std::cout << "num_workgroups_per_Conv_N_= " << num_workgroups_per_Conv_N_ << "\n";
 
             if constexpr(NeedTransposeKernel)
             {
@@ -1198,9 +1199,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                     StrideDs_dummy,
                     I0,
                     arg.k_batch_,
-                    BElementwiseOp{},
-                    AElementwiseOp{},
-                    CDEElementwiseOp{}};
+                    CTranspose ? arg.b_element_op_ : arg.a_element_op_,
+                    CTranspose ? arg.a_element_op_ : arg.b_element_op_,
+                    arg.cde_element_op_};
                 if(!GridwiseGemmCTranspose::CheckValidity(gemm_arg))
                 {
                     throw std::runtime_error("wrong! device_op has invalid setting");

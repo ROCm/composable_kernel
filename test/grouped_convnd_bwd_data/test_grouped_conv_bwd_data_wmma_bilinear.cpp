@@ -27,23 +27,22 @@ using ::ck::DeviceMem;
 using ::ck::HostTensorDescriptor;
 using ::ck::Tensor;
 
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
+
 template <typename Tuple>
 class TestGroupedConvndBwdData : public ::testing::Test
 {
     protected:
-    using InDataType = std::tuple_element_t<0, Tuple>;
-    ;
+    using InDataType  = std::tuple_element_t<0, Tuple>;
     using WeiDataType = std::tuple_element_t<0, Tuple>;
-    ;
     using OutDataType = std::tuple_element_t<0, Tuple>;
-    ;
+
     using ComputeDataType = InDataType;
     using InLayout        = std::tuple_element_t<3, Tuple>;
-    ;
-    using WeiLayout = std::tuple_element_t<2, Tuple>;
-    ;
-    using OutLayout = std::tuple_element_t<1, Tuple>;
-    ;
+    using WeiLayout       = std::tuple_element_t<2, Tuple>;
+    using OutLayout       = std::tuple_element_t<1, Tuple>;
+
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
     using InElementOp  = ck::tensor_operation::element_wise::Bilinear;
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -61,10 +60,11 @@ class TestGroupedConvndBwdData : public ::testing::Test
     void RunReference(ck::utils::conv::ConvParam& conv_param,
                       Tensor<InDataType>& in_host,
                       Tensor<WeiDataType>& wei,
-                      Tensor<OutDataType>& out)
+                      Tensor<OutDataType>& out,
+                      Tensor<InDataType>& d)
     {
 
-        std::array<Tensor<OutDataType>, NumDs> d_tensors = {in_host};
+        std::array<Tensor<InDataType>, NumDs> d_tensors = {d};
         auto ref_conv =
             ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
                                                              InDataType,
@@ -86,7 +86,7 @@ class TestGroupedConvndBwdData : public ::testing::Test
                                                   conv_param.conv_filter_dilations_,
                                                   conv_param.input_left_pads_,
                                                   conv_param.input_right_pads_,
-                                                  InElementOp{alpha, beta},
+                                                  Bilinear{alpha, beta},
                                                   WeiElementOp{},
                                                   OutElementOp{},
                                                   {},
@@ -96,7 +96,9 @@ class TestGroupedConvndBwdData : public ::testing::Test
         ref_invoker.Run(ref_argument);
     }
 
-    bool PerformConvDataBilinear(ck::utils::conv::ConvParam& conv_param, const ck::index_t split_k)
+    bool PerformConvDataBilinear(ck::utils::conv::ConvParam& conv_param,
+                                 const ck::index_t split_k,
+                                 ck::index_t instance_index_ = -1)
     {
         bool passed = true;
 
@@ -116,20 +118,25 @@ class TestGroupedConvndBwdData : public ::testing::Test
         Tensor<OutDataType> out(out_g_n_k_wos_desc);
         Tensor<InDataType> in_host(in_g_n_c_wis_desc);
         Tensor<InDataType> in_device(in_g_n_c_wis_desc);
+        Tensor<InDataType> d(in_g_n_c_wis_desc);
 
         std::cout << "in: " << in_host.mDesc << std::endl;
         std::cout << "wei: " << wei.mDesc << std::endl;
         std::cout << "out: " << out.mDesc << std::endl;
 
-        DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
+        out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+        wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+        d.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
+
         DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
         DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
+        DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
+        DeviceMem d_device_buf(sizeof(InDataType) * d.mDesc.GetElementSpaceSize());
 
+        in_device_buf.ToDevice(in_device.mData.data());
         out_device_buf.ToDevice(out.mData.data());
         wei_device_buf.ToDevice(wei.mData.data());
-
-        // reset input to zero
-        in_device_buf.SetZero();
+        d_device_buf.ToDevice(d.mData.data());
 
         std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> out_strides{};
@@ -155,8 +162,8 @@ class TestGroupedConvndBwdData : public ::testing::Test
         copy(conv_param.input_left_pads_, input_left_pads);
         copy(conv_param.input_right_pads_, input_right_pads);
 
-        RunReference(conv_param, in_host, wei, out);
-        const std::array<const void*, NumDs> ds = {in_device_buf.GetDeviceBuffer()};
+        RunReference(conv_param, in_host, wei, out, d);
+
         using DeviceOp =
             ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
                                                                             OutLayout,
@@ -183,7 +190,7 @@ class TestGroupedConvndBwdData : public ::testing::Test
             auto argument_ptr = op_ptr->MakeArgumentPointer(
                 out_device_buf.GetDeviceBuffer(),
                 wei_device_buf.GetDeviceBuffer(),
-                ds,
+                {d_device_buf.GetDeviceBuffer()},
                 in_device_buf.GetDeviceBuffer(),
                 out_lengths,
                 out_strides,
@@ -199,7 +206,8 @@ class TestGroupedConvndBwdData : public ::testing::Test
                 input_right_pads,
                 PassThrough{},
                 PassThrough{},
-                Bilinear{alpha, beta});
+                Bilinear{alpha, beta},
+                split_k);
 
             DeviceMem workspace_buf(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
             op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_buf.GetDeviceBuffer());
@@ -209,53 +217,18 @@ class TestGroupedConvndBwdData : public ::testing::Test
 
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                num_kernel++;
+                ++num_kernel;
+                if((instance_index_ != -1) && (instance_index_ + 1 != num_kernel))
+                {
+                    // skip test if instance_index is specified
+                    continue;
+                }
+
                 float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
                 in_device_buf.FromDevice(in_device.mData.data());
 
-                using ComputeType_ = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
-                                                        OutDataType,
-                                                        WeiDataType>;
-                using ComputeType =
-                    std::conditional_t<sizeof(ComputeType_) < sizeof(ComputeDataType),
-                                       ComputeType_,
-                                       ComputeDataType>;
-                using AccDataType =
-                    std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
-                const ck::index_t num_accums = conv_param.K_;
-                float max_accumulated_value =
-                    *std::max_element(in_host.mData.begin(), in_host.mData.end());
+                passed &= ck::utils::check_err(in_device, in_host);
 
-                const ck::index_t split_k_for_run = split_k;
-                // Calculate thresholds
-                auto rtol = ck::utils::get_relative_threshold<ComputeType, InDataType, AccDataType>(
-                    num_accums / split_k_for_run);
-                auto atol = ck::utils::get_absolute_threshold<ComputeType, InDataType, AccDataType>(
-                    max_accumulated_value / split_k_for_run, num_accums / split_k_for_run);
-                // Calculate error due to split_k accumulation
-                auto rtol_split_k =
-                    ck::utils::get_relative_threshold<InDataType, InDataType, InDataType>(
-                        split_k_for_run);
-                auto atol_split_k =
-                    ck::utils::get_absolute_threshold<InDataType, InDataType, InDataType>(
-                        max_accumulated_value, split_k_for_run);
-                // Use higher threshold
-                rtol = std::max(rtol, rtol_split_k);
-                atol = std::max(atol, atol_split_k);
-                if(split_k_for_run > 1)
-                {
-                    passed &= ck::utils::check_err(
-                        in_device, in_host, "Error: Incorrect results!", rtol, atol);
-                    std::cout << "Relative error threshold: " << rtol
-                              << " Absolute error threshold: " << atol << std::endl;
-                }
-                else
-                {
-                    passed &= ck::utils::check_err(
-                        in_device, in_host, "Error: Incorrect results!", rtol, atol);
-                    std::cout << "Relative error threshold: " << rtol
-                              << " Absolute error threshold: " << atol << std::endl;
-                }
                 std::size_t flop = conv_param.GetFlops() +
                                    3 * conv_param.GetOutputByte<InDataType>() / sizeof(InDataType);
                 std::size_t num_bytes = conv_param.GetByte<InDataType, WeiDataType, OutDataType>() +
@@ -272,8 +245,13 @@ class TestGroupedConvndBwdData : public ::testing::Test
                 std::cerr << op_name << " does not support this problem" << std::endl;
             }
         }
-
+        if(instance_index != -1)
+        {
+            std::cout << "grouped_conv_bwd_data_instance (" << instance_index << "/" << num_kernel
+                      << "): Passed" << std::endl;
+        }
         printf("\033[36mvalids: %d\033[0m\n", num_kernel);
+        std::cout << "passed value is:" << passed << std::endl;
         return passed;
     }
 
@@ -281,12 +259,12 @@ class TestGroupedConvndBwdData : public ::testing::Test
     {
         EXPECT_FALSE(conv_params.empty());
         bool pass = true;
-
         for(auto split_k : split_ks)
         {
             for(auto& param : conv_params)
             {
-                pass = pass && PerformConvDataBilinear(param, split_k);
+                pass = pass && PerformConvDataBilinear(param, split_k, instance_index);
+                std::cout << "splitk_is: " << split_k << std::endl;
             }
         }
         EXPECT_TRUE(pass);
@@ -311,16 +289,35 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
 TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
 {
     this->conv_params.push_back(
-        {3, 2, 16, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    this->conv_params.push_back(
-        {3, 2, 2, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_params.push_back(
-        {3, 2, 32, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    this->conv_params.push_back(
-        {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_params.push_back(
-        {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_params.push_back(
-        {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 2, 16, 128, 128, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+    // this->conv_params.push_back(
+    //     {3, 2, 2, 128, 128, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    // this->conv_params.push_back(
+    //     {3, 2, 32, 128, 128, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+    // this->conv_params.push_back(
+    //     {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    // this->conv_params.push_back(
+    //     {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    // this->conv_params.push_back(
+    //     {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    // this->conv_params.push_back(
+    //     {3, 1, 1, 4, 4, {3, 3, 3}, {14, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->Run();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

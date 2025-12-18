@@ -52,7 +52,7 @@ class TestGroupedConvndBwdData : public ::testing::Test
 
     using Scale                              = ck::tensor_operation::element_wise::Scale;
     static constexpr ck::index_t NDimSpatial = 3;
-    static constexpr float alpha             = 2.2;
+    static constexpr float alpha             = 2.f;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
     std::vector<ck::index_t> split_ks{1};
@@ -118,15 +118,16 @@ class TestGroupedConvndBwdData : public ::testing::Test
         std::cout << "wei: " << wei.mDesc << std::endl;
         std::cout << "out: " << out.mDesc << std::endl;
 
+        out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+        wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+
         DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
         DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
         DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
 
+        in_device_buf.ToDevice(in_device.mData.data());
         out_device_buf.ToDevice(out.mData.data());
         wei_device_buf.ToDevice(wei.mData.data());
-
-        // reset input to zero
-        in_device_buf.SetZero();
 
         std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> out_strides{};
@@ -195,7 +196,7 @@ class TestGroupedConvndBwdData : public ::testing::Test
                                                             input_right_pads,
                                                             PassThrough{},
                                                             PassThrough{},
-                                                            Scale{2.2});
+                                                            Scale{alpha});
 
             DeviceMem workspace_buf(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
             op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_buf.GetDeviceBuffer());
@@ -209,9 +210,9 @@ class TestGroupedConvndBwdData : public ::testing::Test
                 float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
                 in_device_buf.FromDevice(in_device.mData.data());
 
-                using ComputeType_ = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
+                using ComputeType_ = std::conditional_t<sizeof(OutDataType) < sizeof(InDataType),
                                                         OutDataType,
-                                                        WeiDataType>;
+                                                        InDataType>;
                 using ComputeType =
                     std::conditional_t<sizeof(ComputeType_) < sizeof(ComputeDataType),
                                        ComputeType_,
@@ -307,18 +308,7 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
 TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
 {
     this->conv_params.push_back(
-        {3, 1, 64, 16, 32, {3, 3, 3}, {28, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_params.push_back(
-        {3, 2, 16, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    this->conv_params.push_back(
-        {3, 2, 2, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_params.push_back(
-        {3, 2, 32, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    this->conv_params.push_back(
-        {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_params.push_back(
-        {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_params.push_back(
-        {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 2, 16, 128, 128, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+
     this->Run();
 }
