@@ -116,7 +116,7 @@ def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
         def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules -e BUILD_TRACE_FILE=${buildTraceFileName}"
         // Create unique image name by sanitizing job name
         def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_')
-        def architectureName = (buildTraceFileName =~ /ck_build_trace_(gfx[0-9a-zA-Z]+)\\.json/)[0][1]
+        def architectureName = (buildTraceFileName =~ /gfx[0-9a-zA-Z]+/)[0][1]
         def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}_${architectureName}.png"
         sh """
             docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
