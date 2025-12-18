@@ -286,7 +286,6 @@ template <typename CDataType,
           typename ELayout         = ck_tile::tensor_layout::gemm::RowMajor>
 float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config& s)
 {
-    const ck_tile::index_t reduce_dim_size = args.k_batch; // Number of partial results to reduce
     // Calculate output size based on the final output tensor dimensions
     const ck_tile::index_t output_size = args.M * args.N;
 
@@ -303,26 +302,27 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
     constexpr auto reduce_dims = ck_tile::sequence<0>{};    // Reduce k_batch dimension
 
     using ReduceOp   = ck_tile::ReduceOp::Add;
-    using BlockWarps = ck_tile::sequence<4, 1>;
-    using BlockTile  = ck_tile::sequence<128, 128>;
-    using WarpTile   = ck_tile::sequence<32, 128>;
-    using ThreadTile = ck_tile::sequence<8, 8>;
+    using BlockWarps = ck_tile::sequence<1, 1>;
+    using BlockTile  = ck_tile::sequence<256, 1>;
+    using WarpTile   = ck_tile::sequence<256, 1>;
+    using ThreadTile = ck_tile::sequence<1, 1>;
 
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
     ck_tile::index_t kGridSize = (output_size + BlockTile::at(ck_tile::number<0>{}) - 1) /
                                  BlockTile::at(ck_tile::number<0>{});
 
-    using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
-    using Problem =
-        ck_tile::Reduce2dProblem<CDataType, ComputeDataType, CDataType, Shape, ReduceOp>;
-    using Kernel                      = ck_tile::Reduce<Problem>;
+    using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
+    using Problem = ck_tile::Reduce2dProblem<CDataType,
+                                             ComputeDataType,
+                                             CDataType,
+                                             Shape,
+                                             ReduceOp,
+                                             decltype(kept_dim),
+                                             decltype(reduce_dims),
+                                             3>;
+    using Kernel  = ck_tile::ReduceKernel<Problem>;
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
-
-    if(!Kernel::IsSupportedArgument(reduce_dim_size, workspace_strides))
-    {
-        throw std::runtime_error("Wrong! Reduction arguments not supported!\n");
-    }
 
     if(s.log_level_ > 0)
     {
@@ -343,9 +343,7 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
                                    static_cast<const CDataType*>(args.e_ptr), // workspace input
                                    static_cast<CDataType*>(args.final_output_ptr), // final output
                                    workspace_shape,
-                                   workspace_strides,
-                                   kept_dim,
-                                   reduce_dims));
+                                   workspace_strides));
 
     return ave_time;
 }

@@ -131,6 +131,9 @@ template <ck::index_t NDimSpatial,
           typename WeiElementOp,
           typename OutElementOp,
           typename DeviceConvNDFwdInstance,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
           typename ComputeDataType = OutDataType>
 bool run_grouped_conv_fwd(int do_verification,
                           int init_method,
@@ -283,31 +286,25 @@ bool run_grouped_conv_fwd(int do_verification,
         DeviceMem out_device_ref_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
         out_device_ref_buf.SetZero();
 
-        // Extract dimensions using helper function
-        ck::ref::ConvDims dims = ck::utils::conv::extract_conv_dims(conv_param, NDimSpatial);
-
-        // Launch GPU reference kernel
-        constexpr ck::index_t block_size     = 256;
-        const ck::long_index_t output_length = dims.N * dims.Do * dims.Ho * dims.Wo * dims.K;
-        const ck::index_t grid_size          = (output_length + block_size - 1) / block_size;
-
-        auto gpu_ref_kernel = ck::ref::naive_conv_fwd_ndhwc_kzyxc_ndhwk<InDataType,
-                                                                        WeiDataType,
-                                                                        OutDataType,
-                                                                        ComputeDataType,
-                                                                        InElementOp,
-                                                                        WeiElementOp,
-                                                                        OutElementOp>;
-
-        gpu_ref_kernel<<<dim3(grid_size), dim3(block_size), 0, nullptr>>>(
+        // Call GPU reference with ConvParam directly, using the correct layout types
+        ck::ref::naive_conv_fwd<InLayout,
+                                WeiLayout,
+                                OutLayout,
+                                InDataType,
+                                WeiDataType,
+                                OutDataType,
+                                InElementOp,
+                                WeiElementOp,
+                                OutElementOp>(
             reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
             reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
             reinterpret_cast<OutDataType*>(out_device_ref_buf.GetDeviceBuffer()),
-            dims);
+            conv_param);
 
         HIP_CHECK_ERROR(hipDeviceSynchronize());
 
-        std::cout << "GPU reference kernel completed successfully, copying results..." << std::endl;
+        std::cout << "GPU reference function completed successfully, copying results..."
+                  << std::endl;
 
         // Copy GPU reference result to host
         out_device_ref_buf.FromDevice(out_host.mData.data());

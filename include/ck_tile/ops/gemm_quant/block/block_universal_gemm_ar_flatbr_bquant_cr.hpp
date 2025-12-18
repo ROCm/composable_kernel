@@ -25,7 +25,7 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
-    using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
+    using QuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
     static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant preshuffle kernel!");
 

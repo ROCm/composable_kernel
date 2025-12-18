@@ -266,6 +266,7 @@ struct fmha_fwd_args
 
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
+    ck_tile::index_t sink_size;
     ck_tile::index_t mask_type;
     ck_tile::index_t min_seqlen_q;
 
@@ -352,6 +353,7 @@ struct fmha_fwd_pagedkv_args
 
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
+    ck_tile::index_t sink_size;
     ck_tile::index_t mask_type;
     ck_tile::index_t min_seqlen_q;
 };
@@ -442,6 +444,7 @@ struct fmha_fwd_splitkv_args
 
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
+    ck_tile::index_t sink_size;
     ck_tile::index_t mask_type;
 };
 
@@ -561,6 +564,7 @@ struct fmha_batch_prefill_args
 
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
+    ck_tile::index_t sink_size;
     ck_tile::index_t mask_type;
 
     float p_drop;
@@ -613,6 +617,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.nhead_stride_o,
                                              args.window_size_left,
                                              args.window_size_right,
+                                             args.sink_size,
                                              args.mask_type,
                                              args.min_seqlen_q,
                                              args.p_drop,
@@ -663,6 +668,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.batch_stride_o,
                                              args.window_size_left,
                                              args.window_size_right,
+                                             args.sink_size,
                                              args.mask_type,
                                              args.p_drop,
                                              args.s_randval,
@@ -722,6 +728,7 @@ auto fmha_fwd_v3_create_kargs_and_grids(fmha_fwd_args args)
                                          args.nhead_q,
                                          args.nhead_q / args.nhead_k,
                                          args.scale_s,
+                                         args.logits_soft_cap,
                                          args.stride_q,
                                          args.stride_k,
                                          args.stride_v,
@@ -752,6 +759,7 @@ auto fmha_fwd_v3_create_kargs_and_grids(fmha_fwd_args args)
                                          args.nhead_q,
                                          args.nhead_q / args.nhead_k,
                                          args.scale_s,
+                                         args.logits_soft_cap,
                                          args.stride_q,
                                          args.stride_k,
                                          args.stride_v,
@@ -824,6 +832,7 @@ auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
                                          args.batch_stride_v,
                                          args.window_size_left,
                                          args.window_size_right,
+                                         args.sink_size,
                                          args.mask_type,
                                          args.min_seqlen_q);
         }
@@ -869,6 +878,7 @@ auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
                                          args.batch_stride_o,
                                          args.window_size_left,
                                          args.window_size_right,
+                                         args.sink_size,
                                          args.mask_type);
         }
     }();
@@ -935,6 +945,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.split_stride_o_acc,
                                      args.window_size_left,
                                      args.window_size_right,
+                                     args.sink_size,
                                      args.mask_type);
         }
         else
@@ -982,6 +993,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.split_stride_o_acc,
                                      args.window_size_left,
                                      args.window_size_right,
+                                     args.sink_size,
                                      args.mask_type);
         }
     }();
@@ -1142,6 +1154,7 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.batch_stride_v,
                                          args.window_size_left,
                                          args.window_size_right,
+                                         args.sink_size,
                                          args.mask_type,
                                          args.p_drop,
                                          args.s_randval,
@@ -1194,6 +1207,7 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.batch_stride_o,
                                          args.window_size_left,
                                          args.window_size_right,
+                                         args.sink_size,
                                          args.mask_type,
                                          args.p_drop,
                                          args.s_randval,
@@ -1228,7 +1242,8 @@ template <ck_tile::index_t HDim_,
           bool kPadD_,
           bool kPadDv_,
           bool kUseTrLoad_,
-          bool kSkipMinSeqlenQ_ = false>
+          bool kSkipMinSeqlenQ_ = false,
+          bool kHasSink_        = false>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1254,6 +1269,7 @@ struct fmha_fwd_traits_
     static constexpr bool kPadDv                     = kPadDv_;
     static constexpr bool kUseTrLoad                 = kUseTrLoad_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
+    static constexpr bool kHasSink                   = kHasSink_;
 };
 
 template <typename Traits_, typename Arch = void>
@@ -1280,7 +1296,8 @@ template <ck_tile::index_t HDim_,
           bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
-          bool kSkipMinSeqlenQ_ = false>
+          bool kSkipMinSeqlenQ_ = false,
+          bool kHasSink_        = false>
 struct fmha_fwd_pagedkv_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1305,6 +1322,7 @@ struct fmha_fwd_pagedkv_traits_
     static constexpr bool kPadD                      = kPadD_;
     static constexpr bool kPadDv                     = kPadDv_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
+    static constexpr bool kHasSink                   = kHasSink_;
 };
 
 template <typename Traits_, typename Arch = void>
@@ -1327,6 +1345,7 @@ template <ck_tile::index_t HDim_,
           bool kStoreLse_,
           bool kDoFp8StaticQuant_,
           bool kIsPagedKV_,
+          bool kHasSink_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
@@ -1354,6 +1373,7 @@ struct fmha_fwd_splitkv_traits_
     static constexpr bool kPadD                      = kPadD_;
     static constexpr bool kPadDv                     = kPadDv_;
     static constexpr bool kIsPagedKV                 = kIsPagedKV_;
+    static constexpr bool kHasSink                   = kHasSink_;
 };
 
 template <typename Traits_, typename Arch = void>
@@ -1440,6 +1460,7 @@ struct fmha_fwd_traits
     bool has_dropout;
     quant_scale_enum qscale_type;
     bool skip_min_seqlen_q = false;
+    bool has_sink          = false;
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
@@ -1458,6 +1479,7 @@ struct fmha_fwd_pagedkv_traits
     bool use_pagedkv         = true;
     bool do_fp8_static_quant = false;
     bool skip_min_seqlen_q   = false;
+    bool has_sink            = false;
     // TODO: padding check is inside this api
 };
 
@@ -1477,6 +1499,7 @@ struct fmha_fwd_splitkv_traits
     bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
     bool has_lse;
     bool do_fp8_static_quant;
+    bool has_sink = false;
     // TODO: padding check is inside this api
 };
 float fmha_fwd_splitkv(fmha_fwd_splitkv_traits,

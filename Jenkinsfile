@@ -72,10 +72,8 @@ def sendFailureNotifications() {
     }
 }
 
-def generateAndArchiveBuildTraceVisualization() {
+def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
     try {
-        def buildTraceFileName = "ck_build_trace.json";
-
         // Attempt to download the build trace file to check if it exists
         def traceFileExists = false
         try {
@@ -624,19 +622,58 @@ def cmake_build(Map conf=[:]){
     echo cmd
 
     dir("build"){
-        //build CK
-        sh cmd
+        // Start sccache monitoring
+        if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
+            sh """
+                chmod +x ../script/monitor_sccache_during_build.sh
+                mkdir -p logs
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
+                ../script/monitor_sccache_during_build.sh build_monitor &
+                MONITOR_PID=\$!
+                echo "Monitor PID: \$MONITOR_PID"
+                echo \$MONITOR_PID > monitor.pid
+            """
+        }
+        try {
+            //build CK
+            sh cmd
+        } catch (Exception buildError) {
+            echo "Build failed: ${buildError.getMessage()}"
+            throw buildError
+        } finally {
+            // Stop sccache monitoring
+            if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
+                sh """
+                    # Stop monitoring
+                    if [ -f monitor.pid ]; then
+                        MONITOR_PID=\$(cat monitor.pid)
+                        kill \$MONITOR_PID 2>/dev/null || echo "Monitor already stopped"
+                        rm -f monitor.pid
+                    fi
+                """
+                
+                // Archive the monitoring logs
+                try {
+                    archiveArtifacts artifacts: "logs/*monitor*.log", allowEmptyArchive: true
+                } catch (Exception e) {
+                    echo "Could not archive sccache monitoring logs: ${e.getMessage()}"
+                }
+            }
+        }
+
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
-            if ((setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE) || params.BUILD_INSTANCES_ONLY){
+            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${check_arch_name()}.json"
+            archiveArtifacts "ck_build_trace_${check_arch_name()}.json"
+            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${check_arch_name()}.json"
+            if (params.NINJA_BUILD_TRACE || params.BUILD_INSTANCES_ONLY){
                 if (params.NINJA_FTIME_TRACE) {
-                    echo "running ninja ftime trace"
+                    echo "running ClangBuildAnalyzer"
                     sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
-                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis.log"
-                    archiveArtifacts "clang_build_analysis.log"
+                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${check_arch_name()}.log"
+                    archiveArtifacts "clang_build_analysis_${check_arch_name()}.log"
                 }
-                sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace.json"
-                archiveArtifacts "ck_build_trace.json"
+
 
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
@@ -652,9 +689,8 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        def arch_name = check_arch_name()
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
                     }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
@@ -680,9 +716,8 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        def arch_name = check_arch_name()
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
                     }
                 }
             }
@@ -1476,15 +1511,19 @@ pipeline {
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cd ../build && \
                                            ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 test_grouped_convnd_fwd_dataset_xdl && \
+                                           make -j64 test_grouped_convnd_fwd_dataset_xdl \
+                                           test_grouped_convnd_bwd_data_dataset_xdl \
+                                           test_grouped_convnd_bwd_weight_dataset_xdl && \
                                            cd ../test_data && \
                                            # Dataset generation modes:
                                            # - small: ~60 test cases (minimal, quick testing - 3 models, 2 batch sizes, 2 image sizes)
                                            # - half: ~300 test cases (moderate coverage - 16 models, 3 batch sizes, 5 image sizes), ~ 17 hours testing time
                                            # - full: ~600 test cases (comprehensive - 16 models, 5 batch sizes, 9 image sizes), ~ 40 hours testing time
-                                           ./generate_test_dataset.sh half && \
+                                           ./generate_test_dataset.sh small && \
                                            cd ../build && \
-                                           ./bin/test_grouped_convnd_fwd_dataset_xdl"""
+                                           ./bin/test_grouped_convnd_fwd_dataset_xdl && \
+                                           ./bin/test_grouped_convnd_bwd_data_dataset_xdl && \
+                                           ./bin/test_grouped_convnd_bwd_weight_dataset_xdl"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
@@ -1883,7 +1922,11 @@ pipeline {
                     node(rocmnode("nogpu")) {
                         script {
                             // Simulate capture
-                            generateAndArchiveBuildTraceVisualization()
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx11.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx12.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx90a.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx942.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx950.json")
                         }
                         cleanWs()
                     }
