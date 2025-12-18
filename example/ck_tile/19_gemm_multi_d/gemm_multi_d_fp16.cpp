@@ -84,24 +84,51 @@ auto gemm_multi_d(const gemm_multi_d_kargs& args, const ck_tile::stream_config& 
     const auto Run = [&](const auto memory_operation_) {
         constexpr auto memory_operation = memory_operation_.value;
 
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             EDataType,
-                                             DsLayout,
-                                             CLayout,
-                                             CDEElementWise,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             memory_operation>>;
+        // Epilogue selection: set to true for chainer-based, false for standard
+        // CShuffleEpilogue
+        constexpr bool UseChainerEpilogue = true;
+
+        using GemmEpilogue = std::conditional_t<
+            UseChainerEpilogue,
+            // Chainer-based epilogue
+            ck_tile::EpilogueChainer<ck_tile::CshuffleEpilogueSchedule<
+                ck_tile::CShuffleEpilogueChainProblem<ADataType,
+                                                      BDataType,
+                                                      DsDataType,
+                                                      AccDataType,
+                                                      EDataType,
+                                                      DsLayout,
+                                                      CLayout,
+                                                      CDEElementWise,
+                                                      TilePartitioner::MPerBlock,
+                                                      TilePartitioner::NPerBlock,
+                                                      M_Warp,
+                                                      N_Warp,
+                                                      M_Warp_Tile,
+                                                      N_Warp_Tile,
+                                                      K_Warp_Tile,
+                                                      UniversalGemmProblem::TransposeC,
+                                                      memory_operation>,
+                ck_tile::DefaultScheduleTag>>,
+            // Standard CShuffleEpilogue
+            ck_tile::CShuffleEpilogue<
+                ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                 BDataType,
+                                                 DsDataType,
+                                                 AccDataType,
+                                                 EDataType,
+                                                 DsLayout,
+                                                 CLayout,
+                                                 CDEElementWise,
+                                                 TilePartitioner::MPerBlock,
+                                                 TilePartitioner::NPerBlock,
+                                                 M_Warp,
+                                                 N_Warp,
+                                                 M_Warp_Tile,
+                                                 N_Warp_Tile,
+                                                 K_Warp_Tile,
+                                                 UniversalGemmProblem::TransposeC,
+                                                 memory_operation>>>;
 
         using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
