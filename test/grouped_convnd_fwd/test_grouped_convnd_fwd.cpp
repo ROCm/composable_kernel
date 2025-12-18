@@ -46,7 +46,7 @@ class TestGroupedConvndFwd : public ::testing::Test
                                                                               DataType,
                                                                               DataType,
                                                                               IndexType>(
-                               true,  // do_verification
+                               2,     // do_verification
                                1,     // init_method: integer value
                                false, // do_log
                                false, // time_kernel
