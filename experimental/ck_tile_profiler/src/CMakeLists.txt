@@ -1,6 +1,6 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-if (CK_EXPERIMENTAL_BUILDER)
+if (CK_EXPERIMENTAL_PROFILER)
 
     add_library(ck_tile_grouped_conv_bwd_data_bf16_instances STATIC
         tile_grouped_conv_bwd_data_bf16_instances.cpp
