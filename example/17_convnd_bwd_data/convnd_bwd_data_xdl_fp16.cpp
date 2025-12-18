@@ -119,16 +119,19 @@ int main(int argc, char* argv[])
                                  InElementOp,
                                  WeiElementOp,
                                  OutElementOp,
-                                 DeviceConvNdBwdDataInstance<1>>(do_verification,
-                                                                 init_method,
-                                                                 time_kernel,
-                                                                 conv_param,
-                                                                 in_g_n_c_wis_desc,
-                                                                 wei_g_k_c_xs_desc,
-                                                                 out_g_n_k_wos_desc,
-                                                                 in_element_op,
-                                                                 wei_element_op,
-                                                                 out_element_op);
+                                 DeviceConvNdBwdDataInstance<1>,
+                                 InLayout,
+                                 WeiLayout,
+                                 OutLayout>(do_verification,
+                                            init_method,
+                                            time_kernel,
+                                            conv_param,
+                                            in_g_n_c_wis_desc,
+                                            wei_g_k_c_xs_desc,
+                                            out_g_n_k_wos_desc,
+                                            in_element_op,
+                                            wei_element_op,
+                                            out_element_op);
     }
     else if(conv_param.num_dim_spatial_ == 2)
     {
@@ -155,16 +158,19 @@ int main(int argc, char* argv[])
                                  InElementOp,
                                  WeiElementOp,
                                  OutElementOp,
-                                 DeviceConvNdBwdDataInstance<2>>(do_verification,
-                                                                 init_method,
-                                                                 time_kernel,
-                                                                 conv_param,
-                                                                 in_g_n_c_wis_desc,
-                                                                 wei_g_k_c_xs_desc,
-                                                                 out_g_n_k_wos_desc,
-                                                                 in_element_op,
-                                                                 wei_element_op,
-                                                                 out_element_op);
+                                 DeviceConvNdBwdDataInstance<2>,
+                                 InLayout,
+                                 WeiLayout,
+                                 OutLayout>(do_verification,
+                                            init_method,
+                                            time_kernel,
+                                            conv_param,
+                                            in_g_n_c_wis_desc,
+                                            wei_g_k_c_xs_desc,
+                                            out_g_n_k_wos_desc,
+                                            in_element_op,
+                                            wei_element_op,
+                                            out_element_op);
     }
     else if(conv_param.num_dim_spatial_ == 3)
     {
@@ -191,16 +197,19 @@ int main(int argc, char* argv[])
                                  InElementOp,
                                  WeiElementOp,
                                  OutElementOp,
-                                 DeviceConvNdBwdDataInstance<3>>(do_verification,
-                                                                 init_method,
-                                                                 time_kernel,
-                                                                 conv_param,
-                                                                 in_g_n_c_wis_desc,
-                                                                 wei_g_k_c_xs_desc,
-                                                                 out_g_n_k_wos_desc,
-                                                                 in_element_op,
-                                                                 wei_element_op,
-                                                                 out_element_op);
+                                 DeviceConvNdBwdDataInstance<3>,
+                                 InLayout,
+                                 WeiLayout,
+                                 OutLayout>(do_verification,
+                                            init_method,
+                                            time_kernel,
+                                            conv_param,
+                                            in_g_n_c_wis_desc,
+                                            wei_g_k_c_xs_desc,
+                                            out_g_n_k_wos_desc,
+                                            in_element_op,
+                                            wei_element_op,
+                                            out_element_op);
     }
 
     return 0;
