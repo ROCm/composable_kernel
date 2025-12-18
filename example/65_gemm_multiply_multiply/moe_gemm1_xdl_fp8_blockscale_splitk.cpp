@@ -128,7 +128,7 @@ static constexpr ck::index_t CShuffleMXDLPerWave = MXDLPerWave;
 static constexpr ck::index_t CShuffleNXDLPerWave = NXDLPerWave;
 static constexpr ck::index_t BLOCKSIZE           = 256;
 
-static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
+static constexpr ck::index_t KPerBlock = 256 / sizeof(A0DataType);
 static constexpr ck::index_t AK1       = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1       = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec      = 16 / sizeof(EDataType);
