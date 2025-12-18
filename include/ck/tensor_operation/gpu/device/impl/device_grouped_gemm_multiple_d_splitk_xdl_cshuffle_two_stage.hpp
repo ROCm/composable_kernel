@@ -354,15 +354,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 const index_t k0_padded = GridwiseGemm64::CalculateK0Padded(K, K_BATCH);
 
                 // Two different strides are needed for TwoStage split-K:
-                // 1. workspace_stride (below): Padded stride for intermediate workspace (C grid)
-                //    - Must match block tiling, so uses n_padded (RowMajor) or m_padded
-                //    (ColumnMajor)
+                // 1. workspace_stride (below): Stride for intermediate workspace (C grid)
                 //    - Used by GEMM kernel to write workspace tiles
                 // 2. gemm_descs[i].stride_C_: User-provided stride for final output (E tensor)
-                //    - May be non-padded, matches user's requested output layout
                 //    - Used by elementwise kernel to write final results
                 const index_t workspace_stride =
-                    is_same<tensor_layout::gemm::RowMajor, ELayout>::value ? n_padded : m_padded;
+                    is_same<tensor_layout::gemm::RowMajor, ELayout>::value ? N : M;
 
                 const auto c_grid_desc_m_n =
                     GridwiseGemm64::MakeCGridDescriptor_M_N(M, N, workspace_stride);
