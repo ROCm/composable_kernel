@@ -113,7 +113,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         const auto col_lens  = make_tuple(K0, number<K1>{}, number<K2>{});
 
         constexpr index_t M1 = 4; // so that we can use imm offset to load lds
-        const index_t M0     = rows / M1;
+        const index_t M0     = integer_divide_ceil(rows, M1);
         const auto row_lens  = make_tuple(M0, number<M1>{});
 
         const auto desc_0 =
