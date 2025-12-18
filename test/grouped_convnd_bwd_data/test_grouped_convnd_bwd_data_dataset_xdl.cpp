@@ -73,7 +73,7 @@ bool RunConvBwdDataTest(const ck::utils::conv::ConvParam& param, ck::index_t spl
                                                             InLayout,
                                                             DataType,
                                                             DataType,
-                                                            DataType>(true,    // do_verification
+                                                            DataType>(2,       // do_verification
                                                                       1,       // init_method
                                                                       false,   // do_log
                                                                       false,   // time_kernel

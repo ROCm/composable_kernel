@@ -198,7 +198,7 @@ int main(int argc, char* argv[])
         }
         else if(arg.data_type == 3)
         {
-            pass = reduce_blockwise_test<int8_t, float, ReduceOpId, PropagateNan, OutputIndex>(
+            pass = reduce_blockwise_test<int8_t, int32_t, ReduceOpId, PropagateNan, OutputIndex>(
                 arg.do_verification,
                 arg.init_method,
                 arg.time_kernel,
