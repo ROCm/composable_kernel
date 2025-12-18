@@ -84,3 +84,81 @@ TEST(TensorForeach, VisitsEveryIndex)
 
     EXPECT_THAT(actual, Each(Eq(1)));
 }
+
+TEST(TensorForeach, FillTensorBuffer)
+{
+    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(ckt::Extent{31, 54, 13},
+                                                           ckt::PackedRightLayout{});
+
+    auto buffer = ckt::alloc_tensor_buffer(desc);
+
+    ckt::fill_tensor_buffer(desc, buffer.get(), [](size_t i) { return static_cast<uint32_t>(i); });
+
+    std::vector<uint32_t> h_buffer(desc.get_element_space_size());
+    ckt::check_hip(hipMemcpy(
+        h_buffer.data(), buffer.get(), h_buffer.size() * sizeof(uint32_t), hipMemcpyDeviceToHost));
+
+    for(size_t i = 0; i < h_buffer.size(); ++i)
+    {
+        EXPECT_THAT(h_buffer[i], Eq(static_cast<uint32_t>(i)));
+    }
+}
+
+TEST(TensorForeach, FillTensor)
+{
+    // FillTensor with non-packed indices should not write out-of-bounds.
+    const ckt::Extent shape = {4, 23, 35};
+    const ckt::Extent pad   = {12, 53, 100};
+    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(shape, ckt::PackedRightLayout{}(pad));
+    const auto strides = desc.get_strides();
+
+    auto size   = desc.get_element_space_size();
+    auto buffer = ckt::alloc_tensor_buffer(desc);
+
+    ckt::fill_tensor_buffer(desc, buffer.get(), []([[maybe_unused]] size_t i) { return 123; });
+
+    ckt::fill_tensor(desc, buffer.get(), []([[maybe_unused]] const auto& index) { return 1; });
+
+    auto d_error = ckt::alloc_buffer(sizeof(uint32_t) * size);
+    ckt::check_hip(hipMemset(d_error.get(), 0, sizeof(uint32_t)));
+
+    ckt::tensor_foreach(
+        // Iterate over the entire padding so that we can check out-of-bounds elements
+        pad,
+        [shape, pad, strides, size, error = d_error.get(), tensor = buffer.get()](
+            const auto& index) {
+            const auto offset = ckt::calculate_offset(index, strides);
+            const auto value  = reinterpret_cast<const uint32_t*>(tensor)[offset];
+
+            // Note: The space of the descriptor will not actually be (12, 53, 100) but
+            // more like (4, 53, 100), as the outer stride is irrelevant. So we have to
+            // perform an extra bounds check here.
+            if(offset < size)
+            {
+                // Check if the coordinate is within the shape bounds.
+                bool in_bounds = true;
+                for(size_t i = 0; i < shape.size(); ++i)
+                {
+                    if(index[i] >= shape[i])
+                    {
+                        in_bounds = false;
+                    }
+                }
+
+                // In-bounds elements are 1, out-of-bounds is 123.
+                if(in_bounds && value != 1)
+                {
+                    atomicAdd(reinterpret_cast<uint32_t*>(error), 1);
+                }
+                else if(!in_bounds && value != 123)
+                {
+                    atomicAdd(reinterpret_cast<uint32_t*>(error), 1);
+                }
+            }
+        });
+
+    uint32_t error_count = 0;
+    ckt::check_hip(hipMemcpy(&error_count, d_error.get(), sizeof(uint32_t), hipMemcpyDeviceToHost));
+
+    EXPECT_THAT(error_count, Eq(0));
+}

@@ -3,10 +3,11 @@
 
 #pragma once
 
+#include "ck_tile/builder/testing/tensor_descriptor.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include <cstdint>
 #include <concepts>
 #include <array>
-#include "ck_tile/builder/testing/tensor_buffer.hpp"
 
 /// This file implements a generic GPU tensor "foreach" function. This
 /// functionality turned out useful in separate parts of the testing
@@ -16,6 +17,15 @@
 /// should that be needed.
 
 namespace ck_tile::builder::test {
+
+/// @brief Concept for constraining tensor iteration functors.
+///
+/// This concept checks that a functor has the correct signature for
+/// use with the `tensor_foreach` function.
+template <typename F, int RANK>
+concept ForeachFunctor = requires(const F& f, const Extent<RANK>& index) {
+    { f(index) } -> std::same_as<void>;
+};
 
 namespace detail {
 
@@ -27,15 +37,6 @@ namespace detail {
 ///
 /// @see tensor_foreach
 constexpr int DEVICE_FOREACH_BLOCK_SIZE = 256;
-
-/// @brief Concept for constraining tensor iteration functors
-///
-/// This concept checks that a functor has the correct signature for
-/// use with the `tensor_foreach` function.
-template <typename F, int RANK>
-concept ForeachFunctor = requires(const F& f, const Extent<RANK>& index) {
-    { f(index) } -> std::same_as<void>;
-};
 
 /// @brief Tensor iteration kernel
 ///
@@ -54,8 +55,9 @@ concept ForeachFunctor = requires(const F& f, const Extent<RANK>& index) {
 /// @param f The callback to invoke for each index of the tensor. This
 /// functor must be eligible for running on the GPU.
 template <int BLOCK_SIZE, size_t RANK, typename F>
+    requires ForeachFunctor<F, RANK>
 __global__ __launch_bounds__(BLOCK_SIZE) //
-    void foreach_kernel(const size_t numel, Extent<RANK> shape_scan, ForeachFunctor<F, RANK> auto f)
+    void foreach_kernel(const size_t numel, Extent<RANK> shape_scan, F f)
 {
     const auto gid = blockIdx.x * BLOCK_SIZE + threadIdx.x;
     for(size_t flat_idx = gid; flat_idx < numel; flat_idx += gridDim.x * BLOCK_SIZE)
@@ -75,6 +77,13 @@ __global__ __launch_bounds__(BLOCK_SIZE) //
         f(index);
     }
 }
+
+/// @brief A utility to get a C++ type for a CKB type
+///
+/// Right now this is just an alias of an internal CKB helper,
+/// but this should probably be moved elsewhere.
+template <builder::DataType DT>
+using cpp_type_t = typename builder::factory::internal::DataTypeToCK<DT>::type;
 
 } // namespace detail
 
@@ -128,13 +137,13 @@ __host__ __device__ size_t calculate_offset(const Extent<RANK>& index, const Ext
 /// @param f The callback to invoke for each index of the tensor. This
 /// functor must be eligible for running on the GPU.
 ///
-/// @see detail::ForeachFunctor
+/// @see ForeachFunctor
 /// @see detail::foreach_kernel
 template <size_t RANK>
-void tensor_foreach(const Extent<RANK>& shape, detail::ForeachFunctor<RANK> auto f)
+void tensor_foreach(const Extent<RANK>& shape, ForeachFunctor<RANK> auto f)
 {
     constexpr int block_size = detail::DEVICE_FOREACH_BLOCK_SIZE;
-    const auto kernel        = detail::foreach_kernel<block_size, RANK, F>;
+    const auto kernel        = detail::foreach_kernel<block_size, RANK, decltype(f)>;
 
     int occupancy;
     check_hip(hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, block_size, 0));
@@ -151,7 +160,7 @@ void tensor_foreach(const Extent<RANK>& shape, detail::ForeachFunctor<RANK> auto
     // order in the kernel is from large-to-small. Right layout is the
     // easiest solution for that.
 
-    std::array<size_t, RANK> shape_scan;
+    Extent<RANK> shape_scan;
     size_t numel = 1;
     for(int i = RANK; i > 0; --i)
     {
@@ -166,6 +175,76 @@ void tensor_foreach(const Extent<RANK>& shape, detail::ForeachFunctor<RANK> auto
     check_hip(hipGetLastError());
 }
 
-} // namespace ck_tile::builder::test
+/// @brief Concept for tensor initializing functors.
+///
+/// This concept checks that a functor has the correct signature for
+/// use with the `fill_tensor` function.
+template <typename F, builder::DataType DT, size_t RANK>
+concept FillTensorFunctor = requires(const F& f, const Extent<RANK>& index) {
+    { f(index) } -> std::convertible_to<detail::cpp_type_t<DT>>;
+};
 
-std::same_as<int> auto square(std::same_as<int> auto x) { return x * x; }
+/// @brief Utility for initializing tensors.
+///
+/// This function is a utility helper for initializing tensors. It accepts a
+/// tensor descriptor, buffer, and a callback. The callback is invoked for every
+/// coordinate (which is passed to the callback), and the tensor is initialized
+/// with resulting value.
+///
+/// @tparam DT The tensor element datatype
+/// @tparam RANK The rank (number of spatial dimensions) of the tensor.
+///
+/// @param desc The descriptor of the tensor to initialize.
+/// @param buffer The memory of the tensor to initialize.
+/// @param f A functor used to get the value at a particular coordinate.
+///
+/// @see FillTensorFunctor
+template <builder::DataType DT, size_t RANK>
+void fill_tensor(const TensorDescriptor<DT, RANK>& desc,
+                 void* buffer,
+                 FillTensorFunctor<DT, RANK> auto f)
+{
+    const auto strides = desc.get_strides();
+    tensor_foreach(desc.get_lengths(), [buffer, f, strides](const auto& index) {
+        using T           = detail::cpp_type_t<DT>;
+        auto* ptr         = static_cast<T*>(buffer);
+        const auto offset = calculate_offset(index, strides);
+
+        ptr[offset] = f(index);
+    });
+}
+
+/// @brief Concept for tensor buffer initializing functors.
+///
+/// This concept checks that a functor has the correct signature for
+/// use with the `fill_tensor_buffer` function.
+template <typename F, builder::DataType DT>
+concept FillTensorBufferFunctor = requires(const F& f, size_t index) {
+    { f(index) } -> std::convertible_to<detail::cpp_type_t<DT>>;
+};
+
+/// @brief Utility for initializing tensor buffers.
+///
+/// This function is a utility for initializing memory backing a tensor buffer. In
+/// contrast to `fill_tensor`, this function first extracts the backing space of
+/// the tensor, and then invokes the callback for each (flat) index. This function
+/// is particular useful for initializing out-of-bounds indices with a known with a
+/// known value.
+///
+/// @tparam DT The tensor element datatype
+/// @tparam RANK The rank (number of spatial dimensions) of the tensor.
+///
+/// @param desc The descriptor of the tensor to initialize.
+/// @param buffer The memory of the tensor to initialize.
+/// @param f A functor used to get the value at a particular index.
+///
+/// @see FillTensorBufferFunctor
+template <builder::DataType DT, size_t RANK>
+void fill_tensor_buffer(const TensorDescriptor<DT, RANK>& desc,
+                        void* buffer,
+                        FillTensorBufferFunctor<DT> auto f)
+{
+    fill_tensor(desc.get_space_descriptor(), buffer, [f](auto index) { return f(index[0]); });
+}
+
+} // namespace ck_tile::builder::test
