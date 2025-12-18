@@ -123,11 +123,27 @@ add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
 
-# add -Og -gdwarf64 for debug builds
-add_compile_options(
-    "$<$<CONFIG:Debug>:-Og>"
-    "$<$<CONFIG:Debug>:-gdwarf64>"
-)
+# add -Og and debug info for debug builds
+# Use -gdwarf-4 on Windows (clang doesn't support -gdwarf64 on Windows)
+# Use -gdwarf64 on Linux for better debug info
+if(WIN32)
+    add_compile_options(
+        "$<$<CONFIG:Debug>:-Og>"
+        "$<$<CONFIG:Debug>:-gdwarf-4>"
+    )
+    # Disable MSVC debug runtime checks for HIP device code
+    # The MSVC debug runtime (_DEBUG, msvcrtd) includes _CrtDbgReport which is host-only
+    # and cannot be called from device code
+    add_compile_options(
+        "$<$<CONFIG:Debug>:-D_ITERATOR_DEBUG_LEVEL=0>"
+        "$<$<CONFIG:Debug>:-U_DEBUG>"
+    )
+else()
+    add_compile_options(
+        "$<$<CONFIG:Debug>:-Og>"
+        "$<$<CONFIG:Debug>:-gdwarf64>"
+    )
+endif()
 
 # Recent change in compiler makes this warning ON by default, which led to compile errors.
 add_compile_options(-Wno-nrvo)
