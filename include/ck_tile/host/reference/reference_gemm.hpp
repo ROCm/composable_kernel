@@ -231,7 +231,7 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
 
             const ck_tile::index_t k_group = static_cast<ck_tile::index_t>(k_begin / kGroupK);
             const float scale_a            = load_scale_a(k_group);
-			const float scale_b            = load_scale_b(k_group);
+            const float scale_b            = load_scale_b(k_group);
 
             v_acc += v_block_acc * scale_a * scale_b;
         }

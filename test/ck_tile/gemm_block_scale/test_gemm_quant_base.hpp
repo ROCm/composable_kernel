@@ -83,7 +83,7 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     static constexpr bool kPadM = GemmConfig::kPadM;
     static constexpr bool kPadN = GemmConfig::kPadN;
     static constexpr bool kPadK = GemmConfig::kPadK;
-	
+
     public:
     void SetUp() override { static_cast<Derived*>(this)->SetUpQuantTypeSpecific(); }
 
