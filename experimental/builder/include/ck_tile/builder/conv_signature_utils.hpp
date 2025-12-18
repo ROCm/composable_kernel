@@ -16,18 +16,22 @@ namespace ck_tile::builder {
  **********************************************/
 
 template <auto Sig>
-concept ProvidesElementwiseOperation = requires { Sig.elementwiseOperation; };
+concept ProvidesElementwiseOperation = requires { Sig.elementwise_operation; };
+
+template <auto ConvTensor>
+concept ConvTensorHasOp = requires { ConvTensor.operation; };
 
 template <auto Sig>
 concept ProvidesConvolutionDirection = requires { Sig.direction; };
 
-// returns elementwise operation for signature. Will default to PASS_THROUGH if not provided by signature
+// returns elementwise operation for signature. Will default to PASS_THROUGH if not provided by
+// signature
 template <auto Sig>
 constexpr auto getInputElementwiseOperation()
 {
-    if constexpr(ck_tile::builder::ProvidesElementwiseOperation<Sig.input>)
+    if constexpr(ConvTensorHasOp<Sig.input>)
     {
-        return Sig.input.elementwise_operation;
+        return Sig.input.operation.elementwise_operation;
     }
     else if constexpr(ProvidesElementwiseOperation<Sig>)
     {
@@ -42,9 +46,9 @@ constexpr auto getInputElementwiseOperation()
 template <auto Sig>
 constexpr auto getWeightElementwiseOperation()
 {
-    if constexpr(ProvidesElementwiseOperation<Sig.weight>)
+    if constexpr(ConvTensorHasOp<Sig.weight>)
     {
-        return Sig.weight.elementwise_operation;
+        return Sig.weight.operation.elementwise_operation;
     }
     else if constexpr(ProvidesElementwiseOperation<Sig>)
     {
@@ -59,9 +63,9 @@ constexpr auto getWeightElementwiseOperation()
 template <auto Sig>
 constexpr auto getOutputElementwiseOperation()
 {
-    if constexpr(ProvidesElementwiseOperation<Sig.weight>)
+    if constexpr(ConvTensorHasOp<Sig.output>)
     {
-        return Sig.weight.elementwise_operation;
+        return Sig.output.operation.elementwise_operation;
     }
     else if constexpr(ProvidesElementwiseOperation<Sig>)
     {
@@ -87,27 +91,26 @@ constexpr auto getConvDirection()
     }
 }
 
-
 // return data type of input tensor
-template<auto Sig>
+template <auto Sig>
     requires ck_tile::builder::ValidConvSignature<Sig>
 consteval auto getInputDataType()
 {
-    return  GetTensorDataAndComputeTypes<Sig.input.config, Sig.data_type>().get(0);
+    return GetTensorDataAndComputeTypes<Sig.input.config, Sig.data_type>().get(0);
 }
 
-template<auto Sig>
+template <auto Sig>
     requires ck_tile::builder::ValidConvSignature<Sig>
 consteval auto getWeightDataType()
 {
-    return  GetTensorDataAndComputeTypes<Sig.weight.config, Sig.data_type>().get(0);
+    return GetTensorDataAndComputeTypes<Sig.weight.config, Sig.data_type>().get(0);
 }
 
-template<auto Sig>
+template <auto Sig>
     requires ck_tile::builder::ValidConvSignature<Sig>
 consteval auto getOutputDataType()
 {
-    return  GetTensorDataAndComputeTypes<Sig.output.config, Sig.data_type>().get(0);
+    return GetTensorDataAndComputeTypes<Sig.output.config, Sig.data_type>().get(0);
 }
 
 // returns data type if and only if all tensors have the same type.
@@ -117,7 +120,7 @@ template <auto Sig>
 consteval auto getDataTypeIfCommon()
 {
 
-    auto inputDataType = getInputDataType<Sig>();
+    auto inputDataType  = getInputDataType<Sig>();
     auto weightDataType = getWeightDataType<Sig>();
     auto outputDataType = getOutputDataType<Sig>();
 
@@ -129,6 +132,5 @@ consteval auto getDataTypeIfCommon()
     {
         return DataType::UNDEFINED_DATA_TYPE;
     }
-
 }
 } // namespace ck_tile::builder

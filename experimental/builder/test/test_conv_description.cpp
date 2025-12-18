@@ -10,6 +10,7 @@
 #include "testing_utils.hpp"
 #include "impl/conv_signature_types.hpp"
 #include "impl/conv_algorithm_types.hpp"
+#include "ck_tile/builder/conv_signature_utils.hpp"
 
 namespace {
 
@@ -154,6 +155,65 @@ struct DefaultAlgorithm
                                     .scheduler        = ckb::PipelineScheduler::INTRAWAVE};
 };
 static_assert(ckb::ConvAlgorithmDescriptor<DefaultAlgorithm>);
+
+struct ConvSignatureUtilsTest1
+{
+    using enum ckb::DataType;
+    using enum ckb::TensorLayout;
+    using enum ckb::ConvDirection;
+    using enum ckb::ElementwiseOperation;
+
+    int spatial_dim                      = 2;
+    ckb::DataType data_type              = FP16;
+    ckb::DataType accumulation_data_type = FP32;
+    ckb::ConvDirection direction         = FORWARD;
+    ConvTensorWithOp input               = {
+                      .config = {GNHWC, FP16},
+    };
+    ConvTensorWithOp weight = {.config = {GKYXC, FP16}};
+    ConvTensorWithOp output = {.config = {GNHWK, BF16}, .operation = {SCALE}};
+};
+
+static_assert(ckb::ConvSignatureDescriptor<ConvSignatureUtilsTest1>);
+
+struct ConvSignatureUtilsTest2
+{
+    using enum ckb::DataType;
+    using enum ckb::TensorLayout;
+    using enum ckb::ConvDirection;
+    using enum ckb::ElementwiseOperation;
+
+    int spatial_dim                                 = 2;
+    ckb::DataType data_type                         = FP16;
+    ckb::ElementwiseOperation elementwise_operation = CONV_INVSCALE;
+    ckb::DataType accumulation_data_type            = FP32;
+    ckb::ConvDirection direction                    = FORWARD;
+    ConvTensorSimple input                          = {
+                                 .config = {GNHWC, FP16},
+    };
+    ConvTensorWithOp weight = {.config = {GKYXC, FP16}, .operation = {POWER}};
+    ConvTensorWithOp output = {.config = {GNHWK, BF16}, .operation = {GELU}};
+};
+
+static_assert(ckb::ConvSignatureDescriptor<ConvSignatureUtilsTest2>);
+
+TEST(ConvUtilsTest, getElementwiseOperation1)
+{
+    using enum ckb::ElementwiseOperation;
+    static constexpr const ConvSignatureUtilsTest1 SIGNATURE;
+    EXPECT_THAT(ckb::getInputElementwiseOperation<SIGNATURE>(), PASS_THROUGH);
+    EXPECT_THAT(ckb::getWeightElementwiseOperation<SIGNATURE>(), PASS_THROUGH);
+    EXPECT_THAT(ckb::getOutputElementwiseOperation<SIGNATURE>(), SCALE);
+}
+
+TEST(ConvUtilsTest, getElementwiseOperation2)
+{
+    using enum ckb::ElementwiseOperation;
+    static constexpr const ConvSignatureUtilsTest2 SIGNATURE;
+    EXPECT_THAT(ckb::getInputElementwiseOperation<SIGNATURE>(), CONV_INVSCALE);
+    EXPECT_THAT(ckb::getWeightElementwiseOperation<SIGNATURE>(), POWER);
+    EXPECT_THAT(ckb::getOutputElementwiseOperation<SIGNATURE>(), GELU);
+}
 
 TEST(ConvDescriptionTest, DefaultInstanceHasBriefDescription)
 {
