@@ -500,12 +500,18 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             WorkspaceDataType* p_workspace = reinterpret_cast<WorkspaceDataType*>(p_workspace_);
             std::size_t offset             = 0;
 
-            for(std::size_t i = 0; i < gemm_kernel_args_.size(); ++i)
+            for(auto& arg : gemm_kernel_args_)
             {
-                gemm_kernel_args_[i].karg_.p_c_grid = p_workspace + offset;
-                // Workspace must accommodate block-aligned writes with padded stride
-                // GEMM writes in MPerBlock * NPerBlock blocks, so needs full MPadded rows
-                offset += gemm_kernel_args_[i].karg_.MPadded * gemm_kernel_args_[i].karg_.StrideC;
+                arg.karg_.p_c_grid = p_workspace + offset;
+                index_t tiles      = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
+                offset += tiles * MPerBlock * NPerBlock;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "block_start: " << arg.block_start_ << "\n"
+                              << "block_end: " << arg.block_end_ << "\n"
+                              << "tiles: " << tiles << "\n"
+                              << "offset: " << offset << std::endl;
+                }
             }
         }
 
@@ -515,8 +521,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
             for(const auto& arg : gemm_kernel_args_)
             {
-                // Workspace must accommodate block-aligned writes with padded stride
-                size_bytes += arg.karg_.MPadded * arg.karg_.StrideC * sizeof(WorkspaceDataType);
+                index_t tiles = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
+                size_bytes += tiles * MPerBlock * NPerBlock * sizeof(WorkspaceDataType);
             }
             return size_bytes;
         }
@@ -524,8 +530,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         std::size_t GetWorkspaceSize(std::size_t group) const
         {
             const auto& arg = gemm_kernel_args_[group];
-            // Workspace must accommodate block-aligned writes with padded stride
-            return arg.karg_.MPadded * arg.karg_.StrideC;
+            index_t tiles   = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
+            return tiles * MPerBlock * NPerBlock;
         }
 
         //  private:
@@ -813,8 +819,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                     concat_tuple(make_tuple(arg.gemm_kernel_args_[i].karg_.p_c_grid),
                                  arg.ds_grid_pointer_[i]),
                     type_convert<EDataType*>(arg.e_ptrs_[i]),
-                    Block2TileMap{arg.elementwise_c_grid_descs_m_n_[i].GetLength(I0),
-                                  arg.elementwise_c_grid_descs_m_n_[i].GetLength(I1)},
+                    Block2TileMap{arg.elementwise_e_grid_descs_m_n_[i].GetLength(I0),
+                                  arg.elementwise_e_grid_descs_m_n_[i].GetLength(I1)},
                     arg.cde_element_op_);
             }
             return time;
