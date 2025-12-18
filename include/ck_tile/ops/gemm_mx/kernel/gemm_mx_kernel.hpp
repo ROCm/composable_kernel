@@ -29,21 +29,28 @@ struct MXGemmKernelArgs : UniversalGemmKernelArgs<NumATensor, NumBTensor, NumDTe
                                   const std::array<index_t, NumATensor>& stride_As_,
                                   const std::array<index_t, NumBTensor>& stride_Bs_,
                                   const std::array<index_t, NumDTensor>& stride_Ds_,
-                                  index_t stride_E_)
-        : Base(as_ptr_,
+                                  index_t stride_E_,
+                                  ScaleM scale_m_ptr_,
+                                  ScaleN scale_n_ptr_)
+        : Base{as_ptr_,
                bs_ptr_,
                ds_ptr_,
                e_ptr_,
-               k_batch_,
                M_,
                N_,
                K_,
                stride_As_,
                stride_Bs_,
                stride_Ds_,
-               stride_E_)
+               stride_E_,
+               k_batch_},
+          scale_m_ptr(scale_m_ptr_),
+          scale_n_ptr(scale_n_ptr_)
     {
     }
+
+    ScaleM scale_m_ptr;
+    ScaleN scale_n_ptr;
 };
 
 template <typename TilePartitioner_, typename MXGemmPipeline_, typename EpiloguePipeline_>
@@ -64,8 +71,6 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     static constexpr index_t KernelBlockSize  = MXGemmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = MXGemmPipeline::UsePersistentKernel;
 
-    using ADataType = remove_cvref_t<typename MXGemmPipeline::ADataType>;
-    using BDataType = remove_cvref_t<typename MXGemmPipeline::BDataType>;
     // Below type is actually accumulation data type - the output of block GEMM.
     using EDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
@@ -76,12 +81,12 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     static constexpr auto I4 = number<4>();
     static constexpr auto I5 = number<5>();
 
-    static constexpr index_t NumATensor = typename Underlying::AsDataType::size();
-    static constexpr index_t NumBTensor = typename Underlying::BsDataType::size();
-    static constexpr index_t NumDTensor = typename Underlying::DsDataType::size();
+    static constexpr index_t NumATensor = Underlying::AsDataType::size();
+    static constexpr index_t NumBTensor = Underlying::BsDataType::size();
+    static constexpr index_t NumDTensor = Underlying::DsDataType::size();
 
-    using ADataType = remove_cvref_t<std::tuple_element_t<I0, AsDataType>>;
-    using BDataType = remove_cvref_t<std::tuple_element_t<I0, BsDataType>>;
+    using ADataType = remove_cvref_t<std::tuple_element_t<I0, typename Underlying::AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<I0, typename Underlying::BsDataType>>;
 
     static constexpr auto MThreadPerXdl = BlockGemmShape::WarpTile::at(number<0>{});
     static constexpr auto NThreadPerXdl = BlockGemmShape::WarpTile::at(number<1>{});
@@ -93,6 +98,8 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     static constexpr auto MXdlPack = MXGemmPipeline::MXdlPack;
     static constexpr auto NXdlPack = MXGemmPipeline::NXdlPack;
     static constexpr auto KXdlPack = MXGemmPipeline::KXdlPack;
+
+    static constexpr int kBlockPerCu = 1;
 
     static_assert(DsLayout::size() == DsDataType::size(),
                   "The size of DsLayout and DsDataType should be the same");
@@ -106,6 +113,38 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
 
     template <typename ScaleM, typename ScaleN>
     using KernelArgs = MXGemmKernelArgs<ScaleM, ScaleN, NumATensor, NumBTensor, NumDTensor>;
+
+    template <typename ScaleM, typename ScaleN>
+    CK_TILE_HOST static auto MakeKernelArgs(const std::array<const void*, NumATensor>& as_ptr,
+                                            const std::array<const void*, NumBTensor>& bs_ptr,
+                                            const std::array<const void*, NumDTensor>& ds_ptr,
+                                            void* e_ptr,
+                                            index_t k_batch,
+                                            index_t M,
+                                            index_t N,
+                                            index_t K,
+                                            const std::array<index_t, NumATensor>& stride_As,
+                                            const std::array<index_t, NumBTensor>& stride_Bs,
+                                            const std::array<index_t, NumDTensor>& stride_Ds,
+                                            index_t stride_E,
+                                            ScaleM scale_m_ptr,
+                                            ScaleN scale_n_ptr)
+    {
+        return KernelArgs<ScaleM, ScaleN>(as_ptr,
+                                          bs_ptr,
+                                          ds_ptr,
+                                          e_ptr,
+                                          k_batch,
+                                          M,
+                                          N,
+                                          K,
+                                          stride_As,
+                                          stride_Bs,
+                                          stride_Ds,
+                                          stride_E,
+                                          scale_m_ptr,
+                                          scale_n_ptr);
+    }
 
     template <class ScaleM, class ScaleN>
     CK_TILE_HOST static constexpr auto
@@ -146,12 +185,12 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
                         const std::array<const void*, NumDTensor>& ds_ptr,
                         EDataType* e_ptr,
                         const KernelArgs<ScaleM, ScaleN>& kargs,
-                        const index_t k_size)
+                        const SplitKBatchOffset& splitk_batch_offset)
     {
         // Get tensor views from the UniversalGemmKernel
         const auto& gemm_tensor_views_tuple =
             Underlying::template MakeGemmTensorViews<DstInMemOp>(
-                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, k_size);
+                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset.splitted_k);
 
         auto scale_a = kargs.scale_m_ptr;
         auto scale_b = kargs.scale_n_ptr;
@@ -198,7 +237,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     template <typename TensorView>
     CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views)
     {
-        const auto& padded_views = Underlying::template MakeGemmPadViews(views);
+        const auto& padded_views = Underlying::template MakeGemmPadViews<TensorView>(views);
 
         return make_tuple(
             padded_views.at(I0), padded_views.at(I1), padded_views.at(I2), padded_views.at(I3), views.at(I4), views.at(I5));
@@ -208,7 +247,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     CK_TILE_DEVICE static auto
     MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
-        const auto& tile_windows = Underlying::template MakeGemmTileWindows(views, i_m, i_n);
+        const auto& tile_windows = Underlying::template MakeGemmTileWindows<PadView>(views, i_m, i_n);
 
         static constexpr int BlockScaleSize = 32;
 
@@ -234,8 +273,8 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
 
     template <class ScaleM, class ScaleN, bool UseDefaultScheduler = true>
     CK_TILE_DEVICE static void
-    RunMxGemm(const ADataType* a_ptr,
-              const BDataType* b_ptr,
+    RunMxGemm(const std::array<const ADataType*, NumATensor>& as_ptr,
+              const std::array<const BDataType*, NumBTensor>& bs_ptr,
               const std::array<const void*, NumDTensor>& ds_ptr,
               EDataType* e_ptr,
               void* smem_ptr_ping,
@@ -248,7 +287,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                a_ptr, b_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
+                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
@@ -269,7 +308,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
             (ScaleM::GranularityMN != -1 && ScaleM::GranularityK == 0) || // per token
             (ScaleN::GranularityMN != -1 && ScaleN::GranularityK == 0);   // per channel
 
-        const auto& c_block_tile = MXFlatmmPipeline{}(a_block_window,
+        const auto& c_block_tile = MXGemmPipeline{}(a_block_window,
                                                       b_flat_block_window,
                                                       scale_a_block_window,
                                                       scale_b_block_window,
@@ -281,12 +320,44 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
         if constexpr(DoEpiScale)
         {
             auto& c_block_window = gemm_tile_windows.at(I3);
+            
+            auto scale_m_ptr_offset = kargs.scale_m_ptr + block_idx_m;
+            auto scale_n_ptr_offset = kargs.scale_n_ptr + block_idx_n;
+
+            auto scale_m_view = [&]() {
+                 if constexpr (ScaleM::GranularityMN != -1) {
+                     return make_naive_tensor_view<address_space_enum::global>(
+                         scale_m_ptr_offset.ptr,
+                         make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+                         make_tuple(number<1>{}, number<0>{}), 
+                         number<1>{}, 
+                         number<1>{}
+                     );
+                 } else {
+                     return typename EpiloguePipeline::EmptyScale{};
+                 }
+            }();
+
+            auto scale_n_view = [&]() {
+                 if constexpr (ScaleN::GranularityMN != -1) {
+                     return make_naive_tensor_view<address_space_enum::global>(
+                         scale_n_ptr_offset.ptr,
+                         make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+                         make_tuple(number<0>{}, number<1>{}), 
+                         number<1>{}, 
+                         number<1>{}
+                     );
+                 } else {
+                     return typename EpiloguePipeline::EmptyScale{};
+                 }
+            }();
+
             EpiloguePipeline{}(c_block_window,
                                c_block_tile,
                                d_block_window,
                                smem_ptr_ping,
-                               kargs.scale_m_ptr + block_idx_m,
-                               kargs.scale_n_ptr + block_idx_n);
+                               scale_m_view,
+                               scale_n_view);
         }
         else if(UseDefaultScheduler || (get_warp_id() == 0))
         {
@@ -321,10 +392,6 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
 
             const SplitKBatchOffset splitk_batch_offset(kargs);
             // options
-            const auto a_ptr = static_cast<const ADataType*>(kargs.as_ptr) +
-                               splitk_batch_offset.a_k_split_offset / APackedSize;
-            const auto b_ptr = static_cast<const BDataType*>(kargs.b_ptr) +
-                                    splitk_batch_offset.b_k_split_offset / BPackedSize;
             EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
 
             // options
@@ -339,14 +406,6 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
                 bs_ptr[i] = static_cast<const BDataType*>(kargs.bs_ptr[i]) +
                             splitk_batch_offset.bs_k_split_offset[i] / BPackedSize;
             });
-
-            // Calculate output offset from tile partitioner and apply to output pointer
-            EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
-            if constexpr(has_tile_partitioner_output_offset)
-            {
-                const index_t output_offset = TilePartitioner::GetOutputOffset(kargs, blockIdx.z);
-                e_ptr += output_offset;
-            }
 
             // allocate LDS
             __shared__ char smem_ptr_ping[GetSmemPingSize()];

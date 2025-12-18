@@ -3,6 +3,12 @@
 
 #pragma once
 
+#include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/flatmm/block/block_flatmm_asmem_bsmem_creg_v1.hpp"
+#include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1_policy.hpp"
+
 namespace ck_tile {
 
 template <typename Problem>
@@ -135,7 +141,7 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                 sequence<0, 0, 2>>{});
     }
 
-    CK_TILE_DEVICE static constexpr auto MakeMX_ALdsBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ALdsBlockDescriptor()
     {
         constexpr index_t K2 = AK1;                          // f4=32; f8=16
         constexpr index_t K1 = kDramLoadPackBytes / DWORDx4; // 8
@@ -219,6 +225,158 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                                                  sequence<NWarps>,
                                                  tuple<sequence<MWarps, MXdlPack, MPerXdl>,
                                                        sequence<K_Thread / AK1, K_Lane, AK1>>,
+                                                 tuple<sequence<1, 0>, sequence<2, 1>>,
+                                                 tuple<sequence<0, 0>, sequence<1, 2>>,
+                                                 sequence<2, 2>,
+                                                 sequence<0, 2>>{});
+    }
+
+    CK_TILE_DEVICE static constexpr auto MakeMX_BDramTileDistribution()
+    {
+        constexpr index_t K2 = BK1;                                   // f4=32; f8=16
+        constexpr index_t K1 = kDramLoadPackBytes * BPackedSize / K2; // 8
+        constexpr index_t K0 = KPerBlock / (K1 * K2);                 // KPerBlock/256
+
+        constexpr index_t N2 = WaveSize / K1;        // 8
+        constexpr index_t N1 = BlockSize / WaveSize; // 4
+        constexpr index_t N0 = NPerBlock / (N2 * N1);
+        static_assert(N0 * N1 * N2 == NPerBlock, "N0, N1, N2 must cover whole NPerBlock!");
+        static_assert(K0 * K1 * K2 == KPerBlock, "K0, K1, K2 must cover whole KPerBlock!");
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding< //
+                sequence<1>,
+                tuple<sequence<N0, N1, N2>, sequence<K0, K1, K2>>, 
+                tuple<sequence<1>, sequence<1, 2>>,                
+                tuple<sequence<1>, sequence<2, 1>>,
+                sequence<1, 2, 2>, // N0,K0,K2
+                sequence<0, 0, 2>>{});
+    }
+
+    template <typename TensorView>
+    CK_TILE_DEVICE static constexpr auto
+    MakeMX_BAsyncLoadDramDescriptor(const TensorView& naive_view)
+    {
+        const auto& naive_desc = naive_view.get_tensor_descriptor();
+        constexpr auto ndims   = remove_cvref_t<decltype(naive_desc)>::get_num_of_dimension();
+        static_assert(ndims == 2, "only support 2D tensor");
+        const auto rows = naive_desc.get_length(number<0>{});
+        const auto cols = naive_desc.get_length(number<1>{});
+
+        constexpr index_t K2 = BK1;                          // f4=32; f8=16
+        constexpr index_t K1 = kDramLoadPackBytes / DWORDx4; // 8
+        const index_t K0     = cols / (K1 * K2);
+        const auto col_lens  = make_tuple(K0, number<K1>{}, number<K2>{});
+
+        constexpr index_t N1 = 4; // so that we can use imm offset to load lds
+        const index_t N0     = rows / N1;
+        const auto row_lens  = make_tuple(N0, number<N1>{});
+
+        const auto desc_0 =
+            make_naive_tensor_descriptor_packed(container_concat(row_lens, col_lens));
+        const auto desc_1 = transform_tensor_descriptor(
+            desc_0,
+            make_tuple(make_pass_through_transform(N0),
+                       make_xor_transform(make_tuple(number<N1>{}, number<K1>{})),
+                       make_pass_through_transform(K0),
+                       make_pass_through_transform(number<K2>{})),
+            make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}, sequence<4>{}),
+            make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}, sequence<4>{}));
+        const auto desc = transform_tensor_descriptor( //
+            desc_1,
+            make_tuple(make_merge_transform_v3_division_mod(row_lens),
+                       make_merge_transform_v3_division_mod(col_lens)),
+            make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return tensor_view<typename TensorView::buffer_view,
+                           remove_cvref_t<decltype(desc)>,
+                           TensorView::DstInMemOp>{naive_view.buf_, desc};
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_BLdsBlockDescriptor()
+    {
+        constexpr index_t K2 = BK1;                          // f4=32; f8=16
+        constexpr index_t K1 = kDramLoadPackBytes / DWORDx4; // 8
+        constexpr index_t K0 = KPerBlock / (K1 * K2);        // KPerBlock/256
+        static_assert(K0 * K1 * K2 == KPerBlock, "K0, K1, K2 must cover whole KPerBlock!");
+
+        constexpr index_t N3 = 4;                   // so that we can use imm offset to load lds
+        constexpr index_t N2 = WaveSize / K1 / N3;  // 2
+        constexpr index_t N1 = NPerXdl / (N2 * N3); // 2
+        constexpr index_t N0 = NPerBlock / (N1 * N2 * N3); // NPerBlock/16
+        static_assert(N0 * N1 * N2 * N3 == NPerBlock, "N0, N1, N2, N3 must cover whole NPerBlock!");
+
+        constexpr index_t Pad = 4 * K2; // 4 * 32
+
+        constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor( //
+            make_tuple(number<N0>{},
+                       number<K0>{},
+                       number<N1>{},
+                       number<N2>{},
+                       number<N3>{},
+                       number<K1>{},
+                       number<K2>{}),
+            make_tuple(number<K0*(N1 * (N2 * N3 * K1 * K2) + (N1 - 1) * Pad)>{},
+                       number<N1*(N2 * N3 * K1 * K2) + (N1 - 1) * Pad>{},
+                       number<N2 * N3 * K1 * K2 + Pad>{},
+                       number<N3 * K1 * K2>{},
+                       number<K1 * K2>{},
+                       number<K2>{},
+                       number<1>{}),
+            number<K2>{},
+            number<1>{});
+
+        constexpr auto b_lds_block_desc_1 = transform_tensor_descriptor(
+            b_lds_block_desc_0,
+            make_tuple(make_pass_through_transform(N0),
+                       make_pass_through_transform(K0),
+                       make_pass_through_transform(N1),
+                       make_pass_through_transform(N2),
+                       make_xor_transform(make_tuple(number<N3>{}, number<K1>{})),
+                       make_pass_through_transform(number<K2>{})),
+            make_tuple(sequence<0>{},
+                       sequence<1>{},
+                       sequence<2>{},
+                       sequence<3>{},
+                       sequence<4, 5>{},
+                       sequence<6>{}),
+            make_tuple(sequence<0>{},
+                       sequence<1>{},
+                       sequence<2>{},
+                       sequence<3>{},
+                       sequence<4, 5>{},
+                       sequence<6>{}));
+        constexpr auto b_lds_block_desc = transform_tensor_descriptor(
+            b_lds_block_desc_1,
+            make_tuple(make_merge_transform_v3_division_mod(
+                           make_tuple(number<N0>{}, number<N1>{}, number<N2>{}, number<N3>{})),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<K0>{}, number<K1>{}, number<K2>{}))),
+            make_tuple(sequence<0, 2, 3, 4>{}, sequence<1, 5, 6>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return b_lds_block_desc;
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_BLDS_TileDistribution()
+    {
+        static_assert(BlockWarps::at(I0) == 1, "requires Wave_M == 1");
+
+        if constexpr(K_Thread == BK1)
+            return make_static_tile_distribution(
+                tile_distribution_encoding< //
+                    sequence<MWarps>,
+                    tuple<sequence<NWarps, NXdlPack, NPerXdl>, sequence<K_Lane, BK1>>,
+                    tuple<sequence<1, 0>, sequence<2, 1>>,
+                    tuple<sequence<0, 0>, sequence<0, 2>>,
+                    sequence<2>,
+                    sequence<1>>{});
+        else
+            return make_static_tile_distribution(tile_distribution_encoding< //
+                                                 sequence<MWarps>,
+                                                 tuple<sequence<NWarps, NXdlPack, NPerXdl>,
+                                                       sequence<K_Thread / BK1, K_Lane, BK1>>,
                                                  tuple<sequence<1, 0>, sequence<2, 1>>,
                                                  tuple<sequence<0, 0>, sequence<1, 2>>,
                                                  sequence<2, 2>,
@@ -367,12 +525,15 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                APackedSize;
     }
 
-    // TODO: add smem size for B
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
+    {
+        return sizeof(BDataType) * MakeMX_BLdsBlockDescriptor().get_element_space_size() /
+               BPackedSize;
+    }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     { 
-        // TODO: add B smem size
-        return GetSmemSizeA();
+        return GetSmemSizeA() + GetSmemSizeB();
     }
 };
 
