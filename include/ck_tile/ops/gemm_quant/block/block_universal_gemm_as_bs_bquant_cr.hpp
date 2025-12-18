@@ -12,36 +12,6 @@
 
 namespace ck_tile {
 
-template <typename Problem>
-struct BlockGemmBQuantBase
-{
-    using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
-    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-
-    template <typename T>
-    CK_TILE_DEVICE static float cvt_scale_to_fp32(T scale)
-    {
-        float scale_reg_f = 0.f;
-        if constexpr(std::is_same_v<BQDataType, ck_tile::fp8_t>)
-        {
-            scale_reg_f = __builtin_amdgcn_cvt_f32_fp8(static_cast<uint32_t>(scale), 0);
-        }
-        else if constexpr(std::is_same_v<BQDataType, ck_tile::bf8_t>)
-        {
-            scale_reg_f = __builtin_amdgcn_cvt_f32_bf8(static_cast<uint32_t>(scale), 0);
-        }
-        else if constexpr(std::is_same_v<BQDataType, float>)
-        {
-            scale_reg_f = ck_tile::bit_cast<float>(scale);
-        }
-        else
-        {
-            static_assert(false, "BQDataType must be float, fp8_t or bf8_t.");
-        }
-        return scale_reg_f;
-    }
-};
-
 // A is block window on shared memory
 // BQ (scale tensor) is block distributed tensor.
 // Consecutive QuantGroupSize elements of B are quantized with a separate scale.
@@ -50,7 +20,7 @@ struct BlockGemmBQuantBase
 template <typename Problem_,
           typename Policy_     = BlockGemmASmemBSmemCRegV1DefaultPolicy,
           index_t UnaryOpSize_ = 8>
-struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
+struct BQuantBlockUniversalGemmAsBsCr
 {
     private:
     template <typename PipelineProblem_, typename GemmPolicy_>
@@ -66,7 +36,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
         using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
         using CDataType       = remove_cvref_t<typename Problem::CDataType>;
         using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
-        using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
+        using QuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
         static constexpr index_t kBlockSize = Problem::kBlockSize;
         static constexpr auto Scheduler     = Problem::Scheduler;
@@ -162,8 +132,8 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
             std::is_same_v<typename Traits::BLayout, tensor_layout::gemm::RowMajor>,
         ADataType,
         BDataType>;
-    using Base = BlockGemmBQuantBase<Problem_>;
 
+    using Base     = BlockGemmQuantBase;
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
     static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
@@ -369,7 +339,9 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                             int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
                                 pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
 
-                            float scale_reg_f = Base::cvt_scale_to_fp32(gathered_scale_reg);
+                            float scale_reg_f =
+                                Base::cvt_scale_to_fp32<typename Traits::BQDataType>(
+                                    gathered_scale_reg);
 
                             static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                                 [&](auto c_row) {
@@ -392,8 +364,9 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                                 }
                             }();
 
-                            auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-                            float scale_reg_f = Base::cvt_scale_to_fp32(scale_reg);
+                            auto& scale_reg = bq_block_tensor.get_thread_buffer()[reg_offset];
+                            float scale_reg_f =
+                                Base::cvt_scale_to_fp32<typename Traits::BQDataType>(scale_reg);
                             static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                                 [&](auto c_row) {
                                     c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
