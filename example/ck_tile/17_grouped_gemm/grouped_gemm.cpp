@@ -218,17 +218,9 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                        num_groups));
     };
 
-    if(!splitk)
-    {
-        return ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                                         ck_tile::memory_operation_enum::set>{});
-    }
-    else
-    {
-        return ave_time =
-                   Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                                  ck_tile::memory_operation_enum::atomic_add>{});
-    }
+    (void)splitk; // splitk not supported
+    return ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                     ck_tile::memory_operation_enum::set>{});
 }
 
 #include "run_grouped_gemm_example.inc"
@@ -300,12 +292,7 @@ int run_grouped_gemm_example(int argc, char* argv[])
     const std::string c_layout  = arg_parser.get_str("c_layout");
     const std::string data_type = arg_parser.get_str("prec");
 
-    if(data_type == "fp16")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
-            a_layout, b_layout, c_layout, argc, argv);
-    }
-    else if(data_type == "bf16")
+    if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>, ck_tile::bf16_t>(
             a_layout, b_layout, c_layout, argc, argv);
@@ -317,15 +304,13 @@ int run_grouped_gemm_example(int argc, char* argv[])
     }
     else
     {
-        throw std::runtime_error("Unsupported data type configuration.");
+        throw std::runtime_error("Only bf16/fp8 data types are supported.");
     }
 }
 
 int main(int argc, char* argv[])
 {
-#if CK_TILE_USE_WMMA
-    return !run_grouped_gemm_example<GemmConfigComputeV4_Wmma>(argc, argv);
-#else
+
     return run_grouped_gemm_example<GemmConfigComputeV3_2>(argc, argv);
-#endif
+
 }
