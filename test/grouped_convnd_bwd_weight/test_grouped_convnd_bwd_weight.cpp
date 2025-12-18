@@ -66,7 +66,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 auto& param = conv_params[i];
                 if(!skip_case(split_k))
                 {
-                    pass = pass && ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial{},
+                    const bool success = ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial{},
                                                                                       InLayout,
                                                                                       WeiLayout,
                                                                                       OutLayout,
@@ -80,6 +80,9 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                                        param,
                                        std::to_string(split_k),
                                        instance_index);
+                    pass = pass && success;
+                    if (!success)
+                        std::cout << "Case " << param << " failed!" << std::endl;
                 }
             }
         }
@@ -138,7 +141,8 @@ using KernelTypes3d = ::testing::Types<
     std::tuple<ck::half_t, ck::half_t, ck::half_t, NGCDHW, GKZYXC, NGKDHW, ck::Number<3>>,
     std::tuple<float, float, float, NGCDHW, GKCZYX, NGKDHW, ck::Number<3>>,
     std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NGCDHW, GKCZYX, NGKDHW, ck::Number<3>>,
-    std::tuple<ck::half_t, ck::half_t, ck::half_t, NGCDHW, GKCZYX, NGKDHW, ck::Number<3>>>;
+    std::tuple<ck::half_t, ck::half_t, ck::half_t, NGCDHW, GKCZYX, NGKDHW, ck::Number<3>>
+    >;
 
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight1d, KernelTypes1d);
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight2d, KernelTypes2d);
