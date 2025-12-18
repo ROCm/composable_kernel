@@ -130,14 +130,14 @@ static constexpr auto GetWarpTileConfig()
 
     constexpr auto NXdlPerWave =
         IsWave64
-            ? GetNXdlPerWave2<BlockSize_,
-                              MPerBlock_,
-                              NPerBlock_,
-                              MPerXDL_,
-                              NPerXDL_,
-                              MXdlPerWave_,
-                              true>()
-            : GetNXdlPerWave2<BlockSize_, MPerBlock_, NPerBlock_, 16, 16, MXdlPerWave32, false>();
+            ? GetXdlPerWave2<BlockSize_,
+                             MPerBlock_,
+                             NPerBlock_,
+                             MPerXDL_,
+                             NPerXDL_,
+                             MXdlPerWave_,
+                             true>()
+            : GetXdlPerWave2<BlockSize_, MPerBlock_, NPerBlock_, 16, 16, MXdlPerWave32, false>();
 
     if constexpr(IsWave64 == false && NXdlPerWave != 0)
     {
