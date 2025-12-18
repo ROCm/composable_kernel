@@ -171,7 +171,7 @@ struct ConvSignatureUtilsTest1
                       .config = {GNHWC, FP16},
     };
     ConvTensorWithOp weight = {.config = {GKYXC, FP16}};
-    ConvTensorWithOp output = {.config = {GNHWK, BF16}, .operation = {SCALE}};
+    ConvTensorWithOp output = {.config = {GNHWK, UNDEFINED_DATA_TYPE}, .operation = {SCALE}};
 };
 
 static_assert(ckb::ConvSignatureDescriptor<ConvSignatureUtilsTest1>);
@@ -196,6 +196,26 @@ struct ConvSignatureUtilsTest2
 };
 
 static_assert(ckb::ConvSignatureDescriptor<ConvSignatureUtilsTest2>);
+
+TEST(ConvUtilsTest, getDataType1)
+{
+    using enum ckb::DataType;
+    static constexpr const ConvSignatureUtilsTest1 SIGNATURE;
+    EXPECT_THAT(ckb::getInputDataType<SIGNATURE>(), FP16);
+    EXPECT_THAT(ckb::getWeightDataType<SIGNATURE>(), FP16);
+    EXPECT_THAT(ckb::getOutputDataType<SIGNATURE>(), FP16);
+    EXPECT_THAT(ckb::getDataTypeIfCommon<SIGNATURE>(), FP16);
+}
+
+TEST(ConvUtilsTest, getDataType2)
+{
+    using enum ckb::DataType;
+    static constexpr const ConvSignatureUtilsTest2 SIGNATURE;
+    EXPECT_THAT(ckb::getInputDataType<SIGNATURE>(), FP16);
+    EXPECT_THAT(ckb::getWeightDataType<SIGNATURE>(), FP16);
+    EXPECT_THAT(ckb::getOutputDataType<SIGNATURE>(), BF16);
+    EXPECT_THAT(ckb::getDataTypeIfCommon<SIGNATURE>(), UNDEFINED_DATA_TYPE);
+}
 
 TEST(ConvUtilsTest, getElementwiseOperation1)
 {

@@ -18,15 +18,20 @@ namespace ck_tile::builder {
 template <auto Sig>
 concept ProvidesElementwiseOperation = requires { Sig.elementwise_operation; };
 
+template <auto Sig>
+concept ProvidesDataType = requires { Sig.data_type; };
+
 template <auto ConvTensor>
 concept ConvTensorHasOp = requires { ConvTensor.operation; };
 
 template <auto Sig>
 concept ProvidesConvolutionDirection = requires { Sig.direction; };
 
-// returns elementwise operation for signature. Will default to PASS_THROUGH if not provided by
-// signature
+// returns elementwise operation for input tensor
+// will defalut to signature's generic type if provided
+// otherwise, default to PASS_THROUGH
 template <auto Sig>
+    requires ValidConvSignature<Sig>
 constexpr auto getInputElementwiseOperation()
 {
     if constexpr(ConvTensorHasOp<Sig.input>)
@@ -43,7 +48,11 @@ constexpr auto getInputElementwiseOperation()
     }
 }
 
+// returns elementwise operation for weight tensor
+// will defalut to signature's generic type if provided
+// otherwise, default to PASS_THROUGH
 template <auto Sig>
+    requires ValidConvSignature<Sig>
 constexpr auto getWeightElementwiseOperation()
 {
     if constexpr(ConvTensorHasOp<Sig.weight>)
@@ -60,7 +69,11 @@ constexpr auto getWeightElementwiseOperation()
     }
 }
 
+// returns elementwise operation for output tensor
+// will defalut to signature's generic type if provided
+// otherwise, default to PASS_THROUGH
 template <auto Sig>
+    requires ValidConvSignature<Sig>
 constexpr auto getOutputElementwiseOperation()
 {
     if constexpr(ConvTensorHasOp<Sig.output>)
@@ -79,6 +92,7 @@ constexpr auto getOutputElementwiseOperation()
 
 // returns convolution direction for signature. Will default to FORWARD if not provided by signature
 template <auto Sig>
+    requires ValidConvSignature<Sig>
 constexpr auto getConvDirection()
 {
     if constexpr(ProvidesConvolutionDirection<Sig>)
@@ -91,32 +105,74 @@ constexpr auto getConvDirection()
     }
 }
 
+// generic helper that returns data_type if provided and UNDEFINED otherwise
+// can be used on both signature and TensorConfigDescriptor objects
+template <auto TensorConfigOrSig>
+constexpr auto getDataType()
+{
+    if constexpr(ProvidesDataType<TensorConfigOrSig>)
+    {
+        return TensorConfigOrSig.data_type;
+    }
+    else
+    {
+        return DataType::UNDEFINED_DATA_TYPE;
+    }
+}
+
 // return data type of input tensor
 template <auto Sig>
-    requires ck_tile::builder::ValidConvSignature<Sig>
+    requires ValidConvSignature<Sig>
 consteval auto getInputDataType()
 {
-    return GetTensorDataAndComputeTypes<Sig.input.config, Sig.data_type>().get(0);
+    constexpr auto tensorDataType    = getDataType<Sig.input.config>();
+    constexpr auto universalDataType = getDataType<Sig>();
+    if constexpr(tensorDataType != DataType::UNDEFINED_DATA_TYPE)
+    {
+        return tensorDataType;
+    }
+    else
+    {
+        return universalDataType;
+    }
 }
 
 template <auto Sig>
-    requires ck_tile::builder::ValidConvSignature<Sig>
+    requires ValidConvSignature<Sig>
 consteval auto getWeightDataType()
 {
-    return GetTensorDataAndComputeTypes<Sig.weight.config, Sig.data_type>().get(0);
+    constexpr auto tensorDataType    = getDataType<Sig.weight.config>();
+    constexpr auto universalDataType = getDataType<Sig>();
+    if constexpr(tensorDataType != DataType::UNDEFINED_DATA_TYPE)
+    {
+        return tensorDataType;
+    }
+    else
+    {
+        return universalDataType;
+    }
 }
 
 template <auto Sig>
-    requires ck_tile::builder::ValidConvSignature<Sig>
+    requires ValidConvSignature<Sig>
 consteval auto getOutputDataType()
 {
-    return GetTensorDataAndComputeTypes<Sig.output.config, Sig.data_type>().get(0);
+    constexpr auto tensorDataType    = getDataType<Sig.output.config>();
+    constexpr auto universalDataType = getDataType<Sig>();
+    if constexpr(tensorDataType != DataType::UNDEFINED_DATA_TYPE)
+    {
+        return tensorDataType;
+    }
+    else
+    {
+        return universalDataType;
+    }
 }
 
 // returns data type if and only if all tensors have the same type.
 // Otherwise, return DataType::UNDEFINED_DATA_TYPE
 template <auto Sig>
-    requires ck_tile::builder::ValidConvSignature<Sig>
+    requires ValidConvSignature<Sig>
 consteval auto getDataTypeIfCommon()
 {
 
@@ -124,7 +180,7 @@ consteval auto getDataTypeIfCommon()
     auto weightDataType = getWeightDataType<Sig>();
     auto outputDataType = getOutputDataType<Sig>();
 
-    if(inputDataType == weightDataType == outputDataType)
+    if(inputDataType == weightDataType && inputDataType == outputDataType)
     {
         return inputDataType;
     }
