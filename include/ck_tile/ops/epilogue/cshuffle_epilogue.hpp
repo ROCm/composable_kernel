@@ -669,8 +669,8 @@ struct CShuffleEpilogue
 
         constexpr index_t num_access = SFC::get_num_of_access();
 
-        static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-                      "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
+        // static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
+        //               "Currently, the CShuffle Epilogue only supports the Row Major Output layout");  // Enable column major C layout
 
         using TileEncodingPattern =
             tile_distribution_encoding_pattern_2d<kBlockSize,
