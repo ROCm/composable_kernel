@@ -47,7 +47,7 @@ set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --targets ${FMHA_TARGETS_ARG}
   --api ${FMHA_FWD_APIS}
-  --optdim 32,64,128,256
+  --optdim 32,64,80,128,256
   # --filter fmha_fwd...
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
