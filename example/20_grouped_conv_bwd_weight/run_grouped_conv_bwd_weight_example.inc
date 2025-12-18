@@ -5,7 +5,7 @@ template <ck::index_t NDimSpatial>
 bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {
-    // Dl and WMMA ops don't support split_k > 1
+    // Dl ops don't support split_k > 1
     constexpr ck::index_t split_k = 1;
 
     const auto in_g_n_c_wis_desc =
@@ -131,7 +131,21 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
 
         wei_device_buf.FromDevice(wei_device_result.mData.data());
 
-        return ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
+        float max_accumulated_value =
+            *std::max_element(wei_host_result.mData.begin(), wei_host_result.mData.end());
+
+        const ck::index_t num_accums         = out.GetElementSize() / conv_param.K_;
+        const ck::index_t num_accums_split_k = split_k;
+        double rtol = ck::utils::get_relative_threshold<InDataType, WeiDataType, AccDataType>(
+            num_accums / num_accums_split_k);
+        double atol = ck::utils::get_absolute_threshold<InDataType, WeiDataType, AccDataType>(
+            max_accumulated_value / num_accums_split_k, num_accums / num_accums_split_k);
+
+        return ck::utils::check_err(wei_device_result.mData,
+                                    wei_host_result.mData,
+                                    "Error: Incorrect results!",
+                                    rtol,
+                                    atol);
     }
     else if(config.do_verification == 2)
     {
