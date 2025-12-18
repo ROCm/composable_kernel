@@ -60,7 +60,7 @@ template <index_t BlockSize_,
           index_t NPerXDL_,
           index_t MXdlPerWave_,
           bool IsWave64>
-static constexpr auto GetNXdlPerWave2()
+static constexpr auto GetXdlPerWave2()
 {
     constexpr index_t Waves  = IsWave64 ? BlockSize_ / 64 : BlockSize_ / 32;
     constexpr index_t MWaves = MPerBlock_ / (MXdlPerWave_ * MPerXDL_);
@@ -84,17 +84,33 @@ static constexpr auto GetNXdlPerWave2()
     }
 }
 
-#define GET_NXDL_PER_WAVE_IMPL              \
-    template <bool IsWave64>                \
-    static constexpr auto GetNXdlPerWave()  \
-    {                                       \
-        return GetNXdlPerWave2<BlockSize,   \
-                               MPerBlock,   \
-                               NPerBlock,   \
-                               MPerXDL,     \
-                               NPerXDL,     \
-                               MXdlPerWave, \
-                               IsWave64>(); \
+#define GET_NXDL_PER_WAVE_IMPL             \
+    template <bool IsWave64>               \
+    static constexpr auto GetNXdlPerWave() \
+    {                                      \
+        return GetXdlPerWave2<BlockSize,   \
+                              MPerBlock,   \
+                              NPerBlock,   \
+                              MPerXDL,     \
+                              NPerXDL,     \
+                              MXdlPerWave, \
+                              IsWave64>(); \
+    }
+
+#define GET_MXDL_PER_WAVE_IMPL                          \
+    template <bool IsWave64,                            \
+              index_t MPerXDLAligned     = MPerXDL,     \
+              index_t NPerXDLAligned     = NPerXDL,     \
+              index_t NXdlPerWaveAligned = NXdlPerWave> \
+    static constexpr auto GetMXdlPerWave()              \
+    {                                                   \
+        return GetXdlPerWave2<BlockSize,                \
+                              NPerBlock,                \
+                              MPerBlock,                \
+                              NPerXDLAligned,           \
+                              MPerXDLAligned,           \
+                              NXdlPerWaveAligned,       \
+                              IsWave64>();              \
     }
 
 template <index_t BlockSize_,
