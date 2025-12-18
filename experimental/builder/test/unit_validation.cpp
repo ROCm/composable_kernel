@@ -24,7 +24,7 @@ template <ckb::DataType DT, size_t RANK, typename F>
 void fill_tensor(const ckt::TensorDescriptor<DT, RANK>& desc, void* buffer, F f)
 {
     const auto strides = desc.get_strides();
-    ckt::tensor_foreach(desc.get_lengths(), [buffer, f, strides](auto index) {
+    ckt::tensor_foreach(desc.get_lengths(), [buffer, f, strides](const auto& index) {
         using CKType      = typename ckb::factory::internal::DataTypeToCK<DT>::type;
         auto* ptr         = static_cast<CKType*>(buffer);
         const auto offset = ckt::calculate_offset(index, strides);

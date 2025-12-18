@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstdint>
+#include <concepts>
 #include <array>
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
 
@@ -18,17 +19,49 @@ namespace ck_tile::builder::test {
 
 namespace detail {
 
+/// @brief Default foreach kernel block size
+///
+/// This value is the default number of threads in each block when
+/// executing the foreach kernel. This value is mostly arbitrary,
+/// 256 is usually a good default for AMD GPUs.
+///
+/// @see tensor_foreach
 constexpr int DEVICE_FOREACH_BLOCK_SIZE = 256;
 
+/// @brief Concept for constraining tensor iteration functors
+///
+/// This concept checks that a functor has the correct signature for
+/// use with the `tensor_foreach` function.
+template <typename F, int RANK>
+concept ForeachFunctor = requires(const F& f, const Extent<RANK>& index) {
+    { f(index) } -> std::same_as<void>;
+};
+
+/// @brief Tensor iteration kernel
+///
+/// This kernel implements the actual iteration logic, and is intended
+/// to be used solely by `tensor_foreach` to iterate & invoke the
+/// actual callback.
+///
+/// @tparam BLOCK_SIZE The number of threads in each block on the GPU.
+/// @tparam RANK The rank (number of spatial dimensions) of the tensor to
+/// iterate.
+/// @tparam F The type of the callback to invoke. This function must be
+/// compatible with execution as a __device__ function.
+///
+/// @param numel The total number of elements in the tensor.
+/// @param shape_scan A right-exclusive scan of the shape of the tensor.
+/// @param f The callback to invoke for each index of the tensor. This
+/// functor must be eligible for running on the GPU.
 template <int BLOCK_SIZE, size_t RANK, typename F>
 __global__ __launch_bounds__(BLOCK_SIZE) //
-    void foreach_kernel(const size_t numel, std::array<size_t, RANK> shape_scan, F f)
+    void foreach_kernel(const size_t numel, Extent<RANK> shape_scan, ForeachFunctor<F, RANK> auto f)
 {
     const auto gid = blockIdx.x * BLOCK_SIZE + threadIdx.x;
     for(size_t flat_idx = gid; flat_idx < numel; flat_idx += gridDim.x * BLOCK_SIZE)
     {
         // Compute the current index.
-        std::array<size_t, RANK> index = {};
+        Extent<RANK> index = {};
 
         size_t idx = flat_idx;
         for(size_t i = 0; i < RANK; ++i)
@@ -45,9 +78,26 @@ __global__ __launch_bounds__(BLOCK_SIZE) //
 
 } // namespace detail
 
+/// @brief Calculate tensor memory offset given index and strides.
+///
+/// This function returns the offset in memory in a tensor, given a particular
+/// multi-dimensional index and a particular set of strides. Each value in the
+/// index corresponds one-to-one with a value in the strides, which are the
+/// index and stride at that dimension in the tensor. These strides must be
+/// pre-scanned, meaning that each index is the absolute stride of elements
+/// along that axis. In essence, this means that you should pass the output of
+/// `TensorDescriptor::get_strides()` into this function.
+///
+/// @pre The index must be inside the tensor space.
+///
+/// @tparam RANK The rank (number of spatial dimensions) of the tensor.
+///
+/// @param index A multi-dimensional index inside the tensor space.
+/// @param strides A set of strides, one for each dimension.
+///
+/// @see TensorDescriptor
 template <size_t RANK>
-__host__ __device__ size_t calculate_offset(const std::array<size_t, RANK>& index,
-                                            const Extent<RANK>& strides)
+__host__ __device__ size_t calculate_offset(const Extent<RANK>& index, const Extent<RANK>& strides)
 {
     size_t offset = 0;
 #pragma unroll
@@ -58,8 +108,30 @@ __host__ __device__ size_t calculate_offset(const std::array<size_t, RANK>& inde
     return offset;
 }
 
-template <size_t RANK, typename F>
-void tensor_foreach(const Extent<RANK>& shape, F f)
+/// @brief Invoke a callback on the GPU for every index in a tensor.
+///
+/// This function invokes a callback functor on the GPU, for each index in
+/// a tensor. This function _only_ takes care of iterating over all indices
+/// in a tensor of a particular shape; this function does not handle or know
+/// about actual tensor data.
+///
+/// @note This function is currently implemented relatively naively: The
+/// iteration order is always row-wise, implemented as a persistent kernel.
+/// The main objective of this function is to be used with the CK-Builder
+/// testing system, and so readability and correctness should be preferred
+/// over performance. If this is ever a source of performance problems,
+/// feel free to replace the implementation with something better.
+///
+/// @tparam RANK The rank (number of spatial dimensions) of the tensor.
+///
+/// @param shape The shape of the tensor to iterate over.
+/// @param f The callback to invoke for each index of the tensor. This
+/// functor must be eligible for running on the GPU.
+///
+/// @see detail::ForeachFunctor
+/// @see detail::foreach_kernel
+template <size_t RANK>
+void tensor_foreach(const Extent<RANK>& shape, detail::ForeachFunctor<RANK> auto f)
 {
     constexpr int block_size = detail::DEVICE_FOREACH_BLOCK_SIZE;
     const auto kernel        = detail::foreach_kernel<block_size, RANK, F>;
@@ -95,3 +167,5 @@ void tensor_foreach(const Extent<RANK>& shape, F f)
 }
 
 } // namespace ck_tile::builder::test
+
+std::same_as<int> auto square(std::same_as<int> auto x) { return x * x; }
