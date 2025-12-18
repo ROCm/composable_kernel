@@ -134,7 +134,8 @@ auto create_args(int argc, char* argv[])
         .insert("quant_mode", "bquant", "Choose aquant, bquant (default), tensor, or rowcol")
         .insert("init", "0", "0. Random, 2. One(s) (Constant)")
         .insert("persistent", "0", "Kernel persistency. 0: non-persistent. 1: persistent.")
-        .insert("bquant_group_size", "1x1x128", "BQuant group size. 1x1x128 (default) or 1x128x128");
+        .insert(
+            "bquant_group_size", "1x1x128", "BQuant group size. 1x1x128 (default) or 1x128x128");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -184,4 +185,3 @@ template <typename GemmConfig,
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
                             void* kargs_ptr);
-
