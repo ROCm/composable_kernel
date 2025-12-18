@@ -333,6 +333,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
     struct Problem
     {
+        __host__ Problem() = default;
         __host__ Problem(index_t M_,
                          index_t N_,
                          index_t K_,
@@ -409,6 +410,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
     // Argument
     struct Argument : public tensor_operation::device::BaseArgument, public Problem
     {
+        __host__ Argument() = default;
         __host__ Argument(std::array<const void*, NumATensor> p_as_grid_,
                           std::array<const void*, NumBTensor> p_bs_grid_,
                           std::array<const void*, NumDTensor> p_ds_grid_,
@@ -773,7 +775,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
         return Block2CTileMap{problem.M, problem.N, 4};
     }
 
-    // Run method for convolution (grid descriptors are passed as arguments,
+    // Run method for convolution for bwd_data (grid descriptors are passed as arguments,
     // not generated internally)
     template <typename AGridDesc_AK0_M_K1,
               typename BGridDesc_BK0_N_K1,
@@ -872,6 +874,10 @@ struct GridwiseGemm_wmma_cshuffle_v3
         const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
         const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
 
+        // AScale struct (Empty)
+        using AScale        = typename BlockwiseGemmPipe::Empty;
+        auto a_scale_struct = AScale{};
+
         // BScale struct (Empty)
         using BScale        = typename BlockwiseGemmPipe::Empty;
         auto b_scale_struct = BScale{};
@@ -882,6 +888,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                            decltype(bs_grid_desc_bk0_n_bk1),
                            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
                            decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                           decltype(a_scale_struct),
                            decltype(b_scale_struct),
                            decltype(epilogue_args),
                            HasMainKBlockLoop,
@@ -901,6 +908,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                     block_m_id,
                                     block_n_id,
                                     num_k_block_per_scale,
+                                    a_scale_struct,
                                     b_scale_struct,
                                     epilogue_args,
                                     karg.KBatch,

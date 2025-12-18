@@ -173,7 +173,6 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     num_k_per_block,
                     karg,
                     epilogue_args);
-                    epilogue_args);
             }
         }
 
