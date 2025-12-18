@@ -1,7 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.21)
 if(POLICY CMP0140)
   # policies CMP0140 not known to CMake until 3.25
   cmake_policy(SET CMP0140 NEW)
