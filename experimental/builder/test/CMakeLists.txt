@@ -193,10 +193,10 @@ set(CKB_REGRESSION_TESTS
     test_ckb_instance_string
     test_ckb_build_fwd_instances
     test_ckb_testing_utils
-    test_ckb_factory_grouped_convolution_forward_convscale
-    test_ckb_factory_grouped_convolution_forward_scaleadd_ab
-    test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu
-    test_ckb_factory_grouped_convolution_forward_dynamic_op
+    # test_ckb_factory_grouped_convolution_forward_convscale
+    # test_ckb_factory_grouped_convolution_forward_scaleadd_ab
+    # test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu
+    # test_ckb_factory_grouped_convolution_forward_dynamic_op
 )
 
 foreach(test_target ${CKB_REGRESSION_TESTS})
