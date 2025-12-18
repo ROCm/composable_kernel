@@ -88,6 +88,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added Ping-pong scheduler support for GEMM operation along the K dimension.
 * Added rotating buffer feature for CK_Tile GEMM.
 * Added int8 support for CK_TILE GEMM.
+* Added CK Tile Epilogue Chainer framework for composable epilogue sequences in GEMM operations
 
 ### Optimized
 

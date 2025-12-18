@@ -31,7 +31,9 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
         ck_tile::ignore = K;
         if(M <= 416)
         {
+#if defined(__gfx942__) || defined(__gfx950__)
             return ck_tile::amd_buffer_coherence_enum::WAVE_NT1;
+#endif
         }
         return ck_tile::amd_buffer_coherence_enum::coherence_default;
     }
