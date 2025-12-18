@@ -209,10 +209,14 @@ int main(int argc, char* argv[])
     ck::index_t sorted_tile_num = 261;
     ck::index_t valid_tile_num  = 256;
 #endif
-
+    ck::index_t KBatch = 6;
     if(argc == 1)
     {
         // use default case
+    }
+    else if(argc == 2)
+    {
+        KBatch = std::stoi(argv[1]);
     }
     else if(argc == 4)
     {
@@ -267,8 +271,6 @@ int main(int argc, char* argv[])
     ck::index_t Scale_Stride_BN      = (K + Scale_Block_K - 1) / Scale_Block_K;
     ck::index_t Scale_Stride_B       = (N + Scale_Block_N - 1) / Scale_Block_N * 2;
 
-    ck::index_t KBatch = 6;
-
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
@@ -318,6 +320,8 @@ int main(int argc, char* argv[])
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
     std::cout << "b1_e_n_k: " << b1_e_n_k.mDesc << std::endl;
     std::cout << "e_t_n: " << e_t_n_host_result.mDesc << std::endl;
+    std::cout << "k_batch:" << KBatch << std::endl;
+    std::cout << "init_method:" << init_method << std::endl;
 
     switch(init_method)
     {
@@ -326,7 +330,7 @@ int main(int argc, char* argv[])
         a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-1.0, 1.0});
         a1_t_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0.0, 1.0});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-1.0, 1.0});
-        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0.0, 1.0});
         break;
     case 2:
         a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});

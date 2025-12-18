@@ -765,9 +765,8 @@ struct GridwiseMoeGemmBlockScale
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
                 // KPack * NLane * KLane * K0 * N0
-                b_k_split_offset = k_id * karg.KRead * NLane / BPackedSize;
-                bscale_k_split_offset =
-                    k_id * karg.KRead / ScaleBlockK + k_id * NLane / ScaleBlockN;
+                b_k_split_offset      = k_id * karg.KRead * NLane / BPackedSize;
+                bscale_k_split_offset = k_id * karg.KRead / ScaleBlockK;
             }
 
             // if(k_id < karg.KBatch - 1)
