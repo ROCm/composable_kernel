@@ -130,6 +130,7 @@ if(WIN32)
     add_compile_options(
         "$<$<CONFIG:Debug>:-Og>"
         "$<$<CONFIG:Debug>:-gdwarf-4>"
+        "$<$<CONFIG:Debug>:-gsplit-dwarf>"
     )
     # Disable MSVC debug runtime checks for HIP device code
     # The MSVC debug runtime (_DEBUG, msvcrtd) includes _CrtDbgReport which is host-only
@@ -137,6 +138,12 @@ if(WIN32)
     add_compile_options(
         "$<$<CONFIG:Debug>:-D_ITERATOR_DEBUG_LEVEL=0>"
         "$<$<CONFIG:Debug>:-U_DEBUG>"
+    )
+    # Use 64-bit PE format to avoid 4GB section size limit in debug builds
+    # The .hip_fatbin section can exceed 4GB with debug info
+    add_link_options(
+        "$<$<CONFIG:Debug>:-Xlinker>"
+        "$<$<CONFIG:Debug>:/MACHINE:X64>"
     )
 else()
     add_compile_options(
