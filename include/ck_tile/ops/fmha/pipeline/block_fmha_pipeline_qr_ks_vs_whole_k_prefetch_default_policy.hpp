@@ -9,6 +9,7 @@
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_one_warp_v1.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_prefetch_k.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_prefetch_n.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_trload_creg_v2_prefetch_n.hpp"
 
 namespace ck_tile {
 
@@ -235,11 +236,18 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
 
-        constexpr index_t N1     = GetAlignmentV<Problem>();
-        constexpr index_t N0     = kNPerBlock / N1;
-        constexpr index_t kKPack = GetKVWarpGemmKPerThreadSize<Problem>();
+        if constexpr(!Problem::kUseTrLoad)
+        {
+            constexpr index_t N1     = GetAlignmentV<Problem>();
+            constexpr index_t N0     = kNPerBlock / N1;
+            constexpr index_t kKPack = GetKVWarpGemmKPerThreadSize<Problem>();
 
-        return N0 * (N1 * kKPerBlock + kKPack);
+            return N0 * (N1 * kKPerBlock + kKPack);
+        }
+        else
+        {
+            return kNPerBlock * kKPerBlock;
+        };
     };
 
     template <typename Problem>
@@ -958,7 +966,12 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
                                                  WarpGemm>;
 
         if constexpr(1 < Problem::kNumGemm1Warps)
-            return BlockGemmARegBSmemCRegV2PrefetchN<GemmProblem, BlockGemmPolicy>{};
+        {
+            if constexpr(!Problem::kUseTrLoad)
+                return BlockGemmARegBSmemCRegV2PrefetchN<GemmProblem, BlockGemmPolicy>{};
+            else
+                return BlockGemmARegBSmemTrLoadCRegV2PrefetchN<GemmProblem, BlockGemmPolicy>{};
+        }
         else
             return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
     }
