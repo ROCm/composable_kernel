@@ -965,7 +965,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 e_g_n_c_wis_strides_transposed[1] * conv_N_per_block_;
 
             num_workgroups_per_Conv_N_ = a_g_n_k_wos_lengths_[I1] / conv_N_per_block_;
-            std::cout << "num_workgroups_per_Conv_N_= " << num_workgroups_per_Conv_N_ << "\n";
 
             if constexpr(NeedTransposeKernel)
             {

@@ -251,7 +251,6 @@ class TestGroupedConvndBwdData : public ::testing::Test
                       << "): Passed" << std::endl;
         }
         printf("\033[36mvalids: %d\033[0m\n", num_kernel);
-        std::cout << "passed value is:" << passed << std::endl;
         return passed;
     }
 
@@ -264,7 +263,6 @@ class TestGroupedConvndBwdData : public ::testing::Test
             for(auto& param : conv_params)
             {
                 pass = pass && PerformConvDataBilinear(param, split_k, instance_index);
-                std::cout << "splitk_is: " << split_k << std::endl;
             }
         }
         EXPECT_TRUE(pass);
@@ -289,19 +287,19 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
 TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
 {
     this->conv_params.push_back(
-        {3, 2, 16, 128, 128, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    // this->conv_params.push_back(
-    //     {3, 2, 2, 128, 128, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    // this->conv_params.push_back(
-    //     {3, 2, 32, 128, 128, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    // this->conv_params.push_back(
-    //     {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    // this->conv_params.push_back(
-    //     {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    // this->conv_params.push_back(
-    //     {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    // this->conv_params.push_back(
-    //     {3, 1, 1, 4, 4, {3, 3, 3}, {14, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 2, 16, 128, 128, {1, 1, 1}, {7, 7, 7}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 2, 2, 128, 128, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 2, 32, 128, 128, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 1, 1, 4, 4, {3, 3, 3}, {14, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->Run();
 }
 
