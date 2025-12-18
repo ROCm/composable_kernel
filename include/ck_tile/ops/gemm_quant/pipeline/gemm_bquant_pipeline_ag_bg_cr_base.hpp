@@ -18,7 +18,7 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     using BDataType      = typename Base::BDataType;
     using BLayout        = typename Base::BLayout;
     using BlockGemmShape = typename Base::BlockGemmShape;
-    using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
+    using QuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
     using BQLayout = remove_cvref_t<typename Problem::BQLayout>;
 
