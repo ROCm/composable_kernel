@@ -404,7 +404,6 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
-    
 
 #ifdef CK_USE_WMMA
         if constexpr(NumDimSpatial == 2)
@@ -417,7 +416,7 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
                              is_same_v<ComputeTypeB, F16>)
                 {
-                            add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_f16_instances(
+                    add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_f16_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_f16_1x1s1p0_instances(
                         op_ptrs);
@@ -475,9 +474,8 @@ struct DeviceOperationInstanceFactory<
                 }
 #endif
             }
-
-                  }
-    if constexpr(NumDimSpatial == 3)
+        }
+        if constexpr(NumDimSpatial == 3)
         {
             if constexpr(is_same_v<InLayout, GNDHWC> && is_same_v<WeiLayout, GKZYXC> &&
                          is_same_v<OutLayout, GNDHWK>)
@@ -491,7 +489,7 @@ struct DeviceOperationInstanceFactory<
                         op_ptrs);
                     add_device_grouped_conv3d_bwd_data_wmma_gndhwk_gkzyxc_gndhwc_f16_1x1s1p0_instances(
                         op_ptrs);
-                            }
+                }
 #endif
 
 #ifdef CK_ENABLE_INT8
@@ -546,14 +544,11 @@ struct DeviceOperationInstanceFactory<
                         op_ptrs);
                 }
             }
-            
-        
-    
-}
+        }
 #endif
         return op_ptrs;
     }
-    #endif
+#endif
 };
 
 } // namespace instance
