@@ -111,8 +111,8 @@ struct DefaultAlgorithm
                                              .bk1            = 8,
                                              .m_per_xdl      = 16,
                                              .n_per_xdl      = 16,
-                                             .m_xdl_per_wave = 4,
-                                             .n_xdl_per_wave = 4};
+                                             .m_xdl_per_wave = 8,
+                                             .n_xdl_per_wave = 8};
 
     ckb::test::TransferABC transfer{
         .a =
@@ -188,7 +188,7 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
                     "   ├─ Pipeline scheduler: INTRAWAVE\n"
                     "   ├─ Warp Gemm parameters: \n"
                     "   │  ├─ subtile size: 16×16\n"
-                    "   │  └─ Number of warp gemm iterations: 4×4\n"
+                    "   │  └─ Number of warp gemm iterations: 8×8\n"
                     "   └─ Memory access:\n"
                     "      ├─ A Tile transfer: \n"
                     "      │  ├─ Tile dimensions: 4×256×8×\n"
