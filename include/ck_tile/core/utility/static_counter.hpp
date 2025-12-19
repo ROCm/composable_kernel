@@ -102,31 +102,28 @@ struct static_counter_uniq_;
 }
 
 // clang-format off
-#define MAKE_SC()                                                                              \
-    _Pragma("clang diagnostic push")                                                           \
-    _Pragma("clang diagnostic ignored \"-Wpre-c2y-compat\"")                                   \
-    _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"")                                 \
-    ck_tile::static_counter<ck_tile::impl::static_counter_uniq_<__COUNTER__>> {}               \
+#define MAKE_SC()                                                                       \
+    _Pragma("clang diagnostic push")                                                    \
+    _Pragma("clang diagnostic ignored \"-Wpre-c2y-compat\"")                            \
+    _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"")                            \
+    ck_tile::static_counter<ck_tile::impl::static_counter_uniq_<__COUNTER__>>{}         \
     _Pragma("clang diagnostic pop")
-#define MAKE_SC_WITH(start_, step_)                                                            \
-    _Pragma("clang diagnostic push")                                                           \
-    _Pragma("clang diagnostic ignored \"-Wpre-c2y-compat\"")                                   \
-    _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"")                                 \
-    ck_tile::static_counter<ck_tile::impl::static_counter_uniq_<__COUNTER__>, start_, step_>   \
-    {}                                                                                         \
+#define MAKE_SC_WITH(start_, step_)                                                     \
+    _Pragma("clang diagnostic push")                                                    \
+    _Pragma("clang diagnostic ignored \"-Wpre-c2y-compat\"")                            \
+    _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"") ck_tile::                  \
+    static_counter<ck_tile::impl::static_counter_uniq_<__COUNTER__>, start_, step_>{}   \
     _Pragma("clang diagnostic pop")
-#define NEXT_SC(c_)                                                                            \
-    _Pragma("clang diagnostic push")                                                           \
-    _Pragma("clang diagnostic ignored \"-Wpre-c2y-compat\"")                                   \
-    _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"")                                 \
-    c_.next<__COUNTER__>()                                                                     \
+#define NEXT_SC(c_)                                                                     \
+    _Pragma("clang diagnostic push")                                                    \
+    _Pragma("clang diagnostic ignored \"-Wpre-c2y-compat\"")                            \
+    _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"") c_.next<__COUNTER__>()     \
     _Pragma("clang diagnostic pop")
-#define NEXT_SCI(c_, static_i_)                                                                \
-    _Pragma("clang diagnostic push")                                                           \
-    _Pragma("clang diagnostic ignored \"-Wpre-c2y-compat\"")                                   \
-    _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"")                                 \
-    c_.next<__COUNTER__ + static_i_>()                                                         \
-    _Pragma("clang diagnostic pop")
+#define NEXT_SCI(c_, static_i_)                                                         \
+    _Pragma("clang diagnostic push")                                                    \
+    _Pragma("clang diagnostic ignored \"-Wpre-c2y-compat\"")                            \
+    _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"")                            \
+    c_.next<__COUNTER__ + static_i_>() _Pragma("clang diagnostic pop")
 // clang-format on
 
 // Usage:
