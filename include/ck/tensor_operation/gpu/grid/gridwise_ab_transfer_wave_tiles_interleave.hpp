@@ -82,8 +82,8 @@ struct ABTransferWaveTilesInterleave : ABTransferWaveTiles<ABLayout,
         const auto base_desc_padded = Base::template PadGridDescriptor<PadMN, PadK>(
             base_desc, sizeMN, MNPad, sizeK, KPad, 0, 0);
 
-        const index_t MN_grid = PadMN ? sizeMN : MNPad;
-        const index_t K_grid  = PadK ? sizeK : KPad;
+        const index_t MN_grid = !PadMN ? sizeMN : MNPad;
+        const index_t K_grid  = !PadK ? sizeK : KPad;
 
         // Divide the base descriptor MN_K into tiles
         const auto ab_grid_desc_mntiles_ktiles = transform_tensor_descriptor(
