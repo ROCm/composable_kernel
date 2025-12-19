@@ -414,12 +414,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
             (ScaleM::GranularityMN != -1 && ScaleM::GranularityK == 0) || // per token
             (ScaleN::GranularityMN != -1 && ScaleN::GranularityK == 0);   // per channel
 
-        auto a_block_window_with_distr =
-            ck_tile::make_tile_window(a_block_window.get_bottom_tensor_view(),
-                                      a_block_window.get_window_lengths(),
-                                      a_block_window.get_window_origin(),
-                                      MXFlatmmPipeline::GetADramTileDistribution());
-        const auto& c_block_tile = MXFlatmmPipeline{}(a_block_window_with_distr,
+        const auto& c_block_tile = MXFlatmmPipeline{}(a_block_window,
                                                       b_flat_block_window,
                                                       scale_a_block_window,
                                                       scale_b_block_window,

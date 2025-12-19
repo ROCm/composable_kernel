@@ -21,6 +21,24 @@
 template <ck_tile::QuantType QT>
 struct QuantTypeTraits;
 
+template <typename TTuple, size_t Index, typename DefaultType, typename Enable = void>
+struct SafeTupleElement
+{
+    using type = DefaultType;
+};
+
+template <typename TTuple, size_t Index, typename DefaultType>
+struct SafeTupleElement<TTuple,
+                        Index,
+                        DefaultType,
+                        std::enable_if_t<(Index < std::tuple_size_v<TTuple>)>>
+{
+    using type = std::tuple_element_t<Index, TTuple>;
+};
+
+template <typename TTuple, size_t Index, typename DefaultType>
+using SafeTupleElement_t = typename SafeTupleElement<TTuple, Index, DefaultType>::type;
+
 // Base class for common quant gemm functionality
 template <typename Tuple, typename Derived>
 class TestCkTileGemmQuantBase : public ::testing::Test
@@ -37,6 +55,9 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     static constexpr auto QuantType = std::tuple_element_t<8, Tuple>::value;
     using GemmConfig                = std::tuple_element_t<9, Tuple>;
     using QuantGroupSize            = std::tuple_element_t<10, Tuple>;
+    using AQuantGroupSize           = QuantGroupSize;
+    using BQuantGroupSize           = SafeTupleElement_t<Tuple, 11, QuantGroupSize>;
+    using BQLayout                  = SafeTupleElement_t<Tuple, 12, AQLayout>;
     using AccDataType               = float; // accumulate always in float
 
     // Get the quant-type specific data types from traits
@@ -85,9 +106,6 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
         using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
-
-        // Re-use the AQLayout for BQLayout
-        using BQLayout = AQLayout;
 
         using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
                                                                kPadN,
@@ -155,7 +173,8 @@ class TestCkTileGemmQuantBase : public ::testing::Test
 template <ck_tile::QuantType QT>
 struct QuantTypeTraits
 {
-    static_assert(QT == ck_tile::QuantType::AQuantGrouped ||
+    static_assert(QT == ck_tile::QuantType::ABQuantGrouped ||
+                      QT == ck_tile::QuantType::AQuantGrouped ||
                       QT == ck_tile::QuantType::BQuantGrouped ||
                       QT == ck_tile::QuantType::RowColQuant ||
                       QT == ck_tile::QuantType::TensorQuant,
@@ -180,6 +199,16 @@ struct QuantTypeTraits<ck_tile::QuantType::BQuantGrouped>
     using ComputeDataType = ADataType; // For BQuant, compute type is ADataType
 
     static constexpr const char* name = "bquant";
+};
+
+// Specialization for ABQuantGrouped
+template <>
+struct QuantTypeTraits<ck_tile::QuantType::ABQuantGrouped>
+{
+    template <typename ADataType, typename BDataType>
+    using ComputeDataType = BDataType; // For AQuant, compute type is BDataType
+
+    static constexpr const char* name = "abquant";
 };
 
 // Specialization for RowColQuant
