@@ -285,6 +285,11 @@ UniqueOutputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args)
     };
 }
 
+/// @brief `validate()` specialization for forward convolution.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+///
+/// @see validate()
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
 ValidationReport
