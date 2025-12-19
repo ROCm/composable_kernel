@@ -60,6 +60,16 @@ struct ConvFwdXdlV3Factory
     static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
     static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
 
+    // product of thread cluster lengths must be <= workgroup size
+    static_assert(ValidBlockTransferClusterSize<A_BLOCK_TRANSFER, BLOCK.block_size>);
+    static_assert(ValidBlockTransferClusterSize<B_BLOCK_TRANSFER, BLOCK.block_size>);
+    static_assert(ValidBlockTransferClusterSize<C_BLOCK_TRANSFER, BLOCK.block_size>);
+
+    // threads must cover entire input tile
+    static_assert(ThreadsCoverATile<A_BLOCK_TRANSFER, BLOCK.per_block>);
+    static_assert(ThreadsCoverBTile<B_BLOCK_TRANSFER, BLOCK.per_block>);
+    static_assert(ThreadsCoverCTile<C_BLOCK_TRANSFER, BLOCK.per_block>);
+
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
         SPATIAL_DIM,
