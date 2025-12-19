@@ -242,6 +242,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             return 1;
     }();
 
+    static constexpr index_t WaveSize =
+        WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::selected_wmma
+            .wave_size;
+
     // Limitations of the current implementation:
     //  - no multiAB
     //  - GemmSpecialization Default
@@ -263,22 +267,22 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
          is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>) &&
         BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
 
+    static constexpr bool IsWaveTileInterleavedFitting =
+        (NPerBlock / NPerWmma / NRepeat) * (KPerBlock / KPack) >= (BlockSize / WaveSize);
+
     // We need to investigate if it makes sense to remove cshuffle for smaller types
     // Currently we use direct store for NRepeat equal to 4 or 8. For 16 bit type we use at
     // lease buffer store 64 bit for 16 contiguous threads -> 128 bytes in toral (full cache line)
     static constexpr bool UseDirectStore = is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
                                            sizeof(ComputeTypeB) == 2 && sizeof(EDataType) == 2 &&
                                            NumDTensor == 0 && (NRepeat == 4 || NRepeat == 8) &&
-                                           !IsFusedKernel;
+                                           !IsFusedKernel && IsWaveTileInterleavedFitting;
 #else
     static constexpr bool IsAWaveTransferApplicable = false;
     static constexpr bool IsBWaveTransferApplicable = false;
     static constexpr bool UseDirectStore            = false;
 #endif
 
-    static constexpr index_t WaveSize =
-        WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::selected_wmma
-            .wave_size;
     static constexpr bool UseBlockPaddingA =
         ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4;
     using ATransfer = typename std::conditional<
