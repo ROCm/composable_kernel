@@ -240,7 +240,6 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
     };
 
     make_ParallelTensorFunctor(f_mn, M, N)(std::thread::hardware_concurrency());
-    std::cout << std::endl;
 }
 
 template <typename ADataType,
