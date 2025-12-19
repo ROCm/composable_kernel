@@ -880,8 +880,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                     if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                     {
                         std::cout << "Not all groups have compatible HasMainLoop values! "
-                                  << "Group 0: " << (first_has_main_loop ? "TRUE" : "FALSE")
-                                  << ", Group " << i << ": " << (has_main_loop ? "TRUE" : "FALSE")
+                                  << "Group 0: " << std::boolalpha << first_has_main_loop
+                                  << ", Group " << i << ": " << std::boolalpha << has_main_loop
                                   << std::endl;
                     }
                     return false;
