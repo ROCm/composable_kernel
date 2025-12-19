@@ -1202,7 +1202,7 @@ pipeline {
         booleanParam(
             name: "RUN_TILE_ENGINE_BASIC_TESTS",
             defaultValue: false,
-            description: "Run the tile_engine_basic tests (default: ON)")
+            description: "Run the tile_engine_basic tests (default: OFF)")
         booleanParam(
             name: "RUN_TILE_ENGINE_GEMM_TESTS",
             defaultValue: false,
@@ -1632,7 +1632,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_BASIC.toBoolean() }
+                        expression { params.RUN_TILE_ENGINE_BASIC_TESTS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
                     environment{
