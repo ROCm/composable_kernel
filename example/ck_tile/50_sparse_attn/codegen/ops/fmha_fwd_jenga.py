@@ -405,15 +405,7 @@ class FmhaFwdPipeline:
             else:
                 n += "_nmask"
 
-        if self.F_lse == "t":
-            n += "_lse"
-        else:
-            n += "_nlse"
-
-        if self.F_dropout == "t":
-            n += "_dropout"
-        else:
-            n += "_ndropout"
+        # Note: lse and dropout are not supported, so we don't add them to filename
 
         if self.F_skip == "t":
             n += "_skip"
@@ -663,7 +655,7 @@ class KernelComponentFactory:
                 #              FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 # (96, 128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (128, 128): [
-                    FmhaFwdTileSize(
+                    FmhaFwdTileSize(  # fmt: skip
                         16,
                         32,
                         64,
@@ -684,7 +676,7 @@ class KernelComponentFactory:
                         32,
                         -1,
                     ),
-                    FmhaFwdTileSize(
+                    FmhaFwdTileSize(  # fmt: skip
                         32,
                         32,
                         128,
@@ -705,7 +697,7 @@ class KernelComponentFactory:
                         16,
                         -1,
                     ),
-                    FmhaFwdTileSize(
+                    FmhaFwdTileSize(  # fmt: skip
                         128,
                         64,
                         32,
@@ -726,7 +718,7 @@ class KernelComponentFactory:
                         16,
                         -1,
                     ),
-                    FmhaFwdTileSize(
+                    FmhaFwdTileSize(  # fmt: skip
                         128,
                         128,
                         32,
@@ -839,19 +831,20 @@ class KernelComponentFactory:
         squant = "t" if dtype == "fp8" else "f"
         pipelines = []
         if dtype in ["fp16", "bf16"]:
-            for logits, mask, bias, lse, dropout, skip in itertools.product(
+            for logits, mask, bias, skip in itertools.product(
                 ["t", "f"],
                 get_mask_map(mask_impl).keys(),
                 BIAS_MAP.keys(),
                 ["t", "f"],
-                ["t", "f"],
-                ["t", "f"],
             ):
+                # Always use lse="f" and dropout="f" (not supported)
+                lse = "f"
+                dropout = "f"
                 if hdim == 256 and hdim_v == 256:
                     # print("jenga fmha only support dim=128 now.")
                     continue
                     pipelines.append(
-                        FmhaFwdPipeline(
+                        FmhaFwdPipeline(  # fmt: skip
                             "qr",
                             "row",
                             "f",
@@ -870,7 +863,7 @@ class KernelComponentFactory:
                     )
                     # the below two is used for hdim vectorize load
                     pipelines.append(
-                        FmhaFwdPipeline(
+                        FmhaFwdPipeline(  # fmt: skip
                             "qr",
                             "row",
                             "t",
@@ -888,7 +881,7 @@ class KernelComponentFactory:
                         )
                     )
                     pipelines.append(
-                        FmhaFwdPipeline(
+                        FmhaFwdPipeline(  # fmt: skip
                             "qr",
                             "row",
                             "t",
@@ -911,7 +904,7 @@ class KernelComponentFactory:
                         continue
                         # TODO: rocm 6.2 compiler problem if using qr_async for bias case
                         pipelines.append(
-                            FmhaFwdPipeline(
+                            FmhaFwdPipeline(  # fmt: skip
                                 "qr",
                                 "row",
                                 "f",
@@ -929,7 +922,7 @@ class KernelComponentFactory:
                             )
                         )
                         pipelines.append(
-                            FmhaFwdPipeline(
+                            FmhaFwdPipeline(  # fmt: skip
                                 "qr",
                                 "row",
                                 "t",
@@ -948,7 +941,7 @@ class KernelComponentFactory:
                         )
                     else:
                         pipelines.append(
-                            FmhaFwdPipeline(
+                            FmhaFwdPipeline(  # fmt: skip
                                 "qr_async",
                                 "row",
                                 "t",
@@ -966,7 +959,7 @@ class KernelComponentFactory:
                             )
                         )
                         pipelines.append(
-                            FmhaFwdPipeline(
+                            FmhaFwdPipeline(  # fmt: skip
                                 "qr_async",
                                 "row",
                                 "t",

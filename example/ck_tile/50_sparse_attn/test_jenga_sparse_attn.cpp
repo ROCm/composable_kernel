@@ -43,8 +43,8 @@ void reference_blocked_attention(
     ck_tile::index_t seqlen_k = v_lengths[2];
     ck_tile::index_t hdim_v   = v_lengths[3];
 
-    ck_tile::index_t num_q_blocks = seqlen_q / BLKQ;
-    ck_tile::index_t num_k_blocks = seqlen_k / BLKK;
+    ck_tile::index_t num_q_blocks = (seqlen_q + BLKQ - 1) / BLKQ;
+    ck_tile::index_t num_k_blocks = (seqlen_k + BLKK - 1) / BLKK;
 
     for(ck_tile::index_t b = 0; b < batch; ++b)
     {
@@ -207,8 +207,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t BLKK = block_size;
 
     // Calculate number of Q and K blocks
-    ck_tile::index_t num_q_blocks = seqlen_q / BLKQ;
-    ck_tile::index_t num_k_blocks = seqlen_k / BLKK;
+    ck_tile::index_t num_q_blocks = (seqlen_q + BLKQ - 1) / BLKQ;
+    ck_tile::index_t num_k_blocks = (seqlen_k + BLKK - 1) / BLKK;
 
     std::cout << "============================================================" << std::endl;
     std::cout << "[Jenga Sparse Attention Test]" << std::endl;
