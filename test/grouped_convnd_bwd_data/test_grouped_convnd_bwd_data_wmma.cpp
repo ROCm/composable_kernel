@@ -24,7 +24,7 @@ class TestGroupedConvndBwdDataWmma : public ::testing::Test
     using InLayout  = std::tuple_element_t<3, Tuple>;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
-    std::vector<ck::index_t> split_ks{1, 2};
+    std::vector<ck::index_t> split_ks{1, 2}; // Only test split_k 1 and 2.
 
     template <ck::index_t NDimSpatial>
     void Run()
