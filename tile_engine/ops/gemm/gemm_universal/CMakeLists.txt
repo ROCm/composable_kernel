@@ -1,21 +1,19 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-set(GEMM_MULTI_D_DATATYPE "fp16" CACHE STRING "List of datatypes for GEMM Multi D (semicolon-separated)")
-set(GEMM_MULTI_D_LAYOUT "rcrr;rrrr;crrr;ccrr" CACHE STRING "List of layout for GEMM Multi D (semicolon-separated)")
-set(GEMM_MULTI_D_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
-set(GEMM_MULTI_D_ELEMENTWISE_FUNCTION "mul"  CACHE STRING "Elementwise function")
-
-option(ENABLE_CCACHE_GEMM_MULTI_D "Enable ccache for GEMM Multi D ops compilation" OFF)
+set(GEMM_UNIVERSAL_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM Universal (semicolon-separated)")
+set(GEMM_UNIVERSAL_LAYOUT "rcr;rrr;crr;ccr" CACHE STRING "List of layout for GEMM Universal (semicolon-separated)")
+set(GEMM_UNIVERSAL_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
+option(ENABLE_CCACHE_GEMM_UNIVERSAL "Enable ccache for GEMM Universal ops compilation" OFF)
 
 # Store the directory path for use in functions
-set(GEMM_MULTI_D_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
+set(GEMM_UNIVERSAL_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
-# Function to create individual GEMM Multi D targets
-function(create_individual_gemm_multi_d_target datatype layout trait tile_config config_json)
-    # Use the parent scope GEMM_MULTI_D_GPU_TARGETS_INDIVIDUAL variable
-    if(NOT GEMM_MULTI_D_GPU_TARGETS_INDIVIDUAL)
-        message(WARNING "Skipping individual GEMM Multi D target ${datatype}_${layout}_${trait}_${tile_config}: No supported GPU targets")
+# Function to create individual GEMM Universal targets
+function(create_individual_gemm_universal_target datatype layout trait tile_config config_json)
+    # Use the parent scope GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL variable
+    if(NOT GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL)
+        message(WARNING "Skipping individual GEMM Universal target ${datatype}_${layout}_${trait}_${tile_config}: No supported GPU targets")
         return()
     endif()
 
@@ -44,49 +42,47 @@ function(create_individual_gemm_multi_d_target datatype layout trait tile_config
     list(GET warp_tile_parts 1 warp_tile_n)
     list(GET warp_tile_parts 2 warp_tile_k)
 
-    set(target_name "benchmark_gemm_multi_d_${datatype}_${layout}_${trait}_${tile_config}")
+    set(target_name "benchmark_gemm_universal_${datatype}_${layout}_${trait}_${tile_config}")
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
 
     # Generate the single instance header for this kernel
-    set(instance_header "${working_path}/gemm_multi_d_single_${datatype}_${layout}_${trait}_${tile_config}.hpp")
+    set(instance_header "${working_path}/gemm_universal_single_${datatype}_${layout}_${trait}_${tile_config}.hpp")
 
     # Add custom command to generate the header file at build time
     add_custom_command(
         OUTPUT ${instance_header}
-        COMMAND ${Python3_EXECUTABLE} ${GEMM_MULTI_D_SOURCE_DIR}/gemm_multi_d_instance_builder.py
+        COMMAND ${Python3_EXECUTABLE} ${GEMM_UNIVERSAL_SOURCE_DIR}/gemm_universal_instance_builder.py
                 --working_path ${working_path}
                 --datatype ${datatype}
                 --layout ${layout}
-                --elementwise_function ${GEMM_MULTI_D_ELEMENTWISE_FUNCTION}
                 --config_json ${config_json}
                 --gen_single
-                --kernel_name "gemm_multi_d_${datatype}_${layout}_${trait}_${tile_config}"
+                --kernel_name "gemm_universal_${datatype}_${layout}_${trait}_${tile_config}"
                 --tile_config "${tile_config}"
                 --trait_combo "${trait}"
-                --gpu_target "${GEMM_MULTI_D_GPU_TARGETS_INDIVIDUAL}"
-        DEPENDS ${GEMM_MULTI_D_SOURCE_DIR}/gemm_multi_d_instance_builder.py ${config_json}
+                --gpu_target "${GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL}"
+        DEPENDS ${GEMM_UNIVERSAL_SOURCE_DIR}/gemm_universal_instance_builder.py ${config_json}
         COMMENT "Generating ${instance_header}"
     )
 
     # Create the executable
     add_executable(${target_name}
-        # to save build time, exclude the target from "all" target of "gemm_multi_d" directory and its ancestors
         EXCLUDE_FROM_ALL
-        ${GEMM_MULTI_D_SOURCE_DIR}/gemm_multi_d_benchmark_single.cpp
+        ${GEMM_UNIVERSAL_SOURCE_DIR}/gemm_benchmark_single.cpp
         ${instance_header}
     )
 
     # Set GPU architectures
-    set_property(TARGET ${target_name} PROPERTY HIP_ARCHITECTURES ${GEMM_MULTI_D_GPU_TARGETS_INDIVIDUAL})
+    set_property(TARGET ${target_name} PROPERTY HIP_ARCHITECTURES ${GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL})
 
     # Set compile definitions
     target_compile_definitions(${target_name} PRIVATE
-        GEMM_MULTI_D_SINGLE_INSTANCE_HPP="${instance_header}"
+        GEMM_UNIVERSAL_SINGLE_INSTANCE_HPP="${instance_header}"
     )
 
     # Include directories
     target_include_directories(${target_name} PRIVATE
-        ${GEMM_MULTI_D_SOURCE_DIR}
+        ${GEMM_UNIVERSAL_SOURCE_DIR}
         ${working_path}
     )
 
@@ -99,10 +95,10 @@ function(create_individual_gemm_multi_d_target datatype layout trait tile_config
     )
 
     # Add to collection targets
-    add_dependencies(benchmark_gemm_multi_d_all ${target_name})
-    add_dependencies(benchmark_gemm_multi_d_${datatype} ${target_name})
-    add_dependencies(benchmark_gemm_multi_d_${layout} ${target_name})
-    add_dependencies(benchmark_gemm_multi_d_${datatype}_${layout} ${target_name})
+    add_dependencies(benchmark_gemm_universal_all ${target_name})
+    add_dependencies(benchmark_gemm_universal_${datatype} ${target_name})
+    add_dependencies(benchmark_gemm_universal_${layout} ${target_name})
+    add_dependencies(benchmark_gemm_universal_${datatype}_${layout} ${target_name})
 
     # Add to trait-specific targets
     string(REPLACE "_" ";" trait_parts ${trait})
@@ -110,30 +106,30 @@ function(create_individual_gemm_multi_d_target datatype layout trait tile_config
     list(GET trait_parts 1 epilogue)
     list(GET trait_parts 2 scheduler)
 
-    add_dependencies(benchmark_gemm_multi_d_${pipeline}_pipeline ${target_name})
-    add_dependencies(benchmark_gemm_multi_d_${epilogue}_epilogue ${target_name})
-    add_dependencies(benchmark_gemm_multi_d_${scheduler}_scheduler ${target_name})
+    add_dependencies(benchmark_gemm_universal_${pipeline}_pipeline ${target_name})
+    add_dependencies(benchmark_gemm_universal_${epilogue}_epilogue ${target_name})
+    add_dependencies(benchmark_gemm_universal_${scheduler}_scheduler ${target_name})
 endfunction()
 
-# Function to build individual GEMM Multi D targets
-function(build_individual_gemm_multi_d_targets datatype layout)
+# Function to build individual GEMM Universal targets
+function(build_individual_gemm_universal_targets datatype layout)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
 
     # Choose config file
     # Priority order:
-    # 1. Environment variable GEMM_MULTI_D_CONFIG_FILE
-    # 2. CMake variable GEMM_MULTI_D_CONFIG_FILE
+    # 1. Environment variable GEMM_UNIVERSAL_CONFIG_FILE
+    # 2. CMake variable GEMM_UNIVERSAL_CONFIG_FILE
     # 3. Default based on layout
 
     # Check environment variable first
-    if(DEFINED ENV{GEMM_MULTI_D_CONFIG_FILE} AND NOT "$ENV{GEMM_MULTI_D_CONFIG_FILE}" STREQUAL "")
-        set(config_filename "$ENV{GEMM_MULTI_D_CONFIG_FILE}")
+    if(DEFINED ENV{GEMM_UNIVERSAL_CONFIG_FILE} AND NOT "$ENV{GEMM_UNIVERSAL_CONFIG_FILE}" STREQUAL "")
+        set(config_filename "$ENV{GEMM_UNIVERSAL_CONFIG_FILE}")
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${config_filename}")
         message(VERBOSE "  Using config from environment variable: ${config_filename}")
-    elseif(NOT "${GEMM_MULTI_D_CONFIG_FILE}" STREQUAL "")
+    elseif(NOT "${GEMM_UNIVERSAL_CONFIG_FILE}" STREQUAL "")
         # Use CMake variable if set
-        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${GEMM_MULTI_D_CONFIG_FILE}")
-        message(VERBOSE "  Using custom config: ${GEMM_MULTI_D_CONFIG_FILE}")
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${GEMM_UNIVERSAL_CONFIG_FILE}")
+        message(VERBOSE "  Using custom config: ${GEMM_UNIVERSAL_CONFIG_FILE}")
     else()
         # Use default config for all layouts
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
@@ -162,30 +158,28 @@ function(build_individual_gemm_multi_d_targets datatype layout)
     message(VERBOSE "  Working path: ${working_path}")
     message(VERBOSE "  Config file: ${json_blob}")
     message(VERBOSE "  Python executable: ${Python3_EXECUTABLE}")
-    message(VERBOSE "  Script path: ${CMAKE_CURRENT_LIST_DIR}/gemm_multi_d_instance_builder.py")
+    message(VERBOSE "  Script path: ${CMAKE_CURRENT_LIST_DIR}/gemm_universal_instance_builder.py")
 
     # Create working directory first
     file(MAKE_DIRECTORY ${working_path})
 
-    message(VERBOSE "COMMAND: ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_multi_d_instance_builder.py
+    message(VERBOSE "COMMAND: ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_universal_instance_builder.py
                 --working_path ${working_path}
                 --datatype ${datatype}
                 --layout ${layout}
-                --elementwise_function ${GEMM_MULTI_D_ELEMENTWISE_FUNCTION}
                 --config_json ${json_blob}
-                --gpu_target ${GEMM_MULTI_D_GPU_TARGETS_INDIVIDUAL}
+                --gpu_target ${GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL}
                 --list_kernels ")
 
     # First, just list the kernels (fast operation)
     message(VERBOSE "  Listing kernel configurations...")
     execute_process(
-        COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_multi_d_instance_builder.py
+        COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_universal_instance_builder.py
                 --working_path ${working_path}
                 --datatype ${datatype}
                 --layout ${layout}
-                --elementwise_function ${GEMM_MULTI_D_ELEMENTWISE_FUNCTION}
                 --config_json ${json_blob}
-                --gpu_target ${GEMM_MULTI_D_GPU_TARGETS_INDIVIDUAL}
+                --gpu_target ${GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL}
                 --list_kernels  
         WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
         RESULT_VARIABLE ret
@@ -198,8 +192,8 @@ function(build_individual_gemm_multi_d_targets datatype layout)
     endif()
 
     # Read kernel count
-    if(EXISTS ${working_path}/gemm_multi_d_kernel_count.txt)
-        file(READ ${working_path}/gemm_multi_d_kernel_count.txt kernel_count)
+    if(EXISTS ${working_path}/gemm_universal_kernel_count.txt)
+        file(READ ${working_path}/gemm_universal_kernel_count.txt kernel_count)
         string(STRIP "${kernel_count}" kernel_count)
         message(VERBOSE "  Found ${kernel_count} kernel configurations")
     else()
@@ -207,8 +201,8 @@ function(build_individual_gemm_multi_d_targets datatype layout)
     endif()
 
     # Read kernel list and create targets
-    if(EXISTS ${working_path}/gemm_multi_d_kernel_list.txt)
-        file(STRINGS ${working_path}/gemm_multi_d_kernel_list.txt kernel_lines)
+    if(EXISTS ${working_path}/gemm_universal_kernel_list.txt)
+        file(STRINGS ${working_path}/gemm_universal_kernel_list.txt kernel_lines)
         foreach(line IN LISTS kernel_lines)
             # Parse line: kernel_name|tile_config|trait_combo
             string(REPLACE "|" ";" parts "${line}")
@@ -217,7 +211,7 @@ function(build_individual_gemm_multi_d_targets datatype layout)
             list(GET parts 2 trait_combo)
 
             # Create individual target
-            create_individual_gemm_multi_d_target("${datatype}" "${layout}" "${trait_combo}" "${tile_config}" "${json_blob}")
+            create_individual_gemm_universal_target("${datatype}" "${layout}" "${trait_combo}" "${tile_config}" "${json_blob}")
         endforeach()
     else()
         message(FATAL_ERROR "Kernel list file not found")
@@ -225,27 +219,27 @@ function(build_individual_gemm_multi_d_targets datatype layout)
 endfunction()
 
 # Main build logic - Only individual builds supported
-message(VERBOSE "=== Starting Tile Engine GEMM Multi D Configuration ===")
-message(VERBOSE "GEMM_MULTI_D_DATATYPE: ${GEMM_MULTI_D_DATATYPE}")
-message(VERBOSE "GEMM_MULTI_D_LAYOUT: ${GEMM_MULTI_D_LAYOUT}")
+message(VERBOSE "=== Starting Tile Engine GEMM Universal Configuration ===")
+message(VERBOSE "GEMM_UNIVERSAL_DATATYPE: ${GEMM_UNIVERSAL_DATATYPE}")
+message(VERBOSE "GEMM_UNIVERSAL_LAYOUT: ${GEMM_UNIVERSAL_LAYOUT}")
 message(VERBOSE "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 
-# Filter GPU targets to only gfx90a, gfx942, gfx950
-set(GEMM_MULTI_D_GPU_TARGETS_INDIVIDUAL "")
-set(DESIRED_TARGETS "gfx90a;gfx942;gfx950")
+# Filter GPU targets to only gfx90a, gfx942, gfx950, gfx1201
+set(GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL "")
+set(DESIRED_TARGETS "gfx90a;gfx942;gfx950;gfx1201")
 
 foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
     if(target IN_LIST DESIRED_TARGETS)
-        list(APPEND GEMM_MULTI_D_GPU_TARGETS_INDIVIDUAL ${target})
+        list(APPEND GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL ${target})
         message(VERBOSE "  Adding GPU target: ${target}")
     endif()
 endforeach()
 
 # Skip build if no matching targets found
-if(NOT GEMM_MULTI_D_GPU_TARGETS_INDIVIDUAL)
-    message(WARNING "Skipping Tile Engine GEMM Multi D build: No supported GPU targets (gfx90a, gfx942, gfx950) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+if(NOT GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL)
+    message(WARNING "Skipping Tile Engine GEMM Universal build: No supported GPU targets (gfx90a, gfx942, gfx950, gfx1201) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 else()
-    message(VERBOSE "Building individual GEMM Multi D targets for GPU targets: ${GEMM_MULTI_D_GPU_TARGETS_INDIVIDUAL}")
+    message(VERBOSE "Building individual GEMM Universal targets for GPU targets: ${GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL}")
 
     # Enable parallel compilation optimizations
     # Set up job pools for better parallel compilation control
@@ -256,7 +250,7 @@ else()
 
     # Enable compiler cache if available and explicitly requested
     # Disabled by default due to permission issues in CI environments
-    if(ENABLE_CCACHE_GEMM_MULTI_D)
+    if(ENABLE_CCACHE_GEMM_UNIVERSAL)
         find_program(CCACHE_PROGRAM ccache)
         if(CCACHE_PROGRAM)
             set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
@@ -265,51 +259,51 @@ else()
             message(WARNING "ccache requested but not found")
         endif()
     else()
-        message(VERBOSE "ccache disabled for GEMM Multi D ops (use -DENABLE_CCACHE_GEMM_MULTI_D=ON to enable)")
+        message(VERBOSE "ccache disabled for GEMM Universal ops (use -DENABLE_CCACHE_GEMM_UNIVERSAL=ON to enable)")
     endif()
 
     # Create master collection targets
-    add_custom_target(benchmark_gemm_multi_d_all)
+    add_custom_target(benchmark_gemm_universal_all)
 
     # Create datatype collection targets
-    foreach(dt IN LISTS GEMM_MULTI_D_DATATYPE)
-        add_custom_target(benchmark_gemm_multi_d_${dt})
+    foreach(dt IN LISTS GEMM_UNIVERSAL_DATATYPE)
+        add_custom_target(benchmark_gemm_universal_${dt})
     endforeach()
 
     # Create layout collection targets
-    foreach(l IN LISTS GEMM_MULTI_D_LAYOUT)
-        add_custom_target(benchmark_gemm_multi_d_${l})
+    foreach(l IN LISTS GEMM_UNIVERSAL_LAYOUT)
+        add_custom_target(benchmark_gemm_universal_${l})
     endforeach()
 
     # Create combined collection targets
-    foreach(dt IN LISTS GEMM_MULTI_D_DATATYPE)
-        foreach(l IN LISTS GEMM_MULTI_D_LAYOUT)
-            add_custom_target(benchmark_gemm_multi_d_${dt}_${l})
+    foreach(dt IN LISTS GEMM_UNIVERSAL_DATATYPE)
+        foreach(l IN LISTS GEMM_UNIVERSAL_LAYOUT)
+            add_custom_target(benchmark_gemm_universal_${dt}_${l})
         endforeach()
     endforeach()
 
     # Create trait-based collection targets
-    # These are common trait components used across all GEMM Multi D kernels
-    set(GEMM_MULTI_D_PIPELINES "mem;compv3;compv4")
-    set(GEMM_MULTI_D_EPILOGUES "default;cshuffle")
-    set(GEMM_MULTI_D_SCHEDULERS "intrawave;interwave")
+    # These are common trait components used across all GEMM Universal kernels
+    set(GEMM_UNIVERSAL_PIPELINES "mem;compv3;compv4")
+    set(GEMM_UNIVERSAL_EPILOGUES "default;cshuffle")
+    set(GEMM_UNIVERSAL_SCHEDULERS "intrawave;interwave")
 
-    foreach(pipeline IN LISTS GEMM_MULTI_D_PIPELINES)
-        add_custom_target(benchmark_gemm_multi_d_${pipeline}_pipeline)
+    foreach(pipeline IN LISTS GEMM_UNIVERSAL_PIPELINES)
+        add_custom_target(benchmark_gemm_universal_${pipeline}_pipeline)
     endforeach()
 
-    foreach(epilogue IN LISTS GEMM_MULTI_D_EPILOGUES)
-        add_custom_target(benchmark_gemm_multi_d_${epilogue}_epilogue)
+    foreach(epilogue IN LISTS GEMM_UNIVERSAL_EPILOGUES)
+        add_custom_target(benchmark_gemm_universal_${epilogue}_epilogue)
     endforeach()
 
-    foreach(scheduler IN LISTS GEMM_MULTI_D_SCHEDULERS)
-        add_custom_target(benchmark_gemm_multi_d_${scheduler}_scheduler)
+    foreach(scheduler IN LISTS GEMM_UNIVERSAL_SCHEDULERS)
+        add_custom_target(benchmark_gemm_universal_${scheduler}_scheduler)
     endforeach()
 
     # Build individual targets for each datatype/layout combination
-    foreach(dt IN LISTS GEMM_MULTI_D_DATATYPE)
-        foreach(l IN LISTS GEMM_MULTI_D_LAYOUT)
-            build_individual_gemm_multi_d_targets(${dt} ${l})
+    foreach(dt IN LISTS GEMM_UNIVERSAL_DATATYPE)
+        foreach(l IN LISTS GEMM_UNIVERSAL_LAYOUT)
+            build_individual_gemm_universal_targets(${dt} ${l})
         endforeach()
     endforeach()
 endif()

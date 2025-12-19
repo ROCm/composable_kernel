@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
@@ -12,20 +11,20 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 
 
-class GemmPreshuffleBenchmark:
+class GemmMultiDBenchmark:
     def __init__(self, build_dir: str, verbose: bool = False):
         self.build_dir = Path(build_dir)
         self.verbose = verbose
         self.results = []
 
     def discover_kernels(self) -> List[Path]:
-        """Find all benchmark_gemm_preshuffle* executables in the build directory"""
+        """Find all benchmark_gemm_multi_d_* executables in the build directory"""
         bin_dir = self.build_dir / "bin"
         if not bin_dir.exists():
             print(f"Error: Binary directory {bin_dir} does not exist")
             return []
 
-        kernels = list(bin_dir.glob("benchmark_gemm_preshuffle*"))
+        kernels = list(bin_dir.glob("benchmark_gemm_multi_d_*"))
         if self.verbose:
             print(f"Found {len(kernels)} kernel executables")
             for k in kernels:
@@ -48,24 +47,24 @@ class GemmPreshuffleBenchmark:
         }
 
         # Parse the kernel name pattern:
-        # benchmark_gemm_preshuffle_fp16_rcr_mem_default_intrawave_False_False_False_False_False_256x256x32_2x2x1_4x64x16
+        # benchmark_gemm_multi_d_fp16_rcr_mem_default_intrawave_False_False_False_False_False_256x256x32_2x2x1_4x64x16
         parts = name.split("_")
 
-        if len(parts) >= 4:
-            # Extract data type (4rd part after benchmark_gemm_preshuffle_)
-            info["data_type"] = parts[3] if len(parts) > 2 else "unknown"
+        if len(parts) >= 5:
+            # Extract data type (3rd part after benchmark_gemm_)
+            info["data_type"] = parts[4] if len(parts) > 4 else "unknown"
 
-            # Extract layout (5th part)
-            info["layout"] = parts[4] if len(parts) > 3 else "unknown"
+            # Extract layout (4th part)
+            info["layout"] = parts[5] if len(parts) > 5 else "unknown"
 
-            # Extract pipeline (6th part)
-            info["pipeline"] = parts[5] if len(parts) > 4 else "unknown"
+            # Extract pipeline (5th part)
+            info["pipeline"] = parts[6] if len(parts) > 6 else "unknown"
 
-            # Extract epilogue (7th part)
-            info["epilogue"] = parts[6] if len(parts) > 5 else "unknown"
+            # Extract epilogue (6th part)
+            info["epilogue"] = parts[7] if len(parts) > 7 else "unknown"
 
-            # Extract scheduler (8th part)
-            info["scheduler"] = parts[7] if len(parts) > 6 else "unknown"
+            # Extract scheduler (7th part)
+            info["scheduler"] = parts[8] if len(parts) > 8 else "unknown"
 
         # Extract detailed configuration from the end of the name
         config_info = self.parse_detailed_config(name)
@@ -128,7 +127,7 @@ class GemmPreshuffleBenchmark:
         # Assign dimensions based on order and magnitude
         if len(dimension_groups) >= 3:
             # Sort by magnitude to identify: largest=tile_sizes, smallest=warp_config, middle=warp_tile
-            sorted_groups = sorted(dimension_groups, key=lambda x: max(x), reverse=True)
+            sorted_groups = sorted(dimension_groups, key=max, reverse=True)
 
             # Largest dimensions = tile sizes
             config["tile_sizes"]["tile_m"] = sorted_groups[0][0]
@@ -146,7 +145,7 @@ class GemmPreshuffleBenchmark:
             config["warp_tile"]["warp_tile_k"] = sorted_groups[1][2]
         elif len(dimension_groups) == 2:
             # If only 2 groups, assign based on magnitude
-            sorted_groups = sorted(dimension_groups, key=lambda x: max(x), reverse=True)
+            sorted_groups = sorted(dimension_groups, key=max, reverse=True)
 
             # Larger = tile sizes
             config["tile_sizes"]["tile_m"] = sorted_groups[0][0]
@@ -227,7 +226,6 @@ class GemmPreshuffleBenchmark:
 
             # Save raw output to individual JSON file
             output = result.stdout.strip()
-
             if output:
                 with open(json_file, "w") as f:
                     f.write(output)
@@ -587,7 +585,7 @@ class GemmPreshuffleBenchmark:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="GEMM Preshuffle Kernel Benchmarking Tool"
+        description="GEMM Multi D Kernel Benchmarking Tool"
     )
     parser.add_argument(
         "build_dir", help="Build directory containing kernel executables"
@@ -604,7 +602,7 @@ def main():
     parser.add_argument("--verify", action="store_true", help="Enable verification")
     parser.add_argument(
         "--csv",
-        default="gemm_preshuffle_benchmark_results.csv",
+        default="gemm_multi_d_benchmark_results.csv",
         help="CSV output filename",
     )
     parser.add_argument(
@@ -650,10 +648,10 @@ def main():
             return 1
 
     # Create benchmark instance
-    benchmark = GemmPreshuffleBenchmark(args.build_dir, verbose=args.verbose)
+    benchmark = GemmMultiDBenchmark(args.build_dir, verbose=args.verbose)
 
     # Run benchmark sweep
-    print("Starting GEMM Preshuffle kernel benchmark sweep...")
+    print("Starting GEMM Multi D kernel benchmark sweep...")
     start_time = time.time()
 
     best_kernels = benchmark.benchmark_sweep(

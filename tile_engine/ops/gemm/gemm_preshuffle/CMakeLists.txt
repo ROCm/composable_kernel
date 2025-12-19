@@ -67,7 +67,6 @@ function(create_individual_gemm_preshuffle_target datatype layout trait tile_con
     
     # Create the executable
     add_executable(${target_name} 
-        # to save build time, exclude the target from "all" target of "gemm_preshuffle" directory and its ancestors
         EXCLUDE_FROM_ALL
         ${GEMM_PRESHUFFLE_SOURCE_DIR}/gemm_preshuffle_benchmark_single.cpp
         ${instance_header}
