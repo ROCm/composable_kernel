@@ -327,7 +327,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
         Array<const ADataType*, MaxGemmsNum> a_grid_ptrs_arr;
         Array<DsPointer, MaxGemmsNum> ds_grid_ptrs_arr;
         Array<EDataType*, MaxGemmsNum> c_grid_ptrs_arr;
-        // Queue for spliting
+        // Queue for splitting
         std::queue<ConvToGemmFwdTransformerLongIndexT> conv_to_gemm_transformers_queue(
             {conv_to_gemm_transformer_base});
         std::queue<const ADataType*> a_grid_ptrs_queue({a_grid_ptr_base});
