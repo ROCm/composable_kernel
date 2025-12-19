@@ -177,6 +177,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
     index_t num_kernel    = 0;
+    int valids            = 0;
+
     // profile device op instances
     bool pass = true;
 
@@ -196,6 +198,9 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             }
 
             std::string op_name = op_ptr->GetTypeString();
+            valids++;
+
+            out_device_buf.SetZero();
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -288,6 +293,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
         run_impl(op_ptr, argument_ptr);
     }
+
+    printf("\033[36mvalids: %d\033[0m\n", valids);
 
     std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
