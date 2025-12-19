@@ -77,6 +77,7 @@ class ProfilerOperationRegistry final
 #define REGISTER_PROFILER_OPERATION(name, description, operation)                            \
     _Pragma("clang diagnostic push")                                                         \
     _Pragma("clang diagnostic ignored \"-Wpre-c2y-compat\"")                                 \
+    _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"")                                 \
     static const bool PP_CONCAT(operation_registration_result_, __COUNTER__) =               \
         ::ProfilerOperationRegistry::GetInstance().Add(name, description, operation)         \
     _Pragma("clang diagnostic pop")
