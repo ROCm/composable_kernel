@@ -107,7 +107,7 @@ struct TransferAB
 {
     BlockTransfer block_transfer;
     LdsTransfer lds_transfer;
-    AccessOrder block_transfer_access_order;
+    AccessOrder thread_cluster_arrange_order;
     AccessOrder src_access_order;
 };
 

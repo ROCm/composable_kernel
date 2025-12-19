@@ -144,7 +144,7 @@ template <>
 inline std::string to_string<TransferAB>(TransferAB t)
 {
     std::ostringstream oss;
-    oss << to_string(t.block_transfer) << "," << to_string(t.block_transfer_access_order) << ","
+    oss << to_string(t.block_transfer) << "," << to_string(t.thread_cluster_arrange_order) << ","
         << to_string(t.src_access_order) << "," << t.lds_transfer.src_vector_dim << ","
         << t.lds_transfer.src_scalar_per_vector << "," << t.lds_transfer.lds_dst_scalar_per_vector
         << "," << (t.lds_transfer.lds_padding ? "true" : "false");

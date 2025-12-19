@@ -136,7 +136,7 @@ struct DefaultAlgorithm
                                                 .lds_dst_scalar_per_vector = 2,
                                                 .is_direct_load            = false,
                                                 .lds_padding               = false},
-                .block_transfer_access_order = {.order = {0, 1, 2}},
+                .thread_cluster_arrange_order = {.order = {0, 1, 2}},
                 .src_access_order            = {.order = {0, 1, 2}},
 
             },
@@ -148,7 +148,7 @@ struct DefaultAlgorithm
                                                 .lds_dst_scalar_per_vector = 2,
                                                 .is_direct_load            = false,
                                                 .lds_padding               = false},
-                .block_transfer_access_order = {.order = {0, 1, 2}},
+                .thread_cluster_arrange_order = {.order = {0, 1, 2}},
                 .src_access_order            = {.order = {0, 1, 2}},
             },
         .c =

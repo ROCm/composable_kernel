@@ -48,7 +48,7 @@ constexpr TransferABC FwdTransfer_4x64x1{
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = false},
-            .block_transfer_access_order = {1, 0, 2},
+            .thread_cluster_arrange_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .b =
@@ -59,7 +59,7 @@ constexpr TransferABC FwdTransfer_4x64x1{
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = false},
-            .block_transfer_access_order = {1, 0, 2},
+            .thread_cluster_arrange_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .c =
@@ -81,7 +81,7 @@ constexpr TransferABC FwdTransfer_4x64x1_fp8{
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .block_transfer_access_order = {1, 0, 2},
+            .thread_cluster_arrange_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .b =
@@ -92,7 +92,7 @@ constexpr TransferABC FwdTransfer_4x64x1_fp8{
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .block_transfer_access_order = {1, 0, 2},
+            .thread_cluster_arrange_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .c =
@@ -114,7 +114,7 @@ constexpr TransferABC FwdTransfer_4x16x1{
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .block_transfer_access_order = {1, 0, 2},
+            .thread_cluster_arrange_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .b =
@@ -125,7 +125,7 @@ constexpr TransferABC FwdTransfer_4x16x1{
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .block_transfer_access_order = {1, 0, 2},
+            .thread_cluster_arrange_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .c =
@@ -148,7 +148,7 @@ constexpr TransferABC FwdTransfer_4x32x1{
                                             .lds_dst_scalar_per_vector = 16,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .block_transfer_access_order = {1, 0, 2},
+            .thread_cluster_arrange_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .b =
@@ -159,7 +159,7 @@ constexpr TransferABC FwdTransfer_4x32x1{
                                             .lds_dst_scalar_per_vector = 16,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .block_transfer_access_order = {1, 0, 2},
+            .thread_cluster_arrange_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .c =

@@ -196,8 +196,8 @@ concept SpecifiesLdsTransfer = requires(T t) {
 // Concept to check if a struct specifies thread cluster access order info.
 template <typename T>
 concept SpecifiesThreadClusterAccessOrder = requires(T t) {
-    { T::transfer.a.block_transfer_access_order } -> AccessOrderDescriptor;
-    { T::transfer.b.block_transfer_access_order } -> AccessOrderDescriptor;
+    { T::transfer.a.thread_cluster_arrange_order } -> AccessOrderDescriptor;
+    { T::transfer.b.thread_cluster_arrange_order } -> AccessOrderDescriptor;
 };
 
 // Concept to check if a struct specifies source access order info.
