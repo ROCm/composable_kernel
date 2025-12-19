@@ -175,7 +175,8 @@ template <typename ALayout,
           bool PermuteA,
           bool PermuteB,
           bool IsBPreShuffled          = false,
-          bool ForceThreadTileTransfer = false> // only needed for convolution (limitation)
+          bool ForceThreadTileTransfer = false, // only needed for convolution (limitation)
+          bool IsFusedKernel           = false>
 struct GridwiseGemm_wmma_cshuffle_v3_base
 {
 
@@ -267,7 +268,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
     // lease buffer store 64 bit for 16 contiguous threads -> 128 bytes in toral (full cache line)
     static constexpr bool UseDirectStore = is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
                                            sizeof(ComputeTypeB) == 2 && sizeof(EDataType) == 2 &&
-                                           NumDTensor == 0 && (NRepeat == 4 || NRepeat == 8);
+                                           NumDTensor == 0 && (NRepeat == 4 || NRepeat == 8) &&
+                                           !IsFusedKernel;
 #else
     static constexpr bool IsAWaveTransferApplicable = false;
     static constexpr bool IsBWaveTransferApplicable = false;
