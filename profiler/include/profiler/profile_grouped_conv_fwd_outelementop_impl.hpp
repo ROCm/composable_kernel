@@ -184,7 +184,15 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
             if constexpr(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::Scale>)
             {
                 const auto conv_shuffle = ck::type_convert<CShuffleDataType>(c(idx));
-                out_element_op(host_output(idx), conv_shuffle);
+                if constexpr(std::is_same_v<OutDataType, int8_t>)
+                {
+                    const auto conv_val = ck::type_convert<OutDataType>(conv_shuffle);
+                    out_element_op(host_output(idx), conv_val);
+                }
+                else
+                {
+                    out_element_op(host_output(idx), conv_shuffle);
+                }
             }
             else
             {
