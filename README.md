@@ -139,111 +139,21 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
 ### Building for Windows
 
-Use the following CMake presets
+Install TheRock from the nightly builds.
 
-````json
-{
-  "version": 5,
-  "configurePresets": [
-    {
-      "name": "ck-windows",
-      "displayName": "x64 Release",
-      "description": "Release configuration for x64",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build",
-      "installDir": "${sourceDir}/out/install/x64-Release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_PREFIX_PATH": "C:/opt/rocm",
-        "CMAKE_CXX_COMPILER": "C:/opt/rocm/bin/clang++.exe",
-        "CMAKE_C_COMPILER": "C:/opt/rocm/bin/clang.exe",
-        "GPU_TARGETS": "gfx1101",
-        "CMAKE_HIP_ARCHITECTURES": "gfx1101",
-        "CMAKE_OBJECT_PATH_MAX": "1000",
-        "CMAKE_MAKE_PROGRAM": "C:/opt/ninja/ninja.exe",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
-      }
-    },
-    {
-      "name": "ck-windows-nowarn",
-      "displayName": "ck-windows disable warnings-as-errors",
-      "description": "Build CK on Windows, disabling warnings-as-errors",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build",
-      "installDir": "${sourceDir}/out/install/x64-Release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_PREFIX_PATH": "C:/opt/rocm",
-        "CMAKE_CXX_COMPILER": "C:/opt/rocm/bin/clang++.exe",
-        "CMAKE_C_COMPILER": "C:/opt/rocm/bin/clang.exe",
-        "GPU_TARGETS": "gfx1101",
-        "CMAKE_HIP_ARCHITECTURES": "gfx1101",
-        "CMAKE_OBJECT_PATH_MAX": "1000",
-        "CMAKE_MAKE_PROGRAM": "C:/opt/ninja/ninja.exe",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "BUILD_DEV": "OFF",
-        "CMAKE_CXX_FLAGS": "-Wno-nvcc-compat -Wno-unique-object-duplication -Wno-explicit-specialization-storage-class -Wno-missing-template-arg-list-after-template-kw -Wno-error=nvcc-compat -Wno-error=unique-object-duplication -ferror-limit=0"
-      }
-    },
-    {
-      "name": "ck-windows-profiler",
-      "displayName": "ck-windows Profiler Only",
-      "description": "Build only the CK profiler on Windows",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build",
-      "installDir": "${sourceDir}/out/install/x64-Release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_PREFIX_PATH": "C:/opt/rocm",
-        "CMAKE_CXX_COMPILER": "C:/opt/rocm/bin/clang++.exe",
-        "CMAKE_C_COMPILER": "C:/opt/rocm/bin/clang.exe",
-        "GPU_TARGETS": "gfx1101",
-        "CMAKE_HIP_ARCHITECTURES": "gfx1101",
-        "CMAKE_OBJECT_PATH_MAX": "1000",
-        "CMAKE_MAKE_PROGRAM": "C:/opt/ninja/ninja.exe",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "PROFILER_ONLY": "ON",
-        "BUILD_DEV": "OFF",
-        "CMAKE_CXX_FLAGS": "-Wno-nvcc-compat -Wno-unique-object-duplication -Wno-explicit-specialization-storage-class -Wno-missing-template-arg-list-after-template-kw -Wno-error=nvcc-compat -Wno-error=unique-object-duplication -ferror-limit=0"
-      }
-    }
-  ],
-  "buildPresets": [
-    {
-      "name": "ck-windows",
-      "configurePreset": "ck-windows",
-      "jobs": 24
-    },
-    {
-      "name": "ck-windows-nowarn",
-      "configurePreset": "ck-windows-nowarn",
-      "jobs": 24
-    },
-    {
-      "name": "ck-windows-profiler",
-      "configurePreset": "ck-windows-profiler",
-      "targets": ["ckProfiler"],
-      "jobs": 24
-    }
-  ]
-}
+Run CMake configure as
 
-````
+```bash
+    cmake                                                                                      \
+    -D CMAKE_PREFIX_PATH="C:/dist/TheRock"                                                     \
+    -D CMAKE_CXX_COMPILER="C:/dist/TheRock/bin/hipcc.exe"                                      \
+    -D CMAKE_BUILD_TYPE=Release                                                                \
+    -D GPU_TARGETS="gfx1151"                                                                    \
+    -G Ninja                                                                                   \
+    ..
+```
 
-At the root of the CK directory, run the configuration step, e.g.,
-
-````bash
-cmake --preset=ck-windows-nowarn     
-````
-
-Execute the build step with command
-
-````bash
-cmake --build --preset=ck-windows-nowarn     
-````
-
-At the moment, we need to disable treating warnings as errors since CK uses std::getenv that is deprecated on Windows.
-The CMAke presets assume that ROCm and Ninja are installed under ***C:\opt***.
+Use Ninja to build either the whole library or individual targets.
 
 ## Optional post-install steps
 
