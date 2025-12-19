@@ -543,12 +543,12 @@ struct DeviceOperationInstanceFactory<
                     add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_i8_1x1s1p0_instances(
                         op_ptrs);
                 }
+#endif
             }
         }
 #endif
         return op_ptrs;
     }
-#endif
 };
 
 } // namespace instance
