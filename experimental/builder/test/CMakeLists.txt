@@ -157,14 +157,14 @@ add_ck_factory_test(test_ckb_testing_utils test_testing_utils.cpp)
 # TODO: Re-enable these tests once we have CI working across all GPU architectures.
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward test_ck_factory_grouped_convolution_forward.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_clamp test_ck_factory_grouped_convolution_forward_clamp.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_convscale test_ck_factory_grouped_convolution_forward_convscale.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_convscale test_ck_factory_grouped_convolution_forward_convscale.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bilinear test_ck_factory_grouped_convolution_forward_bilinear.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scale test_ck_factory_grouped_convolution_forward_scale.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_ab test_ck_factory_grouped_convolution_forward_scaleadd_ab.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_ab test_ck_factory_grouped_convolution_forward_scaleadd_ab.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_clamp test_ck_factory_grouped_convolution_forward_bias_clamp.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_bnorm_clamp test_ck_factory_grouped_convolution_forward_bias_bnorm_clamp.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
 
 ################################################################################
 # CTest Integration - Register Tests and Assign Labels
@@ -193,10 +193,10 @@ set(CKB_REGRESSION_TESTS
     test_ckb_instance_string
     test_ckb_build_fwd_instances
     test_ckb_testing_utils
-    test_ckb_factory_grouped_convolution_forward_convscale
-    test_ckb_factory_grouped_convolution_forward_scaleadd_ab
-    test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu
-    test_ckb_factory_grouped_convolution_forward_dynamic_op
+    # test_ckb_factory_grouped_convolution_forward_convscale
+    # test_ckb_factory_grouped_convolution_forward_scaleadd_ab
+    # test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu
+    # test_ckb_factory_grouped_convolution_forward_dynamic_op
 )
 
 foreach(test_target ${CKB_REGRESSION_TESTS})

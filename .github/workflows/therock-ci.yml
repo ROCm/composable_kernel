@@ -35,21 +35,44 @@ jobs:
       BASE_REF: HEAD^
     outputs:
       enable_therock_ci: ${{ steps.configure.outputs.enable_therock_ci }}
+      linux_package_targets: ${{ steps.configure_linux.outputs.package_targets }}
     steps:
       - name: "Checking out repository"
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           # We need the parent commit to do a diff
           fetch-depth: 2
+      
+      - name: Checkout TheRock repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          repository: "ROCm/TheRock"
+          path: TheRock
+          ref: bfcaf6e0bcd4bfe3c21990f49bbccb7d2a087d5d # 2025-12-15 commit
 
       - name: "Configuring CI options"
         id: configure
         run: python .github/scripts/therock_configure_ci.py
 
+      - name: Fetch Linux targets for build and test
+        env:
+          THEROCK_PACKAGE_PLATFORM: "linux"
+          # TODO(geomin12): Allow dynamic values of AMDGPU_FAMILIES, with opt-in options
+          AMDGPU_FAMILIES: "gfx94X"
+          # Variable comes from ROCm organization variable 'ROCM_THEROCK_TEST_RUNNERS'
+          ROCM_THEROCK_TEST_RUNNERS: ${{ vars.ROCM_THEROCK_TEST_RUNNERS }}
+          LOAD_TEST_RUNNERS_FROM_VAR: true
+        id: configure_linux
+        run: python ./TheRock/build_tools/github_actions/fetch_package_targets.py
+
   therock-ci-linux:
-    name: TheRock CI Linux
+    name: TheRock CI Linux (${{ matrix.target_bundle.amdgpu_family }})
     needs: setup
     if: ${{ needs.setup.outputs.enable_therock_ci == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target_bundle: ${{ fromJSON(needs.setup.outputs.linux_package_targets) }}
     permissions:
       contents: read
       id-token: write
@@ -64,8 +87,8 @@ jobs:
         -DTHEROCK_COMPOSABLE_KERNEL_SOURCE_DIR=../composable_kernel
         -DTHEROCK_USE_EXTERNAL_ROCM_LIBRARIES=ON
         -DTHEROCK_ROCM_LIBRARIES_SOURCE_DIR=../
-      amdgpu_families: "gfx94X-dcgpu"
-      test_runs_on: "linux-mi325-1gpu-ossci-rocm-frac"
+      amdgpu_families: ${{ matrix.target_bundle.amdgpu_family }}
+      test_runs_on: ${{ matrix.target_bundle.test_machine }}
 
   therock_ci_summary:
     name: TheRock CI Summary
