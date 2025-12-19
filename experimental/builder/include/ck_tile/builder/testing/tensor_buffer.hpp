@@ -3,11 +3,11 @@
 
 #pragma once
 
+#include "ck_tile/builder/testing/error.hpp"
+#include <hip/hip_runtime.h>
 #include <stdexcept>
 #include <memory>
 #include <sstream>
-#include <hip/hip_runtime.h>
-#include "ck_tile/builder/testing/error.hpp"
 
 /// This file deals with tensor memory management and allocation. The main
 /// item is the `DeviceBuffer`: An owned piece of device memory, which is

@@ -5,6 +5,8 @@
 
 #include <concepts>
 
+#include "ck_tile/builder/testing/validation.hpp"
+
 /// This file is the main header for the CK-Builder testing system. A high-level
 /// description of this testing system is documented in
 /// `ck_tile/builder/testing/README.md`. This file deals mainly deals with the
@@ -237,7 +239,8 @@ template <auto SIGNATURE>
 UniqueInputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args);
 
 template <auto SIGNATURE>
-bool validate(Outputs<SIGNATURE> actual, Outputs<SIGNATURE> expected);
+ValidationReport
+validate(const Args<SIGNATURE>& args, Outputs<SIGNATURE> actual, Outputs<SIGNATURE> expected);
 
 /// @brief Invoke a device operation created by CK Builder.
 ///

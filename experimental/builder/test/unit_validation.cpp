@@ -7,6 +7,7 @@
 #include "ck_tile/builder/testing/validation.hpp"
 #include "ck_tile/builder/testing/tensor_foreach.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
+#include "ck_tile/builder/testing/testing.hpp"
 #include "testing_utils.hpp"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -19,6 +20,9 @@ namespace ckt = ck_tile::builder::test;
 using testing::ElementsAreArray;
 using testing::Eq;
 using testing::StrEq;
+
+using ck_tile::test::MatchesReference;
+using ck_tile::test::StringEqWithDiff;
 
 // Googletest cannot have both type AND value parameterized tests.
 // For now just act lazy and use value template parameters.
@@ -167,4 +171,107 @@ TEST(ValidationReportTests, MultipleSomeIncorrect)
     EXPECT_THAT(errors[0].wrong_elements, Eq(46840334));
     EXPECT_THAT(errors[1].tensor_name, StrEq("incorrect 2"));
     EXPECT_THAT(errors[1].wrong_elements, Eq(482800));
+}
+
+// MatchesReference operates on the types defined in testing.hpp, so just
+// quickly define a bunch of dummy values for that.
+
+struct DummySignature
+{
+};
+
+constexpr DummySignature DUMMY_SIGNATURE = {};
+
+namespace ck_tile::builder::test {
+template <>
+struct Args<DUMMY_SIGNATURE>
+{
+    auto make_a_descriptor() const
+    {
+        return make_descriptor<builder::DataType::FP32>(Extent{5, 5, 5, 5}, PackedRightLayout{});
+    }
+
+    auto make_b_descriptor() const
+    {
+        return make_descriptor<builder::DataType::FP16>(Extent{100000}, PackedLeftLayout{});
+    }
+};
+
+template <>
+struct Outputs<DUMMY_SIGNATURE>
+{
+    void* a;
+    void* b;
+};
+
+template <>
+ValidationReport validate<DUMMY_SIGNATURE>(const Args<DUMMY_SIGNATURE>& args,
+                                           Outputs<DUMMY_SIGNATURE> actual,
+                                           Outputs<DUMMY_SIGNATURE> expected)
+{
+    ValidationReport report;
+    report.check("a", args.make_a_descriptor(), actual.a, expected.a);
+    report.check("b", args.make_b_descriptor(), actual.b, expected.b);
+    return report;
+}
+
+} // namespace ck_tile::builder::test
+
+TEST(MatchesReference, Correct)
+{
+    const ckt::Args<DUMMY_SIGNATURE> args;
+
+    const auto a_desc = args.make_a_descriptor();
+    const auto b_desc = args.make_b_descriptor();
+
+    auto a_actual = ckt::alloc_tensor_buffer(a_desc);
+    auto b_actual = ckt::alloc_tensor_buffer(b_desc);
+    ckt::clear_tensor_buffer(a_desc, a_actual.get(), 1);
+    ckt::clear_tensor_buffer(b_desc, b_actual.get(), 2);
+    const auto actual = ckt::Outputs<DUMMY_SIGNATURE>{
+        .a = a_actual.get(),
+        .b = b_actual.get(),
+    };
+
+    auto a_expected = ckt::alloc_tensor_buffer(a_desc);
+    auto b_expected = ckt::alloc_tensor_buffer(b_desc);
+    ckt::clear_tensor_buffer(a_desc, a_expected.get(), 1);
+    ckt::clear_tensor_buffer(b_desc, b_expected.get(), 2);
+    const auto expected = ckt::Outputs<DUMMY_SIGNATURE>{
+        .a = a_expected.get(),
+        .b = b_expected.get(),
+    };
+
+    EXPECT_THAT(actual, MatchesReference(args, expected));
+}
+
+TEST(MatchesReference, Incorrect)
+{
+    const ckt::Args<DUMMY_SIGNATURE> args;
+
+    const auto a_desc = args.make_a_descriptor();
+    const auto b_desc = args.make_b_descriptor();
+
+    auto a_actual = ckt::alloc_tensor_buffer(a_desc);
+    auto b_actual = ckt::alloc_tensor_buffer(b_desc);
+    ckt::clear_tensor_buffer(a_desc, a_actual.get(), 1);
+    ckt::clear_tensor_buffer(b_desc, b_actual.get(), 2);
+    const auto actual = ckt::Outputs<DUMMY_SIGNATURE>{
+        .a = a_actual.get(),
+        .b = b_actual.get(),
+    };
+
+    auto a_expected = ckt::alloc_tensor_buffer(a_desc);
+    auto b_expected = ckt::alloc_tensor_buffer(b_desc);
+    ckt::clear_tensor_buffer(a_desc, a_expected.get(), 2);
+    ckt::clear_tensor_buffer(b_desc, b_expected.get(), 2);
+    const auto expected = ckt::Outputs<DUMMY_SIGNATURE>{
+        .a = a_expected.get(),
+        .b = b_expected.get(),
+    };
+
+    testing::StringMatchResultListener listener;
+    EXPECT_TRUE(!ExplainMatchResult(MatchesReference(args, expected), actual, &listener));
+
+    EXPECT_THAT(listener.str(), StringEqWithDiff("1 tensors failed to validate"));
 }
