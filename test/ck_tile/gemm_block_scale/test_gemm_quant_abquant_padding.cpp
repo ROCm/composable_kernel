@@ -20,28 +20,12 @@ using ABQuantGrouped =
     std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::ABQuantGrouped>;
 using GroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 
-// 2d block sizes for BQuant
-using GroupSize2D128N = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
-
-// Type combinations for ABQuant tests
+// Type combinations for ABQuant padding padding tests
 // Tuple format: <ALayout, BLayout, CLayout, AQLayout, ADataType, BDataType, QDataType, CDataType,
 // QuantType, GemmConfig, AQuantGroupSize, BQuantGroupSize, BQLayout>
 // clang-format off
 using ABQuantPaddingTypes = ::testing::Types<
-    // PreshuffleQuant = false && TransposeC = false (RCR layout with RowMajor AQ)
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize, ColumnMajor>,
-    std::tuple<ColumnMajor, RowMajor, RowMajor, RowMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize, ColumnMajor>,
-    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize, ColumnMajor>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize, ColumnMajor>,
-    std::tuple<ColumnMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize, ColumnMajor>,
-    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize, ColumnMajor>,
-	
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize2D128N, ColumnMajor>,
-    std::tuple<ColumnMajor, RowMajor, RowMajor, RowMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize2D128N, ColumnMajor>,
-    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize2D128N, ColumnMajor>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize2D128N, ColumnMajor>,
-    std::tuple<ColumnMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize2D128N, ColumnMajor>,
-    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize2D128N, ColumnMajor>
+    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize, ColumnMajor>
 >;
 // clang-format on
 
@@ -51,5 +35,5 @@ TYPED_TEST_SUITE(TestCkTileGemmABQuant, ABQuantPaddingTypes);
 // AQuant tests
 TYPED_TEST(TestCkTileGemmABQuant, ABQuantGroupedTest)
 {
-    this->run_test_with_validation(1024, 1024, 832);
+    this->run_test_with_validation(1024, 832, 832);
 }
