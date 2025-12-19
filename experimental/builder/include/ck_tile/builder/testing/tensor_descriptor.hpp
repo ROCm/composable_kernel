@@ -47,6 +47,7 @@ namespace ck_tile::builder::test {
 template <size_t RANK>
 struct Extent : std::array<size_t, RANK>
 {
+    using Base = std::array<size_t, RANK>;
     // Note: Default constructor inherited from std::array.
 
     /// @brief Construct an extent from an `std::vector`.
@@ -68,6 +69,51 @@ struct Extent : std::array<size_t, RANK>
         Extent result;
         std::copy_n(extent.begin(), RANK, result.begin());
         return result;
+    }
+
+    // Note: std::array doesn't like generating indexing code when the RANK
+    // is zero. Looks like there is a missing __device__ overload in ROCm 7.1
+    // at least. Its not terribly important, but just override the default
+    // operator[] to fix it.
+
+    /// @brief Array indexing operator
+    ///
+    /// `std::array` has issues with this operator when RANK=0, this version
+    /// fixes that.
+    ///
+    /// @param i The index to index the array with.
+    ///
+    /// @see std::array::operator[]
+    __device__ __host__ size_t operator[](size_t i) const
+    {
+        if constexpr(RANK > 0)
+        {
+            return Base::operator[](i);
+        }
+        else
+        {
+            __builtin_unreachable();
+        }
+    }
+
+    /// @brief Array indexing operator
+    ///
+    /// `std::array` has issues with this operator when RANK=0, this version
+    /// fixes that.
+    ///
+    /// @param i The index to index the array with.
+    ///
+    /// @see std::array::operator[]
+    __device__ __host__ size_t& operator[](size_t i)
+    {
+        if constexpr(RANK > 0)
+        {
+            return Base::operator[](i);
+        }
+        else
+        {
+            __builtin_unreachable();
+        }
     }
 };
 
@@ -265,11 +311,13 @@ struct TensorDescriptor
     /// does *not* correspond with memory layout, query the in-memory strides for that.
     ///
     /// @see get_strides()
-    const Extent& get_lengths() const
+    Extent get_lengths() const
     {
         // TODO: This is ugly for now. We should ditch the HostTensorDescriptor, and
-        // after that this can just be `return lengths_;`.
-        return *reinterpret_cast<const Extent*>(inner_descriptor_.get_lengths().data());
+        // after that this can just be `return lengths_;` (and make it const Extent&).
+        Extent result;
+        std::copy_n(inner_descriptor_.get_lengths().begin(), RANK, result.begin());
+        return result;
     }
 
     /// Query the in-memory strides of the tensor.
@@ -279,11 +327,13 @@ struct TensorDescriptor
     /// tensor dimensions.
     ///
     /// @see get_lengths()
-    const Extent& get_strides() const
+    Extent get_strides() const
     {
         // TODO: This is ugly for now. We should ditch the HostTensorDescriptor, and
-        // after that this can just be `return strides_;`.
-        return *reinterpret_cast<const Extent*>(inner_descriptor_.get_strides().data());
+        // after that this can just be `return strides_;` (and make it const Extent&).
+        Extent result;
+        std::copy_n(inner_descriptor_.get_strides().begin(), RANK, result.begin());
+        return result;
     }
 
     /// @brief Compute conceptual tensor size in elements.

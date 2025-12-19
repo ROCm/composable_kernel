@@ -20,19 +20,54 @@ using testing::ElementsAreArray;
 using testing::Eq;
 using testing::StrEq;
 
-TEST(ValidationReport, SingleCorrect)
+// Googletest cannot have both type AND value parameterized tests.
+// For now just act lazy and use value template parameters.
+template <ckb::DataType DT, ckt::Extent SHAPE, auto STRIDES>
+struct Param
 {
-    auto desc = ckt::make_descriptor<ckb::DataType::FP32>(ckt::Extent{52, 152, 224},
-                                                          ckt::PackedRightLayout{});
+    constexpr static auto data_type = DT;
+    constexpr static auto shape     = SHAPE;
+    constexpr static auto strides   = STRIDES;
+
+    constexpr static auto rank = shape.size();
+
+    static ckt::TensorDescriptor<data_type, rank> get_descriptor()
+    {
+        return ckt::make_descriptor<data_type, rank>(shape, strides);
+    }
+};
+
+template <typename Param>
+struct ValidationReportTests : public ::testing::Test
+{
+};
+
+using Types = ::testing::Types<
+    Param<ckb::DataType::FP32, ckt::Extent{52, 152, 224}, ckt::PackedRightLayout{}>,
+    Param<ckb::DataType::FP32, ckt::Extent{72, 1, 49, 2, 4, 5}, ckt::PackedLeftLayout{}>,
+    Param<ckb::DataType::FP32, ckt::Extent{}, ckt::Extent{}>,
+    Param<ckb::DataType::FP32, ckt::Extent{12, 34, 43, 21}, ckt::Extent{41, 1, 43210, 1831}>>;
+
+TYPED_TEST_SUITE(ValidationReportTests, Types);
+
+TYPED_TEST(ValidationReportTests, SingleCorrect)
+{
+    const auto desc = TypeParam::get_descriptor();
 
     auto a = ckt::alloc_tensor_buffer(desc);
     auto b = ckt::alloc_tensor_buffer(desc);
 
-    // Generate a sort-of-random looking sequence
-    auto generator = [](size_t i) { return static_cast<float>(i * 10'000'019 % 768'351); };
+    ckt::clear_tensor_buffer(desc, a.get());
+    ckt::clear_tensor_buffer(desc, b.get());
 
-    ckt::fill_tensor_buffer(desc, a.get(), generator);
-    ckt::fill_tensor_buffer(desc, b.get(), generator);
+    // Generate a sort-of-random looking sequence
+    auto generator = [strides = desc.get_strides()](const auto& index) {
+        const auto flat_index = ckt::calculate_offset(index, strides);
+        return static_cast<float>(flat_index * 10'000'019 % 768'351);
+    };
+
+    ckt::fill_tensor(desc, a.get(), generator);
+    ckt::fill_tensor(desc, b.get(), generator);
 
     ckt::ValidationReport report;
     report.check("correct", desc, b.get(), a.get());
@@ -40,17 +75,21 @@ TEST(ValidationReport, SingleCorrect)
     EXPECT_THAT(report.get_errors().size(), Eq(0));
 }
 
-TEST(ValidationReport, SingleIncorrect)
+TYPED_TEST(ValidationReportTests, SingleIncorrect)
 {
-    auto desc = ckt::make_descriptor<ckb::DataType::FP16>(ckt::Extent{100, 100, 100},
-                                                          ckt::PackedRightLayout{});
+    const auto desc           = TypeParam::get_descriptor();
+    const auto packed_strides = ckt::PackedRightLayout{}(desc.get_lengths());
 
     auto a = ckt::alloc_tensor_buffer(desc);
     auto b = ckt::alloc_tensor_buffer(desc);
 
-    ckt::fill_tensor_buffer(desc, a.get(), []([[maybe_unused]] size_t i) { return 123; });
-    ckt::fill_tensor_buffer(desc, b.get(), []([[maybe_unused]] size_t i) {
-        return i == 12345 ? 456 : i == 999999 ? 1 : 123;
+    ckt::clear_tensor_buffer(desc, a.get());
+    ckt::clear_tensor_buffer(desc, b.get());
+
+    ckt::fill_tensor(desc, a.get(), []([[maybe_unused]] const auto& i) { return 123; });
+    ckt::fill_tensor(desc, b.get(), [packed_strides](const auto& index) {
+        const auto flat_index = ckt::calculate_offset(index, packed_strides);
+        return flat_index == 0 ? 0 : flat_index == 12345 ? 456 : flat_index == 999999 ? 1 : 123;
     });
 
     ckt::ValidationReport report;
@@ -58,19 +97,22 @@ TEST(ValidationReport, SingleIncorrect)
 
     const auto errors = report.get_errors();
 
+    const auto flat_size       = desc.get_element_size();
+    const auto expected_errors = flat_size >= 999999 ? 3 : flat_size >= 12345 ? 2 : 1;
+
     ASSERT_THAT(errors.size(), Eq(1));
     EXPECT_THAT(errors[0].tensor_name, StrEq("incorrect"));
-    EXPECT_THAT(errors[0].wrong_elements, Eq(2));
-    EXPECT_THAT(errors[0].total_elements, Eq(desc.get_element_space_size()));
+    EXPECT_THAT(errors[0].wrong_elements, Eq(expected_errors));
+    EXPECT_THAT(errors[0].total_elements, Eq(desc.get_element_size()));
 }
 
-TEST(ValidationReport, MultipleSomeIncorrect)
+TEST(ValidationReportTests, MultipleSomeIncorrect)
 {
     ckt::ValidationReport report;
 
     {
         auto desc = ckt::make_descriptor<ckb::DataType::BF16, 4>({'R', 'O', 'C', 'm'},
-                                                                 ckt::PackedRightLayout{});
+                                                                 ckt::PackedLeftLayout{});
 
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);

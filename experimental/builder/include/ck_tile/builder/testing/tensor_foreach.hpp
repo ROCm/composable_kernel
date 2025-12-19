@@ -247,4 +247,12 @@ void fill_tensor_buffer(const TensorDescriptor<DT, RANK>& desc,
     fill_tensor(desc.get_space_descriptor(), buffer, [f](auto index) { return f(index[0]); });
 }
 
+template <builder::DataType DT, size_t RANK>
+void clear_tensor_buffer(const TensorDescriptor<DT, RANK>& desc,
+                         void* buffer,
+                         detail::cpp_type_t<DT> value = detail::cpp_type_t<DT>{0})
+{
+    fill_tensor_buffer(desc, buffer, [value]([[maybe_unused]] size_t i) { return value; });
+}
+
 } // namespace ck_tile::builder::test

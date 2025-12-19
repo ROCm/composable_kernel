@@ -162,3 +162,44 @@ TEST(TensorForeach, FillTensor)
 
     EXPECT_THAT(error_count, Eq(0));
 }
+
+TEST(TensorForeach, ClearTensorZeros)
+{
+    const ckt::Extent shape = {5, 4, 5, 4, 5, 4, 5, 6};
+    const ckt::Extent pad   = {6, 6, 6, 6, 6, 6, 6, 6};
+
+    const auto desc =
+        ckt::make_descriptor<ckb::DataType::INT32>(shape, ckt::PackedRightLayout{}(pad));
+
+    auto buffer = ckt::alloc_tensor_buffer(desc);
+    ckt::clear_tensor_buffer(desc, buffer.get());
+
+    // Check that all values are zeroed.
+    auto d_count = ckt::alloc_buffer(sizeof(uint64_t));
+    ckt::check_hip(hipMemset(d_count.get(), 0, sizeof(uint64_t)));
+
+    {
+        const auto size    = desc.get_element_space_size();
+        const auto strides = desc.get_strides();
+        auto* count        = d_count.get();
+        const auto* tensor = reinterpret_cast<const uint32_t*>(buffer.get());
+        // Note: iterate over the entire pad, so that we can check out-of-bounds elements.
+        ckt::tensor_foreach(pad,
+                            [count, tensor, strides, size]([[maybe_unused]] const auto& index) {
+                                const auto offset = ckt::calculate_offset(index, strides);
+
+                                // Note: The space of the descriptor will not actually be (6, 6,
+                                // ...) but more like (5, 6, ...), as the outer stride is
+                                // irrelevant. So we have to perform an extra bounds check here.
+                                if(offset < size && tensor[offset] != 0)
+                                {
+                                    atomicAdd(reinterpret_cast<uint64_t*>(count), 1);
+                                }
+                            });
+    }
+
+    uint64_t actual;
+    ckt::check_hip(hipMemcpy(&actual, d_count.get(), sizeof(uint64_t), hipMemcpyDeviceToHost));
+
+    EXPECT_THAT(actual, Eq(0));
+}
