@@ -31,6 +31,7 @@
 #include "grouped_convolution_forward_wmma_cshufflev3.inc"
 #include "grouped_convolution_forward_mem_inter_wmma_cshufflev3.inc"
 #include "grouped_convolution_forward_mem_intra_wmma_cshufflev3.inc"
+#include "grouped_convolution_forward_wmma_large_tensor.inc"
 #endif
 
 namespace ck {
@@ -794,8 +795,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances_part4(
                     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_f16_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_f16_instances(
+                    op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -813,8 +814,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances_part4(
                     op_ptrs);
-                // add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
+                    op_ptrs);
             }
 #endif
         }
@@ -837,8 +838,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances_part4(
                     op_ptrs);
-                // add_device_grouped_conv3d_fwd_wmma_cshufflev3_large_tensor_ndhwgc_gkzyxc_ndhwgk_f16_instances(
-                //     op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_large_tensor_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+                    op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -856,8 +857,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 add_device_grouped_conv3d_fwd_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part4(
                     op_ptrs);
-                // add_device_grouped_conv3d_fwd_wmma_cshufflev3_large_tensor_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
-                //     op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_large_tensor_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+                    op_ptrs);
             }
 #endif
         }

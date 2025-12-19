@@ -165,7 +165,7 @@ constexpr auto convert_pipeline_scheduler()
 
 /// @brief Helper function to report unsupported convolution direction with a clear error message.
 template <typename Instance>
-consteval void report_unsupported_conv_direction_error()
+[[noreturn]] consteval void report_unsupported_conv_direction_error()
 {
     throw "Unsupported convolution direction detected!\n"
           "The kernel instance does not have a recognized convolution specialization.\n"
@@ -258,7 +258,7 @@ inline constexpr bool layouts_are =
 /// @details This consteval function is designed to fail at compile time with a descriptive
 /// error message when an unsupported layout combination is encountered.
 template <typename A, typename B, typename E, int SpatialDim>
-consteval void report_unsupported_layout_error()
+[[noreturn]] consteval void report_unsupported_layout_error()
 {
     // This will produce a compile-time error with the exception message
     throw "Unsupported convolution layout combination detected!\n"
@@ -339,7 +339,7 @@ constexpr auto conv_layout()
 
 /// @brief Helper function to report unsupported data type with a clear error message.
 template <typename ADataType>
-consteval void report_unsupported_data_type_error()
+[[noreturn]] consteval void report_unsupported_data_type_error()
 {
     throw "Unsupported data type detected!\n"
           "The ADataType is not recognized.\n"
@@ -396,7 +396,7 @@ constexpr builder::DataType conv_data_type()
 
 /// @brief Helper function to report unsupported elementwise operation with a clear error message.
 template <typename ElementwiseOp>
-consteval void report_unsupported_elementwise_op_error()
+[[noreturn]] consteval void report_unsupported_elementwise_op_error()
 {
     throw "Unsupported elementwise operation detected!\n"
           "The elementwise operation type is not recognized.\n"
