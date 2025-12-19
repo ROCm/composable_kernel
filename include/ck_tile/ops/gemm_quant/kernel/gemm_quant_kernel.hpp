@@ -1103,9 +1103,10 @@ struct QuantGemmKernel
                 if constexpr(PreshuffleQuant)
                 {
                     static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-                    constexpr auto block_n = TilePartitioner::NPerBlock / QuantGroupSize::kN;
-
-                    constexpr auto warp_n = TilePartitioner::BlockGemmShape::WarpTile::at(I1);
+                    constexpr auto block_n = (QuantGroupSize::kN <= TilePartitioner::NPerBlock)
+                                                 ? TilePartitioner::NPerBlock / QuantGroupSize::kN
+                                                 : QuantGroupSize::kN / TilePartitioner::NPerBlock;
+                    constexpr auto warp_n  = TilePartitioner::BlockGemmShape::WarpTile::at(I1);
                     constexpr auto warp_per_group = (QuantGroupSize::kN < warp_n)
                                                         ? (warp_n / QuantGroupSize::kN)
                                                         : (QuantGroupSize::kN / warp_n);
@@ -1116,11 +1117,26 @@ struct QuantGemmKernel
                         (QuantGroupSize::kN < warp_n) ? block_n / warp_per_group : block_n;
 
                     auto block_n_idx = i_n / TilePartitioner::NPerBlock;
+                    // For decode shapes GN: 128, Blocks needs to access 0,0,1,1,2,2 ...
+                    if(QuantGroupSize::kN > TilePartitioner::NPerBlock)
+                    {
+                        block_n_idx = block_n_idx >> 1;
+                    }
 
-                    return make_tile_window(
-                        bq_pad_view,
-                        make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
-                        {block_n_idx * tile_window_height, 0});
+                    if(QuantGroupSize::kN > TilePartitioner::NPerBlock)
+                    {
+                        return make_tile_window(
+                            bq_pad_view,
+                            make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
+                            {block_n_idx, 0});
+                    }
+                    else
+                    {
+                        return make_tile_window(
+                            bq_pad_view,
+                            make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
+                            {block_n_idx * tile_window_height, 0});
+                    }
                 }
                 else
                 {

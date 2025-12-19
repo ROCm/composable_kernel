@@ -4,7 +4,7 @@
 #include "run_gemm_quant_example.inc"
 
 template <typename T>
-using GemmConfig = GemmConfigPreshuffleBQuantPrefill<T>;
+using GemmConfig = GemmConfigPreshuffleQuantDecode<T>;
 
 void bquant_quantgrouped_preshufflequant_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
@@ -73,6 +73,19 @@ void bquant_quantgrouped_preshufflequant_instance_factory(
                                           QuantGroupSize,
                                           ck_tile::QuantType::BQuantGrouped>(arg_parser);
     };
+    lut[hash_multiple_strings({"fp8",
+                               "bquant",
+                               "non-preshuffleb",
+                               "preshufflequant",
+                               "1x128x128"})] = [](const ck_tile::ArgParser& arg_parser) {
+        using TypeConfig =
+            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
+        using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                          TypeConfig,
+                                          QuantGroupSize,
+                                          ck_tile::QuantType::BQuantGrouped>(arg_parser);
+    };
 
     lut[hash_multiple_strings({"bf8", "bquant", "non-preshuffleb", "preshufflequant", "1x1x128"})] =
         [](const ck_tile::ArgParser& arg_parser) {
@@ -132,6 +145,19 @@ void bquant_quantgrouped_preshufflequant_instance_factory(
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
         using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 64, 128>>;
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                          TypeConfig,
+                                          QuantGroupSize,
+                                          ck_tile::QuantType::BQuantGrouped>(arg_parser);
+    };
+    lut[hash_multiple_strings({"bf8",
+                               "bquant",
+                               "non-preshuffleb",
+                               "preshufflequant",
+                               "1x128x128"})] = [](const ck_tile::ArgParser& arg_parser) {
+        using TypeConfig =
+            decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
+        using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
         return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                           TypeConfig,
                                           QuantGroupSize,
@@ -203,6 +229,19 @@ void bquant_quantgrouped_preshufflequant_instance_factory(
                                               ck_tile::QuantType::BQuantGrouped>(arg_parser);
         };
     lut[hash_multiple_strings(
+        {"fp8i4", "bquant", "non-preshuffleb", "preshufflequant", "1x128x128"})] =
+        [](const ck_tile::ArgParser& arg_parser) {
+            using TypeConfig     = decltype(GemmQuantTypeConfig<ck_tile::fp8_t,
+                                                                ck_tile::pk_int4_t,
+                                                                ck_tile::half_t,
+                                                                ck_tile::fp8_t>{});
+            using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                              TypeConfig,
+                                              QuantGroupSize,
+                                              ck_tile::QuantType::BQuantGrouped>(arg_parser);
+        };
+    lut[hash_multiple_strings(
         {"bf8i4", "bquant", "non-preshuffleb", "preshufflequant", "1x1x128"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using TypeConfig     = decltype(GemmQuantTypeConfig<ck_tile::bf8_t,
@@ -262,6 +301,19 @@ void bquant_quantgrouped_preshufflequant_instance_factory(
                                                                 ck_tile::half_t,
                                                                 ck_tile::bf8_t>{});
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 64, 128>>;
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                              TypeConfig,
+                                              QuantGroupSize,
+                                              ck_tile::QuantType::BQuantGrouped>(arg_parser);
+        };
+    lut[hash_multiple_strings(
+        {"bf8i4", "bquant", "non-preshuffleb", "preshufflequant", "1x128x128"})] =
+        [](const ck_tile::ArgParser& arg_parser) {
+            using TypeConfig     = decltype(GemmQuantTypeConfig<ck_tile::bf8_t,
+                                                                ck_tile::pk_int4_t,
+                                                                ck_tile::half_t,
+                                                                ck_tile::bf8_t>{});
+            using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
             return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               TypeConfig,
                                               QuantGroupSize,

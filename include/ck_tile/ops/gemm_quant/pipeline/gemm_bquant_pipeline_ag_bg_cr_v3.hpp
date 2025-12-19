@@ -66,7 +66,9 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
     static constexpr index_t NPerBlockBQ =
-        integer_divide_ceil(BlockGemmShape::kN, QuantGroupSize::kN);
+        (QuantGroupSize::kN <= BlockGemmShape::kN)
+            ? integer_divide_ceil(BlockGemmShape::kN, QuantGroupSize::kN)
+            : 1;
     static constexpr index_t KPerBlockBQ =
         integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK);
 
