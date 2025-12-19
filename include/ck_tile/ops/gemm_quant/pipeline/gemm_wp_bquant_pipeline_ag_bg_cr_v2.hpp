@@ -25,7 +25,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
-    using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
+    using QuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
     using ALayout  = remove_cvref_t<typename Problem::ALayout>;
     using BLayout  = remove_cvref_t<typename Problem::BLayout>;
