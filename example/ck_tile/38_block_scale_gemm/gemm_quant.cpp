@@ -32,7 +32,7 @@ auto create_args(int argc, char* argv[])
         .insert("prec",
                 "fp8",
                 "Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, "
-                "bf8i4 or bf16fp4")
+                "or bf8i4;  for ABQuant: fp8, bf8")
         .insert("warmup", "50", "Number of iterations before benchmarking the kernel")
         .insert("repeat", "1000", "Number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
@@ -41,7 +41,7 @@ auto create_args(int argc, char* argv[])
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("flush_cache", "true", "Flush cache before running the kernel")
         .insert("rotating_count", "1000", "Rotating count")
-        .insert("quant_mode", "bquant", "Choose aquant, bquant, tensor or rowcol")
+        .insert("quant_mode", "bquant", "Choose aquant, bquant, abquant, tensor or rowcol")
         .insert("preshuffleb", "false", "Enable preshuffle of tensor B")
         .insert("preshufflequant", "false", "Enable preshuffle of quant tensor")
         .insert("group_size",
@@ -75,6 +75,16 @@ auto gen_lut_key(const ck_tile::ArgParser& arg_parser)
             arg_parser.get_bool("preshufflequant") ? "preshufflequant" : "non-preshufflequant";
         params.push_back(preshufflequant);
     }
+    if(quant_mode == "abquant")
+    {
+        std::string preshuffleb =
+            arg_parser.get_bool("preshuffleb") ? "preshuffleb" : "non-preshuffleb";
+        params.push_back(preshuffleb);
+
+        std::string preshufflequant =
+            arg_parser.get_bool("preshufflequant") ? "preshufflequant" : "non-preshufflequant";
+        params.push_back(preshufflequant);
+    }
     if(quant_mode != "rowcol" && quant_mode != "tensor")
     {
         // NOTE: rowcol and tensor pipeline do not use group size
@@ -85,6 +95,8 @@ auto gen_lut_key(const ck_tile::ArgParser& arg_parser)
     return hash_multiple_strings(params);
 }
 
+void abquant_quantgrouped_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void aquant_quantgrouped_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void aquant_quantgrouped_preshufflequant_instance_factory(
@@ -124,6 +136,7 @@ int main(int argc, char* argv[])
     ck_tile::hip_check_error(hipSetDevice(device_id));
 
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>> lut;
+    abquant_quantgrouped_instance_factory(lut);
     aquant_quantgrouped_instance_factory(lut);
     aquant_quantgrouped_preshufflequant_instance_factory(lut);
     bquant_quantgrouped_fp8_instance_factory(lut);
