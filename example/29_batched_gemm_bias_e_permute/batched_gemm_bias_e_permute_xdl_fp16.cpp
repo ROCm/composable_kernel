@@ -399,7 +399,13 @@ int main(int argc, char* argv[])
             }
         }
 
-        return ck::utils::check_err(e_gs_ms_ns_device_result, e_gs_ms_ns_host_result) ? 0 : 1;
+        bool pass = ck::utils::check_err(e_gs_ms_ns_device_result, e_gs_ms_ns_host_result);
+        std::cout << "Verification: " << (pass ? "SUCCESS" : "FAILURE") << "!" << std::endl;
+
+        if(!pass)
+        {
+            return 1;
+        }
     }
 
     return 0;
