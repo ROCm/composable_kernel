@@ -20,7 +20,7 @@ constexpr auto SIGNATURE =
                        .weight                 = {.config = {.layout = ckb::TensorLayout::GKYXC}},
                        .output                 = {.config = {.layout = ckb::TensorLayout::GNHWK}}};
 
-constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
+constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle{}
                                .with_thread_block(cku::FwdThreadBlock_256_256x256x32)
                                .with_gemm_config(cku::FwdGemmParams_Xdl_4x4_per_wave)
                                .with_transfer(cku::FwdTransfer_4x64x1)
@@ -34,7 +34,7 @@ using Instance = Builder::Instance;
 TEST(BwdWeight_2DFp16_CShufV3_GNHWC, Create)
 {
     const auto expected_transfer_parameters = to_string(ALGORITHM);
-    cku::run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
+    cku::run_test<Builder>({"DeviceGroupedConvBwdWeight_Xdl_CShuffle",
                             expected_transfer_parameters,
                             "Default",
                             "Intrawave",

@@ -62,6 +62,7 @@ consteval auto GetElementwiseOp()
 }
 
 template <auto Sig>
+requires ConvDirectionIsForward<Sig>
 struct ElementwiseOps
 {
     static constexpr auto input_op  = GetElementwiseOp<Sig.input>();
@@ -70,6 +71,18 @@ struct ElementwiseOps
     using AElementwiseOp            = typename decltype(input_op)::Op;
     using BElementwiseOp            = typename decltype(weight_op)::Op;
     using CDEElementwiseOp          = typename decltype(output_op)::Op;
+};
+
+template <auto Sig>
+requires ConvDirectionIsBackwardWeight<Sig>
+struct ElementwiseOps
+{
+    static constexpr auto input_op  = GetElementwiseOp<Sig.input>();
+    static constexpr auto weight_op = GetElementwiseOp<Sig.weight>();
+    static constexpr auto output_op = GetElementwiseOp<Sig.output>();
+    using InElementwiseOp           = typename decltype(input_op)::Op;
+    using WeiElementwiseOp          = typename decltype(weight_op)::Op;
+    using OutElementwiseOp          = typename decltype(output_op)::Op;
 };
 
 } // namespace ck_tile::builder::factory::internal

@@ -192,8 +192,8 @@ enum class TileConvSpecialization
     FILTER_3x3
 };
 
-// Enums for the forward convolution specialization.
-enum class ConvFwdSpecialization
+// Enums for the convolution specializations.
+enum class ConvSpecialization
 {
     DEFAULT,
     FILTER_1X1_PAD0,

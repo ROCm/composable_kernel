@@ -216,18 +216,31 @@ consteval auto GetAuxiliaryTensorLayouts()
     return EmptyAuxiliaryTensorLayout{};
 }
 
-template <auto Signature, size_t SPATIAL_DIM, ConvDirection DIR>
+template <auto Signature, size_t SPATIAL_DIM>
     requires(ConvSpatialDim<SPATIAL_DIM> &&
              ValidConvInputLayoutForSpatialDim<Signature.input.config.layout, SPATIAL_DIM> &&
              ValidConvWeightLayoutForSpatialDim<Signature.weight.config.layout, SPATIAL_DIM> &&
-             ValidConvOutputLayoutForSpatialDim<Signature.output.config.layout, SPATIAL_DIM>)
+             ValidConvOutputLayoutForSpatialDim<Signature.output.config.layout, SPATIAL_DIM> &&
+             ConvDirectionIsForward<Signature>)
 struct ConvTensorLayouts
 {
-    static_assert(DIR == ConvDirection::FORWARD, "Only Forward convolution is supported.");
     using ALayout  = decltype(TensorLayoutToCK<Signature.input.config.layout>());
     using BLayout  = decltype(TensorLayoutToCK<Signature.weight.config.layout>());
     using ELayout  = decltype(TensorLayoutToCK<Signature.output.config.layout>());
     using DsLayout = decltype(GetAuxiliaryTensorLayouts<Signature, SPATIAL_DIM, DIR>())::type;
+};
+
+template <auto Signature, size_t SPATIAL_DIM>
+    requires(ConvSpatialDim<SPATIAL_DIM> &&
+             ValidConvInputLayoutForSpatialDim<Signature.input.config.layout, SPATIAL_DIM> &&
+             ValidConvWeightLayoutForSpatialDim<Signature.weight.config.layout, SPATIAL_DIM> &&
+             ValidConvOutputLayoutForSpatialDim<Signature.output.config.layout, SPATIAL_DIM> &&
+             ConvDirectionIsBackwardWeight<Signature>)
+struct ConvTensorLayouts
+{
+    using InLayout  = decltype(TensorLayoutToCK<Signature.input.config.layout>());
+    using WeiLayout  = decltype(TensorLayoutToCK<Signature.weight.config.layout>());
+    using OutLayout  = decltype(TensorLayoutToCK<Signature.output.config.layout>());
 };
 
 } // namespace ck_tile::builder::factory::internal

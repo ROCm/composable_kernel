@@ -27,8 +27,6 @@ concept ThreadBlockDescriptor = requires(T t) {
 // Concept for parameters that describe a gridwise XDL GEMM problem.
 template <typename T>
 concept GridwiseXdlGemmDescriptor = requires(T t) {
-    { t.ak1 } -> std::convertible_to<size_t>;
-    { t.bk1 } -> std::convertible_to<size_t>;
     { t.m_per_xdl } -> std::convertible_to<size_t>;
     { t.n_per_xdl } -> std::convertible_to<size_t>;
     { t.m_xdl_per_wave } -> std::convertible_to<size_t>;
@@ -159,7 +157,17 @@ concept SpecifiesTileThreadBlock = requires {
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept SpecifiesGridwiseXdlGemm = requires {
+concept SpecifiesGridwiseFwdXdlGemm = requires {
+    { T::gridwise_gemm.ak1 } -> std::convertible_to<size_t>;
+    { T::gridwise_gemm.bk1 } -> std::convertible_to<size_t>;
+    { T::gridwise_gemm } -> GridwiseXdlGemmDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise XDL GEMM info.
+template <typename T>
+concept SpecifiesGridwiseBwdXdlGemm = requires {
+    { T::gridwise_gemm.k0_per_block } -> std::convertible_to<size_t>;
+    { T::gridwise_gemm.k1 } -> std::convertible_to<size_t>;
     { T::gridwise_gemm } -> GridwiseXdlGemmDescriptor;
 };
 
@@ -245,6 +253,11 @@ concept SpecifiesTileConvSpecialization = requires {
 template <typename T>
 concept SpecifiesFwdConvSpecialization = requires {
     { T::fwd_specialization } -> std::convertible_to<ConvFwdSpecialization>;
+};
+
+template <typename T>
+concept SpecifiesBwdWeightConvSpecialization = requires {
+    { T::bwd_weight_specialization } -> std::convertible_to<ConvolutionBackwardWeightSpecialization>;
 };
 
 template <typename T>

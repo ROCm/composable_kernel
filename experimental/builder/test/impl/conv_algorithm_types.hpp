@@ -28,18 +28,30 @@ struct ThreadBlock
 };
 static_assert(ckb::ThreadBlockDescriptor<ThreadBlock>);
 
-// Describe gridwise XDL GEMM parameters.
-struct GridwiseXdlGemm
+struct XdlParams
 {
-    // NOTE: ak1 and bk1 are difficult to verify in the kernel instantiation!!!
-    size_t ak1            = 0;
-    size_t bk1            = 0;
     size_t m_per_xdl      = 0;
     size_t n_per_xdl      = 0;
     size_t m_xdl_per_wave = 0;
     size_t n_xdl_per_wave = 0;
 };
-static_assert(ckb::GridwiseXdlGemmDescriptor<GridwiseXdlGemm>);
+static_assert(ckb::GridwiseXdlGemmDescriptor<XdlParams>);
+
+// Describe gridwise XDL GEMM parameters.
+struct GridwiseFwdXdlGemm : public XdlParams
+{
+    // NOTE: ak1 and bk1 are difficult to verify in the kernel instantiation!!!
+    size_t ak1            = 0;
+    size_t bk1            = 0;
+};
+static_assert(ckb::SpecifiesGridwiseFwdXdlGemm<GridwiseFwdXdlGemm>);
+
+struct GridwiseBwdXdlGemm : public XdlParams
+{
+    size_t k0_per_block  = 0;
+    size_t k1            = 0;
+};
+static_assert(ckb::SpecifiesGridwiseBwdXdlGemm<GridwiseFwdXdlGemm>);
 
 // Describe gridwise WMMA GEMM parameters.
 struct GridwiseWmmaGemm
@@ -169,9 +181,14 @@ struct ThreadBlock_
     ThreadBlock thread_block;
 };
 
-struct XdlGemm_
+struct FwdXdlGemm_
 {
-    GridwiseXdlGemm gridwise_gemm;
+    GridwiseFwdXdlGemm gridwise_gemm;
+};
+
+struct BwdXdlGemm_
+{
+    GridwiseBwdXdlGemm gridwise_gemm;
 };
 
 struct WmmaGemm_
@@ -184,10 +201,15 @@ struct Transfer_
     TransferABC transfer;
 };
 
-struct ConvSpecialization_
+struct ConvSpecializationFwd_
 {
-    ConvFwdSpecialization fwd_specialization;
+    ConvSpecialization fwd_specialization;
     GemmSpecialization gemm_specialization;
+};
+
+struct ConvSpecializationBwdWeight_
+{
+    ConvSpecialization bwd_specialization;
 };
 
 struct Prefetch_
@@ -195,6 +217,12 @@ struct Prefetch_
     size_t num_gemm_k_prefetch_stages;
     size_t num_groups_to_merge;
     PipelineScheduler loop_scheduler;
+};
+
+struct TransposeParams_
+{
+    size_t max_transpose_transfer_src_scalar_per_vector{1};
+    size_t max_transpose_transfer_dst_scalar_per_vector{1};
 };
 
 struct BlockGemm_
@@ -329,7 +357,11 @@ struct ConvAlgorithmTemplate : Components...
     constexpr auto with_gemm_config(const GemmConfig& gemm) const
     {
         auto result = *this;
-        if constexpr(std::is_base_of_v<XdlGemm_, ConvAlgorithmTemplate>)
+        if constexpr(std::is_base_of_v<FwdXdlGemm_, ConvAlgorithmTemplate>)
+        {
+            result.gridwise_gemm = gemm;
+        }
+        if constexpr(std::is_base_of_v<BwdXdlGemm_, ConvAlgorithmTemplate>)
         {
             result.gridwise_gemm = gemm;
         }
@@ -359,6 +391,14 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
+    constexpr auto with_specializations(ConvBwdWeightSpecialization bwd_spec) const
+    {
+        static_assert(std::is_base_of_v<ConvSpecializationBwdWeight_, ConvAlgorithmTemplate>);
+        auto result               = *this;
+        result.bwd_specialization = bwd_spec;
+        return result;
+    }
+
     constexpr auto with_prefetch_config(size_t k_prefetch_stages,
                                         size_t groups_to_merge,
                                         PipelineScheduler scheduler) const
@@ -368,6 +408,16 @@ struct ConvAlgorithmTemplate : Components...
         result.num_gemm_k_prefetch_stages = k_prefetch_stages;
         result.num_groups_to_merge        = groups_to_merge;
         result.loop_scheduler             = scheduler;
+        return result;
+    }
+
+    constexpr auto with_transpose_params(bool max_src_scalar_per_vector,
+                                         bool max_dst_scalar_per_vector) const
+    {
+        static_assert(std::is_base_of_v<TransposeParams_, ConvAlgorithmTemplate>);
+        auto result                             = *this;
+        result.max_transpose_transfer_src_scalar_per_vector = max_src_scalar_per_vector;
+        result.max_transpose_transfer_dst_scalar_per_vector = max_dst_scalar_per_vector;
         return result;
     }
 
@@ -456,16 +506,17 @@ struct ConvAlgorithmTemplate : Components...
 // Algorithm types
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_, XdlGemm_, Transfer_, ConvSpecialization_, Prefetch_>;
+    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_, ConvSpecializationFwd_, Prefetch_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
-    ConvAlgorithmTemplate<ThreadBlock_, XdlGemm_, Transfer_, ConvSpecialization_, BlockGemm_>;
+    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_, ConvSpecializationFwd_, BlockGemm_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_, ConvSpecialization_, Prefetch_>;
+    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_, ConvSpecializationFwd_, Prefetch_>;
+
 using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
     ConvAlgorithmTemplate<ThreadBlock_,
-                          ConvSpecialization_,
+                          ConvSpecializationFwd_,
                           DlThreadConfig_,
                           DlThreadCluster_,
                           DlTransfer_>;
@@ -478,5 +529,8 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileTh
                                                                           TileTransfer_,
                                                                           TileConvSpecialization_,
                                                                           TileOptimizations_>;
+
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle = 
+    ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_, ConvSpecializationBwdWeight_, TransposeParams_>;
 
 } // namespace ck_tile::builder::test

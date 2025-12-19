@@ -149,12 +149,27 @@ consteval ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdC
     using ck_conv_spec            = ck::tensor_operation::device::ConvolutionForwardSpecialization;
     switch(specialization)
     {
-    case ConvFwdSpecialization::DEFAULT: return ck_conv_spec::Default;
-    case ConvFwdSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
-    case ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
-    case ConvFwdSpecialization::FILTER_3x3: return ck_conv_spec::Filter3x3;
-    case ConvFwdSpecialization::ODD_C: return ck_conv_spec::OddC;
-    default: throw "Unknown ConvFwdSpecialization";
+    case ConvSpecialization::DEFAULT: return ck_conv_spec::Default;
+    case ConvSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
+    case ConvSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
+    case ConvSpecialization::FILTER_3x3: return ck_conv_spec::Filter3x3;
+    case ConvSpecialization::ODD_C: return ck_conv_spec::OddC;
+    default: throw "Unsupported ConvSpecialization";
+    }
+}
+
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+consteval ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization SetBwdWeightConvSpecialization()
+{
+    constexpr auto specialization = ALGORITHM.bwd_specialization;
+    using ck_conv_spec            = ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
+    switch(specialization)
+    {
+    case ConvSpecialization::DEFAULT: return ck_conv_spec::Default;
+    case ConvSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
+    case ConvSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
+    case ConvSpecialization::ODD_C: return ck_conv_spec::OddC;
+    default: throw "Unsupported ConvSpecialization";
     }
 }
 
