@@ -199,10 +199,10 @@ struct MXGemmPipelineAgBgCrV1
         auto b_store_lds_window_pong = make_tile_window(b_lds_block_pong, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0});
 
         // Load Windows (for Warp Load)
-        auto a_warp_window_ping = make_tile_window(a_lds_block_ping, make_tuple(number<WG::kM>{}, number<WG::kK>{}), {0, 0}, PipelinePolicy::MakeMX_ALDS_TileDistribution());
-        auto a_warp_window_pong = make_tile_window(a_lds_block_pong, make_tuple(number<WG::kM>{}, number<WG::kK>{}), {0, 0}, PipelinePolicy::MakeMX_ALDS_TileDistribution());
-        auto b_warp_window_ping = make_tile_window(b_lds_block_ping, make_tuple(number<WG::kN>{}, number<WG::kK>{}), {0, 0}, PipelinePolicy::MakeMX_BLDS_TileDistribution());
-        auto b_warp_window_pong = make_tile_window(b_lds_block_pong, make_tuple(number<WG::kN>{}, number<WG::kK>{}), {0, 0}, PipelinePolicy::MakeMX_BLDS_TileDistribution());
+        auto a_warp_window_ping = make_tile_window(a_lds_block_ping, make_tuple(number<MWarp * WG::kM>{}, number<WG::kK>{}), {0, 0}, PipelinePolicy::MakeMX_ALDS_TileDistribution());
+        auto a_warp_window_pong = make_tile_window(a_lds_block_pong, make_tuple(number<MWarp * WG::kM>{}, number<WG::kK>{}), {0, 0}, PipelinePolicy::MakeMX_ALDS_TileDistribution());
+        auto b_warp_window_ping = make_tile_window(b_lds_block_ping, make_tuple(number<NWarp * WG::kN>{}, number<WG::kK>{}), {0, 0}, PipelinePolicy::MakeMX_BLDS_TileDistribution());
+        auto b_warp_window_pong = make_tile_window(b_lds_block_pong, make_tuple(number<NWarp * WG::kN>{}, number<WG::kK>{}), {0, 0}, PipelinePolicy::MakeMX_BLDS_TileDistribution());
 
         // Register Tiles
         statically_indexed_array<statically_indexed_array<CWarpTensor, NIterPerWarp>, MIterPerWarp> c_warp_tensors;
@@ -255,12 +255,12 @@ struct MXGemmPipelineAgBgCrV1
                  static_for<0, MIterPerWarp, 1>{}([&](auto m_iter) {
                      a_vals(buf_idx)(m_iter) = load_tile_with_offset(
                         a_warp_window,
-                        tuple<number<m_iter * WG::kM>, number<K{} * WG::kK>>{});
+                        tuple<number<m_iter * MWarp * WG::kM>, number<K{} * WG::kK>>{});
                  });
                  static_for<0, NIterPerWarp, 1>{}([&](auto n_iter) {
                      b_vals(buf_idx)(n_iter) = load_tile_with_offset(
                         b_warp_window,
-                        tuple<number<n_iter * WG::kN>, number<K{} * WG::kK>>{});
+                        tuple<number<n_iter * NWarp * WG::kN>, number<K{} * WG::kK>>{});
                  });
             };
 
