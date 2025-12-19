@@ -21,11 +21,10 @@ constexpr auto SIGNATURE =
                        .output                 = {.config = {.layout = ckb::TensorLayout::GNHWK}}};
 
 constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle{}
-                               .with_thread_block(cku::FwdThreadBlock_256_256x256x32)
-                               .with_gemm_config(cku::FwdGemmParams_Xdl_4x4_per_wave)
-                               .with_transfer(cku::FwdTransfer_4x64x1)
-                               .with_specializations(ckb::ConvFwdSpecialization::DEFAULT,
-                                                     ckb::GemmSpecialization::MNKPadding)
+                               .with_thread_block(cku::ThreadBlock_256_256x256x32)
+                               .with_gemm_config(cku::BwdGemmParams_Xdl_4x4_per_wave)
+                               .with_transfer(cku::Transfer_4x64x1)
+                               .with_bwd_specialization(ckb::ConvFwdSpecialization::DEFAULT)
                                .with_block_gemm(cku::BlockGemmDesc_v3_intrawave);
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;

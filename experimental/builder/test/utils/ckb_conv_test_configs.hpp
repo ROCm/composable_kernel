@@ -39,7 +39,7 @@ constexpr DlTransferABC DlFwdTransfer{.a =
                                                        .dst_scalar_per_vector = 4},
                                       }};
 
-constexpr TransferABC FwdTransfer_4x64x1{
+constexpr TransferABC Transfer_4x64x1{
     .a =
         {
             .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
@@ -72,7 +72,7 @@ constexpr TransferABC FwdTransfer_4x64x1{
         },
 };
 
-constexpr TransferABC FwdTransfer_4x64x1_fp8{
+constexpr TransferABC Transfer_4x64x1_fp8{
     .a =
         {
             .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
@@ -105,7 +105,7 @@ constexpr TransferABC FwdTransfer_4x64x1_fp8{
         },
 };
 
-constexpr TransferABC FwdTransfer_4x16x1{
+constexpr TransferABC Transfer_4x16x1{
     .a =
         {
             .block_transfer              = {.k0 = 4, .m_n = 16, .k1 = 1},
@@ -139,7 +139,7 @@ constexpr TransferABC FwdTransfer_4x16x1{
         },
 };
 
-constexpr TransferABC FwdTransfer_4x32x1{
+constexpr TransferABC Transfer_4x32x1{
     .a =
         {
             .block_transfer              = {.k0 = 4, .m_n = 32, .k1 = 1},
@@ -172,17 +172,25 @@ constexpr TransferABC FwdTransfer_4x32x1{
         },
 };
 
-constexpr GridwiseXdlGemm FwdGemmParams_Xdl_4x4_per_wave{
-    .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 4};
+constexpr GridwiseBwdXdlGemm BwdGemmParams_Xdl_4x4_per_wave{
+    .k0_per_block = 8, .k1 = 8, 
+     {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 4}};
 
-constexpr GridwiseXdlGemm FwdGemmParams_Xdl_4x2_per_wave{
-    .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 2};
+constexpr GridwiseFwdXdlGemm FwdGemmParams_Xdl_4x4_per_wave{
+    .ak1 = 8, .bk1 = 8, 
+     {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 4}};
 
-constexpr GridwiseXdlGemm FwdGemmParams_Xdl_2x2_per_wave{
-    .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 2};
+constexpr GridwiseFwdXdlGemm FwdGemmParams_Xdl_4x2_per_wave{
+    .ak1 = 8, .bk1 = 8, 
+    {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 2}};
 
-constexpr GridwiseXdlGemm FwdGemmParams_Xdl_2x1_per_wave{
-    .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 1};
+constexpr GridwiseFwdXdlGemm FwdGemmParams_Xdl_2x2_per_wave{
+    .ak1 = 8, .bk1 = 8, 
+    {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 2}};
+
+constexpr GridwiseFwdXdlGemm FwdGemmParams_Xdl_2x1_per_wave{
+    .ak1 = 8, .bk1 = 8, 
+    {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 1}};
 
 constexpr GridwiseWmmaGemm FwdGemmParams_Wmma_2x1_per_wave{.k1               = 8,
                                                            .m_per_wmma       = 32,
@@ -191,26 +199,26 @@ constexpr GridwiseWmmaGemm FwdGemmParams_Wmma_2x1_per_wave{.k1               = 8
                                                            .n_wmma_per_wave  = 1,
                                                            .pipeline_version = PipelineVersion::V1};
 
-constexpr ThreadBlock FwdThreadBlock_256_256x256x32{.block_size = 256,
-                                                    .tile_size  = {.m = 256, .n = 256, .k = 32}};
+constexpr ThreadBlock ThreadBlock_256_256x256x32{.block_size = 256,
+                                                 .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-constexpr ThreadBlock FwdThreadBlock_256_256x128x32{.block_size = 256,
-                                                    .tile_size  = {.m = 256, .n = 128, .k = 32}};
+constexpr ThreadBlock ThreadBlock_256_256x128x32{.block_size = 256,
+                                                 .tile_size  = {.m = 256, .n = 128, .k = 32}};
 
-constexpr ThreadBlock FwdThreadBlock_256_128x128x32{.block_size = 256,
-                                                    .tile_size  = {.m = 128, .n = 128, .k = 32}};
+constexpr ThreadBlock ThreadBlock_256_128x128x32{.block_size = 256,
+                                                 .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
-constexpr ThreadBlock FwdThreadBlock_256_128x128x16{.block_size = 256,
-                                                    .tile_size  = {.m = 128, .n = 128, .k = 16}};
+constexpr ThreadBlock ThreadBlock_256_128x128x16{.block_size = 256,
+                                                 .tile_size  = {.m = 128, .n = 128, .k = 16}};
 
-constexpr ThreadBlock FwdThreadBlock_64_64x32x32{.block_size = 64,
-                                                 .tile_size  = {.m = 64, .n = 32, .k = 32}};
+constexpr ThreadBlock ThreadBlock_64_64x32x32{.block_size = 64,
+                                              .tile_size  = {.m = 64, .n = 32, .k = 32}};
 
-constexpr ThreadBlock FwdThreadBlock_128_128x128x32{.block_size = 128,
-                                                    .tile_size  = {.m = 128, .n = 128, .k = 32}};
+constexpr ThreadBlock ThreadBlock_128_128x128x32{.block_size = 128,
+                                                 .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
-constexpr ThreadBlock FwdThreadBlock_128_64x64x64{.block_size = 128,
-                                                  .tile_size  = {.m = 64, .n = 64, .k = 64}};
+constexpr ThreadBlock ThreadBlock_128_64x64x64{.block_size = 128,
+                                               .tile_size  = {.m = 64, .n = 64, .k = 64}};
 
 constexpr BlockGemm BlockGemmDesc_v1_intrawave = {.pipeline_version = PipelineVersion::V1,
                                                   .scheduler        = PipelineScheduler::INTRAWAVE};

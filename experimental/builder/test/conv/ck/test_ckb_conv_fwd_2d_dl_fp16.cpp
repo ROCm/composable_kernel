@@ -25,8 +25,8 @@ TEST(FwdConvInstances, Create_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK_Ins
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK{}
-            .with_thread_block(FwdThreadBlock_256_128x128x16)
-            .with_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
+            .with_thread_block(ThreadBlock_256_128x128x16)
+            .with_fwd_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
             .with_dl_thread_config(DlThreadConfig_16x2x4x4x1)
             .with_dl_thread_cluster(DlThreadCluster_8x2)
             .with_dl_transfer(DlFwdTransfer);
@@ -59,8 +59,8 @@ TEST(FwdConvInstances,
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK{}
-            .with_thread_block(FwdThreadBlock_256_128x128x16)
-            .with_specializations(ConvFwdSpecialization::FILTER_1X1_PAD0,
+            .with_thread_block(ThreadBlock_256_128x128x16)
+            .with_fwd_specializations(ConvFwdSpecialization::FILTER_1X1_PAD0,
                                   GemmSpecialization::MNKPadding)
             .with_dl_thread_config(DlThreadConfig_16x2x4x4x1)
             .with_dl_thread_cluster(DlThreadCluster_8x2)

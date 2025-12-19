@@ -381,7 +381,7 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
-    constexpr auto with_specializations(ConvFwdSpecialization fwd_spec,
+    constexpr auto with_fwd_specializations(ConvSpecialization fwd_spec,
                                         GemmSpecialization gemm_spec) const
     {
         static_assert(std::is_base_of_v<ConvSpecialization_, ConvAlgorithmTemplate>);
@@ -391,7 +391,7 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
-    constexpr auto with_specializations(ConvBwdWeightSpecialization bwd_spec) const
+    constexpr auto with_bwd_specialization(ConvSpecialization bwd_spec) const
     {
         static_assert(std::is_base_of_v<ConvSpecializationBwdWeight_, ConvAlgorithmTemplate>);
         auto result               = *this;
