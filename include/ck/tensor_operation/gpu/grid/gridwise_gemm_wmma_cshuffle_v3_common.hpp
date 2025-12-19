@@ -1058,8 +1058,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                AScaleStruct& a_scale_struct,
                                BScaleStruct& b_scale_struct,
                                EpilogueArgument& epilogue_args,
-                               const index_t k_batch = 1,
-                               const index_t k_id    = 0)
+                               const index_t A_k_id  = 0,
+                               const index_t B_k_id  = 0,
+                               const index_t k_batch = 1)
     {
         const auto as_grid_buf = generate_tuple(
             [&](auto i) {
@@ -1091,7 +1092,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                  AsDataType,
                                                  AElementwiseOperation,
                                                  BlockwiseGemmPipe::GlobalBufferNum>(
-                as_grid_desc_ak0_m_ak1, a_block_desc_ak0_m_ak1, a_element_op, block_m_id, k_id);
+                as_grid_desc_ak0_m_ak1, a_block_desc_ak0_m_ak1, a_element_op, block_m_id, A_k_id);
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
@@ -1100,7 +1101,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                  BsDataType,
                                                  BElementwiseOperation,
                                                  BlockwiseGemmPipe::GlobalBufferNum>(
-                bs_grid_desc_bk0_n_bk1, b_block_desc_bk0_n_bk1, b_element_op, block_n_id, k_id);
+                bs_grid_desc_bk0_n_bk1, b_block_desc_bk0_n_bk1, b_element_op, block_n_id, B_k_id);
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(

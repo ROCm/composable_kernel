@@ -911,8 +911,9 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                     a_scale_struct,
                                     b_scale_struct,
                                     epilogue_args,
-                                    karg.KBatch,
-                                    k_idx);
+                                    k_idx,
+                                    k_idx,
+                                    karg.KBatch);
     }
 
     // Run method for convolution (grid descriptors are passed as arguments,
