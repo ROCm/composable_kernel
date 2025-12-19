@@ -38,20 +38,22 @@ struct XdlParams
 static_assert(ckb::GridwiseXdlGemmDescriptor<XdlParams>);
 
 // Describe gridwise XDL GEMM parameters.
-struct GridwiseFwdXdlGemm : public XdlParams
+struct GridwiseFwdXdlGemm
 {
     // NOTE: ak1 and bk1 are difficult to verify in the kernel instantiation!!!
     size_t ak1            = 0;
     size_t bk1            = 0;
+    XdlParams xdl_params;
 };
 static_assert(ckb::SpecifiesGridwiseFwdXdlGemm<GridwiseFwdXdlGemm>);
 
-struct GridwiseBwdXdlGemm : public XdlParams
+struct GridwiseBwdXdlGemm
 {
     size_t k0_per_block  = 0;
     size_t k1            = 0;
+    XdlParams xdl_params;
 };
-static_assert(ckb::SpecifiesGridwiseBwdXdlGemm<GridwiseFwdXdlGemm>);
+static_assert(ckb::SpecifiesGridwiseBwdXdlGemm<GridwiseBwdXdlGemm>);
 
 // Describe gridwise WMMA GEMM parameters.
 struct GridwiseWmmaGemm
@@ -384,7 +386,7 @@ struct ConvAlgorithmTemplate : Components...
     constexpr auto with_fwd_specializations(ConvSpecialization fwd_spec,
                                         GemmSpecialization gemm_spec) const
     {
-        static_assert(std::is_base_of_v<ConvSpecialization_, ConvAlgorithmTemplate>);
+        static_assert(std::is_base_of_v<ConvSpecializationFwd_, ConvAlgorithmTemplate>);
         auto result                = *this;
         result.fwd_specialization  = fwd_spec;
         result.gemm_specialization = gemm_spec;

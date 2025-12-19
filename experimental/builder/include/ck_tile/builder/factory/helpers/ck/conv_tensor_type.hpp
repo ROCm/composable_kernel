@@ -151,7 +151,6 @@ consteval auto GetAuxiliaryTensorDataTypes()
 }
 
 template <auto Signature>
-requires ConvDirectionIsForward<Signature>
 struct FwdConvTensorDataTypes
 {
     static constexpr auto input_types =
@@ -178,8 +177,7 @@ struct FwdConvTensorDataTypes
 };
 
 template <auto Signature>
-requires ConvDirectionIsBackwardWeight<Signature>
-struct FwdConvTensorDataTypes
+struct BwdWeightConvTensorDataTypes
 {
     static constexpr auto input_types =
         GetTensorDataAndComputeTypes<Signature.input.config, Signature.data_type>();

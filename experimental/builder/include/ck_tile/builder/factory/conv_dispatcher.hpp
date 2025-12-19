@@ -60,7 +60,7 @@
 #include "ck_tile/builder/factory/conv_fwd_dl_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_large_tensor_factory.hpp"
 #include "ck_tile/builder/factory/conv_tile_factory.hpp"
-#include "ck_tile/builder/factory/conv_bwd_weigth_xdl_factory.hpp"
+#include "ck_tile/builder/factory/conv_bwd_weight_xdl_factory.hpp"
 
 namespace ck_tile::builder::factory {
 
@@ -133,7 +133,7 @@ concept IsFwdDlAlgorithm =
 // XDL-based kernel with large tensor support
 template <typename T>
 concept IsLargeTensorAlgorithm =
-    IsXdlAlgorithm<decltype(T::base_algorithm)> && SpecifiesLargeTensorSupport<T>;
+    IsFwdXdlAlgorithm<decltype(T::base_algorithm)> && SpecifiesLargeTensorSupport<T>;
 
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
@@ -182,8 +182,7 @@ constexpr auto make_conv_instance()
     {
         static_assert(
             false,
-            "Backward data convolution is not yet supported. "
-            "Only forward convolution (ConvDirection::FORWARD) is currently implemented.");
+            "Backward data convolution is not yet supported. ");
     }
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
@@ -195,8 +194,8 @@ constexpr auto make_conv_instance()
         {
             static_assert(
                 false,
-                "Backward weight convolution is not yet supported. "
-                "Only forward convolution (ConvDirection::FORWARD) is currently implemented.");
+                "No suitable forward convolution kernel factory found for the provided ALGORITHM. "
+                "The ALGORITHM must satisfy requirements for XDL variant.");
         }
     }
     else

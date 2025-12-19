@@ -27,7 +27,7 @@ struct ConvBwdWeightXdlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types   = internal::BwdConvTensorDataTypes<SIGNATURE>;
+    using Types   = internal::BwdWeightConvTensorDataTypes<SIGNATURE>;
     using Ops     = internal::ElementwiseOps<SIGNATURE>;
     using AlgorithmType = decltype(ALGORITHM);
 
@@ -68,7 +68,6 @@ struct ConvBwdWeightXdlFactory
         BLOCK.block_size,
         BLOCK.per_block.m,
         BLOCK.per_block.n,
-        BLOCK.per_block.k,
         GRIDWISE_GEMM.k0_per_block,
         GRIDWISE_GEMM.k1,
         GRIDWISE_GEMM.m_per_xdl,

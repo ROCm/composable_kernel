@@ -158,17 +158,17 @@ concept SpecifiesTileThreadBlock = requires {
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
 concept SpecifiesGridwiseFwdXdlGemm = requires {
-    { T::gridwise_gemm.ak1 } -> std::convertible_to<size_t>;
-    { T::gridwise_gemm.bk1 } -> std::convertible_to<size_t>;
-    { T::gridwise_gemm } -> GridwiseXdlGemmDescriptor;
+    { T::ak1 } -> std::convertible_to<size_t>;
+    { T::bk1 } -> std::convertible_to<size_t>;
+    { T::xdl_params } -> GridwiseXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
 concept SpecifiesGridwiseBwdXdlGemm = requires {
-    { T::gridwise_gemm.k0_per_block } -> std::convertible_to<size_t>;
-    { T::gridwise_gemm.k1 } -> std::convertible_to<size_t>;
-    { T::gridwise_gemm } -> GridwiseXdlGemmDescriptor;
+    { T::k0_per_block } -> std::convertible_to<size_t>;
+    { T::k1 } -> std::convertible_to<size_t>;
+    { T::xdl_params } -> GridwiseXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise WMMA GEMM info.
@@ -252,12 +252,12 @@ concept SpecifiesTileConvSpecialization = requires {
 
 template <typename T>
 concept SpecifiesFwdConvSpecialization = requires {
-    { T::fwd_specialization } -> std::convertible_to<ConvFwdSpecialization>;
+    { T::fwd_specialization } -> std::convertible_to<ConvSpecialization>;
 };
 
 template <typename T>
 concept SpecifiesBwdWeightConvSpecialization = requires {
-    { T::bwd_weight_specialization } -> std::convertible_to<ConvolutionBackwardWeightSpecialization>;
+    { T::bwd_weight_specialization } -> std::convertible_to<ConvSpecialization>;
 };
 
 template <typename T>
@@ -284,6 +284,12 @@ template <typename T>
 concept SpecifiesLargeTensorSupport = requires {
     { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
     requires T::specialization == ConvAlgorithmSpecialization::LARGE_TENSOR;
+};
+
+template <typename T>
+concept SpecifiesTransposeTransfer = requires {
+    { T::max_transpose_transfer_src_scalar_per_vector } -> std::convertible_to<size_t>;
+    { T::max_transpose_transfer_dst_scalar_per_vector } -> std::convertible_to<size_t>;
 };
 
 /******************************************** */

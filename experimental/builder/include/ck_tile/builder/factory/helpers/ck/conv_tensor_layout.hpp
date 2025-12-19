@@ -190,7 +190,7 @@ consteval auto GetAuxiliaryTensorLayoutTuple(std::index_sequence<Indices...>)
         decltype(TensorLayoutToCK<AuxiliaryTensorConfigsArray[Indices].layout>())...>{};
 }
 
-template <auto AuxiliaryTensorConfigsValue, size_t SPATIAL_DIM, ConvDirection DIR>
+template <auto AuxiliaryTensorConfigsValue, size_t SPATIAL_DIM>
     requires(ConvSpatialDim<SPATIAL_DIM>)
 struct AuxiliaryTensorLayouts
 {
@@ -200,13 +200,12 @@ struct AuxiliaryTensorLayouts
 };
 
 // TODO: Currently only the ouput tensor can have auxiliary tensors (e.g., bias).
-template <auto Signature, size_t SPATIAL_DIM, ConvDirection DIR>
+template <auto Signature, size_t SPATIAL_DIM>
     requires(HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
 consteval auto GetAuxiliaryTensorLayouts()
 {
     return AuxiliaryTensorLayouts<Signature.output.operation.auxiliary_operand_configs,
-                                  SPATIAL_DIM,
-                                  DIR>{};
+                                  SPATIAL_DIM>{};
 }
 
 template <auto Signature, size_t SPATIAL_DIM, ConvDirection DIR>
@@ -220,27 +219,29 @@ template <auto Signature, size_t SPATIAL_DIM>
     requires(ConvSpatialDim<SPATIAL_DIM> &&
              ValidConvInputLayoutForSpatialDim<Signature.input.config.layout, SPATIAL_DIM> &&
              ValidConvWeightLayoutForSpatialDim<Signature.weight.config.layout, SPATIAL_DIM> &&
-             ValidConvOutputLayoutForSpatialDim<Signature.output.config.layout, SPATIAL_DIM> &&
-             ConvDirectionIsForward<Signature>)
+             ValidConvOutputLayoutForSpatialDim<Signature.output.config.layout, SPATIAL_DIM>)
 struct ConvTensorLayouts
 {
-    using ALayout  = decltype(TensorLayoutToCK<Signature.input.config.layout>());
-    using BLayout  = decltype(TensorLayoutToCK<Signature.weight.config.layout>());
-    using ELayout  = decltype(TensorLayoutToCK<Signature.output.config.layout>());
-    using DsLayout = decltype(GetAuxiliaryTensorLayouts<Signature, SPATIAL_DIM, DIR>())::type;
-};
+private:
+    static constexpr bool is_forward = ConvDirectionIsForward<Signature>;
+    static constexpr bool is_bwd_weight = ConvDirectionIsBackwardWeight<Signature>;
 
-template <auto Signature, size_t SPATIAL_DIM>
-    requires(ConvSpatialDim<SPATIAL_DIM> &&
-             ValidConvInputLayoutForSpatialDim<Signature.input.config.layout, SPATIAL_DIM> &&
-             ValidConvWeightLayoutForSpatialDim<Signature.weight.config.layout, SPATIAL_DIM> &&
-             ValidConvOutputLayoutForSpatialDim<Signature.output.config.layout, SPATIAL_DIM> &&
-             ConvDirectionIsBackwardWeight<Signature>)
-struct ConvTensorLayouts
-{
-    using InLayout  = decltype(TensorLayoutToCK<Signature.input.config.layout>());
-    using WeiLayout  = decltype(TensorLayoutToCK<Signature.weight.config.layout>());
-    using OutLayout  = decltype(TensorLayoutToCK<Signature.output.config.layout>());
+    using InputLayout  = decltype(TensorLayoutToCK<Signature.input.config.layout>());
+    using WeightLayout = decltype(TensorLayoutToCK<Signature.weight.config.layout>());
+    using OutputLayout = decltype(TensorLayoutToCK<Signature.output.config.layout>());
+    using AuxLayout    = decltype(GetAuxiliaryTensorLayouts<Signature, SPATIAL_DIM>())::type;
+
+public:
+    // Forward convolution layouts
+    using ALayout  = std::conditional_t<is_forward, InputLayout, void>;
+    using BLayout  = std::conditional_t<is_forward, WeightLayout, void>;
+    using ELayout  = std::conditional_t<is_forward, OutputLayout, void>;
+    using DsLayout = std::conditional_t<is_forward, AuxLayout, void>;
+    
+    // Backward weight convolution layouts
+    using InLayout  = std::conditional_t<is_bwd_weight, InputLayout, void>;
+    using WeiLayout = std::conditional_t<is_bwd_weight, WeightLayout, void>;
+    using OutLayout = std::conditional_t<is_bwd_weight, OutputLayout, void>;
 };
 
 } // namespace ck_tile::builder::factory::internal
