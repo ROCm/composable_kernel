@@ -206,9 +206,15 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                                              BComputeDataType>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor;
-    GET_NXDL_PER_WAVE_IMPL
-    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
-    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+    GET_MXDL_PER_WAVE_IMPL
+    // Force usage of 16x16 instruction for WMMA
+    static constexpr index_t Wave32MaxMNPerXDL = 16;
+    static constexpr auto MXdlPerWave64        = GetMXdlPerWave<true>();
+    static constexpr auto MXdlPerWave32 =
+        GetMXdlPerWave<false,
+                       Wave32MaxMNPerXDL,
+                       Wave32MaxMNPerXDL,
+                       NXdlPerWave*(NPerXDL / Wave32MaxMNPerXDL)>();
 
     static constexpr index_t NumDTensor  = DsDataType::Size();
     static constexpr index_t MaxGemmsNum = 32;
@@ -409,25 +415,26 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 #define CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_LARGE_TENSOR_TEMPLATE_PARAMETERS                          \
     ADataType, BDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType, EDataType, \
         AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,                    \
-        NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerXDL,     \
-        NPerXDL, MXdlPerWave, NXdlPerWave, ABlockTransferThreadClusterLengths_AK0_M_AK1,          \
-        ABlockTransferThreadClusterArrangeOrder, ABlockTransferSrcAccessOrder,                    \
-        ABlockTransferSrcVectorDim, ABlockTransferSrcScalarPerVector,                             \
-        ABlockTransferDstScalarPerVector_AK1, false, ABlockLdsExtraM,                             \
-        BBlockTransferThreadClusterLengths_BK0_N_BK1, BBlockTransferThreadClusterArrangeOrder,    \
-        BBlockTransferSrcAccessOrder, BBlockTransferSrcVectorDim,                                 \
-        BBlockTransferSrcScalarPerVector, BBlockTransferDstScalarPerVector_BK1, false,            \
-        BBlockLdsExtraN, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,            \
+        NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerXDL_,    \
+        NPerXDL_, MXdlPerWave_, NXdlPerWave*(NPerXDL / NPerXDL_),                                 \
+        ABlockTransferThreadClusterLengths_AK0_M_AK1, ABlockTransferThreadClusterArrangeOrder,    \
+        ABlockTransferSrcAccessOrder, ABlockTransferSrcVectorDim,                                 \
+        ABlockTransferSrcScalarPerVector, ABlockTransferDstScalarPerVector_AK1, false,            \
+        ABlockLdsExtraM, BBlockTransferThreadClusterLengths_BK0_N_BK1,                            \
+        BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder,                    \
+        BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector,                             \
+        BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                             \
+        CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle*(NPerXDL / NPerXDL_),        \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                         \
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,                \
         AComputeDataType, DoElementwiseBeforeCShuffle
     // Use appropriate gridwise gemm
-    template <index_t NXdlPerWave_>
+    template <index_t MXdlPerWave_, index_t MPerXDL_, index_t NPerXDL_>
     using GridwiseGemmBase = GridwiseGemmMultipleD_xdl_cshuffle<
         CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_LARGE_TENSOR_TEMPLATE_PARAMETERS>;
 #undef CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_LARGE_TENSOR_TEMPLATE_PARAMETERS
-    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
-    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(MXdlPerWave64, 1), MPerXDL, NPerXDL>;
+    using GridwiseGemm32 = GridwiseGemmBase<MXdlPerWave32, Wave32MaxMNPerXDL, Wave32MaxMNPerXDL>;
 
     // desc for blockwise copy
     using AGridDesc_AK0_M_AK1 =
@@ -607,7 +614,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 
                     if(get_warp_size() == 64)
                     {
-                        if constexpr(NXdlPerWave64 > 0)
+                        if constexpr(MXdlPerWave64 > 0)
                         {
                             init_gemm_args<GridwiseGemm64>(a_grid_ptrs[i],
                                                            static_cast<const BDataType*>(p_b),
@@ -624,7 +631,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                     }
                     else
                     {
-                        if constexpr(NXdlPerWave32 > 0)
+                        if constexpr(MXdlPerWave32 > 0)
                         {
                             init_gemm_args<GridwiseGemm32>(a_grid_ptrs[i],
                                                            static_cast<const BDataType*>(p_b),
@@ -769,7 +776,24 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
             }
         }
 
-        INVOKER_RUN_IMPL
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        {
+            if(get_warp_size() == 64)
+            {
+                if constexpr(MXdlPerWave64 > 0)
+                {
+                    return RunImp<GridwiseGemm64>(arg, stream_config);
+                }
+            }
+            else
+            {
+                if constexpr(MXdlPerWave32 > 0)
+                {
+                    return RunImp<GridwiseGemm32>(arg, stream_config);
+                }
+            }
+            return 0;
+        }
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -822,7 +846,10 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                 return false;
             }
         }
-        if(!ck::is_xdl_wmma_supported<AComputeDataType, BComputeDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<AComputeDataType,
+                                      BComputeDataType,
+                                      Wave32MaxMNPerXDL,
+                                      Wave32MaxMNPerXDL>())
         {
             return false;
         }
@@ -1205,8 +1232,12 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor"
-            << "<"
+        str << "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor";
+        if(get_warp_size() != 64) {
+            str << "_WmmaPorted";
+        }
+
+        str    << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
