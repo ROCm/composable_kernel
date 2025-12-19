@@ -21,7 +21,8 @@ template <typename OffsetVecType,
           index_t kLoopCount,
           index_t kLoopStride,
           bool kIsSglangLayout,
-          bool kIsKcache>
+          bool kIsKcache,
+          index_t kVectorSize = 8>
 CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
                                                    const index_t& stride_kv,
                                                    const index_t& page_stride_kv,
@@ -59,12 +60,25 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
             const index_t lane0_start = __builtin_amdgcn_readfirstlane(thread_coord_start);
             const index_t lane0_page_id =
                 (global_seq_offset + lane0_start + kLoopStart) >> kPageShiftSize;
+
             const long_index_t page_loc =
                 static_cast<long_index_t>(page_vec[lane0_page_id]) * page_stride_kv;
+
             static_for<0, kLoopCount, 1>{}([&](auto k0) {
                 const index_t page_offset =
                     (global_seq_offset + thread_coord_start + kLoopStart + k0.value) & kPageMask;
-                kv_offset_vec[k0] = page_loc + static_cast<long_index_t>(page_offset) * stride_kv;
+
+                // Swizzled Layout Offset
+                // Layout: [BlockSize/kVectorSize, HeadDim, kVectorSize]
+                // Offset(s) = (s / kVectorSize) * (HeadDim * kVectorSize) + (s % kVectorSize)
+                const index_t s = page_offset;
+                const index_t D = stride_kv;
+
+                const long_index_t s_offset =
+                    static_cast<long_index_t>((s / kVectorSize) * (D * kVectorSize)) +
+                    (s % kVectorSize);
+
+                kv_offset_vec[k0] = page_loc + s_offset;
             });
         }
     }
@@ -397,7 +411,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                   NRepeat,
                                   kN0 / NRepeat,
                                   kIsSglangLayout,
-                                  true>(
+                                  true,
+                                  8 // kVectorSize for K
+                                  >(
             page_idx, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
 
         auto k_dram_window = make_tile_scatter_gather(k_dram_block_window.get_bottom_tensor_view(),
@@ -441,7 +457,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                   V_KRepeat,
                                   1,
                                   kIsSglangLayout,
-                                  false>(
+                                  false,
+                                  8 // kVectorSize for V
+                                  >(
             page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
 
         auto v_dram_window =
@@ -515,7 +533,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                       V_KRepeat,
                                       1,
                                       kIsSglangLayout,
-                                      false>(
+                                      false,
+                                      8>(
                 page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
             v_dram_window.update_page_idx(v_offsets);
 
@@ -692,7 +711,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           V_KRepeat,
                                           1,
                                           kIsSglangLayout,
-                                          false>(
+                                          false,
+                                          8>(
                     page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
                 v_dram_window.update_page_idx(v_offsets);
             }
@@ -830,7 +850,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                                   V_KRepeat,
                                                   1,
                                                   kIsSglangLayout,
-                                                  false>(
+                                                  false,
+                                                  8>(
                             page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
                         v_dram_window.update_page_idx(v_offsets);
                     }
@@ -893,7 +914,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           NRepeat,
                                           kN0 / NRepeat,
                                           kIsSglangLayout,
-                                          true>(
+                                          true,
+                                          8>(
                     page_idx, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
                 k_dram_window.update_page_idx(k_offsets);
                 if constexpr(k1_loops >= 2 &&
