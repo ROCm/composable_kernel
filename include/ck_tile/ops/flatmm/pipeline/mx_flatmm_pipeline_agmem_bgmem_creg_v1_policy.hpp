@@ -75,19 +75,41 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         return BlockFlatmmASmemBSmemCRegV1<Problem, BlockFlatmmPolicy>{};
     }
 
-    template <typename TensorView>
-    CK_TILE_DEVICE static constexpr auto
-    MakeMX_AAsyncLoadDramDescriptor(const TensorView& naive_view)
+    CK_TILE_DEVICE static constexpr auto MakeMX_ABytesDramTileDistribution()
     {
-        const auto& naive_desc = naive_view.get_tensor_descriptor();
-        constexpr auto ndims   = remove_cvref_t<decltype(naive_desc)>::get_num_of_dimension();
-        static_assert(ndims == 2, "only support 2D tensor");
-        const auto rows = naive_desc.get_length(number<0>{});
-        const auto cols = naive_desc.get_length(number<1>{});
+        constexpr index_t K2 = DWORDx4;                             // 16 bytes
+        constexpr index_t K1 = kDramLoadPackBytes / K2;             // 8
+        constexpr index_t K0 = KPerBlock / (K1 * K2 * APackedSize); // KPerBlock/256/packsize
 
-        constexpr index_t K2 = AK1;                          // f4=32; f8=16
+        constexpr index_t M2 = WaveSize / K1;        // 8
+        constexpr index_t M1 = BlockSize / WaveSize; // 4
+        constexpr index_t M0 = MPerBlock / (M2 * M1);
+        static_assert(M0 * M1 * M2 == MPerBlock, "M0, M1, M2 must cover whole MPerBlock!");
+        static_assert(K0 * K1 * K2 * APackedSize == KPerBlock,
+                      "K0, K1, K2 must cover whole KPerBlock!");
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding< //
+                sequence<1>,
+                tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>, // ?,4,8 1,8,32 or 2,8,16
+                tuple<sequence<1>, sequence<1, 2>>,                // M1 M2,K1
+                tuple<sequence<1>, sequence<2, 1>>,
+                sequence<1, 2, 2>, // M0,K0,K2
+                sequence<0, 0, 2>>{});
+    }
+
+    template <typename WindowTmp>
+    CK_TILE_DEVICE static constexpr auto
+    MakeMX_AAsyncLoadBytesDramWindow(const WindowTmp& window_tmp)
+    {
+        constexpr auto ndims = std::decay_t<decltype(window_tmp)>::get_num_of_dimension();
+        static_assert(ndims == 2, "only support 2D tensor");
+        auto&& tensor_view_tmp  = window_tmp.get_bottom_tensor_view();
+        const auto [rows, cols] = tensor_view_tmp.get_tensor_descriptor().get_lengths();
+
+        constexpr index_t K2 = DWORDx4;                      // 16 bytes
         constexpr index_t K1 = kDramLoadPackBytes / DWORDx4; // 8
-        const index_t K0     = cols / (K1 * K2);
+        const index_t K0     = cols / (K1 * K2 * APackedSize);
         const auto col_lens  = make_tuple(K0, number<K1>{}, number<K2>{});
 
         constexpr index_t M1 = 4; // so that we can use imm offset to load lds
@@ -110,41 +132,24 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                        make_merge_transform_v3_division_mod(col_lens)),
             make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
-        // printf("A async load dram desc %d x %d: \n", desc.get_length(I0), desc.get_length(I1));
 
-        return tensor_view<typename TensorView::buffer_view,
-                           remove_cvref_t<decltype(desc)>,
-                           TensorView::DstInMemOp>{naive_view.buf_, desc};
+        auto&& byte_ptr = reinterpret_cast<const uint8_t*>(&(tensor_view_tmp.get_buffer_view()(0)));
+        auto&& byte_tensor_view = make_tensor_view<address_space_enum::global>(byte_ptr, desc);
+
+        auto&& origin_tmp = window_tmp.get_window_origin();
+        return make_tile_window(byte_tensor_view,
+                                make_tuple(number<MPerBlock>{}, number<KPerBlock / APackedSize>{}),
+                                {origin_tmp[0], origin_tmp[1] / APackedSize},
+                                MakeMX_ABytesDramTileDistribution());
     }
 
-    CK_TILE_DEVICE static constexpr auto MakeMX_ADramTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeMX_ALdsBytesBlockDescriptor()
     {
-        constexpr index_t K2 = AK1;                                   // f4=32; f8=16
-        constexpr index_t K1 = kDramLoadPackBytes * APackedSize / K2; // 8
-        constexpr index_t K0 = KPerBlock / (K1 * K2);                 // KPerBlock/256
-
-        constexpr index_t M2 = WaveSize / K1;        // 8
-        constexpr index_t M1 = BlockSize / WaveSize; // 4
-        constexpr index_t M0 = MPerBlock / (M2 * M1);
-        static_assert(M0 * M1 * M2 == MPerBlock, "M0, M1, M2 must cover whole MPerBlock!");
-        static_assert(K0 * K1 * K2 == KPerBlock, "K0, K1, K2 must cover whole KPerBlock!");
-
-        return make_static_tile_distribution(
-            tile_distribution_encoding< //
-                sequence<1>,
-                tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>, // ?,4,8 1,8,32 or 2,8,16
-                tuple<sequence<1>, sequence<1, 2>>,                // M1 M2,K1
-                tuple<sequence<1>, sequence<2, 1>>,
-                sequence<1, 2, 2>, // M0,K0,K2
-                sequence<0, 0, 2>>{});
-    }
-
-    CK_TILE_DEVICE static constexpr auto MakeMX_ALdsBlockDescriptor()
-    {
-        constexpr index_t K2 = AK1;                          // f4=32; f8=16
+        constexpr index_t K2 = AK1 / APackedSize;            // 16
         constexpr index_t K1 = kDramLoadPackBytes / DWORDx4; // 8
-        constexpr index_t K0 = KPerBlock / (K1 * K2);        // KPerBlock/256
-        static_assert(K0 * K1 * K2 == KPerBlock, "K0, K1, K2 must cover whole KPerBlock!");
+        constexpr index_t K0 = KPerBlock / (K1 * AK1);       // KPerBlock/256
+        static_assert(K0 * K1 * K2 * APackedSize == KPerBlock,
+                      "K0, K1, K2 must cover whole KPerBlock!");
 
         constexpr index_t M3 = 4;                   // so that we can use imm offset to load lds
         constexpr index_t M2 = WaveSize / K1 / M3;  // 2
@@ -152,7 +157,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t M0 = MPerBlock / (M1 * M2 * M3); // MPerBlock/16
         static_assert(M0 * M1 * M2 * M3 == MPerBlock, "M0, M1, M2, M3 must cover whole MPerBlock!");
 
-        constexpr index_t Pad = 4 * K2; // 4 * 32
+        constexpr index_t Pad = 4 * K2; // 4 dwords
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor( //
             make_tuple(number<M0>{},
@@ -205,7 +210,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         return a_lds_block_desc;
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ALDS_TileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ALDSBytes_TileDistribution()
     {
         static_assert(BlockWarps::at(I0) == 1, "requires Wave_M == 1");
 
@@ -213,20 +218,21 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
             return make_static_tile_distribution(
                 tile_distribution_encoding< //
                     sequence<NWarps>,
-                    tuple<sequence<MWarps, MXdlPack, MPerXdl>, sequence<K_Lane, AK1>>,
+                    tuple<sequence<MWarps, MXdlPack, MPerXdl>, sequence<K_Lane, AK1 / APackedSize>>,
                     tuple<sequence<1, 0>, sequence<2, 1>>,
                     tuple<sequence<0, 0>, sequence<0, 2>>,
                     sequence<2>,
                     sequence<1>>{});
         else
-            return make_static_tile_distribution(tile_distribution_encoding< //
-                                                 sequence<NWarps>,
-                                                 tuple<sequence<MWarps, MXdlPack, MPerXdl>,
-                                                       sequence<K_Thread / AK1, K_Lane, AK1>>,
-                                                 tuple<sequence<1, 0>, sequence<2, 1>>,
-                                                 tuple<sequence<0, 0>, sequence<1, 2>>,
-                                                 sequence<2, 2>,
-                                                 sequence<0, 2>>{});
+            return make_static_tile_distribution(
+                tile_distribution_encoding< //
+                    sequence<NWarps>,
+                    tuple<sequence<MWarps, MXdlPack, MPerXdl>,
+                          sequence<K_Thread / AK1, K_Lane, AK1 / APackedSize>>,
+                    tuple<sequence<1, 0>, sequence<2, 1>>,
+                    tuple<sequence<0, 0>, sequence<1, 2>>,
+                    sequence<2, 2>,
+                    sequence<0, 2>>{});
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_BFlatBytesDramTileDistribution()
@@ -364,8 +370,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
-        return sizeof(ADataType) * MakeMX_ALdsBlockDescriptor().get_element_space_size() /
-               APackedSize;
+        return sizeof(ADataType) * MakeMX_ALdsBytesBlockDescriptor().get_element_space_size();
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return GetSmemSizeA(); }
@@ -383,10 +388,10 @@ struct MXFlatmmPipelineAgBgCrPolicy
     }
 
     FORWARD_METHOD_(GetBlockFlatmm);
-    FORWARD_METHOD_(MakeMX_AAsyncLoadDramDescriptor);
-    FORWARD_METHOD_(MakeMX_ADramTileDistribution);
-    FORWARD_METHOD_(MakeMX_ALdsBlockDescriptor);
-    FORWARD_METHOD_(MakeMX_ALDS_TileDistribution);
+    FORWARD_METHOD_(MakeMX_AAsyncLoadBytesDramWindow);
+    FORWARD_METHOD_(MakeMX_ABytesDramTileDistribution);
+    FORWARD_METHOD_(MakeMX_ALdsBytesBlockDescriptor);
+    FORWARD_METHOD_(MakeMX_ALDSBytes_TileDistribution);
     FORWARD_METHOD_(MakeMX_BFlatBytesDramTileDistribution);
     FORWARD_METHOD_(MakeMX_BFlatBytesDramWindow);
     FORWARD_METHOD_(MakeMX_ScaleA_DramTileDistribution);
