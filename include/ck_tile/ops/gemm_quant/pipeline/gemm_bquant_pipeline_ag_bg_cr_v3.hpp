@@ -65,7 +65,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t NPerBlockBQ = BlockGemmShape::kN / QuantGroupSize::kN;
+    static constexpr index_t NPerBlockBQ =
+        (QuantGroupSize::kN <= BlockGemmShape::kN) ? BlockGemmShape::kN / QuantGroupSize::kN : 1;
     static constexpr index_t KPerBlockBQ = BlockGemmShape::kK / QuantGroupSize::kK;
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }

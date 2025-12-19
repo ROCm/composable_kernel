@@ -346,7 +346,7 @@ struct QuantGemmKernel
 
         if(get_block_id() == 0 && get_thread_id() == 0)
         {
-            printf("pad_bq_x:%d, WarpTileN:%d, NPerBlockPQ: %d, KPerBlockBQ: %d, wave_tile_size:"
+            printf("pad_bq_x:%d, WarpTileN:%d, NPerBlockBQ: %d, KPerBlockBQ: %d, wave_tile_size:"
                    "%d, wave_tile_count_x: %d\n",
                    pad_bq_x,
                    WarpTileN,
@@ -1119,7 +1119,9 @@ struct QuantGemmKernel
                 {
                     static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
                     constexpr auto block_n =
-                        TilePartitioner::NPerBlock / QuantGroupSize::kN; // 128/32 = 4
+                        (QuantGroupSize::kN <= TilePartitioner::NPerBlock)
+                            ? TilePartitioner::NPerBlock / QuantGroupSize::kN
+                            : QuantGroupSize::kN / TilePartitioner::NPerBlock; // 128/32 = 4
 
                     constexpr auto warp_n = TilePartitioner::BlockGemmShape::WarpTile::at(I1); // 16
                     constexpr auto warpPerGroup = (QuantGroupSize::kN < warp_n)
@@ -1133,29 +1135,47 @@ struct QuantGemmKernel
                                                             ? block_n / warpPerGroup
                                                             : block_n; // 4 / 2 = 2
 
-                    auto block_n_idx = i_n / TilePartitioner::NPerBlock; // 0,1,2
-
-                    if(get_thread_id() == 0)
+                    auto block_n_idx =
+                        i_n /
+                        TilePartitioner::NPerBlock; // 0,1,2   (i_n - TilePartitioner::NPerBlock) /
+                                                    // TilePartitioner::NPerBlock
+                    // For decode shapes GN: 128, Blocks needs to access 0,0,1,1,2,2 ...
+                    if(QuantGroupSize::kN > TilePartitioner::NPerBlock)
                     {
-                        printf("In MakeGemmTileWindows for BQ with PreshuffleQuant\n");
-                        printf("block_id: %d, block_n: %d, warp_n: %d, warpPerGroup: %d, "
-                               "bqk_per_block: %d, block_n_idx: %d, "
-                               "tile_window_width: %d, tile_window_height: %d, i_n: %d\n",
-                               get_block_id(),
-                               static_cast<int>(block_n),
-                               static_cast<int>(warp_n),
-                               static_cast<int>(warpPerGroup),
-                               static_cast<int>(bqk_per_block),
-                               static_cast<int>(block_n_idx),
-                               tile_window_width,
-                               static_cast<int>(tile_window_height),
-                               static_cast<int>(i_n));
+                        block_n_idx = block_n_idx >> 1;
                     }
-
-                    return make_tile_window(
-                        bq_pad_view,
-                        make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
-                        {block_n_idx * tile_window_height, 0});
+                    // if(get_thread_id() == 0)
+                    // {
+                    //     printf("In MakeGemmTileWindows for BQ with PreshuffleQuant\n");
+                    //     printf("block_id: %d, block_n: %d, warp_n: %d, warpPerGroup: %d, "
+                    //            "bqk_per_block: %d, block_n_idx: %d, "
+                    //            "tile_window_width: %d, tile_window_height: %d, i_n: %d\n",
+                    //            get_block_id(),
+                    //            static_cast<int>(block_n),
+                    //            static_cast<int>(warp_n),
+                    //            static_cast<int>(warpPerGroup),
+                    //            static_cast<int>(bqk_per_block),
+                    //            static_cast<int>(block_n_idx),
+                    //            tile_window_width,
+                    //            static_cast<int>(tile_window_height),
+                    //            static_cast<int>(i_n));
+                    // }
+                    if(QuantGroupSize::kN > TilePartitioner::NPerBlock)
+                    {
+                        return make_tile_window(
+                            bq_pad_view,
+                            make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
+                            {block_n_idx, 0});
+                    }
+                    else
+                    {
+                        return make_tile_window(
+                            bq_pad_view,
+                            make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
+                            {block_n_idx * tile_window_height,
+                             0}); // normally needs  block_n_idx * tile_window_height, for decode GN
+                                  // : 128 needs 0,0, 1,1, 2,2 ...
+                    }
                 }
                 else
                 {
@@ -1255,15 +1275,15 @@ struct QuantGemmKernel
                 {
                     n = kargs.N;
                 }
-                if(get_block_id() == 0 && get_thread_id() == 0)
-                {
-                    printf("In RunGemm, before GemmPipeline call for BQuantGrouped\n");
-                    // To print Tile window after bq_pad0_desc
-                    //  bq_block_window.template print_tile_window_range<BQDataType>(
-                    //      0, 128, 0, 2, "bq block window");
-                    bq_block_window.template print_tile_window_range<BQDataType>(
-                        0, 8, 0, 32, "bq block window");
-                }
+                // if(get_block_id() == 0 && get_thread_id() == 0)
+                // {
+                //     printf("In RunGemm, before GemmPipeline call for BQuantGrouped\n");
+                //     // To print Tile window after bq_pad0_desc
+                //     //  bq_block_window.template print_tile_window_range<BQDataType>(
+                //     //      0, 128, 0, 2, "bq block window");
+                //     bq_block_window.template print_tile_window_range<BQDataType>(
+                //         0, 8, 0, 16, "bq block window");
+                // }
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, n);
             }

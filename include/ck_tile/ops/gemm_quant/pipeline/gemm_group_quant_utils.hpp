@@ -297,14 +297,27 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             }
             else
             {
-                constexpr auto N1  = BlockGemmShape::kK / KPerQ; // 2
+                constexpr auto N1  = BlockGemmShape::kK / KPerQ; // 1
                 constexpr auto N0  = 1;                          // NPerQ/WarpGemm::kN;  // 1
                 constexpr auto N2  = 1;
-                constexpr auto NR1 = 32;                               // 32
-                constexpr auto NR0 = warp_size / (N0 * N1 * N2 * NR1); // 64/(1*2*1*32)=1
+                constexpr auto NR1 = 32; // NPerQ;                               // 32
+                constexpr auto NR0 = warp_size / (N0 * N1 * N2 * NR1); // 64/(1*1*1*32)=1
+                constexpr auto K1  = KPerTile;
+
+                if(get_block_id() == 0 && get_thread_id() == 0)
+                {
+                    // Debug print to verify values
+                    printf("PreshuffleQuant Fine-grained: KPerQ: %d, NPerQ: %d, N1=%d, NR0=%d, "
+                           "KPerTile: %d \n",
+                           KPerQ,
+                           NPerQ,
+                           N1,
+                           NR0,
+                           KPerTile);
+                }
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<MWarps, NWarps, NR0, NR1>,
-                                               tuple<sequence<KPerTile>, sequence<N0, N1, N2>>,
+                                               tuple<sequence<K1>, sequence<N0, N1, N2>>,
                                                tuple<sequence<0, 0>, sequence<0, 2, 0, 2>>,
                                                tuple<sequence<0, 1>, sequence<2, 0, 3, 1>>,
                                                sequence<1, 2>,

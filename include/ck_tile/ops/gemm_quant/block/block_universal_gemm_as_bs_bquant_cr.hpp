@@ -349,7 +349,24 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
 
                         if constexpr(PreshuffleQuant)
                         {
-                            constexpr index_t reg_offset = nIter;
+                            // constexpr index_t reg_offset = nIter;
+                            constexpr index_t reg_offset = [&]() {
+                                if constexpr(GemmTraits::QuantGroupSize::kN >=
+                                             (NWarp * WarpGemm::kN))
+                                {
+                                    if constexpr(Traits::NPerBlock ==
+                                                 GemmTraits::QuantGroupSize::kN)
+                                        return kQScale;
+                                    else
+                                        return nIter; // for prefill needs kQscale, for decode needs
+                                                      // nIter
+                                }
+                                else
+                                {
+                                    return nIter;
+                                }
+                            }();
+
                             auto pull_from_lane =
                                 (__lane_id() & (WarpGemm::kN - 1)) * Traits::KQPerBlock + kQScale;
 
@@ -373,13 +390,14 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                             float scale_reg_f = Base::cvt_scale_to_fp32(gathered_scale_reg);
 
                             // printf("block_id: %d, warp_id: %d, thread_id(): %d, nIter: %d,
-                            // lane_id(): "
+                            // reg_offset: %d, lane_id(): "
                             //        "%u, kQScale: %d, pull_from_lane: %u, scale_reg: %f, "
                             //        "scale_reg_f: %f\n",
                             //        get_block_id(),
                             //        get_warp_id(),
                             //        get_thread_id(),
                             //        static_cast<int>(nIter),
+                            //        reg_offset,
                             //        __lane_id(),
                             //        static_cast<int>(kQScale),
                             //        pull_from_lane,
