@@ -31,7 +31,7 @@ template <typename GemmConfig,
           typename CLayout,
           typename ScaleM,
           typename ScaleN,
-          bool UsePersistentKernel = false>
+          bool UsePersistentKernel = true>
 float invoke_mx_gemm(ck_tile::DeviceMem& a_dev_buf,
                        ck_tile::DeviceMem& b_dev_buf,
                        ck_tile::DeviceMem& c_dev_buf,
@@ -83,7 +83,7 @@ float invoke_mx_gemm(ck_tile::DeviceMem& a_dev_buf,
                                                           GemmConfig::UseStructuredSparsity,
                                                           UsePersistentKernel,
                                                           GemmConfig::NumWaveGroups,
-                                                          true>;
+                                                          false>;
 
     using MXPipelineProblem = MXGemmPipelineProblem<ADataType,
                                                     BDataType,
@@ -152,9 +152,9 @@ float invoke_mx_gemm(ck_tile::DeviceMem& a_dev_buf,
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "32", "m dimension")
-        .insert("n", "512", "n dimension")
-        .insert("k", "256", "k dimension")
+    arg_parser.insert("m", "4096", "m dimension")
+        .insert("n", "4096", "n dimension")
+        .insert("k", "4096", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Row by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
@@ -169,7 +169,6 @@ auto create_args(int argc, char* argv[])
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:constant(1)")
-        .insert("persistent", "0", "0: no persistent, 1: persistent kernel")
         .insert("warp_tile",
                 "0",
                 "0: 16x16, 1: 32x32, 2: 16x16x128 (950 only), 3: 32x32x64 (950 only)");

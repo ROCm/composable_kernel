@@ -49,25 +49,25 @@ int run_mx_gemm_with_layouts(int argc,
 
     // Scale tensors
     // Assuming block scale 32
-    ck_tile::index_t scale_n_size = N / 32;
+    using ScaleType = ck_tile::e8m0_t;
     ck_tile::index_t scale_k_size = K / 32;
-    ck_tile::HostTensor<ck_tile::e8m0_t> scale_a_host(
+    ck_tile::HostTensor<ScaleType> scale_a_host(
         ck_tile::HostTensorDescriptor({M, scale_k_size}, {scale_k_size, 1}));
-    ck_tile::HostTensor<ck_tile::e8m0_t> scale_b_host(
-        ck_tile::HostTensorDescriptor({scale_k_size, scale_n_size}, {scale_n_size, 1}));
+    ck_tile::HostTensor<ScaleType> scale_b_host(
+        ck_tile::HostTensorDescriptor({scale_k_size, N}, {1, scale_k_size}));
     switch(init_method)
     {
     case 0:
         ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_host);
         ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_host);
-        ck_tile::FillUniformDistribution<ck_tile::e8m0_t>{-1.f, 1.f}(scale_a_host);
-        ck_tile::FillUniformDistribution<ck_tile::e8m0_t>{-1.f, 1.f}(scale_b_host);
+        ck_tile::FillUniformDistribution<ScaleType>{-1.f, 1.f}(scale_a_host);
+        ck_tile::FillUniformDistribution<ScaleType>{-1.f, 1.f}(scale_b_host);
         break;
     case 1:
         ck_tile::FillConstant<ADataType>{ADataType(1.f)}(a_host);
         ck_tile::FillConstant<BDataType>{BDataType(1.f)}(b_host);
-        ck_tile::FillConstant<ck_tile::e8m0_t>{ck_tile::e8m0_t(1.f)}(scale_a_host);
-        ck_tile::FillConstant<ck_tile::e8m0_t>{ck_tile::e8m0_t(1.f)}(scale_b_host);
+        ck_tile::FillConstant<ScaleType>{ScaleType(1.f)}(scale_a_host);
+        ck_tile::FillConstant<ScaleType>{ScaleType(1.f)}(scale_b_host);
         break;
     }
 
@@ -83,8 +83,8 @@ int run_mx_gemm_with_layouts(int argc,
     scale_b_dev_buf.ToDevice(scale_b_host.data());
 
     // Scale pointers
-    using ScaleM = ck_tile::MXScalePointer<1,  32>; // per-token
-    using ScaleN = ck_tile::MXScalePointer<32, 32>; // per-block
+    using ScaleM = ck_tile::MXScalePointer<1, 32>; // in blocks of 32 in K
+    using ScaleN = ck_tile::MXScalePointer<1, 32>;
 
     ScaleM scale_m(reinterpret_cast<float*>(scale_a_dev_buf.GetDeviceBuffer()));
     ScaleN scale_n(reinterpret_cast<float*>(scale_b_dev_buf.GetDeviceBuffer()));
@@ -104,14 +104,31 @@ int run_mx_gemm_with_layouts(int argc,
     
     (void)ave_time;
 
+    bool pass = true;
     if(validation > 0)
     {
+        // get output data from device
         c_dev_buf.FromDevice(c_host.data());
-        // TODO: Implement validation logic (reference GEMM with scales)
-        // For now just print success if it runs
-        std::cout << "Validation not implemented yet." << std::endl;
+
+        // compute reference
+        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
+            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+        c_m_n_host_ref.SetZero();
+
+        ck_tile::reference_mx_gemm<ADataType, BDataType, ScaleType, AccDataType, CDataType>(
+            a_host, b_host, c_m_n_host_ref, scale_a_host, scale_b_host);
+
+        const float rtol = std::is_same_v<ADataType, ck_tile::half_t> ? 1e-3 : 1e-2;
+        const float atol = std::is_same_v<ADataType, ck_tile::half_t> ? 1e-3 : 1e-2;
+
+        pass = ck_tile::check_err(
+            c_host, c_m_n_host_ref, "Error: Incorrect results!", rtol, atol);
+
+        std::cout << "Relative error threshold: " << rtol << " Absolute error threshold: " << atol
+                  << std::endl;
+        std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
-    return 0;
+    return pass ? 0 : -1;
 }
 
 int run_mx_gemm_example(int argc, char* argv[])
@@ -126,24 +143,28 @@ int run_mx_gemm_example(int argc, char* argv[])
     std::string mx_prec  = arg_parser.get_str("mx_prec");
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
-    int persistent_opt   = arg_parser.get_int("persistent");
 
     if(a_layout == "R" && b_layout == "C")
     {
         if(mx_prec == "fp4" || mx_prec == "fp4xfp4")
         {
-            if(persistent_opt == 0)
-                return run_mx_gemm_with_layouts<ck_tile::pk_fp4_t,
-                                                  ck_tile::pk_fp4_t,
-                                                  float,
-                                                  MXfp4_GemmConfig16,
-                                                  false>(argc, argv, Row{}, Col{}, Row{});
-            else
-                throw std::runtime_error("Only non-persistent kernels are supported currently!");
+            return run_mx_gemm_with_layouts<ck_tile::pk_fp4_t,
+                                                ck_tile::pk_fp4_t,
+                                                float,
+                                                MXfp4_GemmConfig16,
+                                                true>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
+        {
+            return run_mx_gemm_with_layouts<ck_tile::fp8_t,
+                                                ck_tile::fp8_t,
+                                                float,
+                                                MXfp8_GemmConfig16,
+                                                false>(argc, argv, Row{}, Col{}, Row{});
         }
         else
         {
-             throw std::runtime_error("Only fp4xfp4 is supported currently!");
+             throw std::runtime_error("Only fp4 and fp8 is supported currently!");
         }
     }
     else

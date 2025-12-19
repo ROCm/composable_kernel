@@ -119,6 +119,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
     CK_TILE_DEVICE static constexpr auto MakeMX_ADramTileDistribution()
     {
+        // TODO: these could be replaced by the standard UniversalGEMM tile distributions??
         constexpr index_t K2 = AK1;                                   // f4=32; f8=16
         constexpr index_t K1 = kDramLoadPackBytes * APackedSize / K2; // 8
         constexpr index_t K0 = KPerBlock / (K1 * K2);                 // KPerBlock/256

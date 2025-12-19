@@ -242,7 +242,7 @@ struct MXGemmPipelineAgBgCrV1
             move_tile_window(scale_b_dram_window, {0, kKPerBlock / (32 * KXdlPack)});
         };
 
-        // Helper for Math Loop
+        // Helper for Main Loop
         auto warp_gemm_loop = [&](auto& a_warp_window, auto& b_warp_window, auto& scale_a, auto& scale_b) {
             // Define register tiles types for double buffering
             using AValType = decltype(load_tile_with_offset(a_warp_window, tuple<number<0>, number<0>>{}));

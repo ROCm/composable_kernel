@@ -39,7 +39,8 @@ struct MXGemmHostArgs : ck_tile::UniversalGemmHostArgs<1, 1, 0>
 };
 
 // GEMM config with 16x16 warp tile
-struct MXfp4_GemmConfig16
+
+struct MxGemmConfig
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 256;
@@ -69,4 +70,18 @@ struct MXfp4_GemmConfig16
 
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = false;
+};
+struct MXfp4_GemmConfig16 : MxGemmConfig
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 256;
+};
+
+// GEMM config with 16x16 warp tile
+struct MXfp8_GemmConfig16 : MxGemmConfig
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 256;
 };
