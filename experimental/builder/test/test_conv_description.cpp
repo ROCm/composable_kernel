@@ -36,6 +36,18 @@ struct TensorConfig
     ckb::DataType compute_type{ckb::DataType::UNDEFINED_DATA_TYPE};
 };
 
+struct TensorConfigNoDataType
+{
+    ckb::TensorLayout layout;
+    ckb::DataType compute_type{ckb::DataType::UNDEFINED_DATA_TYPE};
+};
+
+struct ConvTensorNoDataType
+{
+    TensorConfigNoDataType config;
+    TensorOp operation{};
+};
+
 struct ConvTensorSimple
 {
     TensorConfig config;
@@ -191,8 +203,8 @@ struct ConvSignatureUtilsTest2
     ConvTensorSimple input                          = {
                                  .config = {GNHWC, FP16},
     };
-    ConvTensorWithOp weight = {.config = {GKYXC, FP16}, .operation = {POWER}};
-    ConvTensorWithOp output = {.config = {GNHWK, BF16}, .operation = {GELU}};
+    ConvTensorNoDataType weight = {.config = {GKYXC}, .operation = {POWER}};
+    ConvTensorWithOp output     = {.config = {GNHWK, BF16}, .operation = {GELU}};
 };
 
 static_assert(ckb::ConvSignatureDescriptor<ConvSignatureUtilsTest2>);
