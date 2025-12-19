@@ -545,6 +545,13 @@ struct GroupedConvolutionBackwardWeightKernel
             return false;
         }
 
+#if defined(__gfx11__)
+        if constexpr(EpiloguePipeline::MemoryOperation != ck_tile::memory_operation_enum::set)
+        {
+            return false;
+        }
+#endif
+
         if constexpr(EpiloguePipeline_::MemoryOperation == memory_operation_enum::atomic_add)
         {
             if(kargs.k_batch == 1)
@@ -971,6 +978,12 @@ struct GroupedConvolutionBackwardWeightKernel
 
     CK_TILE_DEVICE void operator()(GroupedConvBwdWeightKernelArgsSpecialized& kargs) const
     {
+#if defined(__gfx11__)
+        if constexpr(EpiloguePipeline::MemoryOperation != ck_tile::memory_operation_enum::set)
+        {
+            return;
+        }
+#endif
         if constexpr(GroupedConvTraitsType_::ExplicitGemm)
         {
             CallExplicitGemm(kargs);
