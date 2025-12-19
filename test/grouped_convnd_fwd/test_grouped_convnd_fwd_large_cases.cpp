@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 #include <cstdlib>
-#include <iostream>
 #include <initializer_list>
+#include <iostream>
 #include <vector>
 #include <gtest/gtest.h>
 
