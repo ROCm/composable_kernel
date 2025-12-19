@@ -2,12 +2,12 @@
   "tile_config": {
     "tile_m": {
       "values": [
-        64
+        128
       ]
     },
     "tile_n": {
       "values": [
-        192
+        128
       ]
     },
     "tile_k": {
@@ -17,12 +17,12 @@
     },
     "warp_m": {
       "values": [
-        2
+        4
       ]
     },
     "warp_n": {
       "values": [
-        2
+        1
       ]
     },
     "warp_k": {
@@ -32,24 +32,24 @@
     },
     "warp_tile_m": {
       "values": [
-        32
+        16
       ]
     },
     "warp_tile_n": {
       "values": [
-        32
+        16
       ]
     },
     "warp_tile_k": {
       "values": [
-        8
+        16
       ]
     }
   },
   "trait_config": {
     "pipeline": {
       "values": [
-        "compv4"
+        "mem"
       ]
     },
     "scheduler": {
@@ -59,7 +59,7 @@
     },
     "epilogue": {
       "values": [
-        "cshuffle"
+        "default"
       ]
     },
     "pad_m": {
@@ -83,5 +83,5 @@
         ]
     }
   },
-  "k_block_per_cu": 1
+  "k_block_per_cu": 2
 }
