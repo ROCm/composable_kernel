@@ -6,9 +6,16 @@ Simple, fast tools for analyzing Clang `-ftime-trace` build performance data.
 
 This directory provides straightforward Python tools for analyzing the JSON trace files generated during compilation with `-ftime-trace`. The focus is on simplicity and speed - no caching, no complexity, just fast parallel I/O and pandas DataFrames.
 
-**Key principle: Fresh analysis every time is faster and simpler than managing caches.**
-
 ## Quick Start
+
+Configure a build directory `build-trace` and edit CMakeCache to add `-ftime-trace` to the `CMAKE_CXX_FLAGS`. With `-ftime-trace` enabled, the clang compiler will generate `.json` trace files alongside each compiled object file. These trace files contain detailed timing information about:
+
+- Template instantiations
+- Function parsing
+- Code generation phases
+- Optimization passes
+
+These JSON files are what the analysis tools in `script/analyze_build/` are designed to process.
 
 ```bash
 # Analyze all trace files in a directory
@@ -57,6 +64,7 @@ python examples/analyze_build.py ../../build-trace
 ```
 
 This will:
+
 - Find all `.json` files recursively
 - Process them in parallel using all CPU cores
 - Display comprehensive build statistics
@@ -93,6 +101,7 @@ print(f"Template time: {templates_df['dur'].sum() / 1e6:.2f}s")
 For interactive analysis, see the comprehensive example notebook:
 
 **[notebooks/comprehensive_example.ipynb](notebooks/comprehensive_example.ipynb)** - Complete guide covering:
+
 - Single file analysis with detailed explanations
 - Multi-file parallel processing
 - Build-wide statistics and template analysis
@@ -130,11 +139,13 @@ print(event_totals.head(10))
 ## Performance
 
 **Typical performance on 4,484 trace files (~46 GB):**
+
 - Parsing: ~26 seconds (174 files/sec)
 - Memory: ~1-2 GB
 - Throughput: I/O limited (uses all CPU cores)
 
 **Why no caching?**
+
 - Fresh analysis is faster than cache management overhead
 - Simpler code (60% less code than cached version)
 - No cache invalidation issues
@@ -164,6 +175,7 @@ The trace files use the [Chrome Trace Event Format](https://docs.google.com/docu
 ```
 
 **Key fields:**
+
 - `name`: Event type (e.g., "InstantiateClass", "ParseFunctionDefinition")
 - `dur`: Duration in microseconds
 - `ts`: Timestamp in microseconds
@@ -248,7 +260,7 @@ template_time = templates_df['dur'].sum()
 print(f"Template time: {(template_time / total_time) * 100:.1f}%")
 ```
 
-## Tips
+## Build time analysis philosophy
 
 - **Use all CPU cores**: The tools automatically use all available cores for parallel processing
 - **Memory is cheap**: 1-2GB for 4,484 files is acceptable on modern systems
