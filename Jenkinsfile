@@ -72,11 +72,11 @@ def sendFailureNotifications() {
     }
 }
 
-def generateAndArchiveBuildTraceVisualization() {
+def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
     try {
-        def buildTraceFileName = "ck_build_trace.json";
+        checkout scm
 
-        // Attempt to download the build trace file to check if it exists
+        // Retrieve the build trace artifact
         def traceFileExists = false
         try {
             copyArtifacts(
@@ -86,35 +86,14 @@ def generateAndArchiveBuildTraceVisualization() {
             )
             traceFileExists = fileExists(buildTraceFileName)
         } catch (Exception e) {
-            echo "Could not copy artifacts: ${e.getMessage()}"
+            echo "Could not copy build trace artifact: ${e.getMessage()}"
             traceFileExists = false
-        }
-        
-        sh """
-            echo "post download:"
-            ls -la
-        """
-
-        if (traceFileExists) {
-            // Move the build trace file to a temporary location to preserve it during checkout
-            sh """
-                mkdir -p /tmp/jenkins_artifacts
-                cp ${buildTraceFileName} /tmp/jenkins_artifacts/${buildTraceFileName}
-                ls -la /tmp/jenkins_artifacts/
-            """
-        } else {
-            echo "Build trace archive not found"
             return
         }
-
-        // Checkout source code to get required files
-        checkout scm
         
-        // Restore the build trace file after checkout
         sh """
+            echo "post artifact download:"
             ls -la
-            cp /tmp/jenkins_artifacts/${buildTraceFileName} ${buildTraceFileName}
-            ls -la ${buildTraceFileName}
         """
         
         // Pull image
@@ -134,10 +113,11 @@ def generateAndArchiveBuildTraceVisualization() {
         """
 
         // Run container to get snapshot
-        def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
+        def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules -e BUILD_TRACE_FILE=${buildTraceFileName}"
         // Create unique image name by sanitizing job name
         def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_')
-        def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}.png"
+        def architectureName = (buildTraceFileName =~ /(gfx[0-9a-zA-Z]+)/)[0][1]
+        def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}_${architectureName}.png"
         sh """
             docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
             mv ./workspace/perfetto_snapshot_build.png ./workspace/${imageName}
@@ -153,7 +133,7 @@ def generateAndArchiveBuildTraceVisualization() {
         withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
         sh '''
             # Create build trace filename with build number based on the original filename
-            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + sanitizedJobName + '''_''' + env.BUILD_NUMBER + '''.json/')
+            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + sanitizedJobName + '''_''' + env.BUILD_NUMBER + '''_''' + architectureName + '''.json/')
             
             # Convert image to base64
             echo "Converting image to base64..."
@@ -173,6 +153,7 @@ def generateAndArchiveBuildTraceVisualization() {
                 printf '    "buildNumber": "%s",\n' "''' + env.BUILD_NUMBER + '''"
                 printf '    "jobUrl": "%s",\n' "''' + env.RUN_DISPLAY_URL + '''"
                 printf '    "imageName": "%s",\n' "''' + imageName + '''"
+                printf '    "architecture": "%s",\n' "''' + architectureName + '''"
                 printf '    "imageData": "%s",\n' "$IMAGE_BASE64"
                 printf '    "buildTraceName": "%s",\n' "$BUILD_TRACE_WITH_NUMBER"
                 printf '    "buildTraceData": "%s"\n' "$BUILD_TRACE_BASE64"
@@ -624,19 +605,58 @@ def cmake_build(Map conf=[:]){
     echo cmd
 
     dir("build"){
-        //build CK
-        sh cmd
+        // Start sccache monitoring
+        if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
+            sh """
+                chmod +x ../script/monitor_sccache_during_build.sh
+                mkdir -p logs
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
+                ../script/monitor_sccache_during_build.sh build_monitor &
+                MONITOR_PID=\$!
+                echo "Monitor PID: \$MONITOR_PID"
+                echo \$MONITOR_PID > monitor.pid
+            """
+        }
+        try {
+            //build CK
+            sh cmd
+        } catch (Exception buildError) {
+            echo "Build failed: ${buildError.getMessage()}"
+            throw buildError
+        } finally {
+            // Stop sccache monitoring
+            if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
+                sh """
+                    # Stop monitoring
+                    if [ -f monitor.pid ]; then
+                        MONITOR_PID=\$(cat monitor.pid)
+                        kill \$MONITOR_PID 2>/dev/null || echo "Monitor already stopped"
+                        rm -f monitor.pid
+                    fi
+                """
+                
+                // Archive the monitoring logs
+                try {
+                    archiveArtifacts artifacts: "logs/*monitor*.log", allowEmptyArchive: true
+                } catch (Exception e) {
+                    echo "Could not archive sccache monitoring logs: ${e.getMessage()}"
+                }
+            }
+        }
+
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
-            if ((setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE) || params.BUILD_INSTANCES_ONLY){
+            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${check_arch_name()}.json"
+            archiveArtifacts "ck_build_trace_${check_arch_name()}.json"
+            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${check_arch_name()}.json"
+            if (params.NINJA_BUILD_TRACE || params.BUILD_INSTANCES_ONLY){
                 if (params.NINJA_FTIME_TRACE) {
-                    echo "running ninja ftime trace"
+                    echo "running ClangBuildAnalyzer"
                     sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
-                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis.log"
-                    archiveArtifacts "clang_build_analysis.log"
+                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${check_arch_name()}.log"
+                    archiveArtifacts "clang_build_analysis_${check_arch_name()}.log"
                 }
-                sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace.json"
-                archiveArtifacts "ck_build_trace.json"
+
 
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
@@ -652,9 +672,8 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        def arch_name = check_arch_name()
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
                     }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
@@ -680,9 +699,8 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        def arch_name = check_arch_name()
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
                     }
                 }
             }
@@ -1887,7 +1905,11 @@ pipeline {
                     node(rocmnode("nogpu")) {
                         script {
                             // Simulate capture
-                            generateAndArchiveBuildTraceVisualization()
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx11.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx12.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx90a.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx942.json")
+                            generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx950.json")
                         }
                         cleanWs()
                     }
