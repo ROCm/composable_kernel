@@ -74,7 +74,9 @@ def sendFailureNotifications() {
 
 def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
     try {
-        // Attempt to download the build trace file to check if it exists
+        checkout scm
+
+        // Retrieve the build trace artifact
         def traceFileExists = false
         try {
             copyArtifacts(
@@ -84,35 +86,14 @@ def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
             )
             traceFileExists = fileExists(buildTraceFileName)
         } catch (Exception e) {
-            echo "Could not copy artifacts: ${e.getMessage()}"
+            echo "Could not copy build trace artifact: ${e.getMessage()}"
             traceFileExists = false
-        }
-        
-        sh """
-            echo "post download:"
-            ls -la
-        """
-
-        if (traceFileExists) {
-            // Move the build trace file to a temporary location to preserve it during checkout
-            sh """
-                mkdir -p /tmp/jenkins_artifacts
-                cp ${buildTraceFileName} /tmp/jenkins_artifacts/${buildTraceFileName}
-                ls -la /tmp/jenkins_artifacts/
-            """
-        } else {
-            echo "Build trace archive not found"
             return
         }
-
-        // Checkout source code to get required files
-        checkout scm
         
-        // Restore the build trace file after checkout
         sh """
+            echo "post artifact download:"
             ls -la
-            cp /tmp/jenkins_artifacts/${buildTraceFileName} ${buildTraceFileName}
-            ls -la ${buildTraceFileName}
         """
         
         // Pull image
@@ -132,10 +113,11 @@ def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
         """
 
         // Run container to get snapshot
-        def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
+        def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules -e BUILD_TRACE_FILE=${buildTraceFileName}"
         // Create unique image name by sanitizing job name
         def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_')
-        def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}.png"
+        def architectureName = (buildTraceFileName =~ /(gfx[0-9a-zA-Z]+)/)[0][1]
+        def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}_${architectureName}.png"
         sh """
             docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
             mv ./workspace/perfetto_snapshot_build.png ./workspace/${imageName}
@@ -151,7 +133,7 @@ def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
         withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
         sh '''
             # Create build trace filename with build number based on the original filename
-            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + sanitizedJobName + '''_''' + env.BUILD_NUMBER + '''.json/')
+            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + sanitizedJobName + '''_''' + env.BUILD_NUMBER + '''_''' + architectureName + '''.json/')
             
             # Convert image to base64
             echo "Converting image to base64..."
@@ -171,6 +153,7 @@ def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
                 printf '    "buildNumber": "%s",\n' "''' + env.BUILD_NUMBER + '''"
                 printf '    "jobUrl": "%s",\n' "''' + env.RUN_DISPLAY_URL + '''"
                 printf '    "imageName": "%s",\n' "''' + imageName + '''"
+                printf '    "architecture": "%s",\n' "''' + architectureName + '''"
                 printf '    "imageData": "%s",\n' "$IMAGE_BASE64"
                 printf '    "buildTraceName": "%s",\n' "$BUILD_TRACE_WITH_NUMBER"
                 printf '    "buildTraceData": "%s"\n' "$BUILD_TRACE_BASE64"
