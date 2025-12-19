@@ -7,6 +7,6 @@ include_directories(BEFORE
 if (CK_EXPERIMENTAL_PROFILER)
     add_subdirectory(src)
 endif()
-if(BUILD_TESTING)
+if(BUILD_TESTING AND CK_EXPERIMENTAL_PROFILER_TESTS)
     add_subdirectory(test)
 endif()

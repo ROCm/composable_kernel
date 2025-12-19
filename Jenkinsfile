@@ -599,7 +599,7 @@ def cmake_build(Map conf=[:]){
             setup_args = " -D CK_EXPERIMENTAL_BUILDER=ON "  + setup_args
         }
         if (params.RUN_CK_TILE_CONV_TESTS && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
-            setup_args = " -D CK_EXPERIMENTAL_PROFILER=ON "  + setup_args
+            setup_args = " -D CK_EXPERIMENTAL_PROFILER_TESTS=ON "  + setup_args
         }
         setup_cmd = conf.get(
             "setup_cmd",

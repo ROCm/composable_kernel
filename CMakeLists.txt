@@ -42,6 +42,7 @@ option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
 option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
 option(CK_EXPERIMENTAL_BUILDER "Enable experimental builder" OFF)
 option(CK_EXPERIMENTAL_PROFILER "Enable experimental profiler" OFF)
+option(CK_EXPERIMENTAL_PROFILER_TESTS "Enable experimental profiler tests" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 option(FORCE_DISABLE_XDL "Skip compiling XDL specific instances (even if supported GPUs are included in GPU_TARGETS)" OFF)
 option(FORCE_DISABLE_WMMA "Skip compiling WMMA specific instances (even if supported GPUs are included in GPU_TARGETS)" OFF)
@@ -56,6 +57,10 @@ if(CK_EXPERIMENTAL_PROFILER)
     include_directories(${PROJECT_SOURCE_DIR}/experimental/ck_tile_profiler/include)
 endif()
 
+if(CK_EXPERIMENTAL_PROFILER_TESTS)
+    add_definitions(-DCK_EXPERIMENTAL_PROFILER_TESTS)
+    include_directories(${PROJECT_SOURCE_DIR}/experimental/ck_tile_profiler/include)
+endif()
 
 # Usage: for customized Python location cmake -DCK_USE_ALTERNATIVE_PYTHON="/opt/Python-3.8.13/bin/python3.8"
 # CK Codegen requires dataclass which is added in Python 3.7
@@ -736,7 +741,7 @@ if (CK_EXPERIMENTAL_BUILDER)
   add_subdirectory(experimental/builder)
 endif()
 
-if (CK_EXPERIMENTAL_PROFILER)
+if (CK_EXPERIMENTAL_PROFILER OR CK_EXPERIMENTAL_PROFILER_TESTS)
   add_subdirectory(experimental/ck_tile_profiler)
 endif()
 
