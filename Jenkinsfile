@@ -1641,15 +1641,16 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
-                                            -D GEMM_DATATYPE="fp8;fp16" \
-                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
-                                            -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
-                                            -D GEMM_STREAMK_LAYOUT="rcr" \
+                                            -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16" \
+                                            -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_UNIVERSAL_CONFIG_FILE="default_ci_config.json" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
+                                            -D GEMM_MULTI_D_CONFIG_FILE="default_ci_config.json" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
-                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
-                                           ninja -j${nthreads()} benchmark_gemm_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all """
+                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
+                                            -D GEMM_PRESHUFFLE_CONFIG_FILE="default_ci_config.json" .. && \
+                                           ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
