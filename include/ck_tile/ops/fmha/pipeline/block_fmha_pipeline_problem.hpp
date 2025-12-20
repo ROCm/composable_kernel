@@ -96,9 +96,6 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kIsGroupMode = kIsGroupMode_;
     static constexpr bool kUseTrLoad   = kUseTrLoad_;
 
-    // ToDo: should we define kUseTrLoad and kLoadWholeQTileOnceThrough Lds here ?
-    static constexpr bool kLoadWholeQTileOnceThroughLds = kUseTrLoad ? true : false;
-
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
