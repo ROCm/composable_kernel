@@ -65,8 +65,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchTrLoad
 
     static constexpr bool kUseTrLoad = true;
 
-    static_assert(Problem::kLoadWholeQTileOnceThroughLds == true, "Check failed!");
-
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
     static constexpr index_t kAlignmentQ =
@@ -226,11 +224,10 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchTrLoad
         using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
         OaccBlockTileType o_acc;
 
-        auto q_dram_window =
-            make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
-                             q_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeQDramSingleRepMTileDistribution<Problem>());
+        auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                                              make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
+                                              q_dram_block_window_tmp.get_window_origin(),
+                                              Policy::template MakeQRegTileDistribution<Problem>());
 
         const auto q_origin = q_dram_window.get_window_origin();
         const auto [seqlen_k_start, seqlen_k_end] =
@@ -242,7 +239,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchTrLoad
                              {seqlen_k_start, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
 
-        auto q_dram_tile = load_tile(q_dram_window);
+        auto q_tile = load_tile(q_dram_window);
 
         using k_tile_type = decltype(load_tile(k_dram_window));
 
@@ -261,19 +258,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchTrLoad
 
         // provide partition_index for LDS tile window with so that warp_id is in vgpr
         array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
-
-        // Q tile in LDS
-        QDataType* q_lds_ptr = static_cast<QDataType*>(smem_ptr);
-        auto q_lds           = make_tensor_view<address_space_enum::lds>(
-            q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
-        auto q_lds_write_window = make_tile_window(
-            q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
-        auto q_lds_read_window =
-            make_tile_window(q_lds,
-                             make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
-                             {0, 0},
-                             Policy::template MakeQRegTileDistribution<Problem>(),
-                             partition_index);
 
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(smem_ptr);
@@ -361,31 +345,13 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchTrLoad
                 return make_null_tile_window(make_tuple(number<1>{}, number<1>{}));
         }();
 
-        store_tile(q_lds_write_window, q_dram_tile, partition_index);
-
         clear_tile(o_acc);
-
-        __builtin_amdgcn_sched_barrier(0x00000001);
-
-        block_sync_lds();
-
-        auto q_tile = load_tile(q_lds_read_window);
-
-        q_tile = tile_elementwise_in(q_element_func, q_tile);
-
         set_tile(m, -numeric<CompDataType>::infinity());
         clear_tile(l);
 
         q_tile = tile_elementwise_in(q_element_func, q_tile);
 
         auto seqlen_k_curr = seqlen_k_start;
-
-        __builtin_amdgcn_sched_barrier(0x00000001);
-
-        // ensure all q_reg_tiles[] have been loaded from LDS, so the LDS can be reused by k_tile
-        __builtin_amdgcn_s_barrier();
-
-        __builtin_amdgcn_sched_barrier(0x00000001);
 
         using v_tile_type = decltype(load_tile(v_dram_window));
 
