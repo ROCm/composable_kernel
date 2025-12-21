@@ -509,10 +509,12 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchTrLoad
                         move_tile_window(k_dram_window, {kN0Sub, 0});
                     };
 
-                    if constexpr(i_n0 < NumPrefetchV)
+                    if constexpr(i_n0 == n0_loops - 1)
                     {
-                        v_tiles[i_n0] = load_tile(v_dram_window);
-                        move_tile_window(v_dram_window, {kK1, 0});
+                        static_for<0, NumPrefetchV, 1>{}([&](auto i_k1) {
+                            v_tiles[i_k1] = load_tile(v_dram_window);
+                            move_tile_window(v_dram_window, {kK1, 0});
+                        });
                     };
 
                     __builtin_amdgcn_sched_barrier(0x00000001);
