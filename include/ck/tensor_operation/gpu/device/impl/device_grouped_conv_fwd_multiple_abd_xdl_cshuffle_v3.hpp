@@ -402,8 +402,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     using DeviceOp = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
     GET_MXDL_PER_WAVE_IMPL
     // Force usage of 16x16 instruction for WMMA
-    static constexpr index_t Wave32MaxMNPerXDL = 16;
-    static constexpr auto MXdlPerWave64        = GetMXdlPerWave<true>();
+    static constexpr index_t Wave32MaxMNPerXDL =
+        is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>()
+            ? 16
+            : math::max(MPerXDL, NPerXDL);
+    static constexpr auto MXdlPerWave64 = GetMXdlPerWave<true>();
     static constexpr auto MXdlPerWave32 =
         GetMXdlPerWave<false,
                        Wave32MaxMNPerXDL,
