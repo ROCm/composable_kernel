@@ -362,8 +362,8 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseFwdXdlGemm() -> std::string 
     msg += "      → T::gridwise_gemm member: [✓]\n";
     using GG = decltype(T::gridwise_gemm);
     
-    if constexpr (requires { GG::ak1; }) {
-        using AK1Type = decltype(GG::ak1);
+    if constexpr (requires(GG t) { t.ak1; }) {
+        using AK1Type = decltype(std::declval<GG>().ak1);
         constexpr bool convertible = std::convertible_to<AK1Type, size_t>;
         msg += "      → gridwise_gemm.ak1: " + std::string(CHECK_MARK(convertible)) + 
                std::string(detail::get_type_info<AK1Type>()) + "\n";
@@ -371,8 +371,8 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseFwdXdlGemm() -> std::string 
         msg += "      → gridwise_gemm.ak1: [✗] (missing member)\n";
     }
     
-    if constexpr (requires { GG::bk1; }) {
-        using BK1Type = decltype(GG::bk1);
+    if constexpr (requires(GG t) { t.bk1; }) {
+        using BK1Type = decltype(std::declval<GG>().bk1);
         constexpr bool convertible = std::convertible_to<BK1Type, size_t>;
         msg += "      → gridwise_gemm.bk1: " + std::string(CHECK_MARK(convertible)) + 
                std::string(detail::get_type_info<BK1Type>()) + "\n";
@@ -380,9 +380,9 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseFwdXdlGemm() -> std::string 
         msg += "      → gridwise_gemm.bk1: [✗] (missing member)\n";
     }
     
-    if constexpr (requires { GG::xdl_params; }) {
+    if constexpr (requires(GG t) { t.xdl_params; }) {
         msg += "      → gridwise_gemm.xdl_params member: [✓]\n";
-        msg += detail::diagnose_xdl_params<T, decltype(GG::xdl_params)>();
+        msg += detail::diagnose_xdl_params<T, decltype(std::declval<GG>().xdl_params)>();
     } else {
         msg += "      → gridwise_gemm.xdl_params: [✗] (missing member)\n";
     }
@@ -401,8 +401,8 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseBwdXdlGemm() -> std::string 
     msg += "      → T::gridwise_gemm member: [✓]\n";
     using GG = decltype(T::gridwise_gemm);
     
-    if constexpr (requires { GG::k0_per_block; }) {
-        using K0Type = decltype(GG::k0_per_block);
+    if constexpr (requires(GG t) { t.k0_per_block; }) {
+        using K0Type = decltype(std::declval<GG>().k0_per_block);
         constexpr bool convertible = std::convertible_to<K0Type, size_t>;
         msg += "      → gridwise_gemm.k0_per_block: " + std::string(CHECK_MARK(convertible)) + 
                std::string(detail::get_type_info<K0Type>()) + "\n";
@@ -410,8 +410,8 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseBwdXdlGemm() -> std::string 
         msg += "      → gridwise_gemm.k0_per_block: [✗] (missing member)\n";
     }
     
-    if constexpr (requires { GG::k1; }) {
-        using K1Type = decltype(GG::k1);
+    if constexpr (requires(GG t) { t.k1; }) {
+        using K1Type = decltype(std::declval<GG>().k1);
         constexpr bool convertible = std::convertible_to<K1Type, size_t>;
         msg += "      → gridwise_gemm.k1: " + std::string(CHECK_MARK(convertible)) + 
                std::string(detail::get_type_info<K1Type>()) + "\n";
@@ -419,9 +419,9 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseBwdXdlGemm() -> std::string 
         msg += "      → gridwise_gemm.k1: [✗] (missing member)\n";
     }
     
-    if constexpr (requires { GG::xdl_params; }) {
+    if constexpr (requires(GG t) { t.xdl_params; }) {
         msg += "      → gridwise_gemm.xdl_params member: [✓]\n";
-        msg += detail::diagnose_xdl_params<T, decltype(GG::xdl_params)>();
+        msg += detail::diagnose_xdl_params<T, decltype(std::declval<GG>().xdl_params)>();
     } else {
         msg += "      → gridwise_gemm.xdl_params: [✗] (missing member)\n";
     }
