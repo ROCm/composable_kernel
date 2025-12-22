@@ -71,17 +71,17 @@ int run_mx_flatmm_with_layouts(int argc,
 
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_host);
-        ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
-        ck_tile::FillUniformDistribution<ScaleType>{-2.f, 2.f}(scale_a);
-        ck_tile::FillUniformDistribution<ScaleType>{-2.f, 2.f}(scale_b);
+        ck_tile::FillUniformDistribution<>{0.0f, 1.0f}(a_host);
+        ck_tile::FillUniformDistribution<>{-.5f, .5f}(b_origin_host);
+        ck_tile::FillUniformDistribution<>{-2.f, 2.f}(scale_a);
+        ck_tile::FillUniformDistribution<>{-2.f, 2.f}(scale_b);
     }
     else if(init_method == 1)
     {
-        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
-        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
-        ck_tile::FillUniformDistribution<ScaleType>{1.f, 1.f}(scale_a);
-        ck_tile::FillUniformDistribution<ScaleType>{1.f, 1.f}(scale_b);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(b_origin_host);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_a);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_b);
     }
     else
     {

@@ -25,7 +25,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
-    using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
+    using QuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
     using ALayout  = remove_cvref_t<typename Problem::ALayout>;
     using BLayout  = remove_cvref_t<typename Problem::BLayout>;
@@ -69,7 +69,8 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
 
     using Base::m_preload;
 
-    static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+    static constexpr bool PreshuffleQuant   = Problem::Traits::PreshuffleQuant;
+    static constexpr index_t VectorLoadSize = Problem::VectorLoadSize;
     static constexpr index_t KPerBlockBQ =
         integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK);
     static constexpr index_t QScalesPerBlockRow =
@@ -93,6 +94,79 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                       concat('x', Base::GetVectorSizeA(), Base::GetVectorSizeB(), GetVectorSizeBQ()),
                       concat('x', kPadM, kPadN, kPadK), QuantGroupSize::GetName());
         // clang-format on
+    }
+
+    template <index_t nloop>
+    CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
+    {
+        // Estimated number of VMEM vector loads for A per block:
+        //   total A bytes / (threads per block * vector width)
+        constexpr index_t Aload_inst =
+            (kMPerBlock * kKPerBlock * sizeof(ADataType)) / BlockSize / VectorLoadSize;
+        // Estimated number of VMEM vector loads for B per block:
+        //   total B bytes / (threads per block * vector width)
+        constexpr index_t Bload_inst =
+            (kKPerBlock * kNPerBlock * sizeof(BDataType)) / BlockSize / VectorLoadSize;
+
+        // Estimated number of VMEM loads for B's quant data (e.g. scales / zp).
+        // First ceil-divide by quant group size (how many elements share one scale),
+        // then by vector width to get an approximate number of vector loads.
+        constexpr index_t BQload_inst = ck_tile::integer_divide_ceil(
+            ck_tile::integer_divide_ceil(kKPerBlock * kNPerBlock * sizeof(BQDataType),
+                                         QuantGroupSize::kK * QuantGroupSize::kK),
+            VectorLoadSize);
+
+        // ToDo: Hardcoded, need to change in future. How many instruction emit per iteration
+        constexpr index_t kLdsInstCycle = 8;
+        // Total VMEM load instructions (A + B + quant data)
+        constexpr index_t buffer_load_inst = Aload_inst + Bload_inst + BQload_inst;
+        // Approximate number of LDS reads per block
+        constexpr index_t ds_read_inst = kMPerBlock / kLdsInstCycle;
+        // Approximate number of LDS writes per block
+        // (e.g., writing A from VMEM into LDS once per A load)
+        constexpr index_t ds_write_inst = Aload_inst;
+        // Number of MFMA instructions per wave for one block tile:
+        constexpr index_t mfma_inst = (kMPerBlock / WG::kM) * (kNPerBlock / WG::kN);
+        // How often (in MFMA units) we should insert DS (LDS) operations.
+        constexpr index_t ds_rep = mfma_inst / (ds_read_inst + ds_write_inst);
+        // How often (in MFMA units) we should insert VMEM buffer loads.
+        // buffer_load_rep ≈ "MFMA per VMEM_READ", clamped so that one buffer_load
+        // is assumed to cover at most 4 MFMA instructions.
+        constexpr index_t buffer_load_rep =
+            min(mfma_inst / buffer_load_inst, 4); // 1 buffer_load cover 4 mfma
+
+        static_for<0, nloop, 1>{}([&](auto) {
+            static_for<0, mfma_inst, 1>{}([&](auto i_inst) {
+                __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0); // MFMA
+
+                // Insert LDS read/write groups periodically based on ds_rep.
+                // The % pattern staggers READ and WRITE so they don't collapse
+                // into the same cycle in the model.
+                if constexpr(ds_rep > 0 && i_inst % ds_rep == 0)
+                {
+                    __builtin_amdgcn_sched_group_barrier(
+                        LLVMSchedGroupMask::DS_READ, 1, 0); // DS read
+                }
+                if constexpr(ds_rep > 0 && i_inst % ds_rep == 1)
+                {
+                    __builtin_amdgcn_sched_group_barrier(
+                        LLVMSchedGroupMask::DS_WRITE, 1, 0); // DS write
+                }
+
+                if constexpr(buffer_load_rep > 0 && i_inst % buffer_load_rep == 0)
+                {
+                    if constexpr(ds_write_inst > 0)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(
+                            LLVMSchedGroupMask::VMEM_READ, 1, 0); // VMEM read
+                    }
+                }
+                // Always mark some VALU work in the loop to reflect auxiliary scalar
+                // or vector ALU instructions that coexist with MFMA (Blockscale calculation).
+                __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::VALU, 2, 0); // VALU
+            });
+        });
+        __builtin_amdgcn_sched_barrier(0);
     }
 
     static constexpr bool PreshuffleB = Problem::PreshuffleB;
@@ -130,6 +204,8 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         static_assert(!is_b_row_major, "B must be col major (row major not supported yet)");
 
         const index_t iMWarp = get_warp_id() / NWarp;
+        // Double-Buffering (loop_count=2) for full load/compute overlap.
+        const index_t loop_count = 2;
 
         __builtin_amdgcn_sched_barrier(0);
 
@@ -313,9 +389,26 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         __builtin_amdgcn_sched_barrier(0);
 
         // MAIN LOOP
-        index_t iCounter = (num_loop - 1) / 2;
+        index_t iCounter = (num_loop - 1) / loop_count;
+
         while(iCounter > 0)
         {
+            __builtin_amdgcn_sched_barrier(0);
+            // Prefill A(2i+1)
+            a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
+            store_tile(a_copy_lds_window_pong, a_block_tile_tmp);
+
+            // Prefetch A(2i+2)
+            a_block_tile = load_tile(a_copy_dram_window);
+            // move A window to next k
+            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
+
+            // GEMM 2i
+            block_weight_preshuffle(c_block_tile,
+                                    a_warp_tensor,
+                                    b_warp_tensor_ping,
+                                    bq_block_tile,
+                                    a_warp_windows_ping);
             // prefetch B(2i+1)
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -342,29 +435,12 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                 move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
             }
 
-            // Prefill A(2i+1)
-            a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
-            store_tile(a_copy_lds_window_pong, a_block_tile_tmp);
-
-            // Prefetch A(2i+2)
-            a_block_tile = load_tile(a_copy_dram_window);
-            // move A window to next k
-            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-
-            // GEMM 2i
-            block_weight_preshuffle(c_block_tile,
-                                    a_warp_tensor,
-                                    b_warp_tensor_ping,
-                                    bq_block_tile,
-                                    a_warp_windows_ping);
-
             static_for<0, m_preload, 1>{}([&](auto loadIter) {
                 constexpr auto mIter = loadIter % MIterPerWarp;
                 constexpr auto kIter = loadIter / MIterPerWarp;
                 a_warp_tensor(loadIter) =
                     load_tile(a_warp_windows_pong(number<mIter>{})(number<kIter>{}));
             });
-            Base::HotLoopScheduler();
 
             // Next K
 
@@ -416,9 +492,8 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                 a_warp_tensor(loadIter) =
                     load_tile(a_warp_windows_ping(number<mIter>{})(number<kIter>{}));
             });
-            Base::HotLoopScheduler();
-
             iCounter--;
+            HotLoopScheduler<loop_count>();
         }
 
         // tail
@@ -456,15 +531,13 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                     load_tile(a_warp_windows_pong(number<mIter>{})(number<kIter>{}));
             });
 
-            Base::Last2ndHotLoopScheduler();
-
             // GEMM loopK
             block_weight_preshuffle(c_block_tile,
                                     a_warp_tensor,
                                     b_warp_tensor_pong,
                                     bq_block_tile_2,
                                     a_warp_windows_pong);
-            Base::LastHotLoopScheduler();
+            HotLoopScheduler<loop_count>();
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {

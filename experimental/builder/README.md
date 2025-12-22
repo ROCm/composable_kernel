@@ -2,7 +2,7 @@
 
 This directory contains the experimental builder feature for composable_kernel.
 
-* Status: In development (October - November 2025)
+* Status: In development (October - December 2025)
 
 ## Overview
 
@@ -10,13 +10,23 @@ The builder provides a high-level, semantically-clear interface for constructing
 
 This project is a prototype for a more general builder pattern for all of composable_kernel (CK) and CKTile, but is currently limited to formalizing the interface between MIOpen and CK.
 
+## Design descriptions
+
+- [CK Builder design description](include/ck_tile/builder/README.md)
+- [CK Builder factory design](include/ck_tile/builder/factory/README.md)
+- [CK Builder testing design](include/ck_tile/builder/testing/README.md)
+
 ## Directory Structure
 
-- `include/ck_tile/builder/`  
+- `include/ck_tile/builder/`
   Core builder headers and public API.
-- `test/`  
+- `include/ck_tile/builder/reflect`
+  Reflection mechanism.
+- `include/ck_tile/builder/factory`
+  Compile-time dispatch from builder descriptors to our exisitng specialized convolution kernel implementations.
+- `test/`
   Unit tests and example usage of the builder pattern.
-- `CMakeLists.txt`  
+- `CMakeLists.txt`
   CMake configuration for building the experimental builder and its tests.
 
 ## CMake Configuration
@@ -28,7 +38,7 @@ cmake                                                                           
   -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
   -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
   -D CMAKE_BUILD_TYPE=Release                                                                     \
-  -D GPU_TARGETS="gfx942;gfx950"                                                                  \
+  -D GPU_TARGETS="gfx942"                                                                         \
   -D CK_EXPERIMENTAL_BUILDER=ON                                                                   \
   -D CMAKE_CXX_STANDARD=20                                                                        \
   -G Ninja                                                                                        \
@@ -48,6 +58,7 @@ ninja smoke-builder
 
 ### Regression Tests (Integration Tests)
 Integration tests that compile actual GPU kernels to verify that the builder generates valid, compilable code. These are more expensive than smoke tests (can take minutes to compile) but cover more fuctionality.
+)
 
 ```sh
 ninja regression-builder

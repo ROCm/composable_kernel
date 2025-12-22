@@ -36,6 +36,9 @@ tags
 # Editors
 .vscode
 
+# CMake formatting configuration (local)
+.cmake-format.yaml
+
 # Cline
 .cline*
 
@@ -79,6 +82,11 @@ CMakeUserPresets.json
 __pycache__/
 
 .cache/
+
+# Generated test data
+test_data/*
+!test_data/*.py
+!test_data/*.sh
 
 # Exceptions to build* patterns above
 # The experimental/builder directory should be tracked despite matching build*

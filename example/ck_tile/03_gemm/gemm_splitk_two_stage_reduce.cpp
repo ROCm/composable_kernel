@@ -133,14 +133,6 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                                                       GemmConfig::TileParitionerGroupNum,
                                                       GemmConfig::TileParitionerM01>;
 
-    using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
-                                           GemmConfig::kPadN,
-                                           GemmConfig::kPadK,
-                                           ALayout,
-                                           BLayout,
-                                           ELayout,
-                                           GemmConfig::NumWaveGroups>;
-
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                                                  GemmConfig::kPadN,
                                                                  GemmConfig::kPadK,
@@ -154,19 +146,6 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                                                                  GemmConfig::NumWaveGroups,
                                                                  GemmConfig::Preshuffle>;
 
-    using GemmPipelineProblem =
-        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
-
-    using BaseGemmPipeline = typename PipelineTypeTraits<
-        GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
-
-    const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
-    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-    float ave_time{0};
-
     // Create base GEMM arguments pointing to workspace instead of final output
     // The workspace will store partial results from each K-split
     ck_tile::GemmHostArgs base_args(args.a_ptr,
@@ -179,23 +158,18 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                                     args.stride_A,
                                     args.stride_B,
                                     args.stride_E);
+    constexpr auto scheduler = GemmConfig::Scheduler;
 
-    const auto Run = [&](const auto has_hot_loop_,
-                         const auto tail_number_,
-                         const auto memory_operation_) {
-        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-        constexpr auto tail_number_v    = tail_number_.value;
-        constexpr auto scheduler        = GemmConfig::Scheduler;
-        constexpr auto memory_operation = memory_operation_.value;
+    const auto Run = [&]() {
+        // use SET operation since each K-split writes to separate memory
+        constexpr auto memory_operation = ck_tile::memory_operation_enum::set;
 
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                            BDataType,
                                                                            AccDataType,
                                                                            GemmShape,
                                                                            GemmUniversalTraits,
-                                                                           scheduler,
-                                                                           has_hot_loop_v,
-                                                                           tail_number_v>;
+                                                                           scheduler>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
@@ -276,29 +250,20 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                     hipGetErrorString(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
             };
-            return ave_time = ck_tile::launch_kernel_time_mask(
-                       s,
-                       run_flush_cache,
-                       ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                           Kernel{}, grids, blocks, 0, kargs));
+            return ck_tile::launch_kernel_time_mask(
+                s,
+                run_flush_cache,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            return ave_time = ck_tile::launch_kernel(s,
-                                                     ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                                         Kernel{}, grids, blocks, 0, kargs));
+            return ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
     };
 
-    const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-        // For workspace mode, always use SET operation since each K-split writes to separate memory
-        return Run(has_hot_loop_,
-                   tail_number_,
-                   ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::set>{});
-    };
-
-    return ave_time = BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+    return Run();
 }
 
 /**
@@ -321,7 +286,6 @@ template <typename CDataType,
           typename ELayout         = ck_tile::tensor_layout::gemm::RowMajor>
 float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config& s)
 {
-    const ck_tile::index_t reduce_dim_size = args.k_batch; // Number of partial results to reduce
     // Calculate output size based on the final output tensor dimensions
     const ck_tile::index_t output_size = args.M * args.N;
 
@@ -338,26 +302,27 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
     constexpr auto reduce_dims = ck_tile::sequence<0>{};    // Reduce k_batch dimension
 
     using ReduceOp   = ck_tile::ReduceOp::Add;
-    using BlockWarps = ck_tile::sequence<4, 1>;
-    using BlockTile  = ck_tile::sequence<128, 128>;
-    using WarpTile   = ck_tile::sequence<32, 128>;
-    using ThreadTile = ck_tile::sequence<8, 8>;
+    using BlockWarps = ck_tile::sequence<1, 1>;
+    using BlockTile  = ck_tile::sequence<256, 1>;
+    using WarpTile   = ck_tile::sequence<256, 1>;
+    using ThreadTile = ck_tile::sequence<1, 1>;
 
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
     ck_tile::index_t kGridSize = (output_size + BlockTile::at(ck_tile::number<0>{}) - 1) /
                                  BlockTile::at(ck_tile::number<0>{});
 
-    using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
-    using Problem =
-        ck_tile::Reduce2dProblem<CDataType, ComputeDataType, CDataType, Shape, ReduceOp>;
-    using Kernel                      = ck_tile::Reduce<Problem>;
+    using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
+    using Problem = ck_tile::Reduce2dProblem<CDataType,
+                                             ComputeDataType,
+                                             CDataType,
+                                             Shape,
+                                             ReduceOp,
+                                             decltype(kept_dim),
+                                             decltype(reduce_dims),
+                                             3>;
+    using Kernel  = ck_tile::ReduceKernel<Problem>;
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
-
-    if(!Kernel::IsSupportedArgument(reduce_dim_size, workspace_strides))
-    {
-        throw std::runtime_error("Wrong! Reduction arguments not supported!\n");
-    }
 
     if(s.log_level_ > 0)
     {
@@ -378,9 +343,7 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
                                    static_cast<const CDataType*>(args.e_ptr), // workspace input
                                    static_cast<CDataType*>(args.final_output_ptr), // final output
                                    workspace_shape,
-                                   workspace_strides,
-                                   kept_dim,
-                                   reduce_dims));
+                                   workspace_strides));
 
     return ave_time;
 }

@@ -47,7 +47,7 @@ set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --targets ${FMHA_TARGETS_ARG}
   --api ${FMHA_FWD_APIS}
-  --optdim 32,64,128,256
+  --optdim 32,64,80,128,256
   # --filter fmha_fwd...
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
@@ -65,7 +65,7 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
 # there is no corresponding instance for parameters).
 if(BUILD_TESTING)
   # Filters are in the order of FMHA_FWD_KNOWN_APIS: fwd,fwd_splitkv_combine@fwd_splitkv,fwd_appendkv,pagedkv_prefill
-  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*_nlogits*_nbias*,*,*_nlogits*_nskip*_pagedkv)
+  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*_nsink*,*@*_nlogits*_nbias*_nsink*,*,*_nlogits*_nskip*_pagedkv*)
 endif()
 
 # generate a list of kernels, but not actually emit files at config sta
@@ -208,40 +208,6 @@ add_executable(${EXAMPLE_FMHA_BWD} EXCLUDE_FROM_ALL example_fmha_bwd.cpp)
 target_link_libraries(${EXAMPLE_FMHA_BWD} ${FMHA_BWD_INSTANCES})
 target_include_directories(${EXAMPLE_FMHA_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
-# add fmha_fwd_v3 example
-set(EXAMPLE_FMHA_FWD_V3 "tile_example_fmha_fwd_v3")
-message(DEBUG "adding example ${EXAMPLE_FMHA_FWD_V3}")
-
-add_executable(${EXAMPLE_FMHA_FWD_V3} EXCLUDE_FROM_ALL example_fmha_fwd_v3.cpp)
-target_include_directories(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-file(GLOB FMHA_FWD_V3_INSTANCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_LIST_DIR}/instances/*.cpp"
-)
-target_sources(${EXAMPLE_FMHA_FWD_V3} PRIVATE
-  fmha_fwd_v3.cpp
-  ${FMHA_FWD_V3_INSTANCES}
-)
-
-set(EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS)
-list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
-  -fgpu-flush-denormals-to-zero
-  -Wno-undefined-func-template
-  --save-temps
-)
-set(EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS)
-
-check_cxx_compiler_flag("-mllvm --amdgpu-disable-packed-fp32=1" HAS_DISABLE_PACKED_FP32)
-if(HAS_DISABLE_PACKED_FP32)
-  list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
-    -mllvm --amdgpu-disable-packed-fp32=1
-  )
-  list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS
-    -DCK_TILE_DISABLE_PACKED_FP32=1
-  )
-endif()
-
-target_compile_options(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS})
-target_compile_definitions(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS})
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long
 # however, this property may affect global
