@@ -54,6 +54,7 @@ function(add_ck_builder_test test_name)
     target_compile_options(${test_name} PRIVATE
         -Wno-global-constructors
         -Wno-c++20-compat
+        -Wno-c++26-extensions  # Allow C++26 extensions for better compile-time diagnostics
     )
     target_link_libraries(${test_name} PRIVATE GTest::gtest_main GTest::gmock)
 endfunction()

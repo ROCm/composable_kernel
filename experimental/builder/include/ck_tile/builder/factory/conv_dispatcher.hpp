@@ -53,6 +53,9 @@
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
 
+// Compile time diagnostics
+#include "ck_tile/builder/factory/conv_algorithms.hpp"
+
 // Include all factory implementations
 #include "ck_tile/builder/factory/conv_fwd_v3_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_xdl_factory.hpp"
@@ -83,58 +86,6 @@ namespace ck_tile::builder::factory {
 //
 // TODO: Make this dispatch logic much more robust and clear for users.
 
-// CK Tile kernel
-template <typename T>
-concept IsTileAlgorithm = ConvAlgorithmDescriptor<T> && SpecifiesTileThreadBlock<T> &&
-                          SpecifiesTileTransfer<T> && SpecifiesTileConvSpecialization<T> &&
-                          SpecifiesTileBlockGemm<T> && SpecifiesTileOptimizations<T>;
-
-template <typename T>
-concept SpecifiesDataTransfer = 
-    SpecifiesThreadBlock<T> && SpecifiesBlockTransfer<T> && 
-    SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T>;
-
-// XDL-based kernel with V3 pipeline structure (newer block GEMM pipeline)
-template <typename T>
-concept IsFwdXdlV3Algorithm = ConvAlgorithmDescriptor<T> && 
-    SpecifiesDataTransfer<T> && SpecifiesGridwiseFwdXdlGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> && 
-    SpecifiesBlockGemm<T>;
-
-// Standard XDL-based fwd kernel (uses XDLops hardware instructions for matrix multiply)
-template <typename T>
-concept IsFwdXdlAlgorithm = ConvAlgorithmDescriptor<T> &&
-    SpecifiesDataTransfer<T> &&  SpecifiesGridwiseFwdXdlGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-    SpecifiesNumPrefetchStages<T> && SpecifiesNumGroupsToMerge<T> && 
-    SpecifiesLoopScheduler<T>;
-
-// Standard XDL-based bwd weight kernel (uses XDLops hardware instructions for matrix multiply)
-template <typename T>
-concept IsBwdXdlAlgorithm = ConvAlgorithmDescriptor<T> &&
-    SpecifiesDataTransfer<T> &&  SpecifiesGridwiseBwdXdlGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesTransposeTransfer<T>;
-
-// WMMA-based kernel (uses Wavefront Matrix-Matrix Accumulate instructions)
-template <typename T>
-concept IsFwdWmmaAlgorithm = ConvAlgorithmDescriptor<T> && 
-    SpecifiesDataTransfer<T> && SpecifiesGridwiseWmmaGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> && 
-    SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
-
-// Specialized DL kernel for specific NHWC/KYXC/NHWK data layouts
-template <typename T>
-concept IsFwdDlAlgorithm =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesFwdConvSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesDlThreadConfig<T> && SpecifiesDlThreadCluster<T> &&
-    SpecifiesDlBlockTransfer<T> && SpecifiesDlEpilogue<T>;
-
-// XDL-based kernel with large tensor support
-template <typename T>
-concept IsLargeTensorAlgorithm =
-    IsFwdXdlAlgorithm<decltype(T::base_algorithm)> && SpecifiesLargeTensorSupport<T>;
-
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
@@ -143,39 +94,35 @@ constexpr auto make_conv_instance()
     using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
 
     // CK Tile supports common factory for each direction
-    if constexpr(IsTileAlgorithm<AlgoType>)
+    if constexpr(TileAlgorithm<AlgoType>::is_valid())
     {
         return typename ConvTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
     else if constexpr(ConvDirectionIsForward<SIGNATURE>)
     {
-        if constexpr(IsFwdXdlV3Algorithm<AlgoType>)
+        if constexpr(FwdXdlV3Algorithm<AlgoType>::is_valid())
         {
             return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(IsFwdXdlAlgorithm<AlgoType>)
+        else if constexpr(FwdXdlAlgorithm<AlgoType>::is_valid())
         {
             return typename ConvFwdXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(IsFwdWmmaAlgorithm<AlgoType>)
+        else if constexpr(FwdWmmaAlgorithm<AlgoType>::is_valid())
         {
             return typename ConvFwdWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(IsFwdDlAlgorithm<AlgoType>)
+        else if constexpr(FwdDlAlgorithm<AlgoType>::is_valid())
         {
             return typename ConvFwdDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(IsLargeTensorAlgorithm<AlgoType>)
+        else if constexpr(LargeTensorAlgorithm<AlgoType>::is_valid())
         {
             return typename ConvFwdLargeTensorFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else
         {
-            static_assert(
-                false,
-                "No suitable forward convolution kernel factory found for the provided ALGORITHM. "
-                "The ALGORITHM must satisfy requirements for one of: XDL V3, XDL, WMMA, DL (NHWC "
-                "layout), or Large Tensor variant.");
+            diagnose_fwd_algorithm_signature<AlgoType>();
         }
     }
     else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
@@ -186,16 +133,13 @@ constexpr auto make_conv_instance()
     }
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
-        if constexpr (IsBwdXdlAlgorithm<AlgoType>)
+        if constexpr (BwdXdlAlgorithm<AlgoType>::is_valid())
         {
             return typename ConvBwdWeightXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else
         {
-            static_assert(
-                false,
-                "No suitable forward convolution kernel factory found for the provided ALGORITHM. "
-                "The ALGORITHM must satisfy requirements for XDL variant.");
+            diagnose_bwd_weight_algorithm_signature<AlgoType>();
         }
     }
     else
