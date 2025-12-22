@@ -139,21 +139,24 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
 ### Building for Windows
 
-Install TheRock from the nightly builds.
-
-Run CMake configure as
+Install TheRock from the nightly builds and run CMake configure as
 
 ```bash
     cmake                                                                                      \
     -D CMAKE_PREFIX_PATH="C:/dist/TheRock"                                                     \
     -D CMAKE_CXX_COMPILER="C:/dist/TheRock/bin/hipcc.exe"                                      \
     -D CMAKE_BUILD_TYPE=Release                                                                \
-    -D GPU_TARGETS="gfx1151"                                                                    \
+    -D GPU_TARGETS="gfx1151"                                                                   \
     -G Ninja                                                                                   \
     ..
 ```
 
-Use Ninja to build either the whole library or individual targets.
+Use Ninja to build either the whole library or individual targets. To create a narrow build for MIOpen, 
+use an additional flag
+
+```bash
+-D MIOPEN_REQ_LIBS_ONLY=ON
+```
 
 ## Optional post-install steps
 

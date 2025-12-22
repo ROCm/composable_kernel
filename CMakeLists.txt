@@ -123,6 +123,11 @@ add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
 
+if(WIN32)
+# Suppress warnings about unused linker arguments during compilation
+add_compile_options(-Wno-unused-command-line-argument)
+endif()
+
 # add -Og and debug info for debug builds
 # Use -gdwarf-4 on Windows (clang doesn't support -gdwarf64 on Windows)
 # Use -gdwarf64 on Linux for better debug info
