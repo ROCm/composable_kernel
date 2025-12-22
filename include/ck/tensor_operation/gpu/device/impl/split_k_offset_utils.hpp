@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -73,16 +73,15 @@ struct SplitKHackEligibility
         const bool is_a_compact = IsDescriptorCompact(a_desc);
         const bool is_b_compact = IsDescriptorCompact(b_desc);
 
-        // Determine hack flags based on all conditions
-        const bool split_k_offset_a_hack = can_divide_n_spatial_by_k_batch && is_k_not_paded &&
-                                           is_correct_layout && is_a_stride_divisible &&
-                                           is_a_compact;
+        // Require BOTH A and B to be eligible for the hack to avoid KBatch dimension mismatch
+        // The gridwise kernel's CheckValidity requires A.KBatch == B.KBatch, so we must
+        // ensure symmetric hack flags to maintain kernel applicability
+        const bool both_eligible = can_divide_n_spatial_by_k_batch && can_divide_n_by_k_batch &&
+                                   is_k_not_paded && is_correct_layout && is_a_stride_divisible &&
+                                   is_b_stride_divisible && is_a_compact && is_b_compact;
 
-        const bool split_k_offset_b_hack = can_divide_n_by_k_batch && is_k_not_paded &&
-                                           is_correct_layout && is_b_stride_divisible &&
-                                           is_b_compact;
-
-        return std::make_pair(split_k_offset_a_hack, split_k_offset_b_hack);
+        // Return symmetric flags - both enabled or both disabled
+        return std::make_pair(both_eligible, both_eligible);
     }
 };
 
