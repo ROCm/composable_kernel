@@ -211,7 +211,7 @@ struct ConvSpecializationFwd_
 
 struct ConvSpecializationBwdWeight_
 {
-    ConvSpecialization bwd_specialization;
+    ConvSpecialization bwd_weight_specialization;
 };
 
 struct Prefetch_
@@ -400,7 +400,7 @@ struct ConvAlgorithmTemplate : Components...
     {
         static_assert(std::is_base_of_v<ConvSpecializationBwdWeight_, ConvAlgorithmTemplate>);
         auto result               = *this;
-        result.bwd_specialization = bwd_spec;
+        result.bwd_weight_specialization = bwd_spec;
         return result;
     }
 

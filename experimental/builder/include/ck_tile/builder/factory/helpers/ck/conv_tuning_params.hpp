@@ -161,7 +161,7 @@ consteval ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdC
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization SetBwdWeightConvSpecialization()
 {
-    constexpr auto specialization = ALGORITHM.bwd_specialization;
+    constexpr auto specialization = ALGORITHM.bwd_weight_specialization;
     using ck_conv_spec            = ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
     switch(specialization)
     {

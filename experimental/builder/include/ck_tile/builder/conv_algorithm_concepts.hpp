@@ -157,36 +157,36 @@ concept SpecifiesTileThreadBlock = requires {
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept GridwiseFwdXdlGemmDescriptor = requires {
-    { T::ak1 } -> std::convertible_to<size_t>;
-    { T::bk1 } -> std::convertible_to<size_t>;
-    { T::xdl_params } -> GridwiseXdlGemmDescriptor;
+concept GridwiseFwdXdlGemmDescriptor = requires (T t){
+    { t.ak1 } -> std::convertible_to<size_t>;
+    { t.bk1 } -> std::convertible_to<size_t>;
+    { t.xdl_params } -> GridwiseXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept GridwiseBwdXdlGemmDescriptor = requires {
-    { T::k0_per_block } -> std::convertible_to<size_t>;
-    { T::k1 } -> std::convertible_to<size_t>;
-    { T::xdl_params } -> GridwiseXdlGemmDescriptor;
+concept GridwiseBwdXdlGemmDescriptor = requires (T t){
+    { t.k0_per_block } -> std::convertible_to<size_t>;
+    { t.k1 } -> std::convertible_to<size_t>;
+    { t.xdl_params } -> GridwiseXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept SpecifiesGridwiseFwdXdlGemm = requires {
-    { T::gridwise_gemm } -> GridwiseFwdXdlGemmDescriptor;
+concept SpecifiesGridwiseFwdXdlGemm = requires (T t) {
+    { t.gridwise_gemm } -> GridwiseFwdXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept SpecifiesGridwiseBwdXdlGemm = requires {
-    { T::gridwise_gemm } -> GridwiseFwdXdlGemmDescriptor;
+concept SpecifiesGridwiseBwdXdlGemm = requires (T t) {
+    { t.gridwise_gemm } -> GridwiseBwdXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise WMMA GEMM info.
 template <typename T>
-concept SpecifiesGridwiseWmmaGemm = requires {
-    { T::gridwise_gemm } -> GridwiseBwdXdlGemmDescriptor;
+concept SpecifiesGridwiseWmmaGemm = requires (T t){
+    { t.gridwise_gemm } -> GridwiseWmmaGemmDescriptor;
 };
 
 // Concept to check if a struct specifies convolution input and output block transfer info.

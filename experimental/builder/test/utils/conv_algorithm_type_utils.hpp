@@ -278,7 +278,7 @@ template <>
 inline std::string to_string<ConvSpecializationBwdWeight_>(ConvSpecializationBwdWeight_ t)
 {
     std::ostringstream oss;
-    oss << to_string(t.bwd_specialization);
+    oss << to_string(t.bwd_weight_specialization);
     return oss.str();
 }
 
