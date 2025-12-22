@@ -547,7 +547,6 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
                 gemm_desc_kernel_arg_.emplace_back(
                     std::move(karg), std::move(grouped_block_2_ctile_map), block_start, block_end);
 
-                // group_id++;
             }
 
             const auto e_grid_desc_sum_m_n =

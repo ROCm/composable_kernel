@@ -13,7 +13,7 @@ namespace instance {
 
     
 void add_device_grouped_gemm_wmma_fixed_nk_f16_f16_f16_mk_nk_mn_instances(
-    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
+    std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
                                                   Col,
                                                   DsLayout,
                                                   Row,
@@ -23,7 +23,7 @@ void add_device_grouped_gemm_wmma_fixed_nk_f16_f16_f16_mk_nk_mn_instances(
                                                   F16,
                                                   PassThrough,
                                                   PassThrough,
-                                                  FastGelu>>>& instances)
+                                                  PassThrough>>>& instances)
 {
     add_device_grouped_gemm_wmma_fixed_nk_instances<
         F16,
