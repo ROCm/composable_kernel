@@ -271,7 +271,14 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, std::
                                                      CDataType,
                                                      AccDataType>(argc, argv, Row{}, Col{}, Col{});
     }
-
+    else if(a_layout == "C" && b_layout == "R" && c_layout == "C")
+    {
+        return run_grouped_gemm_example_with_layouts<GemmConfig,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AccDataType>(argc, argv, Col{}, Row{}, Col{});
+    }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A, B and C tensors!");
