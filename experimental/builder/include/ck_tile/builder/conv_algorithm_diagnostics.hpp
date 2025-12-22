@@ -113,37 +113,37 @@ consteval auto diagnose_xdl_params() -> std::string {
     if constexpr (requires(XdlParams t) { t.m_per_xdl; }) {
         using MPerXdlType = decltype(std::declval<XdlParams>().m_per_xdl);
         constexpr bool convertible = std::convertible_to<MPerXdlType, size_t>;
-        msg += "      → xdl_params.m_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
+        msg += "          → xdl_params.m_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<MPerXdlType>()) + "\n";
     } else {
-        msg += "      → xdl_params.m_per_xdl: [✗] (missing member)\n";
+        msg += "          → xdl_params.m_per_xdl: [✗] (missing member)\n";
     }
     
     if constexpr (requires(XdlParams t) { t.n_per_xdl; }) {
         using NPerXdlType = decltype(std::declval<XdlParams>().n_per_xdl);
         constexpr bool convertible = std::convertible_to<NPerXdlType, size_t>;
-        msg += "      → xdl_params.n_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
+        msg += "          → xdl_params.n_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<NPerXdlType>()) + "\n";
     } else {
-        msg += "      → xdl_params.n_per_xdl: [✗] (missing member)\n";
+        msg += "          → xdl_params.n_per_xdl: [✗] (missing member)\n";
     }
     
     if constexpr (requires(XdlParams t) { t.m_xdl_per_wave; }) {
         using MXdlPerWaveType = decltype(std::declval<XdlParams>().m_xdl_per_wave);
         constexpr bool convertible = std::convertible_to<MXdlPerWaveType, size_t>;
-        msg += "      → xdl_params.m_xdl_per_wave: " + std::string(CHECK_MARK(convertible)) + 
+        msg += "          → xdl_params.m_xdl_per_wave: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<MXdlPerWaveType>()) + "\n";
     } else {
-        msg += "      → xdl_params.m_xdl_per_wave: [✗] (missing member)\n";
+        msg += "          → xdl_params.m_xdl_per_wave: [✗] (missing member)\n";
     }
     
     if constexpr (requires(XdlParams t) { t.n_xdl_per_wave; }) {
         using NXdlPerWaveType = decltype(std::declval<XdlParams>().n_xdl_per_wave);
         constexpr bool convertible = std::convertible_to<NXdlPerWaveType, size_t>;
-        msg += "      → xdl_params.n_xdl_per_wave: " + std::string(CHECK_MARK(convertible)) + 
+        msg += "          → xdl_params.n_xdl_per_wave: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<NXdlPerWaveType>()) + "\n";
     } else {
-        msg += "      → xdl_params.n_xdl_per_wave: [✗] (missing member)\n";
+        msg += "          → xdl_params.n_xdl_per_wave: [✗] (missing member)\n";
     }
     
     return msg;
@@ -157,28 +157,28 @@ consteval auto diagnose_block_transfer(const char* prefix) -> std::string {
     if constexpr (requires(BT t) { t.k0; }) {
         using K0Type = decltype(std::declval<BT>().k0);
         constexpr bool convertible = std::convertible_to<K0Type, size_t>;
-        msg += std::string("      → ") + prefix + ".k0: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".k0: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<K0Type>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".k0: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".k0: [✗] (missing member)\n";
     }
     
     if constexpr (requires(BT t) { t.m_n; }) {
         using MNType = decltype(std::declval<BT>().m_n);
         constexpr bool convertible = std::convertible_to<MNType, size_t>;
-        msg += std::string("      → ") + prefix + ".m_n: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".m_n: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<MNType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".m_n: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".m_n: [✗] (missing member)\n";
     }
     
     if constexpr (requires(BT t) { t.k1; }) {
         using K1Type = decltype(std::declval<BT>().k1);
         constexpr bool convertible = std::convertible_to<K1Type, size_t>;
-        msg += std::string("      → ") + prefix + ".k1: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".k1: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<K1Type>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".k1: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".k1: [✗] (missing member)\n";
     }
     
     return msg;
@@ -192,46 +192,46 @@ consteval auto diagnose_lds_transfer(const char* prefix) -> std::string {
     if constexpr (requires(LT t) { t.src_vector_dim; }) {
         using SrcVectorDimType = decltype(std::declval<LT>().src_vector_dim);
         constexpr bool convertible = std::convertible_to<SrcVectorDimType, size_t>;
-        msg += std::string("      → ") + prefix + ".src_vector_dim: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".src_vector_dim: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<SrcVectorDimType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".src_vector_dim: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".src_vector_dim: [✗] (missing member)\n";
     }
     
     if constexpr (requires(LT t) { t.src_scalar_per_vector; }) {
         using SrcScalarType = decltype(std::declval<LT>().src_scalar_per_vector);
         constexpr bool convertible = std::convertible_to<SrcScalarType, size_t>;
-        msg += std::string("      → ") + prefix + ".src_scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".src_scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<SrcScalarType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".src_scalar_per_vector: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".src_scalar_per_vector: [✗] (missing member)\n";
     }
     
     if constexpr (requires(LT t) { t.lds_dst_scalar_per_vector; }) {
         using LdsDstScalarType = decltype(std::declval<LT>().lds_dst_scalar_per_vector);
         constexpr bool convertible = std::convertible_to<LdsDstScalarType, size_t>;
-        msg += std::string("      → ") + prefix + ".lds_dst_scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".lds_dst_scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<LdsDstScalarType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".lds_dst_scalar_per_vector: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".lds_dst_scalar_per_vector: [✗] (missing member)\n";
     }
     
     if constexpr (requires(LT t) { t.is_direct_load; }) {
         using IsDirectLoadType = decltype(std::declval<LT>().is_direct_load);
         constexpr bool convertible = std::convertible_to<IsDirectLoadType, bool>;
-        msg += std::string("      → ") + prefix + ".is_direct_load: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".is_direct_load: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<IsDirectLoadType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".is_direct_load: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".is_direct_load: [✗] (missing member)\n";
     }
     
     if constexpr (requires(LT t) { t.lds_padding; }) {
         using LdsPaddingType = decltype(std::declval<LT>().lds_padding);
         constexpr bool convertible = std::convertible_to<LdsPaddingType, bool>;
-        msg += std::string("      → ") + prefix + ".lds_padding: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".lds_padding: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<LdsPaddingType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".lds_padding: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".lds_padding: [✗] (missing member)\n";
     }
     
     return msg;
@@ -245,37 +245,37 @@ consteval auto diagnose_thread_cluster(const char* prefix) -> std::string {
     if constexpr (requires(TC t) { t.m_block; }) {
         using MBlockType = decltype(std::declval<TC>().m_block);
         constexpr bool convertible = std::convertible_to<MBlockType, size_t>;
-        msg += std::string("      → ") + prefix + ".m_block: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".m_block: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<MBlockType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".m_block: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".m_block: [✗] (missing member)\n";
     }
     
     if constexpr (requires(TC t) { t.m_wave_per_xdl; }) {
         using MWaveType = decltype(std::declval<TC>().m_wave_per_xdl);
         constexpr bool convertible = std::convertible_to<MWaveType, size_t>;
-        msg += std::string("      → ") + prefix + ".m_wave_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".m_wave_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<MWaveType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".m_wave_per_xdl: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".m_wave_per_xdl: [✗] (missing member)\n";
     }
     
     if constexpr (requires(TC t) { t.n_block; }) {
         using NBlockType = decltype(std::declval<TC>().n_block);
         constexpr bool convertible = std::convertible_to<NBlockType, size_t>;
-        msg += std::string("      → ") + prefix + ".n_block: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".n_block: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<NBlockType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".n_block: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".n_block: [✗] (missing member)\n";
     }
     
     if constexpr (requires(TC t) { t.n_wave_per_xdl; }) {
         using NWaveType = decltype(std::declval<TC>().n_wave_per_xdl);
         constexpr bool convertible = std::convertible_to<NWaveType, size_t>;
-        msg += std::string("      → ") + prefix + ".n_wave_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".n_wave_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<NWaveType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".n_wave_per_xdl: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".n_wave_per_xdl: [✗] (missing member)\n";
     }
     
     return msg;
@@ -289,10 +289,10 @@ consteval auto diagnose_access_order(const char* prefix) -> std::string {
     if constexpr (requires(AO t) { t.order; }) {
         using OrderType = decltype(std::declval<AO>().order);
         constexpr bool convertible = std::convertible_to<OrderType, std::array<size_t, 3>>;
-        msg += std::string("      → ") + prefix + ".order: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".order: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<OrderType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".order: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".order: [✗] (missing member)\n";
     }
     
     return msg;
@@ -306,28 +306,28 @@ consteval auto diagnose_epilogue(const char* prefix) -> std::string {
     if constexpr (requires(E t) { t.m_xdl_per_wave_per_shuffle; }) {
         using MXdlType = decltype(std::declval<E>().m_xdl_per_wave_per_shuffle);
         constexpr bool convertible = std::convertible_to<MXdlType, size_t>;
-        msg += std::string("      → ") + prefix + ".m_xdl_per_wave_per_shuffle: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".m_xdl_per_wave_per_shuffle: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<MXdlType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".m_xdl_per_wave_per_shuffle: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".m_xdl_per_wave_per_shuffle: [✗] (missing member)\n";
     }
     
     if constexpr (requires(E t) { t.n_per_wave_per_shuffle; }) {
         using NPerWaveType = decltype(std::declval<E>().n_per_wave_per_shuffle);
         constexpr bool convertible = std::convertible_to<NPerWaveType, size_t>;
-        msg += std::string("      → ") + prefix + ".n_per_wave_per_shuffle: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".n_per_wave_per_shuffle: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<NPerWaveType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".n_per_wave_per_shuffle: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".n_per_wave_per_shuffle: [✗] (missing member)\n";
     }
     
     if constexpr (requires(E t) { t.scalar_per_vector; }) {
         using ScalarType = decltype(std::declval<E>().scalar_per_vector);
         constexpr bool convertible = std::convertible_to<ScalarType, size_t>;
-        msg += std::string("      → ") + prefix + ".scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
+        msg += std::string("          → ") + prefix + ".scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<ScalarType>()) + "\n";
     } else {
-        msg += std::string("      → ") + prefix + ".scalar_per_vector: [✗] (missing member)\n";
+        msg += std::string("          → ") + prefix + ".scalar_per_vector: [✗] (missing member)\n";
     }
     
     return msg;
@@ -355,29 +355,36 @@ template <typename T>
 consteval auto detailed_diagnostic_SpecifiesGridwiseFwdXdlGemm() -> std::string {
     std::string msg;
     
-    if constexpr (requires { T::ak1; }) {
-        using AK1Type = decltype(T::ak1);
+    if constexpr (!requires { T::gridwise_gemm; }) {
+        return "      → T::gridwise_gemm member: [✗] (missing member)\n";
+    }
+    
+    msg += "      → T::gridwise_gemm member: [✓]\n";
+    using GG = decltype(T::gridwise_gemm);
+    
+    if constexpr (requires { GG::ak1; }) {
+        using AK1Type = decltype(GG::ak1);
         constexpr bool convertible = std::convertible_to<AK1Type, size_t>;
-        msg += "      → T::ak1: " + std::string(CHECK_MARK(convertible)) + 
+        msg += "      → gridwise_gemm.ak1: " + std::string(CHECK_MARK(convertible)) + 
                std::string(detail::get_type_info<AK1Type>()) + "\n";
     } else {
-        msg += "      → T::ak1: [✗] (missing member)\n";
+        msg += "      → gridwise_gemm.ak1: [✗] (missing member)\n";
     }
     
-    if constexpr (requires { T::bk1; }) {
-        using BK1Type = decltype(T::bk1);
+    if constexpr (requires { GG::bk1; }) {
+        using BK1Type = decltype(GG::bk1);
         constexpr bool convertible = std::convertible_to<BK1Type, size_t>;
-        msg += "      → T::bk1: " + std::string(CHECK_MARK(convertible)) + 
+        msg += "      → gridwise_gemm.bk1: " + std::string(CHECK_MARK(convertible)) + 
                std::string(detail::get_type_info<BK1Type>()) + "\n";
     } else {
-        msg += "      → T::bk1: [✗] (missing member)\n";
+        msg += "      → gridwise_gemm.bk1: [✗] (missing member)\n";
     }
     
-    if constexpr (requires { T::xdl_params; }) {
-        msg += "      → T::xdl_params member: [✓]\n";
-        msg += detail::diagnose_xdl_params<T, decltype(T::xdl_params)>();
+    if constexpr (requires { GG::xdl_params; }) {
+        msg += "      → gridwise_gemm.xdl_params member: [✓]\n";
+        msg += detail::diagnose_xdl_params<T, decltype(GG::xdl_params)>();
     } else {
-        msg += "      → T::xdl_params: [✗] (missing member)\n";
+        msg += "      → gridwise_gemm.xdl_params: [✗] (missing member)\n";
     }
     
     return msg;
@@ -387,29 +394,36 @@ template <typename T>
 consteval auto detailed_diagnostic_SpecifiesGridwiseBwdXdlGemm() -> std::string {
     std::string msg;
     
-    if constexpr (requires { T::k0_per_block; }) {
-        using K0Type = decltype(T::k0_per_block);
+    if constexpr (!requires { T::gridwise_gemm; }) {
+        return "      → T::gridwise_gemm member: [✗] (missing member)\n";
+    }
+    
+    msg += "      → T::gridwise_gemm member: [✓]\n";
+    using GG = decltype(T::gridwise_gemm);
+    
+    if constexpr (requires { GG::k0_per_block; }) {
+        using K0Type = decltype(GG::k0_per_block);
         constexpr bool convertible = std::convertible_to<K0Type, size_t>;
-        msg += "      → T::k0_per_block: " + std::string(CHECK_MARK(convertible)) + 
+        msg += "      → gridwise_gemm.k0_per_block: " + std::string(CHECK_MARK(convertible)) + 
                std::string(detail::get_type_info<K0Type>()) + "\n";
     } else {
-        msg += "      → T::k0_per_block: [✗] (missing member)\n";
+        msg += "      → gridwise_gemm.k0_per_block: [✗] (missing member)\n";
     }
     
-    if constexpr (requires { T::k1; }) {
-        using K1Type = decltype(T::k1);
+    if constexpr (requires { GG::k1; }) {
+        using K1Type = decltype(GG::k1);
         constexpr bool convertible = std::convertible_to<K1Type, size_t>;
-        msg += "      → T::k1: " + std::string(CHECK_MARK(convertible)) + 
+        msg += "      → gridwise_gemm.k1: " + std::string(CHECK_MARK(convertible)) + 
                std::string(detail::get_type_info<K1Type>()) + "\n";
     } else {
-        msg += "      → T::k1: [✗] (missing member)\n";
+        msg += "      → gridwise_gemm.k1: [✗] (missing member)\n";
     }
     
-    if constexpr (requires { T::xdl_params; }) {
-        msg += "      → T::xdl_params member: [✓]\n";
-        msg += detail::diagnose_xdl_params<T, decltype(T::xdl_params)>();
+    if constexpr (requires { GG::xdl_params; }) {
+        msg += "      → gridwise_gemm.xdl_params member: [✓]\n";
+        msg += detail::diagnose_xdl_params<T, decltype(GG::xdl_params)>();
     } else {
-        msg += "      → T::xdl_params: [✗] (missing member)\n";
+        msg += "      → gridwise_gemm.xdl_params: [✗] (missing member)\n";
     }
     
     return msg;
@@ -857,13 +871,13 @@ consteval auto detailed_diagnostic_SpecifiesDlBlockTransfer() -> std::string {
         constexpr bool has_src_contiguous = requires(ABT t) { { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, 4>>; };
         constexpr bool has_dst_vector = requires(ABT t) { { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>; };
         
-        msg += "      → transfer.a.block_transfer.thread_slice_lengths: " + std::string(CHECK_MARK(has_thread_slice)) + (has_thread_slice ? "\n" : " (missing or wrong type)\n");
-        msg += "      → transfer.a.block_transfer.thread_cluster_lengths: " + std::string(CHECK_MARK(has_thread_cluster)) + (has_thread_cluster ? "\n" : " (missing or wrong type)\n");
-        msg += "      → transfer.a.block_transfer.thread_cluster_arrange_order: " + std::string(CHECK_MARK(has_cluster_arrange)) + (has_cluster_arrange ? "\n" : " (missing or wrong type)\n");
-        msg += "      → transfer.a.block_transfer.src_access_order: " + std::string(CHECK_MARK(has_src_access)) + (has_src_access ? "\n" : " (missing or wrong type)\n");
-        msg += "      → transfer.a.block_transfer.src_vector_tensor_lengths: " + std::string(CHECK_MARK(has_src_vector)) + (has_src_vector ? "\n" : " (missing or wrong type)\n");
-        msg += "      → transfer.a.block_transfer.src_vector_tensor_contiguous_dim_order: " + std::string(CHECK_MARK(has_src_contiguous)) + (has_src_contiguous ? "\n" : " (missing or wrong type)\n");
-        msg += "      → transfer.a.block_transfer.dst_vector_tensor_lengths: " + std::string(CHECK_MARK(has_dst_vector)) + (has_dst_vector ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.block_transfer.thread_slice_lengths: " + std::string(CHECK_MARK(has_thread_slice)) + (has_thread_slice ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.block_transfer.thread_cluster_lengths: " + std::string(CHECK_MARK(has_thread_cluster)) + (has_thread_cluster ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.block_transfer.thread_cluster_arrange_order: " + std::string(CHECK_MARK(has_cluster_arrange)) + (has_cluster_arrange ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.block_transfer.src_access_order: " + std::string(CHECK_MARK(has_src_access)) + (has_src_access ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.block_transfer.src_vector_tensor_lengths: " + std::string(CHECK_MARK(has_src_vector)) + (has_src_vector ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.block_transfer.src_vector_tensor_contiguous_dim_order: " + std::string(CHECK_MARK(has_src_contiguous)) + (has_src_contiguous ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.block_transfer.dst_vector_tensor_lengths: " + std::string(CHECK_MARK(has_dst_vector)) + (has_dst_vector ? "\n" : " (missing or wrong type)\n");
     } else if constexpr (has_a) {
         msg += "      → T::transfer.a.block_transfer: [✗] (missing)\n";
     }

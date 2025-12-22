@@ -45,7 +45,7 @@ struct GridwiseFwdXdlGemm
     size_t bk1            = 0;
     XdlParams xdl_params;
 };
-static_assert(ckb::SpecifiesGridwiseFwdXdlGemm<GridwiseFwdXdlGemm>);
+static_assert(ckb::GridwiseFwdXdlGemmDescriptor<GridwiseFwdXdlGemm>);
 
 struct GridwiseBwdXdlGemm
 {
@@ -53,7 +53,7 @@ struct GridwiseBwdXdlGemm
     size_t k1            = 0;
     XdlParams xdl_params;
 };
-static_assert(ckb::SpecifiesGridwiseBwdXdlGemm<GridwiseBwdXdlGemm>);
+static_assert(ckb::GridwiseBwdXdlGemmDescriptor<GridwiseBwdXdlGemm>);
 
 // Describe gridwise WMMA GEMM parameters.
 struct GridwiseWmmaGemm
