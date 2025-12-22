@@ -145,39 +145,33 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                         GemmConfig::Scheduler,
                                                         has_hot_loop_v,
                                                         tail_number_v>>>>;
-        using AQuantPipeline = std::conditional_t<
-            GemmConfig::PreshuffleQuant,
-            ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
-            ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>
-        >;
+        using AQuantPipeline =
+            std::conditional_t<GemmConfig::PreshuffleQuant,
+                               ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                               ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>>;
+
         using BQuantPipeline = std::conditional_t<
             GemmConfig::PreshuffleB,
             ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
             std::conditional_t<
                 std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>,
                 ck_tile::MxFp4GemmPipelineAgBgCrCompV3<PipelineProblem>,
-                ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>
-            >
-        >;
-        using ABQuantPipeline = std::conditional_t<
-            GemmConfig::DoubleSmemBuffer,
-            ck_tile::ABQuantGemmPipelineAgBgCrCompV4<PipelineProblem>,
-            ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>
-        >;
+                ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
+
+        using ABQuantPipeline =
+            std::conditional_t<GemmConfig::DoubleSmemBuffer,
+                               ck_tile::ABQuantGemmPipelineAgBgCrCompV4<PipelineProblem>,
+                               ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>;
 
         using GemmPipeline = std::conditional_t<
             QuantMode == ck_tile::QuantType::RowColQuant ||
                 QuantMode == ck_tile::QuantType::TensorQuant,
             ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
-
-            std::conditional_t<
-                QuantMode == ck_tile::QuantType::AQuantGrouped,
-                AQuantPipeline,
-
-                std::conditional_t<
-                    QuantMode == ck_tile::QuantType::ABQuantGrouped,
-                    ABQuantPipeline,
-                    BQuantPipeline>>>;
+            std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
+                               AQuantPipeline,
+                               std::conditional_t<QuantMode == ck_tile::QuantType::ABQuantGrouped,
+                                                  ABQuantPipeline,
+                                                  BQuantPipeline>>>;
 
         constexpr bool TiledPermuteN =
             (BQuantGroupSize::kN > 1) ? false : GemmConfig::TiledMMAPermuteN;
