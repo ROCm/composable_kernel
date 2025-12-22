@@ -46,6 +46,15 @@ struct ext_vector<T_, N_, std::enable_if_t<!std::is_class_v<typename native_t<T_
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
 
+template <index_t N_>
+struct ext_vector<f6x16_pk_t, N_>
+{
+    // static_assert(N_ == -1);
+    static constexpr index_t N = N_;
+    using value_type           = uint32_t;
+    using type                 = value_type __attribute__((ext_vector_type(N))); // this is danguous
+};
+
 template <typename T_, index_t N_>
 struct ext_vector<T_, N_, std::enable_if_t<std::is_class_v<typename native_t<T_>::type>>>
 {
@@ -151,7 +160,12 @@ using bf16x64_t = bfloat16_t __attribute__((ext_vector_type(64)));
 
 // i32
 // using int32_t = ...
-using int32x2_t  = int32_t __attribute__((ext_vector_type(2)));
+struct int32x3_t
+{
+    int data[3];
+};
+using int32x2_t = int32_t __attribute__((ext_vector_type(2)));
+// using int32x3_t  = int32_t __attribute__((ext_vector_type(3)));
 using int32x4_t  = int32_t __attribute__((ext_vector_type(4)));
 using int32x8_t  = int32_t __attribute__((ext_vector_type(8)));
 using int32x16_t = int32_t __attribute__((ext_vector_type(16)));
@@ -254,4 +268,6 @@ using pk_fp4x4_t  = uint8_t __attribute((ext_vector_type(4)));
 using pk_fp4x8_t  = uint8_t __attribute((ext_vector_type(8)));
 using pk_fp4x16_t = uint8_t __attribute((ext_vector_type(16)));
 using pk_fp4x32_t = uint8_t __attribute((ext_vector_type(32)));
+
+// using f6x16_pk_t = int8_t __attribute__((ext_vector_type(3)));
 } // namespace ck_tile

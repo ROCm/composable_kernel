@@ -1570,6 +1570,8 @@ struct WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4
                 return make_tuple(number<0>{}, int32x8_t{});
             else if constexpr(std::is_same_v<decltype(dtype), bf8_t>)
                 return make_tuple(number<1>{}, int32x8_t{});
+            else if constexpr(std::is_same_v<decltype(dtype), f6x16_pk_t>)
+                return make_tuple(number<2>{}, f6x32_pk_t{});
             // else if e2m3 => make_tuple(number<2>{}, int32x6_t{})
             // else if e3m2 => make_tuple(number<3>{}, int32x6_t{})
             else if constexpr(std::is_same_v<decltype(dtype), pk_fp4_t>)

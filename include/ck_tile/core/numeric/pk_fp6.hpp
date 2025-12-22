@@ -20,10 +20,22 @@ struct pk_f6_t
     static_assert((packed_size * num_bits_elem) % num_bits_vec_elem == 0,
                   "Packed elements must fit exactly into the element storage.");
     static constexpr index_t vector_size = (packed_size * num_bits_elem) / num_bits_vec_elem;
-    // using storage_type = element_type __attribute__((ext_vector_type(vector_size)));
-    // storage_type data_{storage_type(0)}; // packed data
+    // using type = element_type __attribute__((ext_vector_type(vector_size)));
+    // type data_{type(0)}; // packed data
     element_type data_[vector_size]; // packed data
     using type = pk_f6_t<packed_size>;
+    // using type = uint8_t;
+    CK_TILE_HOST_DEVICE pk_f6_t()
+    {
+        // std::cout << vector_size << " " << sizeof(storage_type) << std::endl;
+    }
+    CK_TILE_HOST_DEVICE explicit pk_f6_t(int value)
+    {
+        for(size_t i = 0; i < vector_size; ++i)
+        {
+            data_[i] = value;
+        }
+    }
     void pack(const uint32_t x, const index_t i)
     {
         uint32_t bits        = static_cast<uint32_t>(x) & 0x3F;
@@ -46,8 +58,8 @@ struct pk_f6_t
         }
     }
 
-    template <typename type>
-    static inline uint32_t unpack(const type& pk, const index_t i)
+    template <typename T>
+    static inline uint32_t unpack(const T& pk, const index_t i)
     {
         const int bit_pos    = i * num_bits_elem;
         const int arr_idx    = bit_pos / num_bits_vec_elem;
@@ -93,6 +105,7 @@ struct pk_f6_t
 };
 
 using f6x16_pk_t = pk_f6_t<16>;
+using f6x32_pk_t = pk_f6_t<32>;
 template <>
 struct numeric_traits<f6x16_pk_t>
 {

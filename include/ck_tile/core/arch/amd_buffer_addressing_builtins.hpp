@@ -989,6 +989,27 @@ llvm_amdgcn_raw_buffer_load_i32x2(int32x4_t srsrc,
                                   index_t soffset,
                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v2i32");
 
+using int32x3 = int32_t __attribute__((ext_vector_type(3)));
+
+CK_TILE_DEVICE_EXTERN int32x3
+llvm_amdgcn_raw_buffer_load_i32x3_(int32x4_t srsrc,
+                                   index_t voffset,
+                                   index_t soffset,
+                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v3i32");
+
+CK_TILE_DEVICE_EXTERN int32x3_t llvm_amdgcn_raw_buffer_load_i32x3(int32x4_t srsrc,
+                                                                  index_t voffset,
+                                                                  index_t soffset,
+                                                                  index_t glc_slc)
+{
+    auto tmp = llvm_amdgcn_raw_buffer_load_i32x3_(srsrc, voffset, soffset, 0);
+    int32x3_t ret;
+    ret.data[0] = tmp.x;
+    ret.data[1] = tmp.y;
+    ret.data[2] = tmp.z;
+    return ret;
+}
+
 CK_TILE_DEVICE_EXTERN int32x4_t
 llvm_amdgcn_raw_buffer_load_i32x4(int32x4_t srsrc,
                                   index_t voffset,
@@ -1113,6 +1134,13 @@ llvm_amdgcn_raw_buffer_store_i32x2(int32x2_t vdata,
                                    index_t voffset,
                                    index_t soffset,
                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i32");
+
+CK_TILE_DEVICE_EXTERN void
+llvm_amdgcn_raw_buffer_store_i32x3(int32x3_t vdata,
+                                   int32x4_t rsrc,
+                                   index_t voffset,
+                                   index_t soffset,
+                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v3i32");
 
 CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_store_i32x4(int32x4_t vdata,
@@ -1294,7 +1322,7 @@ amd_buffer_load_impl_with_bytes(int32x4_t src_wave_buffer_resource,
                                 index_t src_thread_addr_offset,
                                 index_t src_wave_addr_offset)
 {
-    static_assert(N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32 || N == 64,
+    static_assert(N == 1 || N == 2 || N == 4 || N == 8 || N == 12 | N == 16 || N == 32 || N == 64,
                   "wrong! not implemented");
 
     using rtn_type = thread_buffer<int8_t, N>;
@@ -1328,6 +1356,15 @@ amd_buffer_load_impl_with_bytes(int32x4_t src_wave_buffer_resource,
     else if constexpr(N == 8)
     {
         int32x2_t tmp = llvm_amdgcn_raw_buffer_load_i32x2(src_wave_buffer_resource,
+                                                          src_thread_addr_offset,
+                                                          src_wave_addr_offset,
+                                                          static_cast<index_t>(coherence));
+
+        return bit_cast<rtn_type>(tmp);
+    }
+    else if constexpr(N == 12)
+    {
+        int32x3_t tmp = llvm_amdgcn_raw_buffer_load_i32x3(src_wave_buffer_resource,
                                                           src_thread_addr_offset,
                                                           src_wave_addr_offset,
                                                           static_cast<index_t>(coherence));
@@ -1404,6 +1441,7 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
                                                         index_t src_thread_addr_offset,
                                                         index_t src_wave_addr_offset)
 {
+    // CK_PRINT<T>();
     static_assert(
         (std::is_same<T, double>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
@@ -1423,7 +1461,8 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
             (std::is_same<T, pk_int4_t>::value &&
                  (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32) ||
              (std::is_same<T, pk_fp4_t>::value &&
-              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16))),
+              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16))) ||
+            (std::is_same<T, f6x16_pk_t>::value && (N == 1)),
         "wrong! not implemented");
 
     using rtn_type = thread_buffer<T, N>;
@@ -1714,7 +1753,7 @@ CK_TILE_DEVICE void amd_buffer_store_impl_with_bytes(const thread_buffer<int8_t,
                                                      index_t dst_thread_addr_offset,
                                                      index_t dst_wave_addr_offset)
 {
-    static_assert(N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32 || N == 64,
+    static_assert(N == 1 || N == 2 || N == 4 || N == 8 || N == 12 || N == 16 || N == 32 || N == 64,
                   "wrong! not implemented");
 
     if constexpr(N == 1)
@@ -1745,6 +1784,14 @@ CK_TILE_DEVICE void amd_buffer_store_impl_with_bytes(const thread_buffer<int8_t,
     else if constexpr(N == 8)
     {
         llvm_amdgcn_raw_buffer_store_i32x2(bit_cast<int32x2_t>(src_thread_data),
+                                           dst_wave_buffer_resource,
+                                           dst_thread_addr_offset,
+                                           dst_wave_addr_offset,
+                                           static_cast<index_t>(coherence));
+    }
+    else if constexpr(N == 12)
+    {
+        llvm_amdgcn_raw_buffer_store_i32x3(bit_cast<int32x3_t>(src_thread_data),
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset,
