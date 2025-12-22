@@ -1,0 +1,1 @@
+tile_example_fmha_bwd -b=1 -h=4 -h_k=1 -s=500 -s_k=251 -mask=1 -prec=bf16 -d=96 -bias=a -dbias=0 -p_drop=0.2 -iperm=1 -operm=1 -deterministic=0 -v=1 -mode=1 -kname=1 -v=1
