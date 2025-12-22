@@ -190,6 +190,8 @@ struct BwdWeightConvTensorDataTypes
     using InComputeType = typename decltype(input_types.second)::type;
     using WeiDataType    = typename decltype(weight_types.first)::type;
     using WeiComputeType = typename decltype(weight_types.second)::type;
+    using OutDataType    = typename decltype(output_types.first)::type;
+    using OutComputeType = typename decltype(output_types.second)::type;
     using AccDataType =
         typename decltype(GetTensorAccumulationType<Signature.accumulation_data_type,
                                                     Signature.data_type>())::type;
