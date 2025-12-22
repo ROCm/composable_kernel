@@ -30,11 +30,16 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
         constexpr index_t n0_loops = Problem::BlockFmhaShape::kN0 / Problem::BlockFmhaShape::kN0Sub;
         constexpr index_t k1_loops = Problem::BlockFmhaShape::kN0 / Problem::BlockFmhaShape::kK1;
 
-        if constexpr(n0_loops >= 4 && k1_loops >= 6)
-            return 3;
-        if constexpr(k1_loops >= 4)
+        if constexpr(Problem::kUseTrLoad)
+        {
+            if constexpr(n0_loops >= 4 && k1_loops >= 6)
+                return 3;
             return 2;
-        return 1;
+        }
+        else
+        {
+            return 2;
+        };
     };
 
     template <typename Problem>
