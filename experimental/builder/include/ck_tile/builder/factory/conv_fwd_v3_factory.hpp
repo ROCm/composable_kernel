@@ -70,6 +70,74 @@ struct ConvFwdXdlV3Factory
     static_assert(ThreadsCoverBTile<B_BLOCK_TRANSFER, BLOCK.per_block>);
     static_assert(ThreadsCoverCTile<C_BLOCK_TRANSFER, BLOCK.per_block>);
 
+    static_assert(IsVectorSizeValid<A_BLOCK_TRANSFER.src_scalar_per_vector,
+                                    sizeof(typename Types::ADataType)>);
+    static_assert(IsVectorSizeValid<B_BLOCK_TRANSFER.src_scalar_per_vector,
+                                    sizeof(typename Types::BDataType)>);
+    static_assert(
+        IsVectorSizeValid<C_BLOCK_TRANSFER.scalar_per_vector, sizeof(typename Types::EDataType)>);
+
+    static_assert(IsVectorSizeValid<A_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
+                                    sizeof(typename Types::ADataType)>);
+    static_assert(IsVectorSizeValid<B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
+                                    sizeof(typename Types::BDataType)>);
+
+    static constexpr auto IsValidALayout = []() -> bool {
+        using enum TensorLayout;
+        return is_any_value_of(SIGNATURE.input.config.layout,
+                               G_NW_C_strided,
+                               G_NHW_C_strided,
+                               G_NDHW_C_strided,
+                               GNWC,
+                               GNHWC,
+                               GNHWC,
+                               GNDHWC,
+                               NWGC,
+                               NHWGC,
+                               NDHWGC,
+                               NGCW,
+                               NGCHW,
+                               NGCDHW);
+    };
+
+    static constexpr auto IsValidBLayout = []() -> bool {
+        using enum TensorLayout;
+        return is_any_value_of(SIGNATURE.weight.config.layout,
+                               G_K_X_C_strided,
+                               G_K_YX_C_strided,
+                               G_K_ZYX_C_strided,
+                               GKXC,
+                               GKYXC,
+                               GKZYXC,
+                               KXGC,
+                               KYXGC,
+                               KZYXGC,
+                               GKCX,
+                               GKCYX,
+                               GKCZYX);
+    };
+
+    static constexpr auto IsValidCLayout = []() -> bool {
+        using enum TensorLayout;
+        return is_any_value_of(SIGNATURE.output.config.layout,
+                               G_NW_K_strided,
+                               G_NHW_K_strided,
+                               G_NDHW_K_strided,
+                               GNWK,
+                               GNHWK,
+                               GNDHWK,
+                               NWGK,
+                               NHWGK,
+                               NDHWGK,
+                               NGKW,
+                               NGKHW,
+                               NGKDHW);
+    };
+
+    static_assert(IsValidALayout() && A_BLOCK_TRANSFER.src_vector_dim == 2);
+    static_assert(IsValidBLayout() && B_BLOCK_TRANSFER.src_vector_dim == 2);
+    static_assert(IsValidCLayout());
+
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
         SPATIAL_DIM,

@@ -93,7 +93,7 @@ constexpr auto get_k_coverage()
     auto k_total = k0 * k1;
 
     // If vectorization is on k0 (dim 0) or k1 (dim 2), multiply by vector size
-    if(BlockTransfer.src_vector_dim == 0 || BlockTransfer.src_vector_dim == 2)
+    if constexpr(BlockTransfer.src_vector_dim == 0 || BlockTransfer.src_vector_dim == 2)
     {
         k_total *= BlockTransfer.src_scalar_per_vector;
     }
@@ -108,13 +108,24 @@ constexpr auto get_mn_coverage()
     auto mn = BlockTransfer.thread_cluster_dims[1];
 
     // If vectorization is on m_n (dim 1), multiply by vector size
-    if(BlockTransfer.src_vector_dim == 1)
+    if constexpr(BlockTransfer.src_vector_dim == 1)
     {
         mn *= BlockTransfer.src_scalar_per_vector;
     }
 
     return mn;
 }
+
+template <size_t DataTypeSize>
+constexpr auto get_data_max_vec_size()
+{
+    // this is arch specific - but all current gfx9 has same value
+    constexpr auto max_vec_inst_size_bytes = 16;
+    static_assert(max_vec_inst_size_bytes % DataTypeSize == 0,
+                  "The max vec instruction size is not a multiple of given data type size.");
+    return max_vec_inst_size_bytes / DataTypeSize;
+}
+
 } // namespace detail
 
 // product of thread cluster lengths must be <= workgroup size
@@ -147,6 +158,12 @@ concept ThreadsCoverCTile = requires {
     // N dimension: n_wave_per_xdl * (vectorization) must divide N
     requires TileSize.n % (CBlockTransfer.thread_cluster_dims[3] *
                            CBlockTransfer.scalar_per_vector) == 0;
+};
+
+template <size_t ScalarPerVec, size_t DataTypeSize>
+concept IsVectorSizeValid = requires {
+    requires((ScalarPerVec & (ScalarPerVec - 1)) == 0) &&
+                ScalarPerVec <= detail::get_data_max_vec_size<DataTypeSize>();
 };
 
 } // namespace ck_tile::builder
