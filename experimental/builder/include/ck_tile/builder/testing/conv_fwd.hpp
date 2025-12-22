@@ -247,7 +247,7 @@ UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args)
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE> &&
              ValidUniqueInputs<SIGNATURE>
-void init_inputs(const Args<SIGNATURE>& args, Inputs<SIGNATURE>& inputs)
+void init_inputs(const Args<SIGNATURE>& args, UniqueInputs<SIGNATURE>& inputs)
 {
     init_tensor_buffer_uniform_fp(inputs.input_buf, args.make_input_descriptor(), -2.0f, 2.0f);
     init_tensor_buffer_uniform_fp(inputs.weight_buf, args.make_weight_descriptor(), -2.0f, 2.0f);
