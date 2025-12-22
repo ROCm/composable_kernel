@@ -677,23 +677,24 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
-            if constexpr(!kPreloadWholeNextIterationK)
-            {
-                if(seqlen_k_curr < seqlen_k_end)
-                {
-                    k_tiles[I0] = load_tile(k_dram_window);
-                    move_tile_window(k_dram_window, {kN0Sub, 0});
-                };
-            }
-
-            __builtin_amdgcn_sched_barrier(0x00000001);
-
             // STAGE 3, Gemm_1 ( O = P@V )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
                 if constexpr(i_k1 < k1_loops - NumPrefetchV)
                 {
                     v_tiles[number<i_k1 % NumPrefetchV>{}] = load_tile(v_dram_window);
                     move_tile_window(v_dram_window, {0, kK1});
+                };
+
+                if constexpr(i_k1 == k1_loops - NumPrefetchV)
+                {
+                    if constexpr(!kPreloadWholeNextIterationK)
+                    {
+                        if(seqlen_k_curr < seqlen_k_end)
+                        {
+                            k_tiles[I0] = load_tile(k_dram_window);
+                            move_tile_window(k_dram_window, {kN0Sub, 0});
+                        };
+                    }
                 };
 
                 block_sync_lds();
