@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <ios>
 #include <iostream>
 #include <sstream>
 #include <tuple>
@@ -847,7 +848,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         }
 
         // Check if all groups have compatible HasMainLoop values
-        if(arg.gemm_kernel_args_.size() > 0)
+        if(!arg.gemm_kernel_args_.empty())
         {
             const auto& first_arg = arg.gemm_kernel_args_[0].karg_;
             const auto first_desc =
@@ -879,10 +880,10 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 {
                     if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                     {
-                        std::cout << "Not all groups have compatible HasMainLoop values! "
-                                  << "Group 0: " << (first_has_main_loop ? "TRUE" : "FALSE")
-                                  << ", Group " << i << ": " << (has_main_loop ? "TRUE" : "FALSE")
-                                  << std::endl;
+                        std::cout << std::boolalpha
+                                  << "Not all groups have compatible HasMainLoop values! "
+                                  << "Group 0: " << first_has_main_loop << ", Group " << i << ": "
+                                  << has_main_loop << std::endl;
                     }
                     return false;
                 }
