@@ -371,6 +371,9 @@ struct ConvAlgorithmTemplate : Components...
         {
             result.gridwise_gemm = gemm;
         }
+        else {
+            static_assert(false, "Unrecognized GemmConfig type");
+        }
         return result;
     }
 

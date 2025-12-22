@@ -198,7 +198,8 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseFwdXdlGemm() -> std::string 
            (has_ak1 ? "\n" : " (missing or wrong type)\n");
     msg += "      → T::bk1: " + std::string(CHECK_MARK(has_bk1)) + 
            (has_bk1 ? "\n" : " (missing or wrong type)\n");
-    msg += "      → T::xdl_params member: " + std::string(CHECK_MARK(has_xdl_params)) + "\n";
+    msg += "      → T::xdl_params member: " + std::string(CHECK_MARK(has_xdl_params)) + 
+            (has_xdl_params ? "\n" : " (missing or wrong type)\n");
     
     if constexpr (has_xdl_params) {
         msg += detail::diagnose_xdl_params<T, decltype(T::xdl_params)>();
@@ -219,7 +220,8 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseBwdXdlGemm() -> std::string 
            (has_k0 ? "\n" : " (missing or wrong type)\n");
     msg += "      → T::k1: " + std::string(CHECK_MARK(has_k1)) + 
            (has_k1 ? "\n" : " (missing or wrong type)\n");
-    msg += "      → T::xdl_params member: " + std::string(CHECK_MARK(has_xdl_params)) + "\n";
+    msg += "      → T::xdl_params member: " + std::string(CHECK_MARK(has_xdl_params)) + 
+           (has_xdl_params ? "\n" : " (missing or wrong type)\n");
     
     if constexpr (has_xdl_params) {
         msg += detail::diagnose_xdl_params<T, decltype(T::xdl_params)>();
