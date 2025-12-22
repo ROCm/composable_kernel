@@ -20,6 +20,15 @@
 
 namespace ck_tile {
 
+template <auto... val>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINTT()
+{
+}
+template <typename... type>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINTT()
+{
+}
+
 /**
  * @brief This class provides tile (windowed) view and access to the device memory.
  *
@@ -551,7 +560,7 @@ struct tile_window_with_static_distribution
 
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
-
+        CK_PRINTT<vector_t>();
         // Precompute invariant values outside loops
         const auto window_origin       = lds_tile.get_window_origin();
         const auto& bottom_tensor_view = lds_tile.get_bottom_tensor_view();

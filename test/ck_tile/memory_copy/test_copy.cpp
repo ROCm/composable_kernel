@@ -103,6 +103,24 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
 
         // reference
         y_buf.FromDevice(y_host_dev.mData.data());
+
+        for(int i = 0; i < m; i++)
+        {
+            for(int j = 0; j < n; j += pack_k)
+            {
+                // for(int k_ = 0; k_ < pack_k; k_++)
+                // {
+                // int value = m & 0x3f;
+                std::cout << x_host(i, j).data_[0] << " " << x_host(i, j).data_[1] << " "
+                          << x_host(i, j).data_[0] << std::endl;
+
+                printf("==============\n");
+                std::cout << y_host_dev(i, j).data_[0] << " " << y_host_dev(i, j).data_[1] << " "
+                          << y_host_dev(i, j).data_[0] << std::endl;
+                printf("~~~~~~~~~~~~~\n");
+            }
+        }
+
         // bool pass = ck_tile::check_err(y_host_dev, x_host);
 
         // EXPECT_TRUE(pass);
@@ -110,7 +128,7 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
 };
 
 // class TestCkTileMemoryCopyF6x16 : public TestCkTileMemoryCopy<ck_tile::pk_fp4_t, false>
-class TestCkTileMemoryCopyF6x16 : public TestCkTileMemoryCopy<ck_tile::f6x16_pk_t, false>
+class TestCkTileMemoryCopyF6x16 : public TestCkTileMemoryCopy<ck_tile::f6x16_pk_t, true>
 {
 };
 

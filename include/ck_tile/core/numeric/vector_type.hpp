@@ -49,10 +49,9 @@ struct ext_vector<T_, N_, std::enable_if_t<!std::is_class_v<typename native_t<T_
 template <index_t N_>
 struct ext_vector<f6x16_pk_t, N_>
 {
-    // static_assert(N_ == -1);
     static constexpr index_t N = N_;
-    using value_type           = uint32_t;
-    using type                 = value_type __attribute__((ext_vector_type(N))); // this is danguous
+    using value_type           = f6x16_pk_t;
+    using type                 = f6x16_pk_t; // this is danguous
 };
 
 template <typename T_, index_t N_>

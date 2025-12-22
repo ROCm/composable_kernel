@@ -89,7 +89,7 @@ struct TileCopy
         constexpr index_t Y1 =
             S::Warp_M /
             Y2; // number of iterations each warp needs to perform to cover the entire tile window.
-        printf("Y0: %d Y1: %d Y2: %d X0: %d X1: %d \n", Y0, Y1, Y2, X0, X1);
+        // printf("Y0: %d Y1: %d Y2: %d X0: %d X1: %d \n", Y0, Y1, Y2, X0, X1);
         constexpr auto outer_encoding =
             tile_distribution_encoding<sequence<S::WaveGroups>,
                                        tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
@@ -146,38 +146,38 @@ struct TileCopy
         {
             if(my_id == warp_id)
             {
-                // if constexpr(AsyncCopy)
-                // {
-                //     async_load_tile(x_block_lds_write_window, x_block_window);
-                //     // We don't have prefetch here, wait the data back immediately.
-                //     // Wait all asyncload insts complete.
-                //     // Wait all waves synced
-                //     s_waitcnt_barrier<async_copy_fence_cnt>();
-                //     auto lds_tile = load_tile(x_block_lds_read_window);
-                //     // store from registers to DRAM
-                //     store_tile(y_block_window, lds_tile);
-                // }
-                // else
-                // {
-                // load from DRAM to registers
-                auto dram_tile = load_tile(x_block_window);
-                auto ptr       = dram_tile.get_thread_buffer().data[0].data_;
-                printf("block_id: %d, thread_id: %d, value: %d %d %d\n",
-                       get_block_id(),
-                       get_thread_id(),
-                       ptr[0],
-                       ptr[1],
-                       ptr[2]);
-                // store in lds
-                store_tile(x_block_lds_write_window, dram_tile);
-                // Wait all lds write insts complete
-                // Wait all waves synced
-                block_sync_lds();
-                // read from lds to registers
-                // auto lds_tile = load_tile(x_block_lds_read_window);
-                // store from registers to DRAM
-                // store_tile(y_block_window, lds_tile);
-                // }
+                if constexpr(AsyncCopy)
+                {
+                    async_load_tile(x_block_lds_write_window, x_block_window);
+                    // We don't have prefetch here, wait the data back immediately.
+                    // Wait all asyncload insts complete.
+                    // Wait all waves synced
+                    s_waitcnt_barrier<async_copy_fence_cnt>();
+                    auto lds_tile = load_tile(x_block_lds_read_window);
+                    // store from registers to DRAM
+                    store_tile(y_block_window, lds_tile);
+                }
+                else
+                {
+                    // load from DRAM to registers
+                    auto dram_tile = load_tile(x_block_window);
+                    // auto ptr       = dram_tile.get_thread_buffer().data[0].data_;
+                    // printf("block_id: %d, thread_id: %d, value: %d %d %d\n",
+                    //        get_block_id(),
+                    //        get_thread_id(),
+                    //        ptr[0],
+                    //        ptr[1],
+                    //        ptr[2]);
+                    // store in lds
+                    store_tile(x_block_lds_write_window, dram_tile);
+                    // Wait all lds write insts complete
+                    // Wait all waves synced
+                    block_sync_lds();
+                    // read from lds to registers
+                    auto lds_tile = load_tile(x_block_lds_read_window);
+                    // store from registers to DRAM
+                    store_tile(y_block_window, lds_tile);
+                }
             }
 
             move_tile_window(x_block_window, {0, S::Block_N});

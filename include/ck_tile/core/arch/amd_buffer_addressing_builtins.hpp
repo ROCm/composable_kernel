@@ -1135,12 +1135,24 @@ llvm_amdgcn_raw_buffer_store_i32x2(int32x2_t vdata,
                                    index_t soffset,
                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i32");
 
+using int32x3 = int32_t __attribute__((ext_vector_type(3)));
+
 CK_TILE_DEVICE_EXTERN void
-llvm_amdgcn_raw_buffer_store_i32x3(int32x3_t vdata,
-                                   int32x4_t rsrc,
-                                   index_t voffset,
-                                   index_t soffset,
-                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v3i32");
+llvm_amdgcn_raw_buffer_store_i32x3_(int32x3 vdata,
+                                    int32x4_t rsrc,
+                                    index_t voffset,
+                                    index_t soffset,
+                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v3i32");
+
+CK_TILE_DEVICE_EXTERN void llvm_amdgcn_raw_buffer_store_i32x3(
+    int32x3_t vdata, int32x4_t rsrc, index_t voffset, index_t soffset, index_t glc_slc)
+{
+    int32x3 v_reg;
+    v_reg[0] = vdata.data[0];
+    v_reg[1] = vdata.data[1];
+    v_reg[2] = vdata.data[2];
+    llvm_amdgcn_raw_buffer_store_i32x3_(v_reg, rsrc, voffset, soffset, 0);
+};
 
 CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_store_i32x4(int32x4_t vdata,
@@ -1873,7 +1885,9 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
             (std::is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, uint16_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, uint8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
+            (std::is_same<T, uint8_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            std::is_same<T, f6x16_pk_t>::value && (N == 1),
         "wrong! not implemented");
 
     if constexpr(std::is_same<T, float>::value) // fp32
