@@ -72,6 +72,39 @@ constexpr TransferABC Transfer_4x64x1{
         },
 };
 
+constexpr TransferABC BwdTransfer_4x64x1{
+    .a =
+        {
+            .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .lds_transfer                = {.src_vector_dim            = 2,
+                                            .src_scalar_per_vector     = 2,
+                                            .lds_dst_scalar_per_vector = 4,
+                                            .is_direct_load            = false,
+                                            .lds_padding               = true},
+            .block_transfer_access_order = {3, 1, 2},
+            .src_access_order            = {2, 1, 3},
+        },
+    .b =
+        {
+            .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .lds_transfer                = {.src_vector_dim            = 2,
+                                            .src_scalar_per_vector     = 2,
+                                            .lds_dst_scalar_per_vector = 4,
+                                            .is_direct_load            = false,
+                                            .lds_padding               = true},
+            .block_transfer_access_order = {3, 1, 2},
+            .src_access_order            = {2, 1, 3},
+        },
+    .c =
+        {
+            .thread_cluster_dims =
+                {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+            .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
+                         .n_per_wave_per_shuffle     = 1,
+                         .scalar_per_vector          = 8},
+        },
+};
+
 constexpr TransferABC Transfer_4x64x1_fp8{
     .a =
         {

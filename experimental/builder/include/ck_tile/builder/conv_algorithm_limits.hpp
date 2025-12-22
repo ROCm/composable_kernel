@@ -35,4 +35,12 @@ concept AccessOrderLimits = requires {
              (Value[2] >= 0 && Value[2] < 3));
 };
 
+// Limits for access order. Must be a permutation of {1, 2, 3} for the last three elements.
+template <auto Value>
+concept BwdAccessOrderLimits = requires {
+    requires((Value[1] != Value[2]) && (Value[1] != Value[3]) && (Value[2] != Value[3]) &&
+             (Value[1] >= 1 && Value[1] < 4) && (Value[2] >= 1 && Value[2] < 4) &&
+             (Value[3] >= 1 && Value[3] < 4)) && (Value[0] == 0);
+};
+
 } // namespace ck_tile::builder

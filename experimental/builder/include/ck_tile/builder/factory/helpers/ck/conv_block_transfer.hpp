@@ -22,6 +22,18 @@ struct BlockTransfer
     bool lds_padding                          = false;
 };
 
+struct BwdBlockTransfer
+{
+    ck::Array<size_t, 4> thread_cluster_dims  = {0, 0, 0, 0};
+    ck::Array<size_t, 4> thread_cluster_order = {0, 0, 0, 0};
+    ck::Array<size_t, 4> src_access_order     = {0, 0, 0, 0};
+    size_t src_vector_dim                     = 0;
+    size_t src_scalar_per_vector              = 0;
+    size_t lds_dst_scalar_per_vector          = 0;
+    bool is_direct_load                       = false;
+    bool lds_padding                          = false;
+};
+
 template <auto TRANSFER>
 constexpr BlockTransfer SetFwdConvBlockTransfer()
 {
@@ -34,6 +46,26 @@ constexpr BlockTransfer SetFwdConvBlockTransfer()
         .thread_cluster_dims   = {block_xfer.k0, block_xfer.m_n, block_xfer.k1},
         .thread_cluster_order  = {block_order.order[0], block_order.order[1], block_order.order[2]},
         .src_access_order      = {src_order.order[0], src_order.order[1], src_order.order[2]},
+        .src_vector_dim        = lds_cfg.src_vector_dim,
+        .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
+        .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
+        .is_direct_load            = lds_cfg.is_direct_load,
+        .lds_padding               = lds_cfg.lds_padding,
+    };
+}
+
+template <auto TRANSFER>
+constexpr BwdBlockTransfer SetBwdConvBlockTransfer()
+{
+    auto& block_xfer  = TRANSFER.block_transfer;
+    auto& block_order = TRANSFER.block_transfer_access_order;
+    auto& src_order   = TRANSFER.src_access_order;
+    auto& lds_cfg     = TRANSFER.lds_transfer;
+
+    return BwdBlockTransfer{
+        .thread_cluster_dims   = {1, block_xfer.k0, block_xfer.m_n, block_xfer.k1},
+        .thread_cluster_order  = {0, block_order.order[0], block_order.order[1], block_order.order[2]},
+        .src_access_order      = {0, src_order.order[0], src_order.order[1], src_order.order[2]},
         .src_vector_dim        = lds_cfg.src_vector_dim,
         .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
         .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,

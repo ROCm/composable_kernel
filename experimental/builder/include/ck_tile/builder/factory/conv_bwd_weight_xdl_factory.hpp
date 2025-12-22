@@ -37,9 +37,9 @@ struct ConvBwdWeightXdlFactory
     static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
     static constexpr auto XDL_PARAMS = GRIDWISE_GEMM.xdl_params;
     static constexpr auto A_BLOCK_TRANSFER =
-        internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
+        internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
-        internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.b>();
+        internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.b>();
     static constexpr auto C_BLOCK_TRANSFER = internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
 
     // Check limits for the algorithm parameters.
@@ -47,10 +47,10 @@ struct ConvBwdWeightXdlFactory
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
     static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
     static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
+    static_assert(BwdAccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(BwdAccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(BwdAccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
+    static_assert(BwdAccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
