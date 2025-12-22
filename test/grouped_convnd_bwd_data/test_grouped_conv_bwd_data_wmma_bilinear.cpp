@@ -286,6 +286,9 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
 
 TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
 {
+    // TODO: To fix the impl to pass with stride greater than 1.
+    // this->conv_params.push_back(
+    //  {3, 2, 16, 128, 128, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
         {3, 2, 16, 128, 128, {1, 1, 1}, {7, 7, 7}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
