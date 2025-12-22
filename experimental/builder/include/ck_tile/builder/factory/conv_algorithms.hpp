@@ -3,20 +3,11 @@
 
 #pragma once
 
-#include "ck_tile/builder/conv_algorithm_concepts.hpp"
+#include "ck_tile/builder/conv_algorithm_diagnostics.hpp"
 
 namespace ck_tile::builder::factory {
 
-#define CHECK_MARK(cond) (cond ? "[✓]" : "[✗]")
-
-// Macro to check a concept and generate both the boolean and the string representation
-#define CHECK_CONCEPT(Type, Concept) \
-    static constexpr bool c_##Concept = Concept<Type>; \
-    static constexpr const char* s_##Concept = #Concept;
-
-// Helper to create diagnostic message line
-#define DIAGNOSTIC_LINE(Concept) \
-    "  " + std::string(s_##Concept) + ": " + std::string(CHECK_MARK(c_##Concept)) + "\n"
+using namespace ck_tile::builder::diagnostics;
 
 template <typename T>
 struct FwdXdlV3Algorithm {
@@ -46,7 +37,7 @@ struct FwdXdlV3Algorithm {
         return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && c10;
     }
 
-    static consteval const std::string message() {
+    static consteval auto message() -> std::string {
         return std::string("\n=== Forward XDL V3 Algorithm Diagnostic (closest match) ===\n" 
                "Concepts for FwdXdlV3 Algorithm:\n") +
                DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
@@ -94,7 +85,7 @@ struct FwdXdlAlgorithm {
         return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && c10 && c11 && c12;
     }
 
-    static consteval const std::string message() {
+    static consteval auto message() -> std::string {
         return  std::string("\n=== Forward XDL Algorithm Diagnostic (closest match) ===\n"
                "Concepts for FwdXdl Algorithm:\n") +
                DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
@@ -142,7 +133,7 @@ struct FwdWmmaAlgorithm {
         return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && c10 && c11;
     }
 
-    static consteval const std::string message() {
+    static consteval auto message() -> std::string {
         return std::string("\n=== Forward WMMA Algorithm Diagnostic (closest match) ===\n"
                "Concepts for FwdWmma Algorithm:\n") +
                DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
@@ -183,7 +174,7 @@ struct FwdDlAlgorithm {
         return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8;
     }
 
-    static consteval const std::string message() {
+    static consteval auto message() -> std::string {
         return std::string("\n=== Forward DL Algorithm Diagnostic (closest match) ===\n"
                "Concepts for FwdDl Algorithm:\n") +
                DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
@@ -217,7 +208,7 @@ struct TileAlgorithm {
         return c1 && c2 && c3 && c4 && c5 && c6;
     }
 
-    static consteval const std::string message() {
+    static consteval auto message() -> std::string {
         return std::string("\n=== CK Tile Algorithm Diagnostic (closest match) ===\n" 
                "Concepts for CK Tile Conv Algorithm:\n") +
                DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
@@ -241,7 +232,7 @@ struct LargeTensorAlgorithm : public FwdXdlAlgorithm<decltype(T::base_algorithm)
         return FwdXdlAlgorithm<BaseAlgorithmType>::is_valid() && c13;
     }
 
-    static consteval const std::string message() {
+    static consteval auto message() -> std::string {
         return FwdXdlAlgorithm<BaseAlgorithmType>::message() +
                DIAGNOSTIC_LINE(SpecifiesLargeTensorSupport);
     }
@@ -273,7 +264,7 @@ struct BwdXdlAlgorithm {
         return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9;
     }
 
-    static consteval const std::string message() {
+    static consteval auto message() -> std::string {
         return std::string("\n=== Backward XDL Algorithm Diagnostic (closest match) ===\n"
                "Concepts for BwdXdl Algorithm:\n") +
                DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
