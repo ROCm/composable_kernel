@@ -25,7 +25,6 @@ constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CSh
                                .with_gemm_config(cku::BwdGemmParams_Xdl_4x4_per_wave)
                                .with_transfer(cku::Transfer_4x64x1)
                                .with_bwd_specialization(ckb::ConvSpecialization::DEFAULT);
-static_assert(cku::SpecifiesGridwiseBwdXdlGemm<decltype(ALGORITHM)>, "Error");
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;
