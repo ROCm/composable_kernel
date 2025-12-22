@@ -396,6 +396,12 @@ if(ENABLE_ASM_DUMP)
     message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
 endif()
 
+option(ENABLE_KERNEL_RESOURCE_USAGE "Print kernel resource usage (VGPR, SGPR, scratch) during compilation." OFF)
+if(ENABLE_KERNEL_RESOURCE_USAGE)
+    add_compile_options(-Rpass-analysis=kernel-resource-usage)
+    message("CK compiled with ENABLE_KERNEL_RESOURCE_USAGE set to ${ENABLE_KERNEL_RESOURCE_USAGE}")
+endif()
+
 if (ENABLE_JSON_DUMP)
     add_compile_definitions(CK_ENABLE_JSON_DUMP)
     message("CK compiled with ENABLE_JSON_DUMP set to ${ENABLE_JSON_DUMP}")

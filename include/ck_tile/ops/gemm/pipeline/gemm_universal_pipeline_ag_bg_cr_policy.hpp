@@ -57,7 +57,11 @@ struct UniversalGemmBasePolicy
             return std::is_same_v<remove_cvref_t<typename Problem::ALayout>,
                                   tensor_layout::gemm::ColumnMajor>;
     }();
-
+    
+    // TEMP: Disable transpose load for B matrix to test RRR performance regression
+    template <typename Problem>
+    static constexpr bool is_b_load_tr = false;
+    #if 0  // Original code - disabled for testing
     template <typename Problem>
     static constexpr bool is_b_load_tr = []() {
         using BDataType              = remove_cvref_t<typename Problem::BDataType>;
@@ -73,6 +77,7 @@ struct UniversalGemmBasePolicy
             return std::is_same_v<remove_cvref_t<typename Problem::BLayout>,
                                   tensor_layout::gemm::RowMajor>;
     }();
+    #endif
 #else
     template <typename Problem>
     static constexpr bool is_a_load_tr = false;

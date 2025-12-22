@@ -78,6 +78,21 @@ class GemmKernelBuilder:
                     persistent,
                 ) = trait_combo
 
+                # Validate that this tile_config is valid for this specific pipeline
+                if not self._validate_tile_config(
+                    tile_config['tile_m'],
+                    tile_config['tile_n'],
+                    tile_config['tile_k'],
+                    tile_config['warp_m'],
+                    tile_config['warp_n'],
+                    tile_config['warp_k'],
+                    tile_config['warp_tile_m'],
+                    tile_config['warp_tile_n'],
+                    tile_config['warp_tile_k'],
+                    pipeline,
+                ):
+                    continue
+
                 # Create kernel name with proper boolean capitalization
                 kernel_name = f"{self.kernel_name_prefix}_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
@@ -160,14 +175,18 @@ class GemmKernelBuilder:
         warp_tile_n_values = tile_config.get("warp_tile_n").get("values")
         warp_tile_k_values = tile_config.get("warp_tile_k").get("values")
 
-        # Generate all combinations
-        default_pipeline = ""
-        if self.kernel_name_prefix == "gemm_universal":
-            default_pipeline = "compv4"
-        elif self.kernel_name_prefix == "gemm_multi_d":
-            default_pipeline = "compv4"
-        elif self.kernel_name_prefix == "gemm_preshuffle":
-            default_pipeline = "preshufflev2"
+        # Get pipelines from trait config to validate against
+        trait_config = self.config.get("trait_config", {})
+        pipelines = trait_config.get("pipeline", {}).get("values", [])
+        
+        # Fallback to default pipeline if no pipelines in config
+        if not pipelines:
+            if self.kernel_name_prefix == "gemm_universal":
+                pipelines = ["compv4"]
+            elif self.kernel_name_prefix == "gemm_multi_d":
+                pipelines = ["compv4"]
+            elif self.kernel_name_prefix == "gemm_preshuffle":
+                pipelines = ["preshufflev2"]
 
         configs = []
         for tile_m in tile_m_values:
@@ -179,19 +198,25 @@ class GemmKernelBuilder:
                                 for warp_tile_m in warp_tile_m_values:
                                     for warp_tile_n in warp_tile_n_values:
                                         for warp_tile_k in warp_tile_k_values:
-                                            # Validate configuration
-                                            if self._validate_tile_config(
-                                                tile_m,
-                                                tile_n,
-                                                tile_k,
-                                                warp_m,
-                                                warp_n,
-                                                warp_k,
-                                                warp_tile_m,
-                                                warp_tile_n,
-                                                warp_tile_k,
-                                                default_pipeline,
-                                            ):
+                                            # Validate configuration against any pipeline
+                                            # A tile config is valid if it works for at least one pipeline
+                                            is_valid = False
+                                            for pipeline in pipelines:
+                                                if self._validate_tile_config(
+                                                    tile_m,
+                                                    tile_n,
+                                                    tile_k,
+                                                    warp_m,
+                                                    warp_n,
+                                                    warp_k,
+                                                    warp_tile_m,
+                                                    warp_tile_n,
+                                                    warp_tile_k,
+                                                    pipeline,
+                                                ):
+                                                    is_valid = True
+                                                    break
+                                            if is_valid:
                                                 configs.append(
                                                     {
                                                         "tile_m": tile_m,

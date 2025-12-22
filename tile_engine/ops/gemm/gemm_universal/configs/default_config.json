@@ -63,19 +63,16 @@
             "values": [
                 "compv3",
                 "compv4",
-                "mem"
             ]
         },
         "scheduler": {
             "values": [
-                "intrawave",
-                "interwave"
+                "intrawave"
             ]
         },
         "epilogue": {
             "values": [
-                "cshuffle",
-                "default"
+                "cshuffle"
             ]
         },
         "pad_m": {
@@ -95,7 +92,6 @@
         },
         "persistent": {
             "values": [
-                false,
                 true
             ]
         }
