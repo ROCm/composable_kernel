@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -57,6 +57,7 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr bool kHasSink          = Problem::kHasSink;
 
     static constexpr uint32_t DS_READ = 0x100; // Barrier for DS (data share) read
     static constexpr uint32_t MFMA    = 0x008; // Barrier for MFMA (matrix multiply-accumulate)
@@ -233,10 +234,26 @@ struct BlockFmhaPipelineQRKSVS
         clear_tile(l);
 
         const auto q_origin = q_dram_window.get_window_origin();
-        const auto [seqlen_k_start, seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+        const auto tile_range_result = [&mask, &q_origin]() {
+            if constexpr(kHasSink)
+                return mask.GetSinkTileRangeAlongX(
+                    q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+            else
+            {
+                auto [start, end] =
+                    mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+                return ck_tile::make_tuple(0, start, end);
+            }
+        }();
+        const auto sink_seq_end   = tile_range_result.get(ck_tile::number<0>{});
+        const auto seqlen_k_start = tile_range_result.get(ck_tile::number<1>{});
+        const auto seqlen_k_end   = tile_range_result.get(ck_tile::number<2>{});
+
+        const auto kv_load_start = (sink_seq_end == 0 && seqlen_k_start > 0) ? seqlen_k_start : 0;
+        const auto num_sink_loop = integer_divide_ceil(sink_seq_end, kN0);
+        const auto num_total_loop =
+            integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0) + num_sink_loop;
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
@@ -262,22 +279,22 @@ struct BlockFmhaPipelineQRKSVS
         auto k_dram_block_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
                              k_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_k_start, 0});
+                             {kv_load_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              bias_dram_block_window_tmp.get_window_lengths(),
-                             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
+                             {bias_origin.at(number<0>{}), kv_load_start}, // M/N
                              Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
-            randval_dram_block_window_tmp, seqlen_k_start);
+            randval_dram_block_window_tmp, kv_load_start);
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
                              v_dram_block_window_tmp.get_window_lengths(),
-                             {0, seqlen_k_start}, // TODO: hdim split?
+                             {0, kv_load_start}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         auto q_tile = tile_elementwise_in(q_element_func, q);
@@ -450,6 +467,11 @@ struct BlockFmhaPipelineQRKSVS
 #endif
                 }
             }
+            if constexpr(kHasSink)
+            {
+                if(i_total_loops == 0)
+                    move_tile_window(bias_dram_window, {0, seqlen_k_start - sink_seq_end});
+            }
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
@@ -460,17 +482,34 @@ struct BlockFmhaPipelineQRKSVS
                                                            number<kN0>{});
                 if(need_perpixel_check)
                 {
-                    set_tile_if(
-                        s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return !variant.LogitsMask(variant_params,
-                                                       block_indices.batch_idx,
-                                                       row,
-                                                       col,
-                                                       block_indices.qo_head_idx,
-                                                       block_indices.kv_head_idx);
+                    auto apply_mask = [&](auto&& mask_func) {
+                        set_tile_if(
+                            s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                                const auto row =
+                                    q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                const auto col =
+                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                return !mask_func(variant_params,
+                                                  block_indices.batch_idx,
+                                                  row,
+                                                  col,
+                                                  block_indices.qo_head_idx,
+                                                  block_indices.kv_head_idx);
+                            });
+                    };
+
+                    if constexpr(kHasSink)
+                    {
+                        apply_mask([&](auto&&... args) {
+                            return variant.LogitsSinkMask(std::forward<decltype(args)>(args)...);
                         });
+                    }
+                    else
+                    {
+                        apply_mask([&](auto&&... args) {
+                            return variant.LogitsMask(std::forward<decltype(args)>(args)...);
+                        });
+                    }
                 }
             }
 
@@ -580,11 +619,23 @@ struct BlockFmhaPipelineQRKSVS
 
             if constexpr(kHasDropout)
             {
-                // K and dropout use the same address in LDS, finish loading from k_lds_window by
-                // gemm_0 to reuse LDS.
                 block_sync_lds();
+                auto randval_ptr = reinterpret_cast<char*>(smem_ptr);
+
+                index_t seq_offset = [&]() {
+                    if constexpr(!kHasSink)
+                        return seqlen_k_start + i_total_loops * kN0;
+
+                    const bool in_sink_phase = (num_sink_loop > i_total_loops);
+                    if(i_total_loops == num_sink_loop)
+                        move_tile_window(randval_dram_window, {0, seqlen_k_start - sink_seq_end});
+
+                    return in_sink_phase ? (kv_load_start + i_total_loops * kN0)
+                                         : (seqlen_k_start + (i_total_loops - num_sink_loop) * kN0);
+                }();
+
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
+                    randval_ptr, seq_offset, p_compute, randval_dram_window);
             }
 
             block_sync_lds();
@@ -636,6 +687,14 @@ struct BlockFmhaPipelineQRKSVS
                 });
             }
             // move K tile windows
+            if constexpr(kHasSink)
+            {
+                if(i_total_loops == 0)
+                {
+                    move_tile_window(k_dram_block_window, {seqlen_k_start - sink_seq_end, 0});
+                    move_tile_window(v_dram_window, {0, seqlen_k_start - sink_seq_end});
+                }
+            }
             move_tile_window(k_dram_block_window, {kN0, 0});
             // tail
             {

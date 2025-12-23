@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1552,6 +1552,81 @@ CK_TILE_HOST_DEVICE static void print(const indexing<UpLength, IndexingAdaptor>&
     printf("}");
 }
 
+template <typename Functor, typename LowLength>
+struct functor_transform : public base_transform<1, 1>
+{
+    using LowerIndex = multi_index<1>;
+    using UpperIndex = multi_index<1>;
+
+    using UpLengths = decltype(make_tuple(LowLength{}));
+
+    Functor functor_;
+    UpLengths up_lengths_;
+
+    CK_TILE_HOST_DEVICE constexpr functor_transform() = default;
+
+    CK_TILE_HOST_DEVICE constexpr functor_transform(const Functor& functor,
+                                                    const LowLength& low_length)
+        : functor_{functor}, up_lengths_{make_tuple(low_length)}
+    {
+    }
+
+    CK_TILE_HOST_DEVICE constexpr const auto& get_upper_lengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    CK_TILE_HOST_DEVICE constexpr void calculate_lower_index(LowIdx& idx_low,
+                                                             const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::size() == 1 && UpIdx::size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        idx_low(number<0>{}) = functor_(idx_up[number<0>{}]);
+    }
+
+    template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
+    CK_TILE_HOST_DEVICE void update_lower_index(LowIdxDiff& idx_diff_low,
+                                                const UpIdxDiff&,
+                                                LowIdx& idx_low,
+                                                const UpIdx& up_idx) const
+    {
+        static_assert(LowIdxDiff::size() == 1 && UpIdxDiff::size() == 1 && LowIdx::size() == 1 &&
+                          UpIdx::size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        const auto idx_low_old = idx_low;
+        calculate_lower_index(idx_low, up_idx);
+        idx_diff_low = idx_low - idx_low_old;
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr bool
+    is_valid_upper_index_always_mapped_to_valid_lower_index()
+    {
+        return true;
+    }
+
+    template <typename UpIdx>
+    CK_TILE_HOST_DEVICE static constexpr bool
+    is_valid_upper_index_mapped_to_valid_lower_index(const UpIdx& /* idx_up */)
+    {
+        return true;
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr bool is_known_at_compile_time()
+    {
+        return ck_tile::is_known_at_compile_time<UpLengths>::value;
+    }
+
+    // Note: When using functor_transform, ensure that the transformed coordinates
+    // are always valid for vectorized load/store operations.
+    template <typename LowVectorLengths, typename LowVectorStrides>
+    CK_TILE_HOST_DEVICE static constexpr auto
+    calculate_upper_dimension_safe_vector_length_strides(const LowVectorLengths& low_vector_lengths,
+                                                         const LowVectorStrides& low_vector_strides)
+    {
+        return make_tuple(low_vector_lengths, low_vector_strides);
+    }
+};
+
 //*******************************************************************************************************
 
 template <typename LowLength>
@@ -1669,6 +1744,13 @@ CK_TILE_HOST_DEVICE constexpr auto make_offset_transform(const LowLength& low_le
                                                          const OffsetLength& offset_length)
 {
     return offset<LowLength, OffsetLength>{low_length, offset_length};
+}
+
+template <typename Functor, typename LowLength>
+CK_TILE_HOST_DEVICE constexpr auto make_functor_transform(const Functor& functor,
+                                                          const LowLength& low_length)
+{
+    return functor_transform<Functor, LowLength>{functor, low_length};
 }
 
 } // namespace ck_tile

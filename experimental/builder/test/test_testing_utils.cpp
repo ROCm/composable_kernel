@@ -1,10 +1,12 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #include <ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp>
 
 #include "testing_utils.hpp"
 
+using ck_tile::test::HipError;
+using ck_tile::test::HipSuccess;
 using ck_tile::test::InstanceMatcher;
 using ck_tile::test::InstanceSet;
 using ck_tile::test::StringEqWithDiff;
@@ -34,8 +36,8 @@ TEST(InstanceSet, FromFactory)
     const auto* el =
         "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp16,fp16,"
         "fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,PassThrough,Default,MNKPadding,1,128,"
-        "128,128,32,8,8,32,32,4,2,Seq(4,32,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,Seq(4,32,1),Seq(1,0,2),"
-        "Seq(1,0,2),2,8,8,1,1,1,Seq(1,16,1,8),8,fp16,fp16,Default,1>";
+        "128,128,32,8,8,32,32,4,2,Seq(4,32,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,Seq(4,32,1),"
+        "Seq(1,0,2),Seq(1,0,2),2,8,8,true,1,1,Seq(1,16,1,8),8,fp16,fp16,Default,1>";
     EXPECT_THAT(instances.instances, testing::Contains(el));
 }
 
@@ -95,4 +97,13 @@ TEST(InstanceMatcher, ExplainMatchResult)
                                  "- rattlesnake\n"
                                  "Unexpected: 1\n"
                                  "- python\n"));
+}
+
+TEST(HipStatusMatcher, Basic)
+{
+    EXPECT_THAT(hipSuccess, HipSuccess());
+    EXPECT_THAT(hipErrorInvalidValue, HipError(hipErrorInvalidValue));
+    EXPECT_THAT(hipErrorInvalidValue, Not(HipSuccess()));
+    EXPECT_THAT(hipSuccess, Not(HipError(hipErrorInvalidValue)));
+    EXPECT_THAT(hipErrorOutOfMemory, Not(HipError(hipErrorInvalidValue)));
 }

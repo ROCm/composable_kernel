@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -57,7 +57,7 @@ inline bool is_gfx11_supported()
     return get_device_name() == "gfx1100" || get_device_name() == "gfx1101" ||
            get_device_name() == "gfx1102" || get_device_name() == "gfx1103" ||
            get_device_name() == "gfx1150" || get_device_name() == "gfx1151" ||
-           get_device_name() == "gfx1152";
+           get_device_name() == "gfx1152" || get_device_name() == "gfx1153";
 }
 
 inline bool is_gfx12_supported()
@@ -70,6 +70,24 @@ inline bool is_load_tr_supported()
     // Check if load transpose is supported.
     return get_device_name() == "gfx950";
 }
+
+inline size_t get_num_cus()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return 0;
+    }
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return 0;
+    }
+    return static_cast<size_t>(props.multiProcessorCount);
+}
+
 } // namespace ck_tile
 
 #endif

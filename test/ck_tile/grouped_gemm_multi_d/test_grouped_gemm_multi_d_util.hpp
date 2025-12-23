@@ -104,8 +104,6 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, ELayout>;
-
         // for testing purposes, we can hardcode the values here as we what is compatible with
         // pipeline
         using GemmUniversalTraits =
@@ -121,44 +119,24 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                                              /*Persistent*/ false,
                                              /*NumWaveGroups*/ 1,
                                              /*Preshuffle*/ false>;
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                           BDataType,
+                                                                           AccDataType,
+                                                                           GemmShape,
+                                                                           GemmUniversalTraits,
+                                                                           Config::Scheduler_>;
 
-        const ck_tile::index_t k_grain = gemm_descs[0].k_batch * Config::K_Tile_;
-        const ck_tile::index_t K_split =
-            (gemm_descs[0].K + k_grain - 1) / k_grain * Config::K_Tile_;
-        const ck_tile::index_t num_loop =
-            ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                       TileParitionerGroupNum,
-                                                       TileParitionerM01>::GetLoopNum(K_split);
-        const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+        using GemmPipeline = std::conditional_t<
+            Config::Pipeline_ == (PipelineType::Memory),
+            ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>,
+            std::conditional_t<Config::Pipeline_ == (PipelineType::CompV3),
+                               ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>,
+                               ck_tile::GemmPipelineAgBgCrCompV4<UniversalGemmProblem>>>;
 
-        float ave_time{0};
-
-        const auto Run = [&](const auto has_hot_loop_,
-                             const auto tail_number_,
-                             const auto memory_operation_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
+        const auto Run = [&](const auto memory_operation_) {
             constexpr auto memory_operation = memory_operation_.value;
-            using UniversalGemmProblem      = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                                    BDataType,
-                                                                                    AccDataType,
-                                                                                    GemmShape,
-                                                                                    GemmUniversalTraits,
-                                                                                    Config::Scheduler_,
-                                                                                    has_hot_loop_v,
-                                                                                    tail_number_v>;
 
-            using GemmPipeline = std::conditional_t<
-                Config::Pipeline_ == (PipelineType::Memory),
-                ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>,
-                std::conditional_t<Config::Pipeline_ == (PipelineType::CompV3),
-                                   ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>,
-                                   ck_tile::GemmPipelineAgBgCrCompV4<UniversalGemmProblem>>>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
@@ -197,7 +175,7 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                                                          hipMemcpyHostToDevice,
                                                          s.stream_id_));
 
-            ave_time = ck_tile::launch_kernel(
+            return ck_tile::launch_kernel(
                 s,
                 ck_tile::make_kernel<Config::BlockPerCu_>(
                     Kernel{},
@@ -206,25 +184,18 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                     0,
                     ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                     gemm_descs.size()));
-            return ave_time;
         };
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(gemm_descs[0].k_batch == 1)
-            {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::set>{});
-            }
-            else
-            {
-                // EXPECT TO FAIL because splitk is not supported
-                EXPECT_FALSE(true);
-            }
-        };
-
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        if(gemm_descs[0].k_batch == 1)
+        {
+            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::set>{});
+        }
+        else
+        {
+            // EXPECT TO FAIL because splitk is not supported
+            EXPECT_FALSE(true);
+        }
     }
 
     void invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,

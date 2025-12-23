@@ -23,6 +23,7 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_weight.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_weight_gpu.hpp"
 
 namespace ck {
 namespace profiler {
@@ -93,29 +94,69 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     float max_accumulated_value = 0;
     if(do_verification)
     {
-        auto ref_conv     = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
-                                                                               InDataType,
-                                                                               WeiDataType,
-                                                                               OutDataType,
-                                                                               InElementOp,
-                                                                               WeiElementOp,
-                                                                               OutElementOp>{};
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(input,
-                                                  weight_host_result,
-                                                  output,
-                                                  conv_param.conv_filter_strides_,
-                                                  conv_param.conv_filter_dilations_,
-                                                  conv_param.input_left_pads_,
-                                                  conv_param.input_right_pads_,
-                                                  in_element_op,
-                                                  wei_element_op,
-                                                  out_element_op,
-                                                  {},
-                                                  {},
-                                                  {});
+        if(do_verification == 1)
+        {
+            // CPU reference
+            auto ref_conv     = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   OutDataType,
+                                                                                   InElementOp,
+                                                                                   WeiElementOp,
+                                                                                   OutElementOp>{};
+            auto ref_invoker  = ref_conv.MakeInvoker();
+            auto ref_argument = ref_conv.MakeArgument(input,
+                                                      weight_host_result,
+                                                      output,
+                                                      conv_param.conv_filter_strides_,
+                                                      conv_param.conv_filter_dilations_,
+                                                      conv_param.input_left_pads_,
+                                                      conv_param.input_right_pads_,
+                                                      in_element_op,
+                                                      wei_element_op,
+                                                      out_element_op,
+                                                      {},
+                                                      {},
+                                                      {});
 
-        ref_invoker.Run(ref_argument);
+            ref_invoker.Run(ref_argument);
+        }
+        else if(do_verification == 2)
+        {
+            // GPU reference
+            std::cout << "Running GPU reference implementation..." << std::endl;
+
+            // Allocate device memory for reference
+            DeviceMem in_ref_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
+            DeviceMem wei_ref_buf(sizeof(WeiDataType) *
+                                  weight_host_result.mDesc.GetElementSpaceSize());
+            DeviceMem out_ref_buf(sizeof(OutDataType) * output.mDesc.GetElementSpaceSize());
+
+            in_ref_buf.ToDevice(input.mData.data());
+            out_ref_buf.ToDevice(output.mData.data());
+
+            // Call GPU reference with ConvParam directly
+            ck::ref::naive_conv_bwd_weight<InLayout,
+                                           WeiLayout,
+                                           OutLayout,
+                                           InDataType,
+                                           WeiDataType,
+                                           OutDataType,
+                                           InElementOp,
+                                           WeiElementOp,
+                                           OutElementOp>(
+                static_cast<const InDataType*>(in_ref_buf.GetDeviceBuffer()),
+                static_cast<WeiDataType*>(wei_ref_buf.GetDeviceBuffer()),
+                static_cast<const OutDataType*>(out_ref_buf.GetDeviceBuffer()),
+                conv_param,
+                in_element_op,
+                wei_element_op,
+                out_element_op);
+
+            // Copy result back to host
+            wei_ref_buf.FromDevice(weight_host_result.mData.data());
+        }
+
         max_accumulated_value =
             *std::max_element(weight_host_result.mData.begin(), weight_host_result.mData.end());
     }
@@ -214,12 +255,30 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
             auto split_k_value     = split_k_list[split_k_id];
             auto split_k_param_str = std::to_string(split_k_value);
-            auto* split_k_arg =
-                dynamic_cast<ck::tensor_operation::device::ArgumentSplitK*>(argument_ptr.get());
-            if(split_k_arg && split_k_value < 0)
+
+            // If split_k was determined by the device implementation, get the resulting value.
+            if(split_k_value < 0)
             {
-                split_k_value     = split_k_arg->k_batch_;
-                split_k_param_str = std::to_string(split_k_value) + " (best occupancy)";
+                auto* split_k_arg =
+                    dynamic_cast<ck::tensor_operation::device::ArgumentSplitK*>(argument_ptr.get());
+                if(split_k_arg)
+                {
+                    split_k_value     = split_k_arg->k_batch_;
+                    split_k_param_str = std::to_string(split_k_value) + " (best occupancy)";
+                }
+                else
+                {
+                    // We may have an implementation whose argument is not derived from
+                    // ArgumentSplitK, which means we can not determine the splitK value. Warn.
+                    printf("Warning: Unable to determine split_k value for this instance!\n");
+                }
+            }
+
+            // Not all device implementation actually do anything with the passed split_k value but
+            // it needs to be positive to determine error tolerances.
+            if(split_k_value < 0)
+            {
+                split_k_value = 1;
             }
 
             const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
@@ -297,12 +356,13 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                      "Error: Incorrect results!",
                                                      rtol,
                                                      atol);
-                    std::cout << "Relative error threshold: " << rtol
-                              << " Absolute error threshold: " << atol << std::endl;
 
                     if(!pass)
                     {
-                        std::cout << "Fail info: " << op_ptr->GetTypeString() << std::endl;
+                        std::cout << "Relative error threshold: " << rtol
+                                  << " Absolute error threshold: " << atol << std::endl;
+                        std::cout << "Fail info: splitK: " << split_k_value << " "
+                                  << op_ptr->GetTypeString() << std::endl;
                     }
 
                     all_pass &= pass;
@@ -329,6 +389,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             }
         }
     }
+
+    printf("\033[36mvalids: %d\033[0m\n", num_kernel);
 
     std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops

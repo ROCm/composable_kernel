@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -148,7 +148,6 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr index_t m_preload = (MIterPerWarp * KIterPerWarp >= DsReadPreload)
                                              ? DsReadPreload
                                              : MIterPerWarp * KIterPerWarp;
-    static constexpr auto TailNum      = Problem::TailNum;
 
 #ifdef __gfx942__
     static constexpr index_t mfma_per_wg = 2;
@@ -1042,13 +1041,20 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
     {
-        return operator()<TailNum>(
-            a_dram_block_window_tmp[number<0>{}],
-            [](const ADataType& a) { return a; },
-            b_flat_dram_block_window_tmp[number<0>{}],
-            num_loop,
-            p_smem_ping,
-            p_smem_pong);
+        const auto tail_number = Base::GetBlockLoopTailNum(num_loop);
+
+        const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
+            (void)bool_val; // Suppress unused parameter warning
+            constexpr auto tail_num    = tail_num_.value;
+            constexpr auto PassThrough = [](const ADataType& a) { return a; };
+            return operator()<tail_num>(a_dram_block_window_tmp[number<0>{}],
+                                        PassThrough,
+                                        b_flat_dram_block_window_tmp[number<0>{}],
+                                        num_loop,
+                                        p_smem_ping,
+                                        p_smem_pong);
+        };
+        return Base::TailHandler(RunPipeline, true, tail_number);
     }
 
     // called from general gemm kernel
@@ -1063,13 +1069,20 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
     {
-        return operator()<TailNum>(
-            a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
-            b_flat_dram_block_window_tmp,
-            num_loop,
-            p_smem_ping,
-            p_smem_pong);
+        const auto tail_number = Base::GetBlockLoopTailNum(num_loop);
+
+        const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
+            (void)bool_val; // Suppress unused parameter warning
+            constexpr auto tail_num    = tail_num_.value;
+            constexpr auto PassThrough = [](const ADataType& a) { return a; };
+            return operator()<tail_num>(a_dram_block_window_tmp,
+                                        PassThrough,
+                                        b_flat_dram_block_window_tmp,
+                                        num_loop,
+                                        p_smem_ping,
+                                        p_smem_pong);
+        };
+        return Base::TailHandler(RunPipeline, true, tail_number);
     }
 
     // called from grouped gemm kernel

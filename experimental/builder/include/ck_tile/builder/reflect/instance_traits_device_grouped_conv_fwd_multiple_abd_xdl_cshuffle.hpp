@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 // InstanceTraits specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
@@ -316,7 +316,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "," << kABlockTransferSrcScalarPerVector; // 32. ABlockTransferSrcScalarPerVector
         oss << ","
             << kABlockTransferDstScalarPerVectorK1; // 33. ABlockTransferDstScalarPerVector_AK1
-        oss << "," << kABlockLdsExtraM;             // 34. ABlockLdsExtraM
+        oss << "," << (kABlockLdsExtraM ? "true" : "false"); // 34. ABlockLdsExtraM
         oss << ","
             << detail::array_to_string(
                    kBThreadClusterLengths); // 35. BBlockTransferThreadClusterLengths
@@ -329,10 +329,10 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "," << kBBlockTransferSrcVectorDim;       // 38. BBlockTransferSrcVectorDim
         oss << "," << kBBlockTransferSrcScalarPerVector; // 39. BBlockTransferSrcScalarPerVector
         oss << ","
-            << kBBlockTransferDstScalarPerVectorK1;   // 40. BBlockTransferDstScalarPerVector_BK1
-        oss << "," << kBBlockLdsExtraN;               // 41. BBlockLdsExtraN
-        oss << "," << kCShuffleMXdlPerWavePerShuffle; // 42. CShuffleMXdlPerWavePerShuffle
-        oss << "," << kCShuffleNXdlPerWavePerShuffle; // 43. CShuffleNXdlPerWavePerShuffle
+            << kBBlockTransferDstScalarPerVectorK1; // 40. BBlockTransferDstScalarPerVector_BK1
+        oss << "," << (kBBlockLdsExtraN ? "true" : "false"); // 41. BBlockLdsExtraN
+        oss << "," << kCShuffleMXdlPerWavePerShuffle;        // 42. CShuffleMXdlPerWavePerShuffle
+        oss << "," << kCShuffleNXdlPerWavePerShuffle;        // 43. CShuffleNXdlPerWavePerShuffle
         oss << ","
             << detail::array_to_string(
                    kCThreadClusterLengths); // 44. CDEBlockTransferClusterLengths

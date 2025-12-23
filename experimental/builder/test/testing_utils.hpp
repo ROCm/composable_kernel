@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #include <ck/library/tensor_operation_instance/device_operation_instance_factory.hpp>
@@ -10,6 +10,16 @@
 #include <set>
 #include <vector>
 #include <array>
+
+/// @brief ostream-overload for hipError
+///
+/// Google Test likes to print errors to ostream, and this provides integration
+/// with that. Since we only expect to use this with CK-Builder's own tests,
+/// providing this implementation seems not problematic, but if it starts to
+/// clash with another implementation then we will need to provide this
+/// implementation another way. Unfortunately Google Test does not have a
+/// dedicated function to override to provide printing support.
+std::ostream& operator<<(std::ostream& os, hipError_t status);
 
 namespace ck_tile::test {
 
@@ -108,5 +118,36 @@ struct InstanceMatcher : public ::testing::MatcherInterface<InstanceSet>
 };
 
 ::testing::Matcher<InstanceSet> InstancesMatch(const InstanceSet& expected);
+
+/// @brief Google Test hipError_t matcher.
+///
+/// This is a custom Google Test matcher implementation which can be used to
+/// compare HIP status codes. Use `HipSuccess()` or `HipError()` to obtain
+/// an instance.
+///
+/// @see HipSuccess
+/// @see HipError
+/// @see ::testing::MatcherInterface
+struct HipStatusMatcher : public ::testing::MatcherInterface<hipError_t>
+{
+    HipStatusMatcher(hipError_t expected) : expected_(expected) {}
+
+    bool MatchAndExplain(hipError_t actual,
+                         ::testing::MatchResultListener* listener) const override;
+    void DescribeTo(std::ostream* os) const override;
+    void DescribeNegationTo(std::ostream* os) const override;
+
+    hipError_t expected_;
+};
+
+/// @brief Construct a Google Test matcher that checks that a HIP operation
+/// was successful.
+::testing::Matcher<hipError_t> HipSuccess();
+
+/// @brief Construct a Google Test matcher that checks that a HIP operation
+/// returned a particular error code.
+///
+/// @param error The error to expect.
+::testing::Matcher<hipError_t> HipError(hipError_t error);
 
 } // namespace ck_tile::test

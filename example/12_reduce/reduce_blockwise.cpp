@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <initializer_list>
@@ -198,7 +198,7 @@ int main(int argc, char* argv[])
         }
         else if(arg.data_type == 3)
         {
-            pass = reduce_blockwise_test<int8_t, float, ReduceOpId, PropagateNan, OutputIndex>(
+            pass = reduce_blockwise_test<int8_t, int32_t, ReduceOpId, PropagateNan, OutputIndex>(
                 arg.do_verification,
                 arg.init_method,
                 arg.time_kernel,

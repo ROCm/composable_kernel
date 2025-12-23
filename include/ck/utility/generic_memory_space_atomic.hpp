@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include "data_type.hpp"
@@ -69,6 +69,29 @@ __device__ float2_t atomic_add<float2_t>(float2_t* p_dst, const float2_t& x)
         atomicAdd(c_style_pointer_cast<float*>(p_dst) + 1, vx.template AsType<float>()[I1]);
 
     return vy.template AsType<float2_t>()[I0];
+}
+
+template <>
+__device__ float4_t atomic_add<float4_t>(float4_t* p_dst, const float4_t& x)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
+
+    const vector_type<float, 4> vx{x};
+    vector_type<float, 4> vy{0};
+
+    vy.template AsType<float>()(I0) =
+        atomicAdd(c_style_pointer_cast<float*>(p_dst), vx.template AsType<float>()[I0]);
+    vy.template AsType<float>()(I1) =
+        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 1, vx.template AsType<float>()[I1]);
+    vy.template AsType<float>()(I2) =
+        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 2, vx.template AsType<float>()[I2]);
+    vy.template AsType<float>()(I3) =
+        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 3, vx.template AsType<float>()[I3]);
+
+    return vy.template AsType<float4_t>()[I0];
 }
 
 template <>

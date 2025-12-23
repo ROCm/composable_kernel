@@ -1,8 +1,10 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
+#include "ck_tile/ops/common/utils.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -61,14 +63,17 @@ void permute_tensor_b(Tensor& tensor)
                                                                  GemmConfig::TransposeC,
                                                                  GemmConfig::UseStructuredSparsity>;
 
-    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                       BDataType,
-                                                                       AccDataType,
-                                                                       GemmShape,
-                                                                       GemmUniversalTraits,
-                                                                       GemmConfig::Scheduler,
-                                                                       true,
-                                                                       ck_tile::TailNumber::Full>;
+    using UniversalGemmProblem =
+        ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                              BDataType,
+                                              AccDataType,
+                                              GemmShape,
+                                              GemmUniversalTraits,
+                                              GemmConfig::Scheduler,
+                                              ck_tile::element_wise::PassThrough,
+                                              ck_tile::element_wise::PassThrough,
+                                              ADataType,
+                                              true>;
 
     using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
         UniversalGemmProblem>;
@@ -192,8 +197,8 @@ bool do_verify(const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
     return pass;
 }
 
-std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t>
-parse_gemm_size(ck_tile::ArgParser& arg_parser)
+std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t> inline parse_gemm_size(
+    ck_tile::ArgParser& arg_parser)
 {
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -283,12 +288,12 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             if constexpr(GemmConfig::TiledMMAPermuteN)
             {
                 std::cout << "Run with PermuteN" << std::endl;
-                return shuffle_b_permuteN<GemmConfig>(b_k_n);
+                return ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
             }
             else
             {
                 std::cout << "Run without PermuteN" << std::endl;
-                return shuffle_b<GemmConfig>(b_k_n);
+                return ck_tile::shuffle_b<GemmConfig>(b_k_n);
             }
         }();
         // shuffled buffer B for device implementation
@@ -371,9 +376,10 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
     std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
               << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
               << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
-              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
-              << " B_Type=" << DataTypeTraits<BDataType>::name
-              << " C_Type=" << DataTypeTraits<CDataType>::name
+              << " C_Layout=" << CLayout::name
+              << " A_Type=" << ck_tile::DataTypeTraits<ADataType>::name
+              << " B_Type=" << ck_tile::DataTypeTraits<BDataType>::name
+              << " C_Type=" << ck_tile::DataTypeTraits<CDataType>::name
               << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
               << " Persistent=" << (persistent ? "on" : "off") << " : " << ave_time << " ms, "
               << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
@@ -441,18 +447,18 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                BDataType,
                                CDataType,
                                GemmConfig,
-                               DataTypeTraits>(arg_parser.get_str("jsonfile"),
-                                               M,
-                                               N,
-                                               K,
-                                               stride_A,
-                                               stride_B,
-                                               stride_C,
-                                               persistent,
-                                               pass,
-                                               ave_time,
-                                               tflops,
-                                               gb_per_sec);
+                               ck_tile::DataTypeTraits>(arg_parser.get_str("jsonfile"),
+                                                        M,
+                                                        N,
+                                                        K,
+                                                        stride_A,
+                                                        stride_B,
+                                                        stride_C,
+                                                        persistent,
+                                                        pass,
+                                                        ave_time,
+                                                        tflops,
+                                                        gb_per_sec);
     }
 
     return pass;

@@ -1,16 +1,16 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <ck_tile/builder/reflect/instance_traits_util.hpp>
-#include <ck/utility/data_type.hpp>
-#include <ck/utility/sequence.hpp>
-#include <ck/utility/blkgemmpipe_scheduler.hpp>
-#include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
-#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
+#include <gtest/gtest.h>
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/scheduler_enum.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck_tile/builder/reflect/instance_traits_util.hpp"
 
 namespace ck_tile::reflect::detail {
 namespace {
