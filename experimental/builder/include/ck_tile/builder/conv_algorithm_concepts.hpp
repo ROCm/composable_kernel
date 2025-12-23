@@ -52,23 +52,20 @@ concept GridwiseWmmaGemmDescriptor = requires(T t) {
 };
 
 
-template <typename T>
-concept HasGemmKBatch = requires(T t) {
-    { t.k_batch_size};
-};
-
-// Concept to check if GEMM k batch size is specified.
-template <typename T>
-concept GemmKBatchSizeWellDefinedIfProvided = 
-    !HasGemmKBatch<T> || requires(T t) { {t.k_batch_size} -> std::convertible_to<size_t>; };
-
 // Concept for vectorized data transfer for convolution input tensors.
 template <typename T>
 concept BlockTransferDescriptor = requires(T t) {
     { t.k0 } -> std::convertible_to<size_t>;
     { t.m_n } -> std::convertible_to<size_t>;
     { t.k1 } -> std::convertible_to<size_t>;
-    GemmKBatchSizeWellDefinedIfProvided<T>;
+};
+
+template <typename T>
+concept BlockTransferDescriptorBwd = requires(T t) {
+    { t.k0 } -> std::convertible_to<size_t>;
+    { t.m_n } -> std::convertible_to<size_t>;
+    { t.k1 } -> std::convertible_to<size_t>;
+    { t.k_batch_size } -> std::convertible_to<size_t>;;
 };
 
 // Concept for thread cluster dimensions for GEMM output tensor.
@@ -207,6 +204,14 @@ template <typename T>
 concept SpecifiesBlockTransfer = requires(T t) {
     { T::transfer.a.block_transfer } -> BlockTransferDescriptor;
     { T::transfer.b.block_transfer } -> BlockTransferDescriptor;
+    { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
+};
+
+// Concept to check if a struct specifies convolution input and output block transfer info (Bwd direction).
+template <typename T>
+concept SpecifiesBlockTransferBwd = requires(T t) {
+    { T::transfer.a.block_transfer } -> BlockTransferDescriptorBwd;
+    { T::transfer.b.block_transfer } -> BlockTransferDescriptorBwd;
     { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
 };
 

@@ -242,7 +242,7 @@ template <typename T>
 struct BwdXdlAlgorithm {
     CHECK_CONCEPT(T, ConvAlgorithmDescriptor)
     CHECK_CONCEPT(T, SpecifiesThreadBlock)
-    CHECK_CONCEPT(T, SpecifiesBlockTransfer)
+    CHECK_CONCEPT(T, SpecifiesBlockTransferBwd)
     CHECK_CONCEPT(T, SpecifiesLdsTransfer)
     CHECK_CONCEPT(T, SpecifiesThreadClusterAccessOrder)
     CHECK_CONCEPT(T, SpecifiesSourceAccessOrder)
@@ -252,7 +252,7 @@ struct BwdXdlAlgorithm {
 
     static constexpr bool c1 = c_ConvAlgorithmDescriptor;
     static constexpr bool c2 = c_SpecifiesThreadBlock;
-    static constexpr bool c3 = c_SpecifiesBlockTransfer;
+    static constexpr bool c3 = c_SpecifiesBlockTransferBwd;
     static constexpr bool c4 = c_SpecifiesLdsTransfer;
     static constexpr bool c5 = c_SpecifiesThreadClusterAccessOrder;
     static constexpr bool c6 = c_SpecifiesSourceAccessOrder;
@@ -269,7 +269,7 @@ struct BwdXdlAlgorithm {
                "Concepts for BwdXdl Algorithm:\n") +
                DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
                DIAGNOSTIC_LINE(SpecifiesThreadBlock) +
-               DIAGNOSTIC_LINE(SpecifiesBlockTransfer) +
+               DIAGNOSTIC_LINE(SpecifiesBlockTransferBwd) +
                DIAGNOSTIC_LINE(SpecifiesLdsTransfer) +
                DIAGNOSTIC_LINE(SpecifiesThreadClusterAccessOrder) +
                DIAGNOSTIC_LINE(SpecifiesSourceAccessOrder) +
