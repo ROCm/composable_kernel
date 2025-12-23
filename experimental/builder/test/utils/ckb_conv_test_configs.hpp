@@ -68,7 +68,7 @@ constexpr TransferABC FwdTransfer_4x64x1{
                 {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                          .n_per_wave_per_shuffle     = 1,
-                         .scalar_per_vector          = 8},
+                         .scalar_per_vector          = 4},
         },
 };
 
