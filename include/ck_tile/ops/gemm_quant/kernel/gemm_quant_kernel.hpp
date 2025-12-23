@@ -412,32 +412,6 @@ struct QuantGemmKernel
             return false;
         }
 
-        if constexpr(kQuantType == QuantType::AQuantGrouped ||
-                     kQuantType == QuantType::ABQuantGrouped)
-        {
-            if(kargs.QK_A % GemmPipeline::GetVectorSizeAQ() != 0)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("K_A is not a multiple of vector load size for A tensor!");
-                }
-                return false;
-            }
-        }
-
-        if constexpr(kQuantType == QuantType::BQuantGrouped ||
-                     kQuantType == QuantType::ABQuantGrouped)
-        {
-            if(kargs.QK_B % GemmPipeline::GetVectorSizeBQ() != 0)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("K_B is not a multiple of vector load size for B tensor!");
-                }
-                return false;
-            }
-        }
-
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
             if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
@@ -1340,6 +1314,27 @@ struct QuantGemmKernel
                                                           smem_ptr_1,
                                                           n);
             }
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped)
+            {
+                const auto& aq_block_window = gemm_tile_windows.at(I1);
+                const auto& bq_block_window = gemm_tile_windows.at(I3);
+                index_t m                   = 0;
+                index_t n                   = 0;
+                if constexpr(PreshuffleQuant)
+                {
+                    m = kargs.M;
+                    n = kargs.N;
+                }
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          aq_block_window,
+                                                          bq_block_window,
+                                                          num_loop,
+                                                          smem_ptr_0,
+                                                          smem_ptr_1,
+                                                          m,
+                                                          n);
+            }
             else
             {
                 return nullptr;
@@ -1349,7 +1344,8 @@ struct QuantGemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I4);
 
-        if constexpr(kQuantType == QuantType::BQuantGrouped)
+        if constexpr(kQuantType == QuantType::BQuantGrouped ||
+                     kQuantType == QuantType::ABQuantGrouped)
         {
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
@@ -1381,7 +1377,7 @@ struct QuantGemmKernel
         assert(kargs.k_batch == 1);
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
+            __shared__ char smem_ptr_1[GetSmemSize()];
 
             RunGemm2LDS(a_ptr,
                         b_ptr,
