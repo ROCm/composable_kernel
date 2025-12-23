@@ -568,6 +568,15 @@ struct GroupedConvolutionBackwardWeightKernel
             }
         }
 
+        if(kargs.GemmK < TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{}) * kargs.k_batch)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("KBatch is too large, part of GPU wouldn't be utilized!");
+            }
+            return false;
+        }
+
         const index_t ConvK = kargs.wei_g_k_c_xs_lengths[number<1>{}];
         const index_t ConvC = kargs.wei_g_k_c_xs_lengths[number<2>{}];
 
