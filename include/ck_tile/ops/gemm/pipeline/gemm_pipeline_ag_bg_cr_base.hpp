@@ -45,10 +45,7 @@ struct GemmPipelineAgBgCrImplBase
         else
             return std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
     }();
-    
-    // TEMP: Disable transpose load for B matrix to test RRR performance regression
-    static constexpr bool is_b_load_tr = false;
-    #if 0  // Original code - disabled for testing
+
     static constexpr bool is_b_load_tr = []() {
         using WarpTile                  = typename BlockGemmShape::WarpTile;
         constexpr index_t kKWarpTile    = WarpTile::at(number<2>{});
@@ -60,7 +57,6 @@ struct GemmPipelineAgBgCrImplBase
         else
             return std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
     }();
-    #endif
 #else
     static constexpr bool is_a_load_tr = false;
     static constexpr bool is_b_load_tr = false;

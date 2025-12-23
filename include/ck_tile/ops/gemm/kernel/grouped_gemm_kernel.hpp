@@ -521,20 +521,22 @@ struct GroupedGemmKernel
     CK_TILE_DEVICE void operator()(const void CK_TILE_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    index_t group_count) const
     {
-        const index_t block_id   = ck_tile::get_block_1d_id();
+        // Use amd_wave_read_first_lane to hoist uniform values to SGPR
+        const index_t block_id   = amd_wave_read_first_lane(ck_tile::get_block_1d_id());
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg<NumDTensor_>*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
 
-        const index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
+        const index_t group_id = amd_wave_read_first_lane(FindGroupId(gemm_desc_ptr, block_id, group_count));
         const auto& kargs      = gemm_desc_ptr[group_id];
 
-        const auto grid_size_2d = TilePartitioner::GridSize(kargs.group_karg.M, kargs.group_karg.N);
+        const auto grid_size_2d = amd_wave_read_first_lane(TilePartitioner::GridSize(kargs.group_karg.M, kargs.group_karg.N));
+        const auto block_offset = amd_wave_read_first_lane(block_id - kargs.block_start);
         const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
             0,
             kargs.group_karg.M,
             kargs.group_karg.N,
-            (block_id - kargs.block_start) % grid_size_2d);
-        Run(kargs.group_karg, block_idx_2d, (block_id - kargs.block_start) / grid_size_2d);
+            block_offset % grid_size_2d);
+        Run(kargs.group_karg, block_idx_2d, block_offset / grid_size_2d);
     }
 
     // For persistent kernels
@@ -544,25 +546,27 @@ struct GroupedGemmKernel
     CK_TILE_DEVICE void operator()(const void CK_TILE_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    const index_t group_count) const
     {
-        const index_t grid_size  = ck_tile::get_grid_size();
+        // Use amd_wave_read_first_lane to hoist uniform values to SGPR
+        const index_t grid_size  = amd_wave_read_first_lane(ck_tile::get_grid_size());
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg<NumDTensor_>*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
-        index_t block_id      = ck_tile::get_block_1d_id(); // initial block_id
+        index_t block_id      = amd_wave_read_first_lane(ck_tile::get_block_1d_id()); // initial block_id
         index_t cum_grid_size = 0;
         for(index_t group_id = 0; group_id < group_count; ++group_id)
         {
             const auto& kargs      = gemm_desc_ptr[group_id].group_karg;
             const auto& k_batch    = kargs.k_batch;
             const auto block_start = cum_grid_size;
-            cum_grid_size += TilePartitioner::GridSize(kargs.M, kargs.N) * k_batch;
+            cum_grid_size += amd_wave_read_first_lane(TilePartitioner::GridSize(kargs.M, kargs.N) * k_batch);
             while(block_id < cum_grid_size)
             {
-                const auto grid_size_2d = TilePartitioner::GridSize(kargs.M, kargs.N);
+                const auto grid_size_2d = amd_wave_read_first_lane(TilePartitioner::GridSize(kargs.M, kargs.N));
+                const auto block_offset = amd_wave_read_first_lane(block_id - block_start);
                 const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
-                    0, kargs.M, kargs.N, (block_id - block_start) % grid_size_2d);
-                Run(kargs, block_idx_2d, (block_id - block_start) / grid_size_2d);
+                    0, kargs.M, kargs.N, block_offset % grid_size_2d);
+                Run(kargs, block_idx_2d, block_offset / grid_size_2d);
                 block_sync_lds();
-                block_id = block_id + grid_size; // advance to next block
+                block_id = amd_wave_read_first_lane(block_id + grid_size); // advance to next block
                 // NOTE: this check is redundant but helps the compiler avoid spilling some VGPR
                 if(block_id >= cum_grid_size)
                 {
