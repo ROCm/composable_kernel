@@ -202,6 +202,12 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                 best_split_k    = split_k_for_run;
             }
 
+            // Synchronize before verification to ensure kernel has completed
+            if(do_verification > 0 && !time_kernel)
+            {
+                hip_check_error(hipStreamSynchronize(nullptr));
+            }
+
             if(do_verification == 2)
             {
                 // GPU verification path
