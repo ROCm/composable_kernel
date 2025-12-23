@@ -31,20 +31,16 @@ template <typename Tuple>
 class TestGroupedConvndBwdData : public ::testing::Test
 {
     protected:
-    using F16        = ck::half_t;
-    using InDataType = std::tuple_element_t<0, Tuple>;
-    ;
+    using F16         = ck::half_t;
+    using InDataType  = std::tuple_element_t<0, Tuple>;
     using WeiDataType = std::tuple_element_t<0, Tuple>;
-    ;
     using OutDataType = std::tuple_element_t<0, Tuple>;
-    ;
+
     using ComputeDataType = InDataType;
     using InLayout        = std::tuple_element_t<3, Tuple>;
-    ;
-    using WeiLayout = std::tuple_element_t<2, Tuple>;
-    ;
-    using OutLayout = std::tuple_element_t<1, Tuple>;
-    ;
+    using WeiLayout       = std::tuple_element_t<2, Tuple>;
+    using OutLayout       = std::tuple_element_t<1, Tuple>;
+
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
     using InElementOp  = ck::tensor_operation::element_wise::Scale;
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
