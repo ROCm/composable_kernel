@@ -27,30 +27,6 @@ using device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_merged_groups_ndhw
 template <int Shards, int ShardIndex>
 void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_merged_groups_ndhwgc_gkzyxc_ndhwgk_f16_instances_shard(device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_merged_groups_ndhwgc_gkzyxc_ndhwgk_f16_instances& instances)
 {
-    if(ck::get_device_name() == "gfx950")
-    {
-        add_device_operation_instances(
-            instances, ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_wmma_cshufflev3_merged_groups_f16_instances_2x<3,
-                                                                       NDHWGC,
-                                                                       GKZYXC, Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
-                                                                       NDHWGK,
-                                                                       ConvFwdDefault,Tuple<F16, F16, F16, F16, F16>, BiasNormalizeInInferClamp>,
-                                       Shards,
-                                       ShardIndex>{});
-
-        add_device_operation_instances(
-            instances, ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_wmma_cshufflev3_merged_groups_f16_instances_2x<3,
-                                                                       NDHWGC,
-                                                                       GKZYXC, Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
-                                                                       NDHWGK,
-                                                                       ConvFwd3x3,Tuple<F16, F16, F16, F16, F16>, BiasNormalizeInInferClamp>,
-                                       Shards,
-                                       ShardIndex>{});
-    }
-    else
-    {
         add_device_operation_instances(
             instances, ck::util::filter_tuple_by_modulo_t<
             device_grouped_conv_fwd_wmma_cshufflev3_merged_groups_f16_instances<3,
@@ -70,7 +46,7 @@ void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_merged_groups_n
                                                                     ConvFwd3x3,Tuple<F16, F16, F16, F16, F16>, BiasNormalizeInInferClamp>,
                                        Shards,
                                        ShardIndex>{});
-    }
+
 }
 
 } // namespace instance
