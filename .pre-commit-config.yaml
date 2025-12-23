@@ -25,7 +25,6 @@ repos:
         name: clang-tidy (optional static analysis)
         stages: [manual]
         args:
-            - --config-file=.clang-tidy
             - --use-color
             - -j=4
         types_or: [c++, c]
