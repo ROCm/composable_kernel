@@ -92,11 +92,11 @@ struct TileCopy
         // printf("Y0: %d Y1: %d Y2: %d X0: %d X1: %d \n", Y0, Y1, Y2, X0, X1);
         constexpr auto outer_encoding =
             tile_distribution_encoding<sequence<S::WaveGroups>,
-                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
+                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, 2, X1 / 2>>,
                                        tuple<sequence<0, 1>, sequence<1, 2>>,
                                        tuple<sequence<0, 0>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<1, 1>>{};
+                                       sequence<1, 2, 2>,
+                                       sequence<1, 1, 2>>{};
 
         return make_static_tile_distribution(outer_encoding);
     }
@@ -108,17 +108,29 @@ struct TileCopy
 
         // LDS buffer
         // __shared__ pk_fp4_t x_lds[S::Block_M * S::Block_N/2];
-        __shared__ uint8_t x_lds[S::Block_M * S::Block_N * 6 / 8];
+        // __shared__ uint8_t x_lds[S::Block_M * S::Block_N * 6 / 8];
+        __shared__ int8_t x_lds[S::Block_M * S::Block_N / 3 * 4];
         // __shared__ f6x16_pk_t x_lds[S::Block_M * S::Block_N / 12];
 
-        constexpr auto block_dims    = make_tuple(number<S::Block_M>{}, number<S::Block_N>{});
-        constexpr auto block_strides = make_tuple(number<S::Block_N>{}, number<1>{});
+        constexpr auto block_dims =
+            make_tuple(number<2>{}, number<S::Block_M>{}, number<S::Block_N / 2>{});
+        constexpr auto block_strides =
+            make_tuple(number<S::Block_M * 16>{}, number<16>{}, number<1>{});
 
-        const auto x_lds_desc = make_naive_tensor_descriptor(
+        const auto x_lds_desc_ = make_naive_tensor_descriptor(
             block_dims, block_strides, number<S::Vector_N>{}, number<1>{});
 
-        auto x_lds_view = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<f6x16_pk_t*>(x_lds), x_lds_desc);
+        const auto x_lds_desc = transform_tensor_descriptor(
+            x_lds_desc_,
+            make_tuple(make_pass_through_transform(number<S::Block_M>{}),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<2>{}, number<S::Block_N / 2>{}))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        auto x_lds_view =
+            make_tensor_view<address_space_enum::lds>(reinterpret_cast<int8_t*>(x_lds), x_lds_desc);
+        // reinterpret_cast<f6x16_pk_t*>(x_lds), x_lds_desc);
         // reinterpret_cast<pk_fp4_t*>(x_lds), x_lds_desc);
 
         auto x_block_lds_write_window = make_tile_window(x_lds_view, block_dims, {0, 0});
@@ -154,13 +166,22 @@ struct TileCopy
                     // Wait all waves synced
                     s_waitcnt_barrier<async_copy_fence_cnt>();
                     auto lds_tile = load_tile(x_block_lds_read_window);
+                    // auto ptr      = lds_tile.get_thread_buffer().data[0].data_;
+                    // auto ptr = reinterpret_cast<int*>(lds_tile.get_thread_buffer().data);
+                    // printf("block_id: %d, thread_id: %d, loop: %d value: %d %d %d\n",
+                    //        get_block_id(),
+                    //        get_thread_id(),
+                    //        iN,
+                    //        ptr[0],
+                    //        ptr[1],
+                    //        ptr[2]);
                     // store from registers to DRAM
                     store_tile(y_block_window, lds_tile);
                 }
                 else
                 {
                     // load from DRAM to registers
-                    auto dram_tile = load_tile(x_block_window);
+                    // auto dram_tile = load_tile(x_block_window);
                     // auto ptr       = dram_tile.get_thread_buffer().data[0].data_;
                     // printf("block_id: %d, thread_id: %d, value: %d %d %d\n",
                     //        get_block_id(),
@@ -169,14 +190,14 @@ struct TileCopy
                     //        ptr[1],
                     //        ptr[2]);
                     // store in lds
-                    store_tile(x_block_lds_write_window, dram_tile);
+                    // store_tile(x_block_lds_write_window, dram_tile);
                     // Wait all lds write insts complete
                     // Wait all waves synced
-                    block_sync_lds();
+                    // block_sync_lds();
                     // read from lds to registers
-                    auto lds_tile = load_tile(x_block_lds_read_window);
+                    // auto lds_tile = load_tile(x_block_lds_read_window);
                     // store from registers to DRAM
-                    store_tile(y_block_window, lds_tile);
+                    // store_tile(y_block_window, lds_tile);
                 }
             }
 

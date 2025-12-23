@@ -54,6 +54,9 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
                 // for(int k_ = 0; k_ < pack_k; k_++)
                 // {
                 // int value = m & 0x3f;
+                // x_host(i, j).data_[0] = rand();
+                // x_host(i, j).data_[1] = rand();
+                // x_host(i, j).data_[2] = rand();
                 x_host(i, j).data_[0] = i;
                 x_host(i, j).data_[1] = i;
                 x_host(i, j).data_[2] = i;
@@ -71,15 +74,15 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         x_buf.ToDevice(x_host.data());
 
         using BlockWaves = ck_tile::sequence<2, 1>;
-        using BlockTile  = ck_tile::sequence<64, 16>;
-        using WaveTile   = ck_tile::sequence<64, 16>;
-        using Vector     = ck_tile::sequence<1, 16>;
+        using BlockTile  = ck_tile::sequence<64, 24>;
+        using WaveTile   = ck_tile::sequence<64, 24>;
+        using Vector     = ck_tile::sequence<1, 24>;
 
         ck_tile::index_t kGridSize =
             ck_tile::integer_divide_ceil(m, BlockTile::at(ck_tile::number<0>{}));
 
         using Shape   = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, Vector>;
-        using Problem = ck_tile::TileCopyProblem<XDataType, Shape, AsyncCopy>;
+        using Problem = ck_tile::TileCopyProblem<int8_t, Shape, AsyncCopy>;
         using Kernel  = ck_tile::TileCopy<Problem>;
 
         constexpr ck_tile::index_t kBlockSize  = 128;
@@ -91,10 +94,10 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
                                               kGridSize,
                                               kBlockSize,
                                               0,
-                                              static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
-                                              static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
+                                              static_cast<int8_t*>(x_buf.GetDeviceBuffer()),
+                                              static_cast<int8_t*>(y_buf.GetDeviceBuffer()),
                                               m,
-                                              n,
+                                              n / 16 * 12,
                                               warp_id));
 
         auto bytes = 2 * m * n * sizeof(DataType);
@@ -111,12 +114,13 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
                 // for(int k_ = 0; k_ < pack_k; k_++)
                 // {
                 // int value = m & 0x3f;
+                printf("%d %d\n", i, j);
                 std::cout << x_host(i, j).data_[0] << " " << x_host(i, j).data_[1] << " "
-                          << x_host(i, j).data_[0] << std::endl;
+                          << x_host(i, j).data_[2] << std::endl;
 
                 printf("==============\n");
                 std::cout << y_host_dev(i, j).data_[0] << " " << y_host_dev(i, j).data_[1] << " "
-                          << y_host_dev(i, j).data_[0] << std::endl;
+                          << y_host_dev(i, j).data_[2] << std::endl;
                 printf("~~~~~~~~~~~~~\n");
             }
         }
@@ -180,7 +184,7 @@ TEST_P(TestCkTileMemoryCopyF6x16, TestCorrectness)
 
 INSTANTIATE_TEST_SUITE_P(TestCkTileMemCopySuite,
                          TestCkTileMemoryCopyF6x16,
-                         ::testing::Values(std::tuple{64, 16, 0}));
+                         ::testing::Values(std::tuple{128, 32, 0}));
 
 // INSTANTIATE_TEST_SUITE_P(TestCkTileMemCopySuite,
 //                          TestCkTileMemoryCopyHalfAsync,
