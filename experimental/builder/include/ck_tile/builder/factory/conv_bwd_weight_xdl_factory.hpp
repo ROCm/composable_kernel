@@ -69,7 +69,7 @@ struct ConvBwdWeightXdlFactory
         BLOCK.block_size,
         BLOCK.per_block.m,
         BLOCK.per_block.n,
-        GRIDWISE_GEMM.k0_per_block,
+        BLOCK.per_block.k,
         GRIDWISE_GEMM.k1,
         XDL_PARAMS.m_per_xdl,
         XDL_PARAMS.n_per_xdl,

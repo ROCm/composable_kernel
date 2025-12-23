@@ -21,7 +21,7 @@ constexpr auto SIGNATURE =
                        .output                 = {.config = {.layout = ckb::TensorLayout::GNHWK}}};
 
 constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle{}
-                               .with_thread_block(cku::ThreadBlock_256_128x128x32)
+                               .with_thread_block(cku::ThreadBlock_256_128x128x8)
                                .with_gemm_config(cku::BwdGemmParams_Xdl_4x4_per_wave)
                                .with_transfer(cku::BwdTransfer_4x64x1)
                                .with_bwd_specialization(ckb::ConvSpecialization::DEFAULT);
@@ -35,11 +35,8 @@ TEST(BwdWeight_2DFp16_CShufV3_GNHWC, Create)
     cku::run_test<Builder>({"DeviceGroupedConvBwdWeight_Xdl_CShuffle",
                             expected_transfer_parameters,
                             "Default",
-                            "Intrawave",
-                            "v3",
-                            "GNHWC,GKYXC,EmptyTuple,GNHWK",
-                            "PassThrough,PassThrough,PassThrough",
-                            "MNKPadding"});
+                            "GNHWC,GKYXC,GNHWK",
+                            "PassThrough,PassThrough,PassThrough"});
 }
 
 // TEST(BwdWeight_2DFp16_CShufV3_GNHWC, EndToEnd)

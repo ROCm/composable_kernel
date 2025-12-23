@@ -89,7 +89,7 @@ template <>
 inline std::string to_string<GridwiseBwdXdlGemm>(GridwiseBwdXdlGemm t)
 {
     std::ostringstream oss;
-    oss << t.k0_per_block << "," << t.k1 << "," << t.xdl_params.m_per_xdl << "," << t.xdl_params.n_per_xdl << ","
+    oss << t.k1 << "," << t.xdl_params.m_per_xdl << "," << t.xdl_params.n_per_xdl << ","
         << t.xdl_params.m_xdl_per_wave << "," << t.xdl_params.n_xdl_per_wave;
     return oss.str();
 }
@@ -120,10 +120,17 @@ inline std::string to_string<BlockGemm>(BlockGemm t)
     return oss.str();
 }
 
-template <>
-inline std::string to_string<BlockTransfer>(BlockTransfer t)
+template <bool IsBwd>
+inline std::string to_string(BlockTransfer<IsBwd> t)
 {
-    return array_to_seq(std::array<size_t, 3>{t.k0, t.m_n, t.k1});
+    if constexpr (IsBwd)
+    {
+        return array_to_seq(std::array<size_t, 4>{t.k_batch_size, t.k0, t.m_n, t.k1});
+    }
+    else
+    {
+        return array_to_seq(std::array<size_t, 3>{t.k0, t.m_n, t.k1});
+    }
 }
 
 template <>
@@ -143,14 +150,14 @@ inline std::string to_string<LdsTransfer>(LdsTransfer t)
     return oss.str();
 }
 
-template <>
-inline std::string to_string<AccessOrder>(AccessOrder t)
+template <size_t N>
+inline std::string to_string(AccessOrder<N> t)
 {
     return array_to_seq(t.order);
 }
 
-template <>
-inline std::string to_string<TransferAB>(TransferAB t)
+template <bool IsBwd>
+inline std::string to_string(InputTransfer<IsBwd> t)
 {
     std::ostringstream oss;
     oss << to_string(t.block_transfer) << "," << to_string(t.block_transfer_access_order) << ","
@@ -161,7 +168,7 @@ inline std::string to_string<TransferAB>(TransferAB t)
 }
 
 template <>
-inline std::string to_string<TransferC>(TransferC t)
+inline std::string to_string<OutputTransfer>(OutputTransfer t)
 {
     std::ostringstream oss;
     oss << t.epilogue.m_xdl_per_wave_per_shuffle << "," << t.epilogue.n_per_wave_per_shuffle << ","
@@ -169,8 +176,8 @@ inline std::string to_string<TransferC>(TransferC t)
     return oss.str();
 }
 
-template <>
-inline std::string to_string<TransferABC>(TransferABC t)
+template <bool IsBwd>
+inline std::string to_string(Transfer<IsBwd> t)
 {
     std::ostringstream oss;
     oss << to_string(t.a) << "," << to_string(t.b) << "," << to_string(t.c);
@@ -260,8 +267,8 @@ inline std::string to_string<WmmaGemm_>(WmmaGemm_ t)
     return to_string(t.gridwise_gemm);
 }
 
-template <>
-inline std::string to_string<Transfer_>(Transfer_ t)
+template <bool IsBwd>
+inline std::string to_string(Transfer_<IsBwd> t)
 {
     return to_string(t.transfer);
 }
@@ -323,7 +330,7 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_C
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<FwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_>(t));
+        << "," << to_string(static_cast<Transfer_<>>(t));
     return oss.str();
 }
 
@@ -333,7 +340,7 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_C
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<FwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_>(t));
+        << "," << to_string(static_cast<Transfer_<>>(t));
     return oss.str();
 }
 
@@ -343,7 +350,7 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CS
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))
-        << "," << to_string(static_cast<Transfer_>(t));
+        << "," << to_string(static_cast<Transfer_<>>(t));
     return oss.str();
 }
 
@@ -371,8 +378,9 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuff
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle t)
 {
     std::ostringstream oss;
+    constexpr bool BWD = true;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_>(t));
+        << "," << to_string(static_cast<Transfer_<BWD>>(t));
     return oss.str();
 }
 

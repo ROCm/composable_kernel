@@ -49,7 +49,6 @@ static_assert(ckb::GridwiseFwdXdlGemmDescriptor<GridwiseFwdXdlGemm>);
 
 struct GridwiseBwdXdlGemm
 {
-    size_t k0_per_block  = 0;
     size_t k1            = 0;
     XdlParams xdl_params;
 };
@@ -75,13 +74,25 @@ struct BlockGemm
 static_assert(ckb::BlockGemmDescriptor<BlockGemm>);
 
 // Describe Aand B block transfer thread cluster lengths.
+template <bool IsBwd = false>
 struct BlockTransfer
 {
     size_t k0;
     size_t m_n;
     size_t k1;
+    size_t k_batch_size;
 };
-static_assert(ckb::BlockTransferDescriptor<BlockTransfer>);
+
+// Specialization for forward (IsBwd = false)
+template <>
+struct BlockTransfer<false>
+{
+    size_t k0;
+    size_t m_n;
+    size_t k1;
+};
+static_assert(ckb::BlockTransferDescriptor<BlockTransfer<>>);
+static_assert(ckb::BlockTransferDescriptor<BlockTransfer<true>>);
 
 // Describe C block transfer thread cluster lengths.
 struct ThreadCluster
@@ -111,31 +122,35 @@ struct Epilogue
 };
 static_assert(EpilogueDescriptor<Epilogue>);
 
+template <size_t ThreadSliceLength = 3>
 struct AccessOrder
 {
-    std::array<size_t, 3> order;
+    std::array<size_t, ThreadSliceLength> order;
 };
-static_assert(AccessOrderDescriptor<AccessOrder>);
+static_assert(AccessOrderDescriptor<AccessOrder<>>);
+static_assert(AccessOrderDescriptor<AccessOrder<4>>);
 
-struct TransferAB
+template <bool IsBwd = false>
+struct InputTransfer
 {
-    BlockTransfer block_transfer;
+    BlockTransfer<IsBwd> block_transfer;
     LdsTransfer lds_transfer;
-    AccessOrder block_transfer_access_order;
-    AccessOrder src_access_order;
+    std::conditional_t<IsBwd, AccessOrder<4>, AccessOrder<3>> block_transfer_access_order;
+    std::conditional_t<IsBwd, AccessOrder<4>, AccessOrder<3>> src_access_order;
 };
 
-struct TransferC
+struct OutputTransfer
 {
     ThreadCluster thread_cluster_dims;
     Epilogue epilogue;
 };
 
-struct TransferABC
+template <bool IsBwd = false>
+struct Transfer
 {
-    TransferAB a;
-    TransferAB b;
-    TransferC c;
+    InputTransfer<IsBwd> a;
+    InputTransfer<IsBwd> b;
+    OutputTransfer c;
 };
 
 // DL-specific descriptors
@@ -198,9 +213,10 @@ struct WmmaGemm_
     GridwiseWmmaGemm gridwise_gemm;
 };
 
+template <bool IsBwd = false>
 struct Transfer_
 {
-    TransferABC transfer;
+    Transfer<IsBwd> transfer;
 };
 
 struct ConvSpecializationFwd_
@@ -380,7 +396,8 @@ struct ConvAlgorithmTemplate : Components...
     template <typename T>
     constexpr auto with_transfer(const T& t) const
     {
-        static_assert(std::is_base_of_v<Transfer_, ConvAlgorithmTemplate>);
+        static_assert(std::is_base_of_v<Transfer_<>, ConvAlgorithmTemplate> ||
+                      std::is_base_of_v<Transfer_<true>, ConvAlgorithmTemplate>);
         auto result     = *this;
         result.transfer = t;
         return result;
@@ -511,13 +528,13 @@ struct ConvAlgorithmTemplate : Components...
 // Algorithm types
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_, ConvSpecializationFwd_, Prefetch_>;
+    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, Prefetch_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
-    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_, ConvSpecializationFwd_, BlockGemm_>;
+    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, BlockGemm_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_, ConvSpecializationFwd_, Prefetch_>;
+    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<>, ConvSpecializationFwd_, Prefetch_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
     ConvAlgorithmTemplate<ThreadBlock_,
@@ -536,6 +553,6 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileTh
                                                                           TileOptimizations_>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle = 
-    ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_, ConvSpecializationBwdWeight_, TransposeParams_>;
+    ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<true>, ConvSpecializationBwdWeight_, TransposeParams_>;
 
 } // namespace ck_tile::builder::test

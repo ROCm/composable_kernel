@@ -181,6 +181,14 @@ consteval auto diagnose_block_transfer(const char* prefix) -> std::string {
         msg += std::string("          → ") + prefix + ".k1: [✗] (missing member)\n";
     }
     
+    // k_batch_size is optional - only report if it exists and has wrong type
+    if constexpr (requires(BT t) { t.k_batch_size; }) {
+        using KBatchType = decltype(std::declval<BT>().k_batch_size);
+        constexpr bool convertible = std::convertible_to<KBatchType, size_t>;
+        msg += std::string("          → ") + prefix + ".k_batch_size (optional): " + std::string(CHECK_MARK(convertible)) + 
+               std::string(get_type_info<KBatchType>()) + "\n";
+    }
+    
     return msg;
 }
 
@@ -288,7 +296,9 @@ consteval auto diagnose_access_order(const char* prefix) -> std::string {
     
     if constexpr (requires(AO t) { t.order; }) {
         using OrderType = decltype(std::declval<AO>().order);
-        constexpr bool convertible = std::convertible_to<OrderType, std::array<size_t, 3>>;
+        constexpr bool convertible_3 = std::convertible_to<OrderType, std::array<size_t, 3>>;
+        constexpr bool convertible_4 = std::convertible_to<OrderType, std::array<size_t, 4>>;
+        constexpr bool convertible = convertible_3 || convertible_4;
         msg += std::string("          → ") + prefix + ".order: " + std::string(CHECK_MARK(convertible)) + 
                std::string(get_type_info<OrderType>()) + "\n";
     } else {
@@ -400,15 +410,6 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseBwdXdlGemm() -> std::string 
     
     msg += "      → T::gridwise_gemm member: [✓]\n";
     using GG = decltype(T::gridwise_gemm);
-    
-    if constexpr (requires(GG t) { t.k0_per_block; }) {
-        using K0Type = decltype(std::declval<GG>().k0_per_block);
-        constexpr bool convertible = std::convertible_to<K0Type, size_t>;
-        msg += "      → gridwise_gemm.k0_per_block: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<K0Type>()) + "\n";
-    } else {
-        msg += "      → gridwise_gemm.k0_per_block: [✗] (missing member)\n";
-    }
     
     if constexpr (requires(GG t) { t.k1; }) {
         using K1Type = decltype(std::declval<GG>().k1);

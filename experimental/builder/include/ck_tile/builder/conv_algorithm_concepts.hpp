@@ -51,12 +51,24 @@ concept GridwiseWmmaGemmDescriptor = requires(T t) {
     { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
 };
 
+
+template <typename T>
+concept HasGemmKBatch = requires(T t) {
+    { t.k_batch_size};
+};
+
+// Concept to check if GEMM k batch size is specified.
+template <typename T>
+concept GemmKBatchSizeWellDefinedIfProvided = 
+    !HasGemmKBatch<T> || requires(T t) { {t.k_batch_size} -> std::convertible_to<size_t>; };
+
 // Concept for vectorized data transfer for convolution input tensors.
 template <typename T>
 concept BlockTransferDescriptor = requires(T t) {
     { t.k0 } -> std::convertible_to<size_t>;
     { t.m_n } -> std::convertible_to<size_t>;
     { t.k1 } -> std::convertible_to<size_t>;
+    GemmKBatchSizeWellDefinedIfProvided<T>;
 };
 
 // Concept for thread cluster dimensions for GEMM output tensor.
@@ -91,6 +103,8 @@ concept EpilogueDescriptor = requires(T t) {
 template <typename T>
 concept AccessOrderDescriptor = requires(T t) {
     { t.order } -> std::convertible_to<std::array<size_t, 3>>;
+} || requires(T t) {
+    { t.order } -> std::convertible_to<std::array<size_t, 4>>;
 };
 
 // Concept for thread block dimensions for a GEMM problem for CK Tile (Block
@@ -166,7 +180,6 @@ concept GridwiseFwdXdlGemmDescriptor = requires (T t){
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
 concept GridwiseBwdXdlGemmDescriptor = requires (T t){
-    { t.k0_per_block } -> std::convertible_to<size_t>;
     { t.k1 } -> std::convertible_to<size_t>;
     { t.xdl_params } -> GridwiseXdlGemmDescriptor;
 };

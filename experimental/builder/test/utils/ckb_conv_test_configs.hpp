@@ -39,7 +39,7 @@ constexpr DlTransferABC DlFwdTransfer{.a =
                                                        .dst_scalar_per_vector = 4},
                                       }};
 
-constexpr TransferABC Transfer_4x64x1{
+constexpr Transfer<> Transfer_4x64x1{
     .a =
         {
             .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
@@ -72,28 +72,29 @@ constexpr TransferABC Transfer_4x64x1{
         },
 };
 
-constexpr TransferABC BwdTransfer_4x64x1{
+constexpr bool BWD = true;
+constexpr Transfer<BWD> BwdTransfer_4x64x1{
     .a =
         {
-            .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1, .k_batch_size = 1},
             .lds_transfer                = {.src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 4,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .block_transfer_access_order = {3, 1, 2},
-            .src_access_order            = {2, 1, 3},
+            .block_transfer_access_order = {0, 3, 1, 2},
+            .src_access_order            = {0, 2, 1, 3},
         },
     .b =
         {
-            .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1, .k_batch_size = 1},
             .lds_transfer                = {.src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 4,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .block_transfer_access_order = {3, 1, 2},
-            .src_access_order            = {2, 1, 3},
+            .block_transfer_access_order = {0, 3, 1, 2},
+            .src_access_order            = {0, 2, 1, 3},
         },
     .c =
         {
@@ -105,7 +106,7 @@ constexpr TransferABC BwdTransfer_4x64x1{
         },
 };
 
-constexpr TransferABC Transfer_4x64x1_fp8{
+constexpr Transfer<> Transfer_4x64x1_fp8{
     .a =
         {
             .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
@@ -138,7 +139,7 @@ constexpr TransferABC Transfer_4x64x1_fp8{
         },
 };
 
-constexpr TransferABC Transfer_4x16x1{
+constexpr Transfer<> Transfer_4x16x1{
     .a =
         {
             .block_transfer              = {.k0 = 4, .m_n = 16, .k1 = 1},
@@ -172,7 +173,7 @@ constexpr TransferABC Transfer_4x16x1{
         },
 };
 
-constexpr TransferABC Transfer_4x32x1{
+constexpr Transfer<> Transfer_4x32x1{
     .a =
         {
             .block_transfer              = {.k0 = 4, .m_n = 32, .k1 = 1},
@@ -206,7 +207,7 @@ constexpr TransferABC Transfer_4x32x1{
 };
 
 constexpr GridwiseBwdXdlGemm BwdGemmParams_Xdl_4x4_per_wave{
-    .k0_per_block = 8, .k1 = 8, 
+    .k1 = 8, 
     .xdl_params = {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 4}};
 
 constexpr GridwiseFwdXdlGemm FwdGemmParams_Xdl_4x4_per_wave{
@@ -243,6 +244,9 @@ constexpr ThreadBlock ThreadBlock_256_128x128x32{.block_size = 256,
 
 constexpr ThreadBlock ThreadBlock_256_128x128x16{.block_size = 256,
                                                  .tile_size  = {.m = 128, .n = 128, .k = 16}};
+
+constexpr ThreadBlock ThreadBlock_256_128x128x8{.block_size = 256,
+                                                 .tile_size  = {.m = 128, .n = 128, .k = 8}};
 
 constexpr ThreadBlock ThreadBlock_64_64x32x32{.block_size = 64,
                                               .tile_size  = {.m = 64, .n = 32, .k = 32}};
