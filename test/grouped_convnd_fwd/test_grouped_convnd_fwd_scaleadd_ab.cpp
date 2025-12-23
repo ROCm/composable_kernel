@@ -368,10 +368,6 @@ TYPED_TEST(TestGroupedConvndFwdScaleaddAB3d, Test3D)
 {
     this->conv_params.clear();
 
-    // Client example 24. This one takes quite long.
-    this->conv_params.push_back(
-        {3, 32, 64, 32, 64, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-
     // Generic problems, same set as for vanilla, clamp, and (gk) bias clamp tests.
     this->conv_params.push_back(
         {3, 3, 5, 96, 200, {1, 1, 1}, {37, 37, 16}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});

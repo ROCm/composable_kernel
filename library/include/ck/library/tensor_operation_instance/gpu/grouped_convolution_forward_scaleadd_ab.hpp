@@ -91,7 +91,46 @@ void add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_int8_ins
 #ifdef CK_USE_WMMA
 #ifdef CK_ENABLE_BF16
 // grouped conv3d forward multi AB scaleadd, NDHWGC/GKZYXC/NDHWGK
-void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part1(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                ck::Tuple<>,
+                                                                BF16,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part2(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                ck::Tuple<>,
+                                                                BF16,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part3(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                ck::Tuple<>,
+                                                                BF16,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part4(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
@@ -107,7 +146,46 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndh
 #endif
 
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances_part1(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<F16, F16>,
+                                                                ck::Tuple<F16, F16>,
+                                                                ck::Tuple<>,
+                                                                F16,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances_part2(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<F16, F16>,
+                                                                ck::Tuple<F16, F16>,
+                                                                ck::Tuple<>,
+                                                                F16,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances_part3(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<F16, F16>,
+                                                                ck::Tuple<F16, F16>,
+                                                                ck::Tuple<>,
+                                                                F16,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances_part4(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
@@ -218,7 +296,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<WeiDataType, ck::Tuple<half_t, half_t>> &&
                          is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
             {
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances_part1(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances_part2(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances_part3(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances_part4(
                     op_ptrs);
             }
 #endif
@@ -227,7 +311,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<WeiDataType, ck::Tuple<ck::bhalf_t, ck::bhalf_t>> &&
                          is_same_v<OutDataType, ck::bhalf_t> && is_same_v<ComputeType, ck::bhalf_t>)
             {
-                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part1(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part2(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part3(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part4(
                     op_ptrs);
             }
 #endif
