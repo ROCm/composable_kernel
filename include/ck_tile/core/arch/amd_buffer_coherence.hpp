@@ -83,9 +83,9 @@ enum struct amd_buffer_coherence_enum
     slc     = SYSTEM_NT,
     glc_slc = DEVICE_NT | SYSTEM_NT,
 
-    // To forward compatible
-    WAVE_NT0 = INT_MAX,
-    WAVE_NT1 = INT_MAX - 1,
+    // TODO:Remove hack here
+    WAVE_NT0 = 0,
+    WAVE_NT1 = 2,
 // gfx94: bit 0 = sc0, bit 1 = nt, bit 3 = swz, bit 4 = sc1
 // SC[1:0] System Cache level: 0=wave, 1=group, 2=device, 3=system
 // NT Non-Temporal: 0=expect temporal reuse; 1=do not expect temporal reuse
@@ -122,9 +122,9 @@ enum struct amd_buffer_coherence_enum
     DEVICE_NT1 = glc,
     SYSTEM_NT1 = slc,
 
-    // To forward compatible
-    WAVE_NT0  = 0,
-    WAVE_NT1  = 2,
+    // TODO:Remove hack here
+    WAVE_NT0 = 0,
+    WAVE_NT1 = 2,
 #endif
 };
 
