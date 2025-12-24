@@ -571,7 +571,8 @@ struct QuantGemmKernel
                 make_tuple(number<tile_window_height>{}, number<tile_window_width>{}),
                 {block_m_idx * tile_window_height, 0});
         }
-        else if constexpr(kQuantType == QuantType::AQuantGrouped && !PreshuffleQuant)
+        else if constexpr(kQuantType == QuantType::AQuantGrouped ||
+                          kQuantType == QuantType::ABQuantGrouped || &&!PreshuffleQuant)
         {
             // Step 1: Create tensor view
             const auto& aq_tensor_view = [&]() {
@@ -737,6 +738,17 @@ struct QuantGemmKernel
                 }
             }
         }
+        else if(kQuantType == QuantType::ABQuantGrouped)
+        {
+            static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+            using QuantGroupSize = remove_cvref_t<typename GemmPipeline::BQuantGroupSize>;
+            return make_naive_tensor_view<address_space_enum::global>(
+                bq_ptr,
+                make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN), kargs.QK_B),
+                make_tuple(kargs.stride_BQ, 1),
+                number<GemmPipeline::GetVectorSizeBQ()>{},
+                number<1>{});
+        }
         else
         {
             return nullptr; // For TensorQuant case
@@ -882,30 +894,6 @@ struct QuantGemmKernel
                 CK_TILE_ERROR("Conditions not met for Kbatch >1 !");
             }
             return false;
-        }
-
-        if constexpr(kQuantType == QuantType::AQuantGrouped)
-        {
-            if(kargs.QK_A % GemmPipeline::GetVectorSizeAQ() != 0)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("K_A is not a multiple of vector load size for A tensor!");
-                }
-                return false;
-            }
-        }
-
-        if constexpr(kQuantType == QuantType::BQuantGrouped)
-        {
-            if(kargs.QK_B % GemmPipeline::GetVectorSizeBQ() != 0)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("K_B is not a multiple of vector load size for B tensor!");
-                }
-                return false;
-            }
         }
 
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -1093,6 +1081,26 @@ struct QuantGemmKernel
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, n);
             }
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped)
+            {
+                const auto& aq_block_window = gemm_tile_windows.at(I1);
+                const auto& bq_block_window = gemm_tile_windows.at(I3);
+                index_t m                   = 0;
+                index_t n                   = 0;
+                if constexpr(PreshuffleQuant)
+                {
+                    m = kargs.M;
+                    n = kargs.N;
+                }
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          aq_block_window,
+                                                          bq_block_window,
+                                                          num_loop,
+                                                          smem_ptr_0,
+                                                          m,
+                                                          n);
+            }
             else if constexpr(kQuantType == QuantType::RowColQuant ||
                               kQuantType == QuantType::TensorQuant)
             {
@@ -1108,6 +1116,7 @@ struct QuantGemmKernel
                 c_ptr, kargs, block_idx_m, block_idx_n);
 
             if constexpr(kQuantType == QuantType::AQuantGrouped ||
+                         kQuantType == QuantType::ABQuantGrouped ||
                          kQuantType == QuantType::BQuantGrouped)
             {
                 EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);

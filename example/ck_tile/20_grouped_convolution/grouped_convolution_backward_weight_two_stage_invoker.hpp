@@ -21,6 +21,9 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                                  const ck_tile::stream_config& s)
     {
         using WorkspaceDataType = float;
+        // Force Vector Size C to 1 for two stage to check main
+        // two stage use case
+        constexpr ck_tile::index_t VectorSizeC = 1;
 
         // Implicit GEMM Traits
         using GemmShape = ck_tile::TileGemmShape<
@@ -39,7 +42,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                                                  OutLayout,
                                                                  ConvConfig::VectorSizeA,
                                                                  ConvConfig::VectorSizeB,
-                                                                 ConvConfig::VectorSizeC,
+                                                                 VectorSizeC,
                                                                  ConvConfig::NumGroupsToMerge>;
 
         using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<
