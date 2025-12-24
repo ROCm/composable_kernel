@@ -24,8 +24,15 @@ from codegen.cpp_symbol_map import (
 )
 from codegen.utils import update_file
 
-
-DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "bf8": 8}
+DTYPE_BITS = {
+    "fp32": 32,
+    "fp16": 16,
+    "bf16": 16,
+    "fp8": 8,
+    "fp8bf16": 8,
+    "fp8fp32": 8,
+    "bf8": 8,
+}
 
 K0_MAX_SUBMAX_MAP = {32: 32, 64: 64, 96: 128, 128: 128, 256: 256}
 
@@ -115,7 +122,7 @@ float fmha_batch_prefill_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_b
 {{
     using k_ = fmha_kernel_{F_idx};
     if(s.log_level_ > 0)
-        std::cout << ", " << k_::GetName() << std::flush;
+        std::cout << ", {F_kname}" << std::flush;
     auto [kargs, grids] = fmha_batch_prefill_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
@@ -513,6 +520,7 @@ class FmhaFwdKernel:
     @property
     def template(self) -> str:
         return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_KERNEL_BODY.format(
+            F_kname=self.name,
             F_idx=self.F_idx,
             F_hdim=self.F_hdim,
             F_dtype=FWD_DTYPE_MAP[self.F_dtype],
@@ -599,9 +607,13 @@ class FmhaFwdKernel:
 class KernelComponentFactory:
     @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
-        if dtype == "fp16" or dtype == "bf16":
+        if dtype in ["fp16", "bf16"]:
             return {
                 128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+            }  # fmt: skip
+        elif dtype in ["fp8bf16"]:
+            return {
+                128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
             }  # fmt: skip
         else:
             return None
@@ -612,9 +624,9 @@ class KernelComponentFactory:
         # TODO: the order of List matters! the later in this list will be also be checked later
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
         # TODO: how to design this more generic?
-        qscale = "no"
         pipelines = []
         if dtype in ["fp16", "bf16"]:
+            qscale = "no"
             for logits, mask, bias, lse, dropout, sglang in itertools.product(
                 ["t", "f"],
                 get_mask_map(mask_impl).keys(),
@@ -625,8 +637,18 @@ class KernelComponentFactory:
             ):
                 pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, sglang))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, sglang))  # fmt: skip
-                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask))  # fmt: skip
-                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask))  # fmt: skip
+                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, sglang))  # fmt: skip
+                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, sglang))  # fmt: skip
+        elif dtype in ["fp8bf16"]:
+            # no need lse/dropout kernels
+            for logits, qscale, mask, bias, sglang in itertools.product(
+                ["t", "f"],
+                ["pertensor"],
+                get_mask_map(mask_impl).keys(),
+                ["no"],
+                ["t", "f"],
+            ):
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, sglang))  # fmt: skip
         else:
             assert False
         return pipelines
@@ -636,7 +658,7 @@ class CustomFactory(KernelComponentFactory):
     @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
         result = KernelComponentFactory.get_hdim_tile_size_dict(dtype)
-        if dtype == "fp16" or dtype == "bf16":
+        if dtype in ["fp16", "bf16"]:
             if 128 in result.keys():
                 result[128].insert(0, FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint("get_num_blocks(128) < num_cus * min_cu_util_rate")))  # fmt: skip
         return result
