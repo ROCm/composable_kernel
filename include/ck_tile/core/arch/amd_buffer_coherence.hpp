@@ -123,10 +123,8 @@ enum struct amd_buffer_coherence_enum
     SYSTEM_NT1 = slc,
 
     // To forward compatible
-    GROUP_NT0 = INT_MAX - 2,
-    GROUP_NT1 = INT_MAX - 3,
-    WAVE_NT0  = INT_MAX,
-    WAVE_NT1  = INT_MAX - 1,
+    WAVE_NT0  = 0,
+    WAVE_NT1  = 2,
 #endif
 };
 
