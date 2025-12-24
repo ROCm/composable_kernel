@@ -1300,31 +1300,31 @@ template <ck_tile::index_t HDim_,
           bool kSkipMinSeqlenQ_            = false,
           bool kIsSglangLayout_            = false,
           ck_tile::index_t kPageBlockSize_ = 1>
-struct fmha_fwd_batch_prefill_traits_
+struct fmha_fwd_batch_prefill_traits_ : public fmha_fwd_traits_<HDim_,
+                                                                DataType_,
+                                                                kIsGroupMode_,
+                                                                kM0_,
+                                                                kN0_,
+                                                                kK0_,
+                                                                kN1_,
+                                                                kK1_,
+                                                                kK0BlockLength_,
+                                                                kIsVLayoutRowMajor_,
+                                                                FmhaPipelineEnum_,
+                                                                kHasLogitsSoftCap_,
+                                                                FmhaMask_,
+                                                                BiasEnum_,
+                                                                kStoreLse_,
+                                                                kHasDropout_,
+                                                                QScaleEnum_,
+                                                                kPadS_,
+                                                                kPadSK_,
+                                                                kPadD_,
+                                                                kPadDv_,
+                                                                kUseTrLoad_,
+                                                                kSkipMinSeqlenQ_,
+                                                                false>
 {
-    static constexpr ck_tile::index_t HDim           = HDim_;
-    using DataType                                   = ck_tile::remove_cvref_t<DataType_>;
-    static constexpr bool kIsGroupMode               = kIsGroupMode_;
-    static constexpr ck_tile::index_t kM0            = kM0_;
-    static constexpr ck_tile::index_t kN0            = kN0_;
-    static constexpr ck_tile::index_t kK0            = kK0_;
-    static constexpr ck_tile::index_t kN1            = kN1_;
-    static constexpr ck_tile::index_t kK1            = kK1_;
-    static constexpr ck_tile::index_t kK0BlockLength = kK0BlockLength_;
-    static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
-    static constexpr auto FmhaPipelineEnum           = FmhaPipelineEnum_;
-    static constexpr bool kHasLogitsSoftCap          = kHasLogitsSoftCap_;
-    using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
-    static constexpr auto BiasEnum                   = BiasEnum_;
-    static constexpr bool kStoreLse                  = kStoreLse_;
-    static constexpr bool kHasDropout                = kHasDropout_;
-    static constexpr auto QScaleEnum                 = QScaleEnum_;
-    static constexpr bool kPadS                      = kPadS_;
-    static constexpr bool kPadSK                     = kPadSK_;
-    static constexpr bool kPadD                      = kPadD_;
-    static constexpr bool kPadDv                     = kPadDv_;
-    static constexpr bool kUseTrLoad                 = kUseTrLoad_;
-    static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
     static constexpr bool kIsSglangLayout            = kIsSglangLayout_;
     static constexpr ck_tile::index_t kPageBlockSize = kPageBlockSize_;
 };
@@ -1575,22 +1575,10 @@ float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,
                         fmha_fwd_appendkv_args,
                         const ck_tile::stream_config&);
 
-struct fmha_batch_prefill_traits
+struct fmha_batch_prefill_traits : public fmha_fwd_traits
 {
-    int hdim_q;
-    int hdim_v;
-    std::string data_type;
-    bool is_group_mode;
-    bool is_v_rowmajor;
-    bool has_logits_soft_cap;
-    mask_enum mask_type;
-    bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
-    bool has_lse;
-    bool has_dropout;
-    quant_scale_enum qscale_type;
-    bool skip_min_seqlen_q = false;
-    bool is_sglang_layout  = true;
-    int page_size          = 1;
+    bool is_sglang_layout = true;
+    int page_size         = 1;
 };
 
 float fmha_batch_prefill(fmha_batch_prefill_traits,

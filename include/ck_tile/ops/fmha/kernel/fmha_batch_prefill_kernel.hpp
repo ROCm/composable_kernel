@@ -58,11 +58,59 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
     static constexpr auto QScaleEnum        = FmhaPipeline::Problem::QScaleEnum;
     static constexpr bool kIsSglangLayout   = FmhaPipeline::kIsSglangLayout;
     static constexpr index_t kPageBlockSize = FmhaPipeline::kPageBlockSize;
+    static constexpr index_t kVectorSize    = FmhaPipeline::kVectorSize;
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
 
     static constexpr bool kUseAsyncCopy = FmhaPipeline::Policy::AsyncCopy;
+
+    // clang-format off
+    template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
+    template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
+    template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
+    template <> struct t2s<ck_tile::fp8_t> { static constexpr const char * name = "fp8"; };
+    template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
+    // clang-format on
+
+    CK_TILE_HOST static std::string GetName()
+    {
+        // sync with generate.py
+        // clang-format off
+        using bfs = typename FmhaPipeline::BlockFmhaShape;
+        using g0br = typename bfs::Gemm0BlockWarps;
+        using g1br = typename bfs::Gemm1BlockWarps;
+        using g0wt = typename bfs::Gemm0WarpTile;
+        using g1wt = typename bfs::Gemm1WarpTile;
+        #define _SS_  std::string
+        #define _TS_  std::to_string
+        auto pn = [&] () {
+            std::string n;
+            if (kPadSeqLenQ) n += "s";
+            if (kPadSeqLenK) n += "sk";
+            if (kPadHeadDimQ) n += "d";
+            if (kPadHeadDimV) n += "dv";
+            return n.empty() ? n : std::string("p") + n; }();
+        return
+            _SS_("fmha_batch_prefill_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
+            "_" + (kIsGroupMode ? "group" : "batch") + "_"
+            "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
+                    _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kQKHeaddim) + "_" +
+            "r" + _TS_(g0br::at(ck_tile::number<0>{})) + "x" + _TS_(g0br::at(ck_tile::number<1>{})) + "x" + _TS_(g0br::at(ck_tile::number<2>{})) + "_" +
+            "r" + _TS_(g1br::at(ck_tile::number<0>{})) + "x" + _TS_(g1br::at(ck_tile::number<1>{})) + "x" + _TS_(g1br::at(ck_tile::number<2>{})) + "_" +
+            "w" + _TS_(g0wt::at(ck_tile::number<0>{})) + "x" + _TS_(g0wt::at(ck_tile::number<1>{})) + "x" + _TS_(g0wt::at(ck_tile::number<2>{})) + "_" +
+            "w" + _TS_(g1wt::at(ck_tile::number<0>{})) + "x" + _TS_(g1wt::at(ck_tile::number<1>{})) + "x" + _TS_(g1wt::at(ck_tile::number<2>{})) + "_" +
+            (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
+            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) +
+            (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) + (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
+            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) +
+            (kIsSglangLayout ? "_sglang" : "_vllm" ) + (_SS_("_ps") + _TS_(kPageBlockSize)) +  (_SS_("_vs") + _TS_(kVectorSize)) +
+            (QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE ? _SS_("_nqscale") : (_SS_("_") + BlockAttentionQuantScaleEnumToStr<QScaleEnum>::name));
+        #undef _SS_
+        #undef _TS_
+        // clang-format on
+    }
 
     template <ck_tile::index_t I> // to avoid duplicated base class prblem, introduce an template
                                   // arg
@@ -799,28 +847,34 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             }
         }();
         const auto k_dram = [&]() {
-            // New K Layout: [NumPages, D/8, S, 8]
+            // New K Layout: [NumPages, D/kVectorSize, S, kVectorSize]
             // Logical View for Pipeline: (TotalSeqK, D)
 
-            // 1. Define the naive physical view with 4D shape: (NumPages, HeadDim/8, PageBlockSize,
-            // 8)
-            //    Strides: (BatchStride, PageBlockSize*8, 8, 1)
+            // 1. Define the naive physical view with 4D shape: (NumPages, HeadDim/kVectorSize,
+            // PageBlockSize, kVectorSize)
+            //    Strides: (BatchStride, PageBlockSize*kVectorSize, kVectorSize, 1)
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.num_total_pages, kargs.hdim_q / 8, kargs.page_block_size, 8),
-                make_tuple(kargs.batch_stride_k, kargs.page_block_size * 8, 8, 1),
+                make_tuple(kargs.num_total_pages,
+                           kargs.hdim_q / kVectorSize,
+                           kargs.page_block_size,
+                           kVectorSize),
+                make_tuple(
+                    kargs.batch_stride_k, kargs.page_block_size * kVectorSize, kVectorSize, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
             // 2. Transform to logical (Page, S, D) view
-            //    Permute physical (Page, D/8, S, 8) -> logical (Page, S, D)
-            //    where logical D is merged from physical D/8 and 8
+            //    Permute physical (Page, D/kVectorSize, S, kVectorSize) -> logical (Page, S, D)
+            //    where logical D is merged from physical D/kVectorSize and kVectorSize
             auto k_dram_transformed = transform_tensor_view(
                 k_dram_naive,
                 make_tuple(
-                    make_pass_through_transform(kargs.num_total_pages),     // Logical Dim 0: Page
-                    make_pass_through_transform(kargs.page_block_size),     // Logical Dim 1: S
-                    make_merge_transform(make_tuple(kargs.hdim_q / 8, 8))), // Logical Dim 2: D
+                    make_pass_through_transform(kargs.num_total_pages), // Logical Dim 0: Page
+                    make_pass_through_transform(kargs.page_block_size), // Logical Dim 1: S
+                    make_merge_transform(
+                        make_tuple(static_cast<int32_t>(kargs.hdim_q / kVectorSize),
+                                   static_cast<int32_t>(kVectorSize)))), // Logical Dim 2: D
                 make_tuple(sequence<0>{},
                            sequence<2>{},
                            sequence<1, 3>{}), // Map: Phys 0->Log 0, Phys 2->Log 1, Phys 1,3->Log 2
@@ -843,27 +897,31 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                 sequence<kPadSeqLenK_, kPadHeadDimQ>{});
         }();
         const auto v_dram = [&]() {
-            // New V Layout: [NumPages, S/8, D, 8]
+            // New V Layout: [NumPages, S/kVectorSize, D, kVectorSize]
             // Logical View for Pipeline: (D, TotalSeqK) - Transposed for GEMM
 
-            // 1. Define the naive physical view with 4D shape: (NumPages, PageBlockSize/8, HeadDim,
-            // 8)
-            //    Strides: (BatchStride, HeadDim*8, 8, 1)
+            // 1. Define the naive physical view with 4D shape: (NumPages,
+            // PageBlockSize/kVectorSize, HeadDim, kVectorSize)
+            //    Strides: (BatchStride, HeadDim*kVectorSize, kVectorSize, 1)
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
-                make_tuple(kargs.num_total_pages, kargs.page_block_size / 8, kargs.hdim_v, 8),
-                make_tuple(kargs.batch_stride_v, kargs.hdim_v * 8, 8, 1),
+                make_tuple(kargs.num_total_pages,
+                           kargs.page_block_size / kVectorSize,
+                           kargs.hdim_v,
+                           kVectorSize),
+                make_tuple(kargs.batch_stride_v, kargs.hdim_v * kVectorSize, kVectorSize, 1),
                 number<FmhaPipeline::kAlignmentV>{},
                 number<1>{});
 
             // 2. Permute to bring all sequence-related dims together
-            //    (Page, S/8, D, 8) -> (D, Page, S/8, 8)
+            //    (Page, S/kVectorSize, D, kVectorSize) -> (D, Page, S/kVectorSize, kVectorSize)
             auto v_dram_permuted = transform_tensor_view(
                 v_dram_naive,
                 make_tuple(make_pass_through_transform(kargs.hdim_v),          // Logical 0: D
                            make_pass_through_transform(kargs.num_total_pages), // Logical 1: Page
-                           make_pass_through_transform(kargs.page_block_size / 8), // Logical 2: S/8
-                           make_pass_through_transform(8)),                        // Logical 3: 8
+                           make_pass_through_transform(kargs.page_block_size /
+                                                       kVectorSize),  // Logical 2: S/kVectorSize
+                           make_pass_through_transform(kVectorSize)), // Logical 3: kVectorSize
                 make_tuple(sequence<2>{},
                            sequence<0>{},
                            sequence<1>{},
@@ -874,13 +932,13 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                            sequence<3>{})); // Output: (D, Page, S/8, 8)
 
             // 3. Merge all sequence dims to TotalSeqK
-            //    (D, Page, S/8, 8) -> (D, TotalSeqK)
+            //    (D, Page, S/kVectorSize, kVectorSize) -> (D, TotalSeqK)
             auto v_dram_final = transform_tensor_view(
                 v_dram_permuted,
                 make_tuple(make_pass_through_transform(kargs.hdim_v), // Logical 0: D
                            make_merge_transform(make_tuple(kargs.num_total_pages,
-                                                           kargs.page_block_size / 8,
-                                                           8))), // Logical 1: TotalSeqK
+                                                           kargs.page_block_size / kVectorSize,
+                                                           kVectorSize))), // Logical 1: TotalSeqK
                 make_tuple(sequence<0>{}, sequence<1, 2, 3>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -1137,7 +1195,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       block_indices,
                                       smem_ptr,
                                       kargs.kv_page_indices,
-                                      8,            // stride_k, repurpose to 8
+                                      kVectorSize,  // stride_k, repurpose to kVectorSize
                                       kargs.hdim_v, // stride_v, repurpose to hdim_v
                                       kargs.batch_stride_k,
                                       kargs.batch_stride_v,
@@ -1159,7 +1217,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       block_indices,
                                       smem_ptr,
                                       kargs.kv_page_indices,
-                                      8,            // stride_k, repurpose to 8
+                                      kVectorSize,  // stride_k, repurpose to kVectorSize
                                       kargs.hdim_v, // stride_v, repurpose to hdim_v
                                       kargs.batch_stride_k,
                                       kargs.batch_stride_v,

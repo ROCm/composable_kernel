@@ -16,13 +16,13 @@ template <typename OffsetVecType,
           typename CoordVecType,
           index_t kCoordAxis,
           index_t kPageBlockSize,
-          index_t kPageShiftSize,
+          index_t kLog2PageSize,
           index_t kLoopStart,
           index_t kLoopCount,
           index_t kLoopStride,
           bool kIsSglangLayout,
           bool kIsKcache,
-          index_t kVectorSize = 8>
+          index_t kVectorSize>
 CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
                                                    const index_t& stride_kv,
                                                    const index_t& page_stride_kv,
@@ -41,15 +41,15 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
     }
     else
     {
-        constexpr index_t kPageMask = (1 << kPageShiftSize) - 1;
+        constexpr index_t kInPageOffsetMask = (1 << kLog2PageSize) - 1;
         if constexpr(kIsKcache)
         {
             // for k_offset_vec
             static_for<0, kLoopCount, 1>{}([&](auto k0) {
-                const index_t global_idx =
+                const index_t global_token_idx =
                     global_seq_offset + thread_coord_start + kLoopStart + kLoopStride * k0.value;
-                const index_t page_id     = global_idx >> kPageShiftSize;
-                const index_t page_offset = global_idx & kPageMask;
+                const index_t page_id     = global_token_idx >> kLog2PageSize;
+                const index_t page_offset = global_token_idx & kInPageOffsetMask;
                 kv_offset_vec[k0] = static_cast<long_index_t>(page_vec[page_id]) * page_stride_kv +
                                     static_cast<long_index_t>(page_offset) * stride_kv;
             });
@@ -59,14 +59,15 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
             // for v_offset_vec
             const index_t lane0_start = __builtin_amdgcn_readfirstlane(thread_coord_start);
             const index_t lane0_page_id =
-                (global_seq_offset + lane0_start + kLoopStart) >> kPageShiftSize;
+                (global_seq_offset + lane0_start + kLoopStart) >> kLog2PageSize;
 
             const long_index_t page_loc =
                 static_cast<long_index_t>(page_vec[lane0_page_id]) * page_stride_kv;
 
             static_for<0, kLoopCount, 1>{}([&](auto k0) {
                 const index_t page_offset =
-                    (global_seq_offset + thread_coord_start + kLoopStart + k0.value) & kPageMask;
+                    (global_seq_offset + thread_coord_start + kLoopStart + k0.value) &
+                    kInPageOffsetMask;
 
                 // Swizzled Layout Offset
                 // Layout: [BlockSize/kVectorSize, HeadDim, kVectorSize]
@@ -120,7 +121,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr index_t kQKHeaddim     = BlockFmhaShape::kQKHeaddim;
     static constexpr index_t kSubQKHeaddim  = BlockFmhaShape::kSubQKHeaddim;
     static constexpr index_t kPageBlockSize = Problem::kPageBlockSize;
-    static constexpr index_t kPageShiftSize = Problem::kPageShiftSize;
+    static constexpr index_t kLog2PageSize  = Problem::kLog2PageSize;
+    static constexpr index_t kVectorSize    = Problem::kVectorSize;
     static constexpr auto I0                = number<0>{};
     static constexpr auto I1                = number<1>{};
     static constexpr auto I2                = number<2>{};
@@ -406,14 +408,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                   decltype(k_coord),
                                   0,
                                   kPageBlockSize,
-                                  kPageShiftSize,
+                                  kLog2PageSize,
                                   0,
                                   NRepeat,
                                   kN0 / NRepeat,
                                   kIsSglangLayout,
                                   true,
-                                  8 // kVectorSize for K
-                                  >(
+                                  kVectorSize>(
             page_idx, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
 
         auto k_dram_window = make_tile_scatter_gather(k_dram_block_window.get_bottom_tensor_view(),
@@ -452,14 +453,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                   decltype(v_coord),
                                   VPageIndexDim,
                                   kPageBlockSize,
-                                  kPageShiftSize,
+                                  kLog2PageSize,
                                   0,
                                   V_KRepeat,
                                   1,
                                   kIsSglangLayout,
                                   false,
-                                  8 // kVectorSize for V
-                                  >(
+                                  kVectorSize>(
             page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
 
         auto v_dram_window =
@@ -528,13 +528,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                       decltype(v_coord),
                                       VPageIndexDim,
                                       kPageBlockSize,
-                                      kPageShiftSize,
+                                      kLog2PageSize,
                                       kK1,
                                       V_KRepeat,
                                       1,
                                       kIsSglangLayout,
                                       false,
-                                      8>(
+                                      kVectorSize>(
                 page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
             v_dram_window.update_page_idx(v_offsets);
 
@@ -706,13 +706,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           decltype(v_coord),
                                           VPageIndexDim,
                                           kPageBlockSize,
-                                          kPageShiftSize,
+                                          kLog2PageSize,
                                           2 * kK1,
                                           V_KRepeat,
                                           1,
                                           kIsSglangLayout,
                                           false,
-                                          8>(
+                                          kVectorSize>(
                     page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
                 v_dram_window.update_page_idx(v_offsets);
             }
@@ -845,13 +845,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                                   decltype(v_coord),
                                                   VPageIndexDim,
                                                   kPageBlockSize,
-                                                  kPageShiftSize,
+                                                  kLog2PageSize,
                                                   (2 + i_k1.value) * kK1,
                                                   V_KRepeat,
                                                   1,
                                                   kIsSglangLayout,
                                                   false,
-                                                  8>(
+                                                  kVectorSize>(
                             page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
                         v_dram_window.update_page_idx(v_offsets);
                     }
@@ -909,13 +909,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           decltype(k_coord),
                                           0,
                                           kPageBlockSize,
-                                          kPageShiftSize,
+                                          kLog2PageSize,
                                           0,
                                           NRepeat,
                                           kN0 / NRepeat,
                                           kIsSglangLayout,
                                           true,
-                                          8>(
+                                          kVectorSize>(
                     page_idx, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
                 k_dram_window.update_page_idx(k_offsets);
                 if constexpr(k1_loops >= 2 &&

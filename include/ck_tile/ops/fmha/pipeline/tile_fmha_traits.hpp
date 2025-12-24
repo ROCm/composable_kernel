@@ -55,22 +55,25 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kSkipMinSeqlenQ_   = false, /* skip min seqlen q while chunked prefill */
           bool kIsSglangLayout_   = false,
           index_t kPageBlockSize_ = 1>
-struct TileFmhaBatchPrefillTraits
+struct TileFmhaBatchPrefillTraits : public TileFmhaTraits<kPadSeqLenQ_,
+                                                          kPadSeqLenK_,
+                                                          kPadHeadDimQ_,
+                                                          kPadHeadDimV_,
+                                                          kHasLogitsSoftCap_,
+                                                          BiasEnum_,
+                                                          kHasBiasGrad_,
+                                                          kStoreLSE_,
+                                                          kHasDropout_,
+                                                          QScaleEnum_,
+                                                          kBlockPerCu_,
+                                                          kSkipMinSeqlenQ_,
+                                                          false,
+                                                          kIsSglangLayout_>
 {
-    static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
-    static constexpr bool kPadSeqLenK       = kPadSeqLenK_;
-    static constexpr bool kPadHeadDimQ      = kPadHeadDimQ_;
-    static constexpr bool kPadHeadDimV      = kPadHeadDimV_;
-    static constexpr bool kHasLogitsSoftCap = kHasLogitsSoftCap_;
-    static constexpr auto BiasEnum          = BiasEnum_;
-    static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
-    static constexpr bool kStoreLSE         = kStoreLSE_;
-    static constexpr bool kHasDropout       = kHasDropout_;
-    static constexpr auto QScaleEnum        = QScaleEnum_;
-    static constexpr index_t kBlockPerCu    = kBlockPerCu_;
-    static constexpr bool kSkipMinSeqlenQ   = kSkipMinSeqlenQ_;
     static constexpr bool kIsSglangLayout   = kIsSglangLayout_;
     static constexpr index_t kPageBlockSize = kPageBlockSize_;
+    static_assert(kPageBlockSize > 0 && ((kPageBlockSize & (kPageBlockSize - 1)) == 0) &&
+                  "kPageBlockSize should be power of 2");
 };
 
 template <index_t kPadHeadDimQ_ /* paddding for hdim_q */,

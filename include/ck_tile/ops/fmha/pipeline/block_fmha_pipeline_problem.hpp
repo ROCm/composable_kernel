@@ -84,6 +84,23 @@ template <typename QDataType_,
           int kPageBlockSize_,
           typename Traits_>
 struct BlockFmhaBatchPrefillPipelineProblem
+    : public BlockFmhaPipelineProblem<QDataType_,
+                                      KDataType_,
+                                      VDataType_,
+                                      SaccDataType_,
+                                      SMPLComputeDataType_,
+                                      BiasDataType_,
+                                      RandValOutputDataType_,
+                                      LSEDataType_,
+                                      PDataType_,
+                                      OaccDataType_,
+                                      ODataType_,
+                                      BlockFmhaShape_,
+                                      kIsGroupMode_,
+                                      AttentionVariant_,
+                                      FmhaMask_,
+                                      kUseTrLoad_,
+                                      Traits_>
 {
     using QDataType             = remove_cvref_t<QDataType_>;
     using KDataType             = remove_cvref_t<KDataType_>;
@@ -101,11 +118,8 @@ struct BlockFmhaBatchPrefillPipelineProblem
     using FmhaMask              = remove_cvref_t<FmhaMask_>;
     using Traits                = remove_cvref_t<Traits_>;
 
-    static constexpr index_t kNumGemm0Warps = BlockFmhaShape::NumGemm0Warps;
-    static constexpr index_t kNumGemm1Warps = BlockFmhaShape::NumGemm1Warps;
-    static constexpr index_t kBlockSize     = BlockFmhaShape::NumWarps * get_warp_size();
     static constexpr index_t kPageBlockSize = kPageBlockSize_;
-    static constexpr index_t kPageShiftSize = []() constexpr {
+    static constexpr index_t kLog2PageSize  = []() constexpr {
         index_t shift = 0;
         index_t val   = kPageBlockSize_;
         while(val > 1)
@@ -115,22 +129,9 @@ struct BlockFmhaBatchPrefillPipelineProblem
         }
         return shift;
     }();
-    static constexpr bool kIsGroupMode = kIsGroupMode_;
-    static constexpr bool kUseTrLoad   = kUseTrLoad_;
 
-    // attributes from traits
-    static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
-    static constexpr bool kHasLogitsSoftCap = Traits::kHasLogitsSoftCap;
-    static constexpr bool kSkipMinSeqlenQ   = Traits::kSkipMinSeqlenQ;
-    static constexpr auto BiasEnum          = Traits::BiasEnum;
-    static constexpr bool kStoreLSE         = Traits::kStoreLSE;
-    static constexpr bool kHasDropout       = Traits::kHasDropout;
-    static constexpr auto QScaleEnum        = Traits::QScaleEnum;
-    static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
-    static constexpr bool kIsSglangLayout   = Traits::kIsSglangLayout;
+    static constexpr index_t kVectorSize  = 16 / sizeof(KDataType_); // Dwordx4
+    static constexpr bool kIsSglangLayout = Traits::kIsSglangLayout;
 };
 
 template <typename QDataType_,

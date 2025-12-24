@@ -36,7 +36,7 @@ DTYPE_BITS = {
 
 K0_MAX_SUBMAX_MAP = {32: 32, 64: 64, 96: 128, 128: 128, 256: 256}
 
-SUPPORTED_PAGE_SIZE = [1, 1024]
+SUPPORTED_PAGE_SIZE = [1024]
 
 
 FMHA_BATCH_PREFILL_PIPELINE_MAP = {
@@ -565,7 +565,7 @@ class FmhaFwdKernel:
     def name(self) -> str:
         # TODO: we don't encode idx here
         return (
-            f"fmha_batch_prefill_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_p{self.F_page_size}_"
+            f"fmha_batch_prefill_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_ps{self.F_page_size}_"
             + self.F_tile.name
             + "_"
             + self.F_pipeline.name
