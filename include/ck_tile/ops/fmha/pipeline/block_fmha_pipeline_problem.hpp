@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_rotary_embedding.hpp"
 
 namespace ck_tile {
@@ -119,7 +120,10 @@ struct BlockFmhaBatchPrefillPipelineProblem
     using Traits                = remove_cvref_t<Traits_>;
 
     static constexpr index_t kPageBlockSize = kPageBlockSize_;
-    static constexpr index_t kLog2PageSize  = []() constexpr {
+    static_assert(kPageBlockSize > 0, "kPageBlockSize must be positive");
+    static_assert((kPageBlockSize & (kPageBlockSize - 1)) == 0,
+                  "kPageBlockSize must be power of two");
+    static constexpr index_t kLog2PageSize = []() constexpr {
         index_t shift = 0;
         index_t val   = kPageBlockSize_;
         while(val > 1)
@@ -131,7 +135,14 @@ struct BlockFmhaBatchPrefillPipelineProblem
     }();
 
     static constexpr index_t kVectorSize  = 16 / sizeof(KDataType_); // Dwordx4
-    static constexpr bool kIsSglangLayout = Traits::kIsSglangLayout;
+    static constexpr auto kKVMemoryLayout = Traits::kKVMemoryLayout;
+    static constexpr auto kKVLookupTable  = Traits::kKVLookupTable;
+
+    static_assert(BlockFmhaShape::kQKHeaddim % kVectorSize == 0,
+                  "kQKHeaddim must be divisible by kVectorSize");
+    static_assert(kPageBlockSize % kVectorSize == 0,
+                  "kPageBlockSize must be divisible by kVectorSize");
+    static_assert(kIsGroupMode_, "Batch prefill requires group mode");
 };
 
 template <typename QDataType_,

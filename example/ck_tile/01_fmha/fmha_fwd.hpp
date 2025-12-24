@@ -535,6 +535,9 @@ struct fmha_batch_prefill_args
     void* kv_indptr;
     void* kv_page_indices;
     void* kv_last_page_lens;
+    void* seqlen_k_ptr;
+    void* block_table_ptr;
+    ck_tile::index_t batch_stride_block_table;
 
     float scale_s;
     float scale_p;
@@ -1111,6 +1114,21 @@ template <typename FmhaKernel>
 auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
 {
     assert(args.nhead_q % args.nhead_k == 0);
+    using PageTableKargs            = typename FmhaKernel::PageBlockTableKargs;
+    const PageTableKargs page_table = [&]() {
+        if constexpr(FmhaKernel::kKVLookupTable ==
+                     ck_tile::BlockAttentionKVCacheLookupTableEnum::SGLANG_PAGE_TABLE_1D)
+        {
+            return PageTableKargs{reinterpret_cast<const int32_t*>(args.kv_indptr),
+                                  reinterpret_cast<const int32_t*>(args.kv_page_indices),
+                                  reinterpret_cast<const int32_t*>(args.kv_last_page_lens)};
+        }
+        else
+        {
+            return PageTableKargs{reinterpret_cast<const int32_t*>(args.block_table_ptr),
+                                  args.batch_stride_block_table};
+        }
+    }();
     auto kargs = [&] {
         // create group mode kernel arguments
         if constexpr(FmhaKernel::kIsGroupMode)
@@ -1132,9 +1150,8 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.nhead_q / args.nhead_k,
                                          args.num_total_pages,
                                          args.page_block_size,
-                                         args.kv_indptr,
-                                         args.kv_page_indices,
-                                         args.kv_last_page_lens,
+                                         page_table,
+                                         args.seqlen_k_ptr,
                                          args.scale_s,
                                          args.scale_p,
                                          args.scale_o,
@@ -1181,9 +1198,8 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.nhead_q / args.nhead_k,
                                          args.num_total_pages,
                                          args.page_block_size,
-                                         args.kv_indptr,
-                                         args.kv_page_indices,
-                                         args.kv_last_page_lens,
+                                         page_table,
+                                         args.seqlen_k_ptr,
                                          args.scale_s,
                                          args.scale_p,
                                          args.scale_o,
@@ -1298,8 +1314,11 @@ template <ck_tile::index_t HDim_,
           bool kPadDv_,
           bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_            = false,
-          bool kIsSglangLayout_            = false,
-          ck_tile::index_t kPageBlockSize_ = 1>
+          ck_tile::index_t kPageBlockSize_ = 1,
+          ck_tile::BlockAttentionKVCacheMemoryLayoutEnum kKVMemoryLayout_ =
+              ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT,
+          ck_tile::BlockAttentionKVCacheLookupTableEnum kKVLookupTable_ =
+              ck_tile::BlockAttentionKVCacheLookupTableEnum::SGLANG_PAGE_TABLE_1D>
 struct fmha_fwd_batch_prefill_traits_ : public fmha_fwd_traits_<HDim_,
                                                                 DataType_,
                                                                 kIsGroupMode_,
@@ -1325,7 +1344,8 @@ struct fmha_fwd_batch_prefill_traits_ : public fmha_fwd_traits_<HDim_,
                                                                 kSkipMinSeqlenQ_,
                                                                 false>
 {
-    static constexpr bool kIsSglangLayout            = kIsSglangLayout_;
+    static constexpr auto kKVMemoryLayout            = kKVMemoryLayout_;
+    static constexpr auto kKVLookupTable             = kKVLookupTable_;
     static constexpr ck_tile::index_t kPageBlockSize = kPageBlockSize_;
 };
 
@@ -1577,8 +1597,11 @@ float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,
 
 struct fmha_batch_prefill_traits : public fmha_fwd_traits
 {
-    bool is_sglang_layout = true;
-    int page_size         = 1;
+    ck_tile::BlockAttentionKVCacheMemoryLayoutEnum kv_memory_layout =
+        ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT;
+    ck_tile::BlockAttentionKVCacheLookupTableEnum kv_lookup_table =
+        ck_tile::BlockAttentionKVCacheLookupTableEnum::SGLANG_PAGE_TABLE_1D;
+    int page_size = 1;
 };
 
 float fmha_batch_prefill(fmha_batch_prefill_traits,

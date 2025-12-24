@@ -36,7 +36,17 @@ DTYPE_BITS = {
 
 K0_MAX_SUBMAX_MAP = {32: 32, 64: 64, 96: 128, 128: 128, 256: 256}
 
-SUPPORTED_PAGE_SIZE = [1024]
+SUPPORTED_PAGE_SIZE = [128, 256, 1024]
+SUPPORTED_KV_MEMORY_LAYOUT = ["vectorized"]
+SUPPORTED_KV_LOOKUP_TABLE = ["vllm", "sglang"]
+KV_MEMORY_LAYOUT_ENUM_MAP = {
+    "vectorized": "ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT",
+    "linear": "ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT",
+}
+KV_LOOKUP_TABLE_ENUM_MAP = {
+    "vllm": "ck_tile::BlockAttentionKVCacheLookupTableEnum::VLLM_BLOCK_TABLE_2D",
+    "sglang": "ck_tile::BlockAttentionKVCacheLookupTableEnum::SGLANG_PAGE_TABLE_1D",
+}
 
 
 FMHA_BATCH_PREFILL_PIPELINE_MAP = {
@@ -74,8 +84,9 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaBatchPrefillTraits<{F_spad},
                                                     {F_qscale},
                                                     {F_occupancy},
                                                     false,
-                                                    {F_sglang_layout},
-                                                    {F_page_size}>;
+                                                    {F_page_size},
+                                                    {F_kv_memory_layout},
+                                                    {F_kv_lookup_table}>;
 
 using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
 
@@ -113,7 +124,7 @@ using fmha_kernel_{F_idx} =
     ck_tile::FmhaBatchPrefillWithPagedKVCacheKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
 
 using trait_{F_idx} = fmha_fwd_batch_prefill_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
-                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, false, false, {F_sglang_layout}, {F_page_size}>;
+                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, false, false, {F_page_size}, {F_kv_memory_layout}, {F_kv_lookup_table}>;
 
 #include <iostream>
 
@@ -191,8 +202,8 @@ FMHA_FWD_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v
 """
 
 FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.qscale_type == {F_qscale_check}) &&
-                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint}) && (t.is_sglang_layout == {F_sglang_layout}) && (t.page_size == {F_page_size})) {{
-                using trait_ = fmha_fwd_batch_prefill_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, false, false, {F_sglang_layout}, {F_page_size}>;
+                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint}) && (t.kv_memory_layout == {F_kv_memory_layout}) && (t.kv_lookup_table == {F_kv_lookup_table}) && (t.page_size == {F_page_size})) {{
+                using trait_ = fmha_fwd_batch_prefill_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, false, false, {F_page_size}, {F_kv_memory_layout}, {F_kv_lookup_table}>;
                 return fmha_batch_prefill_<trait_>(s, a);
             }}
 """
@@ -237,14 +248,15 @@ class FmhaFwdApiTrait:
     dpad: str
     dvpad: str
     constraint: CppConstraint
-    cache_layout: str
+    kv_memory_layout: str
+    kv_lookup_table: str
     page_size: int = 1  # page block size
 
     @property
     def name(self) -> str:
         return (
             f"{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0max}-"
-            + f"{self.vlayout}-{self.logits}-{self.mask}-{self.bias}-{self.lse}-{self.dropout}-{self.qscale}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.cache_layout}-p{self.page_size}"
+            + f"{self.vlayout}-{self.logits}-{self.mask}-{self.bias}-{self.lse}-{self.dropout}-{self.qscale}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.kv_memory_layout}-{self.kv_lookup_table}-p{self.page_size}"
         )
 
     @property
@@ -331,7 +343,8 @@ class FmhaFwdPipeline:
     F_dropout: str  #
     F_qscale: str  # no/pertensor
     F_mask: str  # value from MASK_MAP
-    F_sglang_layout: str  #
+    F_kv_memory_layout: str  #
+    F_kv_lookup_table: str  #
     F_constraint: CppConstraint = field(default_factory=lambda: CppConstraint())
 
     @property
@@ -393,11 +406,7 @@ class FmhaFwdPipeline:
         else:
             n += "_nqscale"
 
-        if self.F_sglang_layout == "t":
-            n += "_sglang"
-        else:
-            n += "_vllm"
-
+        n += "_" + self.F_kv_memory_layout + "_" + self.F_kv_lookup_table
         return n
 
 
@@ -456,7 +465,12 @@ class FmhaFwdApiPool:
                         F_bk0max=trait.bk0max,
                         F_hdim=hdim,
                         F_dtype=FWD_DTYPE_MAP[dtype],
-                        F_sglang_layout=BOOL_MAP[trait.cache_layout],
+                        F_kv_memory_layout=KV_MEMORY_LAYOUT_ENUM_MAP[
+                            trait.kv_memory_layout
+                        ],
+                        F_kv_lookup_table=KV_LOOKUP_TABLE_ENUM_MAP[
+                            trait.kv_lookup_table
+                        ],
                         F_page_size=trait.page_size,
                     )
                 if_j = "if" if j == 0 else "else if"
@@ -553,7 +567,12 @@ class FmhaFwdKernel:
             F_dropout=BOOL_MAP[self.F_pipeline.F_dropout],
             F_qscale=QSCALE_MAP[self.F_pipeline.F_qscale],
             F_occupancy=self.F_tile.F_occupancy,
-            F_sglang_layout=BOOL_MAP[self.F_pipeline.F_sglang_layout],
+            F_kv_memory_layout=KV_MEMORY_LAYOUT_ENUM_MAP[
+                self.F_pipeline.F_kv_memory_layout
+            ],
+            F_kv_lookup_table=KV_LOOKUP_TABLE_ENUM_MAP[
+                self.F_pipeline.F_kv_lookup_table
+            ],
             F_pipeline_enum=PIPELINE_ENUM_MAP[self.F_pipeline.tag],
             F_mask=get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
             F_mode=MODE_MAP[self.F_mode],
@@ -599,7 +618,8 @@ class FmhaFwdKernel:
             dpad=self.F_pipeline.F_dpad,
             dvpad=self.F_pipeline.F_dvpad,
             constraint=self.F_tile.F_constraint & self.F_pipeline.F_constraint,
-            cache_layout=self.F_pipeline.F_sglang_layout,
+            kv_memory_layout=self.F_pipeline.F_kv_memory_layout,
+            kv_lookup_table=self.F_pipeline.F_kv_lookup_table,
             page_size=self.F_page_size,
         )
 
@@ -627,28 +647,43 @@ class KernelComponentFactory:
         pipelines = []
         if dtype in ["fp16", "bf16"]:
             qscale = "no"
-            for logits, mask, bias, lse, dropout, sglang in itertools.product(
+            for (
+                logits,
+                mask,
+                bias,
+                lse,
+                dropout,
+                kv_memory_layout,
+                kv_lookup_table,
+            ) in itertools.product(
                 ["t", "f"],
                 get_mask_map(mask_impl).keys(),
                 BIAS_MAP.keys(),
                 ["t", "f"],
                 ["t", "f"],
-                ["t", "f"],
+                SUPPORTED_KV_MEMORY_LAYOUT,
+                SUPPORTED_KV_LOOKUP_TABLE,
             ):
-                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, sglang))  # fmt: skip
-                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, sglang))  # fmt: skip
-                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, sglang))  # fmt: skip
-                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, sglang))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, kv_memory_layout, kv_lookup_table))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, kv_memory_layout, kv_lookup_table))  # fmt: skip
         elif dtype in ["fp8bf16"]:
             # no need lse/dropout kernels
-            for logits, qscale, mask, bias, sglang in itertools.product(
+            for (
+                logits,
+                qscale,
+                mask,
+                bias,
+                kv_memory_layout,
+                kv_lookup_table,
+            ) in itertools.product(
                 ["t", "f"],
                 ["pertensor"],
                 get_mask_map(mask_impl).keys(),
                 ["no"],
-                ["t", "f"],
+                SUPPORTED_KV_MEMORY_LAYOUT,
+                SUPPORTED_KV_LOOKUP_TABLE,
             ):
-                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, sglang))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, kv_memory_layout, kv_lookup_table))  # fmt: skip
         else:
             assert False
         return pipelines
@@ -719,8 +754,6 @@ def get_fwd_blobs(
                     if optdim_list != [-1]:
                         if hdim not in optdim_list:
                             continue
-                    if pipeline.F_sglang_layout == "t" and page_size != 1:
-                        continue  # sglang_layout with page_size > 1 not supported yet
                     # 2 - Flash attention integration
                     if receipt in (2, 3):
                         cond = dtype in ["fp16", "bf16"]

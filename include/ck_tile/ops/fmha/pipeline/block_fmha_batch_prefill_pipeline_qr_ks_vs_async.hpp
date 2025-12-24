@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_batch_prefill_pipeline_qr_ks_vs_async_default_policy.hpp"
@@ -20,7 +21,7 @@ template <typename OffsetVecType,
           index_t kLoopStart,
           index_t kLoopCount,
           index_t kLoopStride,
-          bool kIsSglangLayout,
+          BlockAttentionKVCacheMemoryLayoutEnum kKVMemoryLayout,
           bool kIsKcache,
           index_t kVectorSize>
 CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
@@ -30,46 +31,39 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
                                                    OffsetVecType& kv_offset_vec,
                                                    index_t global_seq_offset = 0)
 {
-    const index_t& thread_coord_start = coord_vec[kCoordAxis];
-    if constexpr(kIsSglangLayout)
+    const index_t& thread_coord_start   = coord_vec[kCoordAxis];
+    constexpr index_t kInPageOffsetMask = (1 << kLog2PageSize) - 1;
+    if constexpr(kIsKcache)
     {
+        // for k_offset_vec
         static_for<0, kLoopCount, 1>{}([&](auto k0) {
-            kv_offset_vec[k0] = page_vec[global_seq_offset + thread_coord_start + kLoopStart +
-                                         kLoopStride * k0.value] *
-                                stride_kv;
+            const index_t global_token_idx =
+                global_seq_offset + thread_coord_start + kLoopStart + kLoopStride * k0.value;
+            const index_t page_id     = global_token_idx >> kLog2PageSize;
+            const index_t page_offset = global_token_idx & kInPageOffsetMask;
+            kv_offset_vec[k0] = static_cast<long_index_t>(page_vec[page_id]) * page_stride_kv +
+                                static_cast<long_index_t>(page_offset) * stride_kv;
         });
     }
     else
     {
-        constexpr index_t kInPageOffsetMask = (1 << kLog2PageSize) - 1;
-        if constexpr(kIsKcache)
-        {
-            // for k_offset_vec
-            static_for<0, kLoopCount, 1>{}([&](auto k0) {
-                const index_t global_token_idx =
-                    global_seq_offset + thread_coord_start + kLoopStart + kLoopStride * k0.value;
-                const index_t page_id     = global_token_idx >> kLog2PageSize;
-                const index_t page_offset = global_token_idx & kInPageOffsetMask;
-                kv_offset_vec[k0] = static_cast<long_index_t>(page_vec[page_id]) * page_stride_kv +
-                                    static_cast<long_index_t>(page_offset) * stride_kv;
-            });
-        }
-        else
-        {
-            // for v_offset_vec
-            const index_t lane0_start = __builtin_amdgcn_readfirstlane(thread_coord_start);
-            const index_t lane0_page_id =
-                (global_seq_offset + lane0_start + kLoopStart) >> kLog2PageSize;
+        // for v_offset_vec
+        const index_t lane0_start = __builtin_amdgcn_readfirstlane(thread_coord_start);
+        const index_t lane0_page_id =
+            (global_seq_offset + lane0_start + kLoopStart) >> kLog2PageSize;
 
-            const long_index_t page_loc =
-                static_cast<long_index_t>(page_vec[lane0_page_id]) * page_stride_kv;
+        const long_index_t page_loc =
+            static_cast<long_index_t>(page_vec[lane0_page_id]) * page_stride_kv;
 
-            static_for<0, kLoopCount, 1>{}([&](auto k0) {
-                const index_t page_offset =
-                    (global_seq_offset + thread_coord_start + kLoopStart + k0.value) &
-                    kInPageOffsetMask;
+        static_for<0, kLoopCount, 1>{}([&](auto k0) {
+            const index_t page_offset =
+                (global_seq_offset + thread_coord_start + kLoopStart + k0.value) &
+                kInPageOffsetMask;
 
-                // Swizzled Layout Offset
+            if constexpr(kKVMemoryLayout ==
+                         BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+            {
+                // Vectorized layout offset
                 // Layout: [BlockSize/kVectorSize, HeadDim, kVectorSize]
                 // Offset(s) = (s / kVectorSize) * (HeadDim * kVectorSize) + (s % kVectorSize)
                 const index_t s = page_offset;
@@ -80,8 +74,12 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
                     (s % kVectorSize);
 
                 kv_offset_vec[k0] = page_loc + s_offset;
-            });
-        }
+            }
+            else // BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT
+            {
+                kv_offset_vec[k0] = page_loc + static_cast<long_index_t>(page_offset) * stride_kv;
+            }
+        });
     }
 }
 
@@ -143,7 +141,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
-    static constexpr bool kIsSglangLayout   = Problem::kIsSglangLayout;
+    static constexpr auto kKVMemoryLayout   = Problem::kKVMemoryLayout;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
@@ -412,7 +410,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                   0,
                                   NRepeat,
                                   kN0 / NRepeat,
-                                  kIsSglangLayout,
+                                  kKVMemoryLayout,
                                   true,
                                   kVectorSize>(
             page_idx, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
@@ -457,7 +455,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                   0,
                                   V_KRepeat,
                                   1,
-                                  kIsSglangLayout,
+                                  kKVMemoryLayout,
                                   false,
                                   kVectorSize>(
             page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
@@ -532,7 +530,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                       kK1,
                                       V_KRepeat,
                                       1,
-                                      kIsSglangLayout,
+                                      kKVMemoryLayout,
                                       false,
                                       kVectorSize>(
                 page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
@@ -710,7 +708,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           2 * kK1,
                                           V_KRepeat,
                                           1,
-                                          kIsSglangLayout,
+                                          kKVMemoryLayout,
                                           false,
                                           kVectorSize>(
                     page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
@@ -849,7 +847,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                                   (2 + i_k1.value) * kK1,
                                                   V_KRepeat,
                                                   1,
-                                                  kIsSglangLayout,
+                                                  kKVMemoryLayout,
                                                   false,
                                                   kVectorSize>(
                             page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
@@ -893,14 +891,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             i_total_loops++;
             if(i_total_loops < num_total_loop)
             {
-                if constexpr(kIsSglangLayout)
-                {
-                    page_idx += kN0;
-                }
-                else
-                {
-                    current_seq_k += kN0;
-                }
+                current_seq_k += kN0;
                 // move K tile windows
                 move_tile_window(k_dram_block_window, {kN0, 0});
                 k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
@@ -913,7 +904,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           0,
                                           NRepeat,
                                           kN0 / NRepeat,
-                                          kIsSglangLayout,
+                                          kKVMemoryLayout,
                                           true,
                                           kVectorSize>(
                     page_idx, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
