@@ -1237,7 +1237,7 @@ constexpr auto reverse_slice_sequence(Seq,
 {
     static_assert(Seq::size() == Mask::size());
     static_assert(SliceSize != 0, "slice size zero is invalid");
-    static_assert(container_reduce(pick_sequence_elements_by_mask(Seq{}, Mask{}), multiplies{}, 1) %
+    static_assert(container_reduce(pick_sequence_elements_by_mask(Seq{}, Mask{}), multiplies<void, void>{}, 1) %
                           SliceSize ==
                       0,
                   "slice size can't evenly divide input sizes");
