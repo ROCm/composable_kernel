@@ -86,27 +86,6 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
     static constexpr int kBlockPerCu = 1;
 };
 
-template <typename PrecType>
-struct GemmConfigComputeAsync : public GemmConfigBase
-{
-    static constexpr ck_tile::index_t M_Tile = 256;
-    static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
-
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile =
-        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
-
-    static constexpr bool DoubleSmemBuffer          = true;  // Async needs double buffer
-    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_ASYNC;
-
-    static constexpr int kBlockPerCu = 1;
-};
 
 template <typename PrecType>
 struct GemmConfigComputeV4 : public GemmConfigBase

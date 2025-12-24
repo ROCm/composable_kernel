@@ -241,6 +241,28 @@ struct GemmConfigComputeV6 : public GemmConfigBase
     static constexpr ck_tile::index_t NumWaveGroups = 1;
 };
 
+// COMPUTE_ASYNC: Uses async global->LDS copy with double buffering
+// Config from test_gemm_pipeline_comp_async.cpp: 256x256x32, WarpTile 32x32x16
+template <typename PrecType>
+struct GemmConfigComputeAsync : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_ASYNC;
+    static constexpr bool Persistent                = false;
+};
+
 template <typename PrecType>
 struct GemmConfigPreshuffleDecode : public GemmConfigBase
 {
@@ -421,6 +443,15 @@ struct PipelineTypeTraits<ck_tile::GemmPipeline::COMPUTE_V6>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV6<PipelineProblem>;
     template <typename PipelineProblem>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV6<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::COMPUTE_ASYNC>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompAsync<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompAsync<PipelineProblem>;
 };
 
 template <>
