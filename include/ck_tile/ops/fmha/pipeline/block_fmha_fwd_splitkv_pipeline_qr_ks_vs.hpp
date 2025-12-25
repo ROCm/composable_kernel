@@ -631,7 +631,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                         }
                         else
                         {
-                            // printf("here use tmp\n");
                             auto row_max = scale_s * get_validated_m(m[i_idx]);
                             return exp2(scale_s * m_old[i_idx] - row_max);
                         }
