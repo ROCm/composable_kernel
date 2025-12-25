@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+#include "device_prop.hpp"
 #include <stdexcept>
 
 namespace ck_tile {
@@ -98,7 +99,14 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmConfig)
         else
         {
             assert(is_wave32() == false);
-            divisor = gemmConfig.N_Warp_Tile == 32 ? 2 : 4;
+            if(ck_tile::is_gfx95_supported())
+            {
+                divisor = gemmConfig.N_Warp_Tile == 32 ? 4 : 8;
+            }
+            else
+            {
+                divisor = gemmConfig.N_Warp_Tile == 32 ? 2 : 4;
+            }
         }
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Warp_Tile,
                                        gemmConfig.N_Warp_Tile,
@@ -167,7 +175,14 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmC
         else
         {
             assert(is_wave32() == false);
-            divisor = gemmConfig.N_Warp_Tile == 32 ? 2 : 4;
+            if(ck_tile::is_gfx95_supported())
+            {
+                divisor = gemmConfig.N_Warp_Tile == 32 ? 4 : 8;
+            }
+            else
+            {
+                divisor = gemmConfig.N_Warp_Tile == 32 ? 2 : 4;
+            }
         }
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Tile,
                                        gemmConfig.N_Warp,
