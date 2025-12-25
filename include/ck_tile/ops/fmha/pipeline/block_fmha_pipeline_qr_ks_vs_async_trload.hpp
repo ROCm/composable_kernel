@@ -148,7 +148,8 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               void* smem_ptr) const
+               void* smem_ptr,
+               float sink_v) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -193,8 +194,16 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
         auto l = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
-        clear_tile(l);
+        if(!__builtin_isinf_sign(sink_v) || __builtin_isinf_sign(sink_v) > 0)
+        {
+            set_tile(m, sink_v);
+            set_tile(l, SMPLComputeDataType{1.0f});
+        }
+        else
+        {
+            set_tile(m, -numeric<SMPLComputeDataType>::infinity());
+            clear_tile(l);
+        }
 
         const auto q_origin = q_dram_block_window_tmp.get_window_origin();
         const auto [logical_seqlen_k_start, logical_seqlen_k_end] =
@@ -649,6 +658,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
+               float sink_v,
                void* __restrict__ smem_ptrk0,
                void* __restrict__ smem_ptrk1,
                void* __restrict__ smem_ptrv0,
@@ -698,8 +708,16 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
         auto l = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
-        clear_tile(l);
+        if(!__builtin_isinf_sign(sink_v) || __builtin_isinf_sign(sink_v) > 0)
+        {
+            set_tile(m, sink_v);
+            set_tile(l, SMPLComputeDataType{1.0f});
+        }
+        else
+        {
+            set_tile(m, -numeric<SMPLComputeDataType>::infinity());
+            clear_tile(l);
+        }
 
         const auto q_origin = q_dram_block_window_tmp.get_window_origin();
         const auto [logical_seqlen_k_start, logical_seqlen_k_end] =

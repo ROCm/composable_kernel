@@ -77,6 +77,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         const void* k_ptr;
         const void* v_ptr;
         void* o_ptr;
+        const void* sink_ptr;
 
         ck_tile::index_t seqlen_q;
         ck_tile::index_t seqlen_k;
@@ -332,12 +333,14 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               float p_drop,
               bool s_randval,
               std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
-                  drop_seed_offset)
+                  drop_seed_offset,
+              const void* sink_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
                      o_ptr,
+                     sink_ptr,
                      seqlen_q,
                      -1,
                      hdim_q,
@@ -485,12 +488,14 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               float p_drop,
               bool s_randval,
               std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
-                  drop_seed_offset)
+                  drop_seed_offset,
+              const void* sink_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
                      o_ptr,
+                     sink_ptr,
                      -1, // seqlen will be updated by another pointer
                      -1, //
                      hdim_q,
@@ -701,6 +706,9 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         long_index_t batch_offset_o       = 0;
 
         const int32_t num_page_blocks = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
+        const float sink_value        = kargs.sink_ptr != nullptr
+                                            ? *(static_cast<const float*>(kargs.sink_ptr) + i_nhead)
+                                            : static_cast<float>(-numeric<half_t>::infinity());
 #if 0 // we assume page_block_size=1 for now
         const int32_t last_page_len   = kargs.kv_last_page_lens[i_batch];
 #endif
@@ -1111,7 +1119,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       kargs.kv_page_indices,
                                       kargs.stride_k,
                                       kargs.stride_v,
-                                      dropout);
+                                      dropout,
+                                      sink_value);
             }
             else
             {
@@ -1131,7 +1140,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       kargs.kv_page_indices,
                                       kargs.stride_k,
                                       kargs.stride_v,
-                                      dropout);
+                                      dropout,
+                                      sink_value);
             }
         }();
 

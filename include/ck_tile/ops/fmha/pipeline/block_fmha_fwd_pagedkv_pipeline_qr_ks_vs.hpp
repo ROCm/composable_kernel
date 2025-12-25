@@ -163,7 +163,8 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
-               void* smem_ptr) const
+               void* smem_ptr,
+               const float sink_v) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -227,8 +228,16 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
-        clear_tile(l);
+        if(!__builtin_isinf_sign(sink_v) || __builtin_isinf_sign(sink_v) > 0)
+        {
+            set_tile(m, sink_v);
+            set_tile(l, SMPLComputeDataType{1.0f});
+        }
+        else
+        {
+            set_tile(m, -numeric<SMPLComputeDataType>::infinity());
+            clear_tile(l);
+        }
         const auto q_origin          = q_dram_window.get_window_origin();
         const auto tile_range_result = [&mask, &q_origin]() {
             if constexpr(kHasSink)
@@ -788,7 +797,8 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
-               void* smem_ptr) const
+               void* smem_ptr,
+               const float sink_v) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -812,7 +822,8 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                           variant_params,
                           block_indices,
                           kv_l2p_offset,
-                          smem_ptr);
+                          smem_ptr,
+                          sink_v);
     }
 };
 

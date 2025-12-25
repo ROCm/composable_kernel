@@ -188,7 +188,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float sink_v) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -274,8 +275,16 @@ struct BlockFmhaPipelineQRKSVSAsync
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
-        clear_tile(l);
+        if(!__builtin_isinf_sign(sink_v) || __builtin_isinf_sign(sink_v) > 0)
+        {
+            set_tile(m, sink_v);
+            set_tile(l, SMPLComputeDataType{1.0f});
+        }
+        else
+        {
+            set_tile(m, -numeric<SMPLComputeDataType>::infinity());
+            clear_tile(l);
+        }
 
         __builtin_amdgcn_sched_barrier(0);
         const auto q_origin          = q_dram_window.get_window_origin();
@@ -880,7 +889,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float sink_v) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -903,7 +913,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                           variant_params,
                           block_indices,
                           smem_ptr,
-                          dropout);
+                          dropout,
+                          sink_v);
     }
 };
 
