@@ -101,6 +101,11 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
+    // bogus variables to compile grouped gemm (to be removed)
+    static constexpr index_t MPerBlock = BlockGemmShape::kM;
+    static constexpr index_t NPerBlock = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
     static constexpr index_t kflatKPerBlock = BlockGemmShape::flatKPerBlock;
 
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;

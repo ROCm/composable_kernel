@@ -331,7 +331,7 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
         using BlockGemm = remove_cvref_t<decltype(GetBlockWeightPreshuffle<Problem>())>;
-        using WG_       = typename BlockGemm::WG;
+        using WG_       = typename BlockGemm::WarpGemm;
 
         constexpr bool TransposeC = Problem::TransposeC;
         using CLayout             = typename Problem::CLayout;
