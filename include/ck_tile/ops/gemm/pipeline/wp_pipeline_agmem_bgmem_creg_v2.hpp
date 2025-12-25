@@ -573,11 +573,11 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
 
             constexpr auto a_lds_load_tile_distr = make_static_tile_distribution(
                 BlockWeightPreshuffle::MakeABlockDistributionEncode());
-
-            auto&& [a_copy_dram_window, a_lds_windows] =
+            auto&& windows_result =
                 Base::GetAWindows(a_dram_block_window_tmp, a_lds_blocks, a_lds_load_tile_distr);
-
-            auto a_copy_lds_windows = generate_tuple(
+            auto&& a_copy_dram_window = windows_result.template get<0>();
+            auto&& a_lds_windows      = windows_result.template get<1>();
+            auto a_copy_lds_windows   = generate_tuple(
                 [&](auto i) -> decltype(auto) { return a_lds_windows[i].template at<0>(); },
                 number<2>{});
             // Block GEMM
