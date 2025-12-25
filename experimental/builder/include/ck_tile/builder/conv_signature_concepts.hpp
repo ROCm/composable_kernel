@@ -81,11 +81,23 @@ concept ConvOutputLayout3D =
     (L == TensorLayout::NGKDHW) || (L == TensorLayout::G_NDHW_K_strided);
 
 template <typename T>
+concept HasDataType = requires(T t) {
+    { t.data_type };
+};
+
+// Note: for signature and TensorConfigDescriptor,
+// it is not required to provide a default data type, but if one is provided, check if well defined
+template <typename T>
+concept DataTypeWellDefinedIfProvided = requires(T t) {
+    requires !HasDataType<T> || requires {
+        { t.data_type } -> std::convertible_to<DataType>;
+    };
+};
+
+template <typename T>
 concept TensorConfigDescriptor = requires(T t) {
     { t.layout } -> std::convertible_to<TensorLayout>;
-    // Only require that data type is defined. It might be set to undefined value, in which case the
-    // signature's data type is used.
-    { t.data_type } -> std::convertible_to<DataType>;
+    requires DataTypeWellDefinedIfProvided<T>;
 };
 
 template <typename T>
@@ -164,11 +176,11 @@ concept HasElementwiseOpWithAuxiliaryOperands = requires(T t) {
 template <typename T>
 concept ConvSignatureDescriptor = requires(T t) {
     { t.spatial_dim } -> std::convertible_to<unsigned int>;
-    { t.data_type } -> std::convertible_to<DataType>;
     { t.input } -> ConvTensorDescriptor;
     { t.weight } -> ConvTensorDescriptor;
     { t.output } -> ConvTensorDescriptor;
     requires ConvolutionDirectionWellDefinedIfProvided<T>;
+    requires DataTypeWellDefinedIfProvided<T>;
 };
 
 // Concept to validate a convolution signature's values.
