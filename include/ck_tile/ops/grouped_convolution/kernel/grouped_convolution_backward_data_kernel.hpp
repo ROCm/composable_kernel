@@ -746,11 +746,12 @@ struct GroupedConvolutionBackwardDataKernel
 
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
     CK_TILE_DEVICE static auto
-    MakeCBlockWindow(WeiDataType* c_ptr,
-                     const GroupedConvBwdDataKernelArgsSpecialized& kargs,
-                     const index_t block_idx_m,
-                     const index_t block_idx_n,
-                     const index_t group_id)
+    MakeGemmTensorViews(const OutDataType* a_ptr,
+                        const InDataType* b_ptr,
+                        const std::array<const void*, NumDTensor>& ds_ptr,
+                        WeiDataType* c_ptr,
+                        const GroupedConvBwdDataKernelArgsSpecialized& kargs,
+                        const index_t group_id)
     {
         static_assert(!GemmPipeline::BlockGemmShape::PermuteA, "Not implemented!");
         static_assert(!GemmPipeline::BlockGemmShape::PermuteB, "Not implemented!");
@@ -785,7 +786,30 @@ struct GroupedConvolutionBackwardDataKernel
             },
             number<NumDTensor>{});
 
-        const auto& ds_pad_view = generate_tuple(
+        return make_tuple(a_tensor_view, b_tensor_view, ds_tensor_view, c_tensor_view);
+    }
+
+    template <typename TensorView>
+    CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views)
+    {
+        const auto& a_pad_view = [&]() {
+            const auto& a_tensor_view = views.at(I0);
+            return pad_tensor_view(a_tensor_view,
+                                   make_tuple(number<TilePartitioner::MPerBlock>{},
+                                              number<TilePartitioner::KPerBlock>{}),
+                                   sequence<true, true>{});
+        }();
+
+        const auto& b_pad_view = [&]() {
+            const auto& b_tensor_view = views.at(I1);
+            return pad_tensor_view(b_tensor_view,
+                                   make_tuple(number<TilePartitioner::KPerBlock>{},
+                                              number<TilePartitioner::NPerBlock>{}),
+                                   sequence<true, true>{});
+        }();
+
+        const auto& ds_tensor_view = views.at(I2);
+        const auto& ds_pad_view    = generate_tuple(
             [&](auto i) {
                 return pad_tensor_view(ds_tensor_view[i],
                                        make_tuple(number<TilePartitioner::MPerBlock>{},
@@ -794,14 +818,15 @@ struct GroupedConvolutionBackwardDataKernel
             },
             number<NumDTensor>{});
 
-        return generate_tuple(
-            [&](auto i) {
-                return make_tile_window(ds_pad_view[i],
-                                        make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                   number<TilePartitioner::NPerBlock>{}),
-                                        {block_idx_m, block_idx_n});
-            },
-            number<NumDTensor>{});
+        const auto& c_pad_view = [&]() {
+            const auto& c_tensor_view = views.at(I3);
+            return pad_tensor_view(c_tensor_view,
+                                   make_tuple(number<TilePartitioner::MPerBlock>{},
+                                              number<TilePartitioner::NPerBlock>{}),
+                                   sequence<true, true>{});
+        }();
+
+        return make_tuple(a_pad_view, b_pad_view, ds_pad_view, c_pad_view);
     }
 
     template <typename PadView>
@@ -810,40 +835,40 @@ struct GroupedConvolutionBackwardDataKernel
                                                    const index_t i_n,
                                                    const index_t i_k)
     {
-        static_assert(!GemmPipeline::BlockGemmShape::PermuteB, "Not implemented!");
-        const auto& b_tensor_view =
-            make_tensor_view<address_space_enum::global>(b_ptr, kargs.b_grid_descs_n_k[group_id]);
+        const auto& a_pad_view  = views.at(I0);
+        const auto& b_pad_view  = views.at(I1);
+        const auto& ds_pad_view = views.at(I2);
+        const auto& c_pad_view  = views.at(I3);
 
-        const auto& b_pad_view = pad_tensor_view(
-            b_tensor_view,
-            make_tuple(number<TilePartitioner::KPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            sequence<true, true>{});
+        const auto& a_block_window = [&]() {
+            return make_tile_window(a_pad_view,
+                                    make_tuple(number<TilePartitioner::MPerBlock>{},
+                                               number<TilePartitioner::KPerBlock>{}),
+                                    {i_m, i_k});
+        }();
 
-        return make_tile_window(
-            b_pad_view,
-            make_tuple(number<TilePartitioner::KPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            {0, block_idx_n});
-    }
+        const auto& b_block_window = [&]() {
+            return make_tile_window(b_pad_view,
+                                    make_tuple(number<TilePartitioner::KPerBlock>{},
+                                               number<TilePartitioner::NPerBlock>{}),
+                                    {i_k, i_n});
+        }();
 
-    CK_TILE_DEVICE static auto
-    MakeABlockWindow(const OutDataType* a_ptr,
-                     const GroupedConvBwdDataKernelArgsSpecialized& kargs,
-                     const index_t block_idx_m,
-                     const index_t group_id)
-    {
-        static_assert(!GemmPipeline::BlockGemmShape::PermuteA, "Not implemented!");
-        const auto& a_tensor_view =
-            make_tensor_view<address_space_enum::global>(a_ptr, kargs.a_grid_descs_m_k[group_id]);
+        const auto ds_block_window = generate_tuple(
+            [&](auto i) {
+                return make_tile_window(ds_pad_view[i],
+                                        make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                   number<TilePartitioner::NPerBlock>{}),
+                                        {i_m, i_n});
+            },
+            number<NumDTensor>{});
 
-        const auto& a_pad_view = pad_tensor_view(
-            a_tensor_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
-            sequence<true, true>{});
+        auto c_block_window = make_tile_window(
+            c_pad_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            {i_m, i_n});
 
-        return make_tile_window(
-            a_pad_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
-            {block_idx_m, 0});
+        return make_tuple(a_block_window, b_block_window, ds_block_window, c_block_window);
     }
 
     /**
@@ -882,6 +907,11 @@ struct GroupedConvolutionBackwardDataKernel
 
         auto gemm_tile_windows =
             MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, block_idx_k);
+
+        // Run GEMM cooperatively by whole workgroup.
+        const auto& a_block_window = gemm_tile_windows.at(I0);
+        const auto& b_block_window = gemm_tile_windows.at(I1);
+        const auto& d_block_window = gemm_tile_windows.at(I2);
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& c_block_tile = GemmPipeline{}.template operator()(
