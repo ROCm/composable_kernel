@@ -1016,13 +1016,13 @@ struct UniversalGemmKernel
         {
             auto c_block_window = MakeCBlockWindows<memory_operation_enum::set>(
                 e_ptr, kargs, block_idx_m, block_idx_n);
-            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
+            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr);
         }
         else
         {
             auto c_block_window = MakeCBlockWindows<memory_operation_enum::atomic_add>(
                 e_ptr, kargs, block_idx_m, block_idx_n);
-            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
+            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr);
         }
     }
 
@@ -1031,25 +1031,11 @@ struct UniversalGemmKernel
     {
         index_t iM, iN;
 
-        if constexpr(ClusterLaunch)
-        {
-            // Cluster launch: use 2D block indexing
-            const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
-            const auto blockIdY = amd_wave_read_first_lane(blockIdx.y);
-            const auto [tile_m, tile_n] =
-                TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdX, blockIdY);
-            iM = tile_m;
-            iN = tile_n;
-        }
-        else
-        {
-            // Regular launch: use 1D block indexing
-            const auto blockId = amd_wave_read_first_lane(blockIdx.x);
-            const auto [tile_m, tile_n] =
-                TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
-            iM = tile_m;
-            iN = tile_n;
-        }
+        // Regular launch: use 1D block indexing
+        const auto blockId          = amd_wave_read_first_lane(blockIdx.x);
+        const auto [tile_m, tile_n] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
+        iM                          = tile_m;
+        iN                          = tile_n;
 
         const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
         const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
@@ -1057,36 +1043,17 @@ struct UniversalGemmKernel
         return make_tuple(i_m, i_n);
     }
 
-    // Helper functions for persistent kernel with cluster support
+    // Helper functions
     CK_TILE_DEVICE static auto GetBlockId() -> index_t
     {
-        if constexpr(ClusterLaunch)
-        {
-            // For 2D cluster launch: convert 2D block index to 1D
-            const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
-            const auto blockIdY = amd_wave_read_first_lane(blockIdx.y);
-            const auto gridDimX = amd_wave_read_first_lane(gridDim.x);
-            return blockIdY * gridDimX + blockIdX;
-        }
-        else
-        {
-            // For 1D regular launch
-            return amd_wave_read_first_lane(get_block_id());
-        }
+        // For 1D regular launch
+        return amd_wave_read_first_lane(get_block_id());
     }
 
     CK_TILE_DEVICE static auto GetGridSize() -> index_t
     {
-        if constexpr(ClusterLaunch)
-        {
-            // For 2D cluster launch: total blocks = gridDim.x * gridDim.y
-            return amd_wave_read_first_lane(gridDim.x * gridDim.y);
-        }
-        else
-        {
-            // For 1D regular launch
-            return amd_wave_read_first_lane(get_grid_size());
-        }
+        // For 1D regular launch
+        return amd_wave_read_first_lane(get_grid_size());
     }
 
     // Helper to get total number of tiles, handling both dim3 and index_t return types
