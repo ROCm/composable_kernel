@@ -552,7 +552,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                     __builtin_amdgcn_sched_barrier(0x00000001);
 
                     store_tile(v_lds_windows[number<(i_k1 + 3) % NumKVLdsBuffers>{}],
-                               v_tiles[number<i_k1 + 1>{}],
+                               v_tiles[number<(i_k1 + 1) % NumPrefetchV>{}],
                                partition_index);
 
                     __builtin_amdgcn_sched_barrier(0x00000001);
