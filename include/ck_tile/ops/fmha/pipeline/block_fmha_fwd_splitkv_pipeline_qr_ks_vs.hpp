@@ -462,7 +462,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             else
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
-                // printf("scale_s1: %f\n", scale_s);
                 if constexpr(kHasLogitsSoftCap)
                 {
                     auto apply_logits_transform =
