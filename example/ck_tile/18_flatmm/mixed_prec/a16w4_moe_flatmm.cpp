@@ -473,10 +473,33 @@ int run_a16w4_moe_flatmm_example(int argc, char* argv[])
                 throw std::runtime_error("Unsupported precision type for gemm2!");
             }
         }
+        else if(gemm_kind == "gemm1_split_k")
+        {
+            if(mixed_prec == "fp16xfp4")
+            {
+                return run_a16w4_moe_gemm_example_with_layouts<
+                    ck_tile::half_t,
+                    ck_tile::pk_fp4_t,
+                    FlatmmConfig,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_split_k>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(mixed_prec == "bf16xfp4")
+            {
+                return run_a16w4_moe_gemm_example_with_layouts<
+                    ck_tile::bfloat16_t,
+                    ck_tile::pk_fp4_t,
+                    FlatmmConfig,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_split_k>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported precision type for gemm1_split_k!");
+            }
+        }
         else
         {
             throw std::runtime_error("Unrecoginized gemm_kind parameter, only accept value "
-                                     "[gemm1_gate_up | gemm2]");
+                                     "[gemm1_gate_up | gemm1_split_k | gemm2]");
         }
     }
     else

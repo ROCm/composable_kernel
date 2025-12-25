@@ -325,9 +325,15 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                              BComputeDataType>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
-    GET_NXDL_PER_WAVE_IMPL
-    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
-    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+    GET_MXDL_PER_WAVE_IMPL
+    // Force usage of 16x16 instruction for WMMA
+    static constexpr index_t Wave32MaxMNPerXDL = 16;
+    static constexpr auto MXdlPerWave64        = GetMXdlPerWave<true>();
+    static constexpr auto MXdlPerWave32 =
+        GetMXdlPerWave<false,
+                       Wave32MaxMNPerXDL,
+                       Wave32MaxMNPerXDL,
+                       NXdlPerWave*(NPerXDL / Wave32MaxMNPerXDL)>();
 
     static_assert(NumGroupsToMerge >= 1);
 
@@ -486,35 +492,36 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     using GemmADataType = std::conditional_t<!isMultiA && isMultiB, Tuple<ADataType>, ADataType>;
     using GemmBDataType = std::conditional_t<!isMultiB && isMultiA, Tuple<BDataType>, BDataType>;
 
-#define CK_GRIDWISE_GEMM_FWD_MULTIPLE_ABD_XDL_CSHUFFLE_TEMPLATE_PARAMETERS                      \
-    GemmADataType, GemmBDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType,  \
-        EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,       \
-        InMemoryDataOperationEnum::Set, NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, \
-        KPerBlock, AK1, BK1, MPerXDL, NPerXDL, MXdlPerWave, NXdlPerWave_,                       \
-        ABlockTransferThreadClusterLengths_AK0_M_AK1, ABlockTransferThreadClusterArrangeOrder,  \
-        ABlockTransferSrcAccessOrder, ABlockTransferSrcVectorDim,                               \
-        ABlockTransferSrcScalarPerVector, ABlockTransferDstScalarPerVector_AK1, false,          \
-        ABlockLdsExtraM, BBlockTransferThreadClusterLengths_BK0_N_BK1,                          \
-        BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder,                  \
-        BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector,                           \
-        BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                           \
-        CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,                           \
-        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                       \
-        CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,              \
+#define CK_GRIDWISE_GEMM_FWD_MULTIPLE_ABD_XDL_CSHUFFLE_TEMPLATE_PARAMETERS                       \
+    GemmADataType, GemmBDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType,   \
+        EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,        \
+        InMemoryDataOperationEnum::Set, NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock,  \
+        KPerBlock, AK1, BK1, MPerXDL_, NPerXDL_, MXdlPerWave_, NXdlPerWave*(NPerXDL / NPerXDL_), \
+        ABlockTransferThreadClusterLengths_AK0_M_AK1, ABlockTransferThreadClusterArrangeOrder,   \
+        ABlockTransferSrcAccessOrder, ABlockTransferSrcVectorDim,                                \
+        ABlockTransferSrcScalarPerVector, ABlockTransferDstScalarPerVector_AK1, false,           \
+        ABlockLdsExtraM, BBlockTransferThreadClusterLengths_BK0_N_BK1,                           \
+        BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder,                   \
+        BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector,                            \
+        BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                            \
+        CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle*(NPerXDL / NPerXDL_),       \
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                        \
+        CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,               \
         BComputeDataType
 
 #define CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_XDL_CSHUFFLE_TEMPLATE_PARAMETERS                       \
     GemmADataType, GemmBDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType, \
         EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,      \
-        NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerXDL,  \
-        NPerXDL, MXdlPerWave, NXdlPerWave_, ABlockTransferThreadClusterLengths_AK0_M_AK1,      \
-        ABlockTransferThreadClusterArrangeOrder, ABlockTransferSrcAccessOrder,                 \
-        ABlockTransferSrcVectorDim, ABlockTransferSrcScalarPerVector,                          \
-        ABlockTransferDstScalarPerVector_AK1, false, ABlockLdsExtraM,                          \
-        BBlockTransferThreadClusterLengths_BK0_N_BK1, BBlockTransferThreadClusterArrangeOrder, \
-        BBlockTransferSrcAccessOrder, BBlockTransferSrcVectorDim,                              \
-        BBlockTransferSrcScalarPerVector, BBlockTransferDstScalarPerVector_BK1, false,         \
-        BBlockLdsExtraN, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,         \
+        NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerXDL_, \
+        NPerXDL_, MXdlPerWave_, NXdlPerWave*(NPerXDL / NPerXDL_),                              \
+        ABlockTransferThreadClusterLengths_AK0_M_AK1, ABlockTransferThreadClusterArrangeOrder, \
+        ABlockTransferSrcAccessOrder, ABlockTransferSrcVectorDim,                              \
+        ABlockTransferSrcScalarPerVector, ABlockTransferDstScalarPerVector_AK1, false,         \
+        ABlockLdsExtraM, BBlockTransferThreadClusterLengths_BK0_N_BK1,                         \
+        BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder,                 \
+        BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector,                          \
+        BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                          \
+        CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle*(NPerXDL / NPerXDL_),     \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                      \
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,             \
         BComputeDataType, DoElementwiseBeforeCShuffle
@@ -523,7 +530,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     GemmBDataType, GemmADataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType, \
         EDataType, BElementwiseOperation, AElementwiseOperation, CDEElementwiseOperation,      \
         NumGemmKPrefetchStage, BlockSize, NPerBlock, MPerBlock, KPerBlock, BK1, AK1, NPerXDL,  \
-        MPerXDL, NXdlPerWave_, MXdlPerWave, BBlockTransferThreadClusterLengths_BK0_N_BK1,      \
+        MPerXDL, NXdlPerWave, MXdlPerWave_, BBlockTransferThreadClusterLengths_BK0_N_BK1,      \
         BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder,                 \
         BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector,                          \
         BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                          \
@@ -536,34 +543,35 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         BComputeDataType, DoElementwiseBeforeCShuffle
 
     // Use appropriate gridwise gemm
-    template <index_t NXdlPerWave_>
+    template <index_t MXdlPerWave_, index_t MPerXDL_, index_t NPerXDL_>
     using GridwiseGemmMultipleABDBase = GridwiseGemmMultipleABD_xdl_cshuffle<
         CK_GRIDWISE_GEMM_FWD_MULTIPLE_ABD_XDL_CSHUFFLE_TEMPLATE_PARAMETERS>;
-    template <index_t NXdlPerWave_>
+    template <index_t MXdlPerWave_, index_t MPerXDL_, index_t NPerXDL_>
     using GridwiseGemmMultipleDBase = GridwiseGemmMultipleD_xdl_cshuffle<
         CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_XDL_CSHUFFLE_TEMPLATE_PARAMETERS>;
-    template <index_t NXdlPerWave_>
+    template <index_t MXdlPerWave_>
     using GridwiseGemmMultipleDCTransposeBase = GridwiseGemmMultipleD_xdl_cshuffle<
         CK_GRIDWISE_GEMM_FWD_CTRANSPOSE_XDL_CSHUFFLE_TEMPLATE_PARAMETERS>;
 #undef CK_GRIDWISE_GEMM_FWD_MULTIPLE_ABD_XDL_CSHUFFLE_TEMPLATE_PARAMETERS
 #undef CK_GRIDWISE_GEMM_FWD_MULTIPLE_D_XDL_CSHUFFLE_TEMPLATE_PARAMETERS
 #undef CK_GRIDWISE_GEMM_FWD_CTRANSPOSE_XDL_CSHUFFLE_TEMPLATE_PARAMETERS
 
-    using GridwiseGemm64 =
-        std::conditional_t<isMultiA || isMultiB,
-                           GridwiseGemmMultipleABDBase<math::max(NXdlPerWave64, 1)>,
-                           GridwiseGemmMultipleDBase<math::max(NXdlPerWave64, 1)>>;
-    using GridwiseGemm32 = std::conditional_t<isMultiA || isMultiB,
-                                              GridwiseGemmMultipleABDBase<NXdlPerWave32>,
-                                              GridwiseGemmMultipleDBase<NXdlPerWave32>>;
+    using GridwiseGemm64 = std::conditional_t<
+        isMultiA || isMultiB,
+        GridwiseGemmMultipleABDBase<math::max(MXdlPerWave64, 1), MPerXDL, NPerXDL>,
+        GridwiseGemmMultipleDBase<math::max(MXdlPerWave64, 1), MPerXDL, NPerXDL>>;
+    using GridwiseGemm32 = std::conditional_t<
+        isMultiA || isMultiB,
+        GridwiseGemmMultipleABDBase<MXdlPerWave32, Wave32MaxMNPerXDL, Wave32MaxMNPerXDL>,
+        GridwiseGemmMultipleDBase<MXdlPerWave32, Wave32MaxMNPerXDL, Wave32MaxMNPerXDL>>;
 
     using GridwiseGemmCTranspose64 =
         std::conditional_t<CTranspose,
-                           GridwiseGemmMultipleDCTransposeBase<math::max(NXdlPerWave64, 1)>,
+                           GridwiseGemmMultipleDCTransposeBase<math::max(MXdlPerWave64, 1)>,
                            GridwiseGemm64>;
     using GridwiseGemmCTranspose32 =
         std::conditional_t<CTranspose,
-                           GridwiseGemmMultipleDCTransposeBase<NXdlPerWave32>,
+                           GridwiseGemmMultipleDCTransposeBase<MXdlPerWave32>,
                            GridwiseGemm32>;
 
     // If ADataTypes or BDataTypes is tuple, user has to pass std::array with pointers.
@@ -913,14 +921,14 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
             if(get_warp_size() == 64)
             {
-                if constexpr(NXdlPerWave64 > 0)
+                if constexpr(MXdlPerWave64 > 0)
                 {
                     InitGridDesc<GridwiseGemm64, GridwiseGemmCTranspose64>();
                 }
             }
             else
             {
-                if constexpr(NXdlPerWave32 > 0)
+                if constexpr(MXdlPerWave32 > 0)
                 {
                     InitGridDesc<GridwiseGemm32, GridwiseGemmCTranspose32>();
                 }
@@ -1388,7 +1396,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             if(get_warp_size() == 64)
             {
-                if constexpr(NXdlPerWave64 > 0)
+                if constexpr(MXdlPerWave64 > 0)
                 {
                     return RunImp<GridwiseGemm64, GridwiseGemmCTranspose64>(arg, stream_config);
                 }
@@ -1399,7 +1407,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
             else
             {
-                if constexpr(NXdlPerWave32 > 0)
+                if constexpr(MXdlPerWave32 > 0)
                 {
                     return RunImp<GridwiseGemm32, GridwiseGemmCTranspose32>(arg, stream_config);
                 }
@@ -1436,7 +1444,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
         }
 
-        if(!ck::is_xdl_wmma_supported<AComputeDataType, BComputeDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<AComputeDataType,
+                                      BComputeDataType,
+                                      Wave32MaxMNPerXDL,
+                                      Wave32MaxMNPerXDL>())
         {
             return false;
         }
@@ -1720,7 +1731,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         // check Gridwise GEMM
         if(get_warp_size() == 64)
         {
-            if constexpr(NXdlPerWave64 > 0)
+            if constexpr(MXdlPerWave64 > 0)
             {
                 if constexpr(isMultiA || isMultiB)
                 {
@@ -1759,7 +1770,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         else
         {
 
-            if constexpr(NXdlPerWave32 > 0)
+            if constexpr(MXdlPerWave32 > 0)
             {
                 if constexpr(isMultiA || isMultiB)
                 {
@@ -2047,8 +2058,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle"
-            << "<"
+        str << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle";
+
+        if(get_warp_size() != 64) {
+            str << "_WmmaPorted";
+        }
+
+        str    << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "

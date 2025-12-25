@@ -225,22 +225,20 @@ __global__ void moe_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
             auto weight =
                 is_split_k ? ck_tile::type_convert<AccDataType>(1.0f) : expert_weight_ptr[row];
             CDataType res   = ck_tile::type_convert<CDataType>((acc + bias) * weight);
-            using ResV2Type = std::conditional_t<std::is_same_v<CDataType, ck_tile::half_t>,
-                                                 ck_tile::fp16x2_t,
-                                                 ck_tile::bf16x2_t>;
-            ResV2Type add_v{0, 0};
+
+            thread_buffer<CDataType, 2> add_v = 0;
             if(c_index % 2)
             {
                 // result is the second value of fp16 pair.
-                add_v.y = res;
+                add_v.template get_as<CDataType>()[1] = res;
             }
             else
             {
                 // result is the first value of fp16 pair.
-                add_v.x = res;
+                add_v.template get_as<CDataType>()[0] = res;
             }
             // mask last bit to make sure atomicAdd pointer is aligned of DWORD.
-            atomic_add<ResV2Type>(reinterpret_cast<ResV2Type*>(C + (c_index & 0xffff'fffe)), add_v);
+            atomic_add_g<CDataType, 2>(reinterpret_cast<CDataType*>(C + (c_index & 0xffff'fffe)), add_v);
         }
     }
 }

@@ -33,7 +33,7 @@ TEST(FwdConvInstances,
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle{}
             .with_thread_block(FwdThreadBlock_64_64x32x32)
-            .with_gemm_config(FwdGemmParams_Xdl_2x2_per_wave)
+            .with_gemm_config(FwdGemmParams_Xdl_2x1_per_wave)
             .with_transfer(FwdTransfer_4x16x1)
             .with_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
             .with_prefetch_config(1, 1, PipelineScheduler::DEFAULT);

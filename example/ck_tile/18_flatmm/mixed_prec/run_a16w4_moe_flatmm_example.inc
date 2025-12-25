@@ -69,7 +69,7 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
 
     using ADataType   = PrecActType;
     using BDataType   = PrecWeightType;
-    using CDataType   = PrecActType;
+    using CDataType   = std::conditional_t<kind == ck_tile::MoeFlatmmKind::kFFN_gemm1_split_k, float, PrecActType>;
     using AccDataType = float;
 
     using ScaleType = ck_tile::e8m0_t;
@@ -232,14 +232,14 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
         static_cast<AccDataType*>(expert_weight_dev.GetDeviceBuffer());
 
     auto scale_b_shuffle_dev_ptr =
-        ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>{
-            static_cast<float*>(scale_b_shuffle_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
+        ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK, ScaleType>{
+            static_cast<ScaleType*>(scale_b_shuffle_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
     auto exp_bias_dev_ptr = ck_tile::FlatmmScalePointer<1>{
         static_cast<float*>(expert_bias_dev.GetDeviceBuffer()), experts * N};
 
     using MoeFlatmmArgs = ck_tile::MoeFlatmmHostArgs<
         ck_tile::FlatmmScalePointer<-1>,
-        ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>,
+        ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK, ScaleType>,
         ck_tile::FlatmmScalePointer<1>>;
     MoeFlatmmArgs gemm_desc{p_sorted_token_ids_dev,
                             p_sorted_expert_weight_dev,
