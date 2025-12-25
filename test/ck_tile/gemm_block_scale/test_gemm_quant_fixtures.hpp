@@ -83,6 +83,12 @@ struct GemmConfigPreshuffleQuantTransposeC : public GemmConfigBase
     static constexpr bool TransposeC      = true;
 };
 
+struct GemmConfigPadding : public GemmConfigBase
+{
+    static constexpr bool kPadN = true;
+    static constexpr bool kPadK = true;
+};
+
 struct GemmConfigPreshuffleBDecode : public GemmConfigBase
 {
     static constexpr bool PreshuffleB      = true;
