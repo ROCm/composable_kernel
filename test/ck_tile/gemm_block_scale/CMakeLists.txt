@@ -25,13 +25,19 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     add_gtest_executable(test_tile_gemm_quant_aquant_base_ccr 
         test_gemm_quant_aquant_base_ccr.cpp
     )
-    # ABQuant tests
-    add_gtest_executable(test_tile_gemm_quant_abquant 
-        test_gemm_quant_abquant.cpp
-    )
-    target_compile_options(test_tile_gemm_quant_abquant PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
     target_compile_options(test_tile_gemm_quant_aquant_base_ccr PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    # ABQuant tests
+    add_gtest_executable(test_tile_gemm_quant_abquant_base
+        test_gemm_quant_abquant_base.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_base PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_abquant_padding
+        test_gemm_quant_abquant_padding.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_padding PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
     add_gtest_executable(test_tile_gemm_quant_aquant_prefill 
         test_gemm_quant_aquant_prefill.cpp
