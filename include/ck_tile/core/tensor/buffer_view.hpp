@@ -637,7 +637,7 @@ struct buffer_view<address_space_enum::global,
 #elif CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && (!CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT)
         bool constexpr use_amd_buffer_addressing =
             std::is_same_v<remove_cvref_t<scalar_t>, int32_t>;
-#elif(!CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER) && CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
+#elif (!CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER) && CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
         bool constexpr use_amd_buffer_addressing =
             std::is_same_v<remove_cvref_t<scalar_t>, float> ||
             (std::is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0)
@@ -968,6 +968,7 @@ struct buffer_view<address_space_enum::lds,
                         (std::is_same_v<remove_cvref_t<T>, int8x16_t> && std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
                         // int8 on thread buffer
                         (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 16>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 12>>) ||
                         (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 8>>) ||
                         (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 4>>) ||
                         (std::is_same_v<remove_cvref_t<T>, int8_t> && std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 2>>) ||
@@ -1033,6 +1034,11 @@ struct buffer_view<address_space_enum::lds,
                     *c_style_pointer_cast<int32x2_t*>(&p_data_[i]) =
                         *c_style_pointer_cast<const int32x2_t*>(&x);
                 }
+                else if constexpr(std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 12>>)
+                {
+                    *c_style_pointer_cast<dwordx3_union*>(&p_data_[i]) =
+                        *c_style_pointer_cast<const dwordx3_union*>(&x);
+                }
                 else if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
                                    std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
                                   (std::is_same_v<remove_cvref_t<T>, int8_t> &&
@@ -1074,6 +1080,12 @@ struct buffer_view<address_space_enum::lds,
                     // TODO: remove this after compiler fix
                     *c_style_pointer_cast<int32x4_t*>(&p_data_[i]) =
                         *c_style_pointer_cast<const int32x4_t*>(&x);
+                }
+                else
+                {
+                    static_assert(false,
+                                  "wrong! not implemented for this combination, please add "
+                                  "implementation");
                 }
             }
         }

@@ -639,7 +639,7 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], arg_a[4], arg_a[5], 0, 0},
                 arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], arg_b[4], arg_b[5], 0, 0},
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                2, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                2, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 ; 3 FP6 E3M2; 4 FP4 E2M1}
                 2, // blgp
                 0, // OPSEL
                 0,

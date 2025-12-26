@@ -46,6 +46,27 @@ struct ext_vector<T_, N_, std::enable_if_t<!std::is_class_v<typename native_t<T_
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
 
+struct int32x3_t
+{
+    int data[3];
+};
+
+template <>
+struct ext_vector<int8_t, 12>
+{
+    static constexpr index_t N = 12;
+    using value_type           = int32x3_t;
+    using type                 = int32x3_t;
+};
+
+template <index_t N_>
+struct ext_vector<pk_fp6x16_t, N_>
+{
+    static constexpr index_t N = N_;
+    using value_type           = pk_fp6x16_t;
+    using type                 = pk_fp6x16_t; // this is danguous
+};
+
 template <typename T_, index_t N_>
 struct ext_vector<T_, N_, std::enable_if_t<std::is_class_v<typename native_t<T_>::type>>>
 {
