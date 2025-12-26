@@ -342,14 +342,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
                 }
                 else
                 {
-                    // We assume NumPrefetchV >= NumPrefetchK
-                    if constexpr(i_n0 - (n0_loops - NumPrefetchK) < NumPrefetchK)
-                    {
-                        // load v_tiles used in current iteration
-                        v_tiles[number<i_n0 - (n0_loops - NumPrefetchK)>{}] =
-                            load_tile(v_dram_window);
-                        move_tile_window(v_dram_window, {0, kK1});
-                    }
+                    // Since NumPrefetchV >= NumPrefetchK, we are able to have NumPrefetchK
+                    // prefetchings of v_tile arranged in n0_loops
+
+                    v_tiles[number<i_n0 - (n0_loops - NumPrefetchK)>{}] = load_tile(v_dram_window);
+                    move_tile_window(v_dram_window, {0, kK1});
                 };
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
@@ -449,7 +446,6 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
             __builtin_amdgcn_sched_barrier(0x00000001);
 
             static_for<NumPrefetchK, NumPrefetchV, 1>{}([&](auto i_k1) {
-                // load v_tiles used in current iteration
                 v_tiles[i_k1] = load_tile(v_dram_window);
                 move_tile_window(v_dram_window, {0, kK1});
             });
