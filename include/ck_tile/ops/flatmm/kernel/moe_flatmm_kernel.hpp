@@ -223,10 +223,10 @@ struct MoeFlatmmKernel
     static_assert(DsLayout::size() == DsDataType::size(),
                   "The size of DsLayout and DsDataType should be the same");
 
-    static constexpr bool IsInputGemm = kind != MoeFlatmmKind::kFFN_gemm2;
-    static constexpr bool IsGateUp    = kind == MoeFlatmmKind::kFFN_gemm1_gate_up;
-    static constexpr bool IsGemm1SplitK   = kind == MoeFlatmmKind::kFFN_gemm1_split_k;
-    static constexpr bool IsBShuffled = true;
+    static constexpr bool IsInputGemm   = kind != MoeFlatmmKind::kFFN_gemm2;
+    static constexpr bool IsGateUp      = kind == MoeFlatmmKind::kFFN_gemm1_gate_up;
+    static constexpr bool IsGemm1SplitK = kind == MoeFlatmmKind::kFFN_gemm1_split_k;
+    static constexpr bool IsBShuffled   = true;
 
     // static constexpr index_t kBlockSize     = EpiloguePipeline::kBlockSize;
     static constexpr index_t kMPerBlock     = EpiloguePipeline::kMPerBlock;
@@ -583,8 +583,9 @@ struct MoeFlatmmKernel
         return DTesnorIsValid;
     }
 
-    template <memory_operation_enum DstInMemOp = (IsInputGemm && !IsGemm1SplitK) ? memory_operation_enum::set
-                                                             : memory_operation_enum::atomic_add,
+    template <memory_operation_enum DstInMemOp = (IsInputGemm && !IsGemm1SplitK)
+                                                     ? memory_operation_enum::set
+                                                     : memory_operation_enum::atomic_add,
               typename KernelArgs>
     CK_TILE_DEVICE static auto
     MakeGemmTensorViews(const ADataType* a_ptr,
@@ -752,7 +753,8 @@ struct MoeFlatmmKernel
             {
                 index_t scale_k =
                     BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
-                const auto scale_k_offset = (splitk_batch_offset.b_k_split_offset / BGranularityK) * K_Pack;
+                const auto scale_k_offset =
+                    (splitk_batch_offset.b_k_split_offset / BGranularityK) * K_Pack;
                 index_t FlatScaleK = scale_k * N_Pack * BlockGemmShape::WarpTile::at(I1);
                 index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
 
@@ -1395,14 +1397,16 @@ struct MoeFlatmmKernel
                         if constexpr(!BMXFP4_Pipeline)
                             lds_tile[lds_stage].get_thread_buffer()[idx] *=
                                 epi_scale_m[idx] * epi_scale_n[idx];
-                        if (kind != MoeFlatmmKind::kFFN_gemm1_split_k) // disable weight and bias for split-k
+                        if(kind !=
+                           MoeFlatmmKind::kFFN_gemm1_split_k) // disable weight and bias for split-k
                         {
                             if constexpr(EnableBias)
                                 lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
                             if constexpr(!IsInputGemm)
                                 lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
                         }
-                        if constexpr(kind == MoeFlatmmKind::kFFN_gemm1_gate_only)// for mlp1 gate-only
+                        if constexpr(kind ==
+                                     MoeFlatmmKind::kFFN_gemm1_gate_only) // for mlp1 gate-only
                             lds_tile[lds_stage].get_thread_buffer()[idx] =
                                 ActivationOp{}(lds_tile[lds_stage].get_thread_buffer()[idx]);
                     });

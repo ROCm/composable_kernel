@@ -28,7 +28,7 @@ struct FlatmmProblem
     index_t stride_C;
 };
 
-template <int SharedGranularityMN, int SharedGranularityK = 0, typename ScaleType=float>
+template <int SharedGranularityMN, int SharedGranularityK = 0, typename ScaleType = float>
 struct FlatmmScalePointer
 {
     static constexpr int GranularityMN = SharedGranularityMN;

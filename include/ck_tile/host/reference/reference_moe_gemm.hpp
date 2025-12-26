@@ -224,7 +224,7 @@ __global__ void moe_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
             // moe gemm2 don't use activation.
             auto weight =
                 is_split_k ? ck_tile::type_convert<AccDataType>(1.0f) : expert_weight_ptr[row];
-            CDataType res   = ck_tile::type_convert<CDataType>((acc + bias) * weight);
+            CDataType res = ck_tile::type_convert<CDataType>((acc + bias) * weight);
 
             thread_buffer<CDataType, 2> add_v = 0;
             if(c_index % 2)
@@ -238,7 +238,8 @@ __global__ void moe_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
                 add_v.template get_as<CDataType>()[0] = res;
             }
             // mask last bit to make sure atomicAdd pointer is aligned of DWORD.
-            atomic_add_g<CDataType, 2>(reinterpret_cast<CDataType*>(C + (c_index & 0xffff'fffe)), add_v);
+            atomic_add_g<CDataType, 2>(reinterpret_cast<CDataType*>(C + (c_index & 0xffff'fffe)),
+                                       add_v);
         }
     }
 }
