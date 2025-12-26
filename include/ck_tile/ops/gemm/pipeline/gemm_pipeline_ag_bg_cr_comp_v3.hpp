@@ -59,22 +59,23 @@ struct BaseGemmPipelineAgBgCrCompV3
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
         }
-        else
-        {
+        // else
+        // {
 
-            if(tail_number == ck_tile::TailNumber::Odd)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Even)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-            }
-        }
+        //     if(tail_number == ck_tile::TailNumber::Odd)
+        //     {
+        //         return run_func(
+        //             ck_tile::bool_constant<false>{},
+        //             ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        //     }
+        //     else if(tail_number == ck_tile::TailNumber::Even)
+        //     {
+        //         return run_func(
+        //             ck_tile::bool_constant<false>{},
+        //             ck_tile::integral_constant<ck_tile::TailNumber,
+        //             ck_tile::TailNumber::Even>{});
+        //     }
+        // }
 #if defined(__HIP_DEVICE_COMPILE__)
         // This path should be unreachable in device code if tail_number is valid.
         __builtin_unreachable();

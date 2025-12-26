@@ -981,6 +981,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
                 arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
         }
 
+#if 0
         if constexpr((QuantMode == ck_tile::QuantType::AQuantGrouped ||
                       QuantMode == ck_tile::QuantType::ABQuantGrouped) &&
                      !GemmConfig::PreshuffleQuant)
@@ -1020,6 +1021,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
         {
             throw std::runtime_error("Unsupported memory layout for the input matrices!");
         }
+#endif
     }
     else
     {

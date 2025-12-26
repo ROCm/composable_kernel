@@ -8,6 +8,7 @@ using GemmConfig = GemmConfigQuantPrefill<T>;
 
 static auto _ = ([]() {
     auto& lut                               = get_kernel_lut();
+#if 0
     lut[hash_multiple_strings({"fp8",
                                "abquant",
                                "non-preshuffleb",
@@ -23,6 +24,7 @@ static auto _ = ([]() {
                                           BQuantGroupSize,
                                           ck_tile::QuantType::ABQuantGrouped>(arg_parser);
     };
+#endif
     lut[hash_multiple_strings({"fp8",
                                "abquant",
                                "non-preshuffleb",
@@ -31,13 +33,14 @@ static auto _ = ([]() {
         using AQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
         using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
         using TypeConfig =
-            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
+            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::bf16_t, float>{});
         return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                           TypeConfig,
                                           AQuantGroupSize,
                                           BQuantGroupSize,
                                           ck_tile::QuantType::ABQuantGrouped>(arg_parser);
     };
+#if 0
     lut[hash_multiple_strings({"bf8",
                                "abquant",
                                "non-preshuffleb",
@@ -68,4 +71,5 @@ static auto _ = ([]() {
                                           BQuantGroupSize,
                                           ck_tile::QuantType::ABQuantGrouped>(arg_parser);
     };
+#endif
 }(), 0);

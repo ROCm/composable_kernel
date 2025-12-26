@@ -7,6 +7,7 @@ if(CK_USE_OCP_FP8)
 endif()
 
 list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -Wno-global-constructors) # use global constructors to add kernel instances
+list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS --save-temps -Wno-gnu-line-marker)
 list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -mllvm -enable-noalias-to-md-conversion=0)
 
 if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
@@ -14,18 +15,18 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     add_executable(${EXE_NAME}
         gemm_quant.cpp
         gemm_abquant_quantgrouped.cpp
-        gemm_aquant_quantgrouped.cpp
-        gemm_aquant_quantgrouped_preshufflequant.cpp
-        gemm_bquant_quantgrouped_bf8i4.cpp
-        gemm_bquant_quantgrouped_fp8i4.cpp
-        gemm_bquant_quantgrouped_bf16mxfp4.cpp
-        gemm_bquant_quantgrouped_bf8.cpp
-        gemm_bquant_quantgrouped_fp8.cpp
-        gemm_bquant_quantgrouped_preshuffleb.cpp
-        gemm_bquant_quantgrouped_preshufflequant.cpp
-        gemm_bquant_quantgrouped_preshuffleb_preshufflequant.cpp
-        gemm_quant_rowcol.cpp
-        gemm_quant_tensor.cpp
+        # gemm_aquant_quantgrouped.cpp
+        # gemm_aquant_quantgrouped_preshufflequant.cpp
+        # gemm_bquant_quantgrouped_bf8i4.cpp
+        # gemm_bquant_quantgrouped_fp8i4.cpp
+        # gemm_bquant_quantgrouped_bf16mxfp4.cpp
+        # gemm_bquant_quantgrouped_bf8.cpp
+        # gemm_bquant_quantgrouped_fp8.cpp
+        # gemm_bquant_quantgrouped_preshuffleb.cpp
+        # gemm_bquant_quantgrouped_preshufflequant.cpp
+        # gemm_bquant_quantgrouped_preshuffleb_preshufflequant.cpp
+        # gemm_quant_rowcol.cpp
+        # gemm_quant_tensor.cpp
         )
     target_compile_options(${EXE_NAME} PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 else()
