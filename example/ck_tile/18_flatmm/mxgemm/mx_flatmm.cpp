@@ -179,10 +179,11 @@ auto preShuffleWeight(ck_tile::HostTensor<dtype>& src)
     const int K               = src_lengths[0];
     const int N               = src_lengths[1];
     constexpr int packed_size = ck_tile::numeric_traits<dtype>::PackedSize;
-    int KPack                 = 16 * packed_size; // fp4:32 or fp8:16
-    int NLane                 = N_Warp_Tile;
-    int KLane                 = 64 / NLane;
-    int K0                    = K / (KLane * KPack);
+    int KPack =
+        std::is_same_v<dtype, ck_tile::pk_fp6x16_t> ? 32 : 16 * packed_size; // fp4/fp6:32 or fp8:16
+    int NLane = N_Warp_Tile;
+    int KLane = 64 / NLane;
+    int K0    = K / (KLane * KPack);
 
     ck_tile::HostTensor<dtype> shuffled(ck_tile::HostTensorDescriptor({N * K}, {1}));
 
