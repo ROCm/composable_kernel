@@ -67,9 +67,12 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
         return -1;
     };
 
-    using ADataType   = PrecActType;
-    using BDataType   = PrecWeightType;
-    using CDataType   = std::conditional_t<kind == ck_tile::MoeFlatmmKind::kFFN_gemm1_split_k, float, PrecActType>;
+    using ADataType = PrecActType;
+    using BDataType = PrecWeightType;
+    using ADataType = PrecActType;
+    using BDataType = PrecWeightType;
+    using CDataType =
+        std::conditional_t<kind == ck_tile::MoeFlatmmKind::kFFN_gemm1_split_k, float, PrecActType>;
     using AccDataType = float;
 
     using ScaleType = ck_tile::e8m0_t;
@@ -233,7 +236,8 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
 
     auto scale_b_shuffle_dev_ptr =
         ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK, ScaleType>{
-            static_cast<ScaleType*>(scale_b_shuffle_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
+            static_cast<ScaleType*>(scale_b_shuffle_dev_buf.GetDeviceBuffer()),
+            N / ScaleGranularityN};
     auto exp_bias_dev_ptr = ck_tile::FlatmmScalePointer<1>{
         static_cast<float*>(expert_bias_dev.GetDeviceBuffer()), experts * N};
 
