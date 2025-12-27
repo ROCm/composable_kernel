@@ -428,9 +428,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
-            // check whether first V-LdsBufer overlap with last K-LdsBuffer,
-            // this does not occur when k1_loops == 2 and NumKVLdsBuffers == 4
-            if constexpr((k1_loops - 1) % NumKVLdsBuffers == 2 % NumKVLdsBuffers)
+            // check whether first V-LdsBuffer overlap with last K-LdsBuffer,
+            // this does not occur when n0_loops == 2/4 and NumKVLdsBuffers == 4
+            if constexpr((n0_loops - 1) % NumKVLdsBuffers == 2 % NumKVLdsBuffers)
             {
                 __builtin_amdgcn_s_barrier();
             };
