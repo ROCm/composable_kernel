@@ -968,7 +968,7 @@ struct GroupedConvolutionBackwardDataKernel
                 a_ptr, b_ptr, ds_ptr, c_ptr, kargs, group_id);
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
 
-        const index_t num_loop  = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitted_k));
+        const index_t num_loop = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitted_k));
         auto gemm_tile_windows =
             MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, block_idx_k);
 
