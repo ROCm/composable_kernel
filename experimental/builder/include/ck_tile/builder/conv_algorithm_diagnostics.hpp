@@ -69,7 +69,7 @@ consteval auto diagnose_thread_block_descriptor() -> std::string {
             using BlockSizeType = decltype(std::declval<TB>().block_size);
             constexpr bool convertible = std::convertible_to<BlockSizeType, size_t>;
             msg += "      → thread_block.block_size: " + std::string(CHECK_MARK(convertible)) + 
-                   std::string(get_type_info<BlockSizeType>()) + "\n";
+                   (convertible ? "" : std::string(get_type_info<BlockSizeType>())) + "\n";
         } else {
             msg += "      → thread_block.block_size: [✗] (missing member)\n";
         }
@@ -78,7 +78,7 @@ consteval auto diagnose_thread_block_descriptor() -> std::string {
             using TileMType = decltype(std::declval<TB>().tile_size.m);
             constexpr bool convertible = std::convertible_to<TileMType, size_t>;
             msg += "      → thread_block.tile_size.m: " + std::string(CHECK_MARK(convertible)) + 
-                   std::string(get_type_info<TileMType>()) + "\n";
+                   (convertible ? "" : std::string(get_type_info<TileMType>())) + "\n";
         } else {
             msg += "      → thread_block.tile_size.m: [✗] (missing member)\n";
         }
@@ -87,7 +87,7 @@ consteval auto diagnose_thread_block_descriptor() -> std::string {
             using TileNType = decltype(std::declval<TB>().tile_size.n);
             constexpr bool convertible = std::convertible_to<TileNType, size_t>;
             msg += "      → thread_block.tile_size.n: " + std::string(CHECK_MARK(convertible)) + 
-                   std::string(get_type_info<TileNType>()) + "\n";
+                   (convertible ? "" : std::string(get_type_info<TileNType>())) + "\n";
         } else {
             msg += "      → thread_block.tile_size.n: [✗] (missing member)\n";
         }
@@ -96,7 +96,7 @@ consteval auto diagnose_thread_block_descriptor() -> std::string {
             using TileKType = decltype(std::declval<TB>().tile_size.k);
             constexpr bool convertible = std::convertible_to<TileKType, size_t>;
             msg += "      → thread_block.tile_size.k: " + std::string(CHECK_MARK(convertible)) + 
-                   std::string(get_type_info<TileKType>()) + "\n";
+                   (convertible ? "" : std::string(get_type_info<TileKType>())) + "\n";
         } else {
             msg += "      → thread_block.tile_size.k: [✗] (missing member)\n";
         }
@@ -114,7 +114,7 @@ consteval auto diagnose_xdl_params() -> std::string {
         using MPerXdlType = decltype(std::declval<XdlParams>().m_per_xdl);
         constexpr bool convertible = std::convertible_to<MPerXdlType, size_t>;
         msg += "          → xdl_params.m_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<MPerXdlType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<MPerXdlType>())) + "\n";
     } else {
         msg += "          → xdl_params.m_per_xdl: [✗] (missing member)\n";
     }
@@ -123,7 +123,7 @@ consteval auto diagnose_xdl_params() -> std::string {
         using NPerXdlType = decltype(std::declval<XdlParams>().n_per_xdl);
         constexpr bool convertible = std::convertible_to<NPerXdlType, size_t>;
         msg += "          → xdl_params.n_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<NPerXdlType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<NPerXdlType>())) + "\n";
     } else {
         msg += "          → xdl_params.n_per_xdl: [✗] (missing member)\n";
     }
@@ -132,7 +132,7 @@ consteval auto diagnose_xdl_params() -> std::string {
         using MXdlPerWaveType = decltype(std::declval<XdlParams>().m_xdl_per_wave);
         constexpr bool convertible = std::convertible_to<MXdlPerWaveType, size_t>;
         msg += "          → xdl_params.m_xdl_per_wave: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<MXdlPerWaveType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<MXdlPerWaveType>())) + "\n";
     } else {
         msg += "          → xdl_params.m_xdl_per_wave: [✗] (missing member)\n";
     }
@@ -141,7 +141,7 @@ consteval auto diagnose_xdl_params() -> std::string {
         using NXdlPerWaveType = decltype(std::declval<XdlParams>().n_xdl_per_wave);
         constexpr bool convertible = std::convertible_to<NXdlPerWaveType, size_t>;
         msg += "          → xdl_params.n_xdl_per_wave: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<NXdlPerWaveType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<NXdlPerWaveType>())) + "\n";
     } else {
         msg += "          → xdl_params.n_xdl_per_wave: [✗] (missing member)\n";
     }
@@ -158,7 +158,7 @@ consteval auto diagnose_block_transfer(const char* prefix) -> std::string {
         using K0Type = decltype(std::declval<BT>().k0);
         constexpr bool convertible = std::convertible_to<K0Type, size_t>;
         msg += std::string("          → ") + prefix + ".k0: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<K0Type>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<K0Type>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".k0: [✗] (missing member)\n";
     }
@@ -167,7 +167,7 @@ consteval auto diagnose_block_transfer(const char* prefix) -> std::string {
         using MNType = decltype(std::declval<BT>().m_n);
         constexpr bool convertible = std::convertible_to<MNType, size_t>;
         msg += std::string("          → ") + prefix + ".m_n: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<MNType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<MNType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".m_n: [✗] (missing member)\n";
     }
@@ -176,17 +176,54 @@ consteval auto diagnose_block_transfer(const char* prefix) -> std::string {
         using K1Type = decltype(std::declval<BT>().k1);
         constexpr bool convertible = std::convertible_to<K1Type, size_t>;
         msg += std::string("          → ") + prefix + ".k1: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<K1Type>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<K1Type>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".k1: [✗] (missing member)\n";
     }
     
-    // k_batch_size is optional - only report if it exists and has wrong type
+    return msg;
+}
+
+// BlockTransferDescriptorBwd diagnostics (requires k_batch_size)
+template <typename T, typename BT>
+consteval auto diagnose_block_transfer_bwd(const char* prefix) -> std::string {
+    std::string msg;
+    
+    if constexpr (requires(BT t) { t.k0; }) {
+        using K0Type = decltype(std::declval<BT>().k0);
+        constexpr bool convertible = std::convertible_to<K0Type, size_t>;
+        msg += std::string("          → ") + prefix + ".k0: " + std::string(CHECK_MARK(convertible)) + 
+               (convertible ? "" : std::string(get_type_info<K0Type>())) + "\n";
+    } else {
+        msg += std::string("          → ") + prefix + ".k0: [✗] (missing member)\n";
+    }
+    
+    if constexpr (requires(BT t) { t.m_n; }) {
+        using MNType = decltype(std::declval<BT>().m_n);
+        constexpr bool convertible = std::convertible_to<MNType, size_t>;
+        msg += std::string("          → ") + prefix + ".m_n: " + std::string(CHECK_MARK(convertible)) + 
+               (convertible ? "" : std::string(get_type_info<MNType>())) + "\n";
+    } else {
+        msg += std::string("          → ") + prefix + ".m_n: [✗] (missing member)\n";
+    }
+    
+    if constexpr (requires(BT t) { t.k1; }) {
+        using K1Type = decltype(std::declval<BT>().k1);
+        constexpr bool convertible = std::convertible_to<K1Type, size_t>;
+        msg += std::string("          → ") + prefix + ".k1: " + std::string(CHECK_MARK(convertible)) + 
+               (convertible ? "" : std::string(get_type_info<K1Type>())) + "\n";
+    } else {
+        msg += std::string("          → ") + prefix + ".k1: [✗] (missing member)\n";
+    }
+    
+    // k_batch_size is required for Bwd descriptor
     if constexpr (requires(BT t) { t.k_batch_size; }) {
         using KBatchType = decltype(std::declval<BT>().k_batch_size);
         constexpr bool convertible = std::convertible_to<KBatchType, size_t>;
-        msg += std::string("          → ") + prefix + ".k_batch_size (optional): " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<KBatchType>()) + "\n";
+        msg += std::string("          → ") + prefix + ".k_batch_size: " + std::string(CHECK_MARK(convertible)) + 
+               (convertible ? "" : std::string(get_type_info<KBatchType>())) + "\n";
+    } else {
+        msg += std::string("          → ") + prefix + ".k_batch_size: [✗] (missing member)\n";
     }
     
     return msg;
@@ -201,7 +238,7 @@ consteval auto diagnose_lds_transfer(const char* prefix) -> std::string {
         using SrcVectorDimType = decltype(std::declval<LT>().src_vector_dim);
         constexpr bool convertible = std::convertible_to<SrcVectorDimType, size_t>;
         msg += std::string("          → ") + prefix + ".src_vector_dim: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<SrcVectorDimType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<SrcVectorDimType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".src_vector_dim: [✗] (missing member)\n";
     }
@@ -210,7 +247,7 @@ consteval auto diagnose_lds_transfer(const char* prefix) -> std::string {
         using SrcScalarType = decltype(std::declval<LT>().src_scalar_per_vector);
         constexpr bool convertible = std::convertible_to<SrcScalarType, size_t>;
         msg += std::string("          → ") + prefix + ".src_scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<SrcScalarType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<SrcScalarType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".src_scalar_per_vector: [✗] (missing member)\n";
     }
@@ -219,7 +256,7 @@ consteval auto diagnose_lds_transfer(const char* prefix) -> std::string {
         using LdsDstScalarType = decltype(std::declval<LT>().lds_dst_scalar_per_vector);
         constexpr bool convertible = std::convertible_to<LdsDstScalarType, size_t>;
         msg += std::string("          → ") + prefix + ".lds_dst_scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<LdsDstScalarType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<LdsDstScalarType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".lds_dst_scalar_per_vector: [✗] (missing member)\n";
     }
@@ -228,7 +265,7 @@ consteval auto diagnose_lds_transfer(const char* prefix) -> std::string {
         using IsDirectLoadType = decltype(std::declval<LT>().is_direct_load);
         constexpr bool convertible = std::convertible_to<IsDirectLoadType, bool>;
         msg += std::string("          → ") + prefix + ".is_direct_load: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<IsDirectLoadType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<IsDirectLoadType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".is_direct_load: [✗] (missing member)\n";
     }
@@ -237,7 +274,7 @@ consteval auto diagnose_lds_transfer(const char* prefix) -> std::string {
         using LdsPaddingType = decltype(std::declval<LT>().lds_padding);
         constexpr bool convertible = std::convertible_to<LdsPaddingType, bool>;
         msg += std::string("          → ") + prefix + ".lds_padding: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<LdsPaddingType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<LdsPaddingType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".lds_padding: [✗] (missing member)\n";
     }
@@ -254,7 +291,7 @@ consteval auto diagnose_thread_cluster(const char* prefix) -> std::string {
         using MBlockType = decltype(std::declval<TC>().m_block);
         constexpr bool convertible = std::convertible_to<MBlockType, size_t>;
         msg += std::string("          → ") + prefix + ".m_block: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<MBlockType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<MBlockType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".m_block: [✗] (missing member)\n";
     }
@@ -263,7 +300,7 @@ consteval auto diagnose_thread_cluster(const char* prefix) -> std::string {
         using MWaveType = decltype(std::declval<TC>().m_wave_per_xdl);
         constexpr bool convertible = std::convertible_to<MWaveType, size_t>;
         msg += std::string("          → ") + prefix + ".m_wave_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<MWaveType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<MWaveType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".m_wave_per_xdl: [✗] (missing member)\n";
     }
@@ -272,7 +309,7 @@ consteval auto diagnose_thread_cluster(const char* prefix) -> std::string {
         using NBlockType = decltype(std::declval<TC>().n_block);
         constexpr bool convertible = std::convertible_to<NBlockType, size_t>;
         msg += std::string("          → ") + prefix + ".n_block: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<NBlockType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<NBlockType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".n_block: [✗] (missing member)\n";
     }
@@ -281,7 +318,7 @@ consteval auto diagnose_thread_cluster(const char* prefix) -> std::string {
         using NWaveType = decltype(std::declval<TC>().n_wave_per_xdl);
         constexpr bool convertible = std::convertible_to<NWaveType, size_t>;
         msg += std::string("          → ") + prefix + ".n_wave_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<NWaveType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<NWaveType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".n_wave_per_xdl: [✗] (missing member)\n";
     }
@@ -300,7 +337,7 @@ consteval auto diagnose_access_order(const char* prefix) -> std::string {
         constexpr bool convertible_4 = std::convertible_to<OrderType, std::array<size_t, 4>>;
         constexpr bool convertible = convertible_3 || convertible_4;
         msg += std::string("          → ") + prefix + ".order: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<OrderType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<OrderType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".order: [✗] (missing member)\n";
     }
@@ -317,7 +354,7 @@ consteval auto diagnose_epilogue(const char* prefix) -> std::string {
         using MXdlType = decltype(std::declval<E>().m_xdl_per_wave_per_shuffle);
         constexpr bool convertible = std::convertible_to<MXdlType, size_t>;
         msg += std::string("          → ") + prefix + ".m_xdl_per_wave_per_shuffle: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<MXdlType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<MXdlType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".m_xdl_per_wave_per_shuffle: [✗] (missing member)\n";
     }
@@ -326,7 +363,7 @@ consteval auto diagnose_epilogue(const char* prefix) -> std::string {
         using NPerWaveType = decltype(std::declval<E>().n_per_wave_per_shuffle);
         constexpr bool convertible = std::convertible_to<NPerWaveType, size_t>;
         msg += std::string("          → ") + prefix + ".n_per_wave_per_shuffle: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<NPerWaveType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<NPerWaveType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".n_per_wave_per_shuffle: [✗] (missing member)\n";
     }
@@ -335,7 +372,7 @@ consteval auto diagnose_epilogue(const char* prefix) -> std::string {
         using ScalarType = decltype(std::declval<E>().scalar_per_vector);
         constexpr bool convertible = std::convertible_to<ScalarType, size_t>;
         msg += std::string("          → ") + prefix + ".scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(get_type_info<ScalarType>()) + "\n";
+               (convertible ? "" : std::string(get_type_info<ScalarType>())) + "\n";
     } else {
         msg += std::string("          → ") + prefix + ".scalar_per_vector: [✗] (missing member)\n";
     }
@@ -353,8 +390,8 @@ consteval auto detailed_diagnostic_ConvAlgorithmDescriptor() -> std::string {
 
 template <typename T>
 consteval auto detailed_diagnostic_SpecifiesThreadBlock() -> std::string {
-    if constexpr (!requires { T::thread_block; }) {
-        return "      → T::thread_block member: [✗] (not found)\n";
+    if constexpr (!requires { { T::thread_block } -> ThreadBlockDescriptor; }) {
+        return "      → T::thread_block member: [✗] (missing or wrong type)\n";
     } else {
         return "      → T::thread_block member: [✓]\n" + 
                detail::diagnose_thread_block_descriptor<T>();
@@ -365,8 +402,8 @@ template <typename T>
 consteval auto detailed_diagnostic_SpecifiesGridwiseFwdXdlGemm() -> std::string {
     std::string msg;
     
-    if constexpr (!requires { T::gridwise_gemm; }) {
-        return "      → T::gridwise_gemm member: [✗] (missing member)\n";
+    if constexpr (!requires(T t) { { t.gridwise_gemm } -> GridwiseFwdXdlGemmDescriptor; }) {
+        return "      → T::gridwise_gemm member: [✗] (missing or wrong type)\n";
     }
     
     msg += "      → T::gridwise_gemm member: [✓]\n";
@@ -376,7 +413,7 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseFwdXdlGemm() -> std::string 
         using AK1Type = decltype(std::declval<GG>().ak1);
         constexpr bool convertible = std::convertible_to<AK1Type, size_t>;
         msg += "      → gridwise_gemm.ak1: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<AK1Type>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<AK1Type>())) + "\n";
     } else {
         msg += "      → gridwise_gemm.ak1: [✗] (missing member)\n";
     }
@@ -385,7 +422,7 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseFwdXdlGemm() -> std::string 
         using BK1Type = decltype(std::declval<GG>().bk1);
         constexpr bool convertible = std::convertible_to<BK1Type, size_t>;
         msg += "      → gridwise_gemm.bk1: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<BK1Type>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<BK1Type>())) + "\n";
     } else {
         msg += "      → gridwise_gemm.bk1: [✗] (missing member)\n";
     }
@@ -404,8 +441,8 @@ template <typename T>
 consteval auto detailed_diagnostic_SpecifiesGridwiseBwdXdlGemm() -> std::string {
     std::string msg;
     
-    if constexpr (!requires { T::gridwise_gemm; }) {
-        return "      → T::gridwise_gemm member: [✗] (missing member)\n";
+    if constexpr (!requires(T t) { { t.gridwise_gemm } -> GridwiseBwdXdlGemmDescriptor; }) {
+        return "      → T::gridwise_gemm member: [✗] (missing or wrong type)\n";
     }
     
     msg += "      → T::gridwise_gemm member: [✓]\n";
@@ -415,7 +452,7 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseBwdXdlGemm() -> std::string 
         using K1Type = decltype(std::declval<GG>().k1);
         constexpr bool convertible = std::convertible_to<K1Type, size_t>;
         msg += "      → gridwise_gemm.k1: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<K1Type>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<K1Type>())) + "\n";
     } else {
         msg += "      → gridwise_gemm.k1: [✗] (missing member)\n";
     }
@@ -441,30 +478,54 @@ consteval auto detailed_diagnostic_SpecifiesBlockTransfer() -> std::string {
         return msg;
     }
     
-    constexpr bool has_a = requires { T::transfer.a; };
-    constexpr bool has_b = requires { T::transfer.b; };
-    constexpr bool has_c = requires { T::transfer.c; };
-    
+    constexpr bool has_a = requires { { T::transfer.a.block_transfer } -> BlockTransferDescriptor; };
     msg += "      → T::transfer.a: " + std::string(CHECK_MARK(has_a)) + "\n";
+    if constexpr (!has_a) {
+        msg += "            → T::transfer.a.block_transfer: [✗] (missing or wrong type)\n";
+    }
+    
+    constexpr bool has_b = requires { { T::transfer.b.block_transfer } -> BlockTransferDescriptor; };
     msg += "      → T::transfer.b: " + std::string(CHECK_MARK(has_b)) + "\n";
+    if constexpr (!has_b) {
+        msg += "            → T::transfer.b.block_transfer: [✗] (missing or wrong type)\n";
+    }
+    
+    constexpr bool has_c = requires { { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor; };
     msg += "      → T::transfer.c: " + std::string(CHECK_MARK(has_c)) + "\n";
-    
-    if constexpr (has_a && requires { T::transfer.a.block_transfer; }) {
-        msg += detail::diagnose_block_transfer<T, decltype(T::transfer.a.block_transfer)>("transfer.a.block_transfer");
-    } else if constexpr (has_a) {
-        msg += "      → T::transfer.a.block_transfer: [✗] (missing)\n";
+    if constexpr (!has_c) {
+        msg += "            → T::transfer.c.thread_cluster_dims: [✗] (missing or wrong type)\n";
     }
     
-    if constexpr (has_b && requires { T::transfer.b.block_transfer; }) {
-        msg += detail::diagnose_block_transfer<T, decltype(T::transfer.b.block_transfer)>("transfer.b.block_transfer");
-    } else if constexpr (has_b) {
-        msg += "      → T::transfer.b.block_transfer: [✗] (missing)\n";
+    return msg;
+}
+
+template <typename T>
+consteval auto detailed_diagnostic_SpecifiesBlockTransferBwd() -> std::string {
+    std::string msg;
+    
+    constexpr bool has_transfer = requires { T::transfer; };
+    msg += "      → T::transfer member: " + std::string(CHECK_MARK(has_transfer)) + "\n";
+    
+    if constexpr (!has_transfer) {
+        return msg;
     }
     
-    if constexpr (has_c && requires { T::transfer.c.thread_cluster_dims; }) {
-        msg += detail::diagnose_thread_cluster<T, decltype(T::transfer.c.thread_cluster_dims)>("transfer.c.thread_cluster_dims");
-    } else if constexpr (has_c) {
-        msg += "      → T::transfer.c.thread_cluster_dims: [✗] (missing)\n";
+    constexpr bool has_a = requires { { T::transfer.a.block_transfer } -> BlockTransferDescriptorBwd; };
+    msg += "      → T::transfer.a: " + std::string(CHECK_MARK(has_a)) + "\n";
+    if constexpr (!has_a) {
+        msg += "            → T::transfer.a.block_transfer: [✗] (missing or wrong type)\n";
+    }
+    
+    constexpr bool has_b = requires { { T::transfer.b.block_transfer } -> BlockTransferDescriptorBwd; };
+    msg += "      → T::transfer.b: " + std::string(CHECK_MARK(has_b)) + "\n";
+    if constexpr (!has_b) {
+        msg += "            → T::transfer.b.block_transfer: [✗] (missing or wrong type)\n";
+    }
+    
+    constexpr bool has_c = requires { { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor; };
+    msg += "      → T::transfer.c: " + std::string(CHECK_MARK(has_c)) + "\n";
+    if constexpr (!has_c) {
+        msg += "            → T::transfer.c.thread_cluster_dims: [✗] (missing or wrong type)\n";
     }
     
     return msg;
@@ -528,8 +589,8 @@ template <typename T>
 consteval auto detailed_diagnostic_SpecifiesBlockGemm() -> std::string {
     std::string msg;
     
-    if constexpr (!requires { T::block_gemm; }) {
-        return "      → T::block_gemm: [✗] (missing member)\n";
+    if constexpr (!requires { { T::block_gemm } -> BlockGemmDescriptor; }) {
+        return "      → T::block_gemm: [✗] (missing or wrong type)\n";
     }
     
     msg += "      → T::block_gemm member: [✓]\n";
@@ -538,7 +599,7 @@ consteval auto detailed_diagnostic_SpecifiesBlockGemm() -> std::string {
         using PipelineType = decltype(T::block_gemm.pipeline_version);
         constexpr bool convertible = std::convertible_to<PipelineType, PipelineVersion>;
         msg += "      → block_gemm.pipeline_version: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<PipelineType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<PipelineType>())) + "\n";
     } else {
         msg += "      → block_gemm.pipeline_version: [✗] (missing member)\n";
     }
@@ -547,7 +608,7 @@ consteval auto detailed_diagnostic_SpecifiesBlockGemm() -> std::string {
         using SchedulerType = decltype(T::block_gemm.scheduler);
         constexpr bool convertible = std::convertible_to<SchedulerType, PipelineScheduler>;
         msg += "      → block_gemm.scheduler: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<SchedulerType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<SchedulerType>())) + "\n";
     } else {
         msg += "      → block_gemm.scheduler: [✗] (missing member)\n";
     }
@@ -561,7 +622,7 @@ consteval auto detailed_diagnostic_SpecifiesFwdConvSpecialization() -> std::stri
         using FwdSpecType = decltype(T::fwd_specialization);
         constexpr bool convertible = std::convertible_to<FwdSpecType, ConvSpecialization>;
         return "      → T::fwd_specialization: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<FwdSpecType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<FwdSpecType>())) + "\n";
     } else {
         return "      → T::fwd_specialization: [✗] (missing member)\n";
     }
@@ -573,7 +634,7 @@ consteval auto detailed_diagnostic_SpecifiesBwdWeightConvSpecialization() -> std
         using BwdSpecType = decltype(T::bwd_weight_specialization);
         constexpr bool convertible = std::convertible_to<BwdSpecType, ConvSpecialization>;
         return "      → T::bwd_weight_specialization: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<BwdSpecType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<BwdSpecType>())) + "\n";
     } else {
         return "      → T::bwd_weight_specialization: [✗] (missing member)\n";
     }
@@ -585,7 +646,7 @@ consteval auto detailed_diagnostic_SpecifiesGemmSpecialization() -> std::string 
         using GemmSpecType = decltype(T::gemm_specialization);
         constexpr bool convertible = std::convertible_to<GemmSpecType, GemmSpecialization>;
         return "      → T::gemm_specialization: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<GemmSpecType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<GemmSpecType>())) + "\n";
     } else {
         return "      → T::gemm_specialization: [✗] (missing member)\n";
     }
@@ -597,7 +658,7 @@ consteval auto detailed_diagnostic_SpecifiesNumPrefetchStages() -> std::string {
         using NumPrefetchType = decltype(T::num_gemm_k_prefetch_stages);
         constexpr bool convertible = std::convertible_to<NumPrefetchType, size_t>;
         return "      → T::num_gemm_k_prefetch_stages: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<NumPrefetchType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<NumPrefetchType>())) + "\n";
     } else {
         return "      → T::num_gemm_k_prefetch_stages: [✗] (missing member)\n";
     }
@@ -609,7 +670,7 @@ consteval auto detailed_diagnostic_SpecifiesNumGroupsToMerge() -> std::string {
         using NumGroupsType = decltype(T::num_groups_to_merge);
         constexpr bool convertible = std::convertible_to<NumGroupsType, size_t>;
         return "      → T::num_groups_to_merge: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<NumGroupsType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<NumGroupsType>())) + "\n";
     } else {
         return "      → T::num_groups_to_merge: [✗] (missing member)\n";
     }
@@ -621,7 +682,7 @@ consteval auto detailed_diagnostic_SpecifiesLoopScheduler() -> std::string {
         using LoopSchedulerType = decltype(T::loop_scheduler);
         constexpr bool convertible = std::convertible_to<LoopSchedulerType, PipelineScheduler>;
         return "      → T::loop_scheduler: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<LoopSchedulerType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<LoopSchedulerType>())) + "\n";
     } else {
         return "      → T::loop_scheduler: [✗] (missing member)\n";
     }
@@ -634,7 +695,7 @@ consteval auto detailed_diagnostic_SpecifiesLargeTensorSupport() -> std::string 
         using SpecType = decltype(T::specialization);
         constexpr bool convertible = std::convertible_to<SpecType, ConvAlgorithmSpecialization>;
         msg += "      → T::specialization: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<SpecType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<SpecType>())) + "\n";
         
         if constexpr (convertible) {
             constexpr bool is_large_tensor = (T::specialization == ConvAlgorithmSpecialization::LARGE_TENSOR);
@@ -655,7 +716,7 @@ consteval auto detailed_diagnostic_SpecifiesTransposeTransfer() -> std::string {
         using SrcType = decltype(T::max_transpose_transfer_src_scalar_per_vector);
         constexpr bool convertible = std::convertible_to<SrcType, size_t>;
         msg += "      → T::max_transpose_transfer_src_scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<SrcType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<SrcType>())) + "\n";
     } else {
         msg += "      → T::max_transpose_transfer_src_scalar_per_vector: [✗] (missing member)\n";
     }
@@ -664,7 +725,7 @@ consteval auto detailed_diagnostic_SpecifiesTransposeTransfer() -> std::string {
         using DstType = decltype(T::max_transpose_transfer_dst_scalar_per_vector);
         constexpr bool convertible = std::convertible_to<DstType, size_t>;
         msg += "      → T::max_transpose_transfer_dst_scalar_per_vector: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<DstType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<DstType>())) + "\n";
     } else {
         msg += "      → T::max_transpose_transfer_dst_scalar_per_vector: [✗] (missing member)\n";
     }
@@ -675,7 +736,7 @@ consteval auto detailed_diagnostic_SpecifiesTransposeTransfer() -> std::string {
 template <typename T>
 consteval auto detailed_diagnostic_SpecifiesGridwiseWmmaGemm() -> std::string {
     std::string msg;
-    constexpr bool has_gridwise_gemm = requires { T::gridwise_gemm; };
+    constexpr bool has_gridwise_gemm = requires(T t) { { t.gridwise_gemm } -> GridwiseWmmaGemmDescriptor; };
     msg += "      → T::gridwise_gemm member: " + std::string(CHECK_MARK(has_gridwise_gemm)) + "\n";
     
     if constexpr (!has_gridwise_gemm) {
@@ -703,8 +764,8 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseWmmaGemm() -> std::string {
 // Tile-specific diagnostics
 template <typename T>
 consteval auto detailed_diagnostic_SpecifiesTileThreadBlock() -> std::string {
-    if constexpr (!requires { T::thread_block; }) {
-        return "      → T::thread_block member: [✗] (not found)\n";
+    if constexpr (!requires { { T::thread_block } -> TileThreadBlockDescriptor; }) {
+        return "      → T::thread_block member: [✗] (missing or wrong type)\n";
     } else {
         using TB = decltype(T::thread_block);
         std::string msg = "      → T::thread_block member: [✓]\n";
@@ -745,7 +806,7 @@ consteval auto detailed_diagnostic_SpecifiesTileTransfer() -> std::string {
 template <typename T>
 consteval auto detailed_diagnostic_SpecifiesTileBlockGemm() -> std::string {
     std::string msg;
-    constexpr bool has_block_gemm = requires { T::block_gemm; };
+    constexpr bool has_block_gemm = requires { { T::block_gemm } -> TileBlockGemmDescriptor; };
     msg += "      → T::block_gemm member: " + std::string(CHECK_MARK(has_block_gemm)) + "\n";
     
     if constexpr (!has_block_gemm) {
@@ -781,7 +842,7 @@ consteval auto detailed_diagnostic_SpecifiesTileBlockGemm() -> std::string {
 template <typename T>
 consteval auto detailed_diagnostic_SpecifiesTileOptimizations() -> std::string {
     std::string msg;
-    constexpr bool has_optimizations = requires { T::optimizations; };
+    constexpr bool has_optimizations = requires { { T::optimizations } -> TileOptimizationsDescriptor; };
     msg += "      → T::optimizations member: " + std::string(CHECK_MARK(has_optimizations)) + "\n";
     
     if constexpr (!has_optimizations) {
@@ -804,7 +865,7 @@ consteval auto detailed_diagnostic_SpecifiesTileOptimizations() -> std::string {
 template <typename T>
 consteval auto detailed_diagnostic_SpecifiesDlThreadConfig() -> std::string {
     std::string msg;
-    constexpr bool has_thread_config = requires { T::thread_config; };
+    constexpr bool has_thread_config = requires { { T::thread_config } -> DlThreadConfigDescriptor; };
     msg += "      → T::thread_config member: " + std::string(CHECK_MARK(has_thread_config)) + "\n";
     
     if constexpr (!has_thread_config) {
@@ -830,7 +891,7 @@ consteval auto detailed_diagnostic_SpecifiesDlThreadConfig() -> std::string {
 template <typename T>
 consteval auto detailed_diagnostic_SpecifiesDlThreadCluster() -> std::string {
     std::string msg;
-    constexpr bool has_thread_cluster = requires { T::thread_cluster; };
+    constexpr bool has_thread_cluster = requires { { T::thread_cluster } -> DlThreadClusterDescriptor; };
     msg += "      → T::thread_cluster member: " + std::string(CHECK_MARK(has_thread_cluster)) + "\n";
     
     if constexpr (!has_thread_cluster) {
@@ -926,7 +987,7 @@ consteval auto detailed_diagnostic_SpecifiesTileConvSpecialization() -> std::str
         using SpecType = decltype(T::specialization);
         constexpr bool convertible = std::convertible_to<SpecType, TileConvSpecialization>;
         return "      → T::specialization: " + std::string(CHECK_MARK(convertible)) + 
-               std::string(detail::get_type_info<SpecType>()) + "\n";
+               (convertible ? "" : std::string(detail::get_type_info<SpecType>())) + "\n";
     } else {
         return "      → T::specialization: [✗] (missing member)\n";
     }
@@ -943,26 +1004,22 @@ consteval auto detailed_diagnostic_SpecifiesLdsTransfer() -> std::string {
         return msg;
     }
     
-    constexpr bool has_a = requires { T::transfer.a; };
-    constexpr bool has_b = requires { T::transfer.b; };
-    constexpr bool has_c = requires { T::transfer.c; };
-    
-    if constexpr (has_a && requires { T::transfer.a.lds_transfer; }) {
-        msg += detail::diagnose_lds_transfer<T, decltype(T::transfer.a.lds_transfer)>("transfer.a.lds_transfer");
-    } else if constexpr (has_a) {
-        msg += "      → T::transfer.a.lds_transfer: [✗] (missing member)\n";
+    constexpr bool has_a = requires { { T::transfer.a.lds_transfer } -> LdsTransferDescriptor; };
+    msg += "      → T::transfer.a: " + std::string(CHECK_MARK(has_a)) + "\n";
+    if constexpr (!has_a) {
+        msg += "            → T::transfer.a.lds_transfer: [✗] (missing or wrong type)\n";
     }
     
-    if constexpr (has_b && requires { T::transfer.b.lds_transfer; }) {
-        msg += detail::diagnose_lds_transfer<T, decltype(T::transfer.b.lds_transfer)>("transfer.b.lds_transfer");
-    } else if constexpr (has_b) {
-        msg += "      → T::transfer.b.lds_transfer: [✗] (missing member)\n";
+    constexpr bool has_b = requires { { T::transfer.b.lds_transfer } -> LdsTransferDescriptor; };
+    msg += "      → T::transfer.b: " + std::string(CHECK_MARK(has_b)) + "\n";
+    if constexpr (!has_b) {
+        msg += "            → T::transfer.b.lds_transfer: [✗] (missing or wrong type)\n";
     }
     
-    if constexpr (has_c && requires { T::transfer.c.epilogue; }) {
-        msg += detail::diagnose_epilogue<T, decltype(T::transfer.c.epilogue)>("transfer.c.epilogue");
-    } else if constexpr (has_c) {
-        msg += "      → T::transfer.c.epilogue: [✗] (missing member)\n";
+    constexpr bool has_c = requires { { T::transfer.c.epilogue } -> EpilogueDescriptor; };
+    msg += "      → T::transfer.c: " + std::string(CHECK_MARK(has_c)) + "\n";
+    if constexpr (!has_c) {
+        msg += "            → T::transfer.c.epilogue: [✗] (missing or wrong type)\n";
     }
     
     return msg;

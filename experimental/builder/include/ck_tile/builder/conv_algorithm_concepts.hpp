@@ -65,7 +65,7 @@ concept BlockTransferDescriptorBwd = requires(T t) {
     { t.k0 } -> std::convertible_to<size_t>;
     { t.m_n } -> std::convertible_to<size_t>;
     { t.k1 } -> std::convertible_to<size_t>;
-    { t.k_batch_size } -> std::convertible_to<size_t>;;
+    { t.k_batch_size } -> std::convertible_to<size_t>;
 };
 
 // Concept for thread cluster dimensions for GEMM output tensor.
