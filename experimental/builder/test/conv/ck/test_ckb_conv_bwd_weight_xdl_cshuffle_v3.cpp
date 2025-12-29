@@ -35,7 +35,7 @@ TEST(BwdWeight_1DBf16_CShuffle_V3, Create)
     const auto expected_transfer_parameters = to_string(ALGORITHM);
     cku::run_test<Builder>({"DeviceGroupedConvBwdWeight_Xdl_CShuffleV3",
                             expected_transfer_parameters,
-                            "FILTER_1X1_STRIDE1_PAD0",
+                            "Filter1x1Stride1Pad0",
                             "NGCW,GKXC,NGKW",
                             "PassThrough,PassThrough,PassThrough",
                             "Intrawave",
