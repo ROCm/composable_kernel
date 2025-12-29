@@ -380,7 +380,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             c_grid_desc_m_n = Transform::MakeCGridDescriptor_M_N(c_g_m_o_lengths, c_g_m_o_strides);
             c_grid_desc_mblock_mperblock_nblock_nperblock =
                 GridwiseOp::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
-            block_2_ctile_map = GridwiseOp::MakeDefaultBlock2CTileMap(c_grid_desc_m_n, 1, 1);
+            block_2_ctile_map = GridwiseOp::MakeDefaultBlock2ETileMap(c_grid_desc_m_n, 1, 1);
         }
         // Pointers
         const ADataType* p_a_grid;
@@ -418,7 +418,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         typename GridwiseOp::E1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock;
 
-        typename GridwiseOp::DefaultBlock2CTileMap block_2_ctile_map;
+        typename GridwiseOp::DefaultBlock2ETileMap block_2_ctile_map;
 
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch;
     };
