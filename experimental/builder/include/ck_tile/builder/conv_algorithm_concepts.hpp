@@ -65,7 +65,7 @@ concept BlockTransferDescriptor = requires(T t) {
 };
 
 template <typename T>
-concept BlockTransferDescriptorBwd = requires(T t) {
+concept BlockTransferDescriptor4D = requires(T t) {
     { t.k0 } -> SizeType;
     { t.m_n } -> SizeType;
     { t.k1 } -> SizeType;
@@ -211,11 +211,12 @@ concept SpecifiesBlockTransfer = requires(T t) {
     { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
 };
 
-// Concept to check if a struct specifies convolution input and output block transfer info (Bwd direction).
+// Concept to check if a struct specifies convolution input and output block transfer info 
+// for 4D thread slices.
 template <typename T>
-concept SpecifiesBlockTransferBwd = requires(T t) {
-    { T::transfer.a.block_transfer } -> BlockTransferDescriptorBwd;
-    { T::transfer.b.block_transfer } -> BlockTransferDescriptorBwd;
+concept SpecifiesBlockTransfer4D = requires(T t) {
+    { T::transfer.a.block_transfer } -> BlockTransferDescriptor4D;
+    { T::transfer.b.block_transfer } -> BlockTransferDescriptor4D;
     { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
 };
 

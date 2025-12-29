@@ -12,9 +12,9 @@ namespace ck_tile::builder::factory::internal {
 // Block transfer parameters for A or B tensor.
 struct BlockTransfer
 {
-    ck::Array<size_t, 3> thread_cluster_dims  = {0, 0, 0}; // k0, m, k1
-    ck::Array<size_t, 3> thread_cluster_order = {0, 0, 0};
-    ck::Array<size_t, 3> src_access_order     = {0, 0, 0};
+    ck::Array<size_t, 3> thread_cluster_dims{}; // k0, m, k1
+    ck::Array<size_t, 3> thread_cluster_order{};
+    ck::Array<size_t, 3> src_access_order{};
     size_t src_vector_dim                     = 0;
     size_t src_scalar_per_vector              = 0;
     size_t lds_dst_scalar_per_vector          = 0;
@@ -22,15 +22,15 @@ struct BlockTransfer
     bool lds_padding                          = false;
 };
 
+template <size_t ThreadSliceDim = 3>
 struct BwdBlockTransfer
 {
-    ck::Array<size_t, 4> thread_cluster_dims  = {0, 0, 0, 0};
-    ck::Array<size_t, 4> thread_cluster_order = {0, 0, 0, 0};
-    ck::Array<size_t, 4> src_access_order     = {0, 0, 0, 0};
+    ck::Array<size_t, ThreadSliceDim> thread_cluster_dims{};
+    ck::Array<size_t, ThreadSliceDim> thread_cluster_order{};
+    ck::Array<size_t, ThreadSliceDim> src_access_order{};
     size_t src_vector_dim                     = 0;
     size_t src_scalar_per_vector              = 0;
     size_t lds_dst_scalar_per_vector          = 0;
-    bool is_direct_load                       = false;
     bool lds_padding                          = false;
 };
 
@@ -55,7 +55,7 @@ constexpr BlockTransfer SetFwdConvBlockTransfer()
 }
 
 template <auto TRANSFER>
-constexpr BwdBlockTransfer SetBwdConvBlockTransfer()
+constexpr auto SetBwdConvBlockTransfer()
 {
     auto& block_xfer  = TRANSFER.block_transfer;
     auto& block_order = TRANSFER.block_transfer_access_order;
@@ -68,27 +68,25 @@ constexpr BwdBlockTransfer SetBwdConvBlockTransfer()
 
     if constexpr (array_length == 3)
     {
-        return BwdBlockTransfer{
-            .thread_cluster_dims   = {block_xfer.k_batch_size, block_xfer.k0, block_xfer.m_n, block_xfer.k1},
+        return BwdBlockTransfer<3>{
+            .thread_cluster_dims   = {block_xfer.k0, block_xfer.m_n, block_xfer.k1},
             .thread_cluster_order  = {block_order.order[0], block_order.order[1], block_order.order[2]},
             .src_access_order      = {src_order.order[0], src_order.order[1], src_order.order[2]},
             .src_vector_dim        = lds_cfg.src_vector_dim,
             .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
             .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
-            .is_direct_load            = lds_cfg.is_direct_load,
             .lds_padding               = lds_cfg.lds_padding,
         };
     }
     else if constexpr (array_length == 4)
     {
-        return BwdBlockTransfer{
+        return BwdBlockTransfer<4>{
             .thread_cluster_dims   = {block_xfer.k_batch_size, block_xfer.k0, block_xfer.m_n, block_xfer.k1},
             .thread_cluster_order  = {block_order.order[0], block_order.order[1], block_order.order[2], block_order.order[3]},
             .src_access_order      = {src_order.order[0], src_order.order[1], src_order.order[2], src_order.order[3]},
             .src_vector_dim        = lds_cfg.src_vector_dim,
             .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
             .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
-            .is_direct_load            = lds_cfg.is_direct_load,
             .lds_padding               = lds_cfg.lds_padding,
         };
     }

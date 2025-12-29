@@ -184,9 +184,9 @@ consteval auto diagnose_block_transfer(const char* prefix) -> std::string {
     return msg;
 }
 
-// BlockTransferDescriptorBwd diagnostics (requires k_batch_size)
+// BlockTransferDescriptor4D diagnostics (requires k_batch_size)
 template <typename T, typename BT>
-consteval auto diagnose_block_transfer_bwd(const char* prefix) -> std::string {
+consteval auto diagnose_block_transfer_4d(const char* prefix) -> std::string {
     std::string msg;
     
     if constexpr (requires(BT t) { t.k0; }) {
@@ -500,7 +500,7 @@ consteval auto detailed_diagnostic_SpecifiesBlockTransfer() -> std::string {
 }
 
 template <typename T>
-consteval auto detailed_diagnostic_SpecifiesBlockTransferBwd() -> std::string {
+consteval auto detailed_diagnostic_SpecifiesBlockTransfer4D() -> std::string {
     std::string msg;
     
     constexpr bool has_transfer = requires { T::transfer; };
@@ -510,16 +510,20 @@ consteval auto detailed_diagnostic_SpecifiesBlockTransferBwd() -> std::string {
         return msg;
     }
     
-    constexpr bool has_a = requires { { T::transfer.a.block_transfer } -> BlockTransferDescriptorBwd; };
+    constexpr bool has_a = requires { { T::transfer.a.block_transfer } -> BlockTransferDescriptor4D; };
     msg += "      → T::transfer.a: " + std::string(CHECK_MARK(has_a)) + "\n";
     if constexpr (!has_a) {
         msg += "            → T::transfer.a.block_transfer: [✗] (missing or wrong type)\n";
+    } else {
+        msg += detail::diagnose_block_transfer_4d<T, decltype(T::transfer.a.block_transfer)>("transfer.a.block_transfer");
     }
     
-    constexpr bool has_b = requires { { T::transfer.b.block_transfer } -> BlockTransferDescriptorBwd; };
+    constexpr bool has_b = requires { { T::transfer.b.block_transfer } -> BlockTransferDescriptor4D; };
     msg += "      → T::transfer.b: " + std::string(CHECK_MARK(has_b)) + "\n";
     if constexpr (!has_b) {
         msg += "            → T::transfer.b.block_transfer: [✗] (missing or wrong type)\n";
+    } else {
+        msg += detail::diagnose_block_transfer_4d<T, decltype(T::transfer.b.block_transfer)>("transfer.b.block_transfer");
     }
     
     constexpr bool has_c = requires { { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor; };
