@@ -62,8 +62,7 @@ struct Args<SIGNATURE>
     using Ops = factory::internal::ElementwiseOps<SIGNATURE>;
 
     // TODO: We shouldn't need to call into an internal namespace here.
-    using Layouts =
-        factory::internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>;
+    using Layouts = factory::internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
 
     ConvTensorLengths<SPATIAL_DIM> lengths;
 

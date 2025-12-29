@@ -67,7 +67,7 @@ TEST(
                                   .with_thread_block(ThreadBlock_128_128x128x32)
                                   .with_gemm_config(FwdGemmParams_Xdl_2x1_per_wave)
                                   .with_transfer(Transfer_4x16x1)
-                                  .with_specializations(ConvSpecialization::FILTER_1X1_PAD0,
+                                  .with_fwd_specializations(ConvSpecialization::FILTER_1X1_PAD0,
                                                         GemmSpecialization::MNKPadding)
                                   .with_prefetch_config(1, 1, PipelineScheduler::DEFAULT)};
 

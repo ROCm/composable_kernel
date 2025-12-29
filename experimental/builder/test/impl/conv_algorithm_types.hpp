@@ -379,7 +379,7 @@ struct ConvAlgorithmTemplate : Components...
         {
             result.gridwise_gemm = gemm;
         }
-        if constexpr(std::is_base_of_v<BwdXdlGemm_, ConvAlgorithmTemplate>)
+        else if constexpr(std::is_base_of_v<BwdXdlGemm_, ConvAlgorithmTemplate>)
         {
             result.gridwise_gemm = gemm;
         }

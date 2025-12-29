@@ -35,7 +35,7 @@ struct ConvBwdWeightXdlFactory
 
     static constexpr auto BLOCK          = internal::SetThreadBlockInfo<ALGORITHM>();
     static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
-    static constexpr auto XDL_PARAMS = GRIDWISE_GEMM.xdl_params;
+    static constexpr auto XDL_PARAMS     = GRIDWISE_GEMM.xdl_params;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
