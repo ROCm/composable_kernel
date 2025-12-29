@@ -118,7 +118,6 @@ using DeviceGemmInstance =
         8,              // B0BlockTransferSrcScalarPerVector
         8,              // B0BlockTransferDstScalarPerVector_K1
         false,          // B0BlockLdsAddExtraL
-        8,              // CDE0BlockTransferSrcVectorDim
         4,              // CDE0BlockTransferSrcScalarPerVector
         S<2, 16, 1>,    // B1BlockTransferThreadClusterLengths_L0_N_L1
         S<0, 2, 1>,     // B1BlockTransferThreadClusterArrangeOrder
