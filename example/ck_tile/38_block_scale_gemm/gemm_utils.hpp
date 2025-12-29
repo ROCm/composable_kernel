@@ -11,6 +11,14 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm_quant.hpp"
 
+inline auto& get_kernel_lut()
+{
+    // In an inline function, function-local static objects in all function definitions are shared
+    // across all translation units.
+    static std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>> lut;
+    return lut;
+}
+
 inline size_t hash_multiple_strings(const std::vector<std::string>& inputs)
 {
     std::hash<std::string> hasher;

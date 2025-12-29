@@ -12,9 +12,8 @@ using GemmConfig = GemmConfigQuantPrefill<T>;
                                QuantGroupSize,             \
                                ck_tile::QuantType::BQuantGrouped>(arg_parser);
 
-void bquant_quantgrouped_bf8i4_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
-{
+static int _ = ([]() {
+    auto& lut                               = get_kernel_lut();
     using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::bf8_t,
                                                     ck_tile::pk_int4_t,
                                                     ck_tile::half_t,
@@ -51,4 +50,4 @@ void bquant_quantgrouped_bf8i4_instance_factory(
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 64, 128>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
-}
+}(), 0);
