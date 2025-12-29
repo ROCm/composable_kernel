@@ -1314,6 +1314,27 @@ struct QuantGemmKernel
                                                           smem_ptr_1,
                                                           n);
             }
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped)
+            {
+                const auto& aq_block_window = gemm_tile_windows.at(I1);
+                const auto& bq_block_window = gemm_tile_windows.at(I3);
+                index_t m                   = 0;
+                index_t n                   = 0;
+                if constexpr(PreshuffleQuant)
+                {
+                    m = kargs.M;
+                    n = kargs.N;
+                }
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          aq_block_window,
+                                                          bq_block_window,
+                                                          num_loop,
+                                                          smem_ptr_0,
+                                                          smem_ptr_1,
+                                                          m,
+                                                          n);
+            }
             else
             {
                 return nullptr;
@@ -1323,7 +1344,8 @@ struct QuantGemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I4);
 
-        if constexpr(kQuantType == QuantType::BQuantGrouped)
+        if constexpr(kQuantType == QuantType::BQuantGrouped ||
+                     kQuantType == QuantType::ABQuantGrouped)
         {
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
