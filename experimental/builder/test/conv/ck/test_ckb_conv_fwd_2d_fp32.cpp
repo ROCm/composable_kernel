@@ -29,7 +29,7 @@ TEST(FwdConvInstances,
             .with_thread_block(ThreadBlock_256_128x128x32)
             .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
             .with_transfer(Transfer_4x64x1)
-            .with_fwd_specializations(ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0,
+            .with_fwd_specializations(ConvSpecialization::FILTER_1X1_STRIDE1_PAD0,
                                   GemmSpecialization::MNKPadding)
             .with_block_gemm(BlockGemmDesc_v4_intrawave);
 

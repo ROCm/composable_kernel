@@ -148,7 +148,7 @@ struct DefaultAlgorithm
             },
     };
 
-    ckb::ConvFwdSpecialization fwd_specialization = ckb::ConvFwdSpecialization::DEFAULT;
+    ckb::ConvFwdSpecialization fwd_specialization = ckb::ConvSpecialization::DEFAULT;
     ckb::GemmSpecialization gemm_specialization   = ckb::GemmSpecialization::Default;
     ckb::test::BlockGemm block_gemm{.pipeline_version = ckb::PipelineVersion::V4,
                                     .scheduler        = ckb::PipelineScheduler::INTRAWAVE};

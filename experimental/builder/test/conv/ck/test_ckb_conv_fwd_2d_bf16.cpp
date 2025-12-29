@@ -30,7 +30,7 @@ TEST(FwdConvInstances,
             .with_thread_block(ThreadBlock_256_256x256x32)
             .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
             .with_transfer(Transfer_4x64x1)
-            .with_fwd_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
+            .with_fwd_specializations(ConvSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
             .with_block_gemm(BlockGemmDesc_v1_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
@@ -67,7 +67,7 @@ TEST(FwdConvInstances,
             .with_thread_block(ThreadBlock_256_256x256x32)
             .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
             .with_transfer(Transfer_4x64x1)
-            .with_fwd_specializations(ConvFwdSpecialization::FILTER_3x3, GemmSpecialization::MNKPadding)
+            .with_fwd_specializations(ConvSpecialization::FILTER_3x3, GemmSpecialization::MNKPadding)
             .with_block_gemm(BlockGemmDesc_v5_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;

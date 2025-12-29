@@ -32,7 +32,7 @@ TEST(FwdConvInstances,
             .with_thread_block(ThreadBlock_128_64x64x64)
             .with_gemm_config(FwdGemmParams_Wmma_2x1_per_wave)
             .with_transfer(Transfer_4x32x1)
-            .with_fwd_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
+            .with_fwd_specializations(ConvSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
             .with_prefetch_config(1, 0, PipelineScheduler::DEFAULT);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
