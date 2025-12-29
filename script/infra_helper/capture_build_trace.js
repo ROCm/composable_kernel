@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer');
+const buildTraceFileName = process.env.BUILD_TRACE_FILE;
 
 (async () => {
 	try {
@@ -31,7 +32,7 @@ const puppeteer = require('puppeteer');
 				page.waitForFileChooser(),
 				element.click()
 			]);
-			await fileChooser.accept(['/workspace/ck_build_trace.json']);
+			await fileChooser.accept([`/workspace/${buildTraceFileName}`]);
 		} else {
 			throw new Error('Element not found');
 		}

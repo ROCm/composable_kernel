@@ -39,11 +39,7 @@
 #define CK_TILE_DEVICE inline __device__
 #define CK_TILE_HOST_DEVICE inline __host__ __device__
 #define CK_TILE_DEVICE_EXTERN __device__
-#if __clang_major__ < 22
 #define CK_TILE_HOST_DEVICE_EXTERN __host__ __device__
-#else
-#define CK_TILE_HOST_DEVICE_EXTERN
-#endif
 #else
 #define CK_TILE_HOST inline
 #define CK_TILE_DEVICE inline

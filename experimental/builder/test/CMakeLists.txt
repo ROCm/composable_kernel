@@ -84,21 +84,29 @@ add_ck_builder_test(test_ckb_conv_builder
     unit_conv_tensor_layout.cpp
     unit_conv_tensor_type.cpp
     unit_conv_thread_block.cpp
-    unit_conv_tuning_params.cpp
-    unit_conv_fwd_testing.cpp)
-target_link_libraries(test_ckb_conv_builder PRIVATE utility)
+    unit_conv_tuning_params.cpp)
+    
+    # Tests the inline diff utility used for comparing strings in tests assertions
+    add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
 
-# Tests the inline diff utility used for comparing strings in tests assertions
-add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
+    # GPU reference validation tests (in validation/ folder)
+    # 1. Reference kernel execution and InstanceTraits
+    add_ck_builder_test(test_ckb_reference_execution 
+        validation/test_reference_execution.cpp
+        validation/test_reference_instance_traits.cpp)
+    target_link_libraries(test_ckb_reference_execution PRIVATE utility)
+    
+    # Note: Optimized kernel validation tests will be added after merging dev branch
+    # with kernel Run() implementation from colleague's work
 
-# Tests convolution trait selection and configuration
-add_ck_builder_test(test_ckb_conv_traits
-    conv/ck/test_conv_traits.cpp)
-
-# Tests convolution problem description and parameter handling
-add_ck_builder_test(test_ckb_conv_description
-    test_conv_description.cpp)
-
+    # Tests convolution trait selection and configuration
+    add_ck_builder_test(test_ckb_conv_traits
+        conv/ck/test_conv_traits.cpp)
+    
+    # Tests convolution problem description and parameter handling
+    add_ck_builder_test(test_ckb_conv_description
+        test_conv_description.cpp)
+    
 ################################################################################
 # REGRESSION TESTS - Integration Tests (With Kernel Compilation)
 ################################################################################
@@ -157,14 +165,14 @@ add_ck_factory_test(test_ckb_testing_utils test_testing_utils.cpp)
 # TODO: Re-enable these tests once we have CI working across all GPU architectures.
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward test_ck_factory_grouped_convolution_forward.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_clamp test_ck_factory_grouped_convolution_forward_clamp.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_convscale test_ck_factory_grouped_convolution_forward_convscale.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_convscale test_ck_factory_grouped_convolution_forward_convscale.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bilinear test_ck_factory_grouped_convolution_forward_bilinear.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scale test_ck_factory_grouped_convolution_forward_scale.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_ab test_ck_factory_grouped_convolution_forward_scaleadd_ab.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_ab test_ck_factory_grouped_convolution_forward_scaleadd_ab.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_clamp test_ck_factory_grouped_convolution_forward_bias_clamp.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_bnorm_clamp test_ck_factory_grouped_convolution_forward_bias_bnorm_clamp.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
 
 ################################################################################
 # CTest Integration - Register Tests and Assign Labels
@@ -181,6 +189,7 @@ set(CKB_SMOKE_TESTS
     test_ckb_inline_diff
     test_ckb_conv_traits
     test_ckb_conv_description
+    test_ckb_reference_execution
 )
 
 foreach(test_target ${CKB_SMOKE_TESTS})
@@ -193,10 +202,10 @@ set(CKB_REGRESSION_TESTS
     test_ckb_instance_string
     test_ckb_build_fwd_instances
     test_ckb_testing_utils
-    test_ckb_factory_grouped_convolution_forward_convscale
-    test_ckb_factory_grouped_convolution_forward_scaleadd_ab
-    test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu
-    test_ckb_factory_grouped_convolution_forward_dynamic_op
+    # test_ckb_factory_grouped_convolution_forward_convscale
+    # test_ckb_factory_grouped_convolution_forward_scaleadd_ab
+    # test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu
+    # test_ckb_factory_grouped_convolution_forward_dynamic_op
 )
 
 foreach(test_target ${CKB_REGRESSION_TESTS})

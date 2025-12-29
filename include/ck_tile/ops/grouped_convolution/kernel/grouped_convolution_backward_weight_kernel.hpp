@@ -505,33 +505,6 @@ struct GroupedConvolutionBackwardWeightKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    struct SplitKBatchOffset
-    {
-        __device__ SplitKBatchOffset(const GroupedConvBwdWeightKernelArgsSpecialized& kargs,
-                                     const std::size_t k_id = blockIdx.z)
-        {
-            constexpr auto K1   = GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{});
-            const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
-            const index_t KRead = amd_wave_read_first_lane((kargs.GemmK + K_t - 1) / K_t * K1);
-
-            a_k_split_offset = amd_wave_read_first_lane(k_id * KRead);
-            b_k_split_offset = amd_wave_read_first_lane(k_id * KRead);
-
-            if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
-            {
-                splitted_k = amd_wave_read_first_lane(KRead);
-            }
-            else
-            {
-                splitted_k = amd_wave_read_first_lane(kargs.GemmK - KRead * (kargs.k_batch - 1));
-            }
-        }
-
-        index_t a_k_split_offset;
-        index_t b_k_split_offset;
-        index_t splitted_k;
-    };
-
     CK_TILE_HOST static bool
     IsSupportedArgument(const GroupedConvBwdWeightKernelArgsSpecialized& kargs)
     {
@@ -544,6 +517,13 @@ struct GroupedConvolutionBackwardWeightKernel
             }
             return false;
         }
+
+#if defined(__gfx11__)
+        if constexpr(EpiloguePipeline::MemoryOperation != ck_tile::memory_operation_enum::set)
+        {
+            return false;
+        }
+#endif
 
         if constexpr(EpiloguePipeline_::MemoryOperation == memory_operation_enum::atomic_add)
         {
@@ -586,6 +566,15 @@ struct GroupedConvolutionBackwardWeightKernel
                 }
                 return false;
             }
+        }
+
+        if(kargs.GemmK < TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{}) * kargs.k_batch)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("KBatch is too large, part of GPU wouldn't be utilized!");
+            }
+            return false;
         }
 
         const index_t ConvK = kargs.wei_g_k_c_xs_lengths[number<1>{}];
@@ -756,12 +745,12 @@ struct GroupedConvolutionBackwardWeightKernel
     }
 
     template <typename TensorView>
-    CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views, const index_t k_batch)
+    CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views)
     {
         const auto& a_pad_view = [&]() {
             const auto& a_tensor_view = views.at(I0);
             return pad_tensor_view(a_tensor_view,
-                                   make_tuple(number<TilePartitioner::KPerBlock>{} * k_batch,
+                                   make_tuple(number<TilePartitioner::KPerBlock>{},
                                               number<TilePartitioner::MPerBlock>{}),
                                    sequence<true, true>{});
         }();
@@ -769,7 +758,7 @@ struct GroupedConvolutionBackwardWeightKernel
         const auto& b_pad_view = [&]() {
             const auto& b_tensor_view = views.at(I1);
             return pad_tensor_view(b_tensor_view,
-                                   make_tuple(number<TilePartitioner::KPerBlock>{} * k_batch,
+                                   make_tuple(number<TilePartitioner::KPerBlock>{},
                                               number<TilePartitioner::NPerBlock>{}),
                                    sequence<true, true>{});
         }();
@@ -875,7 +864,7 @@ struct GroupedConvolutionBackwardWeightKernel
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
                 a_ptr, b_ptr, ds_ptr, c_ptr, kargs);
 
-        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple, kargs.k_batch);
+        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
             MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, block_idx_k);
 
@@ -925,7 +914,7 @@ struct GroupedConvolutionBackwardWeightKernel
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
                 a_ptr, b_ptr, ds_ptr, c_ptr, kargs);
-        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple, kargs.k_batch);
+        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
             MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, block_idx_k);
 
@@ -971,6 +960,12 @@ struct GroupedConvolutionBackwardWeightKernel
 
     CK_TILE_DEVICE void operator()(GroupedConvBwdWeightKernelArgsSpecialized& kargs) const
     {
+#if defined(__gfx11__)
+        if constexpr(EpiloguePipeline::MemoryOperation != ck_tile::memory_operation_enum::set)
+        {
+            return;
+        }
+#endif
         if constexpr(GroupedConvTraitsType_::ExplicitGemm)
         {
             CallExplicitGemm(kargs);
