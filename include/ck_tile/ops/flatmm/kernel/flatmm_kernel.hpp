@@ -28,9 +28,10 @@ struct FlatmmProblem
     index_t stride_C;
 };
 
-template <int SharedGranularityMN, int SharedGranularityK = 0, typename ScaleType = float>
+template <int SharedGranularityMN, int SharedGranularityK = 0, typename ScaleType_ = float>
 struct FlatmmScalePointer
 {
+    using ScaleType = ScaleType_;
     static constexpr int GranularityMN = SharedGranularityMN;
     static constexpr int GranularityK  = SharedGranularityK;
 
@@ -60,9 +61,10 @@ struct FlatmmScalePointer
     CK_TILE_HOST_DEVICE ScaleType operator[](index_t i) const = delete;
 };
 
-template <int SharedGranularityMN, typename ScaleType>
-struct FlatmmScalePointer<SharedGranularityMN, 0, ScaleType>
+template <int SharedGranularityMN, typename ScaleType_>
+struct FlatmmScalePointer<SharedGranularityMN, 0, ScaleType_>
 {
+    using ScaleType = ScaleType_;
     static constexpr int GranularityMN = SharedGranularityMN;
     static constexpr int GranularityK  = 0;
 
@@ -105,9 +107,10 @@ struct FlatmmScalePointer<SharedGranularityMN, 0, ScaleType>
 };
 
 // shared granularityMN = -1 means no scale
-template <typename ScaleType>
-struct FlatmmScalePointer<-1, 0, ScaleType>
+template <typename ScaleType_>
+struct FlatmmScalePointer<-1, 0, ScaleType_>
 {
+    using ScaleType = ScaleType_;
     static constexpr int GranularityMN = -1;
     static constexpr int GranularityK  = 0;
 
