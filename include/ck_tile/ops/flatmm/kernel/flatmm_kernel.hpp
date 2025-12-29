@@ -31,7 +31,7 @@ struct FlatmmProblem
 template <int SharedGranularityMN, int SharedGranularityK = 0, typename ScaleType_ = float>
 struct FlatmmScalePointer
 {
-    using ScaleType = ScaleType_;
+    using ScaleType                    = ScaleType_;
     static constexpr int GranularityMN = SharedGranularityMN;
     static constexpr int GranularityK  = SharedGranularityK;
 
@@ -64,7 +64,7 @@ struct FlatmmScalePointer
 template <int SharedGranularityMN, typename ScaleType_>
 struct FlatmmScalePointer<SharedGranularityMN, 0, ScaleType_>
 {
-    using ScaleType = ScaleType_;
+    using ScaleType                    = ScaleType_;
     static constexpr int GranularityMN = SharedGranularityMN;
     static constexpr int GranularityK  = 0;
 
@@ -110,7 +110,7 @@ struct FlatmmScalePointer<SharedGranularityMN, 0, ScaleType_>
 template <typename ScaleType_>
 struct FlatmmScalePointer<-1, 0, ScaleType_>
 {
-    using ScaleType = ScaleType_;
+    using ScaleType                    = ScaleType_;
     static constexpr int GranularityMN = -1;
     static constexpr int GranularityK  = 0;
 
