@@ -1017,7 +1017,7 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
         elif dtype in cls._DT_FP8BF16 or dtype in cls._DT_FP8FP32:
             # no need lse/dropout kernels
             for logits, qscale, mask, bias, sink in itertools.product(
-                ["f"],
+                ["t", "f"],
                 ["no", "pertensor"],
                 get_mask_map(mask_impl).keys(),
                 ["no"],
