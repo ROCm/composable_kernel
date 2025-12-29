@@ -103,22 +103,6 @@ struct BlockFmhaBatchPrefillPipelineProblem
                                       kUseTrLoad_,
                                       Traits_>
 {
-    using QDataType             = remove_cvref_t<QDataType_>;
-    using KDataType             = remove_cvref_t<KDataType_>;
-    using VDataType             = remove_cvref_t<VDataType_>;
-    using SaccDataType          = remove_cvref_t<SaccDataType_>;
-    using SMPLComputeDataType   = remove_cvref_t<SMPLComputeDataType_>;
-    using BiasDataType          = remove_cvref_t<BiasDataType_>;
-    using RandValOutputDataType = remove_cvref_t<RandValOutputDataType_>;
-    using LSEDataType           = remove_cvref_t<LSEDataType_>;
-    using PDataType             = remove_cvref_t<PDataType_>;
-    using OaccDataType          = remove_cvref_t<OaccDataType_>;
-    using ODataType             = remove_cvref_t<ODataType_>;
-    using BlockFmhaShape        = remove_cvref_t<BlockFmhaShape_>;
-    using AttentionVariant      = remove_cvref_t<AttentionVariant_>;
-    using FmhaMask              = remove_cvref_t<FmhaMask_>;
-    using Traits                = remove_cvref_t<Traits_>;
-
     static constexpr index_t kPageBlockSize = kPageBlockSize_;
     static_assert(kPageBlockSize > 0, "kPageBlockSize must be positive");
     static_assert((kPageBlockSize & (kPageBlockSize - 1)) == 0,
@@ -135,10 +119,10 @@ struct BlockFmhaBatchPrefillPipelineProblem
     }();
 
     static constexpr index_t kVectorSize  = 16 / sizeof(KDataType_); // Dwordx4
-    static constexpr auto kKVMemoryLayout = Traits::kKVMemoryLayout;
-    static constexpr auto kKVLookupTable  = Traits::kKVLookupTable;
+    static constexpr auto kKVMemoryLayout = Traits_::kKVMemoryLayout;
+    static constexpr auto kKVLookupTable  = Traits_::kKVLookupTable;
 
-    static_assert(BlockFmhaShape::kQKHeaddim % kVectorSize == 0,
+    static_assert(BlockFmhaShape_::kQKHeaddim % kVectorSize == 0,
                   "kQKHeaddim must be divisible by kVectorSize");
     static_assert(kPageBlockSize % kVectorSize == 0,
                   "kPageBlockSize must be divisible by kVectorSize");

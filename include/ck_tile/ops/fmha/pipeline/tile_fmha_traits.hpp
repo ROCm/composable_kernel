@@ -43,8 +43,8 @@ struct TileFmhaTraits
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadSeqLenK_ /* padding for seqlen_k */,
-          bool kPadHeadDimQ_ /* paddding for hdim_q */,
-          bool kPadHeadDimV_ /* paddding for hdim_v */,
+          bool kPadHeadDimQ_ /* padding for hdim_q */,
+          bool kPadHeadDimV_ /* padding for hdim_v */,
           bool kHasLogitsSoftCap_,
           BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
@@ -76,9 +76,10 @@ struct TileFmhaBatchPrefillTraits : public TileFmhaTraits<kPadSeqLenQ_,
     static constexpr auto kKVLookupTable    = kKVLookupTable_;
     static constexpr index_t kPageBlockSize = kPageBlockSize_;
     static_assert(kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT,
-                  "Batch prefill only supports vectorized KV cache layout");
-    static_assert(kPageBlockSize > 0 && ((kPageBlockSize & (kPageBlockSize - 1)) == 0) &&
-                  "kPageBlockSize should be power of 2");
+                  "Batch prefill only supports vectorized KV cache layout.");
+    static_assert(kPageBlockSize > 0 && ((kPageBlockSize & (kPageBlockSize - 1)) == 0),
+                  "kPageBlockSize should be a power of 2 to support efficient page-based KV cache "
+                  "addressing.");
 };
 
 template <index_t kPadHeadDimQ_ /* paddding for hdim_q */,

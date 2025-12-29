@@ -66,13 +66,33 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
     static constexpr bool kUseAsyncCopy = FmhaPipeline::Policy::AsyncCopy;
 
-    // clang-format off
-    template <typename T> struct t2s;
-    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
-    template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
-    template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
-    template <> struct t2s<ck_tile::fp8_t> { static constexpr const char * name = "fp8"; };
-    template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
+    template <typename T>
+    struct t2s;
+    template <>
+    struct t2s<float>
+    {
+        static constexpr const char* name = "fp32";
+    };
+    template <>
+    struct t2s<ck_tile::fp16_t>
+    {
+        static constexpr const char* name = "fp16";
+    };
+    template <>
+    struct t2s<ck_tile::bf16_t>
+    {
+        static constexpr const char* name = "bf16";
+    };
+    template <>
+    struct t2s<ck_tile::fp8_t>
+    {
+        static constexpr const char* name = "fp8";
+    };
+    template <>
+    struct t2s<ck_tile::bf8_t>
+    {
+        static constexpr const char* name = "bf8";
+    };
 
     template <ck_tile::index_t I> // to avoid duplicated base class prblem, introduce an template
                                   // arg
@@ -96,10 +116,11 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         ck_tile::index_t batch_stride_block_table;
     };
 
-    using PageBlockTableKargs = std::conditional_t<
-        kKVLookupTable == BlockAttentionKVCacheLookupTableEnum::SGLANG_PAGE_TABLE_1D,
-        SglangPageTableKargs,
-        VllmPageTableKargs>;
+    using PageBlockTableKargs =
+        std::conditional_t<kKVLookupTable ==
+                               BlockAttentionKVCacheLookupTableEnum::SGLANG_PAGE_TABLE_1D,
+                           SglangPageTableKargs,
+                           VllmPageTableKargs>;
 
     struct FmhaFwdCommonKargs
     {
@@ -717,8 +738,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             if constexpr(kKVLookupTable ==
                          BlockAttentionKVCacheLookupTableEnum::SGLANG_PAGE_TABLE_1D)
             {
-                const int32_t page_start = kargs.page_table.kv_indptr[i_batch];
-                const int32_t page_end   = kargs.page_table.kv_indptr[i_batch + 1];
+                const int32_t page_start      = kargs.page_table.kv_indptr[i_batch];
+                const int32_t page_end        = kargs.page_table.kv_indptr[i_batch + 1];
                 const int32_t num_page_blocks = page_end - page_start;
                 const int32_t last_page_len   = [&]() {
                     if constexpr(kPageBlockSize == 1)
@@ -727,8 +748,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                         return kargs.page_table.kv_last_page_lens[i_batch];
                 }();
                 return num_page_blocks > 0
-                           ? static_cast<index_t>((num_page_blocks - 1) *
-                                                      kargs.page_block_size +
+                           ? static_cast<index_t>((num_page_blocks - 1) * kargs.page_block_size +
                                                   last_page_len)
                            : 0;
             }
@@ -860,10 +880,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                            kargs.page_block_size,
                            kVectorSize),
                 make_tuple(
-                    kargs.batch_stride_k,
-                    kargs.page_block_size * kVectorSize,
-                    kVectorSize,
-                    1),
+                    kargs.batch_stride_k, kargs.page_block_size * kVectorSize, kVectorSize, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
@@ -912,8 +929,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                            kargs.page_block_size / kVectorSize,
                            kargs.hdim_v,
                            kVectorSize),
-                make_tuple(
-                    kargs.batch_stride_v, kargs.hdim_v * kVectorSize, kVectorSize, 1),
+                make_tuple(kargs.batch_stride_v, kargs.hdim_v * kVectorSize, kVectorSize, 1),
                 number<FmhaPipeline::kAlignmentV>{},
                 number<1>{});
 
@@ -941,8 +957,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                 v_dram_permuted,
                 make_tuple(make_pass_through_transform(kargs.hdim_v), // Logical 0: D
                            make_merge_transform(make_tuple(kargs.num_total_pages,
-                                                           kargs.page_block_size /
-                                                               kVectorSize,
+                                                           kargs.page_block_size / kVectorSize,
                                                            kVectorSize))), // Logical 1: TotalSeqK
                 make_tuple(sequence<0>{}, sequence<1, 2, 3>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));

@@ -35,7 +35,7 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
     constexpr index_t kInPageOffsetMask = (1 << kLog2PageSize) - 1;
     if constexpr(kIsKcache)
     {
-        // for k_offset_vec
+        // for k offsets
         static_for<0, kLoopCount, 1>{}([&](auto k0) {
             const index_t global_token_idx =
                 global_seq_offset + thread_coord_start + kLoopStart + kLoopStride * k0.value;
@@ -47,7 +47,7 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
     }
     else
     {
-        // for v_offset_vec
+        // for v offsets
         const index_t lane0_start = __builtin_amdgcn_readfirstlane(thread_coord_start);
         const index_t lane0_page_id =
             (global_seq_offset + lane0_start + kLoopStart) >> kLog2PageSize;
@@ -127,6 +127,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr auto I3                = number<3>{};
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
+    static_assert(kPageBlockSize % kN0 == 0,
+                  "V offset assumes each tile stays within a page; kPageBlockSize must be "
+                  "divisible by kN0.");
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     // TODO: seq_q always support padding, hdim_q/v support multiple of vector(like 8x)
