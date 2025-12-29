@@ -142,6 +142,7 @@ target_link_libraries(test_ckb_build_fwd_instances PRIVATE utility)
 
 add_ck_builder_test(test_ckb_build_bwd_weight_instances
     conv/ck/test_ckb_conv_bwd_weight_xdl_cshuffle.cpp
+    conv/ck/test_ckb_conv_bwd_weight_xdl_cshuffle_v3.cpp
     conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
     )
 target_link_libraries(test_ckb_build_bwd_weight_instances PRIVATE utility)

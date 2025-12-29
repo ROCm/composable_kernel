@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle_v3.hpp"
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_limits.hpp"
@@ -23,7 +23,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsBackwardWeight<SIGNATURE>
-struct ConvBwdWeightXdlFactory
+struct ConvBwdWeightXdlV3Factory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
@@ -41,19 +41,20 @@ struct ConvBwdWeightXdlFactory
     static constexpr auto B_BLOCK_TRANSFER =
         internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.b>();
     static constexpr auto C_BLOCK_TRANSFER = internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
+    static constexpr auto BLOCK_GEMM       = internal::SetBlockGemm<ALGORITHM>();
 
     // Check limits for the algorithm parameters.
     // TODO: Add more limits checks as needed.
-    static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
-    static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
-    static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.src_access_order>);
+    static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>, "Invalid A block transfer config");
+    static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>, "Invalid B block transfer config");
+    static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>, "Invalid C block transfer config");
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>, "Invalid A thread cluster access order");
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>, "Invalid B thread cluster access order");
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>, "Invalid A source access order");
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>, "Invalid B source access order");
 
     // The forward convolution kernel class instance.
-    using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
+    using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffleV3<
         SPATIAL_DIM,
         typename Layouts::InLayout,
         typename Layouts::WeiLayout,
@@ -93,10 +94,10 @@ struct ConvBwdWeightXdlFactory
         C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
         C_BLOCK_TRANSFER.scalar_per_vector,
+        BLOCK_GEMM.scheduler,
+        BLOCK_GEMM.pipeline_version,
         typename Types::InComputeType,
-        typename Types::WeiComputeType,
-        ALGORITHM.max_transpose_transfer_src_scalar_per_vector,
-        ALGORITHM.max_transpose_transfer_dst_scalar_per_vector>;
+        typename Types::WeiComputeType>;
 };
 
 } // namespace ck_tile::builder::factory

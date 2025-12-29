@@ -29,18 +29,20 @@ concept OutputVectorTransferLimits = requires {
 
 // Limits for access order. Must be a permutation of {0, 1, 2}.
 template <auto Value>
-concept AccessOrderLimits = requires {
+concept AccessOrderLimits3D = requires {
     requires((Value[0] != Value[1]) && (Value[0] != Value[2]) && (Value[1] != Value[2]) &&
              (Value[0] >= 0 && Value[0] < 3) && (Value[1] >= 0 && Value[1] < 3) &&
-             (Value[2] >= 0 && Value[2] < 3));
+             (Value[2] >= 0 && Value[2] < 3) && (Value.Size() == 3));
 };
 
-// Limits for access order. Must be a permutation of {1, 2, 3} for the last three elements.
+// Limits for access order. Must be a permutation of {0, 1, 2, 3}.
 template <auto Value>
-concept BwdAccessOrderLimits = requires {
-    requires((Value[1] != Value[2]) && (Value[1] != Value[3]) && (Value[2] != Value[3]) &&
-             (Value[1] >= 1 && Value[1] < 4) && (Value[2] >= 1 && Value[2] < 4) &&
-             (Value[3] >= 1 && Value[3] < 4)) && (Value[0] == 0);
+concept AccessOrderLimits4D = requires {
+    requires((Value[0] != Value[1]) && (Value[0] != Value[2]) && (Value[0] != Value[3]) &&
+             (Value[1] != Value[2]) && (Value[1] != Value[3]) && (Value[2] != Value[3]) &&
+             (Value[0] >= 0 && Value[0] < 4) && (Value[1] >= 0 && Value[1] < 4) &&
+             (Value[2] >= 0 && Value[2] < 4) && (Value[3] >= 0 && Value[3] < 4) &&
+             (Value.Size() == 4));
 };
 
 } // namespace ck_tile::builder

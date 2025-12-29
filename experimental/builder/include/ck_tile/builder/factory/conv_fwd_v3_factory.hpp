@@ -56,10 +56,10 @@ struct ConvFwdXdlV3Factory
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
     static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
     static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>);
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<

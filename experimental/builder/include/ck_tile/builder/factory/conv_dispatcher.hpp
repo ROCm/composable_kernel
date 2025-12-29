@@ -49,6 +49,12 @@
 
 #pragma once
 
+// Disable pragma message warnings for factory selection diagnostics
+#ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-W#pragma-messages"
+#endif
+
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
@@ -64,6 +70,7 @@
 #include "ck_tile/builder/factory/conv_fwd_large_tensor_factory.hpp"
 #include "ck_tile/builder/factory/conv_tile_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_xdl_factory.hpp"
+#include "ck_tile/builder/factory/conv_bwd_weight_xdl_v3_factory.hpp"
 
 namespace ck_tile::builder::factory {
 
@@ -96,28 +103,34 @@ constexpr auto make_conv_instance()
     // CK Tile supports common factory for each direction
     if constexpr(TileAlgorithm<AlgoType>::is_valid())
     {
+        #pragma message("[CK Builder] Using ConvTileFactory...")
         return typename ConvTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
     else if constexpr(ConvDirectionIsForward<SIGNATURE>)
     {
         if constexpr(FwdXdlV3Algorithm<AlgoType>::is_valid())
         {
+            #pragma message("[CK Builder] Using ConvFwdXdlV3Factory...")
             return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else if constexpr(FwdXdlAlgorithm<AlgoType>::is_valid())
         {
+            #pragma message("[CK Builder] Using ConvFwdXdlFactory...")
             return typename ConvFwdXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else if constexpr(FwdWmmaAlgorithm<AlgoType>::is_valid())
         {
+            #pragma message("[CK Builder] Using ConvFwdWmmaFactory...")
             return typename ConvFwdWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else if constexpr(FwdDlAlgorithm<AlgoType>::is_valid())
         {
+            #pragma message("[CK Builder] Using ConvFwdDlFactory...")
             return typename ConvFwdDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else if constexpr(LargeTensorAlgorithm<AlgoType>::is_valid())
         {
+            #pragma message("[CK Builder] Using ConvFwdLargeTensorFactory...")
             return typename ConvFwdLargeTensorFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else
@@ -135,7 +148,13 @@ constexpr auto make_conv_instance()
     {
         if constexpr (BwdXdlAlgorithm<AlgoType>::is_valid())
         {
+            #pragma message("[CK Builder] Using ConvBwdWeightXdlFactory...")
             return typename ConvBwdWeightXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr (BwdXdlV3Algorithm<AlgoType>::is_valid())
+        {
+            #pragma message("[CK Builder] Using ConvBwdWeightXdlV3Factory...")
+            return typename ConvBwdWeightXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else
         {
@@ -152,3 +171,8 @@ constexpr auto make_conv_instance()
 }
 
 } // namespace ck_tile::builder::factory
+
+// Re-enable pragma message warnings
+#ifdef __clang__
+    #pragma clang diagnostic pop
+#endif

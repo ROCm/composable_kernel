@@ -62,16 +62,40 @@ constexpr BwdBlockTransfer SetBwdConvBlockTransfer()
     auto& src_order   = TRANSFER.src_access_order;
     auto& lds_cfg     = TRANSFER.lds_transfer;
 
-    return BwdBlockTransfer{
-        .thread_cluster_dims   = {block_xfer.k_batch_size, block_xfer.k0, block_xfer.m_n, block_xfer.k1},
-        .thread_cluster_order  = {block_order.order[0], block_order.order[1], block_order.order[2], block_order.order[3]},
-        .src_access_order      = {src_order.order[0], src_order.order[1], src_order.order[2], src_order.order[3]},
-        .src_vector_dim        = lds_cfg.src_vector_dim,
-        .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
-        .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
-        .is_direct_load            = lds_cfg.is_direct_load,
-        .lds_padding               = lds_cfg.lds_padding,
-    };
+    constexpr auto array_length = block_order.order.size();
+    static_assert(block_order.order.size() == src_order.order.size(),
+                  "Mismatched size between block order and src order");
+
+    if constexpr (array_length == 3)
+    {
+        return BwdBlockTransfer{
+            .thread_cluster_dims   = {block_xfer.k_batch_size, block_xfer.k0, block_xfer.m_n, block_xfer.k1},
+            .thread_cluster_order  = {block_order.order[0], block_order.order[1], block_order.order[2]},
+            .src_access_order      = {src_order.order[0], src_order.order[1], src_order.order[2]},
+            .src_vector_dim        = lds_cfg.src_vector_dim,
+            .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
+            .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
+            .is_direct_load            = lds_cfg.is_direct_load,
+            .lds_padding               = lds_cfg.lds_padding,
+        };
+    }
+    else if constexpr (array_length == 4)
+    {
+        return BwdBlockTransfer{
+            .thread_cluster_dims   = {block_xfer.k_batch_size, block_xfer.k0, block_xfer.m_n, block_xfer.k1},
+            .thread_cluster_order  = {block_order.order[0], block_order.order[1], block_order.order[2], block_order.order[3]},
+            .src_access_order      = {src_order.order[0], src_order.order[1], src_order.order[2], src_order.order[3]},
+            .src_vector_dim        = lds_cfg.src_vector_dim,
+            .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
+            .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
+            .is_direct_load            = lds_cfg.is_direct_load,
+            .lds_padding               = lds_cfg.lds_padding,
+        };
+    }
+    else
+    {
+        static_assert(false, "Internal error: Unsupported array length");
+    }
 }
 
 // Block transfer parameters for C tensor.

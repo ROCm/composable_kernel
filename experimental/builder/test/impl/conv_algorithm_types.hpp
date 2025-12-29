@@ -74,7 +74,7 @@ struct BlockGemm
 static_assert(ckb::BlockGemmDescriptor<BlockGemm>);
 
 // Describe Aand B block transfer thread cluster lengths.
-template <bool IsBwd = false>
+template <size_t ThreadSliceLength = 3>
 struct BlockTransfer
 {
     size_t k0;
@@ -83,16 +83,16 @@ struct BlockTransfer
     size_t k_batch_size;
 };
 
-// Specialization for forward (IsBwd = false)
+// Specialization for ThreadSliceLength == 3
 template <>
-struct BlockTransfer<false>
+struct BlockTransfer<3>
 {
     size_t k0;
     size_t m_n;
     size_t k1;
 };
 static_assert(ckb::BlockTransferDescriptor<BlockTransfer<>>);
-static_assert(ckb::BlockTransferDescriptor<BlockTransfer<true>>);
+static_assert(ckb::BlockTransferDescriptor<BlockTransfer<4>>);
 
 // Describe C block transfer thread cluster lengths.
 struct ThreadCluster
@@ -130,13 +130,13 @@ struct AccessOrder
 static_assert(AccessOrderDescriptor<AccessOrder<>>);
 static_assert(AccessOrderDescriptor<AccessOrder<4>>);
 
-template <bool IsBwd = false>
+template <size_t ThreadSliceLength = 3>
 struct InputTransfer
 {
-    BlockTransfer<IsBwd> block_transfer;
+    BlockTransfer<ThreadSliceLength> block_transfer;
     LdsTransfer lds_transfer;
-    std::conditional_t<IsBwd, AccessOrder<4>, AccessOrder<3>> block_transfer_access_order;
-    std::conditional_t<IsBwd, AccessOrder<4>, AccessOrder<3>> src_access_order;
+    AccessOrder<ThreadSliceLength> block_transfer_access_order;
+    AccessOrder<ThreadSliceLength> src_access_order;
 };
 
 struct OutputTransfer
@@ -145,11 +145,11 @@ struct OutputTransfer
     Epilogue epilogue;
 };
 
-template <bool IsBwd = false>
+template <size_t ThreadSliceLength = 3>
 struct Transfer
 {
-    InputTransfer<IsBwd> a;
-    InputTransfer<IsBwd> b;
+    InputTransfer<ThreadSliceLength> a;
+    InputTransfer<ThreadSliceLength> b;
     OutputTransfer c;
 };
 
@@ -213,10 +213,10 @@ struct WmmaGemm_
     GridwiseWmmaGemm gridwise_gemm;
 };
 
-template <bool IsBwd = false>
+template <size_t ThreadSliceLength = 3>
 struct Transfer_
 {
-    Transfer<IsBwd> transfer;
+    Transfer<ThreadSliceLength> transfer;
 };
 
 struct ConvSpecializationFwd_
@@ -397,7 +397,7 @@ struct ConvAlgorithmTemplate : Components...
     constexpr auto with_transfer(const T& t) const
     {
         static_assert(std::is_base_of_v<Transfer_<>, ConvAlgorithmTemplate> ||
-                      std::is_base_of_v<Transfer_<true>, ConvAlgorithmTemplate>);
+                      std::is_base_of_v<Transfer_<4>, ConvAlgorithmTemplate>);
         auto result     = *this;
         result.transfer = t;
         return result;
@@ -553,6 +553,9 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileTh
                                                                           TileOptimizations_>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle = 
-    ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<true>, ConvSpecializationBwdWeight_, TransposeParams_>;
+    ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<4>, ConvSpecializationBwdWeight_, TransposeParams_>;
+
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 = 
+    ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<>, ConvSpecializationBwdWeight_, BlockGemm_>;
 
 } // namespace ck_tile::builder::test

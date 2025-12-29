@@ -120,16 +120,20 @@ inline std::string to_string<BlockGemm>(BlockGemm t)
     return oss.str();
 }
 
-template <bool IsBwd>
-inline std::string to_string(BlockTransfer<IsBwd> t)
+template <size_t ThreadSliceDim>
+inline std::string to_string(BlockTransfer<ThreadSliceDim> t)
 {
-    if constexpr (IsBwd)
+    if constexpr (ThreadSliceDim == 4)
     {
         return array_to_seq(std::array<size_t, 4>{t.k_batch_size, t.k0, t.m_n, t.k1});
     }
-    else
+    else if constexpr (ThreadSliceDim == 3)
     {
         return array_to_seq(std::array<size_t, 3>{t.k0, t.m_n, t.k1});
+    }
+    else 
+    {
+        static_assert(ThreadSliceDim == 3 || ThreadSliceDim == 4, "Unsupported ThreadSliceDim");
     }
 }
 
@@ -156,8 +160,8 @@ inline std::string to_string(AccessOrder<N> t)
     return array_to_seq(t.order);
 }
 
-template <bool IsBwd>
-inline std::string to_string(InputTransfer<IsBwd> t)
+template <size_t N  = 3>
+inline std::string to_string(InputTransfer<N> t)
 {
     std::ostringstream oss;
     oss << to_string(t.block_transfer) << "," << to_string(t.block_transfer_access_order) << ","
@@ -176,8 +180,8 @@ inline std::string to_string<OutputTransfer>(OutputTransfer t)
     return oss.str();
 }
 
-template <bool IsBwd>
-inline std::string to_string(Transfer<IsBwd> t)
+template <size_t N = 3>
+inline std::string to_string(Transfer<N> t)
 {
     std::ostringstream oss;
     oss << to_string(t.a) << "," << to_string(t.b) << "," << to_string(t.c);
@@ -267,8 +271,8 @@ inline std::string to_string<WmmaGemm_>(WmmaGemm_ t)
     return to_string(t.gridwise_gemm);
 }
 
-template <bool IsBwd>
-inline std::string to_string(Transfer_<IsBwd> t)
+template <size_t ThreadSliceDim = 3>
+inline std::string to_string(Transfer_<ThreadSliceDim> t)
 {
     return to_string(t.transfer);
 }
@@ -378,9 +382,18 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuff
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle t)
 {
     std::ostringstream oss;
-    constexpr bool BWD = true;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<BWD>>(t));
+        << "," << to_string(static_cast<Transfer_<4>>(t));
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3>(
+    ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
+        << "," << to_string(static_cast<Transfer_<>>(t));
     return oss.str();
 }
 
