@@ -70,21 +70,6 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                                         PassThrough,
                                                         BiasNormalizeInInferClamp>>>& instances);
 
-void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
-    std::vector<
-        std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                        NHWGC,
-                                                        GKYXC,
-                                                        Tuple<NHWGK, NHWGK, NHWGK, NHWGK, NHWGK>,
-                                                        NHWGK,
-                                                        BF16,
-                                                        BF16,
-                                                        Tuple<BF16, BF16, BF16, BF16, BF16>,
-                                                        BF16,
-                                                        PassThrough,
-                                                        PassThrough,
-                                                        BiasNormalizeInInferClamp>>>& instances);
-
 void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part1(
     std::vector<std::unique_ptr<
         DeviceGroupedConvFwdMultipleABD<3,
@@ -130,21 +115,6 @@ void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_n
                                         BiasNormalizeInInferClamp>>>& instances);
 
 void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part4(
-    std::vector<std::unique_ptr<
-        DeviceGroupedConvFwdMultipleABD<3,
-                                        NDHWGC,
-                                        GKZYXC,
-                                        Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
-                                        NDHWGK,
-                                        BF16,
-                                        BF16,
-                                        Tuple<BF16, BF16, BF16, BF16, BF16>,
-                                        BF16,
-                                        PassThrough,
-                                        PassThrough,
-                                        BiasNormalizeInInferClamp>>>& instances);
-
-void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_large_tensor_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
     std::vector<std::unique_ptr<
         DeviceGroupedConvFwdMultipleABD<3,
                                         NDHWGC,
@@ -223,21 +193,6 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                                         PassThrough,
                                                         BiasNormalizeInInferClamp>>>& instances);
 
-void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_f16_instances(
-    std::vector<
-        std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                        NHWGC,
-                                                        GKYXC,
-                                                        Tuple<NHWGK, NHWGK, NHWGK, NHWGK, NHWGK>,
-                                                        NHWGK,
-                                                        F16,
-                                                        F16,
-                                                        Tuple<F16, F16, F16, F16, F16>,
-                                                        F16,
-                                                        PassThrough,
-                                                        PassThrough,
-                                                        BiasNormalizeInInferClamp>>>& instances);
-
 void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances_part1(
     std::vector<std::unique_ptr<
         DeviceGroupedConvFwdMultipleABD<3,
@@ -284,21 +239,6 @@ void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_n
                                         BiasNormalizeInInferClamp>>>& instances);
 
 void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances_part4(
-    std::vector<std::unique_ptr<
-        DeviceGroupedConvFwdMultipleABD<3,
-                                        NDHWGC,
-                                        GKZYXC,
-                                        Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
-                                        NDHWGK,
-                                        F16,
-                                        F16,
-                                        Tuple<F16, F16, F16, F16, F16>,
-                                        F16,
-                                        PassThrough,
-                                        PassThrough,
-                                        BiasNormalizeInInferClamp>>>& instances);
-
-void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_large_tensor_ndhwgc_gkzyxc_ndhwgk_f16_instances(
     std::vector<std::unique_ptr<
         DeviceGroupedConvFwdMultipleABD<3,
                                         NDHWGC,
