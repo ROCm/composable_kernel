@@ -12,7 +12,7 @@
 #include "profiler/profile_grouped_conv_bwd_data_impl.hpp"
 
 template <typename Tuple>
-class TestGroupedConvndBwdDataWmma : public ::testing::Test
+class TestGroupedConvndBwdData : public ::testing::Test
 {
     protected:
     using DataType  = std::tuple_element_t<0, Tuple>;
@@ -80,19 +80,19 @@ using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWK, GKZYXC, GNDHWC>
                                        std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>>;
 
 template <typename Tuple>
-class TestGroupedConvndBwdDataWmma2d : public TestGroupedConvndBwdDataWmma<Tuple>
+class TestGroupedConvndBwdData2d : public TestGroupedConvndBwdData<Tuple>
 {
 };
 
 template <typename Tuple>
-class TestGroupedConvndBwdDataWmma3d : public TestGroupedConvndBwdDataWmma<Tuple>
+class TestGroupedConvndBwdData3d : public TestGroupedConvndBwdData<Tuple>
 {
 };
 
-TYPED_TEST_SUITE(TestGroupedConvndBwdDataWmma2d, KernelTypes2d);
-TYPED_TEST_SUITE(TestGroupedConvndBwdDataWmma3d, KernelTypes3d);
+TYPED_TEST_SUITE(TestGroupedConvndBwdData2d, KernelTypes2d);
+TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
 
-TYPED_TEST(TestGroupedConvndBwdDataWmma2d, Test2D)
+TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
 {
     this->conv_params.clear();
     // SplitN case
@@ -101,7 +101,7 @@ TYPED_TEST(TestGroupedConvndBwdDataWmma2d, Test2D)
     this->template Run<2>();
 }
 
-TYPED_TEST(TestGroupedConvndBwdDataWmma3d, Test3D)
+TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
 {
     this->conv_params.clear();
     // SplitN case
