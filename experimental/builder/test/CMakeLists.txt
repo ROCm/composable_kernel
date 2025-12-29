@@ -137,14 +137,19 @@ add_ck_builder_test(test_ckb_build_fwd_instances
     conv/ck/test_ckb_conv_fwd_3d_fp16.cpp
     conv/ck/test_ckb_conv_fwd_3d_fp32.cpp
     conv/ck_tile/test_ckb_conv_fwd_2d_fp16_v3.cpp
-    conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
-    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp)
+    )
 target_link_libraries(test_ckb_build_fwd_instances PRIVATE utility)
 
 add_ck_builder_test(test_ckb_build_bwd_weight_instances
-    conv/ck/test_ckb_conv_bwd_weight.cpp
+    conv/ck/test_ckb_conv_bwd_weight_xdl_cshuffle.cpp
+    conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
     )
 target_link_libraries(test_ckb_build_bwd_weight_instances PRIVATE utility)
+
+add_ck_builder_test(test_ckb_build_bwd_data_instances
+    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp
+    )
+target_link_libraries(test_ckb_build_bwd_data_instances PRIVATE utility)
 
 
 ################################################################################
@@ -199,6 +204,7 @@ set(CKB_REGRESSION_TESTS
     test_ckb_instance_string
     test_ckb_build_fwd_instances
     test_ckb_build_bwd_weight_instances
+    test_ckb_build_bwd_data_instances
     test_ckb_testing_utils
     # test_ckb_factory_grouped_convolution_forward_convscale
     # test_ckb_factory_grouped_convolution_forward_scaleadd_ab

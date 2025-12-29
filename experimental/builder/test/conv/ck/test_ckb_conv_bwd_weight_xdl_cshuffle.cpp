@@ -4,7 +4,6 @@
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
 #include "utils/conv_algorithm_type_utils.hpp"
-//#include "ck_tile/builder/testing/conv_bwd_ck.hpp"
 #include "ck_tile/host/device_prop.hpp"
 
 namespace ckb = ck_tile::builder;
@@ -29,7 +28,7 @@ constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CSh
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;
 
-TEST(BwdWeight_2DFp16_CShufV3_GNHWC, Create)
+TEST(BwdWeight_2DFp16_CShuffle_GNHWC, Create)
 {
     const auto expected_transfer_parameters = to_string(ALGORITHM);
     cku::run_test<Builder>({"DeviceGroupedConvBwdWeight_Xdl_CShuffle",
@@ -38,44 +37,3 @@ TEST(BwdWeight_2DFp16_CShufV3_GNHWC, Create)
                             "GNHWC,GKYXC,GNHWK",
                             "PassThrough,PassThrough,PassThrough"});
 }
-
-// TEST(BwdWeight_2DFp16_CShufV3_GNHWC, EndToEnd)
-// {
-//     if(!ck_tile::get_device_name().starts_with("gfx9"))
-//     {
-//         GTEST_SKIP() << "unsupported architecture";
-//     }
-
-//     ckt::Args<SIGNATURE> args = {
-//         .lengths =
-//             {
-//                 .batch_size      = 16,
-//                 .groups          = 1,
-//                 .input_channels  = 32,
-//                 .output_channels = 48,
-//                 .image =
-//                     {
-//                         .width  = 56,
-//                         .height = 64,
-//                     },
-//                 .filter =
-//                     {
-//                         .width  = 3,
-//                         .height = 5,
-//                     },
-//             },
-//         .filter_strides     = {.width = 1, .height = 1},
-//         .filter_dilation    = {.width = 1, .height = 1},
-//         .input_left_pad     = {.width = 0, .height = 0},
-//         .input_right_pad    = {.width = 0, .height = 0},
-//         .a_elementwise_op   = {},
-//         .b_elementwise_op   = {},
-//         .cde_elementwise_op = {},
-//     };
-
-//     auto inputs  = alloc_inputs(args);
-//     auto outputs = alloc_outputs(args);
-
-//     auto conv = Instance{};
-//     ckt::run(conv, args, inputs.get(), outputs.get());
-// }
