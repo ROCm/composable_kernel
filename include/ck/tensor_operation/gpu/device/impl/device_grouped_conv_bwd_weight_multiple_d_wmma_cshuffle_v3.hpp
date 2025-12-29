@@ -746,7 +746,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
                                   arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I2);
 
             AccDataType* p_e_grid = type_convert<AccDataType*>(arg.p_workspace_);
-            ;
 
             // Convolution kernel dispatch
             typename GridwiseGemm::Argument gemm_arg{

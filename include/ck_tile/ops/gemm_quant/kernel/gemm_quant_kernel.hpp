@@ -412,32 +412,6 @@ struct QuantGemmKernel
             return false;
         }
 
-        if constexpr(kQuantType == QuantType::AQuantGrouped ||
-                     kQuantType == QuantType::ABQuantGrouped)
-        {
-            if(kargs.QK_A % GemmPipeline::GetVectorSizeAQ() != 0)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("K_A is not a multiple of vector load size for A tensor!");
-                }
-                return false;
-            }
-        }
-
-        if constexpr(kQuantType == QuantType::BQuantGrouped ||
-                     kQuantType == QuantType::ABQuantGrouped)
-        {
-            if(kargs.QK_B % GemmPipeline::GetVectorSizeBQ() != 0)
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("K_B is not a multiple of vector load size for B tensor!");
-                }
-                return false;
-            }
-        }
-
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
             if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
