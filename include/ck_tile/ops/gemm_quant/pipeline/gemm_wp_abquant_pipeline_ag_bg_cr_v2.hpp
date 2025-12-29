@@ -16,7 +16,7 @@
 namespace ck_tile {
 
 template <typename Problem, typename PipelinePolicy = GemmWPABQuantPipelineAgBgCrPolicy>
-struct WPABQuantBPipelineAgBgCr : public WeightPreshufflePipelineAGmemBGmemCRegV2<Problem>
+struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV2<Problem>
 {
     using Base            = WeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
     using ADataType       = remove_cvref_t<typename Problem::ADataType>;
