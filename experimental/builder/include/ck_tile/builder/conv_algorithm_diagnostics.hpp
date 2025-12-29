@@ -67,7 +67,7 @@ consteval auto diagnose_thread_block_descriptor() -> std::string {
         
         if constexpr (requires(TB t) { t.block_size; }) {
             using BlockSizeType = decltype(std::declval<TB>().block_size);
-            constexpr bool convertible = std::convertible_to<BlockSizeType, size_t>;
+            constexpr bool convertible = SizeType<BlockSizeType>;
             msg += "      → thread_block.block_size: " + std::string(CHECK_MARK(convertible)) + 
                    (convertible ? "" : std::string(get_type_info<BlockSizeType>())) + "\n";
         } else {
@@ -76,7 +76,7 @@ consteval auto diagnose_thread_block_descriptor() -> std::string {
         
         if constexpr (requires(TB t) { t.tile_size.m; }) {
             using TileMType = decltype(std::declval<TB>().tile_size.m);
-            constexpr bool convertible = std::convertible_to<TileMType, size_t>;
+            constexpr bool convertible = SizeType<TileMType>;
             msg += "      → thread_block.tile_size.m: " + std::string(CHECK_MARK(convertible)) + 
                    (convertible ? "" : std::string(get_type_info<TileMType>())) + "\n";
         } else {
@@ -85,7 +85,7 @@ consteval auto diagnose_thread_block_descriptor() -> std::string {
         
         if constexpr (requires(TB t) { t.tile_size.n; }) {
             using TileNType = decltype(std::declval<TB>().tile_size.n);
-            constexpr bool convertible = std::convertible_to<TileNType, size_t>;
+            constexpr bool convertible = SizeType<TileNType>;
             msg += "      → thread_block.tile_size.n: " + std::string(CHECK_MARK(convertible)) + 
                    (convertible ? "" : std::string(get_type_info<TileNType>())) + "\n";
         } else {
@@ -94,7 +94,7 @@ consteval auto diagnose_thread_block_descriptor() -> std::string {
         
         if constexpr (requires(TB t) { t.tile_size.k; }) {
             using TileKType = decltype(std::declval<TB>().tile_size.k);
-            constexpr bool convertible = std::convertible_to<TileKType, size_t>;
+            constexpr bool convertible = SizeType<TileKType>;
             msg += "      → thread_block.tile_size.k: " + std::string(CHECK_MARK(convertible)) + 
                    (convertible ? "" : std::string(get_type_info<TileKType>())) + "\n";
         } else {
@@ -112,7 +112,7 @@ consteval auto diagnose_xdl_params() -> std::string {
     
     if constexpr (requires(XdlParams t) { t.m_per_xdl; }) {
         using MPerXdlType = decltype(std::declval<XdlParams>().m_per_xdl);
-        constexpr bool convertible = std::convertible_to<MPerXdlType, size_t>;
+        constexpr bool convertible = SizeType<MPerXdlType>;
         msg += "          → xdl_params.m_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
                (convertible ? "" : std::string(get_type_info<MPerXdlType>())) + "\n";
     } else {
@@ -121,7 +121,7 @@ consteval auto diagnose_xdl_params() -> std::string {
     
     if constexpr (requires(XdlParams t) { t.n_per_xdl; }) {
         using NPerXdlType = decltype(std::declval<XdlParams>().n_per_xdl);
-        constexpr bool convertible = std::convertible_to<NPerXdlType, size_t>;
+        constexpr bool convertible = SizeType<NPerXdlType>;
         msg += "          → xdl_params.n_per_xdl: " + std::string(CHECK_MARK(convertible)) + 
                (convertible ? "" : std::string(get_type_info<NPerXdlType>())) + "\n";
     } else {
@@ -130,7 +130,7 @@ consteval auto diagnose_xdl_params() -> std::string {
     
     if constexpr (requires(XdlParams t) { t.m_xdl_per_wave; }) {
         using MXdlPerWaveType = decltype(std::declval<XdlParams>().m_xdl_per_wave);
-        constexpr bool convertible = std::convertible_to<MXdlPerWaveType, size_t>;
+        constexpr bool convertible = SizeType<MXdlPerWaveType>;
         msg += "          → xdl_params.m_xdl_per_wave: " + std::string(CHECK_MARK(convertible)) + 
                (convertible ? "" : std::string(get_type_info<MXdlPerWaveType>())) + "\n";
     } else {
@@ -139,7 +139,7 @@ consteval auto diagnose_xdl_params() -> std::string {
     
     if constexpr (requires(XdlParams t) { t.n_xdl_per_wave; }) {
         using NXdlPerWaveType = decltype(std::declval<XdlParams>().n_xdl_per_wave);
-        constexpr bool convertible = std::convertible_to<NXdlPerWaveType, size_t>;
+        constexpr bool convertible = SizeType<NXdlPerWaveType>;
         msg += "          → xdl_params.n_xdl_per_wave: " + std::string(CHECK_MARK(convertible)) + 
                (convertible ? "" : std::string(get_type_info<NXdlPerWaveType>())) + "\n";
     } else {
