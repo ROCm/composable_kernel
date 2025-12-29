@@ -78,7 +78,7 @@ TEST(ConvTuningParams, AssignsFwdConvSpecialization)
 {
     constexpr struct Algorithm
     {
-        ckb::ConvFwdSpecialization fwd_specialization =
+        ckb::ConvSpecialization fwd_specialization =
             ckb::ConvSpecialization::FILTER_1X1_STRIDE1_PAD0;
     } kAlgorithm;
     constexpr auto conv_spec = SetFwdConvSpecialization<kAlgorithm>();

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"

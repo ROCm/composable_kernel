@@ -208,7 +208,7 @@ consteval auto GetAuxiliaryTensorLayouts()
                                   SPATIAL_DIM>{};
 }
 
-template <auto Signature, size_t SPATIAL_DIM, ConvDirection DIR>
+template <auto Signature, size_t SPATIAL_DIM>
     requires(!HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
 consteval auto GetAuxiliaryTensorLayouts()
 {
