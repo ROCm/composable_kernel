@@ -15,22 +15,26 @@ namespace ck_tile::builder {
 /* Descriptors for individual elements of the algorithm description */
 /********************************************************************/
 
+// Common concept for size-related fields
+template<typename T>
+concept SizeType = std::unsigned_integral<std::remove_cvref_t<T>>;
+
 // Concept for thread block dimensions for a GEMM problem.
 template <typename T>
 concept ThreadBlockDescriptor = requires(T t) {
-    { t.block_size } -> std::convertible_to<size_t>;
-    { t.tile_size.m } -> std::convertible_to<size_t>;
-    { t.tile_size.n } -> std::convertible_to<size_t>;
-    { t.tile_size.k } -> std::convertible_to<size_t>;
+    { t.block_size } -> SizeType;
+    { t.tile_size.m } -> SizeType;
+    { t.tile_size.n } -> SizeType;
+    { t.tile_size.k } -> SizeType;
 };
 
 // Concept for parameters that describe a gridwise XDL GEMM problem.
 template <typename T>
 concept GridwiseXdlGemmDescriptor = requires(T t) {
-    { t.m_per_xdl } -> std::convertible_to<size_t>;
-    { t.n_per_xdl } -> std::convertible_to<size_t>;
-    { t.m_xdl_per_wave } -> std::convertible_to<size_t>;
-    { t.n_xdl_per_wave } -> std::convertible_to<size_t>;
+    { t.m_per_xdl } -> SizeType;
+    { t.n_per_xdl } -> SizeType;
+    { t.m_xdl_per_wave } -> SizeType;
+    { t.n_xdl_per_wave } -> SizeType;
 };
 
 // Concept for parameter that describe block GEMM problem.
@@ -43,11 +47,11 @@ concept BlockGemmDescriptor = requires(T t) {
 // Concept for parameters that describe a gridwise WMMA GEMM problem.
 template <typename T>
 concept GridwiseWmmaGemmDescriptor = requires(T t) {
-    { t.k1 } -> std::convertible_to<size_t>;
-    { t.m_per_wmma } -> std::convertible_to<size_t>;
-    { t.n_per_wmma } -> std::convertible_to<size_t>;
-    { t.m_wmma_per_wave } -> std::convertible_to<size_t>;
-    { t.n_wmma_per_wave } -> std::convertible_to<size_t>;
+    { t.k1 } -> SizeType;
+    { t.m_per_wmma } -> SizeType;
+    { t.n_per_wmma } -> SizeType;
+    { t.m_wmma_per_wave } -> SizeType;
+    { t.n_wmma_per_wave } -> SizeType;
     { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
 };
 
@@ -55,34 +59,34 @@ concept GridwiseWmmaGemmDescriptor = requires(T t) {
 // Concept for vectorized data transfer for convolution input tensors.
 template <typename T>
 concept BlockTransferDescriptor = requires(T t) {
-    { t.k0 } -> std::convertible_to<size_t>;
-    { t.m_n } -> std::convertible_to<size_t>;
-    { t.k1 } -> std::convertible_to<size_t>;
+    { t.k0 } -> SizeType;
+    { t.m_n } -> SizeType;
+    { t.k1 } -> SizeType;
 };
 
 template <typename T>
 concept BlockTransferDescriptorBwd = requires(T t) {
-    { t.k0 } -> std::convertible_to<size_t>;
-    { t.m_n } -> std::convertible_to<size_t>;
-    { t.k1 } -> std::convertible_to<size_t>;
-    { t.k_batch_size } -> std::convertible_to<size_t>;
+    { t.k0 } -> SizeType;
+    { t.m_n } -> SizeType;
+    { t.k1 } -> SizeType;
+    { t.k_batch_size } -> SizeType;
 };
 
 // Concept for thread cluster dimensions for GEMM output tensor.
 template <typename T>
 concept ThreadClusterDescriptor = requires(T t) {
-    { t.m_block } -> std::convertible_to<size_t>;
-    { t.m_wave_per_xdl } -> std::convertible_to<size_t>;
-    { t.n_block } -> std::convertible_to<size_t>;
-    { t.n_wave_per_xdl } -> std::convertible_to<size_t>;
+    { t.m_block } -> SizeType;
+    { t.m_wave_per_xdl } -> SizeType;
+    { t.n_block } -> SizeType;
+    { t.n_wave_per_xdl } -> SizeType;
 };
 
 // Concept for the LDS transfer for the convolution input tensors.
 template <typename T>
 concept LdsTransferDescriptor = requires(T t) {
-    { t.src_vector_dim } -> std::convertible_to<size_t>;
-    { t.src_scalar_per_vector } -> std::convertible_to<size_t>;
-    { t.lds_dst_scalar_per_vector } -> std::convertible_to<size_t>;
+    { t.src_vector_dim } -> SizeType;
+    { t.src_scalar_per_vector } -> SizeType;
+    { t.lds_dst_scalar_per_vector } -> SizeType;
     { t.is_direct_load } -> std::convertible_to<bool>;
     { t.lds_padding } -> std::convertible_to<bool>;
 };
@@ -91,9 +95,9 @@ concept LdsTransferDescriptor = requires(T t) {
 // LDS).
 template <typename T>
 concept EpilogueDescriptor = requires(T t) {
-    { t.m_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
-    { t.n_per_wave_per_shuffle } -> std::convertible_to<size_t>;
-    { t.scalar_per_vector } -> std::convertible_to<size_t>;
+    { t.m_xdl_per_wave_per_shuffle } -> SizeType;
+    { t.n_per_wave_per_shuffle } -> SizeType;
+    { t.scalar_per_vector } -> SizeType;
 };
 
 // Concept for the thread cluster access order
@@ -108,18 +112,18 @@ concept AccessOrderDescriptor = requires(T t) {
 // size is deduced from block gemm structure).
 template <typename T>
 concept TileThreadBlockDescriptor = requires(T t) {
-    { t.tile_size.m } -> std::convertible_to<size_t>;
-    { t.tile_size.n } -> std::convertible_to<size_t>;
-    { t.tile_size.k } -> std::convertible_to<size_t>;
+    { t.tile_size.m } -> SizeType;
+    { t.tile_size.n } -> SizeType;
+    { t.tile_size.k } -> SizeType;
 };
 
 // Concept for thread block dimensions for a GEMM problem for CK Tile (Block
 // size is deduced from block gemm structure).
 template <typename T>
 concept TileTransferDescriptor = requires(T t) {
-    { t.a_scalar_per_vector } -> std::convertible_to<size_t>;
-    { t.b_scalar_per_vector } -> std::convertible_to<size_t>;
-    { t.c_scalar_per_vector } -> std::convertible_to<size_t>;
+    { t.a_scalar_per_vector } -> SizeType;
+    { t.b_scalar_per_vector } -> SizeType;
+    { t.c_scalar_per_vector } -> SizeType;
 };
 
 // Concept to check if struct specifies block GEMM (CK Tile).
@@ -169,15 +173,15 @@ concept SpecifiesTileThreadBlock = requires {
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
 concept GridwiseFwdXdlGemmDescriptor = requires (T t){
-    { t.ak1 } -> std::convertible_to<size_t>;
-    { t.bk1 } -> std::convertible_to<size_t>;
+    { t.ak1 } -> SizeType;
+    { t.bk1 } -> SizeType;
     { t.xdl_params } -> GridwiseXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
 concept GridwiseBwdXdlGemmDescriptor = requires (T t){
-    { t.k1 } -> std::convertible_to<size_t>;
+    { t.k1 } -> SizeType;
     { t.xdl_params } -> GridwiseXdlGemmDescriptor;
 };
 
@@ -218,9 +222,9 @@ concept SpecifiesBlockTransferBwd = requires(T t) {
 // Concept to check if a struct specifies convolution scalar per vector infor for A, B and C.
 template <typename T>
 concept SpecifiesTileTransfer = requires(T t) {
-    { T::transfer.a_scalar_per_vector } -> std::convertible_to<size_t>;
-    { T::transfer.b_scalar_per_vector } -> std::convertible_to<size_t>;
-    { T::transfer.c_scalar_per_vector } -> std::convertible_to<size_t>;
+    { T::transfer.a_scalar_per_vector } -> SizeType;
+    { T::transfer.b_scalar_per_vector } -> SizeType;
+    { T::transfer.c_scalar_per_vector } -> SizeType;
 };
 
 // Concept to check if a struct specifies LDS transfer info for tensors A, B, and C.
@@ -297,12 +301,12 @@ concept SpecifiesGemmSpecialization = requires {
 
 template <typename T>
 concept SpecifiesNumPrefetchStages = requires {
-    { T::num_gemm_k_prefetch_stages } -> std::convertible_to<size_t>;
+    { T::num_gemm_k_prefetch_stages } -> SizeType;
 };
 
 template <typename T>
 concept SpecifiesNumGroupsToMerge = requires {
-    { T::num_groups_to_merge } -> std::convertible_to<size_t>;
+    { T::num_groups_to_merge } -> SizeType;
 };
 
 template <typename T>
@@ -318,8 +322,8 @@ concept SpecifiesLargeTensorSupport = requires {
 
 template <typename T>
 concept SpecifiesTransposeTransfer = requires {
-    { T::max_transpose_transfer_src_scalar_per_vector } -> std::convertible_to<size_t>;
-    { T::max_transpose_transfer_dst_scalar_per_vector } -> std::convertible_to<size_t>;
+    { T::max_transpose_transfer_src_scalar_per_vector } -> SizeType;
+    { T::max_transpose_transfer_dst_scalar_per_vector } -> SizeType;
 };
 
 /******************************************** */
@@ -329,11 +333,11 @@ concept SpecifiesTransposeTransfer = requires {
 // Concept for DL thread configuration
 template <typename T>
 concept DlThreadConfigDescriptor = requires(T t) {
-    { t.k0_per_block } -> std::convertible_to<size_t>;
-    { t.k1 } -> std::convertible_to<size_t>;
-    { t.m1_per_thread } -> std::convertible_to<size_t>;
-    { t.n1_per_thread } -> std::convertible_to<size_t>;
-    { t.k_per_thread } -> std::convertible_to<size_t>;
+    { t.k0_per_block } -> SizeType;
+    { t.k1 } -> SizeType;
+    { t.m1_per_thread } -> SizeType;
+    { t.n1_per_thread } -> SizeType;
+    { t.k_per_thread } -> SizeType;
 };
 
 // Concept for DL thread cluster
@@ -359,8 +363,8 @@ concept DlBlockTransferDescriptor = requires(T t) {
 template <typename T>
 concept DlEpilogueDescriptor = requires(T t) {
     { t.src_dst_access_order } -> std::convertible_to<std::array<size_t, 6>>;
-    { t.src_dst_vector_dim } -> std::convertible_to<size_t>;
-    { t.dst_scalar_per_vector } -> std::convertible_to<size_t>;
+    { t.src_dst_vector_dim } -> SizeType;
+    { t.dst_scalar_per_vector } -> SizeType;
 };
 
 // Concept to check if algorithm specifies DL thread config
