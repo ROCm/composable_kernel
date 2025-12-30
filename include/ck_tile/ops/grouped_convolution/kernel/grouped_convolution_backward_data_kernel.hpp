@@ -930,6 +930,10 @@ struct GroupedConvolutionBackwardDataKernel
             auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
                 c_ptr, kargs, block_idx_m, block_idx_n, group_id);
 
+#if defined(__gfx11__)
+            return;
+#endif
+
             EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
         }
     }

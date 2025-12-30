@@ -882,6 +882,9 @@ struct GroupedConvolutionBackwardWeightKernel
         }
         else
         {
+#if defined(__gfx11__)
+            return;
+#endif
             auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
                 c_ptr, kargs, block_idx_m, block_idx_n);
 
@@ -916,12 +919,6 @@ struct GroupedConvolutionBackwardWeightKernel
 
     CK_TILE_DEVICE void operator()(GroupedConvBwdWeightKernelArgsSpecialized& kargs) const
     {
-#if defined(__gfx11__)
-        if constexpr(EpiloguePipeline::MemoryOperation != ck_tile::memory_operation_enum::set)
-        {
-            return;
-        }
-#endif
         if constexpr(GroupedConvTraitsType_::ExplicitGemm)
         {
             CallExplicitGemm(kargs);
@@ -957,9 +954,7 @@ struct GroupedConvolutionBackwardWeightKernel
             if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
                 __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
-                if constexpr(!(EpiloguePipeline::MemoryOperation ==
-                                   memory_operation_enum::atomic_add &&
-                               GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                                is_any_of<WeiDataType, fp16_t, bf16_t>::value))
                 {
                     RunGemm2LDS(a_ptr,
