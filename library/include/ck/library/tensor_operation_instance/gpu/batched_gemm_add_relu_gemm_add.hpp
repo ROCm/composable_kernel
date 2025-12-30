@@ -167,11 +167,11 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<A0Layout, Row> && is_same_v<B0Layout, Col> &&
                          is_same_v<B1Layout, Row> && is_same_v<E1Layout, Row>)
             {
-#if CK_USE_XDL
+#ifdef CK_USE_XDL
                 add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
                     op_ptrs);
 #endif
-#if CK_USE_WMMA
+#ifdef CK_USE_WMMA
                 add_device_batched_gemm_add_relu_gemm_add_wmma_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
                     op_ptrs);
 #endif
@@ -179,11 +179,11 @@ struct DeviceOperationInstanceFactory<
             else if constexpr(is_same_v<A0Layout, Row> && is_same_v<B0Layout, Col> &&
                               is_same_v<B1Layout, Col> && is_same_v<E1Layout, Row>)
             {
-#if CK_USE_XDL
+#ifdef CK_USE_XDL
                 add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gon_gmo_instance(
                     op_ptrs);
 #endif
-#if CK_USE_WMMA
+#ifdef CK_USE_WMMA
                 add_device_batched_gemm_add_relu_gemm_add_wmma_cshuffle_f16_f16_f16_f16_gmk_gnk_gon_gmo_instance(
                     op_ptrs);
 #endif
