@@ -176,29 +176,6 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                                              ? DsReadPreload
                                              : MIterPerWarp * KIterPerWarp;
 
-    template <typename T>
-    CK_TILE_DEVICE static float cvt_scale_to_fp32(T& scale)
-    {
-        float scale_reg_f = 0.f;
-        if constexpr(std::is_same_v<BQDataType, ck_tile::fp8_t>)
-        {
-            scale_reg_f = __builtin_amdgcn_cvt_f32_fp8(static_cast<uint32_t>(scale), 0);
-        }
-        else if constexpr(std::is_same_v<BQDataType, ck_tile::bf8_t>)
-        {
-            scale_reg_f = __builtin_amdgcn_cvt_f32_bf8(static_cast<uint32_t>(scale), 0);
-        }
-        else if constexpr(std::is_same_v<BQDataType, float>)
-        {
-            scale_reg_f = ck_tile::bit_cast<float>(scale);
-        }
-        else
-        {
-            static_assert(false, "BQDataType must be float, fp8_t or bf8_t.");
-        }
-        return scale_reg_f;
-    }
-
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
         return BlockGemmQuantCommon<CDataType, WG, MIterPerWarp, MWarp, NIterPerWarp, NWarp>::
@@ -267,6 +244,8 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                 });
             });
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(
+                    aq_block_tensor);
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     constexpr auto tbuf_offset =
                         number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
@@ -286,10 +265,8 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                         }
                     }();
                     auto& scale_reg     = bq_block_tensor.get_thread_buffer()[reg_offset];
-                    float b_scale_reg_f = cvt_scale_to_fp32(scale_reg);
+                    float b_scale_reg_f = aq_picker.template cvt_scale_to_fp32<BQDataType>(scale_reg);
 
-                    AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(
-                        aq_block_tensor);
                     static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
                         float a_scale_reg_f = aq_picker.template pick<c_row>();
                         auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
