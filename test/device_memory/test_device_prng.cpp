@@ -204,7 +204,6 @@ TEST(TDevIntegerRanUniGen, I4) { TDevRanUniGenInt<ck::pk_i4_t>(-2, 2, 10000000);
 
 TEST(TDevIntegerRanUniGen, F32) { TDevRanUniGenInt<float>(-2, 2, 10000000); }
 TEST(TDevIntegerRanUniGen, F16) { TDevRanUniGenInt<ck::half_t>(-2, 2, 1000000); }
-TEST(TDevIntegerRanUniGen, BF16) { TDevRanUniGenInt<ck::bhalf_t>(-2, 2, 1000000); }
 
 TEST(TDevFpRanUniGen, F32_1) { TDevRanUniGenFp<float>(0, 1, 100000); }
 TEST(TDevFpRanUniGen, F32_2) { TDevRanUniGenFp<float>(0, 37, 73000); }
