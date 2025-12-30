@@ -7,14 +7,14 @@
 #include "ck_tile/builder/reflect/instance_traits.hpp"
 #include "ck_tile/builder/reflect/conv_description.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_wmma_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_wmma_instance.hpp"
 
 namespace {
 
 namespace ckr = ck_tile::reflect;
 
 using InstanceTuple = ck::tensor_operation::device::instance::
-    device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_f16_instances<
+    device_grouped_conv_bwd_weight_wmma_c_shuffle_bf16_instances<
         2,                                             // NDimSpatial
         ck::tensor_operation::device::instance::NHWGC, // InLayout
         ck::tensor_operation::device::instance::GKYXC, // WeiLayout
@@ -22,7 +22,7 @@ using InstanceTuple = ck::tensor_operation::device::instance::
         ck::tensor_operation::device::instance::ConvBwdWeightDefault>;
 
 // Expected complete instance string
-std::string expected_str = "DeviceGroupedConvBwdWeight_Wmma_CShuffleV3"
+std::string expected_str = "DeviceGroupedConvBwdWeight_Wmma_CShuffle"
                            "<2"            // NDimSpatial
                            ",NHWGC"        // InLayout
                            ",GKYXC"        // WeiLayout

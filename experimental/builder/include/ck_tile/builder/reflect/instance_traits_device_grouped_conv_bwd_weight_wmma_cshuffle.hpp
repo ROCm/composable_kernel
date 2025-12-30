@@ -167,19 +167,20 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
 
     static constexpr auto kConvBackwardWeightSpecialization = ConvBackwardWeightSpecialization;
 
-    static constexpr ck::index_t kBlockSize                                    = BlockSize;
-    static constexpr ck::index_t kMPerBlock                                    = MPerBlock;
-    static constexpr ck::index_t kNPerBlock                                    = NPerBlock;
-    static constexpr ck::index_t kK0PerBlock                                   = K0PerBlock;
-    static constexpr ck::index_t kK1                                           = K1;
-    static constexpr ck::index_t kMPerWMMA                                     = MPerWMMA;
-    static constexpr ck::index_t kNPerWMMA                                     = NPerWMMA;
-    static constexpr ck::index_t kMRepeat                                      = MRepeat;
-    static constexpr ck::index_t kNRepeat                                      = NRepeat;
-    static constexpr ck::index_t kCShuffleMRepeatPerShuffle                    = CShuffleMRepeatPerShuffle;
-    static constexpr ck::index_t kCShuffleNRepeatPerShuffle                    = CShuffleNRepeatPerShuffle;
-    static constexpr ck::index_t kCShuffleBlockTransferScalarPerVector_NPerBlock = CShuffleBlockTransferScalarPerVector_NPerBlock;
-    static constexpr ck::index_t kNumGemmKPrefetchStage                        = NumGemmKPrefetchStage;
+    static constexpr ck::index_t kBlockSize                 = BlockSize;
+    static constexpr ck::index_t kMPerBlock                 = MPerBlock;
+    static constexpr ck::index_t kNPerBlock                 = NPerBlock;
+    static constexpr ck::index_t kK0PerBlock                = K0PerBlock;
+    static constexpr ck::index_t kK1                        = K1;
+    static constexpr ck::index_t kMPerWMMA                  = MPerWMMA;
+    static constexpr ck::index_t kNPerWMMA                  = NPerWMMA;
+    static constexpr ck::index_t kMRepeat                   = MRepeat;
+    static constexpr ck::index_t kNRepeat                   = NRepeat;
+    static constexpr ck::index_t kCShuffleMRepeatPerShuffle = CShuffleMRepeatPerShuffle;
+    static constexpr ck::index_t kCShuffleNRepeatPerShuffle = CShuffleNRepeatPerShuffle;
+    static constexpr ck::index_t kCShuffleBlockTransferScalarPerVector_NPerBlock =
+        CShuffleBlockTransferScalarPerVector_NPerBlock;
+    static constexpr ck::index_t kNumGemmKPrefetchStage = NumGemmKPrefetchStage;
 
     using ABlockTransferThreadClusterLengths_K0_M_K1 = ABlockTransferThreadClusterLengths_K0_M_K1_;
     using ABlockTransferThreadClusterArrangeOrder    = ABlockTransferThreadClusterArrangeOrder_;
@@ -204,8 +205,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
     using CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_;
 
-    static constexpr ck::LoopScheduler kLoopSched         = LoopSched;
-    static constexpr ck::PipelineVersion kPipelineVer     = PipelineVer;
+    static constexpr ck::LoopScheduler kLoopSched     = LoopSched;
+    static constexpr ck::PipelineVersion kPipelineVer = PipelineVer;
 
     // Static member function to generate instance string
     static std::string instance_string()
@@ -227,9 +228,11 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
         oss << ","
             << detail::elementwise_op_name<InElementwiseOperation>(); // 9. InElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10. WeiElementwiseOperation
+            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10.
+                                                                       // WeiElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11. OutElementwiseOperation
+            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11.
+                                                                       // OutElementwiseOperation
         oss << ","
             << detail::conv_bwd_weight_spec_name(
                    kConvBackwardWeightSpecialization); // 12. ConvBackwardWeightSpecialization

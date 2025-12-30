@@ -177,21 +177,24 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeightTw
 
     static constexpr auto kConvBackwardWeightSpecialization = ConvBackwardWeightSpecialization;
 
-    static constexpr ck::index_t kBlockSize                                    = BlockSize;
-    static constexpr ck::index_t kMPerBlock                                    = MPerBlock;
-    static constexpr ck::index_t kNPerBlock                                    = NPerBlock;
-    static constexpr ck::index_t kKPerBlock                                    = KPerBlock;
-    static constexpr ck::index_t kK1                                           = K1;
-    static constexpr ck::index_t kMPerXDL                                      = MPerXDL;
-    static constexpr ck::index_t kNPerXDL                                      = NPerXDL;
-    static constexpr ck::index_t kMXdlPerWave                                  = MXdlPerWave;
-    static constexpr ck::index_t kNXdlPerWave                                  = NXdlPerWave;
-    static constexpr ck::index_t kCShuffleMXdlPerWavePerShuffle                = CShuffleMXdlPerWavePerShuffle;
-    static constexpr ck::index_t kCShuffleNXdlPerWavePerShuffle                = CShuffleNXdlPerWavePerShuffle;
-    static constexpr ck::index_t kCBlockTransferScalarPerVector_NWaveNPerXdl  = CBlockTransferScalarPerVector_NWaveNPerXdl;
-    static constexpr ck::index_t kNumGroupsToMerge                             = NumGroupsToMerge;
-    static constexpr ck::index_t kTransposeTransferSrcScalarPerVector          = TransposeTransferSrcScalarPerVector;
-    static constexpr ck::index_t kTransposeTransferDstScalarPerVector          = TransposeTransferDstScalarPerVector;
+    static constexpr ck::index_t kBlockSize                     = BlockSize;
+    static constexpr ck::index_t kMPerBlock                     = MPerBlock;
+    static constexpr ck::index_t kNPerBlock                     = NPerBlock;
+    static constexpr ck::index_t kKPerBlock                     = KPerBlock;
+    static constexpr ck::index_t kK1                            = K1;
+    static constexpr ck::index_t kMPerXDL                       = MPerXDL;
+    static constexpr ck::index_t kNPerXDL                       = NPerXDL;
+    static constexpr ck::index_t kMXdlPerWave                   = MXdlPerWave;
+    static constexpr ck::index_t kNXdlPerWave                   = NXdlPerWave;
+    static constexpr ck::index_t kCShuffleMXdlPerWavePerShuffle = CShuffleMXdlPerWavePerShuffle;
+    static constexpr ck::index_t kCShuffleNXdlPerWavePerShuffle = CShuffleNXdlPerWavePerShuffle;
+    static constexpr ck::index_t kCBlockTransferScalarPerVector_NWaveNPerXdl =
+        CBlockTransferScalarPerVector_NWaveNPerXdl;
+    static constexpr ck::index_t kNumGroupsToMerge = NumGroupsToMerge;
+    static constexpr ck::index_t kTransposeTransferSrcScalarPerVector =
+        TransposeTransferSrcScalarPerVector;
+    static constexpr ck::index_t kTransposeTransferDstScalarPerVector =
+        TransposeTransferDstScalarPerVector;
 
     using ABlockTransferThreadClusterLengths_K0_M_K1 = ABlockTransferThreadClusterLengths_K0_M_K1_;
     using ABlockTransferThreadClusterArrangeOrder    = ABlockTransferThreadClusterArrangeOrder_;
@@ -242,9 +245,11 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeightTw
         oss << ","
             << detail::elementwise_op_name<InElementwiseOperation>(); // 9. InElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10. WeiElementwiseOperation
+            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10.
+                                                                       // WeiElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11. OutElementwiseOperation
+            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11.
+                                                                       // OutElementwiseOperation
         oss << ","
             << detail::conv_bwd_weight_spec_name(
                    kConvBackwardWeightSpecialization); // 12. ConvBackwardWeightSpecialization
