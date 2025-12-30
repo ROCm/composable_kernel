@@ -244,8 +244,7 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                 });
             });
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(
-                    aq_block_tensor);
+                AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(aq_block_tensor);
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     constexpr auto tbuf_offset =
                         number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
@@ -264,8 +263,9 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                             return nIter * KPerBlockBQ + kQScale;
                         }
                     }();
-                    auto& scale_reg     = bq_block_tensor.get_thread_buffer()[reg_offset];
-                    float b_scale_reg_f = aq_picker.template cvt_scale_to_fp32<BQDataType>(scale_reg);
+                    auto& scale_reg = bq_block_tensor.get_thread_buffer()[reg_offset];
+                    float b_scale_reg_f =
+                        aq_picker.template cvt_scale_to_fp32<BQDataType>(scale_reg);
 
                     static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
                         float a_scale_reg_f = aq_picker.template pick<c_row>();
