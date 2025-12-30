@@ -54,7 +54,20 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
         const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+    // One of the kernels in this code block fails to compile, but only on Windows when building for
+    // gfx1101. It succeeds on Linux for all gfx110X series GPU's, and on Windows for other gfx110X
+    // series GPU's.
+    // TODO: Remove this ifdef combo disabling these kernels once we have followed up with the
+    // compiler team and they are able to be built again. This is the compilation error that
+    // results:
+    //
+    // error: Illegal instruction detected: Operand has incorrect register class.
+    // V_CMP_NE_U32_e32 0, $src_private_base, implicit-def $vcc, implicit $exec
+    // Compiler version info:
+    // AMD clang version 22.0.0git (https://github.com/ROCm/llvm-project.git
+    // 8e85e3138dd485c4221cc12aff9eb60ab48ed3b5+PATCHED:93c451b46cc0dc23c47d67e394b370de65731aac)
+#if(!defined(__HIP_DEVICE_COMPILE__) || (defined(__gfx11__) && !defined(_WIN32)) || \
+    defined(__gfx12__))
 #if defined(__gfx11__)
     // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
     using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
@@ -1023,6 +1036,14 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
         {
             return false;
         }
+
+#if defined(_WIN32)
+        if(ck::is_gfx11_supported())
+        {
+            return false;
+        }
+#endif
+
         if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||
                      std::is_same_v<ComputeTypeB, f8_t> || std::is_same_v<ComputeTypeB, bf8_t>)
         {
