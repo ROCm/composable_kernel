@@ -1580,12 +1580,13 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
 #ifdef CK_EXPERIMENTAL_BUILDER
     std::string GetInstanceString() const override
     {
-        static_assert(ck_tile::reflect::HasInstanceTraits<DeviceOp>,
-                      "Specialization of instance_traits not found. Please check that a "
-                      "specialization exists in file "
-                      "ck_tile/builder/reflect/"
-                      "instance_traits_device_grouped_conv_bwd_weight_two_stage_wmma_cshuffle_v3.hpp "
-                      "for the given template parameters.");
+        static_assert(
+            ck_tile::reflect::HasInstanceTraits<DeviceOp>,
+            "Specialization of instance_traits not found. Please check that a "
+            "specialization exists in file "
+            "ck_tile/builder/reflect/"
+            "instance_traits_device_grouped_conv_bwd_weight_two_stage_wmma_cshuffle_v3.hpp "
+            "for the given template parameters.");
         return ck_tile::reflect::instance_string<DeviceOp>();
     }
 
@@ -1594,7 +1595,6 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
         return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
     }
 #endif
-
 };
 
 } // namespace device
