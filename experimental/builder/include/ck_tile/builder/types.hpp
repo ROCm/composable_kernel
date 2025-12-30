@@ -248,7 +248,8 @@ enum class PipelineScheduler
 
 enum class ConvAlgorithmSpecialization
 {
-    LARGE_TENSOR
+    LARGE_TENSOR,
+    REFERENCE // GPU reference implementation for validation
 };
 
 // toString methods for enum classes

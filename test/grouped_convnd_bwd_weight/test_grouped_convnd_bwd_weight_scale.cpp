@@ -269,6 +269,7 @@ class TestGroupedConvndBwdWeight3d : public TestGroupedConvndBwdWeight<Tuple>
 using KernelTypes3d =
     ::testing::Types<std::tuple<float, float, float, ck::Number<3>>,
                      std::tuple<ck::half_t, ck::half_t, ck::half_t, ck::Number<3>>,
+                     std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, ck::Number<3>>,
                      std::tuple<ck::bhalf_t, float, ck::bhalf_t, ck::Number<3>>>;
 
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight3d, KernelTypes3d);
