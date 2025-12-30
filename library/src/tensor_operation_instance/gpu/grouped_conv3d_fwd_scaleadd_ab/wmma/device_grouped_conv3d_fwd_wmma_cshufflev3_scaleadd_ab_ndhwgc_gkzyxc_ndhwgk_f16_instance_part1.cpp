@@ -9,7 +9,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances_part1(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
@@ -25,25 +25,25 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndh
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_scaleadd_ab_f16_instances<3,
-                                                                          NDHWGC,
-                                                                          GKZYXC,
-                                                                          NDHWGK,
-                                                                          ConvFwdDefault>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_scaleadd_ab_f16_instances_part1<3,
+                                                                                NDHWGC,
+                                                                                GKZYXC,
+                                                                                NDHWGK,
+                                                                                ConvFwdDefault>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_scaleadd_ab_f16_instances<3,
-                                                                          NDHWGC,
-                                                                          GKZYXC,
-                                                                          NDHWGK,
-                                                                          ConvFwd1x1P0>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_scaleadd_ab_f16_instances_part1<3,
+                                                                                NDHWGC,
+                                                                                GKZYXC,
+                                                                                NDHWGK,
+                                                                                ConvFwd1x1P0>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_scaleadd_ab_f16_instances<3,
-                                                                          NDHWGC,
-                                                                          GKZYXC,
-                                                                          NDHWGK,
-                                                                          ConvFwd1x1S1P0>{});
+        device_grouped_conv_fwd_wmma_cshufflev3_scaleadd_ab_f16_instances_part1<3,
+                                                                                NDHWGC,
+                                                                                GKZYXC,
+                                                                                NDHWGK,
+                                                                                ConvFwd1x1S1P0>{});
 }
 
 } // namespace instance

@@ -3,6 +3,24 @@
 
 #pragma once
 
+#include <cstring>
+#include <iostream>
+#include <ostream>
+#include <string>
+#include <tuple>
+#include <memory>
+#include <type_traits>
+
+#include "ck_tile/core.hpp"
+#include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_traits.hpp"
+#include "ck_tile/ops/gemm_quant.hpp"
+#include "ck_tile/host.hpp"
+
+#include "quant_grouped_gemm_config.hpp"
+#include "quant_invoke_grouped_gemm_kernel.hpp"
+
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -11,9 +29,9 @@ static constexpr inline auto is_row_major(Layout layout_)
 }
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-auto calculate_rtol_atol(const ck_tile::index_t K,
-                         const ck_tile::index_t kbatch,
-                         const float max_accumulated_value)
+static auto calculate_rtol_atol(const ck_tile::index_t K,
+                                const ck_tile::index_t kbatch,
+                                const float max_accumulated_value)
 {
     using ComputeType =
         std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
@@ -170,21 +188,13 @@ template <typename GemmConfig,
           typename BLayout,
           typename BQLayout,
           typename CLayout>
-int run_grouped_gemm_example_with_layouts(int argc,
-                                          char* argv[],
+int run_grouped_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                                           const ALayout a_layout                  = ALayout{},
                                           const AQLayout aq_layout                = AQLayout{},
                                           const BLayout b_layout                  = BLayout{},
                                           const BQLayout bq_layout                = BQLayout{},
                                           [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-
-    if(!result)
-    {
-        return -1;
-    };
-
     auto valid_input_data = [&](int group_count, const auto&... args) {
         return group_count != 0 && ((args.size() == static_cast<size_t>(group_count)) && ...);
     };
@@ -540,7 +550,9 @@ int run_grouped_gemm_example_with_layouts(int argc,
 }
 
 template <typename PrecType, ck_tile::QuantType QuantMode, typename GemmConfig>
-int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser,
+                               std::string a_layout,
+                               std::string b_layout)
 {
     using Row   = ck_tile::tensor_layout::gemm::RowMajor;
     using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -556,7 +568,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 
     if(a_layout == "R" && b_layout == "C")
     {
-
         return run_grouped_gemm_example_with_layouts<GemmConfig,
                                                      ADataType,
                                                      AQDataType,
@@ -566,102 +577,72 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      AccDataType,
                                                      QuantGroupSize,
                                                      QuantMode>(
-            argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
+            arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
     }
-    else
+
+    if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped ||
+                 (QuantMode == ck_tile::QuantType::BQuantGrouped && !GemmConfig::PreshuffleB))
     {
-        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+        if(a_layout == "R" && b_layout == "R")
+        {
+            return run_grouped_gemm_example_with_layouts<GemmConfig,
+                                                         ADataType,
+                                                         AQDataType,
+                                                         BDataType,
+                                                         BQDataType,
+                                                         CDataType,
+                                                         AccDataType,
+                                                         QuantGroupSize,
+                                                         QuantMode>(
+                arg_parser, Row{}, Row{}, Row{}, Row{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "R")
+        {
+            return run_grouped_gemm_example_with_layouts<GemmConfig,
+                                                         ADataType,
+                                                         AQDataType,
+                                                         BDataType,
+                                                         BQDataType,
+                                                         CDataType,
+                                                         AccDataType,
+                                                         QuantGroupSize,
+                                                         QuantMode>(
+                arg_parser, Col{}, Col{}, Row{}, Row{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "C")
+        {
+            return run_grouped_gemm_example_with_layouts<GemmConfig,
+                                                         ADataType,
+                                                         AQDataType,
+                                                         BDataType,
+                                                         BQDataType,
+                                                         CDataType,
+                                                         AccDataType,
+                                                         QuantGroupSize,
+                                                         QuantMode>(
+                arg_parser, Col{}, Col{}, Col{}, Col{}, Row{});
+        }
     }
+
+    throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
 }
 
 template <typename PrecType, ck_tile::QuantType QuantMode>
-int run_gemm_example_persistency(
-    std::string a_layout, std::string b_layout, bool persistent, int argc, char* argv[])
+int run_gemm_example_persistency(const ck_tile::ArgParser& arg_parser,
+                                 std::string a_layout,
+                                 std::string b_layout,
+                                 bool persistent)
 {
     if(persistent)
     {
         using GemmConfig = GemmQuantConfig<QuantMode>::template GemmConfig<PrecType, true>;
         return run_gemm_example_prec_type<PrecType, QuantMode, GemmConfig>(
-            a_layout, b_layout, argc, argv);
+            arg_parser, a_layout, b_layout);
     }
     else
     {
         using GemmConfig = GemmQuantConfig<QuantMode>::template GemmConfig<PrecType, false>;
         return run_gemm_example_prec_type<PrecType, QuantMode, GemmConfig>(
-            a_layout, b_layout, argc, argv);
-    }
-}
-
-int run_grouped_gemm_example(int argc, char* argv[])
-{
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-    {
-        return -1;
-    }
-
-    const std::string a_layout  = arg_parser.get_str("a_layout");
-    const std::string b_layout  = arg_parser.get_str("b_layout");
-    const std::string data_type = arg_parser.get_str("prec");
-    std::string quant_mode      = arg_parser.get_str("quant_mode");
-    bool persistent             = arg_parser.get_bool("persistent");
-
-    if(data_type == "fp8")
-    {
-        if(quant_mode == "tensor")
-        {
-            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::TensorQuant>(
-                a_layout, b_layout, persistent, argc, argv);
-        }
-        else if(quant_mode == "rowcol")
-        {
-            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::RowColQuant>(
-                a_layout, b_layout, persistent, argc, argv);
-        }
-        else if(quant_mode == "aquant")
-        {
-            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::AQuantGrouped>(
-                a_layout, b_layout, persistent, argc, argv);
-        }
-        else if(quant_mode == "bquant")
-        {
-            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::BQuantGrouped>(
-                a_layout, b_layout, persistent, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported quantization mode!");
-        }
-    }
-    if(data_type == "bf8")
-    {
-        if(quant_mode == "tensor")
-        {
-            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::TensorQuant>(
-                a_layout, b_layout, persistent, argc, argv);
-        }
-        else if(quant_mode == "rowcol")
-        {
-            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::RowColQuant>(
-                a_layout, b_layout, persistent, argc, argv);
-        }
-        else if(quant_mode == "aquant")
-        {
-            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::AQuantGrouped>(
-                a_layout, b_layout, persistent, argc, argv);
-        }
-        else if(quant_mode == "bquant")
-        {
-            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::BQuantGrouped>(
-                a_layout, b_layout, persistent, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported quantization mode!");
-        }
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type configuration.");
+            arg_parser, a_layout, b_layout);
     }
 }
