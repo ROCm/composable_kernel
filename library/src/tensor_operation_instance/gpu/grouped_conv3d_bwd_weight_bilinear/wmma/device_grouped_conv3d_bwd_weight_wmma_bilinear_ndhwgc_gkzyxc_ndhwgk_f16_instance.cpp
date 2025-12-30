@@ -22,7 +22,8 @@ void add_device_grouped_conv3d_bwd_weight_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_f16
                                                                                      Tuple<F16>,
                                                                                      PassThrough,
                                                                                      Bilinear,
-                                                                                     PassThrough>>>& instances)
+                                                                                     PassThrough>>>&
+        instances)
 {
 #if !defined(__gfx1101__)
     // 1. Default
