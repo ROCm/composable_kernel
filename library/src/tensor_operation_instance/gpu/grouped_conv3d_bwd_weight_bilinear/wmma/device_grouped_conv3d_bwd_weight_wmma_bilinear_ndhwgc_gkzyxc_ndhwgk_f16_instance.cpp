@@ -11,18 +11,18 @@ namespace instance {
 
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
 void add_device_grouped_conv3d_bwd_weight_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_f16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<3,
-                                                                    NDHWGC,
-                                                                    GKZYXC,
-                                                                    NDHWGK,
-                                                                    Tuple<GKZYXC>,
-                                                                    F16,
-                                                                    F16,
-                                                                    F16,
-                                                                    Tuple<F16>,
-                                                                    PassThrough,
-                                                                    Bilinear,
-                                                                    PassThrough>>>& instances)
+    [[maybe_unused]] std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<3,
+                                                                                     NDHWGC,
+                                                                                     GKZYXC,
+                                                                                     NDHWGK,
+                                                                                     Tuple<GKZYXC>,
+                                                                                     F16,
+                                                                                     F16,
+                                                                                     F16,
+                                                                                     Tuple<F16>,
+                                                                                     PassThrough,
+                                                                                     Bilinear,
+                                                                                     PassThrough>>>& instances)
 {
 #if !defined(__gfx1101__)
     // 1. Default
