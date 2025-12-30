@@ -7,7 +7,6 @@
 #include "instance_traits_util.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 
-// Forward declaration to avoid circular dependency
 namespace ck::tensor_operation::device {
 
 template <ck::index_t NDimSpatial,
@@ -26,7 +25,7 @@ template <ck::index_t NDimSpatial,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
-          ck::index_t K0PerBlock,
+          ck::index_t KPerBlock,
           ck::index_t K1,
           ck::index_t MPerXDL,
           ck::index_t NPerXDL,
@@ -52,9 +51,12 @@ template <ck::index_t NDimSpatial,
           ck::index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
           ck::BlockGemmPipelineScheduler BlkGemmPipeSched,
           ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
+          ck::index_t NumGroupsToMerge,
           typename ComputeTypeA,
-          typename ComputeTypeB>
-struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3;
+          typename ComputeTypeB,
+          ck::index_t TransposeTransferSrcScalarPerVector,
+          ck::index_t TransposeTransferDstScalarPerVector>
+struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle;
 
 } // namespace ck::tensor_operation::device
 
@@ -77,7 +79,7 @@ template <ck::index_t NDimSpatial,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
-          ck::index_t K0PerBlock,
+          ck::index_t KPerBlock,
           ck::index_t K1,
           ck::index_t MPerXDL,
           ck::index_t NPerXDL,
@@ -103,9 +105,12 @@ template <ck::index_t NDimSpatial,
           ck::index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
           ck::BlockGemmPipelineScheduler BlkGemmPipeSched,
           ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
+          ck::index_t NumGroupsToMerge,
           typename ComputeTypeA_,
-          typename ComputeTypeB_>
-struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffleV3<
+          typename ComputeTypeB_,
+          ck::index_t TransposeTransferSrcScalarPerVector,
+          ck::index_t TransposeTransferDstScalarPerVector>
+struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle<
     NDimSpatial,
     InLayout_,
     WeiLayout_,
@@ -121,7 +126,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
     BlockSize,
     MPerBlock,
     NPerBlock,
-    K0PerBlock,
+    KPerBlock,
     K1,
     MPerXDL,
     NPerXDL,
@@ -147,10 +152,13 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
     CBlockTransferScalarPerVector_NWaveNPerXdl,
     BlkGemmPipeSched,
     BlkGemmPipelineVer,
+    NumGroupsToMerge,
     ComputeTypeA_,
-    ComputeTypeB_>>
+    ComputeTypeB_,
+    TransposeTransferSrcScalarPerVector,
+    TransposeTransferDstScalarPerVector>>
 {
-    static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3";
+    static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle";
 
     static constexpr ck::index_t kNDimSpatial = NDimSpatial;
 
@@ -169,15 +177,21 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
 
     static constexpr auto kConvBackwardWeightSpecialization = ConvBackwardWeightSpecialization;
 
-    static constexpr ck::index_t kBlockSize   = BlockSize;
-    static constexpr ck::index_t kMPerBlock   = MPerBlock;
-    static constexpr ck::index_t kNPerBlock   = NPerBlock;
-    static constexpr ck::index_t kK0PerBlock  = K0PerBlock;
-    static constexpr ck::index_t kK1          = K1;
-    static constexpr ck::index_t kMPerXDL     = MPerXDL;
-    static constexpr ck::index_t kNPerXDL     = NPerXDL;
-    static constexpr ck::index_t kMXdlPerWave = MXdlPerWave;
-    static constexpr ck::index_t kNXdlPerWave = NXdlPerWave;
+    static constexpr ck::index_t kBlockSize                                    = BlockSize;
+    static constexpr ck::index_t kMPerBlock                                    = MPerBlock;
+    static constexpr ck::index_t kNPerBlock                                    = NPerBlock;
+    static constexpr ck::index_t kKPerBlock                                    = KPerBlock;
+    static constexpr ck::index_t kK1                                           = K1;
+    static constexpr ck::index_t kMPerXDL                                      = MPerXDL;
+    static constexpr ck::index_t kNPerXDL                                      = NPerXDL;
+    static constexpr ck::index_t kMXdlPerWave                                  = MXdlPerWave;
+    static constexpr ck::index_t kNXdlPerWave                                  = NXdlPerWave;
+    static constexpr ck::index_t kCShuffleMXdlPerWavePerShuffle                = CShuffleMXdlPerWavePerShuffle;
+    static constexpr ck::index_t kCShuffleNXdlPerWavePerShuffle                = CShuffleNXdlPerWavePerShuffle;
+    static constexpr ck::index_t kCBlockTransferScalarPerVector_NWaveNPerXdl  = CBlockTransferScalarPerVector_NWaveNPerXdl;
+    static constexpr ck::index_t kNumGroupsToMerge                             = NumGroupsToMerge;
+    static constexpr ck::index_t kTransposeTransferSrcScalarPerVector          = TransposeTransferSrcScalarPerVector;
+    static constexpr ck::index_t kTransposeTransferDstScalarPerVector          = TransposeTransferDstScalarPerVector;
 
     using ABlockTransferThreadClusterLengths_K0_M_K1 = ABlockTransferThreadClusterLengths_K0_M_K1_;
     using ABlockTransferThreadClusterArrangeOrder    = ABlockTransferThreadClusterArrangeOrder_;
@@ -199,16 +213,11 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
         BBlockTransferDstScalarPerVector_K1;
     static constexpr bool kBBlockLdsAddExtraN = BBlockLdsAddExtraN;
 
-    static constexpr ck::index_t kCShuffleMXdlPerWavePerShuffle = CShuffleMXdlPerWavePerShuffle;
-    static constexpr ck::index_t kCShuffleNXdlPerWavePerShuffle = CShuffleNXdlPerWavePerShuffle;
-
     using CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_;
-    static constexpr ck::index_t kCBlockTransferScalarPerVector_NWaveNPerXdl =
-        CBlockTransferScalarPerVector_NWaveNPerXdl;
 
     static constexpr ck::BlockGemmPipelineScheduler kBlkGemmPipeSched = BlkGemmPipeSched;
-    static constexpr ck::BlockGemmPipelineVersion kBlkGemmPipelineVer   = BlkGemmPipelineVer;
+    static constexpr ck::BlockGemmPipelineVersion kBlkGemmPipelineVer = BlkGemmPipelineVer;
 
     using ComputeTypeA = ComputeTypeA_;
     using ComputeTypeB = ComputeTypeB_;
@@ -219,7 +228,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
         std::ostringstream oss;
 
         // Kernel type name
-        oss << "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3";
+        oss << "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle";
 
         // Template parameters in exact order
         oss << "<" << kNDimSpatial;                     // 1. NDimSpatial
@@ -233,18 +242,16 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
         oss << ","
             << detail::elementwise_op_name<InElementwiseOperation>(); // 9. InElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10.
-                                                                       // WeiElementwiseOperation
+            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10. WeiElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11.
-                                                                       // OutElementwiseOperation
+            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11. OutElementwiseOperation
         oss << ","
             << detail::conv_bwd_weight_spec_name(
                    kConvBackwardWeightSpecialization); // 12. ConvBackwardWeightSpecialization
         oss << "," << kBlockSize;                      // 13. BlockSize
         oss << "," << kMPerBlock;                      // 14. MPerBlock
         oss << "," << kNPerBlock;                      // 15. NPerBlock
-        oss << "," << kK0PerBlock;                     // 16. K0PerBlock
+        oss << "," << kKPerBlock;                      // 16. KPerBlock
         oss << "," << kK1;                             // 17. K1
         oss << "," << kMPerXDL;                        // 18. MPerXDL
         oss << "," << kNPerXDL;                        // 19. NPerXDL
@@ -272,8 +279,11 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
         oss << "," << kCBlockTransferScalarPerVector_NWaveNPerXdl;                    // 39.
         oss << "," << detail::pipeline_scheduler_name(kBlkGemmPipeSched);             // 40.
         oss << "," << detail::pipeline_version_name(kBlkGemmPipelineVer);             // 41.
-        oss << "," << detail::type_name<ComputeTypeA>();                              // 42.
-        oss << "," << detail::type_name<ComputeTypeB>();                              // 43.
+        oss << "," << kNumGroupsToMerge;                                              // 42.
+        oss << "," << detail::type_name<ComputeTypeA>();                              // 43.
+        oss << "," << detail::type_name<ComputeTypeB>();                              // 44.
+        oss << "," << kTransposeTransferSrcScalarPerVector;                           // 45.
+        oss << "," << kTransposeTransferDstScalarPerVector;                           // 46.
         oss << ">";
 
         return oss.str();
