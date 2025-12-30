@@ -779,15 +779,14 @@ def get_fwd_blobs(
                             continue
                     # Aiter(mha_batch_prefill) integration
                     elif receipt == 200:
-                        cond = dtype in ["fp16", "bf16"]
+                        cond = dtype in ["fp16", "bf16", "fp8bf16"]
                         cond &= mode == "group"
                         cond &= pipeline.F_vlayout == "row"
-                        cond &= pipeline.F_qscale == "no"
                         if not cond:
                             continue
                     # aiter::mha_batch_prefill C++ api integration
                     elif receipt == 600:
-                        cond = dtype in ["fp16", "bf16"]
+                        cond = dtype in ["fp16", "bf16", "fp8bf16"]
                         cond &= mode == "group"
                         cond &= pipeline.F_vlayout == "row"
                         cond &= pipeline.F_qscale == "no"
