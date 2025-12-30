@@ -1045,8 +1045,13 @@ def run_aiter_tests(Map conf=[:]){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a4w4.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a16w16.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
                 //sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py" //temporarily disable
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_pa.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mla.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_fp8.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
@@ -1281,7 +1286,7 @@ pipeline {
             description: 'Specify which branch of CK to test with Pytorch (default: develop)')
         booleanParam(
             name: "RUN_AITER_TESTS",
-            defaultValue: false,
+            defaultValue: true,
             description: "Run AITER tests with latest CK develop branch (default: OFF)")
         string(
             name: 'aiter_branch',
