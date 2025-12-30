@@ -25,7 +25,7 @@ void add_device_grouped_conv3d_bwd_weight_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_f16
                                                                                      PassThrough>>>&
         instances)
 {
-#if !defined(__gfx1101__)
+#if !(defined(__gfx1101__) && defined(_WIN32))
     // 1. Default
     add_device_operation_instances(
         instances,
