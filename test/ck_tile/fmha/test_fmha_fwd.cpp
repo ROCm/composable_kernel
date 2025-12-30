@@ -255,7 +255,7 @@ TEST(TestCkTileFmhaFwd, AppendKvWithBatchEffLensShouldFail)
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         0,
-        1,    //init_sink
+        1, // init_sink
         stream_config);
     ASSERT_EQ(result, fwd_result::invalid_args);
 }
@@ -300,7 +300,7 @@ TEST(TestCkTileFmhaFwd, SplitKvWithGroupPaddingShouldFail)
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         0,
-        1, //init_sink
+        1, // init_sink
         stream_config);
     ASSERT_EQ(result, fwd_result::invalid_args);
 }
@@ -344,7 +344,7 @@ TEST(TestCkTileFmhaFwd, PagedKvWithGroupPaddingShouldFail)
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         0,
-        1, //init_sink
+        1, // init_sink
         stream_config);
     ASSERT_EQ(result, fwd_result::invalid_args);
 }
