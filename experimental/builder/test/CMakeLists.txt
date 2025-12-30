@@ -125,7 +125,15 @@ add_ck_builder_test(test_ckb_instance_string
     test_instance_string_fwd_grp_conv_large_tensor.cpp
     test_instance_string_fwd_grp_conv_wmma.cpp
     test_instance_string_fwd_grp_conv_dl.cpp
-    test_instance_string_bwd_weight_grp_conv_xdl.cpp)
+    test_instance_string_bwd_weight_grp_conv_xdl.cpp
+    test_instance_string_bwd_weight_grp_conv_dl.cpp
+    test_instance_string_bwd_weight_grp_conv_multiple_d_xdl.cpp
+    test_instance_string_bwd_weight_grp_conv_two_stage_xdl.cpp
+    test_instance_string_bwd_weight_grp_conv_xdl_v3.cpp
+    test_instance_string_bwd_weight_grp_conv_wmma_v3.cpp
+    test_instance_string_bwd_weight_grp_conv_multiple_d_wmma_v3.cpp
+    test_instance_string_bwd_weight_grp_conv_two_stage_wmma_v3.cpp
+    )
 
 # Tests the forward convolution builder across multiple data types and dimensions.
 # Individual tests are split into separate files to enable parallel compilation.
