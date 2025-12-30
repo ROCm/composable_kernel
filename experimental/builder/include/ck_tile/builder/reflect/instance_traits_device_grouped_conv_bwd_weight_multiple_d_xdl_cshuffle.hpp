@@ -7,17 +7,18 @@
 #include "instance_traits_util.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 
-// Forward declaration to avoid circular dependency
 namespace ck::tensor_operation::device {
 
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
+          typename DsLayout,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
           typename AccDataType,
+          typename DsDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
@@ -50,11 +51,9 @@ template <ck::index_t NDimSpatial,
           ck::index_t CShuffleNXdlPerWavePerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           ck::index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
-          ck::BlockGemmPipelineScheduler BlkGemmPipeSched,
-          ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename ComputeTypeA,
           typename ComputeTypeB>
-struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3;
+struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle;
 
 } // namespace ck::tensor_operation::device
 
@@ -65,10 +64,12 @@ template <ck::index_t NDimSpatial,
           typename InLayout_,
           typename WeiLayout_,
           typename OutLayout_,
+          typename DsLayout_,
           typename InDataType_,
           typename WeiDataType_,
           typename OutDataType_,
           typename AccDataType_,
+          typename DsDataType_,
           typename InElementwiseOperation_,
           typename WeiElementwiseOperation_,
           typename OutElementwiseOperation_,
@@ -101,19 +102,19 @@ template <ck::index_t NDimSpatial,
           ck::index_t CShuffleNXdlPerWavePerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_,
           ck::index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
-          ck::BlockGemmPipelineScheduler BlkGemmPipeSched,
-          ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename ComputeTypeA_,
           typename ComputeTypeB_>
-struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffleV3<
+struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle<
     NDimSpatial,
     InLayout_,
     WeiLayout_,
     OutLayout_,
+    DsLayout_,
     InDataType_,
     WeiDataType_,
     OutDataType_,
     AccDataType_,
+    DsDataType_,
     InElementwiseOperation_,
     WeiElementwiseOperation_,
     OutElementwiseOperation_,
@@ -145,23 +146,23 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
     CShuffleNXdlPerWavePerShuffle,
     CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_,
     CBlockTransferScalarPerVector_NWaveNPerXdl,
-    BlkGemmPipeSched,
-    BlkGemmPipelineVer,
     ComputeTypeA_,
     ComputeTypeB_>>
 {
-    static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3";
+    static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle";
 
     static constexpr ck::index_t kNDimSpatial = NDimSpatial;
 
     using InLayout  = InLayout_;
     using WeiLayout = WeiLayout_;
     using OutLayout = OutLayout_;
+    using DsLayout  = DsLayout_;
 
     using InDataType  = InDataType_;
     using WeiDataType = WeiDataType_;
     using OutDataType = OutDataType_;
     using AccDataType = AccDataType_;
+    using DsDataType  = DsDataType_;
 
     using InElementwiseOperation  = InElementwiseOperation_;
     using WeiElementwiseOperation = WeiElementwiseOperation_;
@@ -169,15 +170,18 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
 
     static constexpr auto kConvBackwardWeightSpecialization = ConvBackwardWeightSpecialization;
 
-    static constexpr ck::index_t kBlockSize   = BlockSize;
-    static constexpr ck::index_t kMPerBlock   = MPerBlock;
-    static constexpr ck::index_t kNPerBlock   = NPerBlock;
-    static constexpr ck::index_t kK0PerBlock  = K0PerBlock;
-    static constexpr ck::index_t kK1          = K1;
-    static constexpr ck::index_t kMPerXDL     = MPerXDL;
-    static constexpr ck::index_t kNPerXDL     = NPerXDL;
-    static constexpr ck::index_t kMXdlPerWave = MXdlPerWave;
-    static constexpr ck::index_t kNXdlPerWave = NXdlPerWave;
+    static constexpr ck::index_t kBlockSize                                   = BlockSize;
+    static constexpr ck::index_t kMPerBlock                                   = MPerBlock;
+    static constexpr ck::index_t kNPerBlock                                   = NPerBlock;
+    static constexpr ck::index_t kK0PerBlock                                  = K0PerBlock;
+    static constexpr ck::index_t kK1                                          = K1;
+    static constexpr ck::index_t kMPerXDL                                     = MPerXDL;
+    static constexpr ck::index_t kNPerXDL                                     = NPerXDL;
+    static constexpr ck::index_t kMXdlPerWave                                 = MXdlPerWave;
+    static constexpr ck::index_t kNXdlPerWave                                 = NXdlPerWave;
+    static constexpr ck::index_t kCShuffleMXdlPerWavePerShuffle               = CShuffleMXdlPerWavePerShuffle;
+    static constexpr ck::index_t kCShuffleNXdlPerWavePerShuffle               = CShuffleNXdlPerWavePerShuffle;
+    static constexpr ck::index_t kCBlockTransferScalarPerVector_NWaveNPerXdl = CBlockTransferScalarPerVector_NWaveNPerXdl;
 
     using ABlockTransferThreadClusterLengths_K0_M_K1 = ABlockTransferThreadClusterLengths_K0_M_K1_;
     using ABlockTransferThreadClusterArrangeOrder    = ABlockTransferThreadClusterArrangeOrder_;
@@ -199,16 +203,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
         BBlockTransferDstScalarPerVector_K1;
     static constexpr bool kBBlockLdsAddExtraN = BBlockLdsAddExtraN;
 
-    static constexpr ck::index_t kCShuffleMXdlPerWavePerShuffle = CShuffleMXdlPerWavePerShuffle;
-    static constexpr ck::index_t kCShuffleNXdlPerWavePerShuffle = CShuffleNXdlPerWavePerShuffle;
-
     using CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_;
-    static constexpr ck::index_t kCBlockTransferScalarPerVector_NWaveNPerXdl =
-        CBlockTransferScalarPerVector_NWaveNPerXdl;
-
-    static constexpr ck::BlockGemmPipelineScheduler kBlkGemmPipeSched = BlkGemmPipeSched;
-    static constexpr ck::BlockGemmPipelineVersion kBlkGemmPipelineVer   = BlkGemmPipelineVer;
 
     using ComputeTypeA = ComputeTypeA_;
     using ComputeTypeB = ComputeTypeB_;
@@ -219,59 +215,57 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
         std::ostringstream oss;
 
         // Kernel type name
-        oss << "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3";
+        oss << "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle";
 
         // Template parameters in exact order
         oss << "<" << kNDimSpatial;                     // 1. NDimSpatial
         oss << "," << detail::layout_name<InLayout>();  // 2. InLayout
         oss << "," << detail::layout_name<WeiLayout>(); // 3. WeiLayout
         oss << "," << detail::layout_name<OutLayout>(); // 4. OutLayout
-        oss << "," << detail::type_name<InDataType>();  // 5. InDataType
-        oss << "," << detail::type_name<WeiDataType>(); // 6. WeiDataType
-        oss << "," << detail::type_name<OutDataType>(); // 7. OutDataType
-        oss << "," << detail::type_name<AccDataType>(); // 8. AccDataType
+        oss << "," << detail::tuple_name<DsLayout>();   // 5. DsLayout
+        oss << "," << detail::type_name<InDataType>();  // 6. InDataType
+        oss << "," << detail::type_name<WeiDataType>(); // 7. WeiDataType
+        oss << "," << detail::type_name<OutDataType>(); // 8. OutDataType
+        oss << "," << detail::type_name<AccDataType>(); // 9. AccDataType
+        oss << "," << detail::tuple_name<DsDataType>(); // 10. DsDataType
         oss << ","
-            << detail::elementwise_op_name<InElementwiseOperation>(); // 9. InElementwiseOperation
+            << detail::elementwise_op_name<InElementwiseOperation>(); // 11. InElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10.
-                                                                       // WeiElementwiseOperation
+            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 12. WeiElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11.
-                                                                       // OutElementwiseOperation
+            << detail::elementwise_op_name<OutElementwiseOperation>(); // 13. OutElementwiseOperation
         oss << ","
             << detail::conv_bwd_weight_spec_name(
-                   kConvBackwardWeightSpecialization); // 12. ConvBackwardWeightSpecialization
-        oss << "," << kBlockSize;                      // 13. BlockSize
-        oss << "," << kMPerBlock;                      // 14. MPerBlock
-        oss << "," << kNPerBlock;                      // 15. NPerBlock
-        oss << "," << kK0PerBlock;                     // 16. K0PerBlock
-        oss << "," << kK1;                             // 17. K1
-        oss << "," << kMPerXDL;                        // 18. MPerXDL
-        oss << "," << kNPerXDL;                        // 19. NPerXDL
-        oss << "," << kMXdlPerWave;                    // 20. MXdlPerWave
-        oss << "," << kNXdlPerWave;                    // 21. NXdlPerWave
-        oss << "," << detail::sequence_name<ABlockTransferThreadClusterLengths_K0_M_K1>(); // 22.
-        oss << "," << detail::sequence_name<ABlockTransferThreadClusterArrangeOrder>();    // 23.
-        oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();               // 24.
-        oss << "," << kABlockTransferSrcVectorDim;                                         // 25.
-        oss << "," << kABlockTransferSrcScalarPerVector;                                   // 26.
-        oss << "," << kABlockTransferDstScalarPerVector_K1;                                // 27.
-        oss << "," << (kABlockLdsAddExtraM ? "true" : "false");                            // 28.
-        oss << "," << detail::sequence_name<BBlockTransferThreadClusterLengths_K0_N_K1>(); // 29.
-        oss << "," << detail::sequence_name<BBlockTransferThreadClusterArrangeOrder>();    // 30.
-        oss << "," << detail::sequence_name<BBlockTransferSrcAccessOrder>();               // 31.
-        oss << "," << kBBlockTransferSrcVectorDim;                                         // 32.
-        oss << "," << kBBlockTransferSrcScalarPerVector;                                   // 33.
-        oss << "," << kBBlockTransferDstScalarPerVector_K1;                                // 34.
-        oss << "," << (kBBlockLdsAddExtraN ? "true" : "false");                            // 35.
-        oss << "," << kCShuffleMXdlPerWavePerShuffle;                                      // 36.
-        oss << "," << kCShuffleNXdlPerWavePerShuffle;                                      // 37.
+                   kConvBackwardWeightSpecialization); // 14. ConvBackwardWeightSpecialization
+        oss << "," << kBlockSize;                      // 15. BlockSize
+        oss << "," << kMPerBlock;                      // 16. MPerBlock
+        oss << "," << kNPerBlock;                      // 17. NPerBlock
+        oss << "," << kK0PerBlock;                     // 18. K0PerBlock
+        oss << "," << kK1;                             // 19. K1
+        oss << "," << kMPerXDL;                        // 20. MPerXDL
+        oss << "," << kNPerXDL;                        // 21. NPerXDL
+        oss << "," << kMXdlPerWave;                    // 22. MXdlPerWave
+        oss << "," << kNXdlPerWave;                    // 23. NXdlPerWave
+        oss << "," << detail::sequence_name<ABlockTransferThreadClusterLengths_K0_M_K1>(); // 24.
+        oss << "," << detail::sequence_name<ABlockTransferThreadClusterArrangeOrder>();    // 25.
+        oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();               // 26.
+        oss << "," << kABlockTransferSrcVectorDim;                                         // 27.
+        oss << "," << kABlockTransferSrcScalarPerVector;                                   // 28.
+        oss << "," << kABlockTransferDstScalarPerVector_K1;                                // 29.
+        oss << "," << (kABlockLdsAddExtraM ? "true" : "false");                            // 30.
+        oss << "," << detail::sequence_name<BBlockTransferThreadClusterLengths_K0_N_K1>(); // 31.
+        oss << "," << detail::sequence_name<BBlockTransferThreadClusterArrangeOrder>();    // 32.
+        oss << "," << detail::sequence_name<BBlockTransferSrcAccessOrder>();               // 33.
+        oss << "," << kBBlockTransferSrcVectorDim;                                         // 34.
+        oss << "," << kBBlockTransferSrcScalarPerVector;                                   // 35.
+        oss << "," << kBBlockTransferDstScalarPerVector_K1;                                // 36.
+        oss << "," << (kBBlockLdsAddExtraN ? "true" : "false");                            // 37.
+        oss << "," << kCShuffleMXdlPerWavePerShuffle;                                      // 38.
+        oss << "," << kCShuffleNXdlPerWavePerShuffle;                                      // 39.
         oss << ","
             << detail::sequence_name<
-                   CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>(); // 38.
-        oss << "," << kCBlockTransferScalarPerVector_NWaveNPerXdl;                    // 39.
-        oss << "," << detail::pipeline_scheduler_name(kBlkGemmPipeSched);             // 40.
-        oss << "," << detail::pipeline_version_name(kBlkGemmPipelineVer);             // 41.
+                   CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>(); // 40.
+        oss << "," << kCBlockTransferScalarPerVector_NWaveNPerXdl;                    // 41.
         oss << "," << detail::type_name<ComputeTypeA>();                              // 42.
         oss << "," << detail::type_name<ComputeTypeB>();                              // 43.
         oss << ">";
