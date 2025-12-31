@@ -66,6 +66,7 @@
 #include "ck_tile/builder/factory/conv_bwd_weight_xdl_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_xdl_v3_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_two_stage_xdl_factory.hpp"
+#include "ck_tile/builder/factory/conv_bwd_weight_dl_factory.hpp"
 
 namespace ck_tile::builder::factory {
 
@@ -146,6 +147,10 @@ constexpr auto make_conv_instance()
         else if constexpr (BwdTwoStageXdlAlgorithm<AlgoType>::is_valid())
         {
             return typename ConvBwdWeightTwoStageXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr (BwdDlAlgorithm<AlgoType>::is_valid())
+        {
+            return typename ConvBwdWeightDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else
         {

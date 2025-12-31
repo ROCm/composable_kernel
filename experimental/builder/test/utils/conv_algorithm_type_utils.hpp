@@ -226,19 +226,7 @@ inline std::string to_string<DlEpilogue>(DlEpilogue t)
 }
 
 template <>
-inline std::string to_string<DlBlockTransferAB>(DlBlockTransferAB t)
-{
-    return to_string(t.block_transfer);
-}
-
-template <>
-inline std::string to_string<DlBlockTransferC>(DlBlockTransferC t)
-{
-    return to_string(t.epilogue);
-}
-
-template <>
-inline std::string to_string<DlTransferABC>(DlTransferABC t)
+inline std::string to_string<DlTransfer>(DlTransfer t)
 {
     std::ostringstream oss;
     oss << to_string(t.a) << "," << to_string(t.b) << "," << to_string(t.c);
@@ -404,6 +392,18 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_X
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
         << "," << to_string(static_cast<Transfer_<>>(t));
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl>(
+    ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+        << to_string(static_cast<DlThreadConfig_>(t)) << ","
+        << to_string(static_cast<DlThreadCluster_>(t)) << ","
+        << to_string(static_cast<DlTransfer_>(t));
     return oss.str();
 }
 

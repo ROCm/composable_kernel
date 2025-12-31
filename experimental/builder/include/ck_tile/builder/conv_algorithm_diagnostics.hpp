@@ -768,6 +768,18 @@ consteval auto detailed_diagnostic_SpecifiesTransposeTransfer() -> std::string {
 }
 
 template <typename T>
+consteval auto detailed_diagnostic_SpecifiesGemmBatchOptions() -> std::string {
+    if constexpr (requires { T::num_conv_groups_to_merge; }) {
+        using NumGroupsType = decltype(T::num_conv_groups_to_merge);
+        constexpr bool convertible = std::convertible_to<NumGroupsType, size_t>;
+        return "      → T::num_conv_groups_to_merge: " + std::string(CHECK_MARK(convertible)) + 
+               (convertible ? "" : std::string(detail::get_type_info<NumGroupsType>())) + "\n";
+    } else {
+        return "      → T::num_conv_groups_to_merge: [✗] (missing member)\n";
+    }
+}
+
+template <typename T>
 consteval auto detailed_diagnostic_SpecifiesGridwiseWmmaGemm() -> std::string {
     std::string msg;
     constexpr bool has_gridwise_gemm = requires(T t) { { t.gridwise_gemm } -> GridwiseWmmaGemmDescriptor; };
@@ -943,7 +955,7 @@ consteval auto detailed_diagnostic_SpecifiesDlThreadCluster() -> std::string {
 }
 
 template <typename T>
-consteval auto detailed_diagnostic_SpecifiesDlBlockTransfer() -> std::string {
+consteval auto detailed_diagnostic_SpecifiesDlFwdBlockTransfer() -> std::string {
     std::string msg;
     constexpr bool has_transfer = requires { T::transfer; };
     msg += "      → T::transfer member: " + std::string(CHECK_MARK(has_transfer)) + "\n";
@@ -952,13 +964,12 @@ consteval auto detailed_diagnostic_SpecifiesDlBlockTransfer() -> std::string {
         return msg;
     }
     
-    constexpr bool has_a = requires { T::transfer.a; };
-    constexpr bool has_b = requires { T::transfer.b; };
+    constexpr bool has_a = requires { { T::transfer.a } -> DlBlockTransferDescriptor4D; };
+    constexpr bool has_b = requires { { T::transfer.b } -> DlBlockTransferDescriptor4D; };
     msg += "      → T::transfer.a: " + std::string(CHECK_MARK(has_a)) + "\n";
-    msg += "      → T::transfer.b: " + std::string(CHECK_MARK(has_b)) + "\n";
     
-    if constexpr (has_a && requires { T::transfer.a.block_transfer; }) {
-        using ABT = decltype(T::transfer.a.block_transfer);
+    if constexpr (has_a) {
+        using ABT = decltype(T::transfer.a);
         constexpr bool has_thread_slice = requires(ABT t) { { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, 4>>; };
         constexpr bool has_thread_cluster = requires(ABT t) { { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, 4>>; };
         constexpr bool has_cluster_arrange = requires(ABT t) { { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, 4>>; };
@@ -967,22 +978,69 @@ consteval auto detailed_diagnostic_SpecifiesDlBlockTransfer() -> std::string {
         constexpr bool has_src_contiguous = requires(ABT t) { { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, 4>>; };
         constexpr bool has_dst_vector = requires(ABT t) { { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>; };
         
-        msg += "          → transfer.a.block_transfer.thread_slice_lengths: " + std::string(CHECK_MARK(has_thread_slice)) + (has_thread_slice ? "\n" : " (missing or wrong type)\n");
-        msg += "          → transfer.a.block_transfer.thread_cluster_lengths: " + std::string(CHECK_MARK(has_thread_cluster)) + (has_thread_cluster ? "\n" : " (missing or wrong type)\n");
-        msg += "          → transfer.a.block_transfer.thread_cluster_arrange_order: " + std::string(CHECK_MARK(has_cluster_arrange)) + (has_cluster_arrange ? "\n" : " (missing or wrong type)\n");
-        msg += "          → transfer.a.block_transfer.src_access_order: " + std::string(CHECK_MARK(has_src_access)) + (has_src_access ? "\n" : " (missing or wrong type)\n");
-        msg += "          → transfer.a.block_transfer.src_vector_tensor_lengths: " + std::string(CHECK_MARK(has_src_vector)) + (has_src_vector ? "\n" : " (missing or wrong type)\n");
-        msg += "          → transfer.a.block_transfer.src_vector_tensor_contiguous_dim_order: " + std::string(CHECK_MARK(has_src_contiguous)) + (has_src_contiguous ? "\n" : " (missing or wrong type)\n");
-        msg += "          → transfer.a.block_transfer.dst_vector_tensor_lengths: " + std::string(CHECK_MARK(has_dst_vector)) + (has_dst_vector ? "\n" : " (missing or wrong type)\n");
-    } else if constexpr (has_a) {
-        msg += "      → T::transfer.a.block_transfer: [✗] (missing)\n";
+        msg += "          → transfer.a.thread_slice_lengths (4D): " + std::string(CHECK_MARK(has_thread_slice)) + (has_thread_slice ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.thread_cluster_lengths (4D): " + std::string(CHECK_MARK(has_thread_cluster)) + (has_thread_cluster ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.thread_cluster_arrange_order (4D): " + std::string(CHECK_MARK(has_cluster_arrange)) + (has_cluster_arrange ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.src_access_order (4D): " + std::string(CHECK_MARK(has_src_access)) + (has_src_access ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.src_vector_tensor_lengths (4D): " + std::string(CHECK_MARK(has_src_vector)) + (has_src_vector ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.src_vector_tensor_contiguous_dim_order (4D): " + std::string(CHECK_MARK(has_src_contiguous)) + (has_src_contiguous ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.dst_vector_tensor_lengths (4D): " + std::string(CHECK_MARK(has_dst_vector)) + (has_dst_vector ? "\n" : " (missing or wrong type)\n");
+    } else {
+        msg += "              → T::transfer.a (4D): [✗] (missing or wrong type)\n";
     }
     
-    // Similar checks for transfer.b
-    if constexpr (has_b && requires { T::transfer.b.block_transfer; }) {
-        msg += "      → T::transfer.b.block_transfer: [✓] (similar fields as transfer.a)\n";
-    } else if constexpr (has_b) {
-        msg += "      → T::transfer.b.block_transfer: [✗] (missing)\n";
+    msg += "      → T::transfer.b: " + std::string(CHECK_MARK(has_b)) + "\n";
+    
+    if constexpr (has_b) {
+        msg += "              → T::transfer.b (4D): [✓] (similar fields as transfer.a)\n";
+    } else {
+        msg += "              → T::transfer.b (4D): [✗] (missing or wrong type)\n";
+    }
+    
+    return msg;
+}
+
+template <typename T>
+consteval auto detailed_diagnostic_SpecifiesDlBwdBlockTransfer() -> std::string {
+    std::string msg;
+    constexpr bool has_transfer = requires { T::transfer; };
+    msg += "      → T::transfer member: " + std::string(CHECK_MARK(has_transfer)) + "\n";
+    
+    if constexpr (!has_transfer) {
+        return msg;
+    }
+    
+    constexpr bool has_a = requires { { T::transfer.a } -> DlBlockTransferDescriptor5D; };
+    constexpr bool has_b = requires { { T::transfer.b } -> DlBlockTransferDescriptor5D; };
+    msg += "      → T::transfer.a: " + std::string(CHECK_MARK(has_a)) + "\n";
+    
+    if constexpr (has_a) {
+        using ABT = decltype(T::transfer.a);
+        constexpr bool has_thread_slice = requires(ABT t) { { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, 5>>; };
+        constexpr bool has_thread_cluster = requires(ABT t) { { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, 5>>; };
+        constexpr bool has_cluster_arrange = requires(ABT t) { { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, 5>>; };
+        constexpr bool has_src_access = requires(ABT t) { { t.src_access_order } -> std::convertible_to<std::array<size_t, 5>>; };
+        constexpr bool has_src_vector = requires(ABT t) { { t.src_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 5>>; };
+        constexpr bool has_src_contiguous = requires(ABT t) { { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, 5>>; };
+        constexpr bool has_dst_vector = requires(ABT t) { { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 5>>; };
+        
+        msg += "          → transfer.a.thread_slice_lengths (5D): " + std::string(CHECK_MARK(has_thread_slice)) + (has_thread_slice ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.thread_cluster_lengths (5D): " + std::string(CHECK_MARK(has_thread_cluster)) + (has_thread_cluster ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.thread_cluster_arrange_order (5D): " + std::string(CHECK_MARK(has_cluster_arrange)) + (has_cluster_arrange ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.src_access_order (5D): " + std::string(CHECK_MARK(has_src_access)) + (has_src_access ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.src_vector_tensor_lengths (5D): " + std::string(CHECK_MARK(has_src_vector)) + (has_src_vector ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.src_vector_tensor_contiguous_dim_order (5D): " + std::string(CHECK_MARK(has_src_contiguous)) + (has_src_contiguous ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.a.dst_vector_tensor_lengths (5D): " + std::string(CHECK_MARK(has_dst_vector)) + (has_dst_vector ? "\n" : " (missing or wrong type)\n");
+    } else {
+        msg += "              → T::transfer.a (5D): [✗] (missing or wrong type)\n";
+    }
+    
+    msg += "      → T::transfer.b: " + std::string(CHECK_MARK(has_b)) + "\n";
+    
+    if constexpr (has_b) {
+        msg += "              → T::transfer.b (5D): [✓] (similar fields as transfer.a)\n";
+    } else {
+        msg += "              → T::transfer.b (5D): [✗] (missing or wrong type)\n";
     }
     
     return msg;
@@ -999,17 +1057,17 @@ consteval auto detailed_diagnostic_SpecifiesDlEpilogue() -> std::string {
     constexpr bool has_c = requires { T::transfer.c; };
     msg += "      → T::transfer.c: " + std::string(CHECK_MARK(has_c)) + "\n";
     
-    if constexpr (has_c && requires { T::transfer.c.epilogue; }) {
-        using E = decltype(T::transfer.c.epilogue);
-        constexpr bool has_src_dst_access = requires(E t) { { t.src_dst_access_order } -> std::convertible_to<std::array<size_t, 6>>; };
-        constexpr bool has_src_dst_vector_dim = requires(E t) { { t.src_dst_vector_dim } -> std::convertible_to<size_t>; };
-        constexpr bool has_dst_scalar = requires(E t) { { t.dst_scalar_per_vector } -> std::convertible_to<size_t>; };
+    if constexpr (has_c && requires { T::transfer.c.src_dst_access_order; }) {
+        using C = decltype(T::transfer.c);
+        constexpr bool has_src_dst_access = requires(C t) { { t.src_dst_access_order } -> std::convertible_to<std::array<size_t, 6>>; };
+        constexpr bool has_src_dst_vector_dim = requires(C t) { { t.src_dst_vector_dim } -> std::convertible_to<size_t>; };
+        constexpr bool has_dst_scalar = requires(C t) { { t.dst_scalar_per_vector } -> std::convertible_to<size_t>; };
         
-        msg += "      → transfer.c.epilogue.src_dst_access_order: " + std::string(CHECK_MARK(has_src_dst_access)) + (has_src_dst_access ? "\n" : " (missing or wrong type)\n");
-        msg += "      → transfer.c.epilogue.src_dst_vector_dim: " + std::string(CHECK_MARK(has_src_dst_vector_dim)) + (has_src_dst_vector_dim ? "\n" : " (missing or wrong type)\n");
-        msg += "      → transfer.c.epilogue.dst_scalar_per_vector: " + std::string(CHECK_MARK(has_dst_scalar)) + (has_dst_scalar ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.c.src_dst_access_order: " + std::string(CHECK_MARK(has_src_dst_access)) + (has_src_dst_access ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.c.src_dst_vector_dim: " + std::string(CHECK_MARK(has_src_dst_vector_dim)) + (has_src_dst_vector_dim ? "\n" : " (missing or wrong type)\n");
+        msg += "          → transfer.c.dst_scalar_per_vector: " + std::string(CHECK_MARK(has_dst_scalar)) + (has_dst_scalar ? "\n" : " (missing or wrong type)\n");
     } else if constexpr (has_c) {
-        msg += "      → T::transfer.c.epilogue: [✗] (missing)\n";
+        msg += "              → T::transfer.c (DlEpilogue): [✗] (missing required fields)\n";
     }
     
     return msg;

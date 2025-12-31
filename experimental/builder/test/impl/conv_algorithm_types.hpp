@@ -181,7 +181,7 @@ struct DlBlockTransfer
     std::array<size_t, 4> src_vector_tensor_contiguous_dim_order;
     std::array<size_t, 4> dst_vector_tensor_lengths;
 };
-static_assert(ckb::DlBlockTransferDescriptor<DlBlockTransfer>);
+static_assert(ckb::DlBlockTransferDescriptor4D<DlBlockTransfer>);
 
 struct DlEpilogue
 {
@@ -263,26 +263,16 @@ struct DlThreadCluster_
     DlThreadCluster thread_cluster;
 };
 
-struct DlBlockTransferAB
+struct DlTransfer
 {
-    DlBlockTransfer block_transfer;
-};
-
-struct DlBlockTransferC
-{
-    DlEpilogue epilogue;
-};
-
-struct DlTransferABC
-{
-    DlBlockTransferAB a;
-    DlBlockTransferAB b;
-    DlBlockTransferC c;
+    DlBlockTransfer a;
+    DlBlockTransfer b;
+    DlEpilogue c;
 };
 
 struct DlTransfer_
 {
-    DlTransferABC transfer;
+    DlTransfer transfer;
 };
 
 struct TwoStageSpecialization_
@@ -578,5 +568,12 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle =
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 = 
     ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<>, ConvSpecializationBwdWeight_, BlockGemm_>;
+
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl =
+    ConvAlgorithmTemplate<ThreadBlock_,
+                          DlThreadConfig_,
+                          DlThreadCluster_,
+                          DlTransfer_,
+                          ConvSpecializationBwdWeight_>;
 
 } // namespace ck_tile::builder::test

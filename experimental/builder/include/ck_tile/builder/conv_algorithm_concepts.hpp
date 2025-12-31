@@ -366,16 +366,22 @@ concept DlThreadClusterDescriptor = requires(T t) {
 };
 
 // Concept for DL block transfer
-template <typename T>
+template <typename T, size_t N>
 concept DlBlockTransferDescriptor = requires(T t) {
-    { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.src_access_order } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.src_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, N>>;
+    { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, N>>;
+    { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, N>>;
+    { t.src_access_order } -> std::convertible_to<std::array<size_t, N>>;
+    { t.src_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, N>>;
+    { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, N>>;
+    { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, N>>;
 };
+
+template <typename T>
+concept DlBlockTransferDescriptor4D = DlBlockTransferDescriptor<T, 4>;
+
+template <typename T>
+concept DlBlockTransferDescriptor5D = DlBlockTransferDescriptor<T, 5>;
 
 // Concept for DL epilogue
 template <typename T>
@@ -399,15 +405,21 @@ concept SpecifiesDlThreadCluster = requires {
 
 // Concept to check if algorithm specifies DL block transfer
 template <typename T>
-concept SpecifiesDlBlockTransfer = requires {
-    { T::transfer.a.block_transfer } -> DlBlockTransferDescriptor;
-    { T::transfer.b.block_transfer } -> DlBlockTransferDescriptor;
+concept SpecifiesDlFwdBlockTransfer = requires {
+    { T::transfer.a } -> DlBlockTransferDescriptor4D;
+    { T::transfer.b } -> DlBlockTransferDescriptor4D;
+};
+
+template <typename T>
+concept SpecifiesDlBwdBlockTransfer = requires {
+    { T::transfer.a } -> DlBlockTransferDescriptor5D;
+    { T::transfer.b } -> DlBlockTransferDescriptor5D;
 };
 
 // Concept to check if algorithm specifies DL C thread transfer
 template <typename T>
 concept SpecifiesDlEpilogue = requires {
-    { T::transfer.c.epilogue } -> DlEpilogueDescriptor;
+    { T::transfer.c } -> DlEpilogueDescriptor;
 };
 
 } // namespace ck_tile::builder
