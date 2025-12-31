@@ -121,11 +121,13 @@ struct BlockFmhaBatchPrefillPipelineProblem
     static constexpr index_t kVectorSize  = 16 / sizeof(KDataType_); // Dwordx4
     static constexpr auto kKVMemoryLayout = Traits_::kKVMemoryLayout;
     static constexpr auto kKVLookupTable  = Traits_::kKVLookupTable;
+    static constexpr bool kIsVectorizedLayout =
+        kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT;
 
     static_assert(BlockFmhaShape_::kQKHeaddim % kVectorSize == 0,
                   "kQKHeaddim must be divisible by kVectorSize");
-    static_assert(kPageBlockSize % kVectorSize == 0,
-                  "kPageBlockSize must be divisible by kVectorSize");
+    static_assert(!kIsVectorizedLayout || kPageBlockSize % kVectorSize == 0,
+                  "kPageBlockSize must be divisible by kVectorSize for vectorized layout");
     static_assert(kIsGroupMode_, "Batch prefill requires group mode");
 };
 

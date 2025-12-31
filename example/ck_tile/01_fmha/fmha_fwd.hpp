@@ -532,6 +532,7 @@ struct fmha_batch_prefill_args
     // SGLang-style page table
     int32_t num_total_pages;
     ck_tile::index_t page_block_size;
+    ck_tile::BlockAttentionKVCacheMemoryLayoutEnum kv_memory_layout;
     void* kv_indptr;
     void* kv_page_indices;
     void* kv_last_page_lens;
