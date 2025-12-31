@@ -298,9 +298,10 @@ int run_abquant_grouped_gemm_example_with_layouts(
         bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
             ck_tile::host_tensor_descriptor(BQK, N, stride_BQs[i], is_row_major(bq_layout))));
 
-        std::cout << "gemm[" << i << "]" << " a_m_k: " << a_m_k_tensors[i].mDesc
-                  << " b_k_n: " << b_k_n_tensors[i].mDesc << " c_m_n: " << c_m_n_tensors[i].mDesc
-                  << " aq: " << aq_tensors[i].mDesc << " bq: " << bq_tensors[i].mDesc << std::endl;
+        std::cout << "gemm[" << i << "]"
+                  << " a_m_k: " << a_m_k_tensors[i].mDesc << " b_k_n: " << b_k_n_tensors[i].mDesc
+                  << " c_m_n: " << c_m_n_tensors[i].mDesc << " aq: " << aq_tensors[i].mDesc
+                  << " bq: " << bq_tensors[i].mDesc << std::endl;
 
         if(init_method == 2)
         {
@@ -375,8 +376,7 @@ int run_abquant_grouped_gemm_example_with_layouts(
                                          BQuantGroupSize,
                                          QuantMode>(warmup, repeat, group_count, gemm_descs);
 
-    std::string op_name =
-        "ABQuant Grouped Gemm (" + ck_tile::quant_type_to_string(QuantMode) + ")";
+    std::string op_name = "ABQuant Grouped Gemm (" + ck_tile::quant_type_to_string(QuantMode) + ")";
 
     std::size_t flop = 0, num_btype = 0;
     for(int j = 0; j < group_count; ++j)

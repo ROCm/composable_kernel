@@ -11,7 +11,6 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
-
 template <typename DataType>
 struct GemmTypeConfig;
 
@@ -68,7 +67,8 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase<Persistent>
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
 };
 
 template <ck_tile::QuantType QuantMode>
@@ -117,8 +117,7 @@ auto create_args(int argc, char* argv[])
         .insert("kbatch", "1", "kbatch for SplitK")
         .insert("init", "0", "0. Random, 2. One(s) (Constant)")
         .insert("persistent", "0", "Kernel persistency. 0: non-persistent. 1: persistent.")
-        .insert(
-            "bquant_group_size", "1x1x128", "BQuant group size. 1x1x128 (default) or 1x128x128")
+        .insert("bquant_group_size", "1x1x128", "BQuant group size. 1x1x128 (default) or 1x128x128")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
         .insert("jsonfile", "abquant_grouped_gemm.json", "json file name to dump results");
 

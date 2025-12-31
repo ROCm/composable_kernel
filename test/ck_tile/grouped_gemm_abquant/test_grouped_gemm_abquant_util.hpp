@@ -17,21 +17,21 @@ template <typename Tuple>
 class TestCkTileGroupedGemmABQuant : public ::testing::Test
 {
     protected:
-    using ALayout      = std::tuple_element_t<0, Tuple>;
-    using BLayout      = std::tuple_element_t<1, Tuple>;
-    using CLayout      = std::tuple_element_t<2, Tuple>;
-    using ADataType    = std::tuple_element_t<3, Tuple>;
-    using AQDataType   = std::tuple_element_t<4, Tuple>;
-    using BDataType    = std::tuple_element_t<5, Tuple>;
-    using BQDataType   = std::tuple_element_t<6, Tuple>;
-    using AccDataType  = std::tuple_element_t<7, Tuple>;
-    using CDataType    = std::tuple_element_t<8, Tuple>;
-    using AQuantGroupSize = std::tuple_element_t<9, Tuple>;
-    using BQuantGroupSize = std::tuple_element_t<10, Tuple>;
+    using ALayout                    = std::tuple_element_t<0, Tuple>;
+    using BLayout                    = std::tuple_element_t<1, Tuple>;
+    using CLayout                    = std::tuple_element_t<2, Tuple>;
+    using ADataType                  = std::tuple_element_t<3, Tuple>;
+    using AQDataType                 = std::tuple_element_t<4, Tuple>;
+    using BDataType                  = std::tuple_element_t<5, Tuple>;
+    using BQDataType                 = std::tuple_element_t<6, Tuple>;
+    using AccDataType                = std::tuple_element_t<7, Tuple>;
+    using CDataType                  = std::tuple_element_t<8, Tuple>;
+    using AQuantGroupSize            = std::tuple_element_t<9, Tuple>;
+    using BQuantGroupSize            = std::tuple_element_t<10, Tuple>;
     static constexpr bool Persistent = std::tuple_element_t<11, Tuple>::value;
 
-    using Row    = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col    = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using Row      = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col      = ck_tile::tensor_layout::gemm::ColumnMajor;
     using AQLayout = Row;
     using BQLayout = Col;
 
@@ -43,7 +43,7 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
         static constexpr bool kPadN = false;
         static constexpr bool kPadK = false;
 
-        static constexpr int kBlockPerCu = 1;
+        static constexpr int kBlockPerCu         = 1;
         static constexpr ck_tile::index_t M_Tile = 128;
         static constexpr ck_tile::index_t N_Tile = 128;
         static constexpr ck_tile::index_t K_Tile = 128 / sizeof(ADataType);
@@ -54,12 +54,13 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
 
         static constexpr ck_tile::index_t M_Warp_Tile = 16;
         static constexpr ck_tile::index_t N_Warp_Tile = 16;
-        static constexpr ck_tile::index_t K_Warp_Tile = ck_tile::get_k_warp_tile<ADataType, M_Warp_Tile>();
+        static constexpr ck_tile::index_t K_Warp_Tile =
+            ck_tile::get_k_warp_tile<ADataType, M_Warp_Tile>();
 
-        static constexpr bool PreshuffleB       = false;
-        static constexpr bool TransposeC        = false;
-        static constexpr bool DoubleSmemBuffer  = false;
-        static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
+        static constexpr bool PreshuffleB      = false;
+        static constexpr bool TransposeC       = false;
+        static constexpr bool DoubleSmemBuffer = false;
+        static constexpr auto Scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
 
         static constexpr bool IsPersistent = Persistent;
     };
@@ -110,12 +111,8 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<Config::kPadM,
-                                               Config::kPadN,
-                                               Config::kPadK,
-                                               ALayout,
-                                               BLayout,
-                                               CLayout>;
+        using Traits = ck_tile::
+            TileGemmTraits<Config::kPadM, Config::kPadN, Config::kPadK, ALayout, BLayout, CLayout>;
         using GemmUniversalTraits = ck_tile::TileGemmQuantTraits<Config::kPadM,
                                                                  Config::kPadN,
                                                                  Config::kPadK,
@@ -136,8 +133,7 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
         using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
         const ck_tile::index_t k_grain = gemm_descs[0].k_batch * Config::K_Tile;
-        const ck_tile::index_t K_split =
-            (gemm_descs[0].K + k_grain - 1) / k_grain * Config::K_Tile;
+        const ck_tile::index_t K_split = (gemm_descs[0].K + k_grain - 1) / k_grain * Config::K_Tile;
 
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
@@ -152,19 +148,19 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
             constexpr auto memory_operation = ck_tile::memory_operation_enum::set;
 
             using QuantGemmProblem = ck_tile::GemmABQuantPipelineProblem<ADataType,
-                                                                        AQDataType,
-                                                                        BDataType,
-                                                                        BQDataType,
-                                                                        AccDataType,
-                                                                        GemmShape,
-                                                                        GemmUniversalTraits,
-                                                                        AQuantGroupSize,
-                                                                        BQuantGroupSize,
-                                                                        Config::TransposeC,
-                                                                        BDataType,
-                                                                        scheduler,
-                                                                        has_hot_loop_v,
-                                                                        tail_number_v>;
+                                                                         AQDataType,
+                                                                         BDataType,
+                                                                         BQDataType,
+                                                                         AccDataType,
+                                                                         GemmShape,
+                                                                         GemmUniversalTraits,
+                                                                         AQuantGroupSize,
+                                                                         BQuantGroupSize,
+                                                                         Config::TransposeC,
+                                                                         BDataType,
+                                                                         scheduler,
+                                                                         has_hot_loop_v,
+                                                                         tail_number_v>;
 
             using GemmPipeline = ck_tile::ABQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>;
 
@@ -188,9 +184,9 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
                                                  memory_operation>>;
 
             using Kernel = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
-                                                          GemmPipeline,
-                                                          GemmEpilogue,
-                                                          GemmUniversalTraits::kQuantType>;
+                                                           GemmPipeline,
+                                                           GemmEpilogue,
+                                                           GemmUniversalTraits::kQuantType>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
             if(!Kernel::IsSupportedArgument(kargs))
             {
@@ -262,15 +258,15 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
             constexpr auto memory_operation = memory_operation_.value;
 
             using QuantGemmProblem = ck_tile::GemmABQuantPipelineProblem<ADataType,
-                                                                        AQDataType,
-                                                                        BDataType,
-                                                                        BQDataType,
-                                                                        AccDataType,
-                                                                        GemmShape,
-                                                                        GemmUniversalTraits,
-                                                                        AQuantGroupSize,
-                                                                        BQuantGroupSize,
-                                                                        Config::TransposeC>;
+                                                                         AQDataType,
+                                                                         BDataType,
+                                                                         BQDataType,
+                                                                         AccDataType,
+                                                                         GemmShape,
+                                                                         GemmUniversalTraits,
+                                                                         AQuantGroupSize,
+                                                                         BQuantGroupSize,
+                                                                         Config::TransposeC>;
 
             using GemmPipeline = ck_tile::ABQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>;
 
@@ -293,10 +289,10 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
                                                  QuantGemmProblem::TransposeC,
                                                  memory_operation>>;
 
-            using Kernel = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
-                                                          GemmPipeline,
-                                                          GemmEpilogue,
-                                                          GemmUniversalTraits::kQuantType>;
+            using Kernel      = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
+                                                                GemmPipeline,
+                                                                GemmEpilogue,
+                                                                GemmUniversalTraits::kQuantType>;
             const dim3 blocks = Kernel::BlockSize();
             const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
 
@@ -382,11 +378,13 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
                     "K must be divisible by BQuantGroupSize::kK for ABQuantGrouped mode");
             }
 
-            stride_As[i]  = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(ALayout{}));
-            stride_Bs[i]  = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(BLayout{}));
-            stride_Cs[i]  = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
-            stride_AQs[i] = ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(AQLayout{}));
-            stride_BQs[i] = ck_tile::get_default_stride(BQK, N, stride_BQs[i], is_row_major(BQLayout{}));
+            stride_As[i] = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(ALayout{}));
+            stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(BLayout{}));
+            stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
+            stride_AQs[i] =
+                ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(AQLayout{}));
+            stride_BQs[i] =
+                ck_tile::get_default_stride(BQK, N, stride_BQs[i], is_row_major(BQLayout{}));
 
             a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
                 ck_tile::host_tensor_descriptor(M, K, stride_As[i], is_row_major(ALayout{}))));
@@ -402,8 +400,7 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
             std::cout << "gemm[" << i << "]"
                       << " a_m_k: " << a_m_k_tensors[i].mDesc
                       << " b_k_n: " << b_k_n_tensors[i].mDesc
-                      << " c_m_n: " << c_m_n_tensors[i].mDesc
-                      << " aq: " << aq_tensors[i].mDesc
+                      << " c_m_n: " << c_m_n_tensors[i].mDesc << " aq: " << aq_tensors[i].mDesc
                       << " bq: " << bq_tensors[i].mDesc << std::endl;
 
             ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
@@ -520,11 +517,12 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
             const float max_accumulated_value =
                 *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
             const auto rtol_atol = calculate_rtol_atol(Ks[i], 1, max_accumulated_value);
-            pass &= ck_tile::check_err(c_m_n_tensors[i],
-                                       c_m_n_host_ref,
-                                       "Error: Incorrect results! in group [" + std::to_string(i) + "]",
-                                       rtol_atol.at(ck_tile::number<0>{}),
-                                       rtol_atol.at(ck_tile::number<1>{}));
+            pass &=
+                ck_tile::check_err(c_m_n_tensors[i],
+                                   c_m_n_host_ref,
+                                   "Error: Incorrect results! in group [" + std::to_string(i) + "]",
+                                   rtol_atol.at(ck_tile::number<0>{}),
+                                   rtol_atol.at(ck_tile::number<1>{}));
             std::cout << "gemm[" << i
                       << "] Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                       << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
@@ -542,4 +540,3 @@ using TestCkTileGroupedGemmABQuant_1x1x128 = TestCkTileGroupedGemmABQuant<Tuple>
 
 template <typename Tuple>
 using TestCkTileGroupedGemmABQuant_1x128x128 = TestCkTileGroupedGemmABQuant<Tuple>;
-

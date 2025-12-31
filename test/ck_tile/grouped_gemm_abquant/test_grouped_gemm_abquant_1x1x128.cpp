@@ -45,4 +45,3 @@ TYPED_TEST_SUITE(TestCkTileGroupedGemmABQuant_1x1x128, KernelTypes_ABQuant_1x1x1
 #define TEST_CLASS_NAME TestCkTileGroupedGemmABQuant_1x1x128
 #include "test_grouped_gemm_abquant_ut_cases.inc"
 #undef TEST_CLASS_NAME
-
