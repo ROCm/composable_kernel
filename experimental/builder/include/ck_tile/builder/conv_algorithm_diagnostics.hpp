@@ -713,6 +713,36 @@ consteval auto detailed_diagnostic_SpecifiesLargeTensorSupport() -> std::string 
 }
 
 template <typename T>
+consteval auto detailed_diagnostic_SpecifiesTwoStageSupport() -> std::string {
+    std::string msg;
+    if constexpr (requires { T::specialization; }) {
+        using SpecType = decltype(T::specialization);
+        constexpr bool convertible = std::convertible_to<SpecType, ConvAlgorithmSpecialization>;
+        msg += "      → T::specialization: " + std::string(CHECK_MARK(convertible)) + 
+               (convertible ? "" : std::string(detail::get_type_info<SpecType>())) + "\n";
+        
+        if constexpr (convertible) {
+            constexpr bool is_two_stage = (T::specialization == ConvAlgorithmSpecialization::TWO_STAGE);
+            msg += "      → specialization == TWO_STAGE: " + std::string(CHECK_MARK(is_two_stage)) + "\n";
+        }
+    } else {
+        msg += "      → T::specialization: [✗] (missing member)\n";
+    }
+    
+    return msg;
+}
+
+template <typename T>
+consteval auto detailed_diagnostic_SpecifiesGenericInstance() -> std::string {
+    std::string msg;
+    if constexpr (requires { T::specialization; }) {
+        msg += "      → T::specialization: [✗] (member should NOT exist for generic instance)\n";
+        msg += "      → This concept requires the absence of the specialization member\n";
+    }
+    return msg;
+}
+
+template <typename T>
 consteval auto detailed_diagnostic_SpecifiesTransposeTransfer() -> std::string {
     std::string msg;
     

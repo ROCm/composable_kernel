@@ -322,9 +322,26 @@ concept SpecifiesLargeTensorSupport = requires {
 };
 
 template <typename T>
+concept SpecifiesTwoStageSupport = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::TWO_STAGE;
+};
+
+template <typename T>
+concept SpecifiesGenericInstance = !requires {
+    { T::specialization };
+};
+
+template <typename T>
 concept SpecifiesTransposeTransfer = requires {
     { T::max_transpose_transfer_src_scalar_per_vector } -> SizeType;
     { T::max_transpose_transfer_dst_scalar_per_vector } -> SizeType;
+};
+
+
+template <typename T>
+concept SpecifiesGemmBatchOptions = requires {
+    { T::num_conv_groups_to_merge } -> SizeType;
 };
 
 /******************************************** */

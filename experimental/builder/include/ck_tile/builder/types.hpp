@@ -232,7 +232,8 @@ enum class PipelineScheduler
 
 enum class ConvAlgorithmSpecialization
 {
-    LARGE_TENSOR
+    LARGE_TENSOR,
+    TWO_STAGE
 };
 
 // toString methods for enum classes

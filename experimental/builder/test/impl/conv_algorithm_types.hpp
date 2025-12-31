@@ -243,6 +243,11 @@ struct TransposeParams_
     size_t max_transpose_transfer_dst_scalar_per_vector{1};
 };
 
+struct GemmBatchOptions_
+{
+    size_t num_conv_groups_to_merge{1};
+};
+
 struct BlockGemm_
 {
     BlockGemm block_gemm;
@@ -278,6 +283,11 @@ struct DlTransferABC
 struct DlTransfer_
 {
     DlTransferABC transfer;
+};
+
+struct TwoStageSpecialization_
+{
+    static constexpr ConvAlgorithmSpecialization specialization = ConvAlgorithmSpecialization::TWO_STAGE;
 };
 
 // Specialization wrapper for large tensor support
@@ -433,13 +443,21 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
-    constexpr auto with_transpose_params(bool max_src_scalar_per_vector,
-                                         bool max_dst_scalar_per_vector) const
+    constexpr auto with_transpose_params(size_t max_src_scalar_per_vector,
+                                         size_t max_dst_scalar_per_vector) const
     {
         static_assert(std::is_base_of_v<TransposeParams_, ConvAlgorithmTemplate>);
         auto result                             = *this;
         result.max_transpose_transfer_src_scalar_per_vector = max_src_scalar_per_vector;
         result.max_transpose_transfer_dst_scalar_per_vector = max_dst_scalar_per_vector;
+        return result;
+    }
+
+    constexpr auto with_num_conv_groups_to_merge(size_t num_groups_to_merge) const
+    {
+        static_assert(std::is_base_of_v<GemmBatchOptions_, ConvAlgorithmTemplate>);
+        auto result                             = *this;
+        result.num_conv_groups_to_merge = num_groups_to_merge;
         return result;
     }
 
@@ -554,6 +572,9 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileTh
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle = 
     ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<4>, ConvSpecializationBwdWeight_, TransposeParams_>;
+
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle = 
+    ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<>, ConvSpecializationBwdWeight_, BlockGemm_, TransposeParams_, GemmBatchOptions_, TwoStageSpecialization_>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 = 
     ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<>, ConvSpecializationBwdWeight_, BlockGemm_>;
