@@ -733,6 +733,26 @@ consteval auto detailed_diagnostic_SpecifiesTwoStageSupport() -> std::string {
 }
 
 template <typename T>
+consteval auto detailed_diagnostic_SpecifiesMultipleDSupport() -> std::string {
+    std::string msg;
+    if constexpr (requires { T::specialization; }) {
+        using SpecType = decltype(T::specialization);
+        constexpr bool convertible = std::convertible_to<SpecType, ConvAlgorithmSpecialization>;
+        msg += "      → T::specialization: " + std::string(CHECK_MARK(convertible)) + 
+               (convertible ? "" : std::string(detail::get_type_info<SpecType>())) + "\n";
+        
+        if constexpr (convertible) {
+            constexpr bool is_multiple_d = (T::specialization == ConvAlgorithmSpecialization::MULTIPLE_D);
+            msg += "      → specialization == MULTIPLE_D: " + std::string(CHECK_MARK(is_multiple_d)) + "\n";
+        }
+    } else {
+        msg += "      → T::specialization: [✗] (missing member)\n";
+    }
+    
+    return msg;
+}
+
+template <typename T>
 consteval auto detailed_diagnostic_SpecifiesGenericInstance() -> std::string {
     std::string msg;
     if constexpr (requires { T::specialization; }) {
@@ -762,6 +782,43 @@ consteval auto detailed_diagnostic_SpecifiesTransposeTransfer() -> std::string {
                (convertible ? "" : std::string(detail::get_type_info<DstType>())) + "\n";
     } else {
         msg += "      → T::max_transpose_transfer_dst_scalar_per_vector: [✗] (missing member)\n";
+    }
+    
+    return msg;
+}
+
+template <typename T>
+consteval auto detailed_diagnostic_TransposeTransferWellDefinedIfProvided() -> std::string {
+    std::string msg;
+    
+    constexpr bool has_src = requires { T::max_transpose_transfer_src_scalar_per_vector; };
+    constexpr bool has_dst = requires { T::max_transpose_transfer_dst_scalar_per_vector; };
+    constexpr bool has_transpose_transfer = has_src || has_dst;
+    
+    if constexpr (!has_transpose_transfer) {
+        msg += "      → Transpose transfer fields not provided: [✓] (optional, not required)\n";
+    } else {
+        msg += "      → Transpose transfer fields provided, checking if well-defined:\n";
+        
+        if constexpr (has_src) {
+            using SrcType = decltype(T::max_transpose_transfer_src_scalar_per_vector);
+            constexpr bool src_convertible = std::convertible_to<SrcType, size_t>;
+            msg += "          → T::max_transpose_transfer_src_scalar_per_vector: " + 
+                   std::string(CHECK_MARK(src_convertible)) + 
+                   (src_convertible ? "" : std::string(detail::get_type_info<SrcType>())) + "\n";
+        } else {
+            msg += "          → T::max_transpose_transfer_src_scalar_per_vector: [✗] (missing, but dst is provided)\n";
+        }
+        
+        if constexpr (has_dst) {
+            using DstType = decltype(T::max_transpose_transfer_dst_scalar_per_vector);
+            constexpr bool dst_convertible = std::convertible_to<DstType, size_t>;
+            msg += "          → T::max_transpose_transfer_dst_scalar_per_vector: " + 
+                   std::string(CHECK_MARK(dst_convertible)) + 
+                   (dst_convertible ? "" : std::string(detail::get_type_info<DstType>())) + "\n";
+        } else {
+            msg += "          → T::max_transpose_transfer_dst_scalar_per_vector: [✗] (missing, but src is provided)\n";
+        }
     }
     
     return msg;

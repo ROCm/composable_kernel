@@ -328,6 +328,12 @@ concept SpecifiesTwoStageSupport = requires {
 };
 
 template <typename T>
+concept SpecifiesMultipleDSupport = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::MULTIPLE_D;
+};
+
+template <typename T>
 concept SpecifiesGenericInstance = !requires {
     { T::specialization };
 };
@@ -338,6 +344,15 @@ concept SpecifiesTransposeTransfer = requires {
     { T::max_transpose_transfer_dst_scalar_per_vector } -> SizeType;
 };
 
+template <typename T>
+concept HasTransposeTransfer = requires {
+    { T::max_transpose_transfer_src_scalar_per_vector };
+    { T::max_transpose_transfer_dst_scalar_per_vector };
+};
+
+template <typename T>
+concept TransposeTransferWellDefinedIfProvided =
+    !HasTransposeTransfer<T> || SpecifiesTransposeTransfer<T>;
 
 template <typename T>
 concept SpecifiesGemmBatchOptions = requires {

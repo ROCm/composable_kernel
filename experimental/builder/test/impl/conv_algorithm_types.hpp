@@ -284,6 +284,11 @@ struct TwoStageSpecialization_
     static constexpr ConvAlgorithmSpecialization specialization = ConvAlgorithmSpecialization::TWO_STAGE;
 };
 
+struct MultipleDSpecialization_
+{
+    static constexpr ConvAlgorithmSpecialization specialization = ConvAlgorithmSpecialization::MULTIPLE_D;
+};
+
 // Specialization wrapper for large tensor support
 template <typename BaseAlgorithm>
 struct LargeTensorWrapper
@@ -575,10 +580,9 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<>, ConvSpecializationBwdWeight_, BlockGemm_>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl =
-    ConvAlgorithmTemplate<ThreadBlock_,
-                          DlThreadConfig_,
-                          DlThreadCluster_,
-                          DlTransfer_<5>,
-                          ConvSpecializationBwdWeight_>;
+    ConvAlgorithmTemplate<ThreadBlock_, DlThreadConfig_, DlThreadCluster_, DlTransfer_<5>, ConvSpecializationBwdWeight_>;
+
+using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle = 
+    ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<4>, ConvSpecializationBwdWeight_, MultipleDSpecialization_>;
 
 } // namespace ck_tile::builder::test

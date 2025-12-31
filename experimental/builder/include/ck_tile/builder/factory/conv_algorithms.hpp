@@ -248,7 +248,8 @@ struct BwdXdlAlgorithm {
     CHECK_CONCEPT(T, SpecifiesSourceAccessOrder)
     CHECK_CONCEPT(T, SpecifiesGridwiseBwdXdlGemm)
     CHECK_CONCEPT(T, SpecifiesBwdWeightConvSpecialization)
-    CHECK_CONCEPT(T, SpecifiesTransposeTransfer)
+    CHECK_CONCEPT(T, TransposeTransferWellDefinedIfProvided)
+    CHECK_CONCEPT(T, SpecifiesGenericInstance)
 
     static constexpr bool c1 = c_ConvAlgorithmDescriptor;
     static constexpr bool c2 = c_SpecifiesThreadBlock;
@@ -258,10 +259,11 @@ struct BwdXdlAlgorithm {
     static constexpr bool c6 = c_SpecifiesSourceAccessOrder;
     static constexpr bool c7 = c_SpecifiesGridwiseBwdXdlGemm;
     static constexpr bool c8 = c_SpecifiesBwdWeightConvSpecialization;
-    static constexpr bool c9 = c_SpecifiesTransposeTransfer;
+    static constexpr bool c9 = c_TransposeTransferWellDefinedIfProvided;
+    static constexpr bool c10 = c_SpecifiesGenericInstance;
 
     static consteval bool is_valid() {
-        return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9;
+        return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && c10;
     }
 
     static consteval auto message() -> std::string {
@@ -275,7 +277,8 @@ struct BwdXdlAlgorithm {
                DIAGNOSTIC_LINE(SpecifiesSourceAccessOrder) +
                DIAGNOSTIC_LINE(SpecifiesGridwiseBwdXdlGemm) +
                DIAGNOSTIC_LINE(SpecifiesBwdWeightConvSpecialization) +
-               DIAGNOSTIC_LINE(SpecifiesTransposeTransfer);
+               DIAGNOSTIC_LINE(TransposeTransferWellDefinedIfProvided) + 
+               DIAGNOSTIC_LINE(SpecifiesGenericInstance);
     }
 };
 
