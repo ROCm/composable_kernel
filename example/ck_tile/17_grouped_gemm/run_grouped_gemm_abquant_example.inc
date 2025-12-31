@@ -138,24 +138,6 @@ float invoke_abquant_gemm(int n_warmup,
                                          QuantMode>(stream, group_count, kargs_ptr);
     }
 
-    std::string op_name = "ABQuant Grouped Gemm (" + ck_tile::quant_type_to_string(QuantMode) + ")";
-
-    std::size_t flop = 0, num_btype = 0;
-    for(int j = 0; j < group_count; ++j)
-    {
-        flop += std::size_t(2) * args[j].M * args[j].N * args[j].K;
-
-        num_btype += sizeof(ADataType) * args[j].M * args[j].K +
-                     sizeof(BDataType) * args[j].K * args[j].N +
-                     sizeof(CDataType) * args[j].M * args[j].N;
-    }
-
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
-              << gb_per_sec << " GB/s, " << op_name << std::endl;
-
     return ave_time;
 }
 
@@ -183,12 +165,8 @@ int run_abquant_grouped_gemm_example_with_layouts(
     const BQLayout bq_layout                = BQLayout{},
     [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
-    auto [result, arg_parser] = create_args(argc, argv);
 
-    if(!result)
-    {
-        return -1;
-    };
+    auto [result, arg_parser] = create_args(argc, argv);
 
     auto valid_input_data = [&](int group_count, const auto&... args) {
         return group_count != 0 && ((args.size() == static_cast<size_t>(group_count)) && ...);
@@ -381,21 +359,40 @@ int run_abquant_grouped_gemm_example_with_layouts(
                               stride_BQs[i]});
     }
 
-    invoke_abquant_gemm<GemmConfig,
-                        ADataType,
-                        AQDataType,
-                        BDataType,
-                        BQDataType,
-                        AccDataType,
-                        CDataType,
-                        ALayout,
-                        AQLayout,
-                        BLayout,
-                        BQLayout,
-                        CLayout,
-                        AQuantGroupSize,
-                        BQuantGroupSize,
-                        QuantMode>(warmup, repeat, group_count, gemm_descs);
+    float ave_time = invoke_abquant_gemm<GemmConfig,
+                                         ADataType,
+                                         AQDataType,
+                                         BDataType,
+                                         BQDataType,
+                                         AccDataType,
+                                         CDataType,
+                                         ALayout,
+                                         AQLayout,
+                                         BLayout,
+                                         BQLayout,
+                                         CLayout,
+                                         AQuantGroupSize,
+                                         BQuantGroupSize,
+                                         QuantMode>(warmup, repeat, group_count, gemm_descs);
+
+    std::string op_name =
+        "ABQuant Grouped Gemm (" + ck_tile::quant_type_to_string(QuantMode) + ")";
+
+    std::size_t flop = 0, num_btype = 0;
+    for(int j = 0; j < group_count; ++j)
+    {
+        flop += std::size_t(2) * gemm_descs[j].M * gemm_descs[j].N * gemm_descs[j].K;
+
+        num_btype += sizeof(ADataType) * gemm_descs[j].M * gemm_descs[j].K +
+                     sizeof(BDataType) * gemm_descs[j].K * gemm_descs[j].N +
+                     sizeof(CDataType) * gemm_descs[j].M * gemm_descs[j].N;
+    }
+
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
+              << gb_per_sec << " GB/s, " << op_name << std::endl;
 
     for(int i = 0; i < group_count; i++)
     {
@@ -427,17 +424,29 @@ int run_abquant_grouped_gemm_example_with_layouts(
             const auto rtol_atol =
                 calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
                     Ks[i], kbatch, max_accumulated_value);
-            pass &= ck_tile::check_err(c_m_n_tensors[i],
-                                       c_m_n_host_ref,
-                                       "Error: Incorrect results!",
-                                       rtol_atol.at(ck_tile::number<0>{}),
-                                       rtol_atol.at(ck_tile::number<1>{}));
+            pass &=
+                ck_tile::check_err(c_m_n_tensors[i],
+                                   c_m_n_host_ref,
+                                   "Error: Incorrect results! in group [" + std::to_string(i) + "]",
+                                   rtol_atol.at(ck_tile::number<0>{}),
+                                   rtol_atol.at(ck_tile::number<1>{}));
             std::cout << "gemm[" << i
                       << "] Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                       << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                       << std::endl;
         }
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_grouped_gemm_json_results<ALayout, BLayout, CLayout>(arg_parser.get_str("jsonfile"),
+                                                                  op_name,
+                                                                  group_count,
+                                                                  pass,
+                                                                  ave_time,
+                                                                  tflops,
+                                                                  gb_per_sec);
     }
 
     return pass;

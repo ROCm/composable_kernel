@@ -283,7 +283,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                      ck_tile::memory_operation_enum::set>{});
 }
 
-#include "abquant_run_grouped_gemm_example.inc"
+#include "run_grouped_gemm_abquant_example.inc"
 
 int main(int argc, char* argv[])
 {
