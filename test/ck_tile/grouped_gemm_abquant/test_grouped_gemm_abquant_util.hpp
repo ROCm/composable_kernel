@@ -204,10 +204,10 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
 
             if(s.log_level_ > 0)
             {
-                std::cout << "Launching kernel: " << Kernel::GetName() << " with args:"
-                          << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
+                std::cout << "Launching kernel: " << Kernel::GetName()
+                          << " with args:" << " grid: {" << grids.x << ", " << grids.y << ", "
+                          << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
+                          << blocks.z << "}" << std::endl;
             }
 
             return ave_time = ck_tile::launch_kernel(
@@ -298,10 +298,10 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
 
             if(s.log_level_ > 0)
             {
-                std::cout << "Launching kernel: " << Kernel::GetName() << " with args:"
-                          << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
+                std::cout << "Launching kernel: " << Kernel::GetName()
+                          << " with args:" << " grid: {" << grids.x << ", " << grids.y << ", "
+                          << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
+                          << blocks.z << "}" << std::endl;
             }
 
             ck_tile::launch_kernel(s,
@@ -397,8 +397,7 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
             bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
                 ck_tile::host_tensor_descriptor(BQK, N, stride_BQs[i], is_row_major(BQLayout{}))));
 
-            std::cout << "gemm[" << i << "]"
-                      << " a_m_k: " << a_m_k_tensors[i].mDesc
+            std::cout << "gemm[" << i << "]" << " a_m_k: " << a_m_k_tensors[i].mDesc
                       << " b_k_n: " << b_k_n_tensors[i].mDesc
                       << " c_m_n: " << c_m_n_tensors[i].mDesc << " aq: " << aq_tensors[i].mDesc
                       << " bq: " << bq_tensors[i].mDesc << std::endl;
