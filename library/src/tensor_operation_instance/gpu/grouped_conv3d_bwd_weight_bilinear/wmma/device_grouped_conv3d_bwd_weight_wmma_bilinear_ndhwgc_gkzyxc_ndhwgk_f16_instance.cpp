@@ -37,7 +37,7 @@ void add_device_grouped_conv3d_bwd_weight_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_f16
     // Compiler version info:
     // AMD clang version 22.0.0git (https://github.com/ROCm/llvm-project.git
     // 8e85e3138dd485c4221cc12aff9eb60ab48ed3b5+PATCHED:93c451b46cc0dc23c47d67e394b370de65731aac)
-#if !(defined(__gfx1101__) && defined(_WIN32))
+#if !defined(_WIN32)
     // 1. Default
     add_device_operation_instances(
         instances,
