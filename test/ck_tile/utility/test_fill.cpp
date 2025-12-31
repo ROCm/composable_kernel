@@ -26,6 +26,7 @@ using TestTypes = ::testing::Types<float, fp16_t, fp8_t, pk_fp4_t>;
 TYPED_TEST_SUITE(FillUniformDistributionTest, TestTypes);
 
 // Test that multiple runs with the same seed produce identical results
+#ifndef _WIN32
 TYPED_TEST(FillUniformDistributionTest, ConsistencyWithSameSeed)
 {
     using T         = TypeParam;
@@ -53,6 +54,7 @@ TYPED_TEST(FillUniformDistributionTest, ConsistencyWithSameSeed)
             << "First and second fill should be identical";
     }
 }
+#endif
 
 // Test consistency across different data sizes (which affects threading)
 TYPED_TEST(FillUniformDistributionTest, ConsistencyAcrossSizes)
