@@ -433,4 +433,14 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl>(
     return oss.str();
 }
 
+template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle>(
+    ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
+        << "," << to_string(static_cast<Transfer_<4>>(t));
+    return oss.str();
+}
+
 } // namespace ck_tile::builder::test

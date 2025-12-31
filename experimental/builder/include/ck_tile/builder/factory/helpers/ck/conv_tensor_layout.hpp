@@ -236,12 +236,14 @@ public:
     using ALayout  = std::conditional_t<is_forward, InputLayout, void>;
     using BLayout  = std::conditional_t<is_forward, WeightLayout, void>;
     using ELayout  = std::conditional_t<is_forward, OutputLayout, void>;
-    using DsLayout = std::conditional_t<is_forward, AuxLayout, void>;
     
     // Backward weight convolution layouts
     using InLayout  = std::conditional_t<is_bwd_weight, InputLayout, void>;
     using WeiLayout = std::conditional_t<is_bwd_weight, WeightLayout, void>;
     using OutLayout = std::conditional_t<is_bwd_weight, OutputLayout, void>;
+
+    // Applicable for all directions
+    using DsLayout = AuxLayout;
 };
 
 } // namespace ck_tile::builder::factory::internal

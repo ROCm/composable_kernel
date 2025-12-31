@@ -195,6 +195,8 @@ struct BwdWeightConvTensorDataTypes
     using AccDataType =
         typename decltype(GetTensorAccumulationType<Signature.accumulation_data_type,
                                                     Signature.data_type>())::type;
+    // Data types for the auxiliary tensors (e.g., bias).
+    using DsDataType = typename decltype(GetAuxiliaryTensorDataTypes<Signature>())::type;
 };
 
 } // namespace ck_tile::builder::factory::internal

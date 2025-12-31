@@ -283,6 +283,47 @@ struct BwdXdlAlgorithm {
 };
 
 template <typename T>
+struct BwdMultiDXdlAlgorithm {
+    CHECK_CONCEPT(T, ConvAlgorithmDescriptor)
+    CHECK_CONCEPT(T, SpecifiesThreadBlock)
+    CHECK_CONCEPT(T, SpecifiesBlockTransfer4D)
+    CHECK_CONCEPT(T, SpecifiesLdsTransfer)
+    CHECK_CONCEPT(T, SpecifiesThreadClusterAccessOrder)
+    CHECK_CONCEPT(T, SpecifiesSourceAccessOrder)
+    CHECK_CONCEPT(T, SpecifiesGridwiseBwdXdlGemm)
+    CHECK_CONCEPT(T, SpecifiesBwdWeightConvSpecialization)
+    CHECK_CONCEPT(T, SpecifiesMultipleDSupport)
+
+    static constexpr bool c1 = c_ConvAlgorithmDescriptor;
+    static constexpr bool c2 = c_SpecifiesThreadBlock;
+    static constexpr bool c3 = c_SpecifiesBlockTransfer4D;
+    static constexpr bool c4 = c_SpecifiesLdsTransfer;
+    static constexpr bool c5 = c_SpecifiesThreadClusterAccessOrder;
+    static constexpr bool c6 = c_SpecifiesSourceAccessOrder;
+    static constexpr bool c7 = c_SpecifiesGridwiseBwdXdlGemm;
+    static constexpr bool c8 = c_SpecifiesBwdWeightConvSpecialization;
+    static constexpr bool c9 = c_SpecifiesMultipleDSupport;
+
+    static consteval bool is_valid() {
+        return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9;
+    }
+
+    static consteval auto message() -> std::string {
+        return std::string("\n=== Backward XDL Algorithm Diagnostic (closest match) ===\n"
+               "Concepts for BwdXdl Algorithm:\n") +
+               DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
+               DIAGNOSTIC_LINE(SpecifiesThreadBlock) +
+               DIAGNOSTIC_LINE(SpecifiesBlockTransfer4D) +
+               DIAGNOSTIC_LINE(SpecifiesLdsTransfer) +
+               DIAGNOSTIC_LINE(SpecifiesThreadClusterAccessOrder) +
+               DIAGNOSTIC_LINE(SpecifiesSourceAccessOrder) +
+               DIAGNOSTIC_LINE(SpecifiesGridwiseBwdXdlGemm) +
+               DIAGNOSTIC_LINE(SpecifiesBwdWeightConvSpecialization) +
+               DIAGNOSTIC_LINE(SpecifiesMultipleDSupport);
+    }
+};
+
+template <typename T>
 struct BwdXdlV3Algorithm {
     CHECK_CONCEPT(T, ConvAlgorithmDescriptor)
     CHECK_CONCEPT(T, SpecifiesThreadBlock)
@@ -442,6 +483,12 @@ consteval int count_matches_bwd_xdl() {
 }
 
 template <typename T>
+consteval int count_matches_bwd_multi_d_xdl() {
+    using Alg = BwdMultiDXdlAlgorithm<T>;
+    return Alg::c1 + Alg::c2 + Alg::c3 + Alg::c4 + Alg::c5 + Alg::c6 + Alg::c7 + Alg::c8 + Alg::c9;
+}
+
+template <typename T>
 consteval int count_matches_bwd_xdl_v3() {
     using Alg = BwdXdlV3Algorithm<T>;
     return Alg::c1 + Alg::c2 + Alg::c3 + Alg::c4 + Alg::c5 + Alg::c6 + Alg::c7 + Alg::c8 + Alg::c9;
@@ -522,10 +569,12 @@ consteval void diagnose_bwd_weight_algorithm_signature()
     constexpr int xdl_v3_matches = count_matches_fwd_xdl_v3<AlgoType>();
     constexpr int two_stage_xdl_matches = count_matches_bwd_two_stage_xdl<AlgoType>();
     constexpr int dl_matches = count_matches_bwd_dl<AlgoType>();
+    constexpr int multi_d_xdl_matches = count_matches_bwd_multi_d_xdl<AlgoType>();
 
     constexpr int max1 = xdl_v3_matches > xdl_matches ? xdl_v3_matches : xdl_matches;
-    constexpr int max_2 = max1 > two_stage_xdl_matches ? max1 : two_stage_xdl_matches;
-    constexpr int max_matches = max_2 > dl_matches ? max_2 : dl_matches;
+    constexpr int max2 = max1 > two_stage_xdl_matches ? max1 : two_stage_xdl_matches;
+    constexpr int max3 = max2 > dl_matches ? max2 : dl_matches;
+    constexpr int max_matches = max3 > multi_d_xdl_matches ? max3 : multi_d_xdl_matches;
 
     if constexpr (max_matches == xdl_matches) {
         using Alg = BwdXdlAlgorithm<AlgoType>;
@@ -541,6 +590,10 @@ consteval void diagnose_bwd_weight_algorithm_signature()
     }
     else if constexpr (max_matches == dl_matches) {
         using Alg = BwdDlAlgorithm<AlgoType>;
+        static_assert(Alg::is_valid(), Alg::message());
+    }
+    else if constexpr (max_matches == multi_d_xdl_matches) {
+        using Alg = BwdMultiDXdlAlgorithm<AlgoType>;
         static_assert(Alg::is_valid(), Alg::message());
     }
     else {
