@@ -20,8 +20,7 @@ template <ck::index_t NDimSpatial,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization
-              ConvBackwardWeightSpecialization,
+          ConvolutionBackwardWeightSpecialization ConvBackwardWeightSpecialization,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -102,8 +101,7 @@ template <ck::index_t NDimSpatial,
           ck::index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           ck::index_t NumGemmKPrefetchStage,
           ck::LoopScheduler LoopSched,
-          ck::PipelineVersion PipelineVer,
-          typename ck::enable_if<NDimSpatial == 3, bool>::type>
+          ck::PipelineVersion PipelineVer>
 struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Wmma_CShuffle<
     NDimSpatial,
     InLayout_,
@@ -146,7 +144,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
     CShuffleBlockTransferScalarPerVector_NPerBlock,
     NumGemmKPrefetchStage,
     LoopSched,
-    PipelineVer>>
+    PipelineVer,
+    false>> // Use false to match with the default value
 {
     static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeight_Wmma_CShuffle";
 
