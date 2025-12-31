@@ -171,17 +171,19 @@ struct DlThreadCluster
 };
 static_assert(ckb::DlThreadClusterDescriptor<DlThreadCluster>);
 
+template <size_t D = 4>
 struct DlBlockTransfer
 {
-    std::array<size_t, 4> thread_slice_lengths;
-    std::array<size_t, 4> thread_cluster_lengths;
-    std::array<size_t, 4> thread_cluster_arrange_order;
-    std::array<size_t, 4> src_access_order;
-    std::array<size_t, 4> src_vector_tensor_lengths;
-    std::array<size_t, 4> src_vector_tensor_contiguous_dim_order;
-    std::array<size_t, 4> dst_vector_tensor_lengths;
+    std::array<size_t, D> thread_slice_lengths;
+    std::array<size_t, D> thread_cluster_lengths;
+    std::array<size_t, D> thread_cluster_arrange_order;
+    std::array<size_t, D> src_access_order;
+    std::array<size_t, D> src_vector_tensor_lengths;
+    std::array<size_t, D> src_vector_tensor_contiguous_dim_order;
+    std::array<size_t, D> dst_vector_tensor_lengths;
 };
-static_assert(ckb::DlBlockTransferDescriptor4D<DlBlockTransfer>);
+static_assert(ckb::DlBlockTransferDescriptor4D<DlBlockTransfer<4>>);
+static_assert(ckb::DlBlockTransferDescriptor5D<DlBlockTransfer<5>>);
 
 struct DlEpilogue
 {
@@ -263,16 +265,18 @@ struct DlThreadCluster_
     DlThreadCluster thread_cluster;
 };
 
+template <size_t Dim = 4>
 struct DlTransfer
 {
-    DlBlockTransfer a;
-    DlBlockTransfer b;
+    DlBlockTransfer<Dim> a;
+    DlBlockTransfer<Dim> b;
     DlEpilogue c;
 };
 
+template <size_t Dim = 4>
 struct DlTransfer_
 {
-    DlTransfer transfer;
+    DlTransfer<Dim> transfer;
 };
 
 struct TwoStageSpecialization_
@@ -396,7 +400,7 @@ struct ConvAlgorithmTemplate : Components...
     template <typename T>
     constexpr auto with_transfer(const T& t) const
     {
-        static_assert(std::is_base_of_v<Transfer_<>, ConvAlgorithmTemplate> ||
+        static_assert(std::is_base_of_v<Transfer_<3>, ConvAlgorithmTemplate> ||
                       std::is_base_of_v<Transfer_<4>, ConvAlgorithmTemplate>);
         auto result     = *this;
         result.transfer = t;
@@ -481,7 +485,8 @@ struct ConvAlgorithmTemplate : Components...
     template <typename T>
     constexpr auto with_dl_transfer(const T& t) const
     {
-        static_assert(std::is_base_of_v<DlTransfer_, ConvAlgorithmTemplate>);
+        static_assert(std::is_base_of_v<DlTransfer_<4>, ConvAlgorithmTemplate> ||
+                      std::is_base_of_v<DlTransfer_<5>, ConvAlgorithmTemplate>);
         auto result     = *this;
         result.transfer = t;
         return result;
@@ -549,7 +554,7 @@ using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
                           ConvSpecializationFwd_,
                           DlThreadConfig_,
                           DlThreadCluster_,
-                          DlTransfer_>;
+                          DlTransfer_<>>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
     LargeTensorWrapper<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>;
@@ -573,7 +578,7 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl =
     ConvAlgorithmTemplate<ThreadBlock_,
                           DlThreadConfig_,
                           DlThreadCluster_,
-                          DlTransfer_,
+                          DlTransfer_<5>,
                           ConvSpecializationBwdWeight_>;
 
 } // namespace ck_tile::builder::test

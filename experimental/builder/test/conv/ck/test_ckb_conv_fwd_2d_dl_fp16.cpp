@@ -29,11 +29,12 @@ TEST(FwdConvInstances, Create_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK_Ins
             .with_fwd_specializations(ConvSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
             .with_dl_thread_config(DlThreadConfig_16x2x4x4x1)
             .with_dl_thread_cluster(DlThreadCluster_8x2)
-            .with_dl_transfer(DlFwdTransfer);
+            .with_dl_transfer(DlTransfer4D);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 
     const auto expected_transfer_parameters = to_string(FwdConvAlgorithm);
+    std::cout << "Expected Transfer Parameters: " << expected_transfer_parameters << std::endl;
     run_test<Builder>({"DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK",
                        expected_transfer_parameters,
                        "Default",
@@ -64,11 +65,12 @@ TEST(FwdConvInstances,
                                   GemmSpecialization::MNKPadding)
             .with_dl_thread_config(DlThreadConfig_16x2x4x4x1)
             .with_dl_thread_cluster(DlThreadCluster_8x2)
-            .with_dl_transfer(DlFwdTransfer);
+            .with_dl_transfer(DlTransfer4D);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 
     const auto expected_transfer_parameters = to_string(FwdConvAlgorithm);
+    std::cout << "Expected Transfer Parameters: " << expected_transfer_parameters << std::endl;
     run_test<Builder>({"DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK",
                        expected_transfer_parameters,
                        "Filter1x1Pad0",

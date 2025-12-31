@@ -21,7 +21,7 @@ constexpr auto SIGNATURE =
 constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl{}
                             .with_thread_block(cku::ThreadBlock_256_128x128x16)
                             .with_bwd_specialization(cku::ConvSpecialization::DEFAULT)
-                            .with_dl_thread_config(cku::DlThreadConfig_16x2x4x4x1)
+                            .with_dl_thread_config(cku::DlThreadConfig_16x1x4x4x1)
                             .with_dl_thread_cluster(cku::DlThreadCluster_8x2)
                             .with_dl_transfer(cku::DlTransfer5D);
 
@@ -31,6 +31,7 @@ using Instance = Builder::Instance;
 TEST(BwdWeight_2DBf16_DL, Create)
 {
     const auto expected_transfer_parameters = to_string(ALGORITHM);
+    std::cout << "Expected Transfer Parameters: " << expected_transfer_parameters << std::endl;
     cku::run_test<Builder>({"DeviceGroupedConvBwdWeight_Dl",
                             expected_transfer_parameters,
                             "Default",

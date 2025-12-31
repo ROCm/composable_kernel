@@ -15,9 +15,12 @@ using namespace test;
 constexpr DlThreadConfig DlThreadConfig_16x2x4x4x1{
     .k0_per_block = 16, .k1 = 2, .m1_per_thread = 4, .n1_per_thread = 4, .k_per_thread = 1};
 
+constexpr DlThreadConfig DlThreadConfig_16x1x4x4x1{
+    .k0_per_block = 16, .k1 = 1, .m1_per_thread = 4, .n1_per_thread = 4, .k_per_thread = 1};
+
 constexpr DlThreadCluster DlThreadCluster_8x2{.m1_xs = {8, 2}, .n1_xs = {8, 2}};
 
-constexpr DlBlockTransfer DlBlockTransfer_8x1x1x2 
+constexpr DlBlockTransfer<4> DlBlockTransfer_8x1x1x2 
                                            {.thread_slice_lengths         = {8, 1, 1, 2},
                                             .thread_cluster_lengths       = {2, 1, 128, 1},
                                             .thread_cluster_arrange_order = {1, 2, 0, 3},
@@ -26,12 +29,28 @@ constexpr DlBlockTransfer DlBlockTransfer_8x1x1x2
                                             .src_vector_tensor_contiguous_dim_order = {1, 2, 0, 3},
                                             .dst_vector_tensor_lengths              = {1, 1, 1, 2}};
 
-constexpr DlTransfer DlTransfer5D {.a = DlBlockTransfer_8x1x1x2,
-                                   .b = DlBlockTransfer_8x1x1x2,
-                                   .c = {
+constexpr DlTransfer<4> DlTransfer4D {.a = DlBlockTransfer_8x1x1x2,
+                                      .b = DlBlockTransfer_8x1x1x2,
+                                      .c = {
                                             .src_dst_access_order  = {0, 1, 2, 3, 4, 5},
                                             .src_dst_vector_dim    = 5,
                                             .dst_scalar_per_vector = 4}};
+
+constexpr DlBlockTransfer<5> DlBlockTransfer_1x8x1x1x1 
+                                           {.thread_slice_lengths         = {1, 8, 1, 1, 1},
+                                            .thread_cluster_lengths       = {1, 2, 1, 128, 1},
+                                            .thread_cluster_arrange_order = {0, 2, 3, 1, 4},
+                                            .src_access_order             = {0, 2, 3, 1, 4},
+                                            .src_vector_tensor_lengths    = {1, 1, 1, 1, 1},
+                                            .src_vector_tensor_contiguous_dim_order = {0, 2, 3, 1, 4},
+                                            .dst_vector_tensor_lengths              = {1, 1, 1, 1, 1}};
+
+constexpr DlTransfer<5> DlTransfer5D {.a = DlBlockTransfer_1x8x1x1x1,
+                                      .b = DlBlockTransfer_1x8x1x1x1,
+                                      .c = {
+                                            .src_dst_access_order  = {0, 1, 2, 3, 4, 5},
+                                            .src_dst_vector_dim    = 5,
+                                            .dst_scalar_per_vector = 1}};
 
 constexpr Transfer<> Transfer_4x64x1{
     .a =

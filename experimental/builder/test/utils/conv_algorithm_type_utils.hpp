@@ -205,7 +205,19 @@ inline std::string to_string<DlThreadCluster>(DlThreadCluster t)
 }
 
 template <>
-inline std::string to_string<DlBlockTransfer>(DlBlockTransfer t)
+inline std::string to_string<DlBlockTransfer<4>>(DlBlockTransfer<4> t)
+{
+    std::ostringstream oss;
+    oss << array_to_seq(t.thread_slice_lengths) << "," << array_to_seq(t.thread_cluster_lengths)
+        << "," << array_to_seq(t.thread_cluster_arrange_order) << ","
+        << array_to_seq(t.src_access_order) << "," << array_to_seq(t.src_vector_tensor_lengths)
+        << "," << array_to_seq(t.src_vector_tensor_contiguous_dim_order) << ","
+        << array_to_seq(t.dst_vector_tensor_lengths);
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<DlBlockTransfer<5>>(DlBlockTransfer<5> t)
 {
     std::ostringstream oss;
     oss << array_to_seq(t.thread_slice_lengths) << "," << array_to_seq(t.thread_cluster_lengths)
@@ -226,7 +238,15 @@ inline std::string to_string<DlEpilogue>(DlEpilogue t)
 }
 
 template <>
-inline std::string to_string<DlTransfer>(DlTransfer t)
+inline std::string to_string<DlTransfer<4>>(DlTransfer<4> t)
+{
+    std::ostringstream oss;
+    oss << to_string(t.a) << "," << to_string(t.b) << "," << to_string(t.c);
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<DlTransfer<5>>(DlTransfer<5> t)
 {
     std::ostringstream oss;
     oss << to_string(t.a) << "," << to_string(t.b) << "," << to_string(t.c);
@@ -309,7 +329,13 @@ inline std::string to_string<DlThreadCluster_>(DlThreadCluster_ t)
 }
 
 template <>
-inline std::string to_string<DlTransfer_>(DlTransfer_ t)
+inline std::string to_string<DlTransfer_<4>>(DlTransfer_<4> t)
+{
+    return to_string(t.transfer);
+}
+
+template <>
+inline std::string to_string<DlTransfer_<5>>(DlTransfer_<5> t)
 {
     return to_string(t.transfer);
 }
@@ -354,7 +380,7 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_
     oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << to_string(static_cast<DlThreadConfig_>(t)) << ","
         << to_string(static_cast<DlThreadCluster_>(t)) << ","
-        << to_string(static_cast<DlTransfer_>(t));
+        << to_string(static_cast<DlTransfer_<4>>(t));
     return oss.str();
 }
 
@@ -403,7 +429,7 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl>(
     oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << to_string(static_cast<DlThreadConfig_>(t)) << ","
         << to_string(static_cast<DlThreadCluster_>(t)) << ","
-        << to_string(static_cast<DlTransfer_>(t));
+        << to_string(static_cast<DlTransfer_<5>>(t));
     return oss.str();
 }
 
