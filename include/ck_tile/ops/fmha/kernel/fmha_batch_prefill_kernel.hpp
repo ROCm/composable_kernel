@@ -842,10 +842,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             if constexpr(kKVMemoryLayout ==
                          BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
             {
-                // New K Layout: [NumPages, D/kVectorSize, S, kVectorSize]
+                // Vectorized K Layout: [NumPages, D/kVectorSize, S, kVectorSize]
                 // Logical View for Pipeline: (TotalSeqK, D)
 
-                // 1. Define the naive physical view with 4D shape: (NumPages, HeadDim/kVectorSize,
+                // Define the naive physical view with 4D shape: (NumPages, HeadDim/kVectorSize,
                 // PageBlockSize, kVectorSize)
                 //    Strides: (BatchStride, PageBlockSize*kVectorSize, kVectorSize, 1)
                 const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -859,32 +859,16 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     number<FmhaPipeline::kAlignmentK>{},
                     number<1>{});
 
-                // 2. Transform to logical (Page, S, D) view
-                //    Permute physical (Page, D/kVectorSize, S, kVectorSize) -> logical (Page, S, D)
-                //    where logical D is merged from physical D/kVectorSize and kVectorSize
-                auto k_dram_transformed = transform_tensor_view(
-                    k_dram_naive,
-                    make_tuple(
-                        make_pass_through_transform(kargs.num_total_pages), // Logical Dim 0: Page
-                        make_pass_through_transform(kargs.page_block_size), // Logical Dim 1: S
-                        make_merge_transform(
-                            make_tuple(static_cast<int32_t>(kargs.hdim_q / kVectorSize),
-                                       static_cast<int32_t>(kVectorSize)))), // Logical Dim 2: D
-                    make_tuple(
-                        sequence<0>{},
-                        sequence<2>{},
-                        sequence<1, 3>{}), // Map: Phys 0->Log 0, Phys 2->Log 1, Phys 1,3->Log 2
-                    make_tuple(
-                        sequence<0>{}, sequence<1>{}, sequence<2>{})); // Output: (Page, S, D)
-
-                // 3. Merge Page and S to TotalSeqK
-                //    (Page, S, D) -> (TotalSeqK, D)
+                // Merge to (TotalSeqK, D) in a single transform:
+                // physical (Page, D/vec, S, vec) -> logical (TotalSeqK, D)
                 auto k_dram_2d = transform_tensor_view(
-                    k_dram_transformed,
+                    k_dram_naive,
                     make_tuple(make_merge_transform(make_tuple(kargs.num_total_pages,
                                                                kargs.page_block_size)), // TotalSeqK
-                               make_pass_through_transform(kargs.hdim_q)),              // D
-                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                               make_merge_transform(
+                                   make_tuple(static_cast<int32_t>(kargs.hdim_q / kVectorSize),
+                                              static_cast<int32_t>(kVectorSize)))), // D
+                    make_tuple(sequence<0, 2>{}, sequence<1, 3>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
@@ -904,6 +888,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     number<FmhaPipeline::kAlignmentK>{},
                     number<1>{});
 
+                // Merge to (TotalSeqK, D) in a single transform:
+                // physical (Page, S, D) -> logical (TotalSeqK, D)
                 auto k_dram_2d = transform_tensor_view(
                     k_dram_naive,
                     make_tuple(make_merge_transform(
@@ -923,10 +909,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             if constexpr(kKVMemoryLayout ==
                          BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
             {
-                // New V Layout: [NumPages, S/kVectorSize, D, kVectorSize]
+                // Vectorized V Layout: [NumPages, S/kVectorSize, D, kVectorSize]
                 // Logical View for Pipeline: (D, TotalSeqK) - Transposed for GEMM
 
-                // 1. Define the naive physical view with 4D shape: (NumPages,
+                // Define the naive physical view with 4D shape: (NumPages,
                 // PageBlockSize/kVectorSize, HeadDim, kVectorSize)
                 //    Strides: (BatchStride, HeadDim*kVectorSize, kVectorSize, 1)
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -939,35 +925,15 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
-                // 2. Permute to bring all sequence-related dims together
-                //    (Page, S/kVectorSize, D, kVectorSize) -> (D, Page, S/kVectorSize, kVectorSize)
-                auto v_dram_permuted = transform_tensor_view(
-                    v_dram_naive,
-                    make_tuple(
-                        make_pass_through_transform(kargs.hdim_v),          // Logical 0: D
-                        make_pass_through_transform(kargs.num_total_pages), // Logical 1: Page
-                        make_pass_through_transform(kargs.page_block_size /
-                                                    kVectorSize),  // Logical 2: S/kVectorSize
-                        make_pass_through_transform(kVectorSize)), // Logical 3: kVectorSize
-                    make_tuple(sequence<2>{},
-                               sequence<0>{},
-                               sequence<1>{},
-                               sequence<3>{}), // Map: Phys 2->Log 0, Phys 0->Log 1...
-                    make_tuple(sequence<0>{},
-                               sequence<1>{},
-                               sequence<2>{},
-                               sequence<3>{})); // Output: (D, Page, S/8, 8)
-
-                // 3. Merge all sequence dims to TotalSeqK
-                //    (D, Page, S/kVectorSize, kVectorSize) -> (D, TotalSeqK)
+                // Merge to (D, TotalSeqK) in a single transform:
+                // physical (Page, S/vec, D, vec) -> logical (D, TotalSeqK)
                 auto v_dram_final = transform_tensor_view(
-                    v_dram_permuted,
-                    make_tuple(
-                        make_pass_through_transform(kargs.hdim_v), // Logical 0: D
-                        make_merge_transform(make_tuple(kargs.num_total_pages,
-                                                        kargs.page_block_size / kVectorSize,
-                                                        kVectorSize))), // Logical 1: TotalSeqK
-                    make_tuple(sequence<0>{}, sequence<1, 2, 3>{}),
+                    v_dram_naive,
+                    make_tuple(make_pass_through_transform(kargs.hdim_v), // D
+                               make_merge_transform(make_tuple(kargs.num_total_pages,
+                                                               kargs.page_block_size / kVectorSize,
+                                                               kVectorSize))), // TotalSeqK
+                    make_tuple(sequence<2>{}, sequence<0, 1, 3>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
@@ -987,20 +953,14 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
-                auto v_dram_permuted = transform_tensor_view(
-                    v_dram_naive,
-                    make_tuple(make_pass_through_transform(kargs.hdim_v),
-                               make_pass_through_transform(kargs.num_total_pages),
-                               make_pass_through_transform(kargs.page_block_size)),
-                    make_tuple(sequence<2>{}, sequence<0>{}, sequence<1>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
-
+                // Merge to (D, TotalSeqK) in a single transform:
+                // physical (Page, S, D) -> logical (D, TotalSeqK)
                 auto v_dram_final = transform_tensor_view(
-                    v_dram_permuted,
+                    v_dram_naive,
                     make_tuple(make_pass_through_transform(kargs.hdim_v),
                                make_merge_transform(
                                    make_tuple(kargs.num_total_pages, kargs.page_block_size))),
-                    make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                    make_tuple(sequence<2>{}, sequence<0, 1>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;

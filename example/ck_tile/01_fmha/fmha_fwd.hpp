@@ -1357,6 +1357,7 @@ struct fmha_fwd_batch_prefill_traits_ : public fmha_fwd_traits_<HDim_,
     static constexpr auto kKVMemoryLayout            = kKVMemoryLayout_;
     static constexpr auto kKVLookupTable             = kKVLookupTable_;
     static constexpr ck_tile::index_t kPageBlockSize = kPageBlockSize_;
+    static_assert(kIsVLayoutRowMajor_, "Batch prefill only supports row-major V layout");
 };
 
 template <typename Traits_, typename Arch = void>
