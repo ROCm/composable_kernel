@@ -190,10 +190,10 @@ struct F16xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         return make_static_tile_distribution(
             tile_distribution_encoding<
-                sequence<WaveRepeat>,                                 // ?
-                tuple<sequence<NWavePerBlk, N_Pack>,                  // second
+                sequence<WaveRepeat>,                                 // ? // 1
+                tuple<sequence<NWavePerBlk, N_Pack>,                  // second // 4, 2
                                                                       // direction
-                      sequence<KWavePerBlk, KThdPerWave, KBPerLoad>>, // first  direction
+                      sequence<KWavePerBlk, KThdPerWave, KBPerLoad>>, // first  direction // 1, 32, 32
                 // wave in blk,     // thd in wave
                 // <M, K>           // <M, K>
                 tuple<sequence<0, 1, 2>, sequence<2>>, // which direction
@@ -855,6 +855,10 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t num_access_v = 1;
         constexpr int K1               = K_Thread / num_access_v; // 16
 
+        // printf("debug tile distribution = %d %d\n", num_access_v, K1);
+        if (blockIdx.x == 0 && threadIdx.x == 0)
+            printf("%s:%d num_access_v = %d %d %d\n", __FILE__, __LINE__, num_access_v, K_Lane, K1, M_warps, N_warps);
+
         return make_static_tile_distribution(
             std::conditional_t<
                 num_access_v == 1,
@@ -891,16 +895,19 @@ struct F8xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr index_t NWavePerBlk = TileShape::BlockWarps::at(number<1>{}); // N_Warp
 
-        constexpr index_t WaveRepeat   = WaveNum / TileShape::flatNPerWarp;
+        constexpr index_t WaveRepeat   = WaveNum / TileShape::flatNPerWarp; // 1
         constexpr index_t kKPerThread  = 32;
         constexpr index_t num_access_v = static_cast<index_t>(wg_attr_num_access<Problem>);
         constexpr index_t K2           = kKPerThread / num_access_v;
+
+        if (blockIdx.x == 0 && threadIdx.x == 0)
+            printf("debug B tile distribution = %d %d %d\n", num_access_v, K0, K2);
 
         return make_static_tile_distribution(
             std::conditional_t< //
                 num_access_v == 1,
                 tile_distribution_encoding< //
-                    sequence<WaveRepeat>,
+                    sequence<WaveRepeat>, // 1
                     tuple<sequence<NWavePerBlk, NXdlPack>, // 4 2
                           sequence<K0, K1, K2>>,           // 1 64 32
                     tuple<sequence<0, 1, 2>, sequence<2>>,

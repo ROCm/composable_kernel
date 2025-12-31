@@ -13,7 +13,7 @@
 // GEMM config with 16x16 warp tile for FP4×FP4 MoE
 struct A4W4_FlatmmConfig16
 {
-    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t M_Tile = 32;
     static constexpr ck_tile::index_t N_Tile = 256;
     static constexpr ck_tile::index_t K_Tile = 256;
 

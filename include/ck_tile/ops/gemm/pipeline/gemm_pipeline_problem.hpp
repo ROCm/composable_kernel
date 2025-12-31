@@ -376,6 +376,7 @@ struct FlatmmPipelineProblem
         }
         else
         {
+            // return PackedSize * VectorLoadSize / sizeof(ADataType);
             return VectorLoadSize / sizeof(ADataType);
         }
     }

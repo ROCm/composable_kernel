@@ -27,6 +27,9 @@ if(has_supported_gpu)
     add_executable(tile_example_grouped_flatmm grouped_flatmm.cpp)
     target_compile_options(tile_example_grouped_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
 
+        
+        add_executable(tile_example_a4w4_moe_flatmm mixed_prec/a4w4_moe_flatmm.cpp)
+        target_compile_options(tile_example_a4w4_moe_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
     if (GPU_TARGETS MATCHES "gfx95")
         add_executable(tile_example_mixed_prec_flatmm mixed_prec/mixed_prec_flatmm.cpp)
         target_compile_options(tile_example_mixed_prec_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
@@ -37,8 +40,8 @@ if(has_supported_gpu)
         add_executable(tile_example_a8w4_moe_flatmm mixed_prec/a8w4_moe_flatmm.cpp)
         target_compile_options(tile_example_a8w4_moe_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
         
-        add_executable(tile_example_a4w4_moe_flatmm mixed_prec/a4w4_moe_flatmm.cpp)
-        target_compile_options(tile_example_a4w4_moe_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
+        # add_executable(tile_example_a4w4_moe_flatmm mixed_prec/a4w4_moe_flatmm.cpp)
+        # target_compile_options(tile_example_a4w4_moe_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
 
         include(mxgemm/mx_flatmm_instance.cmake)
         mx_flatmm_instance_generate(EXAMPLE_MX_FLATMM_FILES)

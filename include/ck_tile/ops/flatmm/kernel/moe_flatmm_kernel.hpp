@@ -922,6 +922,8 @@ struct MoeFlatmmKernel
                                           ? gather_token_id * kargs.stride_A
                                           : gather_token_id;
 	    // printf("lane, %d a_offset%d \n", threadIdx.x, a_offsets[m0]);
+            printf("%s:%d row_idx = %ld, gather_token_id=%ld, a_offset=%ld\n", __FILE__, __LINE__,
+                   row_idx, gather_token_id, a_offsets[m0]);
         });
 
         const SplitKBatchOffset splitk_batch_offset(kargs);

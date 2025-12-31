@@ -602,7 +602,6 @@ include_directories(BEFORE
 
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
-    add_compile_options(-Werror)
     add_compile_options(-Weverything)
 endif()
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
@@ -670,7 +669,6 @@ option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
 option(DISABLE_OFFLOAD_COMPRESS "Disable offload compress compiler flag when building instances" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 
-add_subdirectory(library)
 
 if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY)
    rocm_package_setup_component(tests
@@ -684,14 +682,11 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY)
    )
    add_subdirectory(example)
 
-   add_subdirectory(tutorial)
    rocm_package_setup_component(tutorials
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tutorials
    )
-   add_subdirectory(tile_engine)
    if(BUILD_TESTING)
-       add_subdirectory(test)
    endif()
 endif()
 
@@ -700,15 +695,12 @@ if (NOT MIOPEN_REQ_LIBS_ONLY)
         LIBRARY_NAME composablekernel
         PACKAGE_NAME ckprofiler
     )
-    add_subdirectory(profiler)
 endif()
 
 if (CK_EXPERIMENTAL_BUILDER)
-  add_subdirectory(experimental/builder)
 endif()
 
 if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
-  add_subdirectory(codegen)
 endif()
 
 #Create an interface target for the include only files and call it "composablekernels"

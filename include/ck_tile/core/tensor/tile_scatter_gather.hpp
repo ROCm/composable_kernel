@@ -410,7 +410,6 @@ struct tile_scatter_gather
                     constexpr index_t d =
                         tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
                         Traits::PackedSize;
-
                     dst_tensor.get_thread_buffer().template at<d>() =
                         vec_value.template get_as<DataType>()[j / Traits::PackedSize];
                 });
@@ -440,6 +439,10 @@ struct tile_scatter_gather
                 }
             });
         });
+        /*
+        for (auto i = 0; i < dst_tensor.get_thread_buffer().size(); ++i)
+            printf("gather info %s:%d %d %d %d %f\n", __FILE__, __LINE__, blockIdx.x, threadIdx.x, i, type_convert<float>(dst_tensor.get_thread_buffer()[i]));
+        */
     }
 
     template <typename LdsTileWindow_,

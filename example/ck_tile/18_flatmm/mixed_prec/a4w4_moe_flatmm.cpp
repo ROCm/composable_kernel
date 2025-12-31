@@ -99,6 +99,9 @@ float a4w4_moe_flatmm(const MoeFlatmmHostArgs& args, const ck_tile::stream_confi
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+    std::cerr << "k_grain: " << k_grain << ", K_split: " << K_split
+              << ", num_loop: " << num_loop << ", has_hot_loop: " << has_hot_loop
+              << ", tail_num: " << static_cast<int>(tail_num) << std::endl;
     float ave_time{0};
 
     const auto Run = [&](const auto has_hot_loop_,
@@ -123,7 +126,7 @@ float a4w4_moe_flatmm(const MoeFlatmmHostArgs& args, const ck_tile::stream_confi
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
-                                             CDataType,
+                                             DsDatatype,
                                              AccDataType,
                                              CDataType,
                                              DsLayout,
@@ -275,8 +278,8 @@ void shuffle_mxfp4_weight(const IterSrc src, IterDst dst, int experts_cnt, int N
     }
 }
 
-template <typename FlatmmConfig, ck_tile::MoeFlatmmKind moe_kind, bool KLast,Ltypename T>
-auto shuffle_mxfp4_scale(const ck_tile::HostTensor<T>& scale, int experts_cnt)
+template <typename FlatmmConfig, ck_tile::MoeFlatmmKind moe_kind, bool KLast, typename T>
+auto shuffle_mxfp4_scale(const ck_tile::HostTensor<T>& scale, int experts_cnt, bool is_activation = false)
 {
     assert(scale.get_lengths().size() == 2);
     int n_ = scale.get_lengths()[1];
@@ -308,6 +311,19 @@ auto shuffle_mxfp4_scale(const ck_tile::HostTensor<T>& scale, int experts_cnt)
         std::copy(scale.begin(), scale.end(), shfl_scale.begin());
         return ck_tile::reference_permute(shfl_scale, {0, 5, 1, 3, 6, 2, 4});
     }
+    else if (is_activation)
+    {
+        ck_tile::HostTensor<T> shfl_scale({
+            n_ / FlatmmConfig::N_Warp_Tile / N_Pack,
+            N_Pack,
+            FlatmmConfig::N_Warp_Tile,
+            k_per_expert / K_Pack / K_Lane,
+            K_Pack,
+            K_Lane,
+        });
+        std::copy(scale.begin(), scale.end(), shfl_scale.begin());
+        return ck_tile::reference_permute(shfl_scale, {0, 3, 5, 2, 4, 1});
+    }
     else
     {
         ck_tile::HostTensor<T> shfl_scale({
@@ -324,7 +340,7 @@ auto shuffle_mxfp4_scale(const ck_tile::HostTensor<T>& scale, int experts_cnt)
     }
 }
 
-#include "run_a8w4_moe_flatmm_example.inc"
+#include "run_a4w4_moe_flatmm_example.inc"
 
 template <typename FlatmmConfig>
 int run_a4w4_moe_flatmm_example(int argc, char* argv[])
@@ -402,7 +418,7 @@ int main(int argc, char* argv[])
         int warp_tile = arg_parser.get_int("warp_tile");
         if(warp_tile == 0)
         {
-            return !run_mx_moe_flatmm_example<A4W4_FlatmmConfig16>(argc, argv);
+            return !run_a4w4_moe_flatmm_example<A4W4_FlatmmConfig16>(argc, argv);
         }
         else
         {
