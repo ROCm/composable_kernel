@@ -500,6 +500,9 @@ struct fmha_batch_prefill_args
     const void* k_ptr;
     const void* v_ptr;
     const void* bias_ptr; // bias or alibi_slope pointer
+    const void* q_descale_ptr;
+    const void* k_descale_ptr;
+    const void* v_descale_ptr;
     void* rand_val_ptr;
     void* lse_ptr;
     void* o_ptr;
@@ -728,6 +731,7 @@ auto fmha_fwd_v3_create_kargs_and_grids(fmha_fwd_args args)
                                          args.nhead_q,
                                          args.nhead_q / args.nhead_k,
                                          args.scale_s,
+                                         args.logits_soft_cap,
                                          args.stride_q,
                                          args.stride_k,
                                          args.stride_v,
@@ -758,6 +762,7 @@ auto fmha_fwd_v3_create_kargs_and_grids(fmha_fwd_args args)
                                          args.nhead_q,
                                          args.nhead_q / args.nhead_k,
                                          args.scale_s,
+                                         args.logits_soft_cap,
                                          args.stride_q,
                                          args.stride_k,
                                          args.stride_v,
@@ -1116,6 +1121,9 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.k_ptr,
                                          args.v_ptr,
                                          args.bias_ptr,
+                                         args.q_descale_ptr,
+                                         args.k_descale_ptr,
+                                         args.v_descale_ptr,
                                          args.rand_val_ptr,
                                          args.lse_ptr,
                                          args.o_ptr,
@@ -1164,6 +1172,9 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.k_ptr,
                                          args.v_ptr,
                                          args.bias_ptr,
+                                         args.q_descale_ptr,
+                                         args.k_descale_ptr,
+                                         args.v_descale_ptr,
                                          args.rand_val_ptr,
                                          args.lse_ptr,
                                          args.o_ptr,

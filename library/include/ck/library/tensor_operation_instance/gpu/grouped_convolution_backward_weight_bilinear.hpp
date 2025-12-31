@@ -34,16 +34,16 @@ void add_device_grouped_conv3d_bwd_weight_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_f16
                                                                     PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_BF16
-void add_device_grouped_conv3d_bwd_weight_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
+void add_device_grouped_conv3d_bwd_weight_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_bf16_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<3,
                                                                     NDHWGC,
                                                                     GKZYXC,
                                                                     NDHWGK,
                                                                     Tuple<GKZYXC>,
                                                                     BF16,
-                                                                    F32,
                                                                     BF16,
-                                                                    Tuple<F32>,
+                                                                    BF16,
+                                                                    Tuple<BF16>,
                                                                     PassThrough,
                                                                     Bilinear,
                                                                     PassThrough>>>& instances);
@@ -197,12 +197,13 @@ struct DeviceOperationInstanceFactory<
                 }
 #endif
 #ifdef CK_ENABLE_BF16
-                if constexpr(is_same_v<InDataType, ck::bhalf_t> && is_same_v<WeiDataType, float> &&
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                             is_same_v<WeiDataType, ck::bhalf_t> &&
                              is_same_v<OutDataType, ck::bhalf_t> &&
                              is_same_v<ComputeTypeA, ck::bhalf_t> &&
                              is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
-                    add_device_grouped_conv3d_bwd_weight_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
+                    add_device_grouped_conv3d_bwd_weight_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_bf16_bf16_instances(
                         op_ptrs);
                 }
 #endif

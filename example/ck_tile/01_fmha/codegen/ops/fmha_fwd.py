@@ -211,11 +211,10 @@ float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream
     const bool can_dispatch_v3 =
         (device_name.compare(0, 6, "gfx950") == 0) and
         (traits.data_type.compare("fp16") == 0 or traits.data_type.compare("bf16") == 0) and
-        traits.is_v_rowmajor and (not traits.has_logits_soft_cap) and
-        (traits.bias_type == bias_enum::no_bias) and (not traits.has_lse) and
-        (not traits.has_dropout) and (traits.qscale_type == quant_scale_enum::no_scale) and
-        (not is_swa) and (args.nhead_q % args.nhead_k == 0) and (args.hdim_q == 128) and
-        (args.hdim_v == 128);
+        traits.is_v_rowmajor and (traits.bias_type == bias_enum::no_bias) and
+        (not traits.has_lse) and (not traits.has_dropout) and
+        (traits.qscale_type == quant_scale_enum::no_scale) and (not is_swa) and
+        (args.nhead_q % args.nhead_k == 0) and (args.hdim_q == 128) and (args.hdim_v == 128);
     if ({F_is_v3_enabled} and can_dispatch_v3) {{
         return fmha_fwd_v3(traits, args, config);
     }} else {{
@@ -1018,7 +1017,7 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
         elif dtype in cls._DT_FP8BF16 or dtype in cls._DT_FP8FP32:
             # no need lse/dropout kernels
             for logits, qscale, mask, bias, sink in itertools.product(
-                ["f"],
+                ["t", "f"],
                 ["no", "pertensor"],
                 get_mask_map(mask_impl).keys(),
                 ["no"],
@@ -1082,9 +1081,9 @@ class KernelComponentFactoryGfx950(
             # qr_async_trload_v3 only supports hdim=hdim_v=128 for now
             if (hdim, hdim_v) == (128, 128):
                 # qr_async_trload_v3 only supports (generic) causal mask
-                for mask in ["no", "causal"]:
+                for logits, mask in itertools.product(["t", "f"], ["no", "causal"]):
                     pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "f", "f",
-                        F_logits="f", F_bias="no", F_lse="f", F_dropout="f", F_qscale=qscale, F_mask=mask, F_skip="f", F_trload="t", F_sink="f"))  # fmt: skip
+                        F_logits=logits, F_bias="no", F_lse="f", F_dropout="f", F_qscale=qscale, F_mask=mask, F_skip="f", F_trload="t", F_sink="f"))  # fmt: skip
 
         return pipelines
 

@@ -8,7 +8,9 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for explicit GEMM in CK_TILE grouped convolution forward and backward weight.
 * Added TF32 convolution support on gfx942 and gfx950 in CK. It could be enabled/disabled via `DTYPES` of "tf32".
 * Added attention sink support for FMHA FWD, include qr_ks_vs, qr_async and splitkv pipelines.
-* Added support for microscaling (MX) FP8/FP4 mixed data types to Flatmm pipeline
+* Added support for microscaling (MX) FP8/FP4 mixed data types to Flatmm pipeline.
+* Added support for fp8 dynamic tensor-wise quantization of fp8 fmha fwd kernel.
+* Added FP8 KV cache support for FMHA batch prefill.
 
 ### Changed
 
@@ -17,7 +19,6 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## Composable Kernel 1.2.0 for ROCm 7.2.0
 
 ### Added
-* Added support for fp8 dynamic tensor-wise quantization of fp8 fmha fwd kernel.
 * Added support for bf16 data type to grouped_gemm and grouped_gemm_preshuffle.
 * Added Col-Col-Row-Col layout support for aquant mode in blockscale GEMM.
 * Added support for mixed precision fp8 x bf8 universal GEMM and weight preshuffle GEMM.
@@ -88,6 +89,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added Ping-pong scheduler support for GEMM operation along the K dimension.
 * Added rotating buffer feature for CK_Tile GEMM.
 * Added int8 support for CK_TILE GEMM.
+* Added CK Tile Epilogue Chainer framework for composable epilogue sequences in GEMM operations
 
 ### Optimized
 

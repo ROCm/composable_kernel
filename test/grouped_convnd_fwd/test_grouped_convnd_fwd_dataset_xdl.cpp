@@ -77,7 +77,7 @@ bool RunConvTest(const ck::utils::conv::ConvParam& param)
                                                        DataType,
                                                        DataType,
                                                        DataType,
-                                                       IndexType>(true,  // do_verification
+                                                       IndexType>(2,     // do_verification
                                                                   1,     // init_method
                                                                   false, // do_log
                                                                   false, // time_kernel
