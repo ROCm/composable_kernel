@@ -809,6 +809,11 @@ class CompatibilityRuleFactory:
                     False
             return True
 
+        all_mask_keys = list(get_mask_map("simplified").keys()) + list(
+            get_mask_map("generic").keys()
+        )
+        no_mask_keys = [mask_key for mask_key in all_mask_keys if "no" in mask_key]
+
         def check_feature(
             problem_ctx: ProblemContext, kernel_ctx: KernelContext
         ) -> bool:
@@ -819,6 +824,12 @@ class CompatibilityRuleFactory:
                     and kernel_ctx.pipeline.F_bias == "no"
                 )
                 or kernel_ctx.pipeline.F_logits == "f"
+            ):
+                return False
+            # sink_size is only meaningful when no masking is applied
+            if (
+                kernel_ctx.pipeline.F_mask in no_mask_keys
+                and kernel_ctx.pipeline.F_sink == "t"
             ):
                 return False
             return True
