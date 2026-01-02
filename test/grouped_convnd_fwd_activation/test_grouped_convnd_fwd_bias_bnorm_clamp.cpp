@@ -39,7 +39,7 @@ class TestGroupedConvndFwd : public ::testing::Test
                 continue;
             }
             auto& param = conv_params[i];
-            pass = pass && ck::profiler::profile_grouped_conv_fwd_bias_clamp_impl<NDimSpatial,
+            pass = pass && ck::profiler::profile_grouped_conv_fwd_bias_bnorm_clamp_impl<NDimSpatial,
                                                                                   InLayout,
                                                                                   WeiLayout,
                                                                                   OutLayout,
