@@ -45,6 +45,11 @@ cmake                                                                           
   ..
 ```
 
+Note: When compiling e.g. for the `gfx942` architecture, the WMMA builders are not automatically included in the tests 
+since `gfx9` architectures do not support WMMA. Hence, to compile also the WMMA builders, add e.g. 
+`gfx1121` to the list of supported architectures or add flag `-D CK_USE_WMMA=ON`. One still needs 
+a Navi card to execute the Builder tests that use the GPU.
+
 ## Building and Testing
 
 The builder test suite is organized into two main categories:
