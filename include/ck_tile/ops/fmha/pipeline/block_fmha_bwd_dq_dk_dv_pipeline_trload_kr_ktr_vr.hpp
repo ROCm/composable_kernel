@@ -530,7 +530,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 s_acc = gemm_0(q_reg_tensor, k_reg_tensor);
 
                 dot_lds_read_window.set_bottom_tensor_view_data_ptr(do_lds_ptr_curr);
-                dot_reg_tensor = load_tile_transpose(dot_lds_read_window);
+                load_tile_transpose(dot_reg_tensor, dot_lds_read_window);
             }
             if constexpr(is_epilogue)
             {
@@ -634,7 +634,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 dp_acc = gemm_2(do_reg_tensor, v_reg_tensor);
 
                 qt_lds_read_window.set_bottom_tensor_view_data_ptr(q_lds_ptr_curr);
-                qt_reg_tensor = load_tile_transpose(qt_lds_read_window);
+                load_tile_transpose(qt_reg_tensor, qt_lds_read_window);
 
                 // STAGE 3, P^T@OGrad^T Gemm1
                 auto pt_reg_tensor = make_static_distributed_tensor<GemmDataType>(
@@ -715,7 +715,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
             }
             if constexpr(is_epilogue)
             {
-                ds_reg_tensor = load_tile_transpose(ds_lds_read_window);
+                load_tile_transpose(ds_reg_tensor, ds_lds_read_window);
                 move_tile_window(ds_lds_read_window, {kK4, 0});
             }
             if constexpr(is_main_body)
@@ -728,7 +728,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 static_for<0, k4_loops, 1>{}([&](auto i_k4) {
                     if constexpr(i_k4 < k4_loops - 1)
                     {
-                        ds_reg_tensor_next = load_tile_transpose(ds_lds_read_window);
+                        load_tile_transpose(ds_reg_tensor_next, ds_lds_read_window);
                         move_tile_window(ds_lds_read_window, {kK4, 0});
                     }
                     auto kt_reg_tensor_slice = get_slice_tile( //

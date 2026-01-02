@@ -107,7 +107,7 @@ struct GemmPipelineAgBgCrImplBase
                                       bool_constant<LoadTranspose> = {}) const
     {
         if constexpr(LoadTranspose)
-            dst_block_tile = load_tile_transpose(lds_tile_window);
+            load_tile_transpose(dst_block_tile, lds_tile_window);
         else
             load_tile(dst_block_tile, lds_tile_window);
     }

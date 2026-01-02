@@ -39,7 +39,7 @@ CK_TILE_DEVICE void load_and_convert_tile(WarpTile& dst, const WarpWindow& src)
     }
     else if constexpr(LoadTranspose)
     {
-        dst = load_tile_transpose(src);
+        load_tile_transpose(dst, src);
     }
     else
     {

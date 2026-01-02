@@ -455,10 +455,10 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
         async_load_tile(q_lds_write_window, q_dram_window);
         async_load_tile(do_lds_write_window, do_dram_window);
         __builtin_amdgcn_s_waitcnt(0);
-        qt_reg_tensor  = load_tile_transpose(qt_lds_read_window);
-        q_reg_tensor   = load_tile(q_lds_read_window);
-        dot_reg_tensor = load_tile_transpose(dot_lds_read_window);
-        do_reg_tensor  = load_tile(do_lds_read_window);
+        load_tile_transpose(qt_reg_tensor, qt_lds_read_window);
+        q_reg_tensor = load_tile(q_lds_read_window);
+        load_tile_transpose(dot_reg_tensor, dot_lds_read_window);
+        do_reg_tensor = load_tile(do_lds_read_window);
 
         lse_block_tile = load_tile(lse_dram_window);
         d_block_tile   = load_tile(d_dram_window);
@@ -490,9 +490,9 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                 async_load_tile(v_lds_write_window, v_dram_window);
                 move_tile_window(v_dram_window, {kN0, 0});
                 s_waitcnt</*vmcnt=*/0>();
-                k_reg_tensor  = load_tile(k_lds_read_window);
-                v_reg_tensor  = load_tile(v_lds_read_window);
-                kt_reg_tensor = load_tile_transpose(kt_lds_read_window);
+                k_reg_tensor = load_tile(k_lds_read_window);
+                v_reg_tensor = load_tile(v_lds_read_window);
+                load_tile_transpose(kt_reg_tensor, kt_lds_read_window);
             }
             if constexpr(is_epilogue)
             {
@@ -668,7 +668,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
             block_sync_lds();
             if constexpr(is_epilogue)
             {
-                ds_reg_tensor = load_tile_transpose(ds_lds_read_window);
+                load_tile_transpose(ds_reg_tensor, ds_lds_read_window);
                 move_tile_window(ds_lds_read_window, {kK4, 0});
             }
             if constexpr(is_main_body)
@@ -680,7 +680,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                 static_for<0, k4_loops, 1>{}([&](auto i_k4) {
                     if constexpr(i_k4 < k4_loops - 1)
                     {
-                        ds_reg_tensor_next = load_tile_transpose(ds_lds_read_window);
+                        load_tile_transpose(ds_reg_tensor_next, ds_lds_read_window);
                         move_tile_window(ds_lds_read_window, {kK4, 0});
                     }
                     auto kt_reg_tensor_slice = get_slice_tile( //
