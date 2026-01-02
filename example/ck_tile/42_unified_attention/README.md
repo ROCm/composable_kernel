@@ -13,6 +13,7 @@ make tile_example_unified_attention -j
 This will result in an executable `build/bin/tile_example_unified_attention`
 
 ## kernel
+
 The kernel template is `unified_attention.hpp`, this is the grid-wise op in old ck_tile's terminology. We put it here purposely, to demonstrate one can construct a kernel by using various internal component from ck_tile. We may still have an implementation under ck_tile's include path (in the future) for the kernel template.
 
 There are 2 template parameters for this kernel template.
