@@ -517,7 +517,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                       "wrong!");
 
         // constexpr auto MIter_2nd_last = max(0, MIterPerWarp - 2);
-        static_assert(NWarp == 4);
+        static_assert(MWarp == 1);
 
         using CWarpTensor = typename WG::CWarpTensor;
 
