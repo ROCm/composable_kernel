@@ -119,13 +119,29 @@ add_ck_builder_test(test_ckb_conv_builder
 #   - Group convolution (v3, standard, large tensor, WMMA, DL variants)
 #   - Backward weight group convolution (XDL)
 # Requires kernel compilation to validate the generated strings through the base class.
-add_ck_builder_test(test_ckb_instance_string
+
+set(INSTANCE_STRING_TESTS
     test_instance_string_fwd_grp_conv_v3.cpp
     test_instance_string_fwd_grp_conv.cpp
     test_instance_string_fwd_grp_conv_large_tensor.cpp
     test_instance_string_fwd_grp_conv_wmma.cpp
     test_instance_string_fwd_grp_conv_dl.cpp
-    test_instance_string_bwd_weight_grp_conv_xdl.cpp)
+    test_instance_string_bwd_weight_grp_conv_xdl.cpp
+    test_instance_string_bwd_weight_grp_conv_dl.cpp
+    test_instance_string_bwd_weight_grp_conv_multiple_d_xdl.cpp
+    test_instance_string_bwd_weight_grp_conv_two_stage_xdl.cpp
+    test_instance_string_bwd_weight_grp_conv_xdl_v3.cpp
+)
+
+if (CK_USE_WMMA)
+    list(APPEND INSTANCE_STRING_TESTS
+        test_instance_string_bwd_weight_grp_conv_wmma_v3.cpp
+        test_instance_string_bwd_weight_grp_conv_multiple_d_wmma_v3.cpp
+        test_instance_string_bwd_weight_grp_conv_two_stage_wmma_v3.cpp
+    )
+endif()
+
+add_ck_builder_test(test_ckb_instance_string ${INSTANCE_STRING_TESTS})
 
 # Tests the forward convolution builder across multiple data types and dimensions.
 # Individual tests are split into separate files to enable parallel compilation.
