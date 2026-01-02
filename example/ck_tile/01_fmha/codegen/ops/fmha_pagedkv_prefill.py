@@ -642,6 +642,11 @@ def get_fwd_blobs(
 
     factories = get_factories_for_targets(targets, get_factory)
 
+    all_mask_keys = list(get_mask_map("simplified").keys()) + list(
+        get_mask_map("generic").keys()
+    )
+    no_mask_keys = [mask_key for mask_key in all_mask_keys if "no" in mask_key]
+
     for factory, dtype in itertools.product(factories, FWD_DTYPE_MAP.keys()):
         d = factory.get_hdim_tile_size_dict(dtype)
         if d is None:
@@ -666,6 +671,10 @@ def get_fwd_blobs(
                     or pipeline.F_logits == "f"
                 ):
                     continue
+                # sink_size is only meaningful when no masking is applied
+                if pipeline.F_mask in no_mask_keys and pipeline.F_sink == "t":
+                    continue
+
                 k = FmhaFwdKernel(
                     F_arch=factory.arch,
                     F_idx=0,
