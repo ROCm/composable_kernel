@@ -1136,7 +1136,8 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
         else
         {
             return PageTableKargs{reinterpret_cast<const int32_t*>(args.kv_page_indices),
-                                  args.batch_stride_block_table};
+                                  args.batch_stride_block_table,
+                                  reinterpret_cast<const int32_t*>(args.seqlen_k_ptr)};
         }
     }();
     auto kargs = [&] {
@@ -1161,7 +1162,6 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.num_total_pages,
                                          args.page_block_size,
                                          page_table,
-                                         args.seqlen_k_ptr,
                                          args.scale_s,
                                          args.scale_p,
                                          args.scale_o,
@@ -1209,7 +1209,6 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.num_total_pages,
                                          args.page_block_size,
                                          page_table,
-                                         args.seqlen_k_ptr,
                                          args.scale_s,
                                          args.scale_p,
                                          args.scale_o,

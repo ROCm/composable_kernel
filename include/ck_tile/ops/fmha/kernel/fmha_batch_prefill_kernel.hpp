@@ -86,6 +86,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
     {
         const int32_t* block_table_ptr;
         ck_tile::index_t batch_stride_block_table;
+        const int32_t* seqlen_k_ptr;
     };
 
     using PageBlockTableKargs =
@@ -114,7 +115,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         int32_t num_total_pages;
         ck_tile::index_t page_block_size;
         PageBlockTableKargs page_table;
-        const int32_t* seqlen_k_ptr;
 
         float scale_s;
 
@@ -315,7 +315,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               int32_t num_total_pages,
               ck_tile::index_t page_block_size,
               const PageBlockTableKargs& page_table,
-              const void* seqlen_k_ptr,
               float scale_s,
               [[maybe_unused]] float scale_p,
               [[maybe_unused]] float scale_o,
@@ -362,7 +361,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                      num_total_pages,
                      page_block_size,
                      page_table,
-                     reinterpret_cast<const int32_t*>(seqlen_k_ptr),
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
@@ -467,7 +465,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               int32_t num_total_pages,
               ck_tile::index_t page_block_size,
               const PageBlockTableKargs& page_table,
-              const void* seqlen_k_ptr,
               float scale_s,
               [[maybe_unused]] float scale_p,
               [[maybe_unused]] float scale_o,
@@ -509,7 +506,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                      num_total_pages,
                      page_block_size,
                      page_table,
-                     reinterpret_cast<const int32_t*>(seqlen_k_ptr),
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
@@ -726,8 +722,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             }
             else // BlockAttentionKVCacheLookupTableEnum::VLLM_BLOCK_TABLE_2D
             {
-                if(kargs.seqlen_k_ptr != nullptr)
-                    return static_cast<index_t>(kargs.seqlen_k_ptr[i_batch]);
+                if(kargs.page_table.seqlen_k_ptr != nullptr)
+                    return static_cast<index_t>(kargs.page_table.seqlen_k_ptr[i_batch]);
                 else
                     return kargs.seqlen_k;
             }
