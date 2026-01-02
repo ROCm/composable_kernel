@@ -7,6 +7,7 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/library/utility/device_tensor_generator.hpp"
 #include "ck/utility/data_type.hpp"
+#define _USE_MATH_DEFINES // Required for M_PI in MSVC
 #include <cmath>
 
 // use xorshift for now since it is simple. Should be suitable enough, but feel free to switch in
