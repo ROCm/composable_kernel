@@ -1230,7 +1230,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
     }
 #endif
-
 };
 
 } // namespace device

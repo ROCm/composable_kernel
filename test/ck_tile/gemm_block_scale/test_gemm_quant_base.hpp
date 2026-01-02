@@ -80,6 +80,10 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     static constexpr bool TiledMMAPermuteN        = GemmConfig::TiledMMAPermuteN;
     static constexpr bool DoubleSmemBuffer        = GemmConfig::DoubleSmemBuffer;
 
+    static constexpr bool kPadM = GemmConfig::kPadM;
+    static constexpr bool kPadN = GemmConfig::kPadN;
+    static constexpr bool kPadK = GemmConfig::kPadK;
+
     public:
     void SetUp() override { static_cast<Derived*>(this)->SetUpQuantTypeSpecific(); }
 
@@ -88,9 +92,6 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     // Common test execution logic
     void invoke_quant_gemm(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        constexpr bool kPadM = false;
-        constexpr bool kPadN = false;
-        constexpr bool kPadK = false;
         // WP pipeline requires per-thread tile size aligned to Problem::VectorLoadSize.
         // static_assert((WG::kM * WG::kK * sizeof(ADataType) * MIterPerWarp / WaveSize) %
         // VectorLoadSize == 0). gfx9 cards match the requirements but it fails on gfx12. so we only

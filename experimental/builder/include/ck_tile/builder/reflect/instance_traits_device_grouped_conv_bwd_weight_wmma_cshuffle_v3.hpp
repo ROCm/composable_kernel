@@ -174,24 +174,28 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
 
     static constexpr auto kConvBackwardWeightSpecialization = ConvBackwardWeightSpecialization;
 
-    static constexpr ck::index_t kBlockSize                                    = BlockSize;
-    static constexpr ck::index_t kMPerBlock                                    = MPerBlock;
-    static constexpr ck::index_t kNPerBlock                                    = NPerBlock;
-    static constexpr ck::index_t kKPerBlock                                    = KPerBlock;
-    static constexpr ck::index_t kABK1                                         = ABK1;
-    static constexpr ck::index_t kMPerWmma                                     = MPerWmma;
-    static constexpr ck::index_t kNPerWmma                                     = NPerWmma;
-    static constexpr ck::index_t kMRepeat                                      = MRepeat;
-    static constexpr ck::index_t kNRepeat                                      = NRepeat;
-    static constexpr ck::index_t kCShuffleMRepeatPerShuffle                    = CShuffleMRepeatPerShuffle;
-    static constexpr ck::index_t kCShuffleNRepeatPerShuffle                    = CShuffleNRepeatPerShuffle;
-    static constexpr ck::index_t kCShuffleBlockTransferScalarPerVector_NPerBlock = CShuffleBlockTransferScalarPerVector_NPerBlock;
-    static constexpr ck::index_t kMaxTransposeTransferSrcScalarPerVector       = MaxTransposeTransferSrcScalarPerVector;
-    static constexpr ck::index_t kMaxTransposeTransferDstScalarPerVector       = MaxTransposeTransferDstScalarPerVector;
+    static constexpr ck::index_t kBlockSize                 = BlockSize;
+    static constexpr ck::index_t kMPerBlock                 = MPerBlock;
+    static constexpr ck::index_t kNPerBlock                 = NPerBlock;
+    static constexpr ck::index_t kKPerBlock                 = KPerBlock;
+    static constexpr ck::index_t kABK1                      = ABK1;
+    static constexpr ck::index_t kMPerWmma                  = MPerWmma;
+    static constexpr ck::index_t kNPerWmma                  = NPerWmma;
+    static constexpr ck::index_t kMRepeat                   = MRepeat;
+    static constexpr ck::index_t kNRepeat                   = NRepeat;
+    static constexpr ck::index_t kCShuffleMRepeatPerShuffle = CShuffleMRepeatPerShuffle;
+    static constexpr ck::index_t kCShuffleNRepeatPerShuffle = CShuffleNRepeatPerShuffle;
+    static constexpr ck::index_t kCShuffleBlockTransferScalarPerVector_NPerBlock =
+        CShuffleBlockTransferScalarPerVector_NPerBlock;
+    static constexpr ck::index_t kMaxTransposeTransferSrcScalarPerVector =
+        MaxTransposeTransferSrcScalarPerVector;
+    static constexpr ck::index_t kMaxTransposeTransferDstScalarPerVector =
+        MaxTransposeTransferDstScalarPerVector;
 
-    using ABlockTransferThreadClusterLengths_AK0_M_AK1 = ABlockTransferThreadClusterLengths_AK0_M_AK1_;
-    using ABlockTransferThreadClusterArrangeOrder      = ABlockTransferThreadClusterArrangeOrder_;
-    using ABlockTransferSrcAccessOrder                 = ABlockTransferSrcAccessOrder_;
+    using ABlockTransferThreadClusterLengths_AK0_M_AK1 =
+        ABlockTransferThreadClusterLengths_AK0_M_AK1_;
+    using ABlockTransferThreadClusterArrangeOrder = ABlockTransferThreadClusterArrangeOrder_;
+    using ABlockTransferSrcAccessOrder            = ABlockTransferSrcAccessOrder_;
     static constexpr ck::index_t kABlockTransferSrcVectorDim = ABlockTransferSrcVectorDim;
     static constexpr ck::index_t kABlockTransferSrcScalarPerVector =
         ABlockTransferSrcScalarPerVector;
@@ -199,9 +203,10 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
         ABlockTransferDstScalarPerVector_AK1;
     static constexpr bool kABlockLdsAddExtraM = ABlockLdsAddExtraM;
 
-    using BBlockTransferThreadClusterLengths_BK0_N_BK1 = BBlockTransferThreadClusterLengths_BK0_N_BK1_;
-    using BBlockTransferThreadClusterArrangeOrder      = BBlockTransferThreadClusterArrangeOrder_;
-    using BBlockTransferSrcAccessOrder                 = BBlockTransferSrcAccessOrder_;
+    using BBlockTransferThreadClusterLengths_BK0_N_BK1 =
+        BBlockTransferThreadClusterLengths_BK0_N_BK1_;
+    using BBlockTransferThreadClusterArrangeOrder = BBlockTransferThreadClusterArrangeOrder_;
+    using BBlockTransferSrcAccessOrder            = BBlockTransferSrcAccessOrder_;
     static constexpr ck::index_t kBBlockTransferSrcVectorDim = BBlockTransferSrcVectorDim;
     static constexpr ck::index_t kBBlockTransferSrcScalarPerVector =
         BBlockTransferSrcScalarPerVector;
@@ -238,9 +243,11 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
         oss << ","
             << detail::elementwise_op_name<InElementwiseOperation>(); // 9. InElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10. WeiElementwiseOperation
+            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10.
+                                                                       // WeiElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11. OutElementwiseOperation
+            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11.
+                                                                       // OutElementwiseOperation
         oss << ","
             << detail::conv_bwd_weight_spec_name(
                    kConvBackwardWeightSpecialization); // 12. ConvBackwardWeightSpecialization

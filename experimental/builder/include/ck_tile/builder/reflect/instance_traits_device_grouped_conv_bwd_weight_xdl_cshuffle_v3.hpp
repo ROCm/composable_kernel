@@ -208,7 +208,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
         CBlockTransferScalarPerVector_NWaveNPerXdl;
 
     static constexpr ck::BlockGemmPipelineScheduler kBlkGemmPipeSched = BlkGemmPipeSched;
-    static constexpr ck::BlockGemmPipelineVersion kBlkGemmPipelineVer   = BlkGemmPipelineVer;
+    static constexpr ck::BlockGemmPipelineVersion kBlkGemmPipelineVer = BlkGemmPipelineVer;
 
     using ComputeTypeA = ComputeTypeA_;
     using ComputeTypeB = ComputeTypeB_;

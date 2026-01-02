@@ -168,25 +168,36 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_D
     using M1N1ThreadClusterM1Xs = M1N1ThreadClusterM1Xs_;
     using M1N1ThreadClusterN1Xs = M1N1ThreadClusterN1Xs_;
 
-    using ABlockTransferThreadSliceLengths_K0_M0_M1_K1    = ABlockTransferThreadSliceLengths_K0_M0_M1_K1_;
-    using ABlockTransferThreadClusterLengths_K0_M0_M1_K1  = ABlockTransferThreadClusterLengths_K0_M0_M1_K1_;
-    using ABlockTransferThreadClusterArrangeOrder         = ABlockTransferThreadClusterArrangeOrder_;
-    using ABlockTransferSrcAccessOrder                    = ABlockTransferSrcAccessOrder_;
-    using ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1 = ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1_;
-    using ABlockTransferSrcVectorTensorContiguousDimOrder  = ABlockTransferSrcVectorTensorContiguousDimOrder_;
-    using ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1 = ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1_;
+    using ABlockTransferThreadSliceLengths_K0_M0_M1_K1 =
+        ABlockTransferThreadSliceLengths_K0_M0_M1_K1_;
+    using ABlockTransferThreadClusterLengths_K0_M0_M1_K1 =
+        ABlockTransferThreadClusterLengths_K0_M0_M1_K1_;
+    using ABlockTransferThreadClusterArrangeOrder = ABlockTransferThreadClusterArrangeOrder_;
+    using ABlockTransferSrcAccessOrder            = ABlockTransferSrcAccessOrder_;
+    using ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1 =
+        ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1_;
+    using ABlockTransferSrcVectorTensorContiguousDimOrder =
+        ABlockTransferSrcVectorTensorContiguousDimOrder_;
+    using ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1 =
+        ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1_;
 
-    using BBlockTransferThreadSliceLengths_K0_N0_N1_K1    = BBlockTransferThreadSliceLengths_K0_N0_N1_K1_;
-    using BBlockTransferThreadClusterLengths_K0_N0_N1_K1  = BBlockTransferThreadClusterLengths_K0_N0_N1_K1_;
-    using BBlockTransferThreadClusterArrangeOrder         = BBlockTransferThreadClusterArrangeOrder_;
-    using BBlockTransferSrcAccessOrder                    = BBlockTransferSrcAccessOrder_;
-    using BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1 = BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1_;
-    using BBlockTransferSrcVectorTensorContiguousDimOrder  = BBlockTransferSrcVectorTensorContiguousDimOrder_;
-    using BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1 = BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1_;
+    using BBlockTransferThreadSliceLengths_K0_N0_N1_K1 =
+        BBlockTransferThreadSliceLengths_K0_N0_N1_K1_;
+    using BBlockTransferThreadClusterLengths_K0_N0_N1_K1 =
+        BBlockTransferThreadClusterLengths_K0_N0_N1_K1_;
+    using BBlockTransferThreadClusterArrangeOrder = BBlockTransferThreadClusterArrangeOrder_;
+    using BBlockTransferSrcAccessOrder            = BBlockTransferSrcAccessOrder_;
+    using BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1 =
+        BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1_;
+    using BBlockTransferSrcVectorTensorContiguousDimOrder =
+        BBlockTransferSrcVectorTensorContiguousDimOrder_;
+    using BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1 =
+        BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1_;
 
-    using CThreadTransferSrcDstAccessOrder             = CThreadTransferSrcDstAccessOrder_;
+    using CThreadTransferSrcDstAccessOrder = CThreadTransferSrcDstAccessOrder_;
     static constexpr ck::index_t kCThreadTransferSrcDstVectorDim = CThreadTransferSrcDstVectorDim;
-    static constexpr ck::index_t kCThreadTransferDstScalarPerVector = CThreadTransferDstScalarPerVector;
+    static constexpr ck::index_t kCThreadTransferDstScalarPerVector =
+        CThreadTransferDstScalarPerVector;
 
     // Static member function to generate instance string
     static std::string instance_string()
@@ -208,9 +219,11 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_D
         oss << ","
             << detail::elementwise_op_name<InElementwiseOperation>(); // 9. InElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10. WeiElementwiseOperation
+            << detail::elementwise_op_name<WeiElementwiseOperation>(); // 10.
+                                                                       // WeiElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11. OutElementwiseOperation
+            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11.
+                                                                       // OutElementwiseOperation
         oss << ","
             << detail::conv_bwd_weight_spec_name(
                    kConvBackwardWeightSpecialization); // 12. ConvBackwardWeightSpecialization
@@ -222,25 +235,33 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_D
         oss << "," << kM1PerThread;                    // 18. M1PerThread
         oss << "," << kN1PerThread;                    // 19. N1PerThread
         oss << "," << kKPerThread;                     // 20. KPerThread
-        oss << "," << detail::sequence_name<M1N1ThreadClusterM1Xs>();                            // 21.
-        oss << "," << detail::sequence_name<M1N1ThreadClusterN1Xs>();                            // 22.
-        oss << "," << detail::sequence_name<ABlockTransferThreadSliceLengths_K0_M0_M1_K1>();     // 23.
-        oss << "," << detail::sequence_name<ABlockTransferThreadClusterLengths_K0_M0_M1_K1>();   // 24.
-        oss << "," << detail::sequence_name<ABlockTransferThreadClusterArrangeOrder>();          // 25.
-        oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();                     // 26.
-        oss << "," << detail::sequence_name<ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1>(); // 27.
-        oss << "," << detail::sequence_name<ABlockTransferSrcVectorTensorContiguousDimOrder>();  // 28.
-        oss << "," << detail::sequence_name<ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1>(); // 29.
-        oss << "," << detail::sequence_name<BBlockTransferThreadSliceLengths_K0_N0_N1_K1>();     // 30.
-        oss << "," << detail::sequence_name<BBlockTransferThreadClusterLengths_K0_N0_N1_K1>();   // 31.
-        oss << "," << detail::sequence_name<BBlockTransferThreadClusterArrangeOrder>();          // 32.
-        oss << "," << detail::sequence_name<BBlockTransferSrcAccessOrder>();                     // 33.
-        oss << "," << detail::sequence_name<BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1>(); // 34.
-        oss << "," << detail::sequence_name<BBlockTransferSrcVectorTensorContiguousDimOrder>();  // 35.
-        oss << "," << detail::sequence_name<BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1>(); // 36.
-        oss << "," << detail::sequence_name<CThreadTransferSrcDstAccessOrder>();                 // 37.
-        oss << "," << kCThreadTransferSrcDstVectorDim;                                           // 38.
-        oss << "," << kCThreadTransferDstScalarPerVector;                                        // 39.
+        oss << "," << detail::sequence_name<M1N1ThreadClusterM1Xs>();                        // 21.
+        oss << "," << detail::sequence_name<M1N1ThreadClusterN1Xs>();                        // 22.
+        oss << "," << detail::sequence_name<ABlockTransferThreadSliceLengths_K0_M0_M1_K1>(); // 23.
+        oss << ","
+            << detail::sequence_name<ABlockTransferThreadClusterLengths_K0_M0_M1_K1>(); // 24.
+        oss << "," << detail::sequence_name<ABlockTransferThreadClusterArrangeOrder>(); // 25.
+        oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();            // 26.
+        oss << ","
+            << detail::sequence_name<ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1>(); // 27.
+        oss << ","
+            << detail::sequence_name<ABlockTransferSrcVectorTensorContiguousDimOrder>(); // 28.
+        oss << ","
+            << detail::sequence_name<ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1>();    // 29.
+        oss << "," << detail::sequence_name<BBlockTransferThreadSliceLengths_K0_N0_N1_K1>(); // 30.
+        oss << ","
+            << detail::sequence_name<BBlockTransferThreadClusterLengths_K0_N0_N1_K1>(); // 31.
+        oss << "," << detail::sequence_name<BBlockTransferThreadClusterArrangeOrder>(); // 32.
+        oss << "," << detail::sequence_name<BBlockTransferSrcAccessOrder>();            // 33.
+        oss << ","
+            << detail::sequence_name<BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1>(); // 34.
+        oss << ","
+            << detail::sequence_name<BBlockTransferSrcVectorTensorContiguousDimOrder>(); // 35.
+        oss << ","
+            << detail::sequence_name<BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1>(); // 36.
+        oss << "," << detail::sequence_name<CThreadTransferSrcDstAccessOrder>();          // 37.
+        oss << "," << kCThreadTransferSrcDstVectorDim;                                    // 38.
+        oss << "," << kCThreadTransferDstScalarPerVector;                                 // 39.
         oss << ">";
 
         return oss.str();

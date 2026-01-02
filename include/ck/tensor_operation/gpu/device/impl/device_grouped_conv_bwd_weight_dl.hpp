@@ -1250,7 +1250,6 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
         return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
     }
 #endif
-
 };
 
 } // namespace device

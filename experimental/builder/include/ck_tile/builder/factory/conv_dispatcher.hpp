@@ -9,10 +9,11 @@
 // ## Design Overview
 //
 // The dispatcher operates in two phases:
-// 1. **Algorithm Identification**: Five `consteval` predicate functions (`IsXdlV3Algorithm`,
-//    `IsXdlAlgorithm`, `IsWmmaAlgorithm`, `IsDlAlgorithm`, `IsLargeTensorAlgorithm`) inspect
-//    the algorithm descriptor's structure to determine which kernel variant it satisfies.
-//    Each predicate checks a specific set of concept constraints that define a kernel variant.
+// 1. **Algorithm Identification**: Six `consteval` predicate functions (`IsReferenceAlgorithm`,
+//    `IsXdlV3Algorithm`, `IsXdlAlgorithm`, `IsWmmaAlgorithm`, `IsDlAlgorithm`,
+//    `IsLargeTensorAlgorithm`) inspect the algorithm descriptor's structure to determine which
+//    kernel variant it satisfies. Each predicate checks a specific set of concept constraints
+//    that define a kernel variant.
 //
 // 2. **Factory Routing**: The main `make_conv_instance()` function uses `if constexpr`
 //    to dispatch to the appropriate factory class based on both the convolution direction
@@ -20,6 +21,9 @@
 //    ensuring zero runtime overhead.
 //
 // ## Supported Kernel Variants
+//
+// - **Reference**: Simple reference implementation for validation. Only requires a specialization
+//   field set to ConvAlgorithmSpecialization::REFERENCE.
 //
 // - **XDL V3**: Newer XDL-based pipeline using block GEMM structure. Requires fewer parameters
 //   than standard XDL (e.g., uses `SpecifiesBlockGemm` instead of scheduling/prefetch configs).
@@ -62,6 +66,7 @@
 #include "ck_tile/builder/factory/conv_fwd_wmma_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_dl_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_large_tensor_factory.hpp"
+#include "ck_tile/builder/factory/reference_factory.hpp"
 #include "ck_tile/builder/factory/conv_tile_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_xdl_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_xdl_v3_factory.hpp"
@@ -90,6 +95,13 @@ namespace ck_tile::builder::factory {
 //
 // TODO: Make this dispatch logic much more robust and clear for users.
 
+// Reference algorithm (simplest implementation for validation)
+template <typename T>
+concept IsReferenceAlgorithm = ConvAlgorithmDescriptor<T> && requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::REFERENCE;
+};
+
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
@@ -97,11 +109,17 @@ constexpr auto make_conv_instance()
 {
     using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
 
+    // Reference algorithm supports all directions
+    if constexpr(IsReferenceAlgorithm<AlgoType>)
+    {
+        return typename ReferenceFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+    }
     // CK Tile supports common factory for each direction
     if constexpr(TileAlgorithm<AlgoType>::is_valid())
     {
         return typename ConvTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
+    // Forward direction (supports most algorithm variants)
     else if constexpr(ConvDirectionIsForward<SIGNATURE>)
     {
         if constexpr(FwdXdlV3Algorithm<AlgoType>::is_valid())
@@ -129,12 +147,15 @@ constexpr auto make_conv_instance()
             diagnose_fwd_algorithm_signature<AlgoType>();
         }
     }
+    // Backward data direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
     {
-        static_assert(
-            false,
-            "Backward data convolution is not yet supported. ");
+        static_assert(false,
+                      "Backward data convolution: Only reference and tile algorithms supported "
+                      "currently. "
+                      "Optimized kernels (XDL, WMMA, etc.) not yet implemented.");
     }
+    // Backward weight direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
         if constexpr (BwdXdlAlgorithm<AlgoType>::is_valid())

@@ -888,7 +888,6 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
     }
 #endif
-
 };
 
 } // namespace device
