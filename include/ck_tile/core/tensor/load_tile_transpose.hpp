@@ -442,34 +442,6 @@ CK_TILE_DEVICE void load_tile_transpose_with_offset(
     });
 }
 
-template <
-    typename BottomTensorView_,
-    typename WindowLengths_,
-    typename TileDistribution_,
-    index_t NumCoord,
-    typename Policy = DefaultTranspose<typename BottomTensorView_::DataType>,
-    typename        = std::enable_if_t<TransposeTileDistrChecker<TileDistribution_,
-                                                                 typename BottomTensorView_::DataType,
-                                                                 Policy>::distr_encoding_valid,
-                                       Policy>>
-CK_TILE_DEVICE auto load_tile_transpose_with_offset(
-    const tile_window_with_static_distribution<BottomTensorView_,
-                                               WindowLengths_,
-                                               TileDistribution_,
-                                               NumCoord>& __restrict__ tile_window,
-    index_t offset)
-{
-    using OutTileDstrEncode = typename OutputTileDistributionTraits<
-        typename TileDistribution_::DstrEncode,
-        typename BottomTensorView_::DataType>::TransposedDstrEncode;
-    auto out_tensor = make_static_distributed_tensor<typename BottomTensorView_::DataType>(
-        make_static_tile_distribution(OutTileDstrEncode{}));
-
-    load_tile_transpose_with_offset(out_tensor, tile_window, offset);
-
-    return out_tensor;
-}
-
 /**
  * @brief transpose loads tile from a tensor and returns the resulting tensor with a new
  * (transposed) tile distribution. use SFINAE to ensure the tile distribution encoding is valid.
