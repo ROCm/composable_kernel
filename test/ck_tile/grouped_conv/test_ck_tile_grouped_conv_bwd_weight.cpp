@@ -216,8 +216,7 @@ TEST_F(GroupedConvBwdWeightIsSupportedArgumentTest, AtomicAddRequiresKBatchGreat
                                         TestConvConfig,
                                         tensor_layout::convolution::NHWGC,
                                         tensor_layout::convolution::GKYXC,
-                                        tensor_layout::convolution::NHWGK,
-                                        memory_operation_enum::atomic_add>::type;
+                                        tensor_layout::convolution::NHWGK>::type;
 
     // k_batch = 1 should fail with atomic_add
     auto host_args_kbatch_1 = create_2d_host_args(1);
