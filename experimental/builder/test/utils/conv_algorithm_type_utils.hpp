@@ -449,7 +449,7 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_W
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<4>>(t));
+        << "," << to_string(static_cast<Transfer_<>>(t));
     return oss.str();
 }
 
