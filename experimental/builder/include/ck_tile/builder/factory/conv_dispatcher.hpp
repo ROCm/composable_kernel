@@ -186,6 +186,11 @@ constexpr auto make_conv_instance()
         {
             return typename ConvBwdWeightWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
+        else if constexpr (BwdMultiDWmmaAlgorithm<AlgoType>::is_valid())
+        {
+            static_assert(false,
+                          "Backward weight convolution with multi-D WMMA algorithm is not yet supported.");
+        }
         else
         {
             diagnose_bwd_weight_algorithm_signature<AlgoType>();

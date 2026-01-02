@@ -547,7 +547,7 @@ struct ConvAlgorithmTemplate : Components...
     }
 };
 
-// Algorithm types
+// Fwd algorithm types
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, Prefetch_>;
@@ -568,6 +568,7 @@ using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
     ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, Prefetch_, LargeTensorSpecialization_>;
 
+// CK Tile algorithm
 using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileThreadBlock_,
                                                                           TileBlockGemm_,
                                                                           TileTransfer_,
@@ -583,6 +584,7 @@ struct ConvAlgorithm_Reference
     // GPU reference uses simple algorithm, no tile configuration needed
 };
 
+// Bwd weight algorithm types
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle = 
     ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<4>, ConvSpecializationBwdWeight_, TransposeParams_>;
 
@@ -606,6 +608,9 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3 =
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle = 
     ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<4>, ConvSpecializationBwdWeight_, GridGemm_, Prefetch_>;
+
+using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle = 
+    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<4>, ConvSpecializationBwdWeight_, BlockGemm_, MultipleDSpecialization_>;
 
 
 } // namespace ck_tile::builder::test

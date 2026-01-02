@@ -178,6 +178,7 @@ if (CK_USE_WMMA)
         conv/ck/test_ckb_conv_bwd_weight_wmma_cshuffle_v3.cpp
         conv/ck/test_ckb_conv_bwd_weight_wmma_cshuffle.cpp
         conv/ck/test_ckb_conv_bwd_weight_two_stage_wmma_cshuffle_v3.cpp
+        conv/ck/test_ckb_conv_bwd_weight_multi_d_wmma_cshuffle.cpp
     )
 endif()
 
