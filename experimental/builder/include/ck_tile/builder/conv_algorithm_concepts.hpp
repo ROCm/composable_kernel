@@ -316,24 +316,6 @@ concept SpecifiesLoopScheduler = requires {
 };
 
 template <typename T>
-concept SpecifiesLargeTensorSupport = requires {
-    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
-    requires T::specialization == ConvAlgorithmSpecialization::LARGE_TENSOR;
-};
-
-template <typename T>
-concept SpecifiesTwoStageSupport = requires {
-    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
-    requires T::specialization == ConvAlgorithmSpecialization::TWO_STAGE;
-};
-
-template <typename T>
-concept SpecifiesMultipleDSupport = requires {
-    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
-    requires T::specialization == ConvAlgorithmSpecialization::MULTIPLE_D;
-};
-
-template <typename T>
 concept SpecifiesGenericInstance = !requires {
     { T::specialization };
 };
@@ -357,6 +339,33 @@ concept TransposeTransferWellDefinedIfProvided =
 template <typename T>
 concept SpecifiesGemmBatchOptions = requires {
     { T::num_conv_groups_to_merge } -> SizeType;
+};
+
+/******************************************** */
+/* Algorithm specialization concepts          */
+/******************************************** */
+template <typename T>
+concept SpecifiesLargeTensorSupport = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::LARGE_TENSOR;
+};
+
+template <typename T>
+concept SpecifiesReferenceAlgorithm = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::REFERENCE;
+};
+
+template <typename T>
+concept SpecifiesTwoStageSupport = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::TWO_STAGE;
+};
+
+template <typename T>
+concept SpecifiesMultipleDSupport = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::MULTIPLE_D;
 };
 
 /******************************************** */

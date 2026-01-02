@@ -713,6 +713,26 @@ consteval auto detailed_diagnostic_SpecifiesLargeTensorSupport() -> std::string 
 }
 
 template <typename T>
+consteval auto detailed_diagnostic_SpecifiesReferenceAlgorithm() -> std::string {
+    std::string msg;
+    if constexpr (requires { T::specialization; }) {
+        using SpecType = decltype(T::specialization);
+        constexpr bool convertible = std::convertible_to<SpecType, ConvAlgorithmSpecialization>;
+        msg += "      → T::specialization: " + std::string(CHECK_MARK(convertible)) + 
+               (convertible ? "" : std::string(detail::get_type_info<SpecType>())) + "\n";
+        
+        if constexpr (convertible) {
+            constexpr bool is_reference = (T::specialization == ConvAlgorithmSpecialization::REFERENCE);
+            msg += "      → specialization == REFERENCE: " + std::string(CHECK_MARK(is_reference)) + "\n";
+        }
+    } else {
+        msg += "      → T::specialization: [✗] (missing member)\n";
+    }
+    
+    return msg;
+}
+
+template <typename T>
 consteval auto detailed_diagnostic_SpecifiesTwoStageSupport() -> std::string {
     std::string msg;
     if constexpr (requires { T::specialization; }) {

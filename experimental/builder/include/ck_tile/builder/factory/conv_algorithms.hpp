@@ -10,6 +10,26 @@ namespace ck_tile::builder::factory {
 using namespace ck_tile::builder::diagnostics;
 
 template <typename T>
+struct ReferenceAlgorithm {
+    CHECK_CONCEPT(T, ConvAlgorithmDescriptor)
+    CHECK_CONCEPT(T, SpecifiesReferenceAlgorithm)
+
+    static constexpr bool c1 = c_ConvAlgorithmDescriptor;
+    static constexpr bool c2 = c_SpecifiesReferenceAlgorithm;
+
+    static consteval bool is_valid() {
+        return c1 && c2;
+    }
+
+    static consteval auto message() -> std::string {
+        return std::string("\n=== Reference Algorithm Diagnostic (closest match) ===\n"
+               "Concepts for Reference Algorithm:\n") +
+               DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
+               DIAGNOSTIC_LINE(SpecifiesReferenceAlgorithm);
+    }
+};
+
+template <typename T>
 struct FwdXdlV3Algorithm {
     CHECK_CONCEPT(T, ConvAlgorithmDescriptor)
     CHECK_CONCEPT(T, SpecifiesThreadBlock)
