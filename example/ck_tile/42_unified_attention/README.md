@@ -1,6 +1,6 @@
 # fused multi-head attention
 
-This folder contains example for unified attention (fused multi-head attention) using ck_tile tile-programming implementation. It is a good example to demonstrate the usage of tile-programming API, as well as illustrate the new approach to construct a kernel template and instantiate it(them) while keeping compile time fast.
+This folder contains examples for unified attention (fused multi-head attention) using the ck_tile tile-programming implementation. The examples demonstrate the usage of the tile-programming API, as well as the new approach to constructing kernel templates and instantiating them. 
 
 ## build
 ```
