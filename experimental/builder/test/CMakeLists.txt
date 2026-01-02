@@ -176,6 +176,7 @@ set(BWD_WEIGHT_TESTS
 if (CK_USE_WMMA)
     list(APPEND BWD_WEIGHT_TESTS
         conv/ck/test_ckb_conv_bwd_weight_wmma_cshuffle_v3.cpp
+        conv/ck/test_ckb_conv_bwd_weight_two_stage_wmma_cshuffle_v3.cpp
     )
 endif()
 

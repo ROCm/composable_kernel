@@ -604,4 +604,8 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle =
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 = 
     ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<>, ConvSpecializationBwdWeight_, BlockGemm_, TransposeParams_>;
+
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3 = 
+    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<>, ConvSpecializationBwdWeight_, BlockGemm_, TransposeParams_, GemmBatchOptions_, TwoStageSpecialization_>;
+
 } // namespace ck_tile::builder::test

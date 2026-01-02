@@ -74,6 +74,7 @@
 #include "ck_tile/builder/factory/conv_bwd_weight_dl_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_multi_d_xdl_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_wmma_v3_factory.hpp"
+#include "ck_tile/builder/factory/conv_bwd_weight_two_stage_wmma_v3_factory.hpp"
 
 namespace ck_tile::builder::factory {
 
@@ -175,6 +176,10 @@ constexpr auto make_conv_instance()
         else if constexpr (BwdWmmaV3Algorithm<AlgoType>::is_valid())
         {
             return typename ConvBwdWeightWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr (BwdTwoStageWmmaV3Algorithm<AlgoType>::is_valid())
+        {
+            return typename ConvBwdWeightTwoStageWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else
         {
