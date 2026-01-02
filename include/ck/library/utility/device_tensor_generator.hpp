@@ -107,6 +107,7 @@ template <typename T>
 __global__ void
 fill_tensor_norm_rand_fp_values(T* p, float sigma, float mean, uint64_t buffer_element_size)
 {
+    static constexpr PI = std::acos(-1.0);
     // initial values
     ran_state_u32 s = ran_init();
     float norm[2];
@@ -118,9 +119,9 @@ fill_tensor_norm_rand_fp_values(T* p, float sigma, float mean, uint64_t buffer_e
             float u1 = ran_gen_round_u32(s) * (1.0f / 4294967296.0f);
             float u2 = ran_gen_round_u32(s) * (1.0f / 4294967296.0f);
             norm[0] =
-                sigma * std::sqrt(-2.0f * ck::math::log(u1)) * std::cos(2.0f * M_PI * u2) + mean;
+                sigma * std::sqrt(-2.0f * ck::math::log(u1)) * std::cos(2.0f * PI * u2) + mean;
             norm[1] =
-                sigma * std::sqrt(-2.0f * ck::math::log(u1)) * std::sin(2.0f * M_PI * u2) + mean;
+                sigma * std::sqrt(-2.0f * ck::math::log(u1)) * std::sin(2.0f * PI * u2) + mean;
         }
 
         if constexpr(ck::is_same_v<T, ck::f4x2_pk_t>)
