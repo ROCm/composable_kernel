@@ -3,7 +3,7 @@
 This folder contains examples for unified attention (fused multi-head attention) using the ck_tile tile-programming implementation. The examples demonstrate the usage of the tile-programming API, as well as the new approach to constructing kernel templates and instantiating them. 
 
 ## build
-```
+
 # in the root of ck_tile
 mkdir build && cd build
 # you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
