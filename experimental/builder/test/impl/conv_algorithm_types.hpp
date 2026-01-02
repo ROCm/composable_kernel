@@ -62,16 +62,15 @@ struct GridwiseWmmaGemm
     size_t n_per_wmma      = 0;
     size_t m_wmma_per_wave = 0;
     size_t n_wmma_per_wave = 0;
-    PipelineVersion pipeline_version;
 };
 static_assert(ckb::GridwiseWmmaGemmDescriptor<GridwiseWmmaGemm>);
 
-struct BlockGemm
+struct BlockGemmPipeline
 {
     PipelineVersion pipeline_version;
     PipelineScheduler scheduler;
 };
-static_assert(ckb::BlockGemmDescriptor<BlockGemm>);
+static_assert(ckb::BlockGemmPipelineDescriptor<BlockGemmPipeline>);
 
 // Describe Aand B block transfer thread cluster lengths.
 template <size_t ThreadSliceLength = 3>
@@ -252,7 +251,12 @@ struct GemmBatchOptions_
 
 struct BlockGemm_
 {
-    BlockGemm block_gemm;
+    BlockGemmPipeline block_gemm_pipeline;
+};
+
+struct GridGemm_
+{
+    PipelineVersion pipeline_version;
 };
 
 struct DlThreadConfig_
@@ -289,13 +293,9 @@ struct MultipleDSpecialization_
     static constexpr ConvAlgorithmSpecialization specialization = ConvAlgorithmSpecialization::MULTIPLE_D;
 };
 
-// Specialization wrapper for large tensor support
-template <typename BaseAlgorithm>
-struct LargeTensorWrapper
+struct LargeTensorSpecialization_
 {
-    BaseAlgorithm base_algorithm;
-    static constexpr ConvAlgorithmSpecialization specialization =
-        ConvAlgorithmSpecialization::LARGE_TENSOR;
+    static constexpr ConvAlgorithmSpecialization specialization = ConvAlgorithmSpecialization::LARGE_TENSOR;
 };
 
 // Specify thread block dimensions for a GEMM (CK Tile).
@@ -465,7 +465,15 @@ struct ConvAlgorithmTemplate : Components...
     {
         static_assert(std::is_base_of_v<BlockGemm_, ConvAlgorithmTemplate>);
         auto result       = *this;
-        result.block_gemm = bg;
+        result.block_gemm_pipeline = bg;
+        return result;
+    }
+
+    constexpr auto with_gridwise_gemm_pipeline(const PipelineVersion plv) const
+    {
+        static_assert(std::is_base_of_v<GridGemm_, ConvAlgorithmTemplate>);
+        auto result       = *this;
+        result.pipeline_version = plv;
         return result;
     }
 
@@ -552,7 +560,7 @@ using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, BlockGemm_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<>, ConvSpecializationFwd_, Prefetch_>;
+    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<>, ConvSpecializationFwd_, GridGemm_, Prefetch_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
     ConvAlgorithmTemplate<ThreadBlock_,
@@ -562,7 +570,7 @@ using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
                           DlTransfer_<>>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
-    LargeTensorWrapper<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>;
+    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, Prefetch_, LargeTensorSpecialization_>;
 
 using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileThreadBlock_,
                                                                           TileBlockGemm_,
@@ -594,4 +602,6 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl =
 using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle = 
     ConvAlgorithmTemplate<ThreadBlock_, BwdXdlGemm_, Transfer_<4>, ConvSpecializationBwdWeight_, MultipleDSpecialization_>;
 
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 = 
+    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<>, ConvSpecializationBwdWeight_, BlockGemm_, TransposeParams_>;
 } // namespace ck_tile::builder::test

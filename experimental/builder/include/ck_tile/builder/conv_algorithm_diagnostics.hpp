@@ -593,28 +593,28 @@ template <typename T>
 consteval auto detailed_diagnostic_SpecifiesBlockGemm() -> std::string {
     std::string msg;
     
-    if constexpr (!requires { { T::block_gemm } -> BlockGemmDescriptor; }) {
-        return "      → T::block_gemm: [✗] (missing or wrong type)\n";
+    if constexpr (!requires { { T::block_gemm_pipeline } -> BlockGemmPipelineDescriptor; }) {
+        return "      → T::block_gemm_pipeline: [✗] (missing or wrong type)\n";
     }
     
-    msg += "      → T::block_gemm member: [✓]\n";
+    msg += "      → T::block_gemm_pipeline member: [✓]\n";
     
-    if constexpr (requires { T::block_gemm.pipeline_version; }) {
-        using PipelineType = decltype(T::block_gemm.pipeline_version);
+    if constexpr (requires { T::block_gemm_pipeline.pipeline_version; }) {
+        using PipelineType = decltype(T::block_gemm_pipeline.pipeline_version);
         constexpr bool convertible = std::convertible_to<PipelineType, PipelineVersion>;
-        msg += "      → block_gemm.pipeline_version: " + std::string(CHECK_MARK(convertible)) + 
+        msg += "      → block_gemm_pipeline.pipeline_version: " + std::string(CHECK_MARK(convertible)) + 
                (convertible ? "" : std::string(detail::get_type_info<PipelineType>())) + "\n";
     } else {
-        msg += "      → block_gemm.pipeline_version: [✗] (missing member)\n";
+        msg += "      → block_gemm_pipeline.pipeline_version: [✗] (missing member)\n";
     }
     
-    if constexpr (requires { T::block_gemm.scheduler; }) {
-        using SchedulerType = decltype(T::block_gemm.scheduler);
+    if constexpr (requires { T::block_gemm_pipeline.scheduler; }) {
+        using SchedulerType = decltype(T::block_gemm_pipeline.scheduler);
         constexpr bool convertible = std::convertible_to<SchedulerType, PipelineScheduler>;
-        msg += "      → block_gemm.scheduler: " + std::string(CHECK_MARK(convertible)) + 
+        msg += "      → block_gemm_pipeline.scheduler: " + std::string(CHECK_MARK(convertible)) + 
                (convertible ? "" : std::string(detail::get_type_info<SchedulerType>())) + "\n";
     } else {
-        msg += "      → block_gemm.scheduler: [✗] (missing member)\n";
+        msg += "      → block_gemm_pipeline.scheduler: [✗] (missing member)\n";
     }
     
     return msg;
@@ -872,14 +872,12 @@ consteval auto detailed_diagnostic_SpecifiesGridwiseWmmaGemm() -> std::string {
     constexpr bool has_n_per_wmma = requires(GG t) { { t.n_per_wmma } -> std::convertible_to<size_t>; };
     constexpr bool has_m_wmma_per_wave = requires(GG t) { { t.m_wmma_per_wave } -> std::convertible_to<size_t>; };
     constexpr bool has_n_wmma_per_wave = requires(GG t) { { t.n_wmma_per_wave } -> std::convertible_to<size_t>; };
-    constexpr bool has_pipeline = requires(GG t) { { t.pipeline_version } -> std::convertible_to<PipelineVersion>; };
     
     msg += "      → gridwise_gemm.k1: " + std::string(CHECK_MARK(has_k1)) + (has_k1 ? "\n" : " (missing or wrong type)\n");
     msg += "      → gridwise_gemm.m_per_wmma: " + std::string(CHECK_MARK(has_m_per_wmma)) + (has_m_per_wmma ? "\n" : " (missing or wrong type)\n");
     msg += "      → gridwise_gemm.n_per_wmma: " + std::string(CHECK_MARK(has_n_per_wmma)) + (has_n_per_wmma ? "\n" : " (missing or wrong type)\n");
     msg += "      → gridwise_gemm.m_wmma_per_wave: " + std::string(CHECK_MARK(has_m_wmma_per_wave)) + (has_m_wmma_per_wave ? "\n" : " (missing or wrong type)\n");
     msg += "      → gridwise_gemm.n_wmma_per_wave: " + std::string(CHECK_MARK(has_n_wmma_per_wave)) + (has_n_wmma_per_wave ? "\n" : " (missing or wrong type)\n");
-    msg += "      → gridwise_gemm.pipeline_version: " + std::string(CHECK_MARK(has_pipeline)) + (has_pipeline ? "\n" : " (missing or wrong type)\n");
     
     return msg;
 }
@@ -1192,6 +1190,18 @@ consteval auto detailed_diagnostic_SpecifiesLdsTransfer() -> std::string {
     }
     
     return msg;
+}
+
+template <typename T>
+consteval auto detailed_diagnostic_SpecifiedGridwiseGemmPipeline() -> std::string {
+    if constexpr (requires { T::pipeline_version; }) {
+        using PipelineType = decltype(T::pipeline_version);
+        constexpr bool convertible = std::convertible_to<PipelineType, PipelineVersion>;
+        return "      → T::pipeline_version: " + std::string(CHECK_MARK(convertible)) + 
+               (convertible ? "" : std::string(detail::get_type_info<PipelineType>())) + "\n";
+    } else {
+        return "      → T::pipeline_version: [✗] (missing member)\n";
+    }
 }
 
 } // namespace ck_tile::builder::diagnostics

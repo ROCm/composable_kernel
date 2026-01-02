@@ -39,7 +39,7 @@ concept GridwiseXdlGemmDescriptor = requires(T t) {
 
 // Concept for parameter that describe block GEMM problem.
 template <typename T>
-concept BlockGemmDescriptor = requires(T t) {
+concept BlockGemmPipelineDescriptor = requires(T t) {
     { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
     { t.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
@@ -52,9 +52,7 @@ concept GridwiseWmmaGemmDescriptor = requires(T t) {
     { t.n_per_wmma } -> SizeType;
     { t.m_wmma_per_wave } -> SizeType;
     { t.n_wmma_per_wave } -> SizeType;
-    { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
 };
-
 
 // Concept for vectorized data transfer for convolution input tensors.
 template <typename T>
@@ -253,8 +251,13 @@ concept SpecifiesSourceAccessOrder = requires(T t) {
 // Concept to check if struct specifies block GEMM.
 template <typename T>
 concept SpecifiesBlockGemm = requires {
-    { T::block_gemm.pipeline_version } -> std::convertible_to<PipelineVersion>;
-    { T::block_gemm.scheduler } -> std::convertible_to<PipelineScheduler>;
+    { T::block_gemm_pipeline } -> BlockGemmPipelineDescriptor;
+};
+
+template <typename T>
+concept SpecifiedGridwiseGemmPipeline = requires
+{
+    { T::pipeline_version } -> std::convertible_to<PipelineVersion>;
 };
 
 // Concept to check if struct specifies block GEMM (CK Tile).

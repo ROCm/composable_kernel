@@ -30,10 +30,11 @@ TEST(FwdConvInstances,
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}
             .with_thread_block(ThreadBlock_128_64x64x64)
-            .with_gemm_config(FwdGemmParams_Wmma_2x1_per_wave)
+            .with_gemm_config(GemmParams_Wmma_2x1_per_wave)
             .with_transfer(Transfer_4x32x1)
             .with_fwd_specializations(ConvSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
-            .with_prefetch_config(1, 0, PipelineScheduler::DEFAULT);
+            .with_prefetch_config(1, 0, PipelineScheduler::DEFAULT)
+            .with_gridwise_gemm_pipeline(PipelineVersion::V1);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 

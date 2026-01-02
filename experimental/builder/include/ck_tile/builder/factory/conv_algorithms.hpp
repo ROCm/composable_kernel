@@ -136,6 +136,7 @@ struct FwdWmmaAlgorithm {
     CHECK_CONCEPT(T, SpecifiesGemmSpecialization)
     CHECK_CONCEPT(T, SpecifiesNumPrefetchStages)
     CHECK_CONCEPT(T, SpecifiesLoopScheduler)
+    CHECK_CONCEPT(T, SpecifiedGridwiseGemmPipeline)
 
     static constexpr bool c1 = c_ConvAlgorithmDescriptor;
     static constexpr bool c2 = c_SpecifiesThreadBlock;
@@ -148,9 +149,10 @@ struct FwdWmmaAlgorithm {
     static constexpr bool c9 = c_SpecifiesGemmSpecialization;
     static constexpr bool c10 = c_SpecifiesNumPrefetchStages;
     static constexpr bool c11 = c_SpecifiesLoopScheduler;
+    static constexpr bool c12 = c_SpecifiedGridwiseGemmPipeline;
 
     static consteval bool is_valid() {
-        return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && c10 && c11;
+        return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && c10 && c11 && c12;
     }
 
     static consteval auto message() -> std::string {
@@ -166,7 +168,8 @@ struct FwdWmmaAlgorithm {
                DIAGNOSTIC_LINE(SpecifiesFwdConvSpecialization) +
                DIAGNOSTIC_LINE(SpecifiesGemmSpecialization) +
                DIAGNOSTIC_LINE(SpecifiesNumPrefetchStages) +
-               DIAGNOSTIC_LINE(SpecifiesLoopScheduler);
+               DIAGNOSTIC_LINE(SpecifiesLoopScheduler) + 
+               DIAGNOSTIC_LINE(SpecifiedGridwiseGemmPipeline);
     }
 };
 
@@ -241,19 +244,19 @@ struct TileAlgorithm {
 };
 
 template <typename T>
-struct LargeTensorAlgorithm : public FwdXdlAlgorithm<decltype(T::base_algorithm)>
+struct LargeTensorAlgorithm : public FwdXdlAlgorithm<T>
 {
-    using BaseAlgorithmType = decltype(T::base_algorithm);
     CHECK_CONCEPT(T, SpecifiesLargeTensorSupport)
 
     static constexpr bool c13 = c_SpecifiesLargeTensorSupport;
 
     static consteval bool is_valid() {
-        return FwdXdlAlgorithm<BaseAlgorithmType>::is_valid() && c13;
+        // Note: Check first if the specialization is set.
+        return c13 && FwdXdlAlgorithm<T>::is_valid();
     }
 
     static consteval auto message() -> std::string {
-        return FwdXdlAlgorithm<BaseAlgorithmType>::message() +
+        return FwdXdlAlgorithm<T>::message() +
                DIAGNOSTIC_LINE(SpecifiesLargeTensorSupport);
     }
 };
@@ -438,6 +441,53 @@ struct BwdTwoStageXdlAlgorithm {
 };
 
 template <typename T>
+struct BwdWmmaV3Algorithm {
+    CHECK_CONCEPT(T, ConvAlgorithmDescriptor)
+    CHECK_CONCEPT(T, SpecifiesThreadBlock)
+    CHECK_CONCEPT(T, SpecifiesBlockTransfer)
+    CHECK_CONCEPT(T, SpecifiesLdsTransfer)
+    CHECK_CONCEPT(T, SpecifiesThreadClusterAccessOrder)
+    CHECK_CONCEPT(T, SpecifiesSourceAccessOrder)
+    CHECK_CONCEPT(T, SpecifiesGridwiseWmmaGemm)
+    CHECK_CONCEPT(T, SpecifiesBwdWeightConvSpecialization)
+    CHECK_CONCEPT(T, SpecifiesBlockGemm)
+    CHECK_CONCEPT(T, TransposeTransferWellDefinedIfProvided)
+    CHECK_CONCEPT(T, SpecifiesGenericInstance)
+
+    static constexpr bool c1 = c_ConvAlgorithmDescriptor;
+    static constexpr bool c2 = c_SpecifiesThreadBlock;
+    static constexpr bool c3 = c_SpecifiesBlockTransfer;
+    static constexpr bool c4 = c_SpecifiesLdsTransfer;
+    static constexpr bool c5 = c_SpecifiesThreadClusterAccessOrder;
+    static constexpr bool c6 = c_SpecifiesSourceAccessOrder;
+    static constexpr bool c7 = c_SpecifiesGridwiseWmmaGemm;
+    static constexpr bool c8 = c_SpecifiesBwdWeightConvSpecialization;
+    static constexpr bool c9 = c_SpecifiesBlockGemm;
+    static constexpr bool c10 = c_TransposeTransferWellDefinedIfProvided;
+    static constexpr bool c11 = c_SpecifiesGenericInstance;
+
+    static consteval bool is_valid() {
+        return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && c10 & c11;
+    }
+
+    static consteval auto message() -> std::string {
+        return std::string("\n=== Backward WMMA V3 Algorithm Diagnostic (closest match) ===\n"
+               "Concepts for BwdXdlV3 Algorithm:\n") +
+               DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
+               DIAGNOSTIC_LINE(SpecifiesThreadBlock) +
+               DIAGNOSTIC_LINE(SpecifiesBlockTransfer) +
+               DIAGNOSTIC_LINE(SpecifiesLdsTransfer) +
+               DIAGNOSTIC_LINE(SpecifiesThreadClusterAccessOrder) +
+               DIAGNOSTIC_LINE(SpecifiesSourceAccessOrder) +
+               DIAGNOSTIC_LINE(SpecifiesGridwiseWmmaGemm) +
+               DIAGNOSTIC_LINE(SpecifiesBwdWeightConvSpecialization) +
+               DIAGNOSTIC_LINE(SpecifiesBlockGemm) +
+               DIAGNOSTIC_LINE(TransposeTransferWellDefinedIfProvided) +
+               DIAGNOSTIC_LINE(SpecifiesGenericInstance);
+    }
+};
+
+template <typename T>
 struct BwdDlAlgorithm {
     CHECK_CONCEPT(T, ConvAlgorithmDescriptor)
     CHECK_CONCEPT(T, SpecifiesThreadBlock)
@@ -556,29 +606,52 @@ consteval void diagnose_fwd_algorithm_signature()
     constexpr int max_4 = max_3 > large_tensor_matches ? max_3 : large_tensor_matches;
     constexpr int max_matches = max_4 > tile_matches ? max_4 : tile_matches;
     
-    // Generate detailed diagnostic for the closest match
-    if constexpr(max_matches == xdl_v3_matches) {
-        using Alg = FwdXdlV3Algorithm<AlgoType>;
-        static_assert(Alg::is_valid(), Alg::message());
-    } else if constexpr(max_matches == xdl_matches) {
-        using Alg = FwdXdlAlgorithm<AlgoType>;
-        static_assert(Alg::is_valid(), Alg::message());
-    } else if constexpr(max_matches == wmma_matches) {
+    // Check whether we have XDL or WMMA algorithm
+    if constexpr (SpecifiesGridwiseFwdXdlGemm<AlgoType>)
+    {
+        if constexpr(max_matches == xdl_v3_matches) {
+            using Alg = FwdXdlV3Algorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        } else if constexpr(max_matches == xdl_matches) {
+            using Alg = FwdXdlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        } else if constexpr (max_matches == large_tensor_matches) {
+            using Alg = LargeTensorAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        } 
+    }
+    else if constexpr (SpecifiesGridwiseWmmaGemm<AlgoType>)
+    {
         using Alg = FwdWmmaAlgorithm<AlgoType>;
         static_assert(Alg::is_valid(), Alg::message());
-    } else if constexpr(max_matches == dl_matches) {
-        using Alg = FwdDlAlgorithm<AlgoType>;
-        static_assert(Alg::is_valid(), Alg::message());
-    } else if constexpr (max_matches == large_tensor_matches) {
-        using Alg = LargeTensorAlgorithm<AlgoType>;
-        static_assert(Alg::is_valid(), Alg::message());
-    } else if constexpr (max_matches == tile_matches) {
-        using Alg = TileAlgorithm<AlgoType>;
-        static_assert(Alg::is_valid(), Alg::message());
     }
-    else {
-        // This should never happen
-        static_assert(false, "Internal Error: No matching algorithm variant found for diagnostics.");
+    else 
+    {
+        // If we cannot match with neither WMMA nor XDL, try all algorithms for diagnostics
+        // and see whichi is the closest match.
+        if constexpr(max_matches == xdl_v3_matches) {
+            using Alg = FwdXdlV3Algorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        } else if constexpr(max_matches == xdl_matches) {
+            using Alg = FwdXdlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        } else if constexpr(max_matches == wmma_matches) {
+            using Alg = FwdWmmaAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        } else if constexpr(max_matches == dl_matches) {
+            using Alg = FwdDlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        } else if constexpr (max_matches == large_tensor_matches) {
+            using Alg = LargeTensorAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        } else if constexpr (max_matches == tile_matches) {
+            using Alg = TileAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
+        else {
+            // This should never happen
+            static_assert(false, "Internal Error: No matching algorithm variant found for diagnostics.");
+        }
     }
 }
 

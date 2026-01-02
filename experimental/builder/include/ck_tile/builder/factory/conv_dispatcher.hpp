@@ -95,13 +95,6 @@ namespace ck_tile::builder::factory {
 //
 // TODO: Make this dispatch logic much more robust and clear for users.
 
-// Reference algorithm (simplest implementation for validation)
-template <typename T>
-concept IsReferenceAlgorithm = ConvAlgorithmDescriptor<T> && requires {
-    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
-    requires T::specialization == ConvAlgorithmSpecialization::REFERENCE;
-};
-
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
@@ -110,7 +103,7 @@ constexpr auto make_conv_instance()
     using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
 
     // Reference algorithm supports all directions
-    if constexpr(IsReferenceAlgorithm<AlgoType>)
+    if constexpr(ReferenceAlgorithm<AlgoType>::is_valid())
     {
         return typename ReferenceFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
@@ -177,6 +170,11 @@ constexpr auto make_conv_instance()
         else if constexpr (BwdMultiDXdlAlgorithm<AlgoType>::is_valid())
         {
             return typename ConvBwdWeightMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr (BwdWmmaV3Algorithm<AlgoType>::is_valid())
+        {
+            static_assert(false,
+                          "Backward weight convolution: WMMA V3 algorithm not yet implemented.");
         }
         else
         {

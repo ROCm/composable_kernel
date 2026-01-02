@@ -113,7 +113,7 @@ inline std::string to_string<GridwiseWmmaGemm>(GridwiseWmmaGemm t)
 }
 
 template <>
-inline std::string to_string<BlockGemm>(BlockGemm t)
+inline std::string to_string<BlockGemmPipeline>(BlockGemmPipeline t)
 {
     std::ostringstream oss;
     oss << to_string(t.scheduler) << "," << to_string(t.pipeline_version);
@@ -313,7 +313,7 @@ inline std::string to_string<Prefetch_>(Prefetch_ t)
 template <>
 inline std::string to_string<BlockGemm_>(BlockGemm_ t)
 {
-    return to_string(t.block_gemm);
+    return to_string(t.block_gemm_pipeline);
 }
 
 template <>
@@ -388,7 +388,10 @@ template <>
 inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor>(
     ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor t)
 {
-    return to_string(t.base_algorithm);
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<FwdXdlGemm_>(t))
+        << "," << to_string(static_cast<Transfer_<>>(t));
+    return oss.str();
 }
 
 template <>

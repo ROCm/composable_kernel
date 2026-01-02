@@ -31,24 +31,22 @@ struct ConvFwdLargeTensorFactory
     using Ops     = internal::ElementwiseOps<SIGNATURE>;
     using AlgorithmType = decltype(ALGORITHM);
 
-    static constexpr auto BASE_ALGORITHM = ALGORITHM.base_algorithm;
-
     static constexpr auto FWD_CONV_SPECIALIZATION =
-        internal::SetFwdConvSpecialization<BASE_ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION = internal::SetGemmSpecialization<BASE_ALGORITHM>();
+        internal::SetFwdConvSpecialization<ALGORITHM>();
+    static constexpr auto GEMM_SPECIALIZATION = internal::SetGemmSpecialization<ALGORITHM>();
     static constexpr internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
                                                        .gemm_spec = GEMM_SPECIALIZATION};
 
-    static constexpr auto LOOP_SCHEDULER = internal::SetLoopScheduler<BASE_ALGORITHM>();
-    static constexpr auto BLOCK          = internal::SetThreadBlockInfo<BASE_ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM  = BASE_ALGORITHM.gridwise_gemm;
+    static constexpr auto LOOP_SCHEDULER = internal::SetLoopScheduler<ALGORITHM>();
+    static constexpr auto BLOCK          = internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
     static constexpr auto XDL_PARAMS     = GRIDWISE_GEMM.xdl_params;
     static constexpr auto A_BLOCK_TRANSFER =
-        internal::SetFwdConvBlockTransfer<BASE_ALGORITHM.transfer.a>();
+        internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
-        internal::SetFwdConvBlockTransfer<BASE_ALGORITHM.transfer.b>();
+        internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.b>();
     static constexpr auto C_BLOCK_TRANSFER =
-        internal::SetCBlockTransfer<SIGNATURE, BASE_ALGORITHM>();
+        internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
 
     // Check limits for the algorithm parameters.
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
@@ -78,7 +76,7 @@ struct ConvFwdLargeTensorFactory
             typename Ops::CDEElementwiseOp,
             SPECIALIZATION.conv_spec,
             SPECIALIZATION.gemm_spec,
-            BASE_ALGORITHM.num_gemm_k_prefetch_stages,
+            ALGORITHM.num_gemm_k_prefetch_stages,
             BLOCK.block_size,
             BLOCK.per_block.m,
             BLOCK.per_block.n,

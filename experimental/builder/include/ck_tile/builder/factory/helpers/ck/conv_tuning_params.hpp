@@ -38,7 +38,7 @@ struct BlockGemmSpec
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval BlockGemmSpec SetBlockGemm()
 {
-    constexpr auto& BG = ALGORITHM.block_gemm;
+    constexpr auto& BG = ALGORITHM.block_gemm_pipeline;
 
     ck::BlockGemmPipelineScheduler scheduler;
     ck::BlockGemmPipelineVersion version;
@@ -83,7 +83,7 @@ consteval ck::LoopScheduler SetLoopScheduler()
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::PipelineVersion SetGridwiseGemmPipelineVersion()
 {
-    constexpr auto pipeline_version = ALGORITHM.gridwise_gemm.pipeline_version;
+    constexpr auto pipeline_version = ALGORITHM.pipeline_version;
     using ck_pipeline               = ck::PipelineVersion;
     switch(pipeline_version)
     {

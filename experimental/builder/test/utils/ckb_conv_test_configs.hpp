@@ -275,12 +275,11 @@ constexpr GridwiseFwdXdlGemm FwdGemmParams_Xdl_2x1_per_wave{
     .ak1 = 8, .bk1 = 8, 
     .xdl_params = {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 1}};
 
-constexpr GridwiseWmmaGemm FwdGemmParams_Wmma_2x1_per_wave{.k1               = 8,
-                                                           .m_per_wmma       = 32,
-                                                           .n_per_wmma       = 32,
-                                                           .m_wmma_per_wave  = 2,
-                                                           .n_wmma_per_wave  = 1,
-                                                           .pipeline_version = PipelineVersion::V1};
+constexpr GridwiseWmmaGemm GemmParams_Wmma_2x1_per_wave{.k1               = 8,
+                                                        .m_per_wmma       = 32,
+                                                        .n_per_wmma       = 32,
+                                                        .m_wmma_per_wave  = 2,
+                                                        .n_wmma_per_wave  = 1};
 
 constexpr ThreadBlock ThreadBlock_256_256x256x32{.block_size = 256,
                                                  .tile_size  = {.m = 256, .n = 256, .k = 32}};
@@ -309,19 +308,19 @@ constexpr ThreadBlock ThreadBlock_128_128x128x32{.block_size = 128,
 constexpr ThreadBlock ThreadBlock_128_64x64x64{.block_size = 128,
                                                .tile_size  = {.m = 64, .n = 64, .k = 64}};
 
-constexpr BlockGemm BlockGemmDesc_v1_intrawave = {.pipeline_version = PipelineVersion::V1,
+constexpr BlockGemmPipeline BlockGemmDesc_v1_intrawave = {.pipeline_version = PipelineVersion::V1,
                                                   .scheduler        = PipelineScheduler::INTRAWAVE};
 
-constexpr BlockGemm BlockGemmDesc_v2_intrawave = {.pipeline_version = PipelineVersion::V2,
+constexpr BlockGemmPipeline BlockGemmDesc_v2_intrawave = {.pipeline_version = PipelineVersion::V2,
                                                   .scheduler        = PipelineScheduler::INTRAWAVE};
 
-constexpr BlockGemm BlockGemmDesc_v3_intrawave = {.pipeline_version = PipelineVersion::V3,
+constexpr BlockGemmPipeline BlockGemmDesc_v3_intrawave = {.pipeline_version = PipelineVersion::V3,
                                                   .scheduler        = PipelineScheduler::INTRAWAVE};
 
-constexpr BlockGemm BlockGemmDesc_v4_intrawave = {.pipeline_version = PipelineVersion::V4,
+constexpr BlockGemmPipeline BlockGemmDesc_v4_intrawave = {.pipeline_version = PipelineVersion::V4,
                                                   .scheduler        = PipelineScheduler::INTRAWAVE};
 
-constexpr BlockGemm BlockGemmDesc_v5_intrawave = {.pipeline_version = PipelineVersion::V5,
+constexpr BlockGemmPipeline BlockGemmDesc_v5_intrawave = {.pipeline_version = PipelineVersion::V5,
                                                   .scheduler        = PipelineScheduler::INTRAWAVE};
 
 } // namespace ck_tile::builder::test_utils
