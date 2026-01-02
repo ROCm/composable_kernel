@@ -571,6 +571,12 @@ consteval int count_matches_bwd_two_stage_xdl() {
 }
 
 template <typename T>
+consteval int count_matches_bwd_wmma_v3() {
+    using Alg = BwdWmmaV3Algorithm<T>;
+    return Alg::c1 + Alg::c2 + Alg::c3 + Alg::c4 + Alg::c5 + Alg::c6 + Alg::c7 + Alg::c8 + Alg::c9 + Alg::c10 + Alg::c11;
+}
+
+template <typename T>
 consteval int count_matches_bwd_dl() {
     using Alg = BwdDlAlgorithm<T>;
     return Alg::c1 + Alg::c2 + Alg::c3 + Alg::c4 + Alg::c5 + Alg::c6 + Alg::c7;
@@ -599,26 +605,26 @@ consteval void diagnose_fwd_algorithm_signature()
     constexpr int large_tensor_matches = count_matches_large_tensor<AlgoType>();
     constexpr int tile_matches = count_matches_tile<AlgoType>();
     
-    // Find maximum matches across all variants
-    constexpr int max_1 = xdl_v3_matches > xdl_matches ? xdl_v3_matches : xdl_matches;
-    constexpr int max_2 = wmma_matches > dl_matches ? wmma_matches : dl_matches;
-    constexpr int max_3 = max_1 > max_2 ? max_1 : max_2;
-    constexpr int max_4 = max_3 > large_tensor_matches ? max_3 : large_tensor_matches;
-    constexpr int max_matches = max_4 > tile_matches ? max_4 : tile_matches;
-    
     // Check whether we have XDL or WMMA algorithm
     if constexpr (SpecifiesGridwiseFwdXdlGemm<AlgoType>)
     {
+        constexpr int max_1 = xdl_v3_matches > xdl_matches ? xdl_v3_matches : xdl_matches;
+        constexpr int max_2 = max_1 > dl_matches ? max_1 : dl_matches;
+        constexpr int max_matches = large_tensor_matches > max_2 ? large_tensor_matches : max_2;
+
         if constexpr(max_matches == xdl_v3_matches) {
             using Alg = FwdXdlV3Algorithm<AlgoType>;
             static_assert(Alg::is_valid(), Alg::message());
         } else if constexpr(max_matches == xdl_matches) {
             using Alg = FwdXdlAlgorithm<AlgoType>;
             static_assert(Alg::is_valid(), Alg::message());
+        } else if constexpr(max_matches == dl_matches) {
+            using Alg = FwdDlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
         } else if constexpr (max_matches == large_tensor_matches) {
             using Alg = LargeTensorAlgorithm<AlgoType>;
             static_assert(Alg::is_valid(), Alg::message());
-        } 
+        }
     }
     else if constexpr (SpecifiesGridwiseWmmaGemm<AlgoType>)
     {
@@ -627,6 +633,13 @@ consteval void diagnose_fwd_algorithm_signature()
     }
     else 
     {
+        // Find maximum matches across all variants
+        constexpr int max_1 = xdl_v3_matches > xdl_matches ? xdl_v3_matches : xdl_matches;
+        constexpr int max_2 = wmma_matches > dl_matches ? wmma_matches : dl_matches;
+        constexpr int max_3 = max_1 > max_2 ? max_1 : max_2;
+        constexpr int max_4 = max_3 > large_tensor_matches ? max_3 : large_tensor_matches;
+        constexpr int max_matches = max_4 > tile_matches ? max_4 : tile_matches;
+
         // If we cannot match with neither WMMA nor XDL, try all algorithms for diagnostics
         // and see whichi is the closest match.
         if constexpr(max_matches == xdl_v3_matches) {
@@ -663,35 +676,78 @@ consteval void diagnose_bwd_weight_algorithm_signature()
     constexpr int two_stage_xdl_matches = count_matches_bwd_two_stage_xdl<AlgoType>();
     constexpr int dl_matches = count_matches_bwd_dl<AlgoType>();
     constexpr int multi_d_xdl_matches = count_matches_bwd_multi_d_xdl<AlgoType>();
+    constexpr int wmma_v3_matches = count_matches_bwd_wmma_v3<AlgoType>();
 
-    constexpr int max1 = xdl_v3_matches > xdl_matches ? xdl_v3_matches : xdl_matches;
-    constexpr int max2 = max1 > two_stage_xdl_matches ? max1 : two_stage_xdl_matches;
-    constexpr int max3 = max2 > dl_matches ? max2 : dl_matches;
-    constexpr int max_matches = max3 > multi_d_xdl_matches ? max3 : multi_d_xdl_matches;
+    // Check whether we have XDL or WMMA algorithm
+    if constexpr (SpecifiesGridwiseBwdXdlGemm<AlgoType>)
+    {
+        constexpr int max1 = xdl_v3_matches > xdl_matches ? xdl_v3_matches : xdl_matches;
+        constexpr int max2 = max1 > two_stage_xdl_matches ? max1 : two_stage_xdl_matches;
+        constexpr int max3 = max2 > dl_matches ? max2 : dl_matches;
+        constexpr int max_matches = max3 > multi_d_xdl_matches ? max3 : multi_d_xdl_matches;
 
-    if constexpr (max_matches == xdl_matches) {
-        using Alg = BwdXdlAlgorithm<AlgoType>;
-        static_assert(Alg::is_valid(), Alg::message());
-    } 
-    else if constexpr (max_matches == xdl_v3_matches) {
-        using Alg = BwdXdlV3Algorithm<AlgoType>;
-        static_assert(Alg::is_valid(), Alg::message());
+        if constexpr (max_matches == xdl_matches) {
+            using Alg = BwdXdlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        } 
+        else if constexpr (max_matches == xdl_v3_matches) {
+            using Alg = BwdXdlV3Algorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
+        else if constexpr (max_matches == two_stage_xdl_matches) {
+            using Alg = BwdTwoStageXdlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
+        else if constexpr (max_matches == dl_matches) {
+            using Alg = BwdDlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
+        else if constexpr (max_matches == multi_d_xdl_matches) {
+            using Alg = BwdMultiDXdlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
     }
-    else if constexpr (max_matches == two_stage_xdl_matches) {
-        using Alg = BwdTwoStageXdlAlgorithm<AlgoType>;
-        static_assert(Alg::is_valid(), Alg::message());
+    else if constexpr (SpecifiesGridwiseWmmaGemm<AlgoType>)
+    {  
+        constexpr int max_matches = wmma_v3_matches;
+        if constexpr (max_matches == wmma_v3_matches) {
+            using Alg = BwdWmmaV3Algorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
     }
-    else if constexpr (max_matches == dl_matches) {
-        using Alg = BwdDlAlgorithm<AlgoType>;
-        static_assert(Alg::is_valid(), Alg::message());
-    }
-    else if constexpr (max_matches == multi_d_xdl_matches) {
-        using Alg = BwdMultiDXdlAlgorithm<AlgoType>;
-        static_assert(Alg::is_valid(), Alg::message());
-    }
-    else {
-        // This should never happen
-        static_assert(false, "Internal Error: No matching algorithm variant found for diagnostics.");
+    else 
+    {
+        // If we cannot match with neither WMMA nor XDL, try all algorithms for diagnostics
+        // and see which is the closest match.
+        constexpr int max1 = xdl_v3_matches > xdl_matches ? xdl_v3_matches : xdl_matches;
+        constexpr int max2 = max1 > two_stage_xdl_matches ? max1 : two_stage_xdl_matches;
+        constexpr int max3 = max2 > dl_matches ? max2 : dl_matches;
+        constexpr int max_matches = max3 > multi_d_xdl_matches ? max3 : multi_d_xdl_matches;
+
+        if constexpr (max_matches == xdl_matches) {
+            using Alg = BwdXdlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        } 
+        else if constexpr (max_matches == xdl_v3_matches) {
+            using Alg = BwdXdlV3Algorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
+        else if constexpr (max_matches == two_stage_xdl_matches) {
+            using Alg = BwdTwoStageXdlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
+        else if constexpr (max_matches == dl_matches) {
+            using Alg = BwdDlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
+        else if constexpr (max_matches == multi_d_xdl_matches) {
+            using Alg = BwdMultiDXdlAlgorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
+        else {
+            // This should never happen
+            static_assert(false, "Internal Error: No matching algorithm variant found for diagnostics.");
+        }
     }
 }
 

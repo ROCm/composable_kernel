@@ -10,13 +10,12 @@
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
-//#include "ck_tile/builder/factory/helpers/ck/conv_tuning_params.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_thread_block.hpp"
 
 namespace ck_tile::builder::factory {
 
 // Factory for DeviceGroupedConvBwdWeight_Dl instance
-// of a grouped forward convolution kernel.
+// of a grouped bwd weight convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>

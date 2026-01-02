@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle_v3.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_wmma_cshuffle_v3.hpp"
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_limits.hpp"
@@ -17,13 +17,13 @@
 
 namespace ck_tile::builder::factory {
 
-// Factory for DeviceGroupedConvBwdWeight_Xdl_CShuffleV3 instance
+// Factory for DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 instance
 // of a grouped bwd weight convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsBackwardWeight<SIGNATURE>
-struct ConvBwdWeightXdlV3Factory
+struct ConvBwdWeightWmmaV3Factory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
@@ -35,7 +35,6 @@ struct ConvBwdWeightXdlV3Factory
 
     static constexpr auto BLOCK          = internal::SetThreadBlockInfo<ALGORITHM>();
     static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
-    static constexpr auto XDL_PARAMS     = GRIDWISE_GEMM.xdl_params;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
@@ -54,7 +53,7 @@ struct ConvBwdWeightXdlV3Factory
     static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>, "Invalid B source access order");
 
     // The forward convolution kernel class instance.
-    using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffleV3<
+    using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Wmma_CShuffleV3<
         SPATIAL_DIM,
         typename Layouts::InLayout,
         typename Layouts::WeiLayout,
@@ -72,10 +71,10 @@ struct ConvBwdWeightXdlV3Factory
         BLOCK.per_block.n,
         BLOCK.per_block.k,
         GRIDWISE_GEMM.k1,
-        XDL_PARAMS.m_per_xdl,
-        XDL_PARAMS.n_per_xdl,
-        XDL_PARAMS.m_xdl_per_wave,
-        XDL_PARAMS.n_xdl_per_wave,
+        GRIDWISE_GEMM.m_per_wmma,
+        GRIDWISE_GEMM.n_per_wmma,
+        GRIDWISE_GEMM.m_wmma_per_wave,
+        GRIDWISE_GEMM.n_wmma_per_wave,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
         to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,
@@ -97,7 +96,9 @@ struct ConvBwdWeightXdlV3Factory
         BLOCK_GEMM.scheduler,
         BLOCK_GEMM.pipeline_version,
         typename Types::InComputeType,
-        typename Types::WeiComputeType>;
+        typename Types::WeiComputeType,
+        ALGORITHM.max_transpose_transfer_src_scalar_per_vector,
+        ALGORITHM.max_transpose_transfer_dst_scalar_per_vector>;
 };
 
 } // namespace ck_tile::builder::factory

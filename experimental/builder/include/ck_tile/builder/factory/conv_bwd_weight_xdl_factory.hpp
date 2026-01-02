@@ -17,8 +17,8 @@
 
 namespace ck_tile::builder::factory {
 
-// Factory for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle instance
-// of a grouped forward convolution kernel.
+// Factory for DeviceGroupedConvBwdWeight_Xdl_CShuffle instance
+// of a grouped bwd weight convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>

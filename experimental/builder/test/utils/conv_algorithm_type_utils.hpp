@@ -238,6 +238,15 @@ inline std::string to_string<DlEpilogue>(DlEpilogue t)
 }
 
 template <>
+inline std::string to_string<TransposeParams_>(TransposeParams_ t)
+{
+    std::ostringstream oss;
+    oss << t.max_transpose_transfer_src_scalar_per_vector << ","
+        << t.max_transpose_transfer_dst_scalar_per_vector;
+    return oss.str();
+}
+
+template <>
 inline std::string to_string<DlTransfer<4>>(DlTransfer<4> t)
 {
     std::ostringstream oss;
@@ -410,6 +419,16 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuff
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
+        << "," << to_string(static_cast<Transfer_<>>(t));
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3>(
+    ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))
         << "," << to_string(static_cast<Transfer_<>>(t));
     return oss.str();
 }
