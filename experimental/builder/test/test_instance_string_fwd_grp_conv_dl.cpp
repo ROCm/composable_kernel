@@ -71,14 +71,16 @@ std::string expected_str = "DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK"
                            ",5"                // CThreadTransferSrcDstVectorDim
                            ",1>";              // CThreadTransferDstScalarPerVector
 
-// Test GetInstanceString through base class pointer for DL variant
-TEST(InstanceString, GetInstanceStringReturnsCorrectValueForFwdGrpConvDl)
+// Test describe() through base class pointer for DL variant
+TEST(InstanceString, DescribeReturnsCorrectValueForFwdGrpConvDl)
 {
     using BaseClass = ck::tensor_operation::device::BaseOperator;
     DeviceInstance device_instance;
     BaseClass* base_ptr = &device_instance;
 
-    EXPECT_EQ(base_ptr->GetInstanceString(), expected_str);
+    auto desc = base_ptr->describe();
+    ASSERT_NE(desc, nullptr);
+    EXPECT_EQ(desc->instance_string(), expected_str);
 }
 
 // TODO: Add DescriptionReturnsCorrectValueForFwdGrpConvDl test once ckr::describe supports DL
