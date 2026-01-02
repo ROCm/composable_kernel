@@ -314,7 +314,7 @@ template <>
 inline std::string to_string<Prefetch_>(Prefetch_ t)
 {
     std::ostringstream oss;
-    oss << t.num_gemm_k_prefetch_stages << "," << t.num_groups_to_merge << ","
+    oss << t.num_gemm_k_prefetch_stages << ","
         << to_string(t.loop_scheduler);
     return oss.str();
 }
@@ -420,6 +420,16 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuff
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
         << "," << to_string(static_cast<Transfer_<>>(t));
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle>(
+    ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))
+        << "," << to_string(static_cast<Transfer_<4>>(t));
     return oss.str();
 }
 

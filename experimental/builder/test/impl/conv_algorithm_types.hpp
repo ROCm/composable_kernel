@@ -234,7 +234,6 @@ struct ConvSpecializationBwdWeight_
 struct Prefetch_
 {
     size_t num_gemm_k_prefetch_stages;
-    size_t num_groups_to_merge;
     PipelineScheduler loop_scheduler;
 };
 
@@ -430,14 +429,11 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
-    constexpr auto with_prefetch_config(size_t k_prefetch_stages,
-                                        size_t groups_to_merge,
-                                        PipelineScheduler scheduler) const
+    constexpr auto with_prefetch_config(size_t k_prefetch_stages, PipelineScheduler scheduler) const
     {
         static_assert(std::is_base_of_v<Prefetch_, ConvAlgorithmTemplate>);
         auto result                       = *this;
         result.num_gemm_k_prefetch_stages = k_prefetch_stages;
-        result.num_groups_to_merge        = groups_to_merge;
         result.loop_scheduler             = scheduler;
         return result;
     }
@@ -607,5 +603,9 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 =
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3 = 
     ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<>, ConvSpecializationBwdWeight_, BlockGemm_, TransposeParams_, GemmBatchOptions_, TwoStageSpecialization_>;
+
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle = 
+    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<4>, ConvSpecializationBwdWeight_, GridGemm_, Prefetch_>;
+
 
 } // namespace ck_tile::builder::test

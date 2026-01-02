@@ -366,7 +366,7 @@ struct BwdMultiDXdlAlgorithm {
 };
 
 template <typename T>
-struct BwdXdlV3Algorithm {
+struct BwdXdlV3AlgorithmBase {
     CHECK_CONCEPT(T, ConvAlgorithmDescriptor)
     CHECK_CONCEPT(T, SpecifiesThreadBlock)
     CHECK_CONCEPT(T, SpecifiesBlockTransfer)
@@ -376,6 +376,90 @@ struct BwdXdlV3Algorithm {
     CHECK_CONCEPT(T, SpecifiesGridwiseBwdXdlGemm)
     CHECK_CONCEPT(T, SpecifiesBwdWeightConvSpecialization)
     CHECK_CONCEPT(T, SpecifiesBlockGemm)
+
+    static constexpr bool c1 = c_ConvAlgorithmDescriptor;
+    static constexpr bool c2 = c_SpecifiesThreadBlock;
+    static constexpr bool c3 = c_SpecifiesBlockTransfer;
+    static constexpr bool c4 = c_SpecifiesLdsTransfer;
+    static constexpr bool c5 = c_SpecifiesThreadClusterAccessOrder;
+    static constexpr bool c6 = c_SpecifiesSourceAccessOrder;
+    static constexpr bool c7 = c_SpecifiesGridwiseBwdXdlGemm;
+    static constexpr bool c8 = c_SpecifiesBwdWeightConvSpecialization;
+    static constexpr bool c9 = c_SpecifiesBlockGemm;
+
+    static consteval bool is_valid() {
+        return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9;
+    }
+
+    static consteval auto message() -> std::string {
+        return 
+               DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
+               DIAGNOSTIC_LINE(SpecifiesThreadBlock) +
+               DIAGNOSTIC_LINE(SpecifiesBlockTransfer) +
+               DIAGNOSTIC_LINE(SpecifiesLdsTransfer) +
+               DIAGNOSTIC_LINE(SpecifiesThreadClusterAccessOrder) +
+               DIAGNOSTIC_LINE(SpecifiesSourceAccessOrder) +
+               DIAGNOSTIC_LINE(SpecifiesGridwiseBwdXdlGemm) +
+               DIAGNOSTIC_LINE(SpecifiesBwdWeightConvSpecialization) +
+               DIAGNOSTIC_LINE(SpecifiesBlockGemm);
+    }
+};
+
+template <typename T>
+struct BwdXdlV3Algorithm : public BwdXdlV3AlgorithmBase<T>{
+    CHECK_CONCEPT(T, SpecifiesGenericInstance)
+
+    static constexpr bool c10 = c_SpecifiesGenericInstance;
+
+    static consteval bool is_valid() {
+        return c10 && BwdXdlV3AlgorithmBase<T>::is_valid();
+    }
+
+    static consteval auto message() -> std::string {
+        return std::string("\n=== Backward XDL V3 Algorithm Diagnostic (closest match) ===\n"
+               "Concepts for BwdXdlV3 Algorithm:\n") +
+               BwdXdlV3AlgorithmBase<T>::message() +
+               DIAGNOSTIC_LINE(SpecifiesGenericInstance);
+    }
+};
+
+template <typename T>
+struct BwdTwoStageXdlAlgorithm : public BwdXdlV3AlgorithmBase<T>{
+    CHECK_CONCEPT(T, SpecifiesTransposeTransfer)
+    CHECK_CONCEPT(T, SpecifiesGemmBatchOptions)
+    CHECK_CONCEPT(T, SpecifiesTwoStageSupport)
+
+    static constexpr bool c10 = c_SpecifiesTransposeTransfer;
+    static constexpr bool c11 = c_SpecifiesGemmBatchOptions;
+    static constexpr bool c12 = c_SpecifiesTwoStageSupport;
+
+    static consteval bool is_valid() {
+        return c10 && c11 && c12 && BwdXdlV3AlgorithmBase<T>::is_valid();
+    }
+
+    static consteval auto message() -> std::string {
+        return std::string("\n=== Backward two stage XDL Algorithm Diagnostic (closest match) ===\n"
+               "Concepts for BwdXdlV3 Algorithm:\n") +
+               BwdXdlV3AlgorithmBase<T>::message() +
+               DIAGNOSTIC_LINE(SpecifiesTransposeTransfer) +
+               DIAGNOSTIC_LINE(SpecifiesGemmBatchOptions) +
+               DIAGNOSTIC_LINE(SpecifiesTwoStageSupport);
+    }
+};
+
+template <typename T>
+struct BwdWmmaAlgorithm {
+    CHECK_CONCEPT(T, ConvAlgorithmDescriptor)
+    CHECK_CONCEPT(T, SpecifiesThreadBlock)
+    CHECK_CONCEPT(T, SpecifiesBlockTransfer)
+    CHECK_CONCEPT(T, SpecifiesLdsTransfer)
+    CHECK_CONCEPT(T, SpecifiesThreadClusterAccessOrder)
+    CHECK_CONCEPT(T, SpecifiesSourceAccessOrder)
+    CHECK_CONCEPT(T, SpecifiesGridwiseWmmaGemm)
+    CHECK_CONCEPT(T, SpecifiesBwdWeightConvSpecialization)
+    CHECK_CONCEPT(T, SpecifiesNumPrefetchStages)
+    CHECK_CONCEPT(T, SpecifiesLoopScheduler)
+    CHECK_CONCEPT(T, SpecifiedGridwiseGemmPipeline)
     CHECK_CONCEPT(T, SpecifiesGenericInstance)
 
     static constexpr bool c1 = c_ConvAlgorithmDescriptor;
@@ -384,78 +468,32 @@ struct BwdXdlV3Algorithm {
     static constexpr bool c4 = c_SpecifiesLdsTransfer;
     static constexpr bool c5 = c_SpecifiesThreadClusterAccessOrder;
     static constexpr bool c6 = c_SpecifiesSourceAccessOrder;
-    static constexpr bool c7 = c_SpecifiesGridwiseBwdXdlGemm;
+    static constexpr bool c7 = c_SpecifiesGridwiseWmmaGemm;
     static constexpr bool c8 = c_SpecifiesBwdWeightConvSpecialization;
-    static constexpr bool c9 = c_SpecifiesBlockGemm;
-    static constexpr bool c10 = c_SpecifiesGenericInstance;
+    static constexpr bool c9 = c_SpecifiesNumPrefetchStages;
+    static constexpr bool c10 = c_SpecifiesLoopScheduler;
+    static constexpr bool c11 = c_SpecifiedGridwiseGemmPipeline;
+    static constexpr bool c12 = c_SpecifiesGenericInstance;
 
     static consteval bool is_valid() {
-        return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && c10;
+        return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && c10 && c11 && c12;
     }
 
     static consteval auto message() -> std::string {
-        return std::string("\n=== Backward XDL V3 Algorithm Diagnostic (closest match) ===\n"
-               "Concepts for BwdXdlV3 Algorithm:\n") +
+        return std::string("\n=== Backward WMMA Algorithm Diagnostic (closest match) ===\n"
+               "Concepts for BwdWmma Algorithm:\n") +
                DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
                DIAGNOSTIC_LINE(SpecifiesThreadBlock) +
                DIAGNOSTIC_LINE(SpecifiesBlockTransfer) +
                DIAGNOSTIC_LINE(SpecifiesLdsTransfer) +
                DIAGNOSTIC_LINE(SpecifiesThreadClusterAccessOrder) +
                DIAGNOSTIC_LINE(SpecifiesSourceAccessOrder) +
-               DIAGNOSTIC_LINE(SpecifiesGridwiseBwdXdlGemm) +
+               DIAGNOSTIC_LINE(SpecifiesGridwiseWmmaGemm) +
                DIAGNOSTIC_LINE(SpecifiesBwdWeightConvSpecialization) +
-               DIAGNOSTIC_LINE(SpecifiesBlockGemm) +
+               DIAGNOSTIC_LINE(SpecifiesNumPrefetchStages) +
+               DIAGNOSTIC_LINE(SpecifiesLoopScheduler) +
+               DIAGNOSTIC_LINE(SpecifiedGridwiseGemmPipeline) +
                DIAGNOSTIC_LINE(SpecifiesGenericInstance);
-    }
-};
-
-template <typename T>
-struct BwdTwoStageXdlAlgorithm {
-    CHECK_CONCEPT(T, ConvAlgorithmDescriptor)
-    CHECK_CONCEPT(T, SpecifiesThreadBlock)
-    CHECK_CONCEPT(T, SpecifiesBlockTransfer)
-    CHECK_CONCEPT(T, SpecifiesLdsTransfer)
-    CHECK_CONCEPT(T, SpecifiesThreadClusterAccessOrder)
-    CHECK_CONCEPT(T, SpecifiesSourceAccessOrder)
-    CHECK_CONCEPT(T, SpecifiesGridwiseBwdXdlGemm)
-    CHECK_CONCEPT(T, SpecifiesBwdWeightConvSpecialization)
-    CHECK_CONCEPT(T, SpecifiesBlockGemm)
-    CHECK_CONCEPT(T, SpecifiesTransposeTransfer)
-    CHECK_CONCEPT(T, SpecifiesGemmBatchOptions)
-    CHECK_CONCEPT(T, SpecifiesTwoStageSupport)
-
-    static constexpr bool c1 = c_ConvAlgorithmDescriptor;
-    static constexpr bool c2 = c_SpecifiesThreadBlock;
-    static constexpr bool c3 = c_SpecifiesBlockTransfer;
-    static constexpr bool c4 = c_SpecifiesLdsTransfer;
-    static constexpr bool c5 = c_SpecifiesThreadClusterAccessOrder;
-    static constexpr bool c6 = c_SpecifiesSourceAccessOrder;
-    static constexpr bool c7 = c_SpecifiesGridwiseBwdXdlGemm;
-    static constexpr bool c8 = c_SpecifiesBwdWeightConvSpecialization;
-    static constexpr bool c9 = c_SpecifiesBlockGemm;
-    static constexpr bool c10 = c_SpecifiesTransposeTransfer;
-    static constexpr bool c11 = c_SpecifiesGemmBatchOptions;
-    static constexpr bool c12 = c_SpecifiesTwoStageSupport;
-
-    static consteval bool is_valid() {
-        return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && & c10 && c11 && c12;
-    }
-
-    static consteval auto message() -> std::string {
-        return std::string("\n=== Backward two stage XDL Algorithm Diagnostic (closest match) ===\n"
-               "Concepts for BwdXdlV3 Algorithm:\n") +
-               DIAGNOSTIC_LINE(ConvAlgorithmDescriptor) +
-               DIAGNOSTIC_LINE(SpecifiesThreadBlock) +
-               DIAGNOSTIC_LINE(SpecifiesBlockTransfer) +
-               DIAGNOSTIC_LINE(SpecifiesLdsTransfer) +
-               DIAGNOSTIC_LINE(SpecifiesThreadClusterAccessOrder) +
-               DIAGNOSTIC_LINE(SpecifiesSourceAccessOrder) +
-               DIAGNOSTIC_LINE(SpecifiesGridwiseBwdXdlGemm) +
-               DIAGNOSTIC_LINE(SpecifiesBwdWeightConvSpecialization) +
-               DIAGNOSTIC_LINE(SpecifiesBlockGemm) +
-               DIAGNOSTIC_LINE(SpecifiesTransposeTransfer) +
-               DIAGNOSTIC_LINE(SpecifiesGemmBatchOptions) +
-               DIAGNOSTIC_LINE(SpecifiesTwoStageSupport);
     }
 };
 
@@ -627,6 +665,12 @@ consteval int count_matches_bwd_two_stage_xdl() {
 }
 
 template <typename T>
+consteval int count_matches_bwd_wmma() {
+    using Alg = BwdWmmaAlgorithm<T>;
+    return Alg::c1 + Alg::c2 + Alg::c3 + Alg::c4 + Alg::c5 + Alg::c6 + Alg::c7 + Alg::c8 + Alg::c9 + Alg::c10 + Alg::c11 + Alg::c12;
+}
+
+template <typename T>
 consteval int count_matches_bwd_wmma_v3() {
     using Alg = BwdWmmaV3Algorithm<T>;
     return Alg::c1 + Alg::c2 + Alg::c3 + Alg::c4 + Alg::c5 + Alg::c6 + Alg::c7 + Alg::c8 + Alg::c9 + Alg::c10 + Alg::c11;
@@ -740,6 +784,7 @@ consteval void diagnose_bwd_weight_algorithm_signature()
     constexpr int multi_d_xdl_matches = count_matches_bwd_multi_d_xdl<AlgoType>();
     constexpr int wmma_v3_matches = count_matches_bwd_wmma_v3<AlgoType>();
     constexpr int two_stage_wmma_v3_matches = count_matches_bwd_two_stage_wmma_v3<AlgoType>();
+    constexpr int wmma_matches = count_matches_bwd_wmma<AlgoType>();
 
     // Check whether we have XDL or WMMA algorithm
     if constexpr (SpecifiesGridwiseBwdXdlGemm<AlgoType>)
@@ -772,13 +817,18 @@ consteval void diagnose_bwd_weight_algorithm_signature()
     }
     else if constexpr (SpecifiesGridwiseWmmaGemm<AlgoType>)
     {  
-        constexpr int max_matches = wmma_v3_matches > two_stage_wmma_v3_matches ? wmma_v3_matches : two_stage_wmma_v3_matches;
+        constexpr int max_1 = wmma_v3_matches > two_stage_wmma_v3_matches ? wmma_v3_matches : two_stage_wmma_v3_matches;
+        constexpr int max_matches = max_1 > wmma_matches ? max_1 : wmma_matches;
         if constexpr (max_matches == wmma_v3_matches) {
             using Alg = BwdWmmaV3Algorithm<AlgoType>;
             static_assert(Alg::is_valid(), Alg::message());
         }
         else if constexpr (max_matches == two_stage_wmma_v3_matches) {
             using Alg = BwdTwoStageWmmaV3Algorithm<AlgoType>;
+            static_assert(Alg::is_valid(), Alg::message());
+        }
+        else if constexpr (max_matches == wmma_matches) {
+            using Alg = BwdWmmaAlgorithm<AlgoType>;
             static_assert(Alg::is_valid(), Alg::message());
         }
     }
