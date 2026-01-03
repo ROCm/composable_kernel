@@ -947,7 +947,6 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                                  Base::N_Warp_Tile,
                                                  Base::K_Warp_Tile,
                                                  transpose_c,
-                                                 ck_tile::memory_operation_enum::set,
                                                  1,
                                                  false,
                                                  1,

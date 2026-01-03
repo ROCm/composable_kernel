@@ -107,7 +107,7 @@ template <typename T>
 __global__ void
 fill_tensor_norm_rand_fp_values(T* p, float sigma, float mean, uint64_t buffer_element_size)
 {
-    static constexpr PI = std::acos(-1.0);
+    static constexpr auto PI = 3.0;
     // initial values
     ran_state_u32 s = ran_init();
     float norm[2];
