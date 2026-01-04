@@ -1476,7 +1476,8 @@ struct MoeFlatmmKernel
                                              c_scatter_valids[mIter]);
 
                 if constexpr(!IsInputGemm ||
-                             EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add)
+                             decltype(c_block_window.get_bottom_tensor_view())::DstInMemOp ==
+                                 memory_operation_enum::atomic_add)
                     c_scatter_tile_window.update(c_out_tensor);
                 else
                     c_scatter_tile_window.store(c_out_tensor);
