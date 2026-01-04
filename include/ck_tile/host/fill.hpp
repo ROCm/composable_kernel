@@ -55,9 +55,10 @@ struct FillUniformDistribution
         const auto total_bytes    = total * sizeof(T_iter);
 
         // max 80 threads; at least 2MB per thread
-        const size_t available_cpu_cores = get_available_cpu_cores();
-        const size_t num_thread =
-            min(80UL, available_cpu_cores, integer_divide_ceil(total_bytes, 0x200000UL));
+        const size_t available_cpu_cores    = get_available_cpu_cores();
+        constexpr uint64_t MAX_THREAD_COUNT = 80;
+        const size_t num_thread             = min(
+            MAX_THREAD_COUNT, available_cpu_cores, integer_divide_ceil(total_bytes, 0x200000UL));
         constexpr size_t BLOCK_BYTES   = 64;
         constexpr size_t BLOCK_SIZE    = BLOCK_BYTES / sizeof(T_iter);
         const size_t num_blocks        = integer_divide_ceil(total_bytes, BLOCK_BYTES);
