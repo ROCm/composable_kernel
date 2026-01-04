@@ -460,12 +460,6 @@ inline auto create_args()
     return arg_parser;
 }
 
-// Type aliases for memory operation integral constants
-using MemoryOpSet =
-    std::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>;
-using MemoryOpAtomicAdd = std::integral_constant<ck_tile::memory_operation_enum,
-                                                 ck_tile::memory_operation_enum::atomic_add>;
-
 // host API
 template <typename ADataType,
           typename BDataType,
