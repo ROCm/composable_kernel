@@ -27,6 +27,7 @@ struct FmhaFwdV3Kernel
     using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
     using VDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::VDataType>;
+    using PDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::PDataType>;
     using LSEDataType  = ck_tile::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
     using ODataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::ODataType>;
     using SaccDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::SaccDataType>;
@@ -38,6 +39,7 @@ struct FmhaFwdV3Kernel
     static constexpr bool kPadHeadDimV      = FmhaPipeline::kPadHeadDimV;
     static constexpr bool kHasLogitsSoftCap = FmhaPipeline::kHasLogitsSoftCap;
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
+    static constexpr auto QScaleEnum        = FmhaPipeline::Problem::QScaleEnum;
 
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
@@ -118,11 +120,21 @@ struct FmhaFwdV3Kernel
         float logits_soft_cap_rcp;
     };
 
+    struct FmhaFwdCommonQScaleKargs
+    {
+        const void* q_descale_ptr = nullptr;
+        const void* k_descale_ptr = nullptr;
+        const void* v_descale_ptr = nullptr;
+    };
+
     struct FmhaFwdBatchModeKargs
         : FmhaFwdCommonKargs,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<0>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<1>>,
-          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<2>>
+          std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
+                             FmhaFwdCommonQScaleKargs,
+                             FmhaFwdEmptyKargs<2>>,
+          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<3>>
     {
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
@@ -139,7 +151,10 @@ struct FmhaFwdV3Kernel
         : FmhaFwdCommonKargs,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<0>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<1>>,
-          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<2>>
+          std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
+                             FmhaFwdCommonQScaleKargs,
+                             FmhaFwdEmptyKargs<2>>,
+          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<3>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -166,6 +181,9 @@ struct FmhaFwdV3Kernel
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
+              const void* q_descale_ptr,
+              const void* k_descale_ptr,
+              const void* v_descale_ptr,
               void* lse_ptr,
               void* o_ptr,
               ck_tile::index_t seqlen_q,
@@ -218,6 +236,7 @@ struct FmhaFwdV3Kernel
                      nhead_stride_o}, // args for common karg
                     {},               // placeholder for mask
                     {},               // placeholder for lse
+                    {},               // placeholder for qscale
                     {},               // placeholder for logits_soft_cap
                     batch_stride_q,
                     batch_stride_k,
@@ -237,6 +256,12 @@ struct FmhaFwdV3Kernel
             kargs.nhead_stride_lse = nhead_stride_lse;
             kargs.batch_stride_lse = batch_stride_lse;
         }
+        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
+        {
+            kargs.q_descale_ptr = q_descale_ptr;
+            kargs.k_descale_ptr = k_descale_ptr;
+            kargs.v_descale_ptr = v_descale_ptr;
+        }
         if constexpr(kHasLogitsSoftCap)
         {
             kargs.init_logits_soft_cap(logits_soft_cap);
@@ -252,6 +277,9 @@ struct FmhaFwdV3Kernel
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
+              const void* q_descale_ptr,
+              const void* k_descale_ptr,
+              const void* v_descale_ptr,
               void* lse_ptr,
               void* o_ptr,
               const void* seqstart_q_ptr,
@@ -301,6 +329,7 @@ struct FmhaFwdV3Kernel
                      nhead_stride_o}, // args for common karg
                     {},               // placeholder for mask
                     {},               // placeholder for lse
+                    {},               // placeholder for qscale
                     {},               // placeholder for logits_soft_cap
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
@@ -318,6 +347,12 @@ struct FmhaFwdV3Kernel
         {
             kargs.lse_ptr          = lse_ptr;
             kargs.nhead_stride_lse = nhead_stride_lse;
+        }
+        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
+        {
+            kargs.q_descale_ptr = q_descale_ptr;
+            kargs.k_descale_ptr = k_descale_ptr;
+            kargs.v_descale_ptr = v_descale_ptr;
         }
         if constexpr(kHasLogitsSoftCap)
         {
@@ -640,32 +675,80 @@ struct FmhaFwdV3Kernel
                 return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
         }();
 
+        const float scale_s = [&] {
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
+            {
+                float q_descale = *(reinterpret_cast<const float*>(kargs.q_descale_ptr));
+                float k_descale = *(reinterpret_cast<const float*>(kargs.k_descale_ptr));
+                return kargs.scale_s * q_descale * k_descale;
+            }
+            else
+            {
+                return kargs.scale_s;
+            }
+        }();
+
         AttentionVariant variant;
         const auto variant_params = [&] {
             if constexpr(kHasLogitsSoftCap)
             {
                 return ck_tile::LogitsSoftCapParams<FmhaMask, CK_TILE_FMHA_FWD_FAST_EXP2>{
-                    mask, kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
+                    mask, scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
             }
             else
             {
-                return ck_tile::StandardAttentionParams<FmhaMask>{mask, kargs.scale_s};
+                return ck_tile::StandardAttentionParams<FmhaMask>{mask, scale_s};
             }
         }();
 
         BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
 
         auto o_acc_tile = [&]() {
-            return FmhaPipeline{}(q_dram_window,
-                                  k_dram_window,
-                                  v_dram_window,
-                                  lse_dram_window,
-                                  mask,
-                                  kargs.scale_s,
-                                  variant,
-                                  variant_params,
-                                  block_indices,
-                                  smem_ptr);
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
+            {
+                float v_descale = *(reinterpret_cast<const float*>(kargs.v_descale_ptr));
+                float scale_p   = ck_tile::type_convert<float>(ck_tile::numeric<PDataType>::max());
+                float scale_o   = v_descale / scale_p;
+
+                auto o_acc_element_func = [&]() {
+                    if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
+                        return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
+                                                 ck_tile::scales{scale_o});
+                    else
+                        return ck_tile::scales{scale_o};
+                }();
+
+                return FmhaPipeline{}(q_dram_window,
+                                      identity{}, // q_element_func
+                                      k_dram_window,
+                                      identity{}, // k_element_func
+                                      v_dram_window,
+                                      identity{}, // v_element_func
+                                      lse_dram_window,
+                                      identity{},      // lse_element_func
+                                      identity{},      // s_acc_element_func
+                                      scales{scale_p}, // p_compute_element_func
+                                      o_acc_element_func,
+                                      mask,
+                                      scale_s,
+                                      variant,
+                                      variant_params,
+                                      block_indices,
+                                      smem_ptr);
+            }
+            else
+            {
+                return FmhaPipeline{}(q_dram_window,
+                                      k_dram_window,
+                                      v_dram_window,
+                                      lse_dram_window,
+                                      mask,
+                                      scale_s,
+                                      variant,
+                                      variant_params,
+                                      block_indices,
+                                      smem_ptr);
+            }
         }();
 
         // O DRAM and O DRAM window

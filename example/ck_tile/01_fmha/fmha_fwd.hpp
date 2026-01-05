@@ -731,6 +731,9 @@ auto fmha_fwd_v3_create_kargs_and_grids(fmha_fwd_args args)
             return FmhaKernel::MakeKargs(args.q_ptr,
                                          args.k_ptr,
                                          args.v_ptr,
+                                         args.q_descale_ptr,
+                                         args.k_descale_ptr,
+                                         args.v_descale_ptr,
                                          nullptr, // lse_ptr
                                          args.o_ptr,
                                          args.seqstart_q_ptr,
@@ -764,6 +767,9 @@ auto fmha_fwd_v3_create_kargs_and_grids(fmha_fwd_args args)
             return FmhaKernel::MakeKargs(args.q_ptr,
                                          args.k_ptr,
                                          args.v_ptr,
+                                         args.q_descale_ptr,
+                                         args.k_descale_ptr,
+                                         args.v_descale_ptr,
                                          nullptr, // lse_ptr
                                          args.o_ptr,
                                          args.seqlen_q,
