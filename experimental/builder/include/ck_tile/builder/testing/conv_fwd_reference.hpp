@@ -12,7 +12,7 @@
 /// The main item is the `run()` function, which is the primary way to
 /// invoke the reference execution mechanism.
 /// The implementation of this file mostly looks like `conv_fwd_ck.hpp`,
-/// but its makde specific to the reference implementation, which is
+/// but its made specific to the reference implementation, which is
 /// invoked in a slightly different way.
 
 namespace ck_tile::builder::test {
@@ -59,7 +59,7 @@ concept RefConvInstance = requires(Conv& conv,
 /// implementation.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @throws std::runtime_error if the arguments werent actually valid for the
+/// @throws std::runtime_error if the arguments weren't actually valid for the
 /// operation. This should be caught and reported by the testing framework.
 ///
 /// @see run()
