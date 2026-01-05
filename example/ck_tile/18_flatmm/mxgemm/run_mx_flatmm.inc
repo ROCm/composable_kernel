@@ -105,10 +105,12 @@ int run_mx_flatmm_with_layouts(int argc,
     scale_a_dev_buf.ToDevice(scale_a_shuffled.data());
     scale_b_dev_buf.ToDevice(scale_b_shuffled.data());
 
-    auto scale_a_dev_ptr = ck_tile::FlatmmScalePointer<ScaleGranularityM, ScaleGranularityK>{
-        static_cast<float*>(scale_a_dev_buf.GetDeviceBuffer()), M / ScaleGranularityM};
-    auto scale_b_dev_ptr = ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>{
-        static_cast<float*>(scale_b_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
+    auto scale_a_dev_ptr =
+        ck_tile::FlatmmScalePointer<ScaleGranularityM, ScaleGranularityK, ScaleType>{
+            static_cast<ScaleType*>(scale_a_dev_buf.GetDeviceBuffer()), M / ScaleGranularityM};
+    auto scale_b_dev_ptr =
+        ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK, ScaleType>{
+            static_cast<ScaleType*>(scale_b_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
 
     invoke_mx_flatmm<FlatmmConfig,
                      ADataType,
