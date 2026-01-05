@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_rotary_embedding.hpp"
 
 namespace ck_tile {
@@ -63,6 +64,71 @@ struct BlockFmhaPipelineProblem
     static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr bool kHasSink          = Traits::kHasSink;
+};
+
+template <typename QDataType_,
+          typename KDataType_,
+          typename VDataType_,
+          typename SaccDataType_,
+          typename SMPLComputeDataType_,
+          typename BiasDataType_,
+          typename RandValOutputDataType_,
+          typename LSEDataType_,
+          typename PDataType_,
+          typename OaccDataType_,
+          typename ODataType_,
+          typename BlockFmhaShape_,
+          bool kIsGroupMode_,
+          typename AttentionVariant_,
+          typename FmhaMask_,
+          bool kUseTrLoad_,
+          int kPageBlockSize_,
+          typename Traits_>
+struct BlockFmhaBatchPrefillPipelineProblem
+    : public BlockFmhaPipelineProblem<QDataType_,
+                                      KDataType_,
+                                      VDataType_,
+                                      SaccDataType_,
+                                      SMPLComputeDataType_,
+                                      BiasDataType_,
+                                      RandValOutputDataType_,
+                                      LSEDataType_,
+                                      PDataType_,
+                                      OaccDataType_,
+                                      ODataType_,
+                                      BlockFmhaShape_,
+                                      kIsGroupMode_,
+                                      AttentionVariant_,
+                                      FmhaMask_,
+                                      kUseTrLoad_,
+                                      Traits_>
+{
+    static constexpr index_t kPageBlockSize = kPageBlockSize_;
+    static_assert(kPageBlockSize > 0, "kPageBlockSize must be positive");
+    static_assert((kPageBlockSize & (kPageBlockSize - 1)) == 0,
+                  "kPageBlockSize must be power of two");
+    static constexpr index_t kLog2PageSize = []() constexpr {
+        index_t shift = 0;
+        index_t val   = kPageBlockSize_;
+        while(val > 1)
+        {
+            val >>= 1;
+            shift++;
+        }
+        return shift;
+    }();
+
+    static constexpr index_t kVectorSize  = 16 / sizeof(KDataType_); // Dwordx4
+    static constexpr auto kKVMemoryLayout = Traits_::kKVMemoryLayout;
+    static constexpr auto kKVLookupTable  = Traits_::kKVLookupTable;
+    static constexpr bool kIsVectorizedLayout =
+        kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT;
+
+    static_assert(BlockFmhaShape_::kQKHeaddim % kVectorSize == 0,
+                  "kQKHeaddim must be divisible by kVectorSize");
+    static_assert(!kIsVectorizedLayout || kPageBlockSize % kVectorSize == 0,
+                  "kPageBlockSize must be divisible by kVectorSize for vectorized layout");
+    static_assert(kIsGroupMode_, "Batch prefill requires group mode");
 };
 
 template <typename QDataType_,
