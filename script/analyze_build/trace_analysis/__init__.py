@@ -71,6 +71,7 @@ from .parser import TraceParser
 from .transformer import TraceTransformer
 from .template_parser import TemplateParser
 from .ninja_parser import NinjaLogParser
+from .chrome_trace import ChromeTraceExporter
 from .utils import find_trace_files
 
 __all__ = [
@@ -87,6 +88,8 @@ __all__ = [
     "NinjaLogParser",
     "NinjaBuild",
     "CompilationTimeline",
+    # Chrome Trace export
+    "ChromeTraceExporter",
     # Metadata and statistics
     "FileMetadata",
     "BuildStatistics",
