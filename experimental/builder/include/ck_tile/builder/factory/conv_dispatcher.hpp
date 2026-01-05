@@ -107,41 +107,45 @@ constexpr auto make_conv_instance()
     using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
 
     // Reference algorithm supports all directions
-    if constexpr(ReferenceAlgorithm<AlgoType>::is_valid())
+    if constexpr(ReferenceAlgorithm<AlgoType>)
     {
         return typename ReferenceFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
     // CK Tile supports common factory for each direction
-    if constexpr(TileAlgorithm<AlgoType>::is_valid())
+    if constexpr(TileAlgorithm<AlgoType>)
     {
         return typename ConvTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
     // Forward direction (supports most algorithm variants)
     else if constexpr(ConvDirectionIsForward<SIGNATURE>)
     {
-        if constexpr(FwdXdlV3Algorithm<AlgoType>::is_valid())
+        if constexpr(FwdXdlV3Algorithm<AlgoType>)
         {
             return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(FwdXdlAlgorithm<AlgoType>::is_valid())
+        else if constexpr(FwdXdlAlgorithm<AlgoType>)
         {
             return typename ConvFwdXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(FwdWmmaAlgorithm<AlgoType>::is_valid())
+        else if constexpr(FwdWmmaAlgorithm<AlgoType>)
         {
             return typename ConvFwdWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(FwdDlAlgorithm<AlgoType>::is_valid())
+        else if constexpr(FwdDlAlgorithm<AlgoType>)
         {
             return typename ConvFwdDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(LargeTensorAlgorithm<AlgoType>::is_valid())
+        else if constexpr(LargeTensorAlgorithm<AlgoType>)
         {
             return typename ConvFwdLargeTensorFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else
         {
-            diagnose_fwd_algorithm_signature<AlgoType>();
+            static_assert(
+                false,
+                "No suitable forward convolution kernel factory found for the provided ALGORITHM. "
+                "The ALGORITHM must satisfy requirements for one of: Reference, Tile, XDL V3, XDL, "
+                "WMMA, DL (NHWC layout), or Large Tensor variant.");
         }
     }
     // Backward data direction (will expand with more algorithms in the future)
@@ -155,49 +159,54 @@ constexpr auto make_conv_instance()
     // Backward weight direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
-        if constexpr(BwdXdlAlgorithm<AlgoType>::is_valid())
+        if constexpr(BwdXdlAlgorithm<AlgoType>)
         {
             return typename ConvBwdWeightXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdXdlV3Algorithm<AlgoType>::is_valid())
+        else if constexpr(BwdXdlV3Algorithm<AlgoType>)
         {
             return typename ConvBwdWeightXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdTwoStageXdlAlgorithm<AlgoType>::is_valid())
+        else if constexpr(BwdTwoStageXdlAlgorithm<AlgoType>)
         {
             return
                 typename ConvBwdWeightTwoStageXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdDlAlgorithm<AlgoType>::is_valid())
+        else if constexpr(BwdDlAlgorithm<AlgoType>)
         {
             return typename ConvBwdWeightDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdMultiDXdlAlgorithm<AlgoType>::is_valid())
+        else if constexpr(BwdMultiDXdlAlgorithm<AlgoType>)
         {
             return
                 typename ConvBwdWeightMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdWmmaV3Algorithm<AlgoType>::is_valid())
+        else if constexpr(BwdWmmaV3Algorithm<AlgoType>)
         {
             return typename ConvBwdWeightWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdTwoStageWmmaV3Algorithm<AlgoType>::is_valid())
+        else if constexpr(BwdTwoStageWmmaV3Algorithm<AlgoType>)
         {
             return typename ConvBwdWeightTwoStageWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::
                 Instance{};
         }
-        else if constexpr(BwdWmmaAlgorithm<AlgoType>::is_valid())
+        else if constexpr(BwdWmmaAlgorithm<AlgoType>)
         {
             return typename ConvBwdWeightWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdMultiDWmmaV3Algorithm<AlgoType>::is_valid())
+        else if constexpr(BwdMultiDWmmaV3Algorithm<AlgoType>)
         {
             return typename ConvBwdWeightMultiDWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::
                 Instance{};
         }
         else
         {
-            diagnose_bwd_weight_algorithm_signature<AlgoType>();
+            static_assert(
+                false,
+                "No suitable backward weight convolution kernel factory found for the provided "
+                "ALGORITHM. The ALGORITHM must satisfy requirements for one of: Reference, Tile, "
+                "XDL, XDL V3, Two-Stage XDL, DL, Multi-D XDL, WMMA V3, Two-Stage "
+                "WMMA V3, WMMA, or Multi-D WMMA V3 variant.");
         }
     }
     else
