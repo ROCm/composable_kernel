@@ -10,14 +10,14 @@ namespace device {
 namespace instance {
 
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
-void add_device_grouped_conv3d_bwd_weight_wmma_scale_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
+void add_device_grouped_conv3d_bwd_weight_wmma_scale_ndhwgc_gkzyxc_ndhwgk_bf16_bf16_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<3,
                                                                     NDHWGC,
                                                                     GKZYXC,
                                                                     NDHWGK,
                                                                     Tuple<>,
                                                                     BF16,
-                                                                    F32,
+                                                                    BF16,
                                                                     BF16,
                                                                     Tuple<>,
                                                                     PassThrough,

@@ -31,8 +31,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
     using DsDataType                  = ck_tile::tuple<>;
     using Row                         = ck_tile::tensor_layout::gemm::RowMajor;
     using Col                         = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using AQLayout                    = Row;
-    using BQLayout                    = Col;
+    using AQLayout                    = ALayout;
+    using BQLayout                    = BLayout;
     static constexpr bool PreshuffleB = std::tuple_element_t<10, Tuple>::value;
     static constexpr bool Persistent  = std::tuple_element_t<11, Tuple>::value;
     static constexpr bool TransposeC  = std::tuple_element_t<12, Tuple>::value;
@@ -44,8 +44,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         static const bool kPadK = false;
 
         static const int kBlockPerCu         = 1;
-        static const ck_tile::index_t M_Tile = 256;
-        static const ck_tile::index_t N_Tile = 256;
+        static const ck_tile::index_t M_Tile = 128;
+        static const ck_tile::index_t N_Tile = 128;
         static const ck_tile::index_t K_Tile = 128;
 
         static const ck_tile::index_t M_Warp = 2;
@@ -148,10 +148,9 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         float ave_time{0};
 
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
-            constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
-            constexpr auto memory_operation = ck_tile::memory_operation_enum::set;
+            constexpr bool has_hot_loop_v = has_hot_loop_.value;
+            constexpr auto tail_number_v  = tail_number_.value;
+            constexpr auto scheduler      = ck_tile::GemmPipelineScheduler::Intrawave;
 
             using QuantGemmProblem = std::conditional_t<
                 UseGroupedQuant,
@@ -217,8 +216,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                                  GroupedGemKernelParam::M_Warp_Tile,
                                                  GroupedGemKernelParam::N_Warp_Tile,
                                                  GroupedGemKernelParam::K_Warp_Tile,
-                                                 QuantGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 QuantGemmProblem::TransposeC>>;
 
             using Kernel = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
                                                            GemmPipeline,
@@ -287,99 +285,92 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using GemmUniversalTraits = ck_tile::TileGemmQuantTraits<GroupedGemKernelParam::kPadM,
-                                                                 GroupedGemKernelParam::kPadN,
-                                                                 GroupedGemKernelParam::kPadK,
-                                                                 false,
-                                                                 PreshuffleB,
-                                                                 ALayout,
-                                                                 BLayout,
-                                                                 CLayout,
-                                                                 QuantType,
-                                                                 AQLayout,
-                                                                 BQLayout,
-                                                                 TransposeC,
-                                                                 DoubleSmemBuffer,
-                                                                 Persistent>;
+        using GemmUniversalTraits      = ck_tile::TileGemmQuantTraits<GroupedGemKernelParam::kPadM,
+                                                                      GroupedGemKernelParam::kPadN,
+                                                                      GroupedGemKernelParam::kPadK,
+                                                                      false,
+                                                                      PreshuffleB,
+                                                                      ALayout,
+                                                                      BLayout,
+                                                                      CLayout,
+                                                                      QuantType,
+                                                                      AQLayout,
+                                                                      BQLayout,
+                                                                      TransposeC,
+                                                                      DoubleSmemBuffer,
+                                                                      Persistent>;
+        constexpr auto scheduler       = ck_tile::GemmPipelineScheduler::Intrawave;
+        constexpr bool UseGroupedQuant = QuantType == ck_tile::QuantType::AQuantGrouped ||
+                                         QuantType == ck_tile::QuantType::BQuantGrouped;
+        using QuantGemmProblem = std::conditional_t<
+            UseGroupedQuant,
+            std::conditional_t<QuantType == ck_tile::QuantType::AQuantGrouped,
+                               ck_tile::GemmAQuantPipelineProblem<ADataType,
+                                                                  AQDataType,
+                                                                  BDataType,
+                                                                  AccDataType,
+                                                                  GemmShape,
+                                                                  GemmUniversalTraits,
+                                                                  QuantGroupSize,
+                                                                  TransposeC>,
+                               ck_tile::GemmBQuantPipelineProblem<ADataType,
+                                                                  BDataType,
+                                                                  BQDataType,
+                                                                  AccDataType,
+                                                                  GemmShape,
+                                                                  GemmUniversalTraits,
+                                                                  QuantGroupSize>>,
+            ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
+                                                          BDataType,
+                                                          AccDataType,
+                                                          AccDataType,
+                                                          GemmShape,
+                                                          GemmUniversalTraits,
+                                                          TransposeC,
+                                                          BDataType,
+                                                          scheduler>>;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
-            constexpr auto memory_operation = memory_operation_.value;
-            // We create the GEMM pipeline without specifying hotloop or tailnumber.
-            // These are automatically run inside the kernel based on the given input data.
+        using GemmPipeline = std::conditional_t<
+            UseGroupedQuant,
+            std::conditional_t<
+                QuantType == ck_tile::QuantType::AQuantGrouped,
+                ck_tile::AQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>,
+                std::conditional_t<PreshuffleB == true,
+                                   ck_tile::WPQuantBPipelineAgBgCrV2<QuantGemmProblem>,
+                                   ck_tile::BQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>>>,
+            ck_tile::GemmPipelineAgBgCrCompV3<QuantGemmProblem>>;
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             DsLayout,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             GroupedGemKernelParam::M_Warp,
+                                             GroupedGemKernelParam::N_Warp,
+                                             GroupedGemKernelParam::M_Warp_Tile,
+                                             GroupedGemKernelParam::N_Warp_Tile,
+                                             GroupedGemKernelParam::K_Warp_Tile,
+                                             QuantGemmProblem::TransposeC>>;
+        using Kernel      = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
+                                                            GemmPipeline,
+                                                            GemmEpilogue,
+                                                            GemmUniversalTraits::kQuantType>;
+        const dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
 
-            constexpr bool UseGroupedQuant = QuantType == ck_tile::QuantType::AQuantGrouped ||
-                                             QuantType == ck_tile::QuantType::BQuantGrouped;
-            using QuantGemmProblem = std::conditional_t<
-                UseGroupedQuant,
-                std::conditional_t<QuantType == ck_tile::QuantType::AQuantGrouped,
-                                   ck_tile::GemmAQuantPipelineProblem<ADataType,
-                                                                      AQDataType,
-                                                                      BDataType,
-                                                                      AccDataType,
-                                                                      GemmShape,
-                                                                      GemmUniversalTraits,
-                                                                      QuantGroupSize,
-                                                                      TransposeC>,
-                                   ck_tile::GemmBQuantPipelineProblem<ADataType,
-                                                                      BDataType,
-                                                                      BQDataType,
-                                                                      AccDataType,
-                                                                      GemmShape,
-                                                                      GemmUniversalTraits,
-                                                                      QuantGroupSize>>,
-                ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
-                                                              BDataType,
-                                                              AccDataType,
-                                                              AccDataType,
-                                                              GemmShape,
-                                                              GemmUniversalTraits,
-                                                              TransposeC,
-                                                              BDataType,
-                                                              scheduler>>;
+        if(s.log_level_ > 0)
+        {
+            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
+                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
+                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
+        }
 
-            using GemmPipeline = std::conditional_t<
-                UseGroupedQuant,
-                std::conditional_t<
-                    QuantType == ck_tile::QuantType::AQuantGrouped,
-                    ck_tile::AQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>,
-                    std::conditional_t<PreshuffleB == true,
-                                       ck_tile::WPQuantBPipelineAgBgCrV2<QuantGemmProblem>,
-                                       ck_tile::BQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>>>,
-                ck_tile::GemmPipelineAgBgCrCompV3<QuantGemmProblem>>;
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 CDataType,
-                                                 DsLayout,
-                                                 CLayout,
-                                                 ck_tile::element_wise::PassThrough,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 GroupedGemKernelParam::M_Warp,
-                                                 GroupedGemKernelParam::N_Warp,
-                                                 GroupedGemKernelParam::M_Warp_Tile,
-                                                 GroupedGemKernelParam::N_Warp_Tile,
-                                                 GroupedGemKernelParam::K_Warp_Tile,
-                                                 QuantGemmProblem::TransposeC,
-                                                 memory_operation>>;
-            using Kernel      = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
-                                                                GemmPipeline,
-                                                                GemmEpilogue,
-                                                                GemmUniversalTraits::kQuantType>;
-            const dim3 blocks = Kernel::BlockSize();
-            const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
-
-            if(s.log_level_ > 0)
-            {
-                std::cout << "Launching kernel: " << Kernel::GetName()
-                          << " with args:" << " grid: {" << grids.x << ", " << grids.y << ", "
-                          << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
-                          << blocks.z << "}" << std::endl;
-            }
-
+        ck_tile::ignore =
             ck_tile::launch_kernel(s,
                                    ck_tile::make_kernel<GroupedGemKernelParam::kBlockPerCu>(
                                        Kernel{},
@@ -388,10 +379,6 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                        0,
                                        ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                                        num_groups));
-        };
-
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::set>{});
     }
 
     template <typename Layout>
@@ -782,3 +769,6 @@ using TestCkTileGroupedGemmQuant_AQuant = TestCkTileGroupedGemmQuant<Tuple>;
 
 template <typename Tuple>
 using TestCkTileGroupedGemmQuant_BQuant = TestCkTileGroupedGemmQuant<Tuple>;
+
+template <typename Tuple>
+using TestCkTileGroupedGemmQuant_BQuant_PreshuffleB = TestCkTileGroupedGemmQuant<Tuple>;
