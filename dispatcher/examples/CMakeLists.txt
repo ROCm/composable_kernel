@@ -470,7 +470,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory ${GEMM_FALLBACK_KERNEL_DIR}
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_gemm_codegen.py 
             --datatype fp16 --layout rcr --variants standard
-            --gpu-target ${GPU_TARGETS}
+            --gpu-target ${GPU_TARGET}
             --output-dir ${GEMM_FALLBACK_KERNEL_DIR}
             --tile-config-json "${GEMM_FALLBACK_TILE_CONFIG}"
     COMMENT "Generating single fallback GEMM kernel for Python library"
@@ -490,7 +490,7 @@ target_include_directories(dispatcher_gemm_lib PRIVATE
 target_compile_options(dispatcher_gemm_lib PRIVATE
     -DCK_TILE_SINGLE_KERNEL_INCLUDE
     -include ${GEMM_FALLBACK_KERNEL}
-    -DGFX_ARCH="${GPU_TARGETS}"
+    -DGFX_ARCH="${GPU_TARGET}"
     -mllvm -enable-noalias-to-md-conversion=0
     -Wno-undefined-func-template
     -Wno-float-equal

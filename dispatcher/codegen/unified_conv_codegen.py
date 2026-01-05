@@ -532,38 +532,34 @@ struct {kernel_name}_Launcher {{
         
         float ave_time{{0}};
         
-        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, 
-                             const auto memory_operation_) {{
-            constexpr bool has_hot_loop_v = has_hot_loop_.value;
-            constexpr auto tail_number_v = tail_number_.value;
-            constexpr auto scheduler = Config::Scheduler;
-            constexpr auto memory_operation = memory_operation_.value;
-            
-            using UniversalGemmProblem = UniversalGemmPipelineProblem<
-                {a_dtype}, {b_dtype}, AccDataType, GemmShape, GemmUniversalTraits,
-                scheduler, has_hot_loop_v, tail_number_v,
-                element_wise::PassThrough, element_wise::PassThrough, {c_dtype},
-                GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
-                GroupedConvTraitsType::VectorSizeA, GroupedConvTraitsType::VectorSizeB>;
-            
-            using GemmPipeline = {self._get_pipeline(tr.pipeline)}<UniversalGemmProblem>;
-            
-            using ConvEpilogue = CShuffleEpilogue<CShuffleEpilogueProblem<
-                {a_dtype}, {b_dtype}, tuple<>, AccDataType, {c_dtype},
-                typename GroupedConvTraitsType::ImplicitGemmDsLayout,
-                typename GroupedConvTraitsType::FixedGemmParams::ELayout,
-                element_wise::PassThrough,
-                TilePartitioner::MPerBlock, TilePartitioner::NPerBlock,
-                Config::M_Warp, Config::N_Warp, Config::M_Warp_Tile, 
-                Config::N_Warp_Tile, Config::K_Warp_Tile,
-                GroupedConvTraitsType::FixedGemmParams::TransposeC,
-                memory_operation, Config::NumWaveGroups,
-                GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
-                Config::VectorSizeC>>;
-            
-            using Kernel = {kernel_type}<
-                GroupedConvTraitsType, TilePartitioner, GemmPipeline, ConvEpilogue>;
-            
+        constexpr auto scheduler = Config::Scheduler;
+        
+        using UniversalGemmProblem = UniversalGemmPipelineProblem<
+            {a_dtype}, {b_dtype}, AccDataType, GemmShape, GemmUniversalTraits,
+            scheduler,
+            element_wise::PassThrough, element_wise::PassThrough, {c_dtype},
+            GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
+            GroupedConvTraitsType::VectorSizeA, GroupedConvTraitsType::VectorSizeB>;
+        
+        using GemmPipeline = {self._get_pipeline(tr.pipeline)}<UniversalGemmProblem>;
+        
+        using ConvEpilogue = CShuffleEpilogue<CShuffleEpilogueProblem<
+            {a_dtype}, {b_dtype}, tuple<>, AccDataType, {c_dtype},
+            typename GroupedConvTraitsType::ImplicitGemmDsLayout,
+            typename GroupedConvTraitsType::FixedGemmParams::ELayout,
+            element_wise::PassThrough,
+            TilePartitioner::MPerBlock, TilePartitioner::NPerBlock,
+            Config::M_Warp, Config::N_Warp, Config::M_Warp_Tile, 
+            Config::N_Warp_Tile, Config::K_Warp_Tile,
+            GroupedConvTraitsType::FixedGemmParams::TransposeC,
+            Config::NumWaveGroups,
+            GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
+            Config::VectorSizeC, false, 1, Config::DoubleSmemBuffer>>;
+        
+        using Kernel = {kernel_type}<
+            GroupedConvTraitsType, TilePartitioner, GemmPipeline, ConvEpilogue>;
+        
+        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {{
             auto kargs = Kernel::MakeKernelArgs(args);
             
             if (!Kernel::IsSupportedArgument(kargs)) {{
@@ -579,17 +575,7 @@ struct {kernel_name}_Launcher {{
             return ave_time;
         }};
         
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
-            if (args.k_batch == 1) {{
-                Run(has_hot_loop_, tail_number_,
-                    integral_constant<memory_operation_enum, memory_operation_enum::set>{{}});
-            }} else {{
-                Run(has_hot_loop_, tail_number_,
-                    integral_constant<memory_operation_enum, memory_operation_enum::atomic_add>{{}});
-            }}
-        }};
-        
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
         return ave_time;
     }}
 }};
