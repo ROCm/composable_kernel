@@ -11,6 +11,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for microscaling (MX) FP8/FP4 mixed data types to Flatmm pipeline.
 * Added support for fp8 dynamic tensor-wise quantization of fp8 fmha fwd kernel.
 * Added FP8 KV cache support for FMHA batch prefill.
+* Added FMHA batch prefill kernel support for several KV cache layouts, flexible page sizes, and different lookup table configurations.
 
 ### Changed
 
