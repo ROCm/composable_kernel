@@ -1091,8 +1091,11 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! K: "
-                              << karg.K << " " << __FILE__ << ":" << __LINE__
+                    std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! "
+                              "K_Batch:" << karg.KBatch << " " <<
+                              "K0PerBlock:" << KPerBlock << " " <<
+                              "K1:" << AK1Number << " " << 
+                              "K:" << karg.K << " " << __FILE__ << ":" << __LINE__
                               << ", in function: " << __func__ << std::endl;
                 }
                 return false;

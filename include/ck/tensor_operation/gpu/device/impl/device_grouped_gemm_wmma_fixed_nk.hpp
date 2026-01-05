@@ -50,7 +50,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     const index_t block_id = get_block_1d_id();
     const auto gemm_desc_ptr =
         reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
-
+        
     // Binary search lookup to find which group this block is part of
     index_t left     = 0;
     index_t right    = group_count;
@@ -570,6 +570,8 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
         void UpdateKBatch(index_t k_batch)
         {
             k_batch_ = k_batch;
+            grid_size_ = 0;
+
             if(k_batch_ < 1)
             {
                 throw std::runtime_error("wrong! k_batch must be > 0");

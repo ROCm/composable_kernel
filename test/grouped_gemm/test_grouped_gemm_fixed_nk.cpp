@@ -28,12 +28,12 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 template <typename Tuple>
-class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple>
+class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple,false,ck::test::FixedNKGroupedGemmProfiler>
 {
     public:
     void SetUp() override
     {
-        ck::test::TestGroupedGemm<Tuple>::SetUp();
+        ck::test::TestGroupedGemm<Tuple,false,ck::test::FixedNKGroupedGemmProfiler>::SetUp();
 
 #if defined(CK_USE_WMMA)
         // The old XDL tests didn't fail if instances were not supported, so we want to keep that
@@ -47,16 +47,16 @@ class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple>
 
 // clang-format off
 using KernelTypes = ::testing::Types<
-    std::tuple<     Row, Row, Row, BF16, BF16, BF16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Row, Col, Row, BF16, BF16, BF16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Row, Row, Row, BF16, I8, BF16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Row, Col, Row, BF16, I8, BF16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Row, Row, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Row, Col, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Row, Row, Row, F16, F8, F16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Row, Col, Row, F16, F8, F16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Row, Row, Row, F16, I8, F16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Row, Col, Row, F16, I8, F16, AElementOp, BElementOp, CDEElementOp>
+    std::tuple<     Row, Row, Row, BF16, BF16, BF16>,
+    std::tuple<     Row, Col, Row, BF16, BF16, BF16>,
+    std::tuple<     Row, Row, Row, BF16, I8, BF16>,
+    std::tuple<     Row, Col, Row, BF16, I8, BF16>,
+    std::tuple<     Row, Row, Row, F16, F16, F16>,
+    std::tuple<     Row, Col, Row, F16, F16, F16>,
+    std::tuple<     Row, Row, Row, F16, F8, F16>,
+    std::tuple<     Row, Col, Row, F16, F8, F16>,
+    std::tuple<     Row, Row, Row, F16, I8, F16>,
+    std::tuple<     Row, Col, Row, F16, I8, F16>
 >;
 // clang-format on
 
