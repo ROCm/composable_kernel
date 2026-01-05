@@ -170,3 +170,22 @@ TEST(TensorDescriptor, ExtentFromVector)
     EXPECT_THAT([] { return ckt::Extent<5>::from_vector(std::vector<size_t>{1, 2}); },
                 Throws<std::runtime_error>());
 }
+
+TEST(TensorDescriptor, IsPacked)
+{
+    constexpr auto dt = ckb::DataType::INT32; // Irrelevant for this test
+    EXPECT_TRUE(
+        ckt::make_descriptor<dt>(ckt::Extent{101, 43, 25, 662, 654}, ckt::PackedLeftLayout{})
+            .is_packed());
+    EXPECT_TRUE(
+        ckt::make_descriptor<dt>(ckt::Extent{5334, 235, 1563, 256, 23}, ckt::PackedRightLayout{})
+            .is_packed());
+    EXPECT_TRUE(ckt::make_descriptor<dt>(ckt::Extent{}, ckt::Extent{}).is_packed());
+    EXPECT_TRUE(
+        ckt::make_descriptor<dt>(ckt::Extent{461, 345, 5, 93}, ckt::Extent{160425, 5, 1, 1725})
+            .is_packed());
+    EXPECT_FALSE(
+        ckt::make_descriptor<dt>(ckt::Extent{10, 11, 12}, ckt::Extent{1, 100, 1100}).is_packed());
+    EXPECT_FALSE(
+        ckt::make_descriptor<dt>(ckt::Extent{30, 20, 10}, ckt::Extent{1, 1, 1}).is_packed());
+}

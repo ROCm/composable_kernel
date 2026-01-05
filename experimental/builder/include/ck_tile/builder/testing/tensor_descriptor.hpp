@@ -8,6 +8,7 @@
 #include <vector>
 #include <sstream>
 #include <concepts>
+#include <algorithm>
 #include <hip/hip_runtime.h>
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/testing/type_traits.hpp"
@@ -375,11 +376,27 @@ struct TensorDescriptor
     /// all elements are continuous in memory with no gaps.
     bool is_packed() const
     {
-        // Just check that the total number of elements covers the element space.
-        // TODO: Technically we might be able to construct a descriptor for which this
-        // holds but which is not actually packed. We should replace this by a more
-        // proper check...
-        return get_element_space_size() == get_element_size();
+        // First sort by stride, then check if they match the scan of the
+        // sizes.
+        const auto& lengths = inner_descriptor_.get_lengths();
+        const auto& strides = inner_descriptor_.get_strides();
+
+        std::array<size_t, RANK> indices;
+        std::iota(indices.begin(), indices.end(), 0);
+        std::sort(indices.begin(), indices.end(), [&](auto i, auto j) {
+            return strides[i] < strides[j];
+        });
+
+        size_t x = 1;
+        for(size_t i = 0; i < RANK; ++i)
+        {
+            if(strides[indices[i]] != x)
+                return false;
+
+            x *= lengths[indices[i]];
+        }
+
+        return true;
     }
 
     /// @brief Get a tensor descriptor for the space backing a tensor.
