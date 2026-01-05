@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /// Unit tests for Dispatcher using Google Test
 
@@ -211,7 +211,8 @@ TEST_F(DispatcherTest, RunExplicitNotSupported)
 
     float a[1], b[1], c[1];
 
-    EXPECT_THROW((void)dispatcher.run_explicit(kernel_id, a, b, c, nullptr, problem), std::runtime_error);
+    EXPECT_THROW((void)dispatcher.run_explicit(kernel_id, a, b, c, nullptr, problem),
+                 std::runtime_error);
 }
 
 TEST_F(DispatcherTest, Validate)

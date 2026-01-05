@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
  * Convolution Dispatcher ctypes Library
@@ -55,7 +55,7 @@ int conv_dispatcher_init()
     ConvKernelSet fwd_set;
     fwd_set.add(ConvSignature().dtype("fp16").layout("nhwgc").conv_type("forward").dims(2),
                 ConvAlgorithm()
-                    .tile(128, 128, 64)  // tile_m x tile_n x tile_k
+                    .tile(128, 128, 64) // tile_m x tile_n x tile_k
                     .wave(2, 2, 1)
                     .warp(32, 32, 16)
                     .pipeline("compv4")
@@ -69,7 +69,7 @@ int conv_dispatcher_init()
     ConvKernelSet bwd_data_set;
     bwd_data_set.add(ConvSignature().dtype("fp16").layout("nhwgc").conv_type("bwd_data").dims(2),
                      ConvAlgorithm()
-                         .tile(128, 128, 64)  // tile_m x tile_n x tile_k
+                         .tile(128, 128, 64) // tile_m x tile_n x tile_k
                          .wave(2, 2, 1)
                          .warp(32, 32, 16)
                          .pipeline("compv3")

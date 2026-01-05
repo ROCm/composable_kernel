@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
  * @file conv_kernel_decl.hpp
@@ -350,13 +350,14 @@ struct ConvKernelDecl
     std::string name() const
     {
         std::ostringstream oss;
-        // Generate full kernel name similar to GEMM: conv_<op>_<dtype>_<layout>_<ndim>d_<pipeline>_<epilogue>_<scheduler>_<tile>_<wave>_<warp>
+        // Generate full kernel name similar to GEMM:
+        // conv_<op>_<dtype>_<layout>_<ndim>d_<pipeline>_<epilogue>_<scheduler>_<tile>_<wave>_<warp>
         oss << "conv_" << signature.op_str() << "_" << signature.dtype_in_ << "_"
-            << signature.layout_ << "_" << signature.num_dims_ << "d"
-            << "_" << algorithm.pipeline_ << "_" << algorithm.epilogue_ << "_" << algorithm.scheduler_
-            << "_" << algorithm.tile_m_ << "x" << algorithm.tile_n_ << "x" << algorithm.tile_k_
-            << "_" << algorithm.wave_m_ << "x" << algorithm.wave_n_ << "x" << algorithm.wave_k_
-            << "_" << algorithm.warp_m_ << "x" << algorithm.warp_n_ << "x" << algorithm.warp_k_;
+            << signature.layout_ << "_" << signature.num_dims_ << "d" << "_" << algorithm.pipeline_
+            << "_" << algorithm.epilogue_ << "_" << algorithm.scheduler_ << "_" << algorithm.tile_m_
+            << "x" << algorithm.tile_n_ << "x" << algorithm.tile_k_ << "_" << algorithm.wave_m_
+            << "x" << algorithm.wave_n_ << "x" << algorithm.wave_k_ << "_" << algorithm.warp_m_
+            << "x" << algorithm.warp_n_ << "x" << algorithm.warp_k_;
         return oss.str();
     }
 

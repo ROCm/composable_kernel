@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 Example 01: Basic Convolution with GPU Execution
@@ -283,19 +284,19 @@ Examples:
     print(f"  Has kernels: {lib.has_kernels()}")
     kernel_count = lib.get_kernel_count()
     print(f"  Kernel count: {kernel_count}")
-    
+
     # Show the actual compiled kernel(s)
     if kernel_count > 0:
-        print(f"\n  Registered kernels in library:")
+        print("\n  Registered kernels in library:")
         for i in range(kernel_count):
             kernel_name = lib.get_kernel_name(i)
             if kernel_name:
                 print(f"    [{i}] {kernel_name}")
-        
+
         # Note about fallback kernels
-        print(f"\n  Note: Library contains pre-compiled fallback kernels.")
-        print(f"        These support fp16 forward/backward convolutions.")
-        print(f"        For other configs, kernels are JIT-compiled on demand.")
+        print("\n  Note: Library contains pre-compiled fallback kernels.")
+        print("        These support fp16 forward/backward convolutions.")
+        print("        For other configs, kernels are JIT-compiled on demand.")
     print()
 
     # =========================================================================
@@ -393,7 +394,7 @@ Examples:
 
     lib.cleanup()
     cleanup_conv()
-    
+
     print()
     print("=" * 70)
     print("SUMMARY: Python example ran convolution on GPU!")

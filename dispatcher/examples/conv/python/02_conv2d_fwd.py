@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 Example 02: 2D Convolution Forward (Python)
@@ -276,23 +277,31 @@ def main():
     runner = GpuConvRunner()
     if runner.is_available():
         print(f"  Library: {runner.library_path}")
-        
+
         # Show compiled kernel info
-        lib = runner._lib if hasattr(runner, '_lib') else None
-        if lib and hasattr(lib, 'get_kernel_count'):
+        lib = runner._lib if hasattr(runner, "_lib") else None
+        if lib and hasattr(lib, "get_kernel_count"):
             kernel_count = lib.get_kernel_count()
             print(f"  Kernel count: {kernel_count}")
             if kernel_count > 0:
                 for i in range(kernel_count):
-                    kernel_name = lib.get_kernel_name(i) if hasattr(lib, 'get_kernel_name') else None
+                    kernel_name = (
+                        lib.get_kernel_name(i)
+                        if hasattr(lib, "get_kernel_name")
+                        else None
+                    )
                     if kernel_name:
                         print(f"  Compiled kernel: {kernel_name}")
                         # Check pipeline mismatch
                         if "compv4" in kernel_name and args.pipeline != "compv4":
-                            print(f"    ⚠ Library has compv4, you requested {args.pipeline}")
+                            print(
+                                f"    ⚠ Library has compv4, you requested {args.pipeline}"
+                            )
                         elif "compv3" in kernel_name and args.pipeline != "compv3":
-                            print(f"    ⚠ Library has compv3, you requested {args.pipeline}")
-        
+                            print(
+                                f"    ⚠ Library has compv3, you requested {args.pipeline}"
+                            )
+
         print(f"  Input:  {input_np.shape} -> GPU")
         print(f"  Weight: {weight_np.shape} -> GPU")
 
@@ -307,8 +316,8 @@ def main():
 
         # Get actual kernel name (before cleanup)
         actual_kernel = "unknown"
-        lib = runner._lib if hasattr(runner, '_lib') else None
-        if lib and hasattr(lib, 'get_kernel_name'):
+        lib = runner._lib if hasattr(runner, "_lib") else None
+        if lib and hasattr(lib, "get_kernel_name"):
             actual_kernel = lib.get_kernel_name(0) or "unknown"
 
         runner.cleanup()

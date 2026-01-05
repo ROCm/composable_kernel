@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
+
 """
 Build kernels in parallel - one translation unit per kernel.
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 Architecture-Specific Kernel Filtering for CK Tile Dispatcher
@@ -337,7 +338,7 @@ class KernelConfig:
     @property
     def dtype_key(self) -> str:
         """Generate data type combination key for warp tile lookup.
-        
+
         Uses accumulator dtype (not output C type) to match the format
         used in WARP_TILE_SUPPORTED_COMBINATIONS dictionaries which are
         keyed as {datatype_a}_{datatype_b}_{accumulator_dtype}.

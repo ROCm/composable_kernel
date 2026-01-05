@@ -1,3 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 // Minimal test: Verify dispatcher can select and run a kernel
 #include <iostream>
 #include <memory>

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 Architecture Specs Generator
@@ -103,7 +104,6 @@ def generate_python_module(specs: Dict[str, Any], output_path: Path):
     preshuffle_pipelines_str = str(preshuffle_pipelines)
 
     content = f'''# SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!

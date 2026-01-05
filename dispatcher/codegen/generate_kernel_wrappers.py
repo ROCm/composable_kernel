@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 Generate one .cpp wrapper file per kernel header for maximum parallel compilation.
