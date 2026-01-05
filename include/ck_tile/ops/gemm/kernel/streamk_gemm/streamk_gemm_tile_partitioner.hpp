@@ -27,6 +27,9 @@ struct StreamKTilePartitionerBase
     static constexpr index_t NPerBlock                          = BlockGemmShapeType::kN;
     static constexpr index_t KPerBlock                          = BlockGemmShapeType::kK;
     static constexpr StreamKReductionStrategy ReductionStrategy = ReductionStrategyType;
+    static constexpr auto MemoryOperation = (ReductionStrategy == StreamKReductionStrategy::Atomic)
+                                                ? memory_operation_enum::atomic_add
+                                                : memory_operation_enum::set;
 
     StreamKTilePartitionerBase(index_t m, index_t n, index_t k, index_t grid);
 
