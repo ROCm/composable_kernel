@@ -670,13 +670,13 @@ consteval auto detailed_diagnostic_SpecifiesNumPrefetchStages() -> std::string {
 
 template <typename T>
 consteval auto detailed_diagnostic_SpecifiesNumGroupsToMerge() -> std::string {
-    if constexpr (requires { T::num_groups_to_merge; }) {
-        using NumGroupsType = decltype(T::num_groups_to_merge);
+    if constexpr (requires { T::num_conv_groups_to_merge; }) {
+        using NumGroupsType = decltype(T::num_conv_groups_to_merge);
         constexpr bool convertible = std::convertible_to<NumGroupsType, size_t>;
-        return "      → T::num_groups_to_merge: " + std::string(CHECK_MARK(convertible)) + 
+        return "      → T::num_conv_groups_to_merge: " + std::string(CHECK_MARK(convertible)) + 
                (convertible ? "" : std::string(detail::get_type_info<NumGroupsType>())) + "\n";
     } else {
-        return "      → T::num_groups_to_merge: [✗] (missing member)\n";
+        return "      → T::num_conv_groups_to_merge: [✗] (missing member)\n";
     }
 }
 
@@ -1193,7 +1193,7 @@ consteval auto detailed_diagnostic_SpecifiesLdsTransfer() -> std::string {
 }
 
 template <typename T>
-consteval auto detailed_diagnostic_SpecifiesGridwiseGemmPipeline() -> std::string {
+consteval auto detailed_diagnostic_SpecifieGridwiseGemmPipeline() -> std::string {
     if constexpr (requires { T::pipeline_version; }) {
         using PipelineType = decltype(T::pipeline_version);
         constexpr bool convertible = std::convertible_to<PipelineType, PipelineVersion>;

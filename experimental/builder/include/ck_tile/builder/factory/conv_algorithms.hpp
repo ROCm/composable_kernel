@@ -269,7 +269,7 @@ struct LargeTensorAlgorithm : public FwdXdlAlgorithmBase<T>
 
     static consteval bool is_valid() {
         // Note: Check first if the specialization is set.
-        return c13 && FwdXdlAlgorithm<T>::is_valid();
+        return c13 && FwdXdlAlgorithmBase<T>::is_valid();
     }
 
     static consteval auto message() -> std::string {

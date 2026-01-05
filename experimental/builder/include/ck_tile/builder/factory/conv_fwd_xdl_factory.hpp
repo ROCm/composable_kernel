@@ -106,7 +106,7 @@ struct ConvFwdXdlFactory
         typename Types::AComputeType,
         typename Types::BComputeType,
         LOOP_SCHEDULER,
-        ALGORITHM.num_groups_to_merge>;
+        ALGORITHM.num_conv_groups_to_merge>;
 };
 
 } // namespace ck_tile::builder::factory

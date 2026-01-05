@@ -550,13 +550,13 @@ struct ConvAlgorithmTemplate : Components...
 // Fwd algorithm types
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, Prefetch_>;
+    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, Prefetch_, GemmBatchOptions_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, BlockGemm_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<>, ConvSpecializationFwd_, GridGemm_, Prefetch_>;
+    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_<>, ConvSpecializationFwd_, GridGemm_, Prefetch_, GemmBatchOptions_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
     ConvAlgorithmTemplate<ThreadBlock_,
@@ -566,7 +566,7 @@ using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
                           DlTransfer_<>>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
-    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, Prefetch_, LargeTensorSpecialization_>;
+    ConvAlgorithmTemplate<ThreadBlock_, FwdXdlGemm_, Transfer_<>, ConvSpecializationFwd_, Prefetch_, GemmBatchOptions_, LargeTensorSpecialization_>;
 
 // CK Tile algorithm
 using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileThreadBlock_,

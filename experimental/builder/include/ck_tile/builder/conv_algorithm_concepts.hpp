@@ -310,7 +310,7 @@ concept SpecifiesNumPrefetchStages = requires {
 
 template <typename T>
 concept SpecifiesNumGroupsToMerge = requires {
-    { T::num_groups_to_merge } -> SizeType;
+    { T::num_conv_groups_to_merge } -> SizeType;
 };
 
 template <typename T>

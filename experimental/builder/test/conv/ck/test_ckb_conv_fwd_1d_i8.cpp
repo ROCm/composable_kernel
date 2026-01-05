@@ -33,7 +33,8 @@ TEST(FwdConvInstances,
             .with_gemm_config(GemmParams_Wmma_2x1_per_wave)
             .with_transfer(Transfer_4x32x1)
             .with_fwd_specializations(ConvSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
-            .with_prefetch_config(1, 0, PipelineScheduler::DEFAULT)
+            .with_prefetch_config(1, PipelineScheduler::DEFAULT)
+            .with_num_conv_groups_to_merge(2)
             .with_gridwise_gemm_pipeline(PipelineVersion::V1);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
