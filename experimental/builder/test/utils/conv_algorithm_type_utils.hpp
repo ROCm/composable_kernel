@@ -98,8 +98,8 @@ template <>
 inline std::string to_string<GridwiseFwdXdlGemm>(GridwiseFwdXdlGemm t)
 {
     std::ostringstream oss;
-    oss << t.ak1 << "," << t.bk1 << "," << t.xdl_params.m_per_xdl << "," << t.xdl_params.n_per_xdl << ","
-        << t.xdl_params.m_xdl_per_wave << "," << t.xdl_params.n_xdl_per_wave;
+    oss << t.ak1 << "," << t.bk1 << "," << t.xdl_params.m_per_xdl << "," << t.xdl_params.n_per_xdl
+        << "," << t.xdl_params.m_xdl_per_wave << "," << t.xdl_params.n_xdl_per_wave;
     return oss.str();
 }
 
@@ -123,15 +123,15 @@ inline std::string to_string<BlockGemmPipeline>(BlockGemmPipeline t)
 template <size_t ThreadSliceDim>
 inline std::string to_string(BlockTransfer<ThreadSliceDim> t)
 {
-    if constexpr (ThreadSliceDim == 4)
+    if constexpr(ThreadSliceDim == 4)
     {
         return array_to_seq(std::array<size_t, 4>{t.k_batch_size, t.k0, t.m_n, t.k1});
     }
-    else if constexpr (ThreadSliceDim == 3)
+    else if constexpr(ThreadSliceDim == 3)
     {
         return array_to_seq(std::array<size_t, 3>{t.k0, t.m_n, t.k1});
     }
-    else 
+    else
     {
         static_assert(ThreadSliceDim == 3 || ThreadSliceDim == 4, "Unsupported ThreadSliceDim");
     }
@@ -160,7 +160,7 @@ inline std::string to_string(AccessOrder<N> t)
     return array_to_seq(t.order);
 }
 
-template <size_t N  = 3>
+template <size_t N = 3>
 inline std::string to_string(InputTransfer<N> t)
 {
     std::ostringstream oss;
@@ -314,8 +314,7 @@ template <>
 inline std::string to_string<Prefetch_>(Prefetch_ t)
 {
     std::ostringstream oss;
-    oss << t.num_gemm_k_prefetch_stages << ","
-        << to_string(t.loop_scheduler);
+    oss << t.num_gemm_k_prefetch_stages << "," << to_string(t.loop_scheduler);
     return oss.str();
 }
 

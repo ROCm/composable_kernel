@@ -160,17 +160,19 @@ consteval ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdC
 }
 
 template <ConvAlgorithmDescriptor auto ALGORITHM>
-consteval ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization SetBwdWeightConvSpecialization()
+consteval ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization
+SetBwdWeightConvSpecialization()
 {
     constexpr auto specialization = ALGORITHM.bwd_weight_specialization;
-    using ck_conv_spec            = ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
+    using ck_conv_spec = ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
     switch(specialization)
     {
     case ConvSpecialization::DEFAULT: return ck_conv_spec::Default;
     case ConvSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
     case ConvSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
     case ConvSpecialization::ODD_C: return ck_conv_spec::OddC;
-    case ConvSpecialization::FILTER_3x3: throw "FILTER_3x3 is not supported for backward weight convolution.";
+    case ConvSpecialization::FILTER_3x3:
+        throw "FILTER_3x3 is not supported for backward weight convolution.";
     default: throw "Unsupported ConvSpecialization";
     }
 }

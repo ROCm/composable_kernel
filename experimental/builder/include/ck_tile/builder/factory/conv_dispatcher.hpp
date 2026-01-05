@@ -155,41 +155,45 @@ constexpr auto make_conv_instance()
     // Backward weight direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
-        if constexpr (BwdXdlAlgorithm<AlgoType>::is_valid())
+        if constexpr(BwdXdlAlgorithm<AlgoType>::is_valid())
         {
             return typename ConvBwdWeightXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr (BwdXdlV3Algorithm<AlgoType>::is_valid())
+        else if constexpr(BwdXdlV3Algorithm<AlgoType>::is_valid())
         {
             return typename ConvBwdWeightXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr (BwdTwoStageXdlAlgorithm<AlgoType>::is_valid())
+        else if constexpr(BwdTwoStageXdlAlgorithm<AlgoType>::is_valid())
         {
-            return typename ConvBwdWeightTwoStageXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            return
+                typename ConvBwdWeightTwoStageXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr (BwdDlAlgorithm<AlgoType>::is_valid())
+        else if constexpr(BwdDlAlgorithm<AlgoType>::is_valid())
         {
             return typename ConvBwdWeightDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr (BwdMultiDXdlAlgorithm<AlgoType>::is_valid())
+        else if constexpr(BwdMultiDXdlAlgorithm<AlgoType>::is_valid())
         {
-            return typename ConvBwdWeightMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            return
+                typename ConvBwdWeightMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr (BwdWmmaV3Algorithm<AlgoType>::is_valid())
+        else if constexpr(BwdWmmaV3Algorithm<AlgoType>::is_valid())
         {
             return typename ConvBwdWeightWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr (BwdTwoStageWmmaV3Algorithm<AlgoType>::is_valid())
+        else if constexpr(BwdTwoStageWmmaV3Algorithm<AlgoType>::is_valid())
         {
-            return typename ConvBwdWeightTwoStageWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            return typename ConvBwdWeightTwoStageWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::
+                Instance{};
         }
-        else if constexpr (BwdWmmaAlgorithm<AlgoType>::is_valid())
+        else if constexpr(BwdWmmaAlgorithm<AlgoType>::is_valid())
         {
             return typename ConvBwdWeightWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr (BwdMultiDWmmaV3Algorithm<AlgoType>::is_valid())
+        else if constexpr(BwdMultiDWmmaV3Algorithm<AlgoType>::is_valid())
         {
-            return typename ConvBwdWeightMultiDWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            return typename ConvBwdWeightMultiDWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::
+                Instance{};
         }
         else
         {

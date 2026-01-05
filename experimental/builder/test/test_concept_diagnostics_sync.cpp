@@ -22,40 +22,40 @@
 
 namespace ck_tile::builder::test {
 
-using ck_tile::builder::ThreadBlockDescriptor;
-using ck_tile::builder::GridwiseXdlGemmDescriptor;
-using ck_tile::builder::BlockTransferDescriptor;
-using ck_tile::builder::ThreadClusterDescriptor;
-using ck_tile::builder::LdsTransferDescriptor;
-using ck_tile::builder::EpilogueDescriptor;
 using ck_tile::builder::AccessOrderDescriptor;
 using ck_tile::builder::BlockGemmDescriptor;
-using ck_tile::builder::GridwiseWmmaGemmDescriptor;
-using ck_tile::builder::TileThreadBlockDescriptor;
-using ck_tile::builder::TileTransferDescriptor;
-using ck_tile::builder::TileBlockGemmDescriptor;
-using ck_tile::builder::TileOptimizationsDescriptor;
-using ck_tile::builder::DlThreadConfigDescriptor;
-using ck_tile::builder::DlThreadClusterDescriptor;
+using ck_tile::builder::BlockTransferDescriptor;
+using ck_tile::builder::ConvAlgorithmDescriptor;
 using ck_tile::builder::DlBlockTransferDescriptor;
 using ck_tile::builder::DlEpilogueDescriptor;
-using ck_tile::builder::ConvAlgorithmDescriptor;
-using ck_tile::builder::SpecifiesThreadBlock;
-using ck_tile::builder::SpecifiesGridwiseFwdXdlGemm;
-using ck_tile::builder::SpecifiesGridwiseBwdXdlGemm;
+using ck_tile::builder::DlThreadClusterDescriptor;
+using ck_tile::builder::DlThreadConfigDescriptor;
+using ck_tile::builder::EpilogueDescriptor;
+using ck_tile::builder::GridwiseWmmaGemmDescriptor;
+using ck_tile::builder::GridwiseXdlGemmDescriptor;
+using ck_tile::builder::LdsTransferDescriptor;
 using ck_tile::builder::SpecifiesBlockGemm;
-using ck_tile::builder::SpecifiesFwdConvSpecialization;
 using ck_tile::builder::SpecifiesBwdWeightConvSpecialization;
+using ck_tile::builder::SpecifiesDlThreadCluster;
+using ck_tile::builder::SpecifiesDlThreadConfig;
+using ck_tile::builder::SpecifiesFwdConvSpecialization;
 using ck_tile::builder::SpecifiesGemmSpecialization;
-using ck_tile::builder::SpecifiesNumPrefetchStages;
+using ck_tile::builder::SpecifiesGridwiseBwdXdlGemm;
+using ck_tile::builder::SpecifiesGridwiseFwdXdlGemm;
 using ck_tile::builder::SpecifiesLoopScheduler;
+using ck_tile::builder::SpecifiesNumPrefetchStages;
+using ck_tile::builder::SpecifiesThreadBlock;
+using ck_tile::builder::SpecifiesTileBlockGemm;
+using ck_tile::builder::SpecifiesTileConvSpecialization;
+using ck_tile::builder::SpecifiesTileOptimizations;
 using ck_tile::builder::SpecifiesTileThreadBlock;
 using ck_tile::builder::SpecifiesTileTransfer;
-using ck_tile::builder::SpecifiesTileBlockGemm;
-using ck_tile::builder::SpecifiesTileOptimizations;
-using ck_tile::builder::SpecifiesTileConvSpecialization;
-using ck_tile::builder::SpecifiesDlThreadConfig;
-using ck_tile::builder::SpecifiesDlThreadCluster;
+using ck_tile::builder::ThreadBlockDescriptor;
+using ck_tile::builder::ThreadClusterDescriptor;
+using ck_tile::builder::TileBlockGemmDescriptor;
+using ck_tile::builder::TileOptimizationsDescriptor;
+using ck_tile::builder::TileThreadBlockDescriptor;
+using ck_tile::builder::TileTransferDescriptor;
 
 // Helper to check if a string contains a substring
 bool contains(const std::string& str, const std::string& substr)
@@ -331,18 +331,24 @@ TEST(ConceptDiagnosticsSync, LdsTransferDescriptor_Invalid)
 TEST(ConceptDiagnosticsSync, CompleteAlgorithmTypes)
 {
     // Test that complete algorithm types satisfy their concepts
-    static_assert(ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-    static_assert(ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-    static_assert(ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
+    static_assert(
+        ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+    static_assert(
+        ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+    static_assert(
+        ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
     static_assert(ConvAlgorithmDescriptor<ConvAlgorithm_Tile_GroupedConvolutionKernel>);
     static_assert(ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle>);
-    
+
     // Test specific requirements for each algorithm type
     static_assert(SpecifiesThreadBlock<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-    static_assert(SpecifiesGridwiseFwdXdlGemm<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-    static_assert(SpecifiesFwdConvSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-    static_assert(SpecifiesNumPrefetchStages<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-    
+    static_assert(
+        SpecifiesGridwiseFwdXdlGemm<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+    static_assert(
+        SpecifiesFwdConvSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+    static_assert(
+        SpecifiesNumPrefetchStages<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+
     static_assert(SpecifiesTileThreadBlock<ConvAlgorithm_Tile_GroupedConvolutionKernel>);
     static_assert(SpecifiesTileBlockGemm<ConvAlgorithm_Tile_GroupedConvolutionKernel>);
     static_assert(SpecifiesTileOptimizations<ConvAlgorithm_Tile_GroupedConvolutionKernel>);
@@ -356,9 +362,12 @@ TEST(ConceptDiagnosticsSync, DiagnosticMessages)
 {
     // Test that diagnostics can be called (even if messages may be empty at compile-time)
     // The key is that the diagnostic functions exist and compile
-    std::string diag1 = ck_tile::builder::diagnostics::detailed_diagnostic_SpecifiesThreadBlock<invalid_types::MissingBlockSize>();
-    std::string diag2 = ck_tile::builder::diagnostics::detailed_diagnostic_SpecifiesGridwiseFwdXdlGemm<invalid_types::MissingMPerXdl>();
-    
+    std::string diag1 = ck_tile::builder::diagnostics::detailed_diagnostic_SpecifiesThreadBlock<
+        invalid_types::MissingBlockSize>();
+    std::string diag2 =
+        ck_tile::builder::diagnostics::detailed_diagnostic_SpecifiesGridwiseFwdXdlGemm<
+            invalid_types::MissingMPerXdl>();
+
     // These may be empty depending on the implementation, but they should compile
     EXPECT_TRUE(diag1.empty() || contains(diag1, "thread_block") || contains(diag1, "missing"));
     EXPECT_TRUE(diag2.empty() || contains(diag2, "gridwise_gemm") || contains(diag2, "missing"));
@@ -370,7 +379,7 @@ TEST(ConceptDiagnosticsSync, DiagnosticMessages)
 
 /**
  * @brief Verify that all concepts defined in conv_algorithm_concepts.hpp have tests
- * 
+ *
  * This test serves as documentation of which concepts are tested. If new concepts
  * are added, this test should be updated to include them.
  */
@@ -386,13 +395,13 @@ TEST(ConceptDiagnosticsSync, ConceptCoverage)
     EXPECT_TRUE((LdsTransferDescriptor<LdsTransfer>));
     EXPECT_TRUE((EpilogueDescriptor<Epilogue>));
     EXPECT_TRUE((AccessOrderDescriptor<AccessOrder>));
-    
-    // Tile Descriptor Concepts  
+
+    // Tile Descriptor Concepts
     EXPECT_TRUE((TileThreadBlockDescriptor<TileThreadBlock>));
     EXPECT_TRUE((TileTransferDescriptor<TileTransfer>));
     EXPECT_TRUE((TileBlockGemmDescriptor<TileBlockGemm>));
     EXPECT_TRUE((TileOptimizationsDescriptor<TileOptimizations>));
-    
+
     // DL Descriptor Concepts
     EXPECT_TRUE((DlThreadConfigDescriptor<DlThreadConfig>));
     EXPECT_TRUE((DlThreadClusterDescriptor<DlThreadCluster>));

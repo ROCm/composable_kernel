@@ -11,14 +11,13 @@ namespace ckt = ck_tile::builder::test;
 namespace cku = ck_tile::builder::test_utils;
 using enum ck_tile::builder::TensorLayout;
 
-constexpr auto SIGNATURE =
-    ckt::ConvSignature{.spatial_dim            = 2,
-                       .direction              = ckb::ConvDirection::BACKWARD_WEIGHT,
-                       .data_type              = ckb::DataType::FP16,
-                       .accumulation_data_type = ckb::DataType::FP32,
-                       .input                  = {.config = {.layout = NGCHW}},
-                       .weight                 = {.config = {.layout = GKYXC}},
-                       .output                 = {.config = {.layout = NGKHW}}};
+constexpr auto SIGNATURE = ckt::ConvSignature{.spatial_dim = 2,
+                                              .direction   = ckb::ConvDirection::BACKWARD_WEIGHT,
+                                              .data_type   = ckb::DataType::FP16,
+                                              .accumulation_data_type = ckb::DataType::FP32,
+                                              .input  = {.config = {.layout = NGCHW}},
+                                              .weight = {.config = {.layout = GKYXC}},
+                                              .output = {.config = {.layout = NGKHW}}};
 
 constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3{}
                                .with_thread_block(cku::ThreadBlock_64_32x32x32)
@@ -27,7 +26,7 @@ constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStag
                                .with_bwd_specialization(ckb::ConvSpecialization::DEFAULT)
                                .with_block_gemm(cku::BlockGemmDesc_v1_intrawave)
                                .with_num_conv_groups_to_merge(2)
-                               .with_transpose_params(2,2);
+                               .with_transpose_params(2, 2);
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;

@@ -26,10 +26,10 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdXdlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types   = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops     = internal::ElementwiseOps<SIGNATURE>;
-    using AlgorithmType = decltype(ALGORITHM);
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using AlgorithmType                 = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
     static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();

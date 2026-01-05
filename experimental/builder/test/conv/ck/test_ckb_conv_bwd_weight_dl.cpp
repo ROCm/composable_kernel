@@ -19,11 +19,11 @@ constexpr auto SIGNATURE =
                        .output                 = {.config = {.layout = ckb::TensorLayout::GNHWK}}};
 
 constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl{}
-                            .with_thread_block(cku::ThreadBlock_256_128x128x16)
-                            .with_bwd_specialization(cku::ConvSpecialization::DEFAULT)
-                            .with_dl_thread_config(cku::DlThreadConfig_16x1x4x4x1)
-                            .with_dl_thread_cluster(cku::DlThreadCluster_8x2)
-                            .with_dl_transfer(cku::DlTransfer5D);
+                               .with_thread_block(cku::ThreadBlock_256_128x128x16)
+                               .with_bwd_specialization(cku::ConvSpecialization::DEFAULT)
+                               .with_dl_thread_config(cku::DlThreadConfig_16x1x4x4x1)
+                               .with_dl_thread_cluster(cku::DlThreadCluster_8x2)
+                               .with_dl_transfer(cku::DlTransfer5D);
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;

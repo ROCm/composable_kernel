@@ -10,13 +10,14 @@ using namespace ck_tile::builder::test_utils;
 
 TEST(BwdWeightConvInstances, Create_ConvAlgorithm_Tile_GroupedConvolutionKernel_2D_FP16_NHWGC)
 {
-    constexpr ConvSignature BwdWeightConvSignature{.spatial_dim = 2,
-                                             .direction   = ConvDirection::BACKWARD_WEIGHT,
-                                             .data_type   = DataType::FP16,
-                                             .accumulation_data_type = DataType::FP32,
-                                             .input  = {.config = {.layout = TensorLayout::NHWGC}},
-                                             .weight = {.config = {.layout = TensorLayout::GKYXC}},
-                                             .output = {.config = {.layout = TensorLayout::NHWGK}}};
+    constexpr ConvSignature BwdWeightConvSignature{
+        .spatial_dim            = 2,
+        .direction              = ConvDirection::BACKWARD_WEIGHT,
+        .data_type              = DataType::FP16,
+        .accumulation_data_type = DataType::FP32,
+        .input                  = {.config = {.layout = TensorLayout::NHWGC}},
+        .weight                 = {.config = {.layout = TensorLayout::GKYXC}},
+        .output                 = {.config = {.layout = TensorLayout::NHWGK}}};
 
     constexpr auto BwdWeightConvAlgorithm =
         ConvAlgorithm_Tile_GroupedConvolutionKernel{}

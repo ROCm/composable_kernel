@@ -64,19 +64,19 @@ consteval auto GetElementwiseOp()
 template <auto Sig>
 struct ElementwiseOps
 {
-private:
+    private:
     static constexpr auto input_op  = GetElementwiseOp<Sig.input>();
     static constexpr auto weight_op = GetElementwiseOp<Sig.weight>();
     static constexpr auto output_op = GetElementwiseOp<Sig.output>();
 
-    static constexpr bool is_forward = ConvDirectionIsForward<Sig>;
+    static constexpr bool is_forward    = ConvDirectionIsForward<Sig>;
     static constexpr bool is_bwd_weight = ConvDirectionIsBackwardWeight<Sig>;
 
     using InputOp  = typename decltype(input_op)::Op;
     using WeightOp = typename decltype(weight_op)::Op;
     using OutputOp = typename decltype(output_op)::Op;
 
-public:
+    public:
     // Forward convolution elementwise ops
     using AElementwiseOp   = std::conditional_t<is_forward, InputOp, void>;
     using BElementwiseOp   = std::conditional_t<is_forward, WeightOp, void>;

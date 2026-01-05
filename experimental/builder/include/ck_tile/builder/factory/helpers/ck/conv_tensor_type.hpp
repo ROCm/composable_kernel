@@ -186,8 +186,8 @@ struct BwdWeightConvTensorDataTypes
     static constexpr auto output_types =
         GetTensorDataAndComputeTypes<Signature.output.config, Signature.data_type>();
 
-    using InDataType    = typename decltype(input_types.first)::type;
-    using InComputeType = typename decltype(input_types.second)::type;
+    using InDataType     = typename decltype(input_types.first)::type;
+    using InComputeType  = typename decltype(input_types.second)::type;
     using WeiDataType    = typename decltype(weight_types.first)::type;
     using WeiComputeType = typename decltype(weight_types.second)::type;
     using OutDataType    = typename decltype(output_types.first)::type;

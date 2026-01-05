@@ -26,15 +26,16 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvBwdWeightWmmaV3Factory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types   = internal::BwdWeightConvTensorDataTypes<SIGNATURE>;
-    using Ops     = internal::ElementwiseOps<SIGNATURE>;
-    using AlgorithmType = decltype(ALGORITHM);
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Types                         = internal::BwdWeightConvTensorDataTypes<SIGNATURE>;
+    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using AlgorithmType                 = decltype(ALGORITHM);
 
-    static constexpr auto BWD_CONV_SPECIALIZATION = internal::SetBwdWeightConvSpecialization<ALGORITHM>();
+    static constexpr auto BWD_CONV_SPECIALIZATION =
+        internal::SetBwdWeightConvSpecialization<ALGORITHM>();
 
-    static constexpr auto BLOCK          = internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
+    static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto GRIDWISE_GEMM = ALGORITHM.gridwise_gemm;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
@@ -47,10 +48,14 @@ struct ConvBwdWeightWmmaV3Factory
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>, "Invalid A block transfer config");
     static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>, "Invalid B block transfer config");
     static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>, "Invalid C block transfer config");
-    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>, "Invalid A thread cluster access order");
-    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>, "Invalid B thread cluster access order");
-    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>, "Invalid A source access order");
-    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>, "Invalid B source access order");
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>,
+                  "Invalid A thread cluster access order");
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>,
+                  "Invalid B thread cluster access order");
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>,
+                  "Invalid A source access order");
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>,
+                  "Invalid B source access order");
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Wmma_CShuffleV3<

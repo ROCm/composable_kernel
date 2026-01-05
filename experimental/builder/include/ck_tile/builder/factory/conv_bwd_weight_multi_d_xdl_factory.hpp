@@ -26,16 +26,17 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvBwdWeightMultiDXdlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types   = internal::BwdWeightConvTensorDataTypes<SIGNATURE>;
-    using Ops     = internal::ElementwiseOps<SIGNATURE>;
-    using AlgorithmType = decltype(ALGORITHM);
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Types                         = internal::BwdWeightConvTensorDataTypes<SIGNATURE>;
+    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using AlgorithmType                 = decltype(ALGORITHM);
 
-    static constexpr auto BWD_CONV_SPECIALIZATION = internal::SetBwdWeightConvSpecialization<ALGORITHM>();
+    static constexpr auto BWD_CONV_SPECIALIZATION =
+        internal::SetBwdWeightConvSpecialization<ALGORITHM>();
 
-    static constexpr auto BLOCK          = internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
-    static constexpr auto XDL_PARAMS     = GRIDWISE_GEMM.xdl_params;
+    static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto GRIDWISE_GEMM = ALGORITHM.gridwise_gemm;
+    static constexpr auto XDL_PARAMS    = GRIDWISE_GEMM.xdl_params;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =

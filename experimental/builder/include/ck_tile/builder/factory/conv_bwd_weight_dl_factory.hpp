@@ -23,12 +23,13 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvBwdWeightDlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types   = internal::BwdWeightConvTensorDataTypes<SIGNATURE>;
-    using Ops     = internal::ElementwiseOps<SIGNATURE>;
-    using AlgorithmType = decltype(ALGORITHM);
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Types                         = internal::BwdWeightConvTensorDataTypes<SIGNATURE>;
+    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using AlgorithmType                 = decltype(ALGORITHM);
 
-    static constexpr auto BWD_CONV_SPECIALIZATION = internal::SetBwdWeightConvSpecialization<ALGORITHM>();
+    static constexpr auto BWD_CONV_SPECIALIZATION =
+        internal::SetBwdWeightConvSpecialization<ALGORITHM>();
 
     static constexpr auto BLOCK = internal::SetThreadBlockInfo<ALGORITHM>();
 

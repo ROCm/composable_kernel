@@ -16,7 +16,7 @@ namespace ck_tile::builder {
 /********************************************************************/
 
 // Common concept for size-related fields
-template<typename T>
+template <typename T>
 concept SizeType = std::unsigned_integral<std::remove_cvref_t<T>>;
 
 // Concept for thread block dimensions for a GEMM problem.
@@ -170,7 +170,7 @@ concept SpecifiesTileThreadBlock = requires {
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept GridwiseFwdXdlGemmDescriptor = requires (T t){
+concept GridwiseFwdXdlGemmDescriptor = requires(T t) {
     { t.ak1 } -> SizeType;
     { t.bk1 } -> SizeType;
     { t.xdl_params } -> GridwiseXdlGemmDescriptor;
@@ -178,26 +178,26 @@ concept GridwiseFwdXdlGemmDescriptor = requires (T t){
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept GridwiseBwdXdlGemmDescriptor = requires (T t){
+concept GridwiseBwdXdlGemmDescriptor = requires(T t) {
     { t.k1 } -> SizeType;
     { t.xdl_params } -> GridwiseXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept SpecifiesGridwiseFwdXdlGemm = requires (T t) {
+concept SpecifiesGridwiseFwdXdlGemm = requires(T t) {
     { t.gridwise_gemm } -> GridwiseFwdXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept SpecifiesGridwiseBwdXdlGemm = requires (T t) {
+concept SpecifiesGridwiseBwdXdlGemm = requires(T t) {
     { t.gridwise_gemm } -> GridwiseBwdXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise WMMA GEMM info.
 template <typename T>
-concept SpecifiesGridwiseWmmaGemm = requires (T t){
+concept SpecifiesGridwiseWmmaGemm = requires(T t) {
     { t.gridwise_gemm } -> GridwiseWmmaGemmDescriptor;
 };
 
@@ -209,7 +209,7 @@ concept SpecifiesBlockTransfer = requires(T t) {
     { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
 };
 
-// Concept to check if a struct specifies convolution input and output block transfer info 
+// Concept to check if a struct specifies convolution input and output block transfer info
 // for 4D thread slices.
 template <typename T>
 concept SpecifiesBlockTransfer4D = requires(T t) {
@@ -255,8 +255,7 @@ concept SpecifiesBlockGemm = requires {
 };
 
 template <typename T>
-concept SpecifiesGridwiseGemmPipeline = requires
-{
+concept SpecifiesGridwiseGemmPipeline = requires {
     { T::pipeline_version } -> std::convertible_to<PipelineVersion>;
 };
 

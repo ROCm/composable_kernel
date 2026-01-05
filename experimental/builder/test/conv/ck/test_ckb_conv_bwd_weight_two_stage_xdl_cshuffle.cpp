@@ -39,6 +39,6 @@ TEST(BwdWeight_2DBf16_TwoStage_CShuffle, Create)
                             "Default",
                             "GNHWC,GKYXC,GNHWK",
                             "PassThrough,PassThrough,PassThrough",
-                            "Intrawave,v2", // pipeline versions
+                            "Intrawave,v2",     // pipeline versions
                             "bf16,bf16,2,4>"}); // compute types and transpose params
 }

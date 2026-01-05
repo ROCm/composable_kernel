@@ -11,14 +11,13 @@ namespace ckt = ck_tile::builder::test;
 namespace cku = ck_tile::builder::test_utils;
 using enum ck_tile::builder::TensorLayout;
 
-constexpr auto SIGNATURE =
-    ckt::ConvSignature{.spatial_dim            = 3,
-                       .direction              = ckb::ConvDirection::BACKWARD_WEIGHT,
-                       .data_type              = ckb::DataType::BF16,
-                       .accumulation_data_type = ckb::DataType::FP32,
-                       .input                  = {.config = {.layout = NGCDHW}},
-                       .weight                 = {.config = {.layout = GKZYXC}},
-                       .output                 = {.config = {.layout = NGKDHW}}};
+constexpr auto SIGNATURE = ckt::ConvSignature{.spatial_dim = 3,
+                                              .direction   = ckb::ConvDirection::BACKWARD_WEIGHT,
+                                              .data_type   = ckb::DataType::BF16,
+                                              .accumulation_data_type = ckb::DataType::FP32,
+                                              .input  = {.config = {.layout = NGCDHW}},
+                                              .weight = {.config = {.layout = GKZYXC}},
+                                              .output = {.config = {.layout = NGKDHW}}};
 
 constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle{}
                                .with_thread_block(cku::ThreadBlock_64_32x32x32)

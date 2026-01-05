@@ -26,10 +26,10 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdXdlV3Factory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types   = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops     = internal::ElementwiseOps<SIGNATURE>;
-    using AlgorithmType = decltype(ALGORITHM);
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using AlgorithmType                 = decltype(ALGORITHM);
 
     static_assert(ALGORITHM.transfer.a.lds_transfer.is_direct_load ==
                       ALGORITHM.transfer.b.lds_transfer.is_direct_load,

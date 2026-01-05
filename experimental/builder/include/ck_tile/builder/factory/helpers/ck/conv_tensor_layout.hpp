@@ -222,8 +222,8 @@ template <auto Signature, size_t SPATIAL_DIM>
              ValidConvOutputLayoutForSpatialDim<Signature.output.config.layout, SPATIAL_DIM>)
 struct ConvTensorLayouts
 {
-private:
-    static constexpr bool is_forward = ConvDirectionIsForward<Signature>;
+    private:
+    static constexpr bool is_forward    = ConvDirectionIsForward<Signature>;
     static constexpr bool is_bwd_weight = ConvDirectionIsBackwardWeight<Signature>;
 
     using InputLayout  = decltype(TensorLayoutToCK<Signature.input.config.layout>());
@@ -231,12 +231,12 @@ private:
     using OutputLayout = decltype(TensorLayoutToCK<Signature.output.config.layout>());
     using AuxLayout    = decltype(GetAuxiliaryTensorLayouts<Signature, SPATIAL_DIM>())::type;
 
-public:
+    public:
     // Forward convolution layouts
-    using ALayout  = std::conditional_t<is_forward, InputLayout, void>;
-    using BLayout  = std::conditional_t<is_forward, WeightLayout, void>;
-    using ELayout  = std::conditional_t<is_forward, OutputLayout, void>;
-    
+    using ALayout = std::conditional_t<is_forward, InputLayout, void>;
+    using BLayout = std::conditional_t<is_forward, WeightLayout, void>;
+    using ELayout = std::conditional_t<is_forward, OutputLayout, void>;
+
     // Backward weight convolution layouts
     using InLayout  = std::conditional_t<is_bwd_weight, InputLayout, void>;
     using WeiLayout = std::conditional_t<is_bwd_weight, WeightLayout, void>;

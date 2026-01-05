@@ -26,14 +26,13 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdLargeTensorFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types   = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops     = internal::ElementwiseOps<SIGNATURE>;
-    using AlgorithmType = decltype(ALGORITHM);
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using AlgorithmType                 = decltype(ALGORITHM);
 
-    static constexpr auto FWD_CONV_SPECIALIZATION =
-        internal::SetFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION = internal::SetGemmSpecialization<ALGORITHM>();
+    static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
+    static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();
     static constexpr internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
                                                        .gemm_spec = GEMM_SPECIALIZATION};
 
@@ -45,8 +44,7 @@ struct ConvFwdLargeTensorFactory
         internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
         internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.b>();
-    static constexpr auto C_BLOCK_TRANSFER =
-        internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
+    static constexpr auto C_BLOCK_TRANSFER = internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
 
     // Check limits for the algorithm parameters.
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
