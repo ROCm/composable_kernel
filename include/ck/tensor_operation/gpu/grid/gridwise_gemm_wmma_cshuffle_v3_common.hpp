@@ -368,16 +368,12 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 #ifdef __gfx12__
     static constexpr bool IsAWaveTransferApplicable =
         !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
-        ((GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
-          !is_same_v<ALayout, tensor_layout::gemm::RowMajor>) ||
-         is_same_v<ALayout, tensor_layout::gemm::RowMajor>) &&
+        ABlockTransferSrcScalarPerVector == 8 && ABlockTransferDstScalarPerVector_AK1 == 8 &&
         BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8 && !IsBPreShuffled;
 
     static constexpr bool IsBWaveTransferApplicable =
         !ForceThreadTileTransfer && NumBTensor == 1 && BPackedSize == 1 &&
-        ((GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
-          !is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>) ||
-         is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>) &&
+        BBlockTransferSrcScalarPerVector == 8 && BBlockTransferDstScalarPerVector_BK1 == 8 &&
         BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
 
     static constexpr bool IsWaveTileInterleavedFitting =
