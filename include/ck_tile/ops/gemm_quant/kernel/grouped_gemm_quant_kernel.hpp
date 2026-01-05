@@ -395,27 +395,22 @@ struct QuantGroupedGemmKernel
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
         // Run GEMM cooperatively by whole workgroup
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
-                                                                      b_block_window,
-                                                                      bq_block_window,
-                                                                      num_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0,
-                                                                      smem_ptr_1);
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, bq_block_window, num_loop, tail_num, smem_ptr);
 
         // Run Epilogue Pipeline with split_k dispatch
         if(kargs.k_batch == 1)
         {
             auto c_block_window = Base::template MakeCBlockWindow<memory_operation_enum::set>(
                 c_ptr, kargs, block_idx_m, block_idx_n);
-            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr);
         }
         else
         {
             auto c_block_window =
                 Base::template MakeCBlockWindow<memory_operation_enum::atomic_add>(
                     c_ptr, kargs, block_idx_m, block_idx_n);
-            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr);
         }
     }
 

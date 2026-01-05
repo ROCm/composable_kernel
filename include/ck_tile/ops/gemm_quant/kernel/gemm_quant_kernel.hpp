@@ -1816,8 +1816,6 @@ struct QuantGemmKernel
             }
             else if constexpr(kQuantType == QuantType::RowColQuant)
             {
-                const auto& aq_block_window = gemm_tile_windows.at(I1);
-                const auto& bq_block_window = gemm_tile_windows.at(I3);
                 EpiloguePipeline{}(c_block_window,
                                    c_block_tile,
                                    c_block_window,
