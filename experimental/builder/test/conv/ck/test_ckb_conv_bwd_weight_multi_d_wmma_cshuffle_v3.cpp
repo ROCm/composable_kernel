@@ -24,7 +24,7 @@ constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeightMultiple
                                .with_gemm_config(cku::GemmParams_Wmma_16x16_2x1_per_wave)
                                .with_transfer(cku::BwdTransfer_4x8x1_4x16x1_v3)
                                .with_bwd_specialization(ckb::ConvSpecialization::DEFAULT)
-                               .with_block_gemm(cku::BlockGemmDesc_v1_intrawave);
+                               .with_gemm_pipeline(cku::BlockGemmDesc_v1_intrawave);
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;

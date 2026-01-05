@@ -28,53 +28,26 @@ struct ThreadBlock
 };
 static_assert(ckb::ThreadBlockDescriptor<ThreadBlock>);
 
-struct XdlParams
+struct WarpGemmParams
 {
-    size_t m_per_xdl      = 0;
-    size_t n_per_xdl      = 0;
-    size_t m_xdl_per_wave = 0;
-    size_t n_xdl_per_wave = 0;
+    MatrixInstructionType matrix_instruction;
+    size_t gemm_m_per_instruction      = 0;
+    size_t gemm_n_per_instruction      = 0;
+    size_t gemm_m_iters_per_wave       = 0;
+    size_t gemm_n_iters_per_wave       = 0;
 };
-static_assert(ckb::GridwiseXdlGemmDescriptor<XdlParams>);
+static_assert(ckb::WarpGemmDescriptor<WarpGemmParams>);
 
-// Describe gridwise XDL GEMM parameters.
-struct GridwiseFwdXdlGemm
-{
-    // NOTE: ak1 and bk1 are difficult to verify in the kernel instantiation!!!
-    size_t ak1 = 0;
-    size_t bk1 = 0;
-    XdlParams xdl_params;
-};
-static_assert(ckb::GridwiseFwdXdlGemmDescriptor<GridwiseFwdXdlGemm>);
-
-struct GridwiseBwdXdlGemm
-{
-    size_t k1 = 0;
-    XdlParams xdl_params;
-};
-static_assert(ckb::GridwiseBwdXdlGemmDescriptor<GridwiseBwdXdlGemm>);
-
-// Describe gridwise WMMA GEMM parameters.
-struct GridwiseWmmaGemm
-{
-    size_t k1              = 0;
-    size_t m_per_wmma      = 0;
-    size_t n_per_wmma      = 0;
-    size_t m_wmma_per_wave = 0;
-    size_t n_wmma_per_wave = 0;
-};
-static_assert(ckb::GridwiseWmmaGemmDescriptor<GridwiseWmmaGemm>);
-
-struct BlockGemmPipeline
+struct GemmPipeline
 {
     PipelineVersion pipeline_version;
-    PipelineScheduler scheduler;
+    PipelineScheduler scheduler{PipelineScheduler::DEFAULT};
 };
-static_assert(ckb::BlockGemmPipelineDescriptor<BlockGemmPipeline>);
+static_assert(ckb::GemmPipelineDescriptor<GemmPipeline>);
 
-// Describe Aand B block transfer thread cluster lengths.
+// Describe input tensor thread cluster lengths.
 template <size_t ThreadSliceLength = 3>
-struct BlockTransfer
+struct InputDataThreadDistribution
 {
     size_t k0;
     size_t m_n;
@@ -84,34 +57,35 @@ struct BlockTransfer
 
 // Specialization for ThreadSliceLength == 3
 template <>
-struct BlockTransfer<3>
+struct InputDataThreadDistribution<3>
 {
     size_t k0;
     size_t m_n;
     size_t k1;
 };
-static_assert(ckb::BlockTransferDescriptor<BlockTransfer<>>);
-static_assert(ckb::BlockTransferDescriptor<BlockTransfer<4>>);
+static_assert(ckb::InputTileThreadDistributionDescriptor3D<InputDataThreadDistribution<>>);
+static_assert(ckb::InputTileThreadDistributionDescriptor4D<InputDataThreadDistribution<4>>);
 
 // Describe C block transfer thread cluster lengths.
-struct ThreadCluster
+struct OutputDataThreadDistribution
 {
-    size_t m_block;
-    size_t m_wave_per_xdl;
-    size_t n_block;
-    size_t n_wave_per_xdl;
+    size_t gemm_m_block_size;
+    size_t gemm_m_per_block;
+    size_t gemm_n_block_size;
+    size_t gemm_n_per_block;
 };
-static_assert(ThreadClusterDescriptor<ThreadCluster>);
+static_assert(OutputTileThreadDistributionDescriptor<OutputDataThreadDistribution>);
 
-struct LdsTransfer
+struct LdsInputTransferParams
 {
+    size_t global_memory_vector_load_size;
     size_t src_vector_dim;
     size_t src_scalar_per_vector;
     size_t lds_dst_scalar_per_vector;
     bool is_direct_load;
     bool lds_padding;
 };
-static_assert(LdsTransferDescriptor<LdsTransfer>);
+static_assert(LdsInputTransferDescriptor<LdsInputTransferParams>);
 
 struct Epilogue
 {
@@ -130,26 +104,26 @@ static_assert(AccessOrderDescriptor<AccessOrder<>>);
 static_assert(AccessOrderDescriptor<AccessOrder<4>>);
 
 template <size_t ThreadSliceLength = 3>
-struct InputTransfer
+struct InputTileTransfer
 {
-    BlockTransfer<ThreadSliceLength> block_transfer;
-    LdsTransfer lds_transfer;
-    AccessOrder<ThreadSliceLength> block_transfer_access_order;
+    InputDataThreadDistribution<ThreadSliceLength> thread_distribution;
+    LdsInputTransferParams lds_transfer_params;
+    AccessOrder<ThreadSliceLength> thread_distribution_access_order;
     AccessOrder<ThreadSliceLength> src_access_order;
 };
 
-struct OutputTransfer
+struct OutputTileTransfer
 {
-    ThreadCluster thread_cluster_dims;
+    OutputDataThreadDistribution thread_distribution;
     Epilogue epilogue;
 };
 
 template <size_t ThreadSliceLength = 3>
-struct Transfer
+struct InputOutputTileTransfer
 {
-    InputTransfer<ThreadSliceLength> a;
-    InputTransfer<ThreadSliceLength> b;
-    OutputTransfer c;
+    InputTileTransfer<ThreadSliceLength> a;
+    InputTileTransfer<ThreadSliceLength> b;
+    OutputTileTransfer c;
 };
 
 // DL-specific descriptors
@@ -199,25 +173,15 @@ struct ThreadBlock_
     ThreadBlock thread_block;
 };
 
-struct FwdXdlGemm_
+struct WarpGemm_
 {
-    GridwiseFwdXdlGemm gridwise_gemm;
-};
-
-struct BwdXdlGemm_
-{
-    GridwiseBwdXdlGemm gridwise_gemm;
-};
-
-struct WmmaGemm_
-{
-    GridwiseWmmaGemm gridwise_gemm;
+    WarpGemmParams warp_gemm;
 };
 
 template <size_t ThreadSliceLength = 3>
-struct Transfer_
+struct InputOutputTileTransfer_
 {
-    Transfer<ThreadSliceLength> transfer;
+    InputOutputTileTransfer<ThreadSliceLength> transfer;
 };
 
 struct ConvSpecializationFwd_
@@ -248,14 +212,9 @@ struct GemmBatchOptions_
     size_t num_conv_groups_to_merge{1};
 };
 
-struct BlockGemm_
+struct GemmPipeline_
 {
-    BlockGemmPipeline block_gemm_pipeline;
-};
-
-struct GridGemm_
-{
-    PipelineVersion pipeline_version;
+    GemmPipeline gemm_pipeline;
 };
 
 struct DlThreadConfig_
@@ -386,30 +345,16 @@ struct ConvAlgorithmTemplate : Components...
     constexpr auto with_gemm_config(const GemmConfig& gemm) const
     {
         auto result = *this;
-        if constexpr(std::is_base_of_v<FwdXdlGemm_, ConvAlgorithmTemplate>)
-        {
-            result.gridwise_gemm = gemm;
-        }
-        else if constexpr(std::is_base_of_v<BwdXdlGemm_, ConvAlgorithmTemplate>)
-        {
-            result.gridwise_gemm = gemm;
-        }
-        else if constexpr(std::is_base_of_v<WmmaGemm_, ConvAlgorithmTemplate>)
-        {
-            result.gridwise_gemm = gemm;
-        }
-        else
-        {
-            static_assert(false, "Unrecognized GemmConfig type");
-        }
+        static_assert(std::is_base_of_v<WarpGemm_, ConvAlgorithmTemplate>);
+        result.warp_gemm = gemm;
         return result;
     }
 
     template <typename T>
     constexpr auto with_transfer(const T& t) const
     {
-        static_assert(std::is_base_of_v<Transfer_<3>, ConvAlgorithmTemplate> ||
-                      std::is_base_of_v<Transfer_<4>, ConvAlgorithmTemplate>);
+        static_assert(std::is_base_of_v<InputOutputTileTransfer_<3>, ConvAlgorithmTemplate> ||
+                      std::is_base_of_v<InputOutputTileTransfer_<4>, ConvAlgorithmTemplate>);
         auto result     = *this;
         result.transfer = t;
         return result;
@@ -460,20 +405,20 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
-    template <typename BG>
-    constexpr auto with_block_gemm(const BG& bg) const
+    template <typename PL>
+    constexpr auto with_gemm_pipeline(const PL& pl) const
     {
-        static_assert(std::is_base_of_v<BlockGemm_, ConvAlgorithmTemplate>);
+        static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
         auto result                = *this;
-        result.block_gemm_pipeline = bg;
+        result.gemm_pipeline = pl;
         return result;
     }
 
-    constexpr auto with_gridwise_gemm_pipeline(const PipelineVersion plv) const
+    constexpr auto with_gemm_pipeline(const PipelineVersion plv) const
     {
-        static_assert(std::is_base_of_v<GridGemm_, ConvAlgorithmTemplate>);
+        static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
         auto result             = *this;
-        result.pipeline_version = plv;
+        result.gemm_pipeline.pipeline_version = plv;
         return result;
     }
 
@@ -555,25 +500,25 @@ struct ConvAlgorithmTemplate : Components...
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
-                          FwdXdlGemm_,
-                          Transfer_<>,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<>,
                           ConvSpecializationFwd_,
                           Prefetch_,
                           GemmBatchOptions_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_,
-                          FwdXdlGemm_,
-                          Transfer_<>,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<>,
                           ConvSpecializationFwd_,
-                          BlockGemm_>;
+                          GemmPipeline_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
-                          WmmaGemm_,
-                          Transfer_<>,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<>,
                           ConvSpecializationFwd_,
-                          GridGemm_,
+                          GemmPipeline_,
                           Prefetch_,
                           GemmBatchOptions_>;
 
@@ -586,8 +531,8 @@ using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
     ConvAlgorithmTemplate<ThreadBlock_,
-                          FwdXdlGemm_,
-                          Transfer_<>,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<>,
                           ConvSpecializationFwd_,
                           Prefetch_,
                           GemmBatchOptions_,
@@ -612,27 +557,44 @@ struct ConvAlgorithm_Reference
 // Bwd weight algorithm types
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
-                          BwdXdlGemm_,
-                          Transfer_<4>,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<4>,
                           ConvSpecializationBwdWeight_,
                           TransposeParams_>;
 
-using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle =
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
-                          BwdXdlGemm_,
-                          Transfer_<>,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<4>,
                           ConvSpecializationBwdWeight_,
-                          BlockGemm_,
+                          GemmPipeline_,
+                          Prefetch_>;
+
+// Covers both XDL and WMMA variants
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle =
+    ConvAlgorithmTemplate<ThreadBlock_,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<>,
+                          ConvSpecializationBwdWeight_,
+                          GemmPipeline_,
                           TransposeParams_,
                           GemmBatchOptions_,
                           TwoStageSpecialization_>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_,
-                          BwdXdlGemm_,
-                          Transfer_<>,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<>,
                           ConvSpecializationBwdWeight_,
-                          BlockGemm_>;
+                          GemmPipeline_>;
+
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 =
+    ConvAlgorithmTemplate<ThreadBlock_,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<>,
+                          ConvSpecializationBwdWeight_,
+                          GemmPipeline_,
+                          TransposeParams_>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl =
     ConvAlgorithmTemplate<ThreadBlock_,
@@ -643,43 +605,17 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl =
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
-                          BwdXdlGemm_,
-                          Transfer_<4>,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<4>,
                           ConvSpecializationBwdWeight_,
                           MultipleDSpecialization_>;
 
-using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 =
-    ConvAlgorithmTemplate<ThreadBlock_,
-                          WmmaGemm_,
-                          Transfer_<>,
-                          ConvSpecializationBwdWeight_,
-                          BlockGemm_,
-                          TransposeParams_>;
-
-using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3 =
-    ConvAlgorithmTemplate<ThreadBlock_,
-                          WmmaGemm_,
-                          Transfer_<>,
-                          ConvSpecializationBwdWeight_,
-                          BlockGemm_,
-                          TransposeParams_,
-                          GemmBatchOptions_,
-                          TwoStageSpecialization_>;
-
-using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_,
-                          WmmaGemm_,
-                          Transfer_<4>,
-                          ConvSpecializationBwdWeight_,
-                          GridGemm_,
-                          Prefetch_>;
-
 using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_,
-                          WmmaGemm_,
-                          Transfer_<>,
+                          WarpGemm_,
+                          InputOutputTileTransfer_<>,
                           ConvSpecializationBwdWeight_,
-                          BlockGemm_,
+                          GemmPipeline_,
                           MultipleDSpecialization_>;
 
 } // namespace ck_tile::builder::test

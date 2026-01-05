@@ -30,16 +30,17 @@ concept ThreadBlockDescriptor = requires(T t) {
 
 // Concept for parameters that describe a gridwise XDL GEMM problem.
 template <typename T>
-concept GridwiseXdlGemmDescriptor = requires(T t) {
-    { t.m_per_xdl } -> SizeType;
-    { t.n_per_xdl } -> SizeType;
-    { t.m_xdl_per_wave } -> SizeType;
-    { t.n_xdl_per_wave } -> SizeType;
+concept WarpGemmDescriptor = requires(T t) {
+    { t.matrix_instruction } -> std::convertible_to<MatrixInstructionType>;
+    { t.gemm_m_per_instruction } -> SizeType;
+    { t.gemm_n_per_instruction } -> SizeType;
+    { t.gemm_m_iters_per_wave } -> SizeType;
+    { t.gemm_n_iters_per_wave } -> SizeType;
 };
 
 // Concept for parameter that describe block GEMM problem.
 template <typename T>
-concept BlockGemmPipelineDescriptor = requires(T t) {
+concept GemmPipelineDescriptor = requires(T t) {
     { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
     { t.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
@@ -56,14 +57,14 @@ concept GridwiseWmmaGemmDescriptor = requires(T t) {
 
 // Concept for vectorized data transfer for convolution input tensors.
 template <typename T>
-concept BlockTransferDescriptor = requires(T t) {
+concept InputTileThreadDistributionDescriptor3D = requires(T t) {
     { t.k0 } -> SizeType;
     { t.m_n } -> SizeType;
     { t.k1 } -> SizeType;
 };
 
 template <typename T>
-concept BlockTransferDescriptor4D = requires(T t) {
+concept InputTileThreadDistributionDescriptor4D = requires(T t) {
     { t.k0 } -> SizeType;
     { t.m_n } -> SizeType;
     { t.k1 } -> SizeType;
@@ -72,16 +73,17 @@ concept BlockTransferDescriptor4D = requires(T t) {
 
 // Concept for thread cluster dimensions for GEMM output tensor.
 template <typename T>
-concept ThreadClusterDescriptor = requires(T t) {
-    { t.m_block } -> SizeType;
-    { t.m_wave_per_xdl } -> SizeType;
-    { t.n_block } -> SizeType;
-    { t.n_wave_per_xdl } -> SizeType;
+concept OutputTileThreadDistributionDescriptor = requires(T t) {
+    { t.gemm_m_block_size } -> SizeType;
+    { t.gemm_m_per_block } -> SizeType;
+    { t.gemm_n_block_size } -> SizeType;
+    { t.gemm_n_per_block } -> SizeType;
 };
 
 // Concept for the LDS transfer for the convolution input tensors.
 template <typename T>
-concept LdsTransferDescriptor = requires(T t) {
+concept LdsInputTransferDescriptor = requires(T t) {
+    { t.global_memory_vector_load_size } -> SizeType;
     { t.src_vector_dim } -> SizeType;
     { t.src_scalar_per_vector } -> SizeType;
     { t.lds_dst_scalar_per_vector } -> SizeType;
@@ -168,54 +170,27 @@ concept SpecifiesTileThreadBlock = requires {
     { T::thread_block } -> TileThreadBlockDescriptor;
 };
 
-// Concept to check if a struct specifies gridwise XDL GEMM info.
+// Concept to check if a struct specifies warp GEMM info.
 template <typename T>
-concept GridwiseFwdXdlGemmDescriptor = requires(T t) {
-    { t.ak1 } -> SizeType;
-    { t.bk1 } -> SizeType;
-    { t.xdl_params } -> GridwiseXdlGemmDescriptor;
-};
-
-// Concept to check if a struct specifies gridwise XDL GEMM info.
-template <typename T>
-concept GridwiseBwdXdlGemmDescriptor = requires(T t) {
-    { t.k1 } -> SizeType;
-    { t.xdl_params } -> GridwiseXdlGemmDescriptor;
-};
-
-// Concept to check if a struct specifies gridwise XDL GEMM info.
-template <typename T>
-concept SpecifiesGridwiseFwdXdlGemm = requires(T t) {
-    { t.gridwise_gemm } -> GridwiseFwdXdlGemmDescriptor;
-};
-
-// Concept to check if a struct specifies gridwise XDL GEMM info.
-template <typename T>
-concept SpecifiesGridwiseBwdXdlGemm = requires(T t) {
-    { t.gridwise_gemm } -> GridwiseBwdXdlGemmDescriptor;
-};
-
-// Concept to check if a struct specifies gridwise WMMA GEMM info.
-template <typename T>
-concept SpecifiesGridwiseWmmaGemm = requires(T t) {
-    { t.gridwise_gemm } -> GridwiseWmmaGemmDescriptor;
+concept SpecifiesWarpGemm = requires(T t) {
+    { t.warp_gemm } -> WarpGemmDescriptor;
 };
 
 // Concept to check if a struct specifies convolution input and output block transfer info.
 template <typename T>
-concept SpecifiesBlockTransfer = requires(T t) {
-    { T::transfer.a.block_transfer } -> BlockTransferDescriptor;
-    { T::transfer.b.block_transfer } -> BlockTransferDescriptor;
-    { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
+concept SpecifiesThreadDistribution3D = requires(T t) {
+    { T::transfer.a.thread_distribution } -> InputTileThreadDistributionDescriptor3D;
+    { T::transfer.b.thread_distribution } -> InputTileThreadDistributionDescriptor3D;
+    { T::transfer.c.thread_distribution } -> OutputTileThreadDistributionDescriptor;
 };
 
 // Concept to check if a struct specifies convolution input and output block transfer info
 // for 4D thread slices.
 template <typename T>
-concept SpecifiesBlockTransfer4D = requires(T t) {
-    { T::transfer.a.block_transfer } -> BlockTransferDescriptor4D;
-    { T::transfer.b.block_transfer } -> BlockTransferDescriptor4D;
-    { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
+concept SpecifiesThreadDistribution4D = requires(T t) {
+    { T::transfer.a.thread_distribution } -> InputTileThreadDistributionDescriptor4D;
+    { T::transfer.b.thread_distribution } -> InputTileThreadDistributionDescriptor4D;
+    { T::transfer.c.thread_distribution } -> OutputTileThreadDistributionDescriptor;
 };
 
 // Concept to check if a struct specifies convolution scalar per vector infor for A, B and C.
@@ -229,8 +204,8 @@ concept SpecifiesTileTransfer = requires(T t) {
 // Concept to check if a struct specifies LDS transfer info for tensors A, B, and C.
 template <typename T>
 concept SpecifiesLdsTransfer = requires(T t) {
-    { T::transfer.a.lds_transfer } -> LdsTransferDescriptor;
-    { T::transfer.b.lds_transfer } -> LdsTransferDescriptor;
+    { T::transfer.a.lds_transfer_params } -> LdsInputTransferDescriptor;
+    { T::transfer.b.lds_transfer_params } -> LdsInputTransferDescriptor;
     { T::transfer.c.epilogue } -> EpilogueDescriptor;
 };
 
@@ -250,13 +225,8 @@ concept SpecifiesSourceAccessOrder = requires(T t) {
 
 // Concept to check if struct specifies block GEMM.
 template <typename T>
-concept SpecifiesBlockGemm = requires {
-    { T::block_gemm_pipeline } -> BlockGemmPipelineDescriptor;
-};
-
-template <typename T>
-concept SpecifiesGridwiseGemmPipeline = requires {
-    { T::pipeline_version } -> std::convertible_to<PipelineVersion>;
+concept SpecifiesGemmPipeline = requires {
+    { T::gemm_pipeline } -> GemmPipelineDescriptor;
 };
 
 // Concept to check if struct specifies block GEMM (CK Tile).
@@ -368,6 +338,18 @@ template <typename T>
 concept SpecifiesMultipleDSupport = requires {
     { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
     requires T::specialization == ConvAlgorithmSpecialization::MULTIPLE_D;
+};
+
+template <typename T>
+concept SpecifiesXdl = requires {
+    { T::warp_gemm.matrix_instruction } -> std::convertible_to<MatrixInstructionType>;
+    requires T::warp_gemm.matrix_instruction == MatrixInstructionType::XDL;
+};
+
+template <typename T>
+concept SpecifiesWmma = requires {
+    { T::warp_gemm.matrix_instruction } -> std::convertible_to<MatrixInstructionType>;
+    requires T::warp_gemm.matrix_instruction == MatrixInstructionType::WMMA;
 };
 
 /******************************************** */

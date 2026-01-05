@@ -238,6 +238,12 @@ enum class ConvAlgorithmSpecialization
     MULTIPLE_D
 };
 
+enum class MatrixInstructionType
+{
+    XDL,
+    WMMA
+};
+
 // toString methods for enum classes
 inline std::string_view toString(DataType dt)
 {

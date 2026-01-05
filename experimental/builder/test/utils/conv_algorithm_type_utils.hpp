@@ -86,34 +86,16 @@ inline std::string to_string<ThreadBlock>(ThreadBlock t)
 }
 
 template <>
-inline std::string to_string<GridwiseBwdXdlGemm>(GridwiseBwdXdlGemm t)
+inline std::string to_string<WarpGemmParams>(WarpGemmParams t)
 {
     std::ostringstream oss;
-    oss << t.k1 << "," << t.xdl_params.m_per_xdl << "," << t.xdl_params.n_per_xdl << ","
-        << t.xdl_params.m_xdl_per_wave << "," << t.xdl_params.n_xdl_per_wave;
+    oss << t.gemm_m_per_instruction << "," << t.gemm_n_per_instruction << ","
+        << t.gemm_m_iters_per_wave << "," << t.gemm_n_iters_per_wave;
     return oss.str();
 }
 
 template <>
-inline std::string to_string<GridwiseFwdXdlGemm>(GridwiseFwdXdlGemm t)
-{
-    std::ostringstream oss;
-    oss << t.ak1 << "," << t.bk1 << "," << t.xdl_params.m_per_xdl << "," << t.xdl_params.n_per_xdl
-        << "," << t.xdl_params.m_xdl_per_wave << "," << t.xdl_params.n_xdl_per_wave;
-    return oss.str();
-}
-
-template <>
-inline std::string to_string<GridwiseWmmaGemm>(GridwiseWmmaGemm t)
-{
-    std::ostringstream oss;
-    oss << t.k1 << "," << t.m_per_wmma << "," << t.n_per_wmma << "," << t.m_wmma_per_wave << ","
-        << t.n_wmma_per_wave;
-    return oss.str();
-}
-
-template <>
-inline std::string to_string<BlockGemmPipeline>(BlockGemmPipeline t)
+inline std::string to_string<GemmPipeline>(GemmPipeline t)
 {
     std::ostringstream oss;
     oss << to_string(t.scheduler) << "," << to_string(t.pipeline_version);
@@ -121,7 +103,7 @@ inline std::string to_string<BlockGemmPipeline>(BlockGemmPipeline t)
 }
 
 template <size_t ThreadSliceDim>
-inline std::string to_string(BlockTransfer<ThreadSliceDim> t)
+inline std::string to_string(InputDataThreadDistribution<ThreadSliceDim> t)
 {
     if constexpr(ThreadSliceDim == 4)
     {
@@ -138,17 +120,17 @@ inline std::string to_string(BlockTransfer<ThreadSliceDim> t)
 }
 
 template <>
-inline std::string to_string<ThreadCluster>(ThreadCluster t)
+inline std::string to_string<OutputDataThreadDistribution>(OutputDataThreadDistribution t)
 {
     return array_to_seq(
-        std::array<size_t, 4>{t.m_block, t.m_wave_per_xdl, t.n_block, t.n_wave_per_xdl});
+        std::array<size_t, 4>{t.gemm_m_block_size, t.gemm_m_per_block, t.gemm_n_block_size, t.gemm_n_per_block});
 }
 
 template <>
-inline std::string to_string<LdsTransfer>(LdsTransfer t)
+inline std::string to_string<LdsInputTransferParams>(LdsInputTransferParams t)
 {
     std::ostringstream oss;
-    oss << t.src_vector_dim << "," << t.src_scalar_per_vector << "," << t.lds_dst_scalar_per_vector
+    oss << t.global_memory_vector_load_size << "," << t.src_vector_dim << "," << t.src_scalar_per_vector << "," << t.lds_dst_scalar_per_vector
         << "," << (t.lds_padding ? "true" : "false") << ","
         << (t.is_direct_load ? "true" : "false");
     return oss.str();
@@ -161,27 +143,27 @@ inline std::string to_string(AccessOrder<N> t)
 }
 
 template <size_t N = 3>
-inline std::string to_string(InputTransfer<N> t)
+inline std::string to_string(InputTileTransfer<N> t)
 {
     std::ostringstream oss;
-    oss << to_string(t.block_transfer) << "," << to_string(t.block_transfer_access_order) << ","
-        << to_string(t.src_access_order) << "," << t.lds_transfer.src_vector_dim << ","
-        << t.lds_transfer.src_scalar_per_vector << "," << t.lds_transfer.lds_dst_scalar_per_vector
-        << "," << (t.lds_transfer.lds_padding ? "true" : "false");
+    oss << to_string(t.thread_distribution) << "," << to_string(t.thread_distribution_access_order) << ","
+        << to_string(t.src_access_order) << "," << t.lds_transfer_params.src_vector_dim << ","
+        << t.lds_transfer_params.src_scalar_per_vector << "," << t.lds_transfer_params.lds_dst_scalar_per_vector
+        << "," << (t.lds_transfer_params.lds_padding ? "true" : "false");
     return oss.str();
 }
 
 template <>
-inline std::string to_string<OutputTransfer>(OutputTransfer t)
+inline std::string to_string<OutputTileTransfer>(OutputTileTransfer t)
 {
     std::ostringstream oss;
     oss << t.epilogue.m_xdl_per_wave_per_shuffle << "," << t.epilogue.n_per_wave_per_shuffle << ","
-        << to_string(t.thread_cluster_dims) << "," << t.epilogue.scalar_per_vector;
+        << to_string(t.thread_distribution) << "," << t.epilogue.scalar_per_vector;
     return oss.str();
 }
 
 template <size_t N = 3>
-inline std::string to_string(Transfer<N> t)
+inline std::string to_string(InputOutputTileTransfer<N> t)
 {
     std::ostringstream oss;
     oss << to_string(t.a) << "," << to_string(t.b) << "," << to_string(t.c);
@@ -271,25 +253,14 @@ inline std::string to_string<ThreadBlock_>(ThreadBlock_ t)
 }
 
 template <>
-inline std::string to_string<FwdXdlGemm_>(FwdXdlGemm_ t)
+inline std::string to_string<WarpGemm_>(WarpGemm_ t)
 {
-    return to_string(t.gridwise_gemm);
+    return to_string(t.warp_gemm);
 }
 
-template <>
-inline std::string to_string<BwdXdlGemm_>(BwdXdlGemm_ t)
-{
-    return to_string(t.gridwise_gemm);
-}
-
-template <>
-inline std::string to_string<WmmaGemm_>(WmmaGemm_ t)
-{
-    return to_string(t.gridwise_gemm);
-}
 
 template <size_t ThreadSliceDim = 3>
-inline std::string to_string(Transfer_<ThreadSliceDim> t)
+inline std::string to_string(InputOutputTileTransfer_<ThreadSliceDim> t)
 {
     return to_string(t.transfer);
 }
@@ -319,9 +290,9 @@ inline std::string to_string<Prefetch_>(Prefetch_ t)
 }
 
 template <>
-inline std::string to_string<BlockGemm_>(BlockGemm_ t)
+inline std::string to_string<GemmPipeline_>(GemmPipeline_ t)
 {
-    return to_string(t.block_gemm_pipeline);
+    return to_string(t.gemm_pipeline);
 }
 
 template <>
@@ -355,8 +326,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_C
     ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<FwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -365,8 +336,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_C
     ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<FwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -375,8 +346,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CS
     ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -397,8 +368,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CSh
     ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<FwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -407,8 +378,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuff
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<4>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<4>>(t));
     return oss.str();
 }
 
@@ -417,8 +388,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuff
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -427,8 +398,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuf
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<4>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<4>>(t));
     return oss.str();
 }
 
@@ -437,8 +408,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuf
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -447,30 +418,22 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_W
     ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
+// Covers both XDL and WMMA versions
 template <>
-inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3>(
-    ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3 t)
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle>(
+    ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
-template <>
-inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle>(
-    ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Xdl_CShuffle t)
-{
-    std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<>>(t));
-    return oss.str();
-}
 
 template <>
 inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl>(
@@ -489,8 +452,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_X
     ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
-        << "," << to_string(static_cast<Transfer_<4>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<4>>(t));
     return oss.str();
 }
 

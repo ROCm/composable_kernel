@@ -10,38 +10,40 @@ namespace ck_tile::builder::factory {
 // Base algorithm concepts
 template <typename T>
 concept FwdXdlAlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesBlockTransfer<T> &&
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesGridwiseFwdXdlGemm<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
     SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-    SpecifiesNumPrefetchStages<T> && SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T>;
+    SpecifiesNumPrefetchStages<T> && SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T> &&
+    SpecifiesXdl<T>;
 
 template <typename T>
 concept BwdXdlAlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesBlockTransfer4D<T> &&
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution4D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesGridwiseBwdXdlGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T>;
+    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
+    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesXdl<T>;
 
 template <typename T>
 concept BwdXdlV3AlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesBlockTransfer<T> &&
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesGridwiseBwdXdlGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesBlockGemm<T>;
+    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
+    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesXdl<T>;
+
 template <typename T>
 concept BwdWmmaAlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesBlockTransfer<T> &&
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesGridwiseWmmaGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T>;
+    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
+    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesWmma<T>;
 
 template <typename T>
 concept BwdWmmaV3AlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesBlockTransfer<T> &&
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesGridwiseWmmaGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesBlockGemm<T>;
+    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
+    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesWmma<T>;
 
 // Reference algorithm concept
 template <typename T>
@@ -62,19 +64,19 @@ concept LargeTensorAlgorithm = FwdXdlAlgorithmBase<T> && SpecifiesLargeTensorSup
 
 template <typename T>
 concept FwdXdlV3Algorithm =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesBlockTransfer<T> &&
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesGridwiseFwdXdlGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T>;
+    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
+    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesXdl<T>;
 
 // FWD WMMA algorithm concepts
 template <typename T>
 concept FwdWmmaAlgorithm =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesBlockTransfer<T> &&
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesGridwiseWmmaGemm<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
     SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-    SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T> && SpecifiesGridwiseGemmPipeline<T>;
+    SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T> && SpecifiesGemmPipeline<T> && SpecifiesWmma<T>;
 
 // FWD DL algorithms
 template <typename T>
@@ -102,7 +104,7 @@ concept BwdTwoStageXdlAlgorithm = BwdXdlV3AlgorithmBase<T> && SpecifiesTranspose
 template <typename T>
 concept BwdWmmaAlgorithm =
     BwdWmmaAlgorithmBase<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T> &&
-    SpecifiesGridwiseGemmPipeline<T> && SpecifiesGenericInstance<T>;
+    SpecifiesGemmPipeline<T> && SpecifiesGenericInstance<T>;
 
 template <typename T>
 concept BwdMultiDWmmaV3Algorithm = BwdWmmaV3AlgorithmBase<T> && SpecifiesMultipleDSupport<T>;
@@ -115,7 +117,7 @@ template <typename T>
 concept BwdTwoStageWmmaV3Algorithm = BwdWmmaV3AlgorithmBase<T> && SpecifiesTransposeTransfer<T> &&
                                      SpecifiesGemmBatchOptions<T> && SpecifiesTwoStageSupport<T>;
 
-// BWD weigth DL algorithms
+// BWD weight DL algorithms
 template <typename T>
 concept BwdDlAlgorithm =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> &&

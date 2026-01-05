@@ -31,7 +31,7 @@ TEST(FwdConvInstances,
             .with_transfer(Transfer_4x64x1)
             .with_fwd_specializations(ConvSpecialization::FILTER_1X1_STRIDE1_PAD0,
                                       GemmSpecialization::MNKPadding)
-            .with_block_gemm(BlockGemmDesc_v4_intrawave);
+            .with_gemm_pipeline(BlockGemmDesc_v4_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 

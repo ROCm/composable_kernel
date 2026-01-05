@@ -25,7 +25,7 @@ constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CS
                                .with_transfer(cku::BwdTransfer_4x64x1)
                                .with_bwd_specialization(ckb::ConvSpecialization::DEFAULT)
                                .with_prefetch_config(1, ckb::PipelineScheduler::DEFAULT)
-                               .with_gridwise_gemm_pipeline(ckb::PipelineVersion::V1);
+                               .with_gemm_pipeline(ckb::PipelineVersion::V1);
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;

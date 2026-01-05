@@ -19,12 +19,12 @@ constexpr auto SIGNATURE = ckt::ConvSignature{.spatial_dim = 2,
                                               .weight = {.config = {.layout = GKYXC}},
                                               .output = {.config = {.layout = NGKHW}}};
 
-constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3{}
+constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle{}
                                .with_thread_block(cku::ThreadBlock_64_32x32x32)
                                .with_gemm_config(cku::GemmParams_Wmma_16x16_2x1_per_wave)
                                .with_transfer(cku::BwdTransfer_4x8x1_4x16x1_v3)
                                .with_bwd_specialization(ckb::ConvSpecialization::DEFAULT)
-                               .with_block_gemm(cku::BlockGemmDesc_v1_intrawave)
+                               .with_gemm_pipeline(cku::BlockGemmDesc_v1_intrawave)
                                .with_num_conv_groups_to_merge(2)
                                .with_transpose_params(2, 2);
 
