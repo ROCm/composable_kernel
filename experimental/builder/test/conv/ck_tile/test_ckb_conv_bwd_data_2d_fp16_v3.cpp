@@ -40,7 +40,6 @@ TEST(BwdDataConvInstances, Create_ConvAlgorithm_Tile_GroupedConvolutionKernel_2D
         "Default",
         "Intrawave",
         "CShuffleEpilogue",
-        "set",
         "pipeline_AgBgCrCompV3",
         "DoubleSmemBuffer_0",
         "NumWaveGroups_1",
