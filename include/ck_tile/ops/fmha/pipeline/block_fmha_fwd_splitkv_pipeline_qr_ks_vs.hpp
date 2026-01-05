@@ -228,7 +228,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        if((!__builtin_isinf_sign(sink_v) || __builtin_isinf_sign(sink_v) > 0) && i_split == 0)
+        if((__builtin_isinf_sign(sink_v) >= 0) && i_split == 0)
         {
             set_tile(m, SMPLComputeDataType{sink_v});
             set_tile(l, SMPLComputeDataType{1.0f});
@@ -281,6 +281,16 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
         }
 
+        if(i_split > 0)
+        {
+            auto [start, end] = mask.GetTileRangeAlongX(
+                q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split - 1);
+            if((__builtin_isinf_sign(sink_v) >= 0) && start >= end)
+            {
+                set_tile(m, SMPLComputeDataType{sink_v});
+                set_tile(l, SMPLComputeDataType{1.0f});
+            }
+        }
         const index_t physical_seqlen_k_start = logical_seqlen_k_start + kv_l2p_offset;
         const index_t physical_seqlen_k_end   = logical_seqlen_k_end + kv_l2p_offset;
         // make sure the first tile is completely located in page-block (page-block size should be

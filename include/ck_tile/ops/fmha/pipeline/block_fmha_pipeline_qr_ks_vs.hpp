@@ -231,7 +231,7 @@ struct BlockFmhaPipelineQRKSVS
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        if(!__builtin_isinf_sign(sink_v) || __builtin_isinf_sign(sink_v) > 0)
+        if(__builtin_isinf_sign(sink_v) >= 0)
         {
             set_tile(m, sink_v);
             set_tile(l, SMPLComputeDataType{1.0f});

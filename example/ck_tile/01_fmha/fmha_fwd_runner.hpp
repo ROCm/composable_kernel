@@ -700,7 +700,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0, random_engine);
     if(init_sink_value != 0)
     {
-        ck_tile::FillUniformDistributionIntegerValue<SMPLComputeDataType>{30.f, 100.f, next_seed()}(
+        ck_tile::FillUniformDistributionIntegerValue<SMPLComputeDataType>{30.f, 60.f, next_seed()}(
             sink_host);
     }
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
