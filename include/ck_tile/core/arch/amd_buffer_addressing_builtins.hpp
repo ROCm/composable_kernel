@@ -1442,6 +1442,8 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
             (std::is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, int8_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 12 || N == 16)) ||
+            (std::is_same<T, uint8_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same<T, e8m0_bexp_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, pk_fp4_raw_t>::value &&

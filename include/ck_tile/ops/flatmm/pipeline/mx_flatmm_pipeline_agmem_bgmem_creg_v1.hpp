@@ -132,8 +132,12 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
     static constexpr index_t KXdlPack          = Problem::KXdlPack;
     static constexpr index_t ScaleGranularityK = Problem::ScaleGranularityK;
 
-    static constexpr index_t AK1 = 16 /*dwordx4*/ * APackedSize / sizeof(ADataType);
-    static constexpr index_t BK1 = 16 /*dwordx4*/ * BPackedSize / sizeof(BDataType);
+    static constexpr index_t AK1 = std::is_same_v<ADataType, pk_fp6x16_t>
+                                       ? 16
+                                       : 16 /*dwordx4*/ * APackedSize / sizeof(ADataType);
+    static constexpr index_t BK1 = std::is_same_v<BDataType, pk_fp6x16_t>
+                                       ? 16
+                                       : 16 /*dwordx4*/ * BPackedSize / sizeof(BDataType);
 
     static constexpr index_t m_preload = (MIterPerWarp * KIterPerWarp >= DsReadPreload)
                                              ? DsReadPreload
@@ -537,24 +541,26 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
 
         auto a_store_lds_window_ping = make_tile_window( //
             a_lds_block_ping,
-            make_tuple(number<kMPerBlock>{}, number<kKPerBlock / APackedSize>{}),
+            make_tuple(number<kMPerBlock>{},
+                       number<kKPerBlock / APackedSize * sizeof(ADataType)>{}),
             {0, 0});
         auto a_store_lds_window_pong = make_tile_window( //
             a_lds_block_pong,
-            make_tuple(number<kMPerBlock>{}, number<kKPerBlock / APackedSize>{}),
+            make_tuple(number<kMPerBlock>{},
+                       number<kKPerBlock / APackedSize * sizeof(ADataType)>{}),
             {0, 0});
 
         // ping-pong window for A LDS
-        auto a_warp_window_ping =
-            make_tile_window(a_lds_block_ping,
-                             make_tuple(number<WG::kM>{}, number<WG::kK / APackedSize>{}),
-                             {0, 0},
-                             PipelinePolicy::template MakeMX_ALDSBytes_TileDistribution<Problem>());
-        auto a_warp_window_pong =
-            make_tile_window(a_lds_block_pong,
-                             make_tuple(number<WG::kM>{}, number<WG::kK / APackedSize>{}),
-                             {0, 0},
-                             PipelinePolicy::template MakeMX_ALDSBytes_TileDistribution<Problem>());
+        auto a_warp_window_ping = make_tile_window(
+            a_lds_block_ping,
+            make_tuple(number<WG::kM>{}, number<WG::kK / APackedSize * sizeof(ADataType)>{}),
+            {0, 0},
+            PipelinePolicy::template MakeMX_ALDSBytes_TileDistribution<Problem>());
+        auto a_warp_window_pong = make_tile_window(
+            a_lds_block_pong,
+            make_tuple(number<WG::kM>{}, number<WG::kK / APackedSize * sizeof(ADataType)>{}),
+            {0, 0},
+            PipelinePolicy::template MakeMX_ALDSBytes_TileDistribution<Problem>());
 
         // B flat DRAM window for load
 

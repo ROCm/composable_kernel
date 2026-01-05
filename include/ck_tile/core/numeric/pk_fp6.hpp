@@ -13,7 +13,7 @@ template <index_t pk_size>
 struct pk_fp6_t
 {
     static constexpr index_t num_bits_elem = 6;
-    using element_type                     = uint32_t; // element storage fundamental type
+    using element_type                     = int32_t; // element storage fundamental type
     static constexpr index_t packed_size   = pk_size;
     static constexpr index_t num_bits_vec_elem =
         sizeof(element_type) * 8; // 32-bit uint for storage
@@ -22,22 +22,22 @@ struct pk_fp6_t
     static constexpr index_t vector_size = (packed_size * num_bits_elem) / num_bits_vec_elem;
     element_type data_[vector_size]; // packed data
     using type = pk_fp6_t<packed_size>;
-    CK_TILE_HOST_DEVICE pk_fp6_t() {};
-    CK_TILE_HOST_DEVICE explicit pk_fp6_t(int value)
+    CK_TILE_HOST_DEVICE constexpr pk_fp6_t(){};
+    CK_TILE_HOST_DEVICE constexpr explicit pk_fp6_t(int value)
     {
         for(size_t i = 0; i < vector_size; ++i)
         {
             data_[i] = value;
         }
     }
-    void pack(const uint32_t x, const index_t i)
+    void pack(const int32_t x, const index_t i)
     {
-        uint32_t bits        = static_cast<uint32_t>(x) & 0x3F;
+        int32_t bits         = static_cast<int32_t>(x) & 0x3F;
         const int bit_pos    = i * num_bits_elem;
         const int arr_index  = bit_pos / num_bits_vec_elem;
         const int bit_offset = bit_pos % num_bits_vec_elem;
         const int overhang   = bit_offset + num_bits_elem - num_bits_vec_elem;
-        uint32_t old_value   = data_[arr_index];
+        int32_t old_value    = data_[arr_index];
 
         // insert bits into the current 32-bit block
         old_value |= (bits << bit_offset);
@@ -46,21 +46,21 @@ struct pk_fp6_t
         // if it crosses into the next block, shift the remainder
         if(overhang > 0 && (arr_index + 1) < vector_size)
         {
-            uint32_t next_value = data_[arr_index + 1];
+            int32_t next_value = data_[arr_index + 1];
             next_value |= (bits >> (num_bits_elem - overhang));
             data_[arr_index + 1] = next_value;
         }
     }
 
     template <typename T>
-    static inline uint32_t unpack(const T& pk, const index_t i)
+    static inline int32_t unpack(const T& pk, const index_t i)
     {
         const int bit_pos    = i * num_bits_elem;
         const int arr_idx    = bit_pos / num_bits_vec_elem;
         const int bit_offset = bit_pos % num_bits_vec_elem;
         const int overhang   = bit_offset + num_bits_elem - num_bits_vec_elem;
 
-        uint32_t bits = pk.data_[arr_idx] >> bit_offset;
+        int32_t bits = pk.data_[arr_idx] >> bit_offset;
         if(overhang > 0 && (arr_idx + 1) < vector_size)
         {
             bits |= (pk.data_[arr_idx + 1] & ((1u << overhang) - 1)) << (num_bits_elem - overhang);
@@ -69,9 +69,11 @@ struct pk_fp6_t
         return bits & 0x3F;
     }
 
-    inline uint32_t unpack(const index_t i) const { return unpack(*this, i); }
+    inline int32_t unpack(const index_t i) const { return unpack(*this, i); }
 
-    float fp6_e2m3_to_float(uint32_t fp6_bits)
+    CK_TILE_HOST_DEVICE int32_t operator[](index_t i) const { return data_[i]; }
+
+    static float fp6_e2m3_to_float(int32_t fp6_bits)
     {
         fp6_bits = fp6_bits & 0x3F;
 

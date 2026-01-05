@@ -64,8 +64,8 @@ template <index_t N_>
 struct ext_vector<pk_fp6x16_t, N_>
 {
     static constexpr index_t N = N_;
-    using value_type           = pk_fp6x16_t;
-    using type                 = pk_fp6x16_t; // this is danguous
+    using value_type           = pk_fp6_t<N_ * 16>;
+    using type                 = pk_fp6_t<N_ * 16>; // this is danguous
 };
 
 template <typename T_, index_t N_>
