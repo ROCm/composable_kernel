@@ -225,12 +225,18 @@
   },
   
   "unsupported_trait_combos": {
-    "_comment": "List of [pipeline, epilogue, scheduler] combinations that don't work",
+    "_comment": "Only 'mem' pipeline supports interwave scheduler. All compute pipelines only support intrawave.",
     "combinations": [
       ["compv3", "cshuffle", "interwave"],
       ["compv3", "default", "interwave"],
       ["compv4", "cshuffle", "interwave"],
-      ["compv4", "default", "interwave"]
+      ["compv4", "default", "interwave"],
+      ["compv5", "cshuffle", "interwave"],
+      ["compv5", "default", "interwave"],
+      ["compv6", "cshuffle", "interwave"],
+      ["compv6", "default", "interwave"],
+      ["comp_async", "cshuffle", "interwave"],
+      ["comp_async", "default", "interwave"]
     ]
   },
   

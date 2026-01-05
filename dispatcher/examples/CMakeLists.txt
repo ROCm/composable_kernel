@@ -1,5 +1,5 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 cmake_minimum_required(VERSION 3.16)
 
@@ -551,9 +551,9 @@ add_custom_command(
             --output ${CONV_FALLBACK_DIR}
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
             --datatype fp16 --variant bwd_weight --ndim 2
-            --tile-m 128 --tile-n 32 --warp-m 4 --warp-n 1
-            --warp-tile-m 32 --warp-tile-n 32 --warp-tile-k 16
-            --pipeline mem --scheduler interwave
+            --tile-m 16 --tile-n 64 --tile-k 64 --warp-m 1 --warp-n 4
+            --warp-tile-m 16 --warp-tile-n 16 --warp-tile-k 32
+            --pipeline compv3 --scheduler intrawave
             --output ${CONV_FALLBACK_DIR}
     COMMAND ${CMAKE_COMMAND} -E touch ${CONV_FALLBACK_SENTINEL}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
@@ -573,10 +573,9 @@ target_include_directories(dispatcher_conv_lib PRIVATE
 )
 target_compile_options(dispatcher_conv_lib PRIVATE
     "SHELL:-include ${CONV_FWD_FALLBACK}"
-    # Note: Backward data disabled due to ck_tile compv3 template issues
-    #"SHELL:-include ${CONV_BWDD_FALLBACK}"
+    "SHELL:-include ${CONV_BWDD_FALLBACK}"
     -DCONV_KERNEL_AVAILABLE=1
-    #-DCONV_BWD_DATA_AVAILABLE=1
+    -DCONV_BWD_DATA_AVAILABLE=1
     -mllvm -enable-noalias-to-md-conversion=0
     -Wno-undefined-func-template
     -Wno-float-equal
@@ -587,36 +586,34 @@ if(hip_FOUND)
 endif()
 add_dependencies(dispatcher_conv_lib generate_conv_fallback_kernels)
 
-# Backward weight library - DISABLED due to ck_tile transpose_tile2d template issues
-# The generated bwdw kernels fail to compile with all pipeline types (mem, compv3, compv4)
-# This is a fundamental ck_tile limitation, not a dispatcher issue
-# 
-# add_library(dispatcher_conv_bwdw_lib SHARED 
-#     ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/conv_bwdw_ctypes_lib.cpp)
-# target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE ck_tile_dispatcher)
-# target_include_directories(dispatcher_conv_bwdw_lib PRIVATE
-#     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
-#     ${CMAKE_CURRENT_SOURCE_DIR}/../include
-#     ${CONV_FALLBACK_DIR}
-# )
-# target_compile_options(dispatcher_conv_bwdw_lib PRIVATE
-#     "SHELL:-include ${CONV_BWDW_FALLBACK}"
-#     -DCONV_KERNEL_AVAILABLE=1
-#     -DCONV_BWD_WEIGHT_AVAILABLE=1
-#     -mllvm -enable-noalias-to-md-conversion=0
-#     -Wno-undefined-func-template
-#     -Wno-float-equal
-#     --offload-compress
-# )
-# if(hip_FOUND)
-#     target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE hip::device hip::host)
-# endif()
-# add_dependencies(dispatcher_conv_bwdw_lib generate_conv_fallback_kernels)
+# Backward weight library - Using same config as working C++ example (compv3/intrawave)
+add_library(dispatcher_conv_bwdw_lib SHARED 
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/conv_bwdw_ctypes_lib.cpp)
+target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE ck_tile_dispatcher)
+target_include_directories(dispatcher_conv_bwdw_lib PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CONV_FALLBACK_DIR}
+)
+target_compile_options(dispatcher_conv_bwdw_lib PRIVATE
+    -DCK_TILE_SINGLE_KERNEL_INCLUDE
+    "SHELL:-include ${CONV_BWDW_FALLBACK}"
+    -DCONV_KERNEL_AVAILABLE=1
+    -DCONV_BWD_WEIGHT_AVAILABLE=1
+    -DGEMM_KERNEL_AVAILABLE=1
+    -mllvm -enable-noalias-to-md-conversion=0
+    -Wno-undefined-func-template
+    -Wno-float-equal
+    --offload-compress
+)
+if(hip_FOUND)
+    target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE hip::device hip::host)
+endif()
+add_dependencies(dispatcher_conv_bwdw_lib generate_conv_fallback_kernels)
 
 # Convenience target to build all Python ctypes libraries
 add_custom_target(python_libs
-    DEPENDS dispatcher_gemm_lib dispatcher_conv_lib
-    # Note: dispatcher_conv_bwdw_lib disabled due to ck_tile transpose_tile2d template issues
+    DEPENDS dispatcher_gemm_lib dispatcher_conv_lib dispatcher_conv_bwdw_lib
     COMMENT "Building all Python ctypes libraries"
 )
 

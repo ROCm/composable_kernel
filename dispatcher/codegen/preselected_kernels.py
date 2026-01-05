@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 Preselected, Benchmarked Kernel Configurations
@@ -44,11 +45,12 @@ def _base_fp16_rcr_compute() -> partial:
 
 def _base_fp16_rcr_memory() -> partial:
     """Base configuration for memory-intensive FP16 RCR kernels"""
+    # Note: Use 'mem' pipeline for interwave scheduler (compv3/compv4/compv5/compv6 only support intrawave)
     return partial(
         KernelConfig,
         tile=None,  # Will be overridden
         trait=TraitConfig(
-            pipeline="compv3",
+            pipeline="mem",
             epilogue="cshuffle",
             scheduler="interwave",
             pad_m=True,

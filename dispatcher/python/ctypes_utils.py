@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 CK Tile Dispatcher Utilities
@@ -273,27 +274,6 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
         warnings=warnings,
         suggested_fixes=suggested_fixes,
     )
-
-
-@dataclass
-class AutoCorrectionResult:
-    """Result of auto-correction with detailed explanation."""
-
-    original_config: "KernelConfig"
-    corrected_config: "KernelConfig"
-    was_modified: bool
-    corrections: List[str] = field(default_factory=list)
-    validation: Optional[ValidationResult] = None
-
-    def print_corrections(self, indent: str = "  "):
-        """Print what was corrected and why."""
-        if not self.was_modified:
-            print(f"{indent}✓ Configuration valid - no corrections needed")
-            return
-
-        print(f"{indent}⚠ Configuration auto-corrected:")
-        for correction in self.corrections:
-            print(f"{indent}  • {correction}")
 
 
 def auto_correct_kernel_config(
@@ -875,76 +855,6 @@ class Validator:
     def compute_reference(self, A: np.ndarray, B: np.ndarray) -> np.ndarray:
         """Compute reference GEMM result using NumPy"""
         return np.matmul(A.astype(np.float32), B.astype(np.float32))
-
-
-# =============================================================================
-# Convenience Functions
-# =============================================================================
-
-
-def quick_gemm(lib: DispatcherLib, A: np.ndarray, B: np.ndarray) -> GemmResult:
-    """Quick GEMM using provided library"""
-    runner = GemmRunner(lib)
-    return runner.run(A, B)
-
-
-def benchmark_multiple_sizes(
-    lib: DispatcherLib,
-    sizes: List[Tuple[int, int, int]],
-    warmup: int = 2,
-    iterations: int = 10,
-) -> List[GemmResult]:
-    """
-    Benchmark multiple problem sizes
-
-    Args:
-        lib: Dispatcher library
-        sizes: List of (M, N, K) tuples
-        warmup: Number of warmup iterations
-        iterations: Number of benchmark iterations
-
-    Returns:
-        List of GemmResult for each size
-    """
-    runner = GemmRunner(lib)
-    results = []
-
-    print(f"\n{'Size':>20} | {'Time (ms)':>12} | {'TFLOPS':>10}")
-    print("-" * 50)
-
-    for M, N, K in sizes:
-        if not lib.is_supported(M, N, K):
-            print(f"{M:>4}x{N:>4}x{K:<4} | {'N/A':>12} | {'N/A':>10} (unsupported)")
-            continue
-
-        A = np.random.randn(M, K).astype(np.float16)
-        B = np.random.randn(K, N).astype(np.float16)
-
-        # Warmup
-        for _ in range(warmup):
-            runner.run(A, B)
-
-        # Average multiple runs
-        times = []
-        result = None
-        for _ in range(iterations):
-            result = runner.run(A, B)
-            if result.success:
-                times.append(result.time_ms)
-
-        if times and result:
-            avg_time = sum(times) / len(times)
-            flops = 2.0 * M * N * K
-            avg_tflops = (flops / (avg_time * 1e-3)) / 1e12
-
-            # Update result with averaged values
-            result.time_ms = avg_time
-            result.tflops = avg_tflops
-
-            print(f"{M:>4}x{N:>4}x{K:<4} | {avg_time:>12.4f} | {avg_tflops:>10.2f}")
-            results.append(result)
-
-    return results
 
 
 # =============================================================================
@@ -1820,7 +1730,7 @@ class CodegenRunner:
             f"-include{kernel_header}",
             "-D__HIP_PLATFORM_AMD__",
             f"--offload-arch={config.gfx_arch}",
-            f"-DGFX_ARCH=\"{config.gfx_arch}\"",  # Pass arch as string for gemm_ctypes_lib.cpp
+            f'-DGFX_ARCH="{config.gfx_arch}"',  # Pass arch as string for gemm_ctypes_lib.cpp
             "-mllvm",
             "-enable-noalias-to-md-conversion=0",
             "-Wno-undefined-func-template",
@@ -1972,40 +1882,6 @@ class CodegenRunner:
             "preshuffle": preshuffle,
             "multi_d": multi_d,
         }
-
-
-def ensure_dispatcher_ready(
-    generate_if_missing: bool = True,
-) -> Optional[DispatcherLib]:
-    """
-    Ensure the dispatcher library is ready.
-
-    This function:
-    1. Checks if kernels exist, generates them if missing
-    2. Checks if library exists, compiles it if missing
-    3. Loads and initializes the library
-
-    Args:
-        generate_if_missing: If True, generate kernels/compile library if missing
-
-    Returns:
-        DispatcherLib if ready, None otherwise
-    """
-    # Check for kernels
-    kernel_dir = get_generated_kernels_dir()
-    kernels = list(kernel_dir.glob("*.hpp")) if kernel_dir.exists() else []
-
-    if not kernels and generate_if_missing:
-        print("No kernels found. Generating standard kernels...")
-        codegen = CodegenRunner()
-        result = codegen.generate("standard")
-        if not result.success:
-            print(f"  Failed: {result.stderr[:200]}")
-            return None
-        print(f"  Generated {result.kernel_count} kernels")
-
-    # Load or compile library
-    return DispatcherLib.auto(recompile=generate_if_missing and not kernels)
 
 
 # =============================================================================
@@ -2420,53 +2296,6 @@ def reset_for_example(verbose: bool = False):
 
     # Clear any cached state
     cleanup_gemm()
-
-
-def run_gemm_simple(
-    A: np.ndarray,
-    B: np.ndarray,
-    config: Optional[KernelConfig] = None,
-    verbose: bool = False,
-) -> Optional[np.ndarray]:
-    """
-    Simplest possible GEMM interface - just pass matrices.
-
-    Args:
-        A: Input matrix A (M x K)
-        B: Input matrix B (K x N)
-        config: Optional kernel config (uses default if None)
-        verbose: Print progress
-
-    Returns:
-        Output matrix C (M x N), or None on failure
-    """
-    M, K = A.shape
-    K2, N = B.shape
-    assert K == K2, f"Matrix dimension mismatch: A is {M}x{K}, B is {K2}x{N}"
-
-    # Use default config if not provided
-    if config is None:
-        config = KernelConfig(
-            dtype_a="fp16",
-            tile_m=128,
-            tile_n=128,
-            tile_k=32,
-        )
-
-    # Setup dispatcher
-    setup = setup_gemm_dispatcher(config, verbose=verbose)
-    if not setup.success:
-        if verbose:
-            print(f"Setup failed: {setup.error}")
-        return None
-
-    # Run GEMM
-    result = setup.dispatcher.run(A, B, M, N, K)
-
-    # Cleanup
-    cleanup_gemm()
-
-    return result.output if result.success else None
 
 
 # Main (self-test)

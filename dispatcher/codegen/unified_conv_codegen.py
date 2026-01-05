@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 Unified Convolution Code Generator
@@ -580,15 +581,19 @@ struct {kernel_name}_Launcher {{
     }}
 }};
 
-// Launcher alias for examples
-using {launcher_alias} = {kernel_name}_Launcher;
-// Launcher alias
+// Launcher alias for tile_engine compatibility
 using {launcher_alias} = {kernel_name}_Launcher;
 
 }} // namespace {ns_name}
 
 // Export specific launcher to global namespace
 using {kernel_name}_Launcher = {ns_name}::{kernel_name}_Launcher;
+
+// When used with -include compiler flag, export aliases to global namespace
+#ifdef CK_TILE_SINGLE_KERNEL_INCLUDE
+using {launcher_alias} = {ns_name}::{launcher_alias};
+constexpr const char* CONV_{direction_prefix}_KERNEL_NAME = {ns_name}::CONV_{direction_prefix}_KERNEL_NAME;
+#endif
 """
 
     def _get_pipeline(self, pipeline: str) -> str:

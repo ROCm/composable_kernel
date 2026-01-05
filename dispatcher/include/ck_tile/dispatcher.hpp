@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,6 +22,3 @@
 #include "ck_tile/dispatcher/backends/tile_backend.hpp"
 #include "ck_tile/dispatcher/backends/generated_tile_backend.hpp"
 #include "ck_tile/dispatcher/utils.hpp"
-
-// Optional: Kernel caching (include explicitly if needed)
-// #include "ck_tile/dispatcher/kernel_cache.hpp"

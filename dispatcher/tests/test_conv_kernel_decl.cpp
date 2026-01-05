@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
  * @file test_conv_kernel_decl.cpp
@@ -46,9 +46,9 @@ void test_conv_algorithm_builder()
         .scheduler("intrawave")
         .epilogue("cshuffle");
 
-    assert(algo.tile_n_ == 1);
-    assert(algo.tile_k_ == 128);
-    assert(algo.tile_c_ == 64);
+    assert(algo.tile_m_ == 1);
+    assert(algo.tile_n_ == 128);
+    assert(algo.tile_k_ == 64);
     assert(algo.wave_m_ == 2);
     assert(algo.wave_n_ == 2);
     assert(algo.wave_k_ == 1);
@@ -71,8 +71,8 @@ void test_conv_kernel_decl()
                         "gfx942");
 
     assert(decl.signature.dtype_in_ == "bf16");
-    assert(decl.algorithm.tile_k_ == 256);
-    assert(decl.algorithm.tile_c_ == 128);
+    assert(decl.algorithm.tile_n_ == 256);
+    assert(decl.algorithm.tile_k_ == 128);
     assert(decl.arch == "gfx942");
 
     // Test name generation
@@ -113,7 +113,7 @@ void test_conv_kernel_set()
 
     // Check last declaration
     assert(decls[2].signature.conv_op_ == "bwd_data");
-    assert(decls[2].algorithm.tile_c_ == 64);
+    assert(decls[2].algorithm.tile_k_ == 64);
 
     std::cout << "PASSED\n";
 }

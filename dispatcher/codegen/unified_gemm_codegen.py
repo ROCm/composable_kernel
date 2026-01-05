@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 """
 Unified GEMM Code Generator - Single Source of Truth
@@ -234,11 +235,19 @@ class TraitConfig:
     def is_valid(self) -> bool:
         """Check if trait combination is valid"""
         # Unsupported combinations
+        # Only 'mem' pipeline supports interwave scheduler.
+        # All compute pipelines (compv3/v4/v5/v6/async) only support intrawave.
         unsupported = {
             ("compv3", "cshuffle", "interwave"),
             ("compv3", "default", "interwave"),
             ("compv4", "cshuffle", "interwave"),
             ("compv4", "default", "interwave"),
+            ("compv5", "cshuffle", "interwave"),
+            ("compv5", "default", "interwave"),
+            ("compv6", "cshuffle", "interwave"),
+            ("compv6", "default", "interwave"),
+            ("comp_async", "cshuffle", "interwave"),
+            ("comp_async", "default", "interwave"),
         }
         return (self.pipeline, self.epilogue, self.scheduler) not in unsupported
 

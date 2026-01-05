@@ -46,7 +46,10 @@ make -j$(nproc)
 ./examples/gemm_01_basic
 ./examples/conv_01_forward
 
-# Step 5: Run Python examples (from dispatcher directory)
+# Step 5: Build Python libraries (required for Python examples)
+make python_libs
+
+# Step 6: Run Python examples (from dispatcher directory)
 cd ..
 python3 examples/gemm/python/01_basic_gemm.py
 python3 examples/conv/python/01_basic_conv.py
