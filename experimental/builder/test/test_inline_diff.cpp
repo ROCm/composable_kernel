@@ -5,8 +5,7 @@
 
 #include "testing_utils.hpp"
 
-namespace ck_tile::builder {
-namespace {
+using ck_tile::test::inlineDiff;
 
 TEST(InlineDiff, simpleColorDiff)
 {
@@ -16,8 +15,8 @@ TEST(InlineDiff, simpleColorDiff)
 
     // some easy tests
     // you can veryfy the ungodly strings are meaningful by running echo -e "<string>"
-    EXPECT_THAT(test::inlineDiff(str1, str2, true), "hello");
-    EXPECT_THAT(test::inlineDiff(str1, str3, true),
+    EXPECT_THAT(inlineDiff(str1, str2, true), "hello");
+    EXPECT_THAT(inlineDiff(str1, str3, true),
                 "[\x1B[36mwor\x1B[0m|\x1B[35mhel\x1B[0m]l[\x1B[36md\x1B[0m|\x1B[35mo\x1B[0m]");
 }
 
@@ -28,8 +27,8 @@ TEST(InlineDiff, noColorDiff)
     std::string str3{"world"};
 
     // some easy tests without color
-    EXPECT_THAT(test::inlineDiff(str1, str2, false), "hello");
-    EXPECT_THAT(test::inlineDiff(str1, str3, false), "[wor|hel]l[d|o]");
+    EXPECT_THAT(inlineDiff(str1, str2, false), "hello");
+    EXPECT_THAT(inlineDiff(str1, str3, false), "[wor|hel]l[d|o]");
 }
 
 TEST(InlineDiff, complexColorDiff)
@@ -42,11 +41,8 @@ TEST(InlineDiff, complexColorDiff)
         "this part has degeahc, this part has, this part added, this part has ana extra letter"};
 
     EXPECT_THAT(
-        test::inlineDiff(str5, str4, true),
+        inlineDiff(str5, str4, true),
         "this part has [\x1B[36mchanged\x1B[0m|\x1B[35mdegeahc\x1B[0m], this part has[\x1B[36m "
         "been left out\x1B[0m|\x1B[35m\x1B[0m], this part[\x1B[36m\x1B[0m|\x1B[35m added\x1B[0m], "
         "this part has an[\x1B[36m\x1B[0m|\x1B[35ma\x1B[0m] extra letter");
 };
-
-} // namespace
-} // namespace ck_tile::builder
