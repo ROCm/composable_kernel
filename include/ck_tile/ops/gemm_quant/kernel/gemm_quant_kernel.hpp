@@ -1827,49 +1827,64 @@ struct QuantGemmKernel
             }
             else if constexpr(kQuantType == QuantType::TensorQuant)
             {
-                // TODO: why doesn't readfirstlane work here?
-                // const AccDataType aq_scale =
-                //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*aq_ptr));
-                // const AccDataType bq_scale =
-                //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*bq_ptr));
                 const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
                 const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
                 EpiloguePipeline{}(
                     c_block_window, c_block_tile, c_block_window, smem_ptr, aq_scale, bq_scale);
             }
         }
-
-        CK_TILE_DEVICE void operator()(QuantGemmKernelArgs kargs) const
+        else
         {
-            const auto blockId  = amd_wave_read_first_lane(blockIdx.x);
-            const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
-            const index_t i_m   = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
-            const index_t i_n   = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
-            const SplitKBatchOffset splitk_batch_offset(kargs);
+            auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
+                c_ptr, kargs, block_idx_m, block_idx_n);
 
-            // Apply splitk offset to input pointers
-            const ADataType* a_ptr =
-                static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
-            const BDataType* b_ptr =
-                static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
-            const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
-            const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
-            CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
-
-            // allocate LDS
-            __shared__ char smem_ptr[GetSmemSize()];
-
-            RunGemm(a_ptr,
-                    b_ptr,
-                    aq_ptr,
-                    bq_ptr,
-                    c_ptr,
-                    smem_ptr,
-                    kargs,
-                    splitk_batch_offset,
-                    i_m,
-                    i_n);
+            if constexpr(kQuantType == QuantType::ABQuantGrouped ||
+                         kQuantType == QuantType::AQuantGrouped ||
+                         kQuantType == QuantType::BQuantGrouped)
+            {
+                EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr);
+            }
+            else if constexpr(kQuantType == QuantType::RowColQuant)
+            {
+                EpiloguePipeline{}(c_block_window,
+                                   c_block_tile,
+                                   c_block_window,
+                                   smem_ptr,
+                                   aq_block_window,
+                                   bq_block_window);
+            }
+            else if constexpr(kQuantType == QuantType::TensorQuant)
+            {
+                const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
+                const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
+                EpiloguePipeline{}(
+                    c_block_window, c_block_tile, c_block_window, smem_ptr, aq_scale, bq_scale);
+            }
         }
+    }
+
+    CK_TILE_DEVICE void operator()(QuantGemmKernelArgs kargs) const
+    {
+        const auto blockId  = amd_wave_read_first_lane(blockIdx.x);
+        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
+        const index_t i_m   = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n   = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
+        const SplitKBatchOffset splitk_batch_offset(kargs);
+
+        // Apply splitk offset to input pointers
+        const ADataType* a_ptr =
+            static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
+        const BDataType* b_ptr =
+            static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
+        const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
+        const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
+        CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
+
+        // allocate LDS
+        __shared__ char smem_ptr[GetSmemSize()];
+
+        RunGemm(
+            a_ptr, b_ptr, aq_ptr, bq_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
     }
 };
 
