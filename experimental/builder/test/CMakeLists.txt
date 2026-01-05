@@ -99,6 +99,11 @@ add_ck_builder_test(test_ckb_reference_execution
     validation/test_reference_instance_traits.cpp)
 target_link_libraries(test_ckb_reference_execution PRIVATE utility)
 
+# 2. XDL kernel validation against GPU reference
+add_ck_builder_test(test_ckb_xdl_vs_reference
+    validation/test_xdl_vs_reference.cpp)
+target_link_libraries(test_ckb_xdl_vs_reference PRIVATE utility)
+
 # Note: Optimized kernel validation tests will be added after merging dev branch
 # with kernel Run() implementation from colleague's work
 
@@ -218,6 +223,7 @@ endforeach()
 
 # Register all regression tests (integration tests with kernel compilation)
 set(CKB_REGRESSION_TESTS
+    test_ckb_xdl_vs_reference
     test_ckb_instance_string
     test_ckb_build_fwd_instances
     test_ckb_testing_utils

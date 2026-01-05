@@ -5,6 +5,7 @@
 #include "utils/ckb_conv_test_utils.hpp"
 #include "utils/conv_algorithm_type_utils.hpp"
 #include "ck_tile/builder/testing/conv_fwd_ck.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include "ck_tile/host/device_prop.hpp"
 #include "testing_utils.hpp"
 
@@ -54,6 +55,10 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
         GTEST_SKIP() << "unsupported architecture";
     }
 
+    constexpr auto ref_alg = ckt::ConvAlgorithm_Reference{};
+    using RefBuilder       = ckb::ConvBuilder<SIGNATURE, ref_alg>;
+    using RefInstance      = RefBuilder::Instance;
+
     ckt::Args<SIGNATURE> args = {
         .lengths =
             {
@@ -81,18 +86,73 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
         .cde_elementwise_op = {},
     };
 
-    auto inputs  = ckt::alloc_inputs(args);
-    auto outputs = ckt::alloc_outputs(args);
+    auto inputs            = ckt::alloc_inputs(args);
+    auto outputs           = ckt::alloc_outputs(args);
+    auto reference_outputs = ckt::alloc_outputs(args);
 
     ckt::init_inputs(args, inputs.get());
 
     auto conv = Instance{};
     ckt::run(conv, args, inputs.get(), outputs.get());
 
-    // TODO: This should be allocated via ckt::alloc_outputs() and
-    // initialized via ckt::run() with the reference implementation
-    // instead.
-    auto reference = outputs.get();
+    // Run GPU reference (Builder REFERENCE algorithm) and compare to optimized kernel output.
+    // Note: The builder test harness does not yet provide a `ckt::run()` overload for reference
+    // instances, so we call the reference convenience `Run()` API directly.
+    {
+        using DataT = typename ckb::factory::internal::DataTypeToCK<SIGNATURE.data_type>::type;
+
+        const int G = static_cast<int>(args.lengths.groups);
+        const int N = static_cast<int>(args.lengths.batch_size);
+        const int C = static_cast<int>(args.lengths.input_channels);
+        const int K = static_cast<int>(args.lengths.output_channels);
+
+        // CK builder uses spatial ordering {H, W} for 2D.
+        std::vector<ck_tile::long_index_t> input_spatial{
+            static_cast<ck_tile::long_index_t>(args.lengths.image.height),
+            static_cast<ck_tile::long_index_t>(args.lengths.image.width),
+        };
+        std::vector<ck_tile::long_index_t> filter_spatial{
+            static_cast<ck_tile::long_index_t>(args.lengths.filter.height),
+            static_cast<ck_tile::long_index_t>(args.lengths.filter.width),
+        };
+
+        const auto out_desc    = args.make_output_descriptor();
+        const auto out_lengths = out_desc.get_lengths();
+        std::vector<ck_tile::long_index_t> output_spatial{
+            static_cast<ck_tile::long_index_t>(out_lengths[3]),
+            static_cast<ck_tile::long_index_t>(out_lengths[4]),
+        };
+
+        std::vector<ck_tile::long_index_t> strides{
+            static_cast<ck_tile::long_index_t>(args.filter_strides.height),
+            static_cast<ck_tile::long_index_t>(args.filter_strides.width),
+        };
+        std::vector<ck_tile::long_index_t> dilations{
+            static_cast<ck_tile::long_index_t>(args.filter_dilation.height),
+            static_cast<ck_tile::long_index_t>(args.filter_dilation.width),
+        };
+        std::vector<ck_tile::long_index_t> left_pads{
+            static_cast<ck_tile::long_index_t>(args.input_left_pad.height),
+            static_cast<ck_tile::long_index_t>(args.input_left_pad.width),
+        };
+
+        auto ref = RefInstance{};
+        ref.Run(reinterpret_cast<const DataT*>(inputs.get().input),
+                reinterpret_cast<const DataT*>(inputs.get().weight),
+                reinterpret_cast<DataT*>(reference_outputs.get().output),
+                G,
+                N,
+                K,
+                C,
+                input_spatial,
+                filter_spatial,
+                output_spatial,
+                strides,
+                dilations,
+                left_pads);
+    }
+
+    auto reference = reference_outputs.get();
 
     EXPECT_THAT(outputs.get(), MatchesReference(args, reference));
 }
