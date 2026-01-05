@@ -21,7 +21,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using AQDataType              = remove_cvref_t<typename Problem::AQDataType>;
         constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockAQ = KPerBlock / Problem::QuantGroupSize::kK;
+        constexpr index_t KPerBlockAQ = KPerBlock / Problem::AQuantGroupSize::kK;
 
         return GetABQGlobalVectorLoadSize<Problem, AQDataType, MPerBlock, KPerBlockAQ>();
     }
@@ -35,7 +35,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         constexpr index_t BlockSize    = Problem::kBlockSize;
         constexpr index_t MPerBlock    = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock    = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockAQ  = KPerBlock / Problem::QuantGroupSize::kK;
+        constexpr index_t KPerBlockAQ  = KPerBlock / Problem::AQuantGroupSize::kK;
         constexpr index_t VecLoadSize  = GetVectorSizeAQ<Problem>();
         constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
         using WarpTile                 = typename Problem::BlockGemmShape::WarpTile;
@@ -116,7 +116,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
-        static_assert(Problem::QuantGroupSize::kK % WarpTile::at(I2) == 0,
+        static_assert(Problem::AQuantGroupSize::kK % WarpTile::at(I2) == 0,
                       "KPerWarpGemm must be a multiple of QuantGroupSize::kK!");
 
         using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
