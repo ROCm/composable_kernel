@@ -35,10 +35,6 @@ struct ConvBwdWeightMultiDWmmaV3Factory
 
     static constexpr auto BLOCK          = internal::SetThreadBlockInfo<ALGORITHM>();
     static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
-    static constexpr auto GRIDWISE_GEMM_PIPELINE_VERSION =
-        internal::SetGridwiseGemmPipelineVersion<ALGORITHM>();
-    static constexpr auto LOOP_SCHEDULER = internal::SetLoopScheduler<ALGORITHM>();
-
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
@@ -51,10 +47,10 @@ struct ConvBwdWeightMultiDWmmaV3Factory
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>, "Invalid A block transfer config");
     static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>, "Invalid B block transfer config");
     static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>, "Invalid C block transfer config");
-    static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.thread_cluster_order>, "Invalid A thread cluster access order");
-    static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.thread_cluster_order>, "Invalid B thread cluster access order");
-    static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.src_access_order>, "Invalid A source access order");
-    static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.src_access_order>, "Invalid B source access order");
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>, "Invalid A thread cluster access order");
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>, "Invalid B thread cluster access order");
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>, "Invalid A source access order");
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>, "Invalid B source access order");
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3<
@@ -100,7 +96,9 @@ struct ConvBwdWeightMultiDWmmaV3Factory
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
         C_BLOCK_TRANSFER.scalar_per_vector,
         BLOCK_GEMM.scheduler,
-        BLOCK_GEMM.pipeline_version>;
+        BLOCK_GEMM.pipeline_version,
+        typename Types::OutComputeType,
+        typename Types::InComputeType>;
 };
 
 } // namespace ck_tile::builder::factory

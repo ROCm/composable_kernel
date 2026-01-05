@@ -255,7 +255,7 @@ concept SpecifiesBlockGemm = requires {
 };
 
 template <typename T>
-concept SpecifiedGridwiseGemmPipeline = requires
+concept SpecifiesGridwiseGemmPipeline = requires
 {
     { T::pipeline_version } -> std::convertible_to<PipelineVersion>;
 };

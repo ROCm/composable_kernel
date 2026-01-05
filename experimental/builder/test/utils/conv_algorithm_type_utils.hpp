@@ -444,8 +444,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuf
 }
 
 template <>
-inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle>(
-    ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle t)
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle_V3>(
+    ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle_V3 t)
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))

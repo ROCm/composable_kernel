@@ -1193,7 +1193,7 @@ consteval auto detailed_diagnostic_SpecifiesLdsTransfer() -> std::string {
 }
 
 template <typename T>
-consteval auto detailed_diagnostic_SpecifiedGridwiseGemmPipeline() -> std::string {
+consteval auto detailed_diagnostic_SpecifiesGridwiseGemmPipeline() -> std::string {
     if constexpr (requires { T::pipeline_version; }) {
         using PipelineType = decltype(T::pipeline_version);
         constexpr bool convertible = std::convertible_to<PipelineType, PipelineVersion>;

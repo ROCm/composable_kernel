@@ -153,7 +153,7 @@ struct FwdWmmaAlgorithm {
     CHECK_CONCEPT(T, SpecifiesGemmSpecialization)
     CHECK_CONCEPT(T, SpecifiesNumPrefetchStages)
     CHECK_CONCEPT(T, SpecifiesLoopScheduler)
-    CHECK_CONCEPT(T, SpecifiedGridwiseGemmPipeline)
+    CHECK_CONCEPT(T, SpecifiesGridwiseGemmPipeline)
 
     static constexpr bool c1 = c_ConvAlgorithmDescriptor;
     static constexpr bool c2 = c_SpecifiesThreadBlock;
@@ -166,7 +166,7 @@ struct FwdWmmaAlgorithm {
     static constexpr bool c9 = c_SpecifiesGemmSpecialization;
     static constexpr bool c10 = c_SpecifiesNumPrefetchStages;
     static constexpr bool c11 = c_SpecifiesLoopScheduler;
-    static constexpr bool c12 = c_SpecifiedGridwiseGemmPipeline;
+    static constexpr bool c12 = c_SpecifiesGridwiseGemmPipeline;
 
     static consteval bool is_valid() {
         return c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9 && c10 && c11 && c12;
@@ -186,7 +186,7 @@ struct FwdWmmaAlgorithm {
                DIAGNOSTIC_LINE(SpecifiesGemmSpecialization) +
                DIAGNOSTIC_LINE(SpecifiesNumPrefetchStages) +
                DIAGNOSTIC_LINE(SpecifiesLoopScheduler) + 
-               DIAGNOSTIC_LINE(SpecifiedGridwiseGemmPipeline);
+               DIAGNOSTIC_LINE(SpecifiesGridwiseGemmPipeline);
     }
 };
 
@@ -479,12 +479,12 @@ template <typename T>
 struct BwdWmmaAlgorithm : public BwdWmmaAlgorithmBase<T> {
     CHECK_CONCEPT(T, SpecifiesNumPrefetchStages)
     CHECK_CONCEPT(T, SpecifiesLoopScheduler)
-    CHECK_CONCEPT(T, SpecifiedGridwiseGemmPipeline)
+    CHECK_CONCEPT(T, SpecifiesGridwiseGemmPipeline)
     CHECK_CONCEPT(T, SpecifiesGenericInstance)
 
     static constexpr bool c9 = c_SpecifiesNumPrefetchStages;
     static constexpr bool c10 = c_SpecifiesLoopScheduler;
-    static constexpr bool c11 = c_SpecifiedGridwiseGemmPipeline;
+    static constexpr bool c11 = c_SpecifiesGridwiseGemmPipeline;
     static constexpr bool c12 = c_SpecifiesGenericInstance;
 
     static consteval bool is_valid() {
@@ -497,7 +497,7 @@ struct BwdWmmaAlgorithm : public BwdWmmaAlgorithmBase<T> {
                BwdWmmaAlgorithmBase<T>::message() +
                DIAGNOSTIC_LINE(SpecifiesNumPrefetchStages) +
                DIAGNOSTIC_LINE(SpecifiesLoopScheduler) +
-               DIAGNOSTIC_LINE(SpecifiedGridwiseGemmPipeline) +
+               DIAGNOSTIC_LINE(SpecifiesGridwiseGemmPipeline) +
                DIAGNOSTIC_LINE(SpecifiesGenericInstance);
     }
 };

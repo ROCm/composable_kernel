@@ -95,8 +95,8 @@ struct ConvBwdWeightMultiDXdlFactory
         C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
         C_BLOCK_TRANSFER.scalar_per_vector,
-        typename Types::InComputeType,
-        typename Types::WeiComputeType>;
+        typename Types::OutComputeType,
+        typename Types::InComputeType>;
 };
 
 } // namespace ck_tile::builder::factory

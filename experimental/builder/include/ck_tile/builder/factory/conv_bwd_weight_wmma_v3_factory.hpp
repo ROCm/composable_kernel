@@ -95,8 +95,8 @@ struct ConvBwdWeightWmmaV3Factory
         C_BLOCK_TRANSFER.scalar_per_vector,
         BLOCK_GEMM.scheduler,
         BLOCK_GEMM.pipeline_version,
+        typename Types::OutComputeType,
         typename Types::InComputeType,
-        typename Types::WeiComputeType,
         ALGORITHM.max_transpose_transfer_src_scalar_per_vector,
         ALGORITHM.max_transpose_transfer_dst_scalar_per_vector>;
 };

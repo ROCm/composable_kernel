@@ -96,8 +96,8 @@ struct ConvBwdWeightXdlV3Factory
         C_BLOCK_TRANSFER.scalar_per_vector,
         BLOCK_GEMM.scheduler,
         BLOCK_GEMM.pipeline_version,
-        typename Types::InComputeType,
-        typename Types::WeiComputeType>;
+        typename Types::OutComputeType,
+        typename Types::InComputeType>;
 };
 
 } // namespace ck_tile::builder::factory
