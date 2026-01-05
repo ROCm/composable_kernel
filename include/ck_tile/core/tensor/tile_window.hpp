@@ -17,6 +17,7 @@
 #include "ck_tile/core/tensor/tile_window_base.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 namespace ck_tile {
 
@@ -194,13 +195,26 @@ struct tile_window_with_static_distribution
                              bool_constant<oob_conditional_check> = {}) const
     {
         constexpr auto tile_dstr = typename Base::TileDstr{};
-        auto dst_tensor          = make_static_distributed_tensor<DstDataType_>(tile_dstr);
+        auto dst_tensor          = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
         load(dst_tensor,
-             tile_windows,
-             elementwise,
-             number<i_access_unsupport_>{},
-             bool_constant<oob_conditional_check>{});
-        return dst_tensor;
+            tile_windows,
+            elementwise,
+            number<i_access_unsupport_>{},
+            bool_constant<oob_conditional_check>{});
+
+        if constexpr(std::is_same_v<DstDataType_, typename Base::DataType>)
+        {
+            return dst_tensor;
+        }
+        else
+        {
+            auto ret = make_static_distributed_tensor<DstDataType_>(tile_dstr);
+            sweep_tile(ret, [&](auto i) {
+                element_wise::PassThrough pass_through{};
+                pass_through(ret(i), dst_tensor(i));
+            });
+            return ret;
+        }
     }
 
     template <typename DistributedTensor,

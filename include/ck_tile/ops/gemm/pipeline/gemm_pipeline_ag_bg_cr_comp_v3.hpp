@@ -115,6 +115,9 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
     using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
 
+    using ATypeToUse = typename DetermineWarpPrecType<ADataType, BDataType>::prec_type;
+    using BTypeToUse = typename DetermineWarpPrecType<BDataType, ADataType>::prec_type;
+
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
     using I0        = number<0>;
     using I1        = number<1>;
@@ -437,7 +440,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // Definitions of all needed tiles
 
             // A/B tiles in LDS
-            auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
+            auto&& [a_lds_block, b_lds_block] = Base::template GetABLdsTensorViews<ATypeToUse, BTypeToUse>(p_smem);
 
             // Tile distribution for load from lds
             constexpr auto a_lds_load_tile_distr =
@@ -477,7 +480,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // Load tile — during value loading, an elementwise function is executed for each A0,
             // A1, … AN. The values A0, A1, … AN are read by the same thread.
             auto elementwise_As_res =
-                load_tile_with_elementwise(a_copy_dram_window, a_element_func);
+                load_tile_with_elementwise(a_copy_dram_window, a_element_func, ATypeToUse{});
 
             // Move each A — the enhanced function move_tile_window is executed, which takes a tuple
             // as input.
@@ -486,7 +489,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // Load tile — during value loading, an elementwise function is executed for each B0,
             // B1, … BN. The values B0, B1, … BN are read by the same thread.
             auto elementwise_Bs_res =
-                load_tile_with_elementwise(b_copy_dram_window, b_element_func);
+                load_tile_with_elementwise(b_copy_dram_window, b_element_func, BTypeToUse{});
 
             // Move each B — the enhanced function move_tile_window is executed, which takes a tuple
             // as input.
@@ -518,10 +521,10 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             // global read 1
 
-            elementwise_As_res = load_tile_with_elementwise(a_copy_dram_window, a_element_func);
+            elementwise_As_res = load_tile_with_elementwise(a_copy_dram_window, a_element_func, ATypeToUse{});
             move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
 
-            elementwise_Bs_res = load_tile_with_elementwise(b_copy_dram_window, b_element_func);
+            elementwise_Bs_res = load_tile_with_elementwise(b_copy_dram_window, b_element_func, BTypeToUse{});
             move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
             block_sync_lds();
@@ -562,11 +565,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                     }
 
                     elementwise_As_res =
-                        load_tile_with_elementwise(a_copy_dram_window, a_element_func);
+                        load_tile_with_elementwise(a_copy_dram_window, a_element_func, ATypeToUse{});
                     move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
 
                     elementwise_Bs_res =
-                        load_tile_with_elementwise(b_copy_dram_window, b_element_func);
+                        load_tile_with_elementwise(b_copy_dram_window, b_element_func, BTypeToUse{});
                     move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
