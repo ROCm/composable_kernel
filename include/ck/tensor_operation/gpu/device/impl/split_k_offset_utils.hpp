@@ -35,7 +35,7 @@ template <index_t NDimSpatial, typename InLayout, typename WeiLayout, typename O
 struct SplitKHackEligibility
 {
     template <typename ADescriptor, typename BDescriptor>
-    static auto
+    static bool
     Check(const ADescriptor& a_desc,
           const BDescriptor& b_desc,
           index_t k_batch,
@@ -46,7 +46,7 @@ struct SplitKHackEligibility
         // Only enable hack if k_batch > 1
         if(k_batch <= 1)
         {
-            return std::make_pair(false, false);
+            return false;
         }
 
         // Calculate output spatial product
@@ -75,13 +75,12 @@ struct SplitKHackEligibility
 
         // Require BOTH A and B to be eligible for the hack to avoid KBatch dimension mismatch
         // The gridwise kernel's CheckValidity requires A.KBatch == B.KBatch, so we must
-        // ensure symmetric hack flags to maintain kernel applicability
-        const bool both_eligible = can_divide_n_spatial_by_k_batch && can_divide_n_by_k_batch &&
-                                   is_k_not_paded && is_correct_layout && is_a_stride_divisible &&
-                                   is_b_stride_divisible && is_a_compact && is_b_compact;
+        // apply the hack uniformly to both tensors to maintain kernel applicability
+        const bool eligible = can_divide_n_spatial_by_k_batch && can_divide_n_by_k_batch &&
+                              is_k_not_paded && is_correct_layout && is_a_stride_divisible &&
+                              is_b_stride_divisible && is_a_compact && is_b_compact;
 
-        // Return symmetric flags - both enabled or both disabled
-        return std::make_pair(both_eligible, both_eligible);
+        return eligible;
     }
 };
 
@@ -108,10 +107,9 @@ __device__ void DispatchSplitKHack(const ADataType* p_a_grid,
                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
                                    index_t k_id,
                                    index_t k_batch,
-                                   bool split_k_offset_a_hack,
-                                   bool split_k_offset_b_hack)
+                                   bool split_k_offset_hack)
 {
-    if(split_k_offset_a_hack && split_k_offset_b_hack)
+    if(split_k_offset_hack)
     {
         GridwiseGemm::template Run<AGridDesc_AK0_M_K1,
                                    BGridDesc_BK0_N_K1,
@@ -120,46 +118,6 @@ __device__ void DispatchSplitKHack(const ADataType* p_a_grid,
                                    CGlobalMemoryDataOperation,
                                    TailNum,
                                    true,
-                                   true>(p_a_grid,
-                                         p_b_grid,
-                                         p_c_grid,
-                                         p_shared,
-                                         karg,
-                                         a_grid_desc_ak0_m_ak1,
-                                         b_grid_desc_bk0_n_bk1,
-                                         c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                         k_id,
-                                         k_batch);
-    }
-    else if(split_k_offset_a_hack)
-    {
-        GridwiseGemm::template Run<AGridDesc_AK0_M_K1,
-                                   BGridDesc_BK0_N_K1,
-                                   CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                   HasMainKBlockLoop,
-                                   CGlobalMemoryDataOperation,
-                                   TailNum,
-                                   true,
-                                   false>(p_a_grid,
-                                          p_b_grid,
-                                          p_c_grid,
-                                          p_shared,
-                                          karg,
-                                          a_grid_desc_ak0_m_ak1,
-                                          b_grid_desc_bk0_n_bk1,
-                                          c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                          k_id,
-                                          k_batch);
-    }
-    else if(split_k_offset_b_hack)
-    {
-        GridwiseGemm::template Run<AGridDesc_AK0_M_K1,
-                                   BGridDesc_BK0_N_K1,
-                                   CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                   HasMainKBlockLoop,
-                                   CGlobalMemoryDataOperation,
-                                   TailNum,
-                                   false,
                                    true>(p_a_grid,
                                          p_b_grid,
                                          p_c_grid,
@@ -217,10 +175,9 @@ __device__ void DispatchSplitKHack_2Lds(const ADataType* p_a_grid,
                                             c_grid_desc_mblock_mperblock_nblock_nperblock,
                                         index_t k_id,
                                         index_t k_batch,
-                                        bool split_k_offset_a_hack,
-                                        bool split_k_offset_b_hack)
+                                        bool split_k_offset_hack)
 {
-    if(split_k_offset_a_hack && split_k_offset_b_hack)
+    if(split_k_offset_hack)
     {
         GridwiseGemm::template Run_2Lds<AGridDesc_AK0_M_K1,
                                         BGridDesc_BK0_N_K1,
@@ -229,48 +186,6 @@ __device__ void DispatchSplitKHack_2Lds(const ADataType* p_a_grid,
                                         CGlobalMemoryDataOperation,
                                         TailNum,
                                         true,
-                                        true>(p_a_grid,
-                                              p_b_grid,
-                                              p_c_grid,
-                                              p_shared_0,
-                                              p_shared_1,
-                                              karg,
-                                              a_grid_desc_ak0_m_ak1,
-                                              b_grid_desc_bk0_n_bk1,
-                                              c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                              k_id,
-                                              k_batch);
-    }
-    else if(split_k_offset_a_hack)
-    {
-        GridwiseGemm::template Run_2Lds<AGridDesc_AK0_M_K1,
-                                        BGridDesc_BK0_N_K1,
-                                        CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                        HasMainKBlockLoop,
-                                        CGlobalMemoryDataOperation,
-                                        TailNum,
-                                        true,
-                                        false>(p_a_grid,
-                                               p_b_grid,
-                                               p_c_grid,
-                                               p_shared_0,
-                                               p_shared_1,
-                                               karg,
-                                               a_grid_desc_ak0_m_ak1,
-                                               b_grid_desc_bk0_n_bk1,
-                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                               k_id,
-                                               k_batch);
-    }
-    else if(split_k_offset_b_hack)
-    {
-        GridwiseGemm::template Run_2Lds<AGridDesc_AK0_M_K1,
-                                        BGridDesc_BK0_N_K1,
-                                        CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                        HasMainKBlockLoop,
-                                        CGlobalMemoryDataOperation,
-                                        TailNum,
-                                        false,
                                         true>(p_a_grid,
                                               p_b_grid,
                                               p_c_grid,

@@ -57,8 +57,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const index_t num_k_per_block,
         const long_index_t split_k_stride_a,
         const long_index_t split_k_stride_b,
-        bool split_k_offset_a_hack,
-        bool split_k_offset_b_hack)
+        bool split_k_offset_hack)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
@@ -66,8 +65,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
         const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
 
-        const long_index_t split_k_offset_a = split_k_offset_a_hack ? k_idx * split_k_stride_a : 0;
-        const long_index_t split_k_offset_b = split_k_offset_b_hack ? k_idx * split_k_stride_b : 0;
+        const long_index_t split_k_offset_a = split_k_offset_hack ? k_idx * split_k_stride_a : 0;
+        const long_index_t split_k_offset_b = split_k_offset_hack ? k_idx * split_k_stride_b : 0;
 
         const long_index_t a_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
@@ -94,8 +93,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                     c_grid_desc_mblock_mperblock_nblock_nperblock,
                                     k_idx * num_k_per_block,
                                     gridDim.y,
-                                    split_k_offset_a_hack,
-                                    split_k_offset_b_hack);
+                                    split_k_offset_hack);
     }
 #else
     ignore = karg;
@@ -106,8 +104,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     ignore = num_k_per_block;
     ignore = split_k_stride_a;
     ignore = split_k_stride_b;
-    ignore = split_k_offset_a_hack;
-    ignore = split_k_offset_b_hack;
+    ignore = split_k_offset_hack;
 
 #endif // end of if (defined(__gfx9__)
 }
@@ -135,8 +132,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const index_t num_k_per_block,
         const long_index_t split_k_stride_a,
         const long_index_t split_k_stride_b,
-        bool split_k_offset_a_hack,
-        bool split_k_offset_b_hack)
+        bool split_k_offset_hack)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
@@ -145,8 +141,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
         const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
 
-        const long_index_t split_k_offset_a = split_k_offset_a_hack ? k_idx * split_k_stride_a : 0;
-        const long_index_t split_k_offset_b = split_k_offset_b_hack ? k_idx * split_k_stride_b : 0;
+        const long_index_t split_k_offset_a = split_k_offset_hack ? k_idx * split_k_stride_a : 0;
+        const long_index_t split_k_offset_b = split_k_offset_hack ? k_idx * split_k_stride_b : 0;
 
         const long_index_t a_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
@@ -177,8 +173,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                          c_grid_desc_mblock_mperblock_nblock_nperblock,
                                          k_idx * num_k_per_block,
                                          gridDim.y,
-                                         split_k_offset_a_hack,
-                                         split_k_offset_b_hack);
+                                         split_k_offset_hack);
     }
 #else
     ignore = karg;
@@ -189,8 +184,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     ignore = num_k_per_block;
     ignore = split_k_stride_a;
     ignore = split_k_stride_b;
-    ignore = split_k_offset_a_hack;
-    ignore = split_k_offset_b_hack;
+    ignore = split_k_offset_hack;
 #endif // end of if (defined(__gfx9__)
 }
 
@@ -611,7 +605,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                         false, // split_k_offset_b_hack (temporary)
                         true); // use_full_batch_kindex=true for V1-compatible descriptors
 
-            std::tie(split_k_offset_a_hack_, split_k_offset_b_hack_) =
+            split_k_offset_hack_ =
                 SplitKHackEligibility<NDimSpatial, InLayout, WeiLayout, OutLayout>::Check(
                     descs_initial[I0],
                     descs_initial[I1],
@@ -620,7 +614,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                     output_spatial_lengths_,
                     K0PerBlock);
 
-            // Now create descriptors with the correct hack flags
+            // Now create descriptors with the correct hack flag
             const auto descs =
                 conv_to_gemm_transformer
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -638,8 +632,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                         input_left_pads,
                         input_right_pads,
                         k_batch_,
-                        split_k_offset_a_hack_,
-                        split_k_offset_b_hack_,
+                        split_k_offset_hack_,
+                        split_k_offset_hack_,
                         true); // use_full_batch_kindex=true for V1-compatible descriptors
 
             a_grid_desc_k0_m_k1_ = descs[I0];
@@ -649,11 +643,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             // Calculate stride using CalculateOffset method for accurate stride
             // This works correctly for any descriptor transform pipeline
             split_k_stride_a_ = a_grid_desc_k0_m_k1_.GetElementSpaceSize();
-            if(split_k_offset_a_hack_)
+            if(split_k_offset_hack_)
                 split_k_stride_a_ /= k_batch_;
 
             split_k_stride_b_ = b_grid_desc_k0_n_k1_.GetElementSpaceSize();
-            if(split_k_offset_b_hack_)
+            if(split_k_offset_hack_)
                 split_k_stride_b_ /= k_batch_;
 
             // A/B/C Batch Stride
@@ -706,7 +700,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         long_index_t c_space_size_bytes;
 
-        bool split_k_offset_a_hack_, split_k_offset_b_hack_;
+        bool split_k_offset_hack_;
         long_index_t split_k_stride_a_, split_k_stride_b_;
     };
 
@@ -798,8 +792,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                         num_k_per_block,
                         arg.split_k_stride_a_,
                         arg.split_k_stride_b_,
-                        arg.split_k_offset_a_hack_,
-                        arg.split_k_offset_b_hack_);
+                        arg.split_k_offset_hack_);
                 }
                 else
                 {
@@ -818,8 +811,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                         num_k_per_block,
                         arg.split_k_stride_a_,
                         arg.split_k_stride_b_,
-                        arg.split_k_offset_a_hack_,
-                        arg.split_k_offset_b_hack_);
+                        arg.split_k_offset_hack_);
                 }
             };
 
@@ -1507,11 +1499,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
 
         constexpr long_index_t TwoGB = (long_index_t{1} << 31);
         const bool a_small_enough    = arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize() /
-                                        (arg.split_k_offset_a_hack_ ? arg.k_batch_ : 1) *
+                                        (arg.split_k_offset_hack_ ? arg.k_batch_ : 1) *
                                         sizeof(ADataType) <=
                                     TwoGB;
         const bool b_small_enough = arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize() /
-                                        (arg.split_k_offset_b_hack_ ? arg.k_batch_ : 1) *
+                                        (arg.split_k_offset_hack_ ? arg.k_batch_ : 1) *
                                         sizeof(BDataType) <=
                                     TwoGB;
         const bool c_small_enough =

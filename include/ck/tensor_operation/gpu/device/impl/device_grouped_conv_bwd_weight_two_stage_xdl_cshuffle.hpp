@@ -59,8 +59,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         [[maybe_unused]] const index_t num_k_per_block,
         const long_index_t split_k_stride_a,
         const long_index_t split_k_stride_b,
-        bool split_k_offset_a_hack,
-        bool split_k_offset_b_hack)
+        bool split_k_offset_hack)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
@@ -68,8 +67,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
         const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
 
-        const long_index_t split_k_offset_a = split_k_offset_a_hack ? k_idx * split_k_stride_a : 0;
-        const long_index_t split_k_offset_b = split_k_offset_b_hack ? k_idx * split_k_stride_b : 0;
+        const long_index_t split_k_offset_a = split_k_offset_hack ? k_idx * split_k_stride_a : 0;
+        const long_index_t split_k_offset_b = split_k_offset_hack ? k_idx * split_k_stride_b : 0;
 
         const long_index_t a_batch_offset = amd_wave_read_first_lane(
             static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
@@ -96,15 +95,13 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                     c_grid_desc_mblock_mperblock_nblock_nperblock,
                                     k_idx * num_k_per_block,
                                     gridDim.y,
-                                    split_k_offset_a_hack,
-                                    split_k_offset_b_hack);
+                                    split_k_offset_hack);
     }
 #else
     ignore = karg;
     ignore = split_k_stride_a;
     ignore = split_k_stride_b;
-    ignore = split_k_offset_a_hack;
-    ignore = split_k_offset_b_hack;
+    ignore = split_k_offset_hack;
 #endif // end of if (defined(__gfx9__))
 }
 
@@ -132,8 +129,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         [[maybe_unused]] const index_t num_k_per_block,
         const long_index_t split_k_stride_a,
         const long_index_t split_k_stride_b,
-        bool split_k_offset_a_hack,
-        bool split_k_offset_b_hack)
+        bool split_k_offset_hack)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
@@ -142,8 +138,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
         const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
 
-        const long_index_t split_k_offset_a = split_k_offset_a_hack ? k_idx * split_k_stride_a : 0;
-        const long_index_t split_k_offset_b = split_k_offset_b_hack ? k_idx * split_k_stride_b : 0;
+        const long_index_t split_k_offset_a = split_k_offset_hack ? k_idx * split_k_stride_a : 0;
+        const long_index_t split_k_offset_b = split_k_offset_hack ? k_idx * split_k_stride_b : 0;
 
         const long_index_t a_batch_offset = amd_wave_read_first_lane(
             static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
@@ -174,13 +170,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                          c_grid_desc_mblock_mperblock_nblock_nperblock,
                                          k_idx * num_k_per_block,
                                          gridDim.y,
-                                         split_k_offset_a_hack,
-                                         split_k_offset_b_hack);
+                                         split_k_offset_hack);
     }
 #else
     ignore = karg;
-    ignore = split_k_offset_a_hack;
-    ignore = split_k_offset_b_hack;
+    ignore = split_k_offset_hack;
     ignore = split_k_stride_a;
     ignore = split_k_stride_b;
 #endif // end of if (defined(__gfx9__))
@@ -759,7 +753,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         input_right_pads,
                         k_batch_)[I2];
 
-            std::tie(split_k_offset_a_hack_, split_k_offset_b_hack_) =
+            split_k_offset_hack_ =
                 SplitKHackEligibility<NDimSpatial, InLayout, WeiLayout, OutLayout>::Check(
                     descs_initial[I0],
                     descs_initial[I1],
@@ -768,7 +762,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                     output_spatial_lengths_,
                     KPerBlock);
 
-            // Create final descriptors with correct hack flags
+            // Create final descriptors with correct hack flag
             const auto descs =
                 conv_to_gemm_transformer_v2
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -786,16 +780,16 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         input_left_pads,
                         input_right_pads,
                         k_batch_,
-                        split_k_offset_a_hack_, // Use determined hack flag
-                        split_k_offset_b_hack_, // Use determined hack flag
-                        true);                  // use_full_batch_kindex
+                        split_k_offset_hack_, // Use determined hack flag
+                        split_k_offset_hack_, // Use determined hack flag
+                        true);                // use_full_batch_kindex
 
             a_grid_desc_k0_m_k1_ = descs[I0];
             b_grid_desc_k0_n_k1_ = descs[I1];
             ce_grid_desc_m_n_    = descs[I2];
 
             // Step 5: Calculate stride using CalculateOffset on FINAL descriptors
-            if(split_k_offset_a_hack_)
+            if(split_k_offset_hack_)
             {
                 const index_t k0_per_batch = a_grid_desc_k0_m_k1_.GetLength(I0) / k_batch_;
                 const auto idx_start       = make_multi_index(0, 0, 0);
@@ -808,7 +802,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 split_k_stride_a_ = a_grid_desc_k0_m_k1_.GetElementSpaceSize();
             }
 
-            if(split_k_offset_b_hack_)
+            if(split_k_offset_hack_)
             {
                 const index_t k0_per_batch = b_grid_desc_k0_n_k1_.GetLength(I0) / k_batch_;
                 const auto idx_start       = make_multi_index(0, 0, 0);
@@ -958,7 +952,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         long_index_t c_space_size_bytes;
 
-        bool split_k_offset_a_hack_, split_k_offset_b_hack_;
+        bool split_k_offset_hack_;
         long_index_t split_k_stride_a_, split_k_stride_b_;
     };
 
@@ -1065,8 +1059,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         num_k_per_block,
                         arg.split_k_stride_a_,
                         arg.split_k_stride_b_,
-                        arg.split_k_offset_a_hack_,
-                        arg.split_k_offset_b_hack_);
+                        arg.split_k_offset_hack_);
                 }
                 else
                 {
@@ -1085,8 +1078,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         num_k_per_block,
                         arg.split_k_stride_a_,
                         arg.split_k_stride_b_,
-                        arg.split_k_offset_a_hack_,
-                        arg.split_k_offset_b_hack_);
+                        arg.split_k_offset_hack_);
                 }
             };
 
