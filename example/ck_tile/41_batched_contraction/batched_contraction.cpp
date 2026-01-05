@@ -92,67 +92,59 @@ float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<DsDataT
 
     constexpr auto scheduler = GEMM_PIPELINE_SCHEDULER;
 
-    const auto Run = [&]() {
-        constexpr auto memory_operation =
-            ck_tile::memory_operation_enum::set; // Always set (no atomic_add)
+    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                       BDataType,
+                                                                       AccDataType,
+                                                                       GemmShape,
+                                                                       GemmUniversalTraits,
+                                                                       scheduler>;
 
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler>;
+    using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
 
-        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+    using GemmEpilogue = ck_tile::CShuffleEpilogue<
+        ck_tile::CShuffleEpilogueProblem<ADataType,
+                                         BDataType,
+                                         DsDataType,
+                                         AccDataType,
+                                         EDataType,
+                                         DsLayout,
+                                         ELayout,
+                                         CDEElementWise,
+                                         TilePartitioner::MPerBlock,
+                                         TilePartitioner::NPerBlock,
+                                         M_Warp,
+                                         N_Warp,
+                                         M_Warp_Tile,
+                                         N_Warp_Tile,
+                                         K_Warp_Tile,
+                                         UniversalGemmProblem::TransposeC>>;
 
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             EDataType,
-                                             DsLayout,
-                                             ELayout,
-                                             CDEElementWise,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             memory_operation>>;
+    using Kernel =
+        ck_tile::BatchedContractionKernel<Problem, TilePartitioner, GemmPipeline, GemmEpilogue>;
+    auto kargs = Kernel::MakeKernelArgs(args);
 
-        using Kernel =
-            ck_tile::BatchedContractionKernel<Problem, TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs = Kernel::MakeKernelArgs(args);
+    const dim3 grids  = Kernel::GridSize(kargs);
+    const dim3 blocks = Kernel::GetBlockSize();
 
-        const dim3 grids  = Kernel::GridSize(kargs);
-        const dim3 blocks = Kernel::GetBlockSize();
+    if(!Kernel::IsSupportedArguments(kargs))
+    {
+        throw std::runtime_error("Wrong! Arguments not supported! Skipping contraction!\n");
+    }
 
-        if(!Kernel::IsSupportedArguments(kargs))
-        {
-            throw std::runtime_error("Wrong! Arguments not supported! Skipping contraction!\n");
-        }
+    if(s.log_level_ > 0)
+    {
+        std::cout << "Launching kernel with args: " << Kernel::GetKernelName() << '\n'
+                  << "shape: " << GemmShape::GetName() << '\n'
+                  << "problem: " << GemmPipelineProblem::GetName() << '\n'
+                  << "pipeline: " << GemmPipeline::GetName() << '\n'
+                  << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                  << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                  << std::endl;
+    }
 
-        if(s.log_level_ > 0)
-        {
-            std::cout << "Launching kernel with args: " << Kernel::GetKernelName() << '\n'
-                      << "shape: " << GemmShape::GetName() << '\n'
-                      << "problem: " << GemmPipelineProblem::GetName() << '\n'
-                      << "pipeline: " << GemmPipeline::GetName() << '\n'
-                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                      << std::endl;
-        }
+    auto kernel = ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs);
 
-        auto kernel = ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs);
-
-        return ck_tile::launch_kernel(s, kernel);
-    };
-
-    return Run();
+    return ck_tile::launch_kernel(s, kernel);
 }
 
 #define HANDLE_CASE(G, M, N, K)                                                  \

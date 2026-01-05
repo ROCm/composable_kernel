@@ -719,8 +719,8 @@ struct SelectedKernel {{
         elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code += f"""
             
-            // Kernel type
-            using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        // Kernel type
+        using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             
             // Kernel arguments
             auto kargs = GemmKernel::MakeKernelArgs(args);
@@ -802,8 +802,8 @@ struct SelectedKernel {{
                 ck_tile::tuple<>,  // DsLayout
                 CLayout,
                 ck_tile::element_wise::PassThrough,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
+                TileM,  // kM_
+                TileN,  // kN_
                 WarpPerBlock_M,              // MWave_
                 WarpPerBlock_N,              // NWave_
                 WarpTileM,                   // MPerXdl_
