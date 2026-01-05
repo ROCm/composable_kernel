@@ -47,6 +47,11 @@ struct DataTypeToCK<DataType::FP8>
 {
     using type = ck::f8_t;
 };
+template <>
+struct DataTypeToCK<DataType::U8>
+{
+    using type = uint8_t;
+};
 
 struct CK_empty_tuple
 {
