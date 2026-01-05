@@ -212,16 +212,18 @@ UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args);
 /// @brief Allocate inputs corresponding to a signature.
 ///
 /// The `init_inputs()` function is used to initialize pseudo-random data
-/// to the tensors specified in the Inputs structure.
+/// to the tensors specified in the Inputs structure. Implementors should
+/// fill each of the tensors in `inputs` with appropriate random data.
 ///
 /// @tparam SIGNATURE the signature to specialize the structure for.
 ///
+/// @param args The run-time arguments of the operation.
+/// @param inputs The operation inputs to initialize with random data.
+///
 /// @see Inputs
-/// @see UniqueInputs
 /// @see tensor_initialization
 template <auto SIGNATURE>
-    requires ValidUniqueInputs<SIGNATURE>
-void init_inputs(const Args<SIGNATURE>& args, UniqueInputs<SIGNATURE>& inputs);
+void init_inputs(const Args<SIGNATURE>& args, Inputs<SIGNATURE> inputs);
 
 /// @brief Allocate outputs corresponding to a signature.
 ///

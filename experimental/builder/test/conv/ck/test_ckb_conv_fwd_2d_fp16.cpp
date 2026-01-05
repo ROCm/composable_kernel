@@ -81,13 +81,18 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
         .cde_elementwise_op = {},
     };
 
-    auto inputs  = alloc_inputs(args);
-    auto outputs = alloc_outputs(args);
+    auto inputs  = ckt::alloc_inputs(args);
+    auto outputs = ckt::alloc_outputs(args);
 
-    init_inputs(args, inputs);
+    ckt::init_inputs(args, inputs.get());
 
     auto conv = Instance{};
     ckt::run(conv, args, inputs.get(), outputs.get());
 
-    EXPECT_THAT(outputs.get(), MatchesReference(args, outputs.get()));
+    // TODO: This should be allocated via ckt::alloc_outputs() and
+    // initialized via ckt::run() with the reference implementation
+    // instead.
+    auto reference = outputs.get();
+
+    EXPECT_THAT(outputs.get(), MatchesReference(args, reference));
 }
