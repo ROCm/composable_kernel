@@ -369,6 +369,19 @@ struct TensorDescriptor
         return get_element_space_size() * data_type_sizeof(DT);
     }
 
+    /// @brief Check if a tensor is packed in memory.
+    ///
+    /// This function checks whether the tensor memory is "packed", that is, whether
+    /// all elements are continuous in memory with no gaps.
+    bool is_packed() const
+    {
+        // Just check that the total number of elements covers the element space.
+        // TODO: Technically we might be able to construct a descriptor for which this
+        // holds but which is not actually packed. We should replace this by a more
+        // proper check...
+        return get_element_space_size() == get_element_size();
+    }
+
     /// @brief Get a tensor descriptor for the space backing a tensor.
     ///
     /// This function returns a tensor descriptor which represents the buffer space
