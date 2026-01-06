@@ -99,14 +99,7 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmConfig)
         else
         {
             assert(is_wave32() == false);
-            if(ck_tile::is_gfx95_supported())
-            {
-                divisor = gemmConfig.N_Warp_Tile == 32 ? 4 : 8;
-            }
-            else
-            {
-                divisor = gemmConfig.N_Warp_Tile == 32 ? 2 : 4;
-            }
+            divisor = get_warp_size() / gemmConfig.N_Warp_Tile;
         }
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Warp_Tile,
                                        gemmConfig.N_Warp_Tile,
@@ -175,14 +168,7 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmC
         else
         {
             assert(is_wave32() == false);
-            if(ck_tile::is_gfx95_supported())
-            {
-                divisor = gemmConfig.N_Warp_Tile == 32 ? 4 : 8;
-            }
-            else
-            {
-                divisor = gemmConfig.N_Warp_Tile == 32 ? 2 : 4;
-            }
+            divisor = get_warp_size() / gemmConfig.N_Warp_Tile;
         }
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Tile,
                                        gemmConfig.N_Warp,
