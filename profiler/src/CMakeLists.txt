@@ -298,3 +298,32 @@ message(VERBOSE "ckProfiler libs: ${PROFILER_LIBS}")
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE ${PROFILER_LIBS})
 
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
+
+
+## Defining specific operation targets
+
+macro(define_profiler_target NAME SOURCES LIBS)
+  add_executable(${NAME} profiler.cpp ${SOURCES})
+  target_compile_options(${NAME} PRIVATE -Wno-global-constructors)
+
+  if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+    target_compile_options(${NAME} PRIVATE --offload-compress)
+  endif()
+
+  target_link_libraries(${NAME} PRIVATE utility getopt::getopt ${LIBS})
+  
+  rocm_install(TARGETS ${NAME} COMPONENT profiler)
+endmacro()
+
+
+define_profiler_target(ckProfiler_gemm 
+  "profile_gemm.cpp" 
+  "device_gemm_instance")
+
+define_profiler_target(ckProfiler_gemm_universal
+  "profile_gemm_universal.cpp" 
+  "device_gemm_universal_instance")
+
+define_profiler_target(ckProfiler_gemm_fixed_nk
+  "profile_grouped_gemm_fixed_nk.cpp" 
+  "device_grouped_gemm_fixed_nk_instance")

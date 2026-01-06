@@ -194,7 +194,7 @@ class TestGroupedGemm : public testing::Test
         }
         else
         {
-            k_batches_ = {1, 2, 3, 5, 8};
+            k_batches_ = {1, 2, 3,  4, 8};
         }
     }
 

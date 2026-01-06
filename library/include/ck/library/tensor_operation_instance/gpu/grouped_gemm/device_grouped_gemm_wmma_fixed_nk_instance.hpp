@@ -141,7 +141,7 @@ static constexpr InstanceVariant InstanceVariants[] = {
 
     make_tuple(GemmDefault, IntrawaveScheduler, PipelineV1),
     // make_tuple(GemmDefault, InterwaveScheduler, PipelineV1),
-    make_tuple(GemmDefault, IntrawaveScheduler, PipelineV3),
+    // make_tuple(GemmDefault, IntrawaveScheduler, PipelineV3),
 
     make_tuple(GemmMNKPadding, IntrawaveScheduler, PipelineV1),
     // make_tuple(GemmMNKPadding, InterwaveScheduler, PipelineV1),

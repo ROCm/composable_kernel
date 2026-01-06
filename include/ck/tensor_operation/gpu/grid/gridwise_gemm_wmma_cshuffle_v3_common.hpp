@@ -1043,6 +1043,34 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         static_assert((MPerBlock % (MPerWmma * MRepeat) == 0) &&
                           (NPerBlock % (NPerWmma * NRepeat)) == 0,
                       "Invalid tuning param!");
+        // if (!(MPerBlock % (MPerWmma * MRepeat) == 0 && NPerBlock % (NPerWmma * NRepeat) == 0))
+        // {
+        //     std::cout << "[DEBUG] Invalid tuning param!\n"
+        //             << "  MPerBlock: " << MPerBlock << "\n"
+        //             << "  NPerBlock: " << NPerBlock << "\n"
+        //             << "  MPerWmma : " << MPerWmma << "\n"
+        //             << "  NPerWmma : " << NPerWmma << "\n"
+        //             << "  MRepeat  : " << MRepeat << "\n"
+        //             << "  NRepeat  : " << NRepeat << "\n"
+        //             << "  Check: MPerBlock % (MPerWmma * MRepeat) == "
+        //             << (MPerBlock % (MPerWmma * MRepeat)) << "\n"
+        //             << "         NPerBlock % (NPerWmma * NRepeat) == "
+        //             << (NPerBlock % (NPerWmma * NRepeat)) << "\n";
+        // }
+        // std::cout
+        // << "[CK_CHECK] "
+        // << "M=" << karg.M
+        // << " N=" << karg.N
+        // << " K=" << karg.K
+        // << " KBatch=" << karg.KBatch
+        // << " | MPerBlock=" << MPerBlock
+        // << " NPerBlock=" << NPerBlock
+        // << " KPerBlock=" << KPerBlock
+        // << " | MRepeat=" << MRepeat
+        // << " NRepeat=" << NRepeat
+        // << " | AK1=" << AK1Number
+        // << " BK1=" << BK1Number
+        // << std::endl;
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
