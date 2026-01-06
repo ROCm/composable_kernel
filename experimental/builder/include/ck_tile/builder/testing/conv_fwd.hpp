@@ -9,6 +9,7 @@
 #include "ck_tile/builder/testing/testing.hpp"
 #include "ck_tile/builder/testing/extent.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
+#include "ck_tile/host/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 /// This file implements common functionality for invoking/testing grouped
@@ -151,7 +152,184 @@ struct Args<SIGNATURE>
                                           to_vector(this->input_left_pad),
                                           to_vector(this->input_right_pad));
     }
+
+    /// Convert the Args structure into a CK Tile conv_param structure.
+    /// This function is mainly used to be able to use the existing
+    /// CK Tile functionality to obtain tensor descriptors.
+    ck_tile::conv::ConvParam to_ck_tile_conv_param() const
+    {
+        const auto to_vector = [](const auto& extent) {
+            if constexpr(SPATIAL_DIM == 1)
+                return std::vector<ck::index_t>{ck::index_t(extent.width)};
+            else if constexpr(SPATIAL_DIM == 2)
+                return std::vector<ck::index_t>{ck::index_t(extent.height),
+                                                ck::index_t(extent.width)};
+            else
+                return std::vector<ck::index_t>{ck::index_t(extent.depth),
+                                                ck::index_t(extent.height),
+                                                ck::index_t(extent.width)};
+        };
+
+        return ck_tile::conv::ConvParam(SPATIAL_DIM,
+                                        this->lengths.groups,
+                                        this->lengths.batch_size,
+                                        this->lengths.output_channels,
+                                        this->lengths.input_channels,
+                                        to_vector(this->lengths.filter),
+                                        to_vector(this->lengths.image),
+                                        to_vector(this->filter_strides),
+                                        to_vector(this->filter_dilation),
+                                        to_vector(this->input_left_pad),
+                                        to_vector(this->input_right_pad));
+    }
 };
+
+template <auto SIGNATURE>
+CK_TILE_HOST auto parse_conv_args(int arg_idx, char* const argv[])
+{
+    const std::size_t G = static_cast<size_t>(std::stol(argv[arg_idx++]));
+    const std::size_t N = static_cast<size_t>(std::stol(argv[arg_idx++]));
+    const std::size_t K = static_cast<size_t>(std::stol(argv[arg_idx++]));
+    const std::size_t C = static_cast<size_t>(std::stol(argv[arg_idx++]));
+
+    constexpr auto num_dim_spatial = SIGNATURE.spatial_dim;
+
+    std::vector<std::size_t> filter_spatial_lengths(num_dim_spatial);
+    std::vector<std::size_t> input_spatial_lengths(num_dim_spatial);
+    std::vector<std::size_t> conv_filter_strides(num_dim_spatial);
+    std::vector<std::size_t> conv_filter_dilations(num_dim_spatial);
+    std::vector<std::size_t> input_left_pads(num_dim_spatial);
+    std::vector<std::size_t> input_right_pads(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        filter_spatial_lengths[i] = static_cast<size_t>(std::stol(argv[arg_idx++]));
+    }
+
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        input_spatial_lengths[i] = static_cast<size_t>(std::stol(argv[arg_idx++]));
+    }
+
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        conv_filter_strides[i] = static_cast<size_t>(std::stol(argv[arg_idx++]));
+    }
+
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        conv_filter_dilations[i] = static_cast<size_t>(std::stol(argv[arg_idx++]));
+    }
+
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        input_left_pads[i] = static_cast<size_t>(std::stol(argv[arg_idx++]));
+    }
+
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        input_right_pads[i] = static_cast<size_t>(std::stol(argv[arg_idx++]));
+    }
+
+    if constexpr(num_dim_spatial == 1)
+    {
+        Args<SIGNATURE> args = {
+            .lengths =
+                {
+                    .batch_size      = N,
+                    .groups          = G,
+                    .input_channels  = C,
+                    .output_channels = K,
+                    .image =
+                        {
+                            .width = input_spatial_lengths[0],
+                        },
+                    .filter =
+                        {
+                            .width = filter_spatial_lengths[0],
+                        },
+                },
+            .filter_strides     = {.width = conv_filter_strides[0]},
+            .filter_dilation    = {.width = conv_filter_dilations[0]},
+            .input_left_pad     = {.width = input_left_pads[0]},
+            .input_right_pad    = {.width = input_right_pads[0]},
+            .a_elementwise_op   = {},
+            .b_elementwise_op   = {},
+            .cde_elementwise_op = {},
+        };
+        return args;
+    }
+    else if constexpr(num_dim_spatial == 2)
+    {
+        Args<SIGNATURE> args = {
+            .lengths =
+                {
+                    .batch_size      = N,
+                    .groups          = G,
+                    .input_channels  = C,
+                    .output_channels = K,
+                    .image =
+                        {
+                            .width  = input_spatial_lengths[1],
+                            .height = input_spatial_lengths[0],
+                        },
+                    .filter =
+                        {
+                            .width  = filter_spatial_lengths[1],
+                            .height = filter_spatial_lengths[0],
+                        },
+                },
+            .filter_strides   = {.width = conv_filter_strides[1], .height = conv_filter_strides[0]},
+            .filter_dilation  = {.width  = conv_filter_dilations[1],
+                                 .height = conv_filter_dilations[0]},
+            .input_left_pad   = {.width = input_left_pads[1], .height = input_left_pads[0]},
+            .input_right_pad  = {.width = input_right_pads[1], .height = input_right_pads[0]},
+            .a_elementwise_op = {},
+            .b_elementwise_op = {},
+            .cde_elementwise_op = {},
+        };
+        return args;
+    }
+    else
+    {
+        Args<SIGNATURE> args = {
+            .lengths =
+                {
+                    .batch_size      = N,
+                    .groups          = G,
+                    .input_channels  = C,
+                    .output_channels = K,
+                    .image =
+                        {
+                            .width  = input_spatial_lengths[2],
+                            .height = input_spatial_lengths[1],
+                            .depth  = input_spatial_lengths[0],
+                        },
+                    .filter =
+                        {
+                            .width  = filter_spatial_lengths[2],
+                            .height = filter_spatial_lengths[1],
+                            .depth  = filter_spatial_lengths[0],
+                        },
+                },
+            .filter_strides     = {.width  = conv_filter_strides[2],
+                                   .height = conv_filter_strides[1],
+                                   .depth  = conv_filter_strides[0]},
+            .filter_dilation    = {.width  = conv_filter_dilations[2],
+                                   .height = conv_filter_dilations[1],
+                                   .depth  = conv_filter_dilations[0]},
+            .input_left_pad     = {.width  = input_left_pads[2],
+                                   .height = input_left_pads[1],
+                                   .depth  = input_left_pads[0]},
+            .input_right_pad    = {.width  = input_right_pads[2],
+                                   .height = input_right_pads[1],
+                                   .depth  = input_right_pads[0]},
+            .a_elementwise_op   = {},
+            .b_elementwise_op   = {},
+            .cde_elementwise_op = {},
+        };
+        return args;
+    }
+}
 
 /// @brief `Inputs` specialization for forward convolution.
 ///

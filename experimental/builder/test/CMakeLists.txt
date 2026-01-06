@@ -145,7 +145,9 @@ add_ck_builder_test(test_ckb_build_fwd_instances
     conv/ck/test_ckb_conv_fwd_3d_fp32.cpp
     conv/ck_tile/test_ckb_conv_fwd_2d_fp16_v3.cpp
     conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
-    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp)
+    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp
+    conv/ck_tile/test_ckb_conv_fwd_e2e.cpp
+    )
 target_link_libraries(test_ckb_build_fwd_instances PRIVATE utility)
 
 
@@ -253,6 +255,8 @@ add_custom_target(check-builder
     USES_TERMINAL
     COMMENT "Running all experimental builder tests..."
 )
+
+add_subdirectory(profiling)
 
 ################################################################################
 # Build Summary

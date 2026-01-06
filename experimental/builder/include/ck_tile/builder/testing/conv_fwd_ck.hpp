@@ -7,6 +7,7 @@
 #include <cstddef>
 
 #include "ck_tile/builder/testing/conv_fwd.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
 
 /// This file contains the implementation details for invoking/testing
 /// grouped convolution operations in old CK. The main item is the
@@ -97,6 +98,45 @@ void run(Conv& conv,
     }
 
     conv.MakeInvoker().Run(ck_args, {});
+}
+
+/// @brief `run()` specialization for forward convolution and CK Tile.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+/// @throws std::runtime_error if the arguments werent actually valid for the
+/// operation. This should be caught and reported by the testing framework.
+///
+/// @see run()
+template <auto SIGNATURE, typename Conv>
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE> &&
+             IsCkConvInstance<SIGNATURE, Conv>
+float run_tile(Conv& conv,
+               const Args<SIGNATURE>& args,
+               const Inputs<SIGNATURE>& inputs,
+               const Outputs<SIGNATURE>& outputs,
+               const ck_tile::stream_config& s_conf)
+{
+    const auto param = args.to_ck_tile_conv_param();
+
+    ck_tile::GroupedConvFwdHostArgs<> host_args(
+        param, inputs.input, inputs.weight, {}, outputs.output, 1 /*kbatch*/);
+
+    auto kargs = Conv::MakeKernelArgs(host_args);
+
+    const dim3 grids  = Conv::GridSize(kargs);
+    const dim3 blocks = Conv::BlockSize();
+
+    if(!Conv::IsSupportedArgument(kargs))
+    {
+        std::cout << "Not supported!";
+        return 0.f;
+    }
+
+    constexpr index_t minimum_occupancy =
+        Conv::GemmPipeline::Scheduler == ck_tile::GemmPipelineScheduler::Intrawave ? 1 : 2;
+
+    return ck_tile::launch_kernel(
+        s_conf, ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs));
 }
 
 } // namespace ck_tile::builder::test

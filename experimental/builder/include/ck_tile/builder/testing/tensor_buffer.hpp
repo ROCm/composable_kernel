@@ -184,6 +184,12 @@ struct TensorDescriptor
         return get_element_space_size() * data_type_sizeof(DT);
     }
 
+    friend std::ostream& operator<<(std::ostream& os, const TensorDescriptor<DT>& tensor_desc)
+    {
+        os << tensor_desc.inner_descriptor_;
+        return os;
+    }
+
     private:
     ck_tile::HostTensorDescriptor inner_descriptor_;
 };

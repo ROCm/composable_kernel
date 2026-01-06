@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "impl/conv_algorithm_types.hpp"
-#include "impl/conv_signature_types.hpp"
+#include "../impl/conv_algorithm_types.hpp"
+#include "../impl/conv_signature_types.hpp"
 #include "ck_tile/builder/conv_builder.hpp"
 
 namespace ck_tile::builder::test_utils {
