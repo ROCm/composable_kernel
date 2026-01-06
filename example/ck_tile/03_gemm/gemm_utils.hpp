@@ -98,9 +98,34 @@ struct GemmConfigComputeV3 : public GemmConfigBase
 template <typename PrecType>
 struct GemmConfigComputeV3_1 : public GemmConfigBase
 {
+    // Optimized config: 256x128x64, LDS=48KB, 16x16 warp tile for better occupancy
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);  // 64 for bf16
+
+    static constexpr ck_tile::index_t M_Warp = 2;  // 4 warps in M
+    static constexpr ck_tile::index_t N_Warp = 2;  // 2 warps in N
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+
+    static constexpr int kBlockPerCu = 1;
+};
+
+// Optimized config: 256x128x64 with COMPUTE_V3
+// Smaller N tile for better L2 cache utilization
+template <typename PrecType>
+struct GemmConfigOptimized : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);  // 64 for bf16
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -113,6 +138,31 @@ struct GemmConfigComputeV3_1 : public GemmConfigBase
 
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+
+    static constexpr int kBlockPerCu = 2;  // Better occupancy with smaller tile
+};
+
+// Alternative: 128x128x128 config for higher K throughput
+template <typename PrecType>
+struct GemmConfigOptimized2 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);  // 128 for bf16
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+
+    static constexpr int kBlockPerCu = 2;
 };
 
 template <typename PrecType>
@@ -224,9 +274,11 @@ struct GemmConfigComputeV5 : public GemmConfigBase
 template <typename PrecType>
 struct GemmConfigComputeV6 : public GemmConfigBase
 {
+    // V6 pipeline: PrefetchStages=3, GlobalBufferNum=2, HotloopUnroll=2
+    // Use 256x128x64 for better balance
     static constexpr ck_tile::index_t M_Tile = 256;
-    static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 32;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);  // 64 for bf16
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -234,11 +286,13 @@ struct GemmConfigComputeV6 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V6;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr int kBlockPerCu = 1;
 };
 
 template <typename PrecType>
