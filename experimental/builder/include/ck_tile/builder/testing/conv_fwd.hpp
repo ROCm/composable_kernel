@@ -7,11 +7,14 @@
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
 #include "ck_tile/builder/testing/testing.hpp"
-#include "ck_tile/builder/testing/extent.hpp"
+#include "ck_tile/builder/testing/filter_extent.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
 #include "ck_tile/builder/testing/tensor_initialization.hpp"
+#include "ck_tile/builder/testing/tensor_descriptor.hpp"
+#include "ck_tile/builder/testing/validation.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
+
 /// This file implements common functionality for invoking/testing grouped
 /// forward convolutions created through the CK Builder API. The main item
 /// of it is the ConvArgs structure - which contains a complete description
@@ -37,12 +40,12 @@ namespace ck_tile::builder::test {
 template <int SPATIAL_DIM>
 struct ConvTensorLengths
 {
-    size_t batch_size          = 1;  // N
-    size_t groups              = 1;  // G
-    size_t input_channels      = 1;  // C
-    size_t output_channels     = 1;  // K
-    Extent<SPATIAL_DIM> image  = {}; // W, H, D
-    Extent<SPATIAL_DIM> filter = {}; // X, Y, Z
+    size_t batch_size                = 1;  // N
+    size_t groups                    = 1;  // G
+    size_t input_channels            = 1;  // C
+    size_t output_channels           = 1;  // K
+    FilterExtent<SPATIAL_DIM> image  = {}; // W, H, D
+    FilterExtent<SPATIAL_DIM> filter = {}; // X, Y, Z
 };
 
 /// @brief `Args` specialization for forward convolution.
@@ -59,6 +62,14 @@ struct Args<SIGNATURE>
     constexpr static auto WEIGHT_TYPE = SIGNATURE.data_type;
     constexpr static auto OUTPUT_TYPE = SIGNATURE.data_type;
 
+    constexpr static int INPUT_RANK  = 3 + SPATIAL_DIM;
+    constexpr static int WEIGHT_RANK = 3 + SPATIAL_DIM;
+    constexpr static int OUTPUT_RANK = 3 + SPATIAL_DIM;
+
+    using InputDescriptor  = TensorDescriptor<INPUT_TYPE, INPUT_RANK>;
+    using WeightDescriptor = TensorDescriptor<WEIGHT_TYPE, WEIGHT_RANK>;
+    using OutputDescriptor = TensorDescriptor<OUTPUT_TYPE, OUTPUT_RANK>;
+
     // TODO: We shouldn't need to call into an internal namespace here.
     using Ops = factory::internal::ElementwiseOps<SIGNATURE>;
 
@@ -73,10 +84,10 @@ struct Args<SIGNATURE>
     // implementation (based on ConvParam in old CK / CK Tile) does not
     // support strides at all.
 
-    Extent<SPATIAL_DIM> filter_strides;
-    Extent<SPATIAL_DIM> filter_dilation;
-    Extent<SPATIAL_DIM> input_left_pad;
-    Extent<SPATIAL_DIM> input_right_pad;
+    FilterExtent<SPATIAL_DIM> filter_strides;
+    FilterExtent<SPATIAL_DIM> filter_dilation;
+    FilterExtent<SPATIAL_DIM> input_left_pad;
+    FilterExtent<SPATIAL_DIM> input_right_pad;
 
     Ops::AElementwiseOp a_elementwise_op;
     Ops::BElementwiseOp b_elementwise_op;
@@ -85,7 +96,7 @@ struct Args<SIGNATURE>
     /// This function returns the `TensorDescriptor` corresponding to
     /// the input-tensor of the convolution problem. This can then
     /// be used to, for example, allocate memory.
-    TensorDescriptor<INPUT_TYPE> make_input_descriptor() const
+    InputDescriptor make_input_descriptor() const
     {
         // TODO: We're using old CK functionality to compute the right
         // values here, mainly because CK tile does not support the
@@ -96,31 +107,37 @@ struct Args<SIGNATURE>
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
              typename Layouts::ALayout>(param);
-        return TensorDescriptor<INPUT_TYPE>(desc.GetLengths(), desc.GetStrides());
+        using Extent = typename InputDescriptor::Extent;
+        return InputDescriptor(Extent::from_vector(desc.GetLengths()),
+                               Extent::from_vector(desc.GetStrides()));
     }
 
     /// This function returns the `TensorDescriptor` corresponding to
     /// the weight-tensor of  the convolution problem. This can then
     /// be used to, for example, allocate memory.
-    TensorDescriptor<WEIGHT_TYPE> make_weight_descriptor() const
+    WeightDescriptor make_weight_descriptor() const
     {
         // See note in implementation of `make_input_descriptor`.
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<
              typename Layouts::BLayout>(param);
-        return TensorDescriptor<WEIGHT_TYPE>(desc.GetLengths(), desc.GetStrides());
+        using Extent = typename WeightDescriptor::Extent;
+        return WeightDescriptor(Extent::from_vector(desc.GetLengths()),
+                                Extent::from_vector(desc.GetStrides()));
     }
 
     /// This function returns the `TensorDescriptor` corresponding to
     /// the output-tensor of the convolution problem. This can then
     /// be used to, for example, allocate memory.
-    TensorDescriptor<OUTPUT_TYPE> make_output_descriptor() const
+    OutputDescriptor make_output_descriptor() const
     {
         // See note in implementation of `make_input_descriptor`.
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<
              typename Layouts::ELayout>(param);
-        return TensorDescriptor<OUTPUT_TYPE>(desc.GetLengths(), desc.GetStrides());
+        using Extent = typename OutputDescriptor::Extent;
+        return OutputDescriptor(Extent::from_vector(desc.GetLengths()),
+                                Extent::from_vector(desc.GetStrides()));
     }
 
     /// Convert the Args structure into a CK conv_param structure. This
@@ -245,12 +262,11 @@ UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args)
 ///
 /// @see alloc_inputs()
 template <auto SIGNATURE>
-    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE> &&
-             ValidUniqueInputs<SIGNATURE>
-void init_inputs(const Args<SIGNATURE>& args, UniqueInputs<SIGNATURE>& inputs)
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+void init_inputs(const Args<SIGNATURE>& args, Inputs<SIGNATURE> inputs)
 {
-    init_tensor_buffer_uniform_fp(inputs.input_buf, args.make_input_descriptor(), -2.0f, 2.0f);
-    init_tensor_buffer_uniform_fp(inputs.weight_buf, args.make_weight_descriptor(), -2.0f, 2.0f);
+    init_tensor_buffer_uniform_fp(inputs.input, args.make_input_descriptor(), -2.0f, 2.0f);
+    init_tensor_buffer_uniform_fp(inputs.weight, args.make_weight_descriptor(), -2.0f, 2.0f);
 }
 
 /// @brief `alloc_outputs()` specialization for forward convolution.
@@ -266,6 +282,21 @@ UniqueOutputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args)
     return {
         .output_buf = alloc_tensor_buffer(args.make_output_descriptor()),
     };
+}
+
+/// @brief `validate()` specialization for forward convolution.
+///
+/// @tparam SIGNATURE Forward convolution signature.
+///
+/// @see validate()
+template <auto SIGNATURE>
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+ValidationReport
+validate(const Args<SIGNATURE>& args, Outputs<SIGNATURE> actual, Outputs<SIGNATURE> expected)
+{
+    ValidationReport report;
+    report.check("output", args.make_output_descriptor(), actual.output, expected.output);
+    return report;
 }
 
 } // namespace ck_tile::builder::test

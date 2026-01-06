@@ -127,59 +127,44 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         using GemmPipeline =
             ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<UniversalGemmProblem>;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
-            using GemmEpilogue              = ck_tile::CShuffleEpilogue<
-                             ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                              BDataType,
-                                                              DsDataType,
-                                                              AccDataType,
-                                                              CDataType,
-                                                              DsLayout,
-                                                              CLayout,
-                                                              ck_tile::element_wise::PassThrough,
-                                                              TilePartitioner::MPerBlock,
-                                                              TilePartitioner::NPerBlock,
-                                                              M_Warp,
-                                                              N_Warp,
-                                                              M_Warp_Tile,
-                                                              N_Warp_Tile,
-                                                              K_Warp_Tile,
-                                                              UniversalGemmProblem::TransposeC,
-                                                              memory_operation>>;
-            using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKargs(gemm_descs);
-            EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
-            const dim3 grids  = Kernel::GridSize(gemm_descs);
-            const dim3 blocks = Kernel::BlockSize();
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             DsLayout,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC>>;
+        using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs   = Kernel::MakeKargs(gemm_descs);
+        EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
+        const dim3 grids  = Kernel::GridSize(gemm_descs);
+        const dim3 blocks = Kernel::BlockSize();
 
-            ck_tile::hip_check_error(hipMemcpyWithStream(kargs_ptr,
-                                                         kargs.data(),
-                                                         get_workspace_size(gemm_descs),
-                                                         hipMemcpyHostToDevice,
-                                                         s.stream_id_));
+        ck_tile::hip_check_error(hipMemcpyWithStream(kargs_ptr,
+                                                     kargs.data(),
+                                                     get_workspace_size(gemm_descs),
+                                                     hipMemcpyHostToDevice,
+                                                     s.stream_id_));
 
-            return ck_tile::launch_kernel(
-                s,
-                ck_tile::make_kernel<kBlockPerCu>(
-                    Kernel{},
-                    grids,
-                    blocks,
-                    0,
-                    ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                    gemm_descs.size()));
-        };
-
-        if(gemm_descs[0].k_batch == 1)
-        {
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            // EXPECT TO FAIL because splitk is not supported
-            EXPECT_FALSE(true);
-        }
+        ck_tile::ignore =
+            ck_tile::launch_kernel(s,
+                                   ck_tile::make_kernel<kBlockPerCu>(
+                                       Kernel{},
+                                       grids,
+                                       blocks,
+                                       0,
+                                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                                       gemm_descs.size()));
     }
 
     private:
@@ -226,59 +211,45 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
                                                   ck_tile::GemmPipelineScheduler::Default>;
         using GemmPipeline =
             ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<UniversalGemmProblem>;
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
-            using GemmEpilogue              = ck_tile::CShuffleEpilogue<
-                             ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                              BDataType,
-                                                              DsDataType,
-                                                              AccDataType,
-                                                              CDataType,
-                                                              DsLayout,
-                                                              CLayout,
-                                                              ck_tile::element_wise::PassThrough,
-                                                              TilePartitioner::MPerBlock,
-                                                              TilePartitioner::NPerBlock,
-                                                              M_Warp,
-                                                              N_Warp,
-                                                              M_Warp_Tile,
-                                                              N_Warp_Tile,
-                                                              K_Warp_Tile,
-                                                              UniversalGemmProblem::TransposeC,
-                                                              memory_operation>>;
-            using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKargs(gemm_descs);
-            EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
-            const dim3 grids  = Kernel::GridSize(gemm_descs);
-            const dim3 blocks = Kernel::BlockSize();
 
-            ck_tile::hip_check_error(hipMemcpyWithStream(kargs_ptr,
-                                                         kargs.data(),
-                                                         get_workspace_size(gemm_descs),
-                                                         hipMemcpyHostToDevice,
-                                                         s.stream_id_));
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             DsLayout,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC>>;
+        using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs   = Kernel::MakeKargs(gemm_descs);
+        EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
+        const dim3 grids  = Kernel::GridSize(gemm_descs);
+        const dim3 blocks = Kernel::BlockSize();
 
-            return ck_tile::launch_kernel(
-                s,
-                ck_tile::make_kernel<kBlockPerCu>(
-                    Kernel{},
-                    grids,
-                    blocks,
-                    0,
-                    ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                    gemm_descs.size()));
-        };
+        ck_tile::hip_check_error(hipMemcpyWithStream(kargs_ptr,
+                                                     kargs.data(),
+                                                     get_workspace_size(gemm_descs),
+                                                     hipMemcpyHostToDevice,
+                                                     s.stream_id_));
 
-        if(gemm_descs[0].k_batch == 1)
-        {
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            // EXPECT TO FAIL because splitk is not supported
-            EXPECT_FALSE(true);
-        }
+        ck_tile::ignore =
+            ck_tile::launch_kernel(s,
+                                   ck_tile::make_kernel<kBlockPerCu>(
+                                       Kernel{},
+                                       grids,
+                                       blocks,
+                                       0,
+                                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                                       gemm_descs.size()));
     }
 
     struct BShuffleGemmConfig
