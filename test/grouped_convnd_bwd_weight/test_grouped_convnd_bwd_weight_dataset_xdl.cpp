@@ -80,7 +80,7 @@ bool RunConvBwdWeightTest(const ck::utils::conv::ConvParam& param, ck::index_t s
                                                               InDataType,
                                                               WeiDataType,
                                                               OutDataType>(
-        true,                    // do_verification
+        2,                       // do_verification
         1,                       // init_method
         false,                   // do_log
         false,                   // time_kernel
