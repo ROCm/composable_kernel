@@ -887,17 +887,38 @@ struct QuantGemmKernel
                 if constexpr(PreshuffleQuant)
                 {
                     static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-                    constexpr auto block_n = TilePartitioner::NPerBlock / QuantGroupSize::kN;
-                    constexpr auto warp_n  = TilePartitioner::BlockGemmShape::WarpTile::at(I1);
-                    constexpr auto warp_per_group = (QuantGroupSize::kN < warp_n)
-                                                        ? (warp_n / QuantGroupSize::kN)
-                                                        : (QuantGroupSize::kN / warp_n);
-                    constexpr auto bqk_per_block  = TilePartitioner::KPerBlock / QuantGroupSize::kK;
-                    constexpr auto tile_window_width =
+                    constexpr auto block_n =
+                        TilePartitioner::NPerBlock /
+                        QuantGroupSize::kN; // Number of N-dimension quantization groups per block
+                    constexpr auto warp_n = TilePartitioner::BlockGemmShape::WarpTile::at(
+                        I1); // Number of N-dimension elements per warp
+                    constexpr auto warp_per_group =
+                        (QuantGroupSize::kN <
+                         warp_n) // Determine how many warps share the same scale in N-dimension
+                            ? (warp_n / QuantGroupSize::kN)
+                            : (QuantGroupSize::kN / warp_n);
+                    constexpr auto bqk_per_block =
+                        TilePartitioner::KPerBlock /
+                        QuantGroupSize::kK; // Number of K-dimension quantization groups per block
+                    constexpr auto
+                        tile_window_width = // The pre-shuffled layout flattens warp_n ×
+                                            // bqk_per_block scales per row, Padded up to warp_size
+                                            // to ensure coalesced memory access.
                         ck_tile::integer_least_multiple(warp_n * bqk_per_block, get_warp_size());
+
+                    // Adapts based on fine vs coarse quantization granularity:
+                    //   - Fine-grained (QuantGroupSize::kN < warp_n):
+                    //       Multiple quant groups per warp → fewer rows needed per block.
+                    //       height = block_n / warp_per_group
+                    //
+                    //   - Coarse-grained (QuantGroupSize::kN >= warp_n):
+                    //       Each row represents one quant group.
+                    //       height = block_n
                     constexpr auto tile_window_height =
                         (QuantGroupSize::kN < warp_n) ? block_n / warp_per_group : block_n;
-                    auto block_n_idx = i_n / TilePartitioner::NPerBlock;
+                    auto block_n_idx =
+                        i_n / TilePartitioner::NPerBlock; // Converts the global N-index (i_n) to a
+                                                          // block index.
 
                     return make_tile_window(
                         bq_tensor_view,
