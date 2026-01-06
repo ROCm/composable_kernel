@@ -14,8 +14,8 @@ template <typename GroupedGemKernelParam,
           typename BLayout,
           typename CLayout>
 float invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
-                                    const ck_tile::index_t num_groups,
-                                    void* kargs_ptr)
+                                     const ck_tile::index_t num_groups,
+                                     void* kargs_ptr)
 {
     constexpr bool TransposeC       = false;
     constexpr bool DoubleSmemBuffer = false;
@@ -46,35 +46,35 @@ float invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
                                                    CLayout,
                                                    TransposeC>;
 
-    constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
+    constexpr auto scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
 
     // We create the GEMM pipeline without specifying hotloop or tailnumber.
     // These are automatically run inside the kernel based on the given input data.
     using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                        BDataType,
-                                                                        AccDataType,
-                                                                        GemmShape,
-                                                                        GemmUniversalTraits,
-                                                                        scheduler>;
+                                                                       BDataType,
+                                                                       AccDataType,
+                                                                       GemmShape,
+                                                                       GemmUniversalTraits,
+                                                                       scheduler>;
 
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
     using GemmEpilogue = ck_tile::CShuffleEpilogue<
         ck_tile::CShuffleEpilogueProblem<ADataType,
-                                            BDataType,
-                                            DsDataType,
-                                            AccDataType,
-                                            CDataType,
-                                            DsLayout,
-                                            CLayout,
-                                            ck_tile::element_wise::PassThrough,
-                                            TilePartitioner::MPerBlock,
-                                            TilePartitioner::NPerBlock,
-                                            GroupedGemKernelParam::M_Warp,
-                                            GroupedGemKernelParam::N_Warp,
-                                            GroupedGemKernelParam::M_Warp_Tile,
-                                            GroupedGemKernelParam::N_Warp_Tile,
-                                            GroupedGemKernelParam::K_Warp_Tile,
-                                            UniversalGemmProblem::TransposeC>>;
+                                         BDataType,
+                                         DsDataType,
+                                         AccDataType,
+                                         CDataType,
+                                         DsLayout,
+                                         CLayout,
+                                         ck_tile::element_wise::PassThrough,
+                                         TilePartitioner::MPerBlock,
+                                         TilePartitioner::NPerBlock,
+                                         GroupedGemKernelParam::M_Warp,
+                                         GroupedGemKernelParam::N_Warp,
+                                         GroupedGemKernelParam::M_Warp_Tile,
+                                         GroupedGemKernelParam::N_Warp_Tile,
+                                         GroupedGemKernelParam::K_Warp_Tile,
+                                         UniversalGemmProblem::TransposeC>>;
     using Kernel      = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
     const dim3 blocks = Kernel::BlockSize();
     const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
@@ -82,16 +82,16 @@ float invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
     if(s.log_level_ > 0)
     {
         std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
-                    << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
-                    << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
+                  << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
+                  << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
     }
 
     return ck_tile::launch_kernel(s,
-                            ck_tile::make_kernel<kBlockPerCu>(
-                                Kernel{},
-                                grids,
-                                blocks,
-                                0,
-                                ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                                num_groups));
+                                  ck_tile::make_kernel<kBlockPerCu>(
+                                      Kernel{},
+                                      grids,
+                                      blocks,
+                                      0,
+                                      ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                                      num_groups));
 }

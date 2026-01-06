@@ -279,17 +279,16 @@ int run_grouped_gemm_persistent_async_example(ck_tile::ArgParser& arg_parser,
     // Launch persistent async kernel
     std::cout << "\nLaunching persistent async GEMM kernel..." << std::endl;
 
-    float ave_time =
-        invoke_grouped_gemm_persistent<GemmConfig,
-                                       ADataType,
-                                       BDataType,
-                                       AccDataType,
-                                       ck_tile::tuple<>,
-                                       CDataType,
-                                       ck_tile::tuple<>,
-                                       ALayout,
-                                       BLayout,
-                                       CLayout>(stream, group_count, kargs_ptr);
+    float ave_time = invoke_grouped_gemm_persistent<GemmConfig,
+                                                    ADataType,
+                                                    BDataType,
+                                                    AccDataType,
+                                                    ck_tile::tuple<>,
+                                                    CDataType,
+                                                    ck_tile::tuple<>,
+                                                    ALayout,
+                                                    BLayout,
+                                                    CLayout>(stream, group_count, kargs_ptr);
 
     std::size_t total_flops = 0;
     std::size_t total_bytes = 0;
