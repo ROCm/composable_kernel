@@ -6,11 +6,13 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <array>
+#include <sstream>
 #include <vector>
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
 
+using ck_tile::test::StringEqWithDiff;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::Throws;
@@ -188,4 +190,21 @@ TEST(TensorDescriptor, IsPacked)
         ckt::make_descriptor<dt>(ckt::Extent{10, 11, 12}, ckt::Extent{1, 100, 1100}).is_packed());
     EXPECT_FALSE(
         ckt::make_descriptor<dt>(ckt::Extent{30, 20, 10}, ckt::Extent{1, 1, 1}).is_packed());
+}
+
+TEST(TensorDescriptor, PrintExtent)
+{
+    {
+        const ckt::Extent extent{6233, 55, 1235, 52, 203};
+        std::stringstream ss;
+        ss << extent;
+        EXPECT_THAT(ss.str(), StringEqWithDiff("[6233, 55, 1235, 52, 203]"));
+    }
+
+    {
+        const ckt::Extent extent{};
+        std::stringstream ss;
+        ss << extent;
+        EXPECT_THAT(ss.str(), StringEqWithDiff("[]"));
+    }
 }

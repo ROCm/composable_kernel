@@ -83,6 +83,7 @@ add_ck_builder_test(test_ckb_conv_builder
     unit_tensor_foreach.cpp
     unit_error.cpp
     unit_validation.cpp
+    unit_debug.cpp
     unit_conv_elementwise_op.cpp
     unit_conv_tensor_layout.cpp
     unit_conv_tensor_type.cpp

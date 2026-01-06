@@ -179,7 +179,7 @@ void tensor_foreach(const Extent<RANK>& shape, ForeachFunctor<RANK> auto f)
 ///
 /// This concept checks that a functor has the correct signature for
 /// use with the `fill_tensor` function.
-template <typename F, builder::DataType DT, size_t RANK>
+template <typename F, DataType DT, size_t RANK>
 concept FillTensorFunctor = requires(const F& f, const Extent<RANK>& index) {
     { f(index) } -> std::convertible_to<detail::cpp_type_t<DT>>;
 };
@@ -199,7 +199,7 @@ concept FillTensorFunctor = requires(const F& f, const Extent<RANK>& index) {
 /// @param f A functor used to get the value at a particular coordinate.
 ///
 /// @see FillTensorFunctor
-template <builder::DataType DT, size_t RANK>
+template <DataType DT, size_t RANK>
 void fill_tensor(const TensorDescriptor<DT, RANK>& desc,
                  void* buffer,
                  FillTensorFunctor<DT, RANK> auto f)
@@ -218,7 +218,7 @@ void fill_tensor(const TensorDescriptor<DT, RANK>& desc,
 ///
 /// This concept checks that a functor has the correct signature for
 /// use with the `fill_tensor_buffer` function.
-template <typename F, builder::DataType DT>
+template <typename F, DataType DT>
 concept FillTensorBufferFunctor = requires(const F& f, size_t index) {
     { f(index) } -> std::convertible_to<detail::cpp_type_t<DT>>;
 };
@@ -239,7 +239,7 @@ concept FillTensorBufferFunctor = requires(const F& f, size_t index) {
 /// @param f A functor used to get the value at a particular index.
 ///
 /// @see FillTensorBufferFunctor
-template <builder::DataType DT, size_t RANK>
+template <DataType DT, size_t RANK>
 void fill_tensor_buffer(const TensorDescriptor<DT, RANK>& desc,
                         void* buffer,
                         FillTensorBufferFunctor<DT> auto f)
@@ -247,7 +247,19 @@ void fill_tensor_buffer(const TensorDescriptor<DT, RANK>& desc,
     fill_tensor(desc.get_space_descriptor(), buffer, [f](auto index) { return f(index[0]); });
 }
 
-template <builder::DataType DT, size_t RANK>
+/// @brief Utility for clearing tensor buffers to a particular value.
+///
+/// This function initializes all memory backing a particular tensor buffer to
+/// one specific value, zero by default. Note that this function ignores strides,
+/// and clears the entire buffer backing the tensor.
+///
+/// @tparam DT The tensor element datatype
+/// @tparam RANK The rank (number of spatial dimensions) of the tensor.
+///
+/// @param desc The descriptor of the tensor to initialize.
+/// @param buffer The memory of the tensor to initialize.
+/// @param value The value to initialize the tensor buffer with.
+template <DataType DT, size_t RANK>
 void clear_tensor_buffer(const TensorDescriptor<DT, RANK>& desc,
                          void* buffer,
                          detail::cpp_type_t<DT> value = detail::cpp_type_t<DT>{0})
