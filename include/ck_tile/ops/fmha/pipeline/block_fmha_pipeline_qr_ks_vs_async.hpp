@@ -634,7 +634,22 @@ struct BlockFmhaPipelineQRKSVSAsync
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                auto row_max = scale_s * get_validated_m(m[i_idx]);
+                // For BLOCKSCALE: precompute (m - shift) once per row
+                // Bias/Alibi/SoftCap: exp2(s - m + shift) = exp2(s - (m - shift))
+                // else: exp2(scale_s*s - scale_s*m + shift) = exp2(scale_s*s - (scale_s*m - shift))
+                auto validated_m_raw = get_validated_m(m[i_idx]);
+                auto validated_m     = validated_m_raw;
+                auto row_max         = scale_s * validated_m_raw;
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+#if CK_TILE_USE_OCP_FP8
+                    validated_m -= 8.0f; // for Bias/Alibi/SoftCap
+                    row_max -= 8.0f;     // for else branch
+#else
+                    validated_m -= 7.0f;
+                    row_max -= 7.0f;
+#endif
+                }
 #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -642,45 +657,13 @@ struct BlockFmhaPipelineQRKSVSAsync
                     if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                                  BiasEnum == BlockAttentionBiasEnum::ALIBI)
                     {
-                        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
-                        {
-#if CK_TILE_USE_OCP_FP8
-                            p_compute(i_j_idx) =
-                                exp2(s[i_j_idx] - get_validated_m(m[i_idx]) + 8.0f);
-#else
-                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]) + 7.0f);
-#endif
-                        }
-                        else
-                        {
-                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
-                        }
-                    }
-                    else if constexpr(kHasLogitsSoftCap)
-                    {
-                        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
-                        {
-#if CK_TILE_USE_OCP_FP8
-                            p_compute(i_j_idx) =
-                                exp2(s[i_j_idx] - get_validated_m(m[i_idx]) + 8.0f);
-#else
-                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]) + 7.0f);
-#endif
-                        }
-                        else
-                        {
-                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
-                        }
+                        p_compute(i_j_idx) = exp2(s[i_j_idx] - validated_m);
                     }
                     else
                     {
-                        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                        if constexpr(kHasLogitsSoftCap)
                         {
-#if CK_TILE_USE_OCP_FP8
-                            p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max + 8.0f);
-#else
-                            p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max + 7.0f);
-#endif
+                            p_compute(i_j_idx) = exp2(s[i_j_idx] - validated_m);
                         }
                         else
                         {
@@ -688,18 +671,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                         }
                     }
 #else
-                    if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
-                    {
-#if CK_TILE_USE_OCP_FP8
-                        p_compute(i_j_idx) = exp(s[i_j_idx] - get_validated_m(m[i_idx])) * 256.0f;
-#else
-                        p_compute(i_j_idx) = exp(s[i_j_idx] - get_validated_m(m[i_idx])) * 128.0f;
-#endif
-                    }
-                    else
-                    {
-                        p_compute(i_j_idx) = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
-                    }
+                    p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
 #endif
                 });
             });
