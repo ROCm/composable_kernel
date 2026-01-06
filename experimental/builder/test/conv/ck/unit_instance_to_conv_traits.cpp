@@ -2,19 +2,19 @@
 // SPDX-License-Identifier: MIT
 
 // ============================================================================
-// Unit Tests for InstanceTraits to ConvTraits Conversion
+// Unit Tests for InstanceTraits to ConvTraitsTmpl Conversion
 // ============================================================================
 //
 // PURPOSE:
 // --------
 // These tests verify the conversion layer between InstanceTraits (low-level
-// template parameter extraction) and ConvTraits (high-level semantic traits).
+// template parameter extraction) and ConvTraitsTmpl (high-level semantic traits).
 // The conversion transforms raw CK kernel parameters into builder-friendly
 // enums and structures.
 //
 // DESIGN RATIONALE:
 // -----------------
-// ConvTraits uses a single generic specialization that works with any Device
+// ConvTraitsTmpl uses a single generic specialization that works with any Device
 // class satisfying the IsXdlFwdConv concept. This use of concepts is fragile
 // and introduces extra complexity. We want to refector to just use functions
 // for this conversion.
@@ -42,7 +42,7 @@
 #include <gtest/gtest.h>
 
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
-#include <ck_tile/builder/reflect/conv_traits.hpp>
+#include <ck_tile/builder/reflect/instance_to_conv_traits.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp>
@@ -165,9 +165,9 @@ TEST(InstanceToConvTraits, DetectsForwardDirection)
             ck::half_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_EQ(Traits::direction, ConvDirection::FORWARD);
+    EXPECT_EQ(traits.direction, ConvDirection::FORWARD);
 }
 
 // ============================================================================
@@ -228,9 +228,10 @@ TEST(InstanceToConvTraits, ExtractsDefaultSpecialization)
             ck::half_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvFwdSpecialization::DEFAULT);
+    EXPECT_EQ(std::get<ck_tile::builder::ConvFwdSpecialization>(traits.conv_specialization),
+              ck_tile::builder::ConvFwdSpecialization::DEFAULT);
 }
 
 TEST(InstanceToConvTraits, ExtractsFilter1x1Pad0Specialization)
@@ -287,9 +288,9 @@ TEST(InstanceToConvTraits, ExtractsFilter1x1Pad0Specialization)
             ck::half_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_EQ(Traits::conv_specialization,
+    EXPECT_EQ(std::get<ck_tile::builder::ConvFwdSpecialization>(traits.conv_specialization),
               ck_tile::builder::ConvFwdSpecialization::FILTER_1X1_PAD0);
 }
 
@@ -351,9 +352,9 @@ TEST(InstanceToConvTraits, ExtractsGnhwcLayout)
             ck::half_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_THAT(Traits::layout,
+    EXPECT_THAT(traits.layout,
                 ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
 }
 
@@ -411,9 +412,9 @@ TEST(InstanceToConvTraits, ExtractsNhwgcLayout)
             ck::half_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_THAT(Traits::layout,
+    EXPECT_THAT(traits.layout,
                 ElementsAre(TensorLayout::NHWGC, TensorLayout::GKYXC, TensorLayout::NHWGK));
 }
 
@@ -471,9 +472,9 @@ TEST(InstanceToConvTraits, ExtractsNgchwGkyxcLayout)
             ck::half_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_THAT(Traits::layout,
+    EXPECT_THAT(traits.layout,
                 ElementsAre(TensorLayout::NGCHW, TensorLayout::GKYXC, TensorLayout::NGKHW));
 }
 
@@ -531,9 +532,9 @@ TEST(InstanceToConvTraits, ExtractsNgchwGkcyxLayout)
             ck::half_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_THAT(Traits::layout,
+    EXPECT_THAT(traits.layout,
                 ElementsAre(TensorLayout::NGCHW, TensorLayout::GKCYX, TensorLayout::NGKHW));
 }
 
@@ -595,9 +596,9 @@ TEST(InstanceToConvTraits, ExtractsFp16DataType)
             ck::half_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_EQ(Traits::data_type, DataType::FP16);
+    EXPECT_EQ(traits.data_type, DataType::FP16);
 }
 
 TEST(InstanceToConvTraits, ExtractsBf16DataType)
@@ -654,9 +655,9 @@ TEST(InstanceToConvTraits, ExtractsBf16DataType)
             ck::bhalf_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_EQ(Traits::data_type, DataType::BF16);
+    EXPECT_EQ(traits.data_type, DataType::BF16);
 }
 
 TEST(InstanceToConvTraits, ExtractsFp32DataType)
@@ -713,9 +714,9 @@ TEST(InstanceToConvTraits, ExtractsFp32DataType)
             float,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_EQ(Traits::data_type, DataType::FP32);
+    EXPECT_EQ(traits.data_type, DataType::FP32);
 }
 
 TEST(InstanceToConvTraits, ExtractsI8DataType)
@@ -772,9 +773,9 @@ TEST(InstanceToConvTraits, ExtractsI8DataType)
             int8_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_EQ(Traits::data_type, DataType::I8);
+    EXPECT_EQ(traits.data_type, DataType::I8);
 }
 
 // ============================================================================
@@ -835,9 +836,9 @@ TEST(InstanceToConvTraits, ExtractsDefaultGemmPadding)
             ck::half_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_EQ(Traits::gemm_padding, GemmPadding::DEFAULT);
+    EXPECT_EQ(traits.gemm_padding, GemmPadding::DEFAULT);
 }
 
 TEST(InstanceToConvTraits, ExtractsMnkGemmPadding)
@@ -894,9 +895,9 @@ TEST(InstanceToConvTraits, ExtractsMnkGemmPadding)
             ck::half_t,
             false>;
 
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
-    EXPECT_EQ(Traits::gemm_padding, GemmPadding::MNK_PADDING);
+    EXPECT_EQ(traits.gemm_padding, GemmPadding::MNK_PADDING);
 }
 
 // ============================================================================
@@ -961,23 +962,23 @@ TEST(InstanceToConvTraits, TransformsFwdMultipleAbdXdlCShuffleV3)
             ck::half_t,                                // BComputeDataType
             false>;                                    // DirectLoad
 
-    using InstTraits = ck_tile::reflect::InstanceTraits<DeviceInstance>;
-    using ConvTraits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    using InstTraits  = ck_tile::reflect::InstanceTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
     // Verify signature information
-    EXPECT_EQ(ConvTraits::spatial_dim, InstTraits::kSpatialDim);
-    EXPECT_EQ(ConvTraits::direction, ConvDirection::FORWARD);
-    EXPECT_EQ(ConvTraits::data_type, DataType::FP16);
-    EXPECT_EQ(ConvTraits::gemm_padding, GemmPadding::DEFAULT);
+    EXPECT_EQ(traits.spatial_dim, InstTraits::kSpatialDim);
+    EXPECT_EQ(traits.direction, ConvDirection::FORWARD);
+    EXPECT_EQ(traits.data_type, DataType::FP16);
+    EXPECT_EQ(traits.gemm_padding, GemmPadding::DEFAULT);
 
     // Verify tile dimensions
-    EXPECT_EQ(ConvTraits::tile_dims.m, InstTraits::kMPerBlock);
-    EXPECT_EQ(ConvTraits::tile_dims.n, InstTraits::kNPerBlock);
-    EXPECT_EQ(ConvTraits::tile_dims.k, InstTraits::kKPerBlock);
+    EXPECT_EQ(traits.tile_dims.m, InstTraits::kMPerBlock);
+    EXPECT_EQ(traits.tile_dims.n, InstTraits::kNPerBlock);
+    EXPECT_EQ(traits.tile_dims.k, InstTraits::kKPerBlock);
 
     // Verify pipeline configuration
-    EXPECT_EQ(ConvTraits::pipeline_scheduler, PipelineScheduler::INTRAWAVE);
-    EXPECT_EQ(ConvTraits::pipeline_version, PipelineVersion::V1);
+    EXPECT_EQ(traits.pipeline_scheduler, PipelineScheduler::INTRAWAVE);
+    EXPECT_EQ(traits.pipeline_version, PipelineVersion::V1);
 }
 
 TEST(InstanceToConvTraits, TransformsFwdMultipleAbdXdlCShuffle)
@@ -1034,23 +1035,23 @@ TEST(InstanceToConvTraits, TransformsFwdMultipleAbdXdlCShuffle)
             ck::LoopScheduler::Default, // LoopSched
             1>;                         // NumGroupsToMerge
 
-    using InstTraits = ck_tile::reflect::InstanceTraits<DeviceInstance>;
-    using ConvTraits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    using InstTraits  = ck_tile::reflect::InstanceTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
     // Verify signature information
-    EXPECT_EQ(ConvTraits::spatial_dim, InstTraits::kSpatialDim);
-    EXPECT_EQ(ConvTraits::direction, ConvDirection::FORWARD);
-    EXPECT_EQ(ConvTraits::data_type, DataType::FP16);
-    EXPECT_EQ(ConvTraits::gemm_padding, GemmPadding::DEFAULT);
+    EXPECT_EQ(traits.spatial_dim, InstTraits::kSpatialDim);
+    EXPECT_EQ(traits.direction, ConvDirection::FORWARD);
+    EXPECT_EQ(traits.data_type, DataType::FP16);
+    EXPECT_EQ(traits.gemm_padding, GemmPadding::DEFAULT);
 
     // Verify tile dimensions
-    EXPECT_EQ(ConvTraits::tile_dims.m, InstTraits::kMPerBlock);
-    EXPECT_EQ(ConvTraits::tile_dims.n, InstTraits::kNPerBlock);
-    EXPECT_EQ(ConvTraits::tile_dims.k, InstTraits::kKPerBlock);
+    EXPECT_EQ(traits.tile_dims.m, InstTraits::kMPerBlock);
+    EXPECT_EQ(traits.tile_dims.n, InstTraits::kNPerBlock);
+    EXPECT_EQ(traits.tile_dims.k, InstTraits::kKPerBlock);
 
     // Verify pipeline configuration (uses LoopScheduler instead of BlockGemmPipelineScheduler)
-    EXPECT_EQ(ConvTraits::pipeline_scheduler, PipelineScheduler::DEFAULT);
-    EXPECT_EQ(ConvTraits::pipeline_version, PipelineVersion::V1);
+    EXPECT_EQ(traits.pipeline_scheduler, PipelineScheduler::DEFAULT);
+    EXPECT_EQ(traits.pipeline_version, PipelineVersion::V1);
 }
 
 TEST(InstanceToConvTraits, TransformsFwdMultipleDXdlLargeTensor)
@@ -1106,23 +1107,23 @@ TEST(InstanceToConvTraits, TransformsFwdMultipleDXdlLargeTensor)
             ck::half_t,                  // BComputeDataType
             ck::LoopScheduler::Default>; // LoopSched
 
-    using InstTraits = ck_tile::reflect::InstanceTraits<DeviceInstance>;
-    using ConvTraits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    using InstTraits  = ck_tile::reflect::InstanceTraits<DeviceInstance>;
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
     // Verify signature information
-    EXPECT_EQ(ConvTraits::spatial_dim, InstTraits::kSpatialDim);
-    EXPECT_EQ(ConvTraits::direction, ConvDirection::FORWARD);
-    EXPECT_EQ(ConvTraits::data_type, DataType::FP16);
-    EXPECT_EQ(ConvTraits::gemm_padding, GemmPadding::DEFAULT);
+    EXPECT_EQ(traits.spatial_dim, InstTraits::kSpatialDim);
+    EXPECT_EQ(traits.direction, ConvDirection::FORWARD);
+    EXPECT_EQ(traits.data_type, DataType::FP16);
+    EXPECT_EQ(traits.gemm_padding, GemmPadding::DEFAULT);
 
     // Verify tile dimensions
-    EXPECT_EQ(ConvTraits::tile_dims.m, InstTraits::kMPerBlock);
-    EXPECT_EQ(ConvTraits::tile_dims.n, InstTraits::kNPerBlock);
-    EXPECT_EQ(ConvTraits::tile_dims.k, InstTraits::kKPerBlock);
+    EXPECT_EQ(traits.tile_dims.m, InstTraits::kMPerBlock);
+    EXPECT_EQ(traits.tile_dims.n, InstTraits::kNPerBlock);
+    EXPECT_EQ(traits.tile_dims.k, InstTraits::kKPerBlock);
 
     // Verify pipeline configuration
-    EXPECT_EQ(ConvTraits::pipeline_scheduler, PipelineScheduler::DEFAULT);
-    EXPECT_EQ(ConvTraits::pipeline_version, PipelineVersion::V1);
+    EXPECT_EQ(traits.pipeline_scheduler, PipelineScheduler::DEFAULT);
+    EXPECT_EQ(traits.pipeline_version, PipelineVersion::V1);
 }
 
 } // anonymous namespace
