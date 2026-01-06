@@ -16,6 +16,28 @@ namespace ckt = ck_tile::builder::test;
 using ::testing::Each;
 using ::testing::Eq;
 
+TEST(TensorForeach, NdIter)
+{
+    {
+        ckt::NdIter iter(ckt::Extent{523, 345, 123, 601});
+
+        EXPECT_THAT(iter.numel(), Eq(13'338'296'505ULL));
+        EXPECT_THAT(iter(0), Eq(ckt::Extent{0, 0, 0, 0}));
+        EXPECT_THAT(iter(1), Eq(ckt::Extent{0, 0, 0, 1}));
+        EXPECT_THAT(iter(601), Eq(ckt::Extent{0, 0, 1, 0}));
+        EXPECT_THAT(iter(601 * 123), Eq(ckt::Extent{0, 1, 0, 0}));
+        EXPECT_THAT(iter(601 * 123 * 10), Eq(ckt::Extent{0, 10, 0, 0}));
+        EXPECT_THAT(iter(((34 * 345 + 63) * 123 + 70) * 601 + 5), Eq(ckt::Extent{34, 63, 70, 5}));
+    }
+
+    {
+        ckt::NdIter iter(ckt::Extent{});
+
+        EXPECT_THAT(iter.numel(), Eq(1));
+        EXPECT_THAT(iter(0), Eq(ckt::Extent{}));
+    }
+}
+
 TEST(TensorForeach, CalculateOffset)
 {
     EXPECT_THAT(ckt::calculate_offset(ckt::Extent{1, 2, 3}, ckt::Extent{100, 10, 1}), Eq(123));
