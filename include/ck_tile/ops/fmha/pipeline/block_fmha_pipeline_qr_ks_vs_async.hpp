@@ -642,13 +642,45 @@ struct BlockFmhaPipelineQRKSVSAsync
                     if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                                  BiasEnum == BlockAttentionBiasEnum::ALIBI)
                     {
-                        p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                        {
+#if CK_TILE_USE_OCP_FP8
+                            p_compute(i_j_idx) =
+                                exp2(s[i_j_idx] - get_validated_m(m[i_idx]) + 8.0f);
+#else
+                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]) + 7.0f);
+#endif
+                        }
+                        else
+                        {
+                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        }
+                    }
+                    else if constexpr(kHasLogitsSoftCap)
+                    {
+                        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                        {
+#if CK_TILE_USE_OCP_FP8
+                            p_compute(i_j_idx) =
+                                exp2(s[i_j_idx] - get_validated_m(m[i_idx]) + 8.0f);
+#else
+                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]) + 7.0f);
+#endif
+                        }
+                        else
+                        {
+                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        }
                     }
                     else
                     {
-                        if constexpr(kHasLogitsSoftCap)
+                        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
                         {
-                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+#if CK_TILE_USE_OCP_FP8
+                            p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max + 8.0f);
+#else
+                            p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max + 7.0f);
+#endif
                         }
                         else
                         {
@@ -656,7 +688,18 @@ struct BlockFmhaPipelineQRKSVSAsync
                         }
                     }
 #else
-                    p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
+                    if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                    {
+#if CK_TILE_USE_OCP_FP8
+                        p_compute(i_j_idx) = exp(s[i_j_idx] - get_validated_m(m[i_idx])) * 256.0f;
+#else
+                        p_compute(i_j_idx) = exp(s[i_j_idx] - get_validated_m(m[i_idx])) * 128.0f;
+#endif
+                    }
+                    else
+                    {
+                        p_compute(i_j_idx) = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
+                    }
 #endif
                 });
             });

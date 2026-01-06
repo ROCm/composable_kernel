@@ -1734,32 +1734,36 @@ struct FmhaFwdKernel
 
                     size_t idx      = i_m0 / kargs.block_scale_m;
                     float q_descale = q_descale_ptr[idx];
+                    // BLOCKSCALE: P is scaled in exp2(x+shift) where shift=7 or 8
+                    // Both P and rowsum are scaled by 2^shift, canceling in normalization
+                    // No additional scaling needed in p_compute_element_func or o_acc_element_func
 
-                    return FmhaPipeline{}(q_dram_window,
-                                          identity{}, // q_element_func
-                                          k_dram_window,
-                                          identity{}, // k_element_func
-                                          v_dram_window,
-                                          identity{}, // v_element_func
-                                          bias_dram_window,
-                                          identity{}, // bias_element_func
-                                          randval_dram_window,
-                                          lse_dram_window,
-                                          identity{},        // lse_element_func
-                                          scales{q_descale}, // s_acc_element_func
-                                          scales{1.0f},      // p_compute_element_func
-                                          scales{1.0f},      // o_acc_element_func
-                                          mask,
-                                          position_encoding,
-                                          kargs.scale_s,
-                                          variant,
-                                          variant_params,
-                                          block_indices,
-                                          smem_ptr,
-                                          dropout,
-                                          k_descale_ptr,
-                                          v_descale_ptr,
-                                          kargs.block_scale_n);
+                    return FmhaPipeline{}(
+                        q_dram_window,
+                        identity{}, // q_element_func
+                        k_dram_window,
+                        identity{}, // k_element_func
+                        v_dram_window,
+                        identity{}, // v_element_func
+                        bias_dram_window,
+                        identity{}, // bias_element_func
+                        randval_dram_window,
+                        lse_dram_window,
+                        identity{},        // lse_element_func
+                        scales{q_descale}, // s_acc_element_func
+                        identity{},        // p_compute_element_func - No scaling (done in exp2)
+                        identity{}, // o_acc_element_func - No dequant needed (canceled by rowsum)
+                        mask,
+                        position_encoding,
+                        kargs.scale_s,
+                        variant,
+                        variant_params,
+                        block_indices,
+                        smem_ptr,
+                        dropout,
+                        k_descale_ptr,
+                        v_descale_ptr,
+                        kargs.block_scale_n);
                 }
                 else
                 {
