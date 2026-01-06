@@ -3,11 +3,58 @@
 
 #pragma once
 
-#include "ck_tile/builder/reflect/conv_traits_helpers.hpp"
+#include <array>
+#include <concepts>
+#include <string_view>
+#include <type_traits>
+
+#include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/utility/pipeline_enum.hpp"
+#include "ck/utility/scheduler_enum.hpp"
+#include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/reflect/conv_types.hpp"
 #include "ck_tile/builder/reflect/instance_traits.hpp"
+#include "ck_tile/builder/reflect/instance_traits_util.hpp"
+#include "ck_tile/builder/types.hpp"
+#include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/ops/grouped_convolution.hpp"
+
+/// @file conv_traits_helpers.hpp
+/// @brief Helper utilities for extracting convolution traits from kernel instances
+///
+/// This file contains multiple categories of helper code used by ConvTraits:
+///
+/// 1. **Concepts**: Type trait concepts for checking if instance types have required members
+///    - Layout concepts (HasFwdConvLayouts)
+///    - Specialization concepts (HasGemmSpec)
+///    - Data type concepts (HasDataTypes)
+///    - Operation concepts (HasElementwiseOps)
+///    - Tile parameter concepts (HasTileParams)
+///    - Composite concepts (IsXdlFwdConv, HasConvTraits)
+///
+/// 2. **Enum Conversions**: Functions to convert CK enums to builder enums
+///    - Pipeline version conversions (BlockGemmPipelineVersion, PipelineVersion)
+///    - Pipeline scheduler conversions (BlockGemmPipelineScheduler, LoopScheduler)
+///
+/// 3. **Signature Derivation**: Functions to extract signature information from instances
+///    - Convolution direction (conv_direction)
+///    - Convolution specialization (conv_spec)
+///    - Tensor layouts (conv_layout)
+///    - Data types (conv_data_type)
+///    - Elementwise operations (elementwise_op)
+///    - GEMM padding (gemm_spec)
+///
+/// These helpers are kept together to facilitate refactoring and simplification efforts.
 
 namespace ck_tile::reflect::conv {
+
+// ============================================================================
+// SECTION 1: CONCEPTS
+// ============================================================================
 
 // Forward convolution layout concept - checks for A/B/E layout types
 template <typename T>
@@ -60,7 +107,9 @@ concept IsXdlFwdConv = HasFwdConvLayouts<T> && HasGemmSpec<T> && HasDataTypes<T>
 template <typename T>
 concept HasConvTraits = IsXdlFwdConv<InstanceTraits<T>>;
 
-// Helper metafunctions to convert from ck enums to builder enums
+// ============================================================================
+// SECTION 2: ENUM CONVERSIONS
+// ============================================================================
 
 /// @brief Converts a CK BlockGemmPipelineVersion enum to a builder PipelineVersion enum.
 /// @tparam ck_ver The CK BlockGemmPipelineVersion enum value to convert.
@@ -149,7 +198,13 @@ constexpr auto convert_pipeline_scheduler()
     }
 }
 
-// Helper metafunctions to derive signature information from Instance types
+// ============================================================================
+// SECTION 3: SIGNATURE DERIVATION FUNCTIONS
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Convolution Direction
+// ----------------------------------------------------------------------------
 
 /// @brief Helper function to report unsupported convolution direction with a clear error message.
 template <typename Instance>
@@ -182,6 +237,10 @@ constexpr builder::ConvDirection conv_direction()
         return builder::ConvDirection::FORWARD; // Unreachable
     }
 }
+
+// ----------------------------------------------------------------------------
+// Convolution Specialization
+// ----------------------------------------------------------------------------
 
 /// @brief Derives the convolution-specific specialization from a device kernel `Instance` type.
 /// @tparam Instance The device kernel instance type.
@@ -231,6 +290,10 @@ constexpr auto conv_spec()
         }
     }
 }
+
+// ----------------------------------------------------------------------------
+// Tensor Layouts
+// ----------------------------------------------------------------------------
 
 // Helper variable template to check if CK layout enums match
 template <typename A,
@@ -325,6 +388,10 @@ constexpr auto conv_layout()
     return layouts(GNHWC, GKYXC, GNHWK);
 }
 
+// ----------------------------------------------------------------------------
+// Data Types
+// ----------------------------------------------------------------------------
+
 /// @brief Helper function to report unsupported data type with a clear error message.
 template <typename ADataType>
 [[noreturn]] consteval void report_unsupported_data_type_error()
@@ -381,6 +448,10 @@ constexpr builder::DataType conv_data_type()
         return FP32; // Unreachable
     }
 }
+
+// ----------------------------------------------------------------------------
+// Elementwise Operations
+// ----------------------------------------------------------------------------
 
 /// @brief Helper function to report unsupported elementwise operation with a clear error message.
 template <typename ElementwiseOp>
@@ -485,6 +556,10 @@ constexpr builder::ElementwiseOperation elementwise_op()
     }
 }
 
+// ----------------------------------------------------------------------------
+// GEMM Padding
+// ----------------------------------------------------------------------------
+
 /// @brief Derives a gemm padding from a kernel instance type.
 /// @tparam Instance - A Device Kernel object type.
 /// @return A `builder::GemmPadding` enum value corresponding to kernel padding.
@@ -519,102 +594,50 @@ constexpr builder::GemmPadding gemm_spec()
     }
 }
 
-/// @brief Primary template for extracting convolution traits.
-/// @details This struct is the main entry point for reflecting on a convolution
-/// kernel's properties. It is specialized to handle different kinds of input types.
-template <typename T>
-struct ConvTraits;
+// ----------------------------------------------------------------------------
+// Pipeline Version and Scheduler Helpers
+// ----------------------------------------------------------------------------
 
-/// @brief Specialization of `ConvTraits` for a direct device kernel `Instance`.
-/// @details This is the primary specialization used to extract a comprehensive
-/// set of traits directly from a fully-formed device kernel `Instance` type.
-/// It uses `InstanceTraits` to access the kernel's template parameters.
-template <HasInstanceTraits Instance>
-    requires IsXdlFwdConv<InstanceTraits<Instance>>
-struct ConvTraits<Instance>
+/// @brief Helper to safely get the pipeline version from InstanceTraits.
+/// @details This is only available for some convolutions (e.g., forward).
+/// If not present in `InstanceTraits`, it returns a default value.
+/// @tparam InstTraits The InstanceTraits type to extract pipeline version from.
+/// @return The pipeline version as a builder::PipelineVersion enum value.
+template <typename InstTraits>
+constexpr auto get_pipeline_version()
 {
-    using InstTraits = InstanceTraits<Instance>;
+    if constexpr(requires { InstTraits::kPipelineVersion; })
+    {
+        return convert_pipeline_version<InstTraits::kPipelineVersion>();
+    }
+    else
+    {
+        // Return a default or indicate not available
+        return builder::PipelineVersion::V1;
+    }
+}
 
-    // --- Signature Information ---
-    /// @brief The number of spatial dimensions in the convolution (1, 2, or 3).
-    static constexpr int spatial_dim = InstTraits::kSpatialDim;
-    /// @brief The direction of the convolution (Forward, Backward Data, or Backward Weight).
-    static constexpr builder::ConvDirection direction = conv_direction<Instance>();
-    /// @brief The memory layout of the convolution tensors (e.g., GNHWC_GKYXC_GNHWK).
-    static constexpr auto layout = conv_layout<Instance>();
-    /// @brief The primary data type used in the computation (e.g., FP16, FP32).
-    static constexpr builder::DataType data_type = conv_data_type<Instance>();
-
-    static constexpr builder::ElementwiseOperation input_element_op =
-        elementwise_op<typename InstTraits::AElementwiseOperation>();
-    static constexpr builder::ElementwiseOperation weight_element_op =
-        elementwise_op<typename InstTraits::BElementwiseOperation>();
-    static constexpr builder::ElementwiseOperation output_element_op =
-        elementwise_op<typename InstTraits::CDEElementwiseOperation>();
-
-    /// @brief The GEMM specialization used by the kernel - padding
-    static constexpr auto gemm_padding = gemm_spec<Instance>();
-    /// @brief The convolution-specific specialization (e.g., Default, 1x1).
-    static constexpr auto conv_specialization = conv_spec<Instance>();
-
-    // --- Algorithm Information ---
-    /// @brief The total number of threads in a thread block (workgroup).
-    static constexpr int thread_block_size = InstTraits::kBlockSize;
-    /// @brief The dimensions of the data tile processed by the thread block.
-    static constexpr DataTileInfo tile_dims = {
-        .m = InstTraits::kMPerBlock, .n = InstTraits::kNPerBlock, .k = InstTraits::kKPerBlock};
-
-    /// @brief Configuration for the A-matrix (input) tile transfer.
-    static constexpr InputTileTransferInfo a_tile_transfer = {
-        .tile_dimensions = {.k0     = InstTraits::kKPerBlock / InstTraits::kAK1,
-                            .m_or_n = InstTraits::kMPerBlock,
-                            .k1     = InstTraits::kAK1},
-        .transfer_params = {.k1                    = InstTraits::kAK1,
-                            .thread_cluster_dims   = InstTraits::kAThreadClusterLengths,
-                            .thread_cluster_order  = InstTraits::kAThreadClusterArrangeOrder,
-                            .src_access_order      = InstTraits::kABlockTransferSrcAccessOrder,
-                            .src_vector_dim        = InstTraits::kABlockTransferSrcVectorDim,
-                            .src_scalar_per_vector = InstTraits::kABlockTransferSrcScalarPerVector,
-                            .dst_scalar_per_vector_k1 =
-                                InstTraits::kABlockTransferDstScalarPerVectorK1,
-                            .lds_padding = static_cast<bool>(InstTraits::kABlockLdsExtraM)}};
-
-    /// @brief Configuration for the B-matrix (weights) tile transfer.
-    static constexpr InputTileTransferInfo b_tile_transfer = {
-        .tile_dimensions = {.k0     = InstTraits::kKPerBlock / InstTraits::kBK1,
-                            .m_or_n = InstTraits::kNPerBlock,
-                            .k1     = InstTraits::kBK1},
-        .transfer_params = {.k1                    = InstTraits::kBK1,
-                            .thread_cluster_dims   = InstTraits::kBThreadClusterLengths,
-                            .thread_cluster_order  = InstTraits::kBThreadClusterArrangeOrder,
-                            .src_access_order      = InstTraits::kBBlockTransferSrcAccessOrder,
-                            .src_vector_dim        = InstTraits::kBBlockTransferSrcVectorDim,
-                            .src_scalar_per_vector = InstTraits::kBBlockTransferSrcScalarPerVector,
-                            .dst_scalar_per_vector_k1 =
-                                InstTraits::kBBlockTransferDstScalarPerVectorK1,
-                            .lds_padding = static_cast<bool>(InstTraits::kBBlockLdsExtraN)}};
-
-    /// @brief Parameters for the warp-level GEMM computation.
-    static constexpr WarpGemmParams warp_gemm = {.gemm_m = InstTraits::kMPerXDL,
-                                                 .gemm_n = InstTraits::kNPerXDL,
-                                                 .m_iter = InstTraits::kMXdlPerWave,
-                                                 .n_iter = InstTraits::kNXdlPerWave};
-
-    /// @brief Configuration for the C-matrix (output) tile transfer.
-    static constexpr OutputTileTransferInfo c_tile_transfer = {
-        .shuffle_params      = {.m_gemms_per_shuffle = InstTraits::kCShuffleMXdlPerWavePerShuffle,
-                                .n_gemms_per_shuffle = InstTraits::kCShuffleNXdlPerWavePerShuffle},
-        .thread_cluster_dims = {InstTraits::kCThreadClusterLengths[0],
-                                InstTraits::kCThreadClusterLengths[1],
-                                InstTraits::kCThreadClusterLengths[2],
-                                InstTraits::kCThreadClusterLengths[3]},
-        .scalar_per_vector   = InstTraits::kCBlockTransferScalarPerVector};
-
-    /// @brief The block GEMM pipeline version used by the kernel.
-    static constexpr auto pipeline_version = get_pipeline_version<InstTraits>();
-
-    /// @brief The pipeline scheduler used by the kernel.
-    static constexpr auto pipeline_scheduler = get_pipeline_scheduler<InstTraits>();
-};
+/// @brief Helper to safely get the pipeline scheduler from InstanceTraits.
+/// @details This is only available for some convolutions. If not present
+/// in `InstanceTraits`, it returns a default value.
+/// @tparam InstTraits The InstanceTraits type to extract pipeline scheduler from.
+/// @return The pipeline scheduler as a builder::PipelineScheduler enum value.
+template <typename InstTraits>
+constexpr auto get_pipeline_scheduler()
+{
+    if constexpr(requires { InstTraits::kPipelineScheduler; })
+    {
+        return convert_pipeline_scheduler<InstTraits::kPipelineScheduler>();
+    }
+    else if constexpr(requires { InstTraits::kLoopScheduler; })
+    {
+        return convert_pipeline_scheduler<InstTraits::kLoopScheduler>();
+    }
+    else
+    {
+        // Return a default or indicate not available
+        return builder::PipelineScheduler::DEFAULT;
+    }
+}
 
 } // namespace ck_tile::reflect::conv
