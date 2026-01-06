@@ -58,106 +58,6 @@ signal_chunk_ready(uint32_t* signals, int chunk_idx, hipStream_t stream)
         &signals[chunk_idx], &ready, sizeof(uint32_t), hipMemcpyHostToDevice, stream));
 }
 
-template <typename GemmConfig, typename PrecType>
-int run_gemm_example_prec_type(std::string a_layout,
-                               std::string b_layout,
-                               ck_tile::ArgParser& arg_parser)
-{
-    using Row   = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using Types = GemmTypeConfig<PrecType>;
-
-    // Specific type aliases for easy access
-    using ADataType   = typename Types::ADataType;
-    using BDataType   = typename Types::BDataType;
-    using AccDataType = typename Types::AccDataType;
-    using CDataType   = typename Types::CDataType;
-
-    // Parse async-specific arguments
-    const bool enable_async                  = arg_parser.get_int("enable_async") != 0;
-    const ck_tile::index_t tiles_per_chunk_m = arg_parser.get_int("tiles_per_chunk_m");
-    const ck_tile::index_t tile_idx_pivot_m  = arg_parser.get_int("tile_idx_pivot_m");
-
-    std::cout << "\n=== Async Parameters ===" << std::endl;
-    std::cout << "  enable_async: " << (enable_async ? "YES (will allocate chunk signals)" : "NO")
-              << std::endl;
-    std::cout << "  tiles_per_chunk_m: " << tiles_per_chunk_m << std::endl;
-    std::cout << "  tile_idx_pivot_m: " << tile_idx_pivot_m << std::endl;
-
-    // Create async args (chunk signals will be allocated in the example function)
-    ck_tile::PersistentAsyncArgs async_args(
-        tiles_per_chunk_m, nullptr, tile_idx_pivot_m, enable_async);
-
-    if(a_layout == "R" && b_layout == "C")
-    {
-        return run_grouped_gemm_persistent_async_example<GemmConfig,
-                                                         ADataType,
-                                                         BDataType,
-                                                         CDataType,
-                                                         AccDataType>(
-            arg_parser, Row{}, Col{}, Row{}, async_args);
-    }
-    else if(a_layout == "R" && b_layout == "R")
-    {
-        return run_grouped_gemm_persistent_async_example<GemmConfig,
-                                                         ADataType,
-                                                         BDataType,
-                                                         CDataType,
-                                                         AccDataType>(
-            arg_parser, Row{}, Row{}, Row{}, async_args);
-    }
-    else if(a_layout == "C" && b_layout == "R")
-    {
-        return run_grouped_gemm_persistent_async_example<GemmConfig,
-                                                         ADataType,
-                                                         BDataType,
-                                                         CDataType,
-                                                         AccDataType>(
-            arg_parser, Col{}, Row{}, Row{}, async_args);
-    }
-    else if(a_layout == "C" && b_layout == "C")
-    {
-        return run_grouped_gemm_persistent_async_example<GemmConfig,
-                                                         ADataType,
-                                                         BDataType,
-                                                         CDataType,
-                                                         AccDataType>(
-            arg_parser, Col{}, Col{}, Row{}, async_args);
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data layout configuration for A and B tensors!");
-    }
-}
-
-template <template <typename PrecType> typename GemmConfig>
-int run_grouped_gemm_example(ck_tile::ArgParser& arg_parser)
-{
-    const std::string a_layout  = arg_parser.get_str("a_layout");
-    const std::string b_layout  = arg_parser.get_str("b_layout");
-    const std::string data_type = arg_parser.get_str("prec");
-
-    if(data_type == "fp16")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
-            a_layout, b_layout, arg_parser);
-    }
-    else if(data_type == "bf16")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>, ck_tile::bf16_t>(
-            a_layout, b_layout, arg_parser);
-    }
-    else if(data_type == "fp8")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
-            a_layout, b_layout, arg_parser);
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type configuration.");
-    }
-}
-
 template <typename GemmConfig,
           typename ADataType,
           typename BDataType,
@@ -378,7 +278,6 @@ int run_grouped_gemm_persistent_async_example(ck_tile::ArgParser& arg_parser,
 
     // Launch persistent async kernel
     std::cout << "\nLaunching persistent async GEMM kernel..." << std::endl;
-    const bool splitk = kbatch > 1;
 
     float ave_time =
         invoke_grouped_gemm_persistent<GemmConfig,
@@ -390,7 +289,7 @@ int run_grouped_gemm_persistent_async_example(ck_tile::ArgParser& arg_parser,
                                        ck_tile::tuple<>,
                                        ALayout,
                                        BLayout,
-                                       CLayout>(stream, group_count, kargs_ptr, splitk);
+                                       CLayout>(stream, group_count, kargs_ptr);
 
     std::size_t total_flops = 0;
     std::size_t total_bytes = 0;
@@ -474,6 +373,106 @@ int run_grouped_gemm_persistent_async_example(ck_tile::ArgParser& arg_parser,
     }
 
     return 0;
+}
+
+template <typename GemmConfig, typename PrecType>
+int run_gemm_example_prec_type(std::string a_layout,
+                               std::string b_layout,
+                               ck_tile::ArgParser& arg_parser)
+{
+    using Row   = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using Types = GemmTypeConfig<PrecType>;
+
+    // Specific type aliases for easy access
+    using ADataType   = typename Types::ADataType;
+    using BDataType   = typename Types::BDataType;
+    using AccDataType = typename Types::AccDataType;
+    using CDataType   = typename Types::CDataType;
+
+    // Parse async-specific arguments
+    const bool enable_async                  = arg_parser.get_int("enable_async") != 0;
+    const ck_tile::index_t tiles_per_chunk_m = arg_parser.get_int("tiles_per_chunk_m");
+    const ck_tile::index_t tile_idx_pivot_m  = arg_parser.get_int("tile_idx_pivot_m");
+
+    std::cout << "\n=== Async Parameters ===" << std::endl;
+    std::cout << "  enable_async: " << (enable_async ? "YES (will allocate chunk signals)" : "NO")
+              << std::endl;
+    std::cout << "  tiles_per_chunk_m: " << tiles_per_chunk_m << std::endl;
+    std::cout << "  tile_idx_pivot_m: " << tile_idx_pivot_m << std::endl;
+
+    // Create async args (chunk signals will be allocated in the example function)
+    ck_tile::PersistentAsyncArgs async_args(
+        tiles_per_chunk_m, nullptr, tile_idx_pivot_m, enable_async);
+
+    if(a_layout == "R" && b_layout == "C")
+    {
+        return run_grouped_gemm_persistent_async_example<GemmConfig,
+                                                         ADataType,
+                                                         BDataType,
+                                                         CDataType,
+                                                         AccDataType>(
+            arg_parser, Row{}, Col{}, Row{}, async_args);
+    }
+    else if(a_layout == "R" && b_layout == "R")
+    {
+        return run_grouped_gemm_persistent_async_example<GemmConfig,
+                                                         ADataType,
+                                                         BDataType,
+                                                         CDataType,
+                                                         AccDataType>(
+            arg_parser, Row{}, Row{}, Row{}, async_args);
+    }
+    else if(a_layout == "C" && b_layout == "R")
+    {
+        return run_grouped_gemm_persistent_async_example<GemmConfig,
+                                                         ADataType,
+                                                         BDataType,
+                                                         CDataType,
+                                                         AccDataType>(
+            arg_parser, Col{}, Row{}, Row{}, async_args);
+    }
+    else if(a_layout == "C" && b_layout == "C")
+    {
+        return run_grouped_gemm_persistent_async_example<GemmConfig,
+                                                         ADataType,
+                                                         BDataType,
+                                                         CDataType,
+                                                         AccDataType>(
+            arg_parser, Col{}, Col{}, Row{}, async_args);
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A and B tensors!");
+    }
+}
+
+template <template <typename PrecType> typename GemmConfig>
+int run_grouped_gemm_example(ck_tile::ArgParser& arg_parser)
+{
+    const std::string a_layout  = arg_parser.get_str("a_layout");
+    const std::string b_layout  = arg_parser.get_str("b_layout");
+    const std::string data_type = arg_parser.get_str("prec");
+
+    if(data_type == "fp16")
+    {
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
+            a_layout, b_layout, arg_parser);
+    }
+    else if(data_type == "bf16")
+    {
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>, ck_tile::bf16_t>(
+            a_layout, b_layout, arg_parser);
+    }
+    else if(data_type == "fp8")
+    {
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
+            a_layout, b_layout, arg_parser);
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type configuration.");
+    }
 }
 
 int main(int argc, char* argv[])
