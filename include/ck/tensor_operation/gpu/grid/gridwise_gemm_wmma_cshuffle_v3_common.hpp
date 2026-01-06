@@ -364,7 +364,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     // Limitations of the current implementation:
     //  - no multiAB
-    //  - GemmSpecialization Default with transpose
 #ifdef __gfx12__
     static constexpr bool IsAWaveTransferApplicable =
         !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
