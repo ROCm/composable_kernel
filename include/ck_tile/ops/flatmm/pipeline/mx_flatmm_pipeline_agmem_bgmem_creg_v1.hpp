@@ -628,7 +628,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         // HEAD
         // Prefetch A0
         async_load_tile_(a_store_lds_window_ping, a_dram_window);
-        move_tile_window(a_dram_window, {0, kKPerBlock / APackedSize});
+        move_tile_window(a_dram_window, {0, kKPerBlock * sizeof(ADataType) / APackedSize});
 
         // prefetch B
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -670,7 +670,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         if constexpr(HasHotLoop || TailNum == TailNumber::Even)
         {
             async_load_tile_(a_store_lds_window_pong, a_dram_window);
-            move_tile_window(a_dram_window, {0, kKPerBlock / APackedSize});
+            move_tile_window(a_dram_window, {0, sizeof(ADataType) * kKPerBlock / APackedSize});
         }
         // initialize C
         statically_indexed_array<statically_indexed_array<CWarpTensor, NIterPerWarp>, MIterPerWarp>
@@ -768,7 +768,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
 
             // Prefetch A(2i+2)
             async_load_tile_(a_store_lds_window_ping, a_dram_window);
-            move_tile_window(a_dram_window, {0, kKPerBlock / APackedSize});
+            move_tile_window(a_dram_window, {0, kKPerBlock * sizeof(ADataType) / APackedSize});
 
             // move B window to next flat K
             move_tile_window(scale_a_dram_window, {0, kKPerBlock / (32 * KXdlPack)});
@@ -857,7 +857,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
 
             // Prefetch A(2i+3)
             async_load_tile_(a_store_lds_window_pong, a_dram_window);
-            move_tile_window(a_dram_window, {0, kKPerBlock / APackedSize});
+            move_tile_window(a_dram_window, {0, sizeof(ADataType) * kKPerBlock / APackedSize});
             // move B window to next flat K
             move_tile_window(scale_a_dram_window, {0, kKPerBlock / (32 * KXdlPack)});
             move_tile_window(scale_b_dram_window, {0, kKPerBlock / (32 * KXdlPack)});
@@ -868,21 +868,23 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                 constexpr auto kIter    = loadIter / MXdlPack;
                 a_warp_tensor(loadIter) = load_tile_with_offset(
                     a_warp_window_ping,
-                    tuple<number<mIter * WG::kM>, number<kIter * WG::kK / APackedSize>>{});
+                    tuple<number<mIter * WG::kM>,
+                          number<kIter * WG::kK * sizeof(ADataType) / APackedSize>>{});
             });
             HotLoopScheduler();
         };
 
+        printf("tailnum %d\n", static_cast<int>(TailNum));
         if constexpr(HasHotLoop)
         {
             index_t iCounter = (num_loop - 1) / 2;
+            printf("icounter %d\n", iCounter);
             do
             {
                 main_body_implx2();
                 iCounter--;
             } while(iCounter > 0);
         }
-
         // TAIL
         if constexpr(TailNum == TailNumber::Even)
         {
@@ -955,7 +957,8 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                 constexpr auto kIter    = loadIter / MXdlPack;
                 a_warp_tensor(loadIter) = load_tile_with_offset(
                     a_warp_window_pong,
-                    tuple<number<mIter * WG::kM>, number<kIter * WG::kK / APackedSize>>{});
+                    tuple<number<mIter * WG::kM>,
+                          number<kIter * WG::kK * sizeof(ADataType) / APackedSize>>{});
             });
 
             Last2ndHotLoopScheduler();
