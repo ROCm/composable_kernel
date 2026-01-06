@@ -118,8 +118,9 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
     static constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);
     static constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
 
-    static constexpr index_t KFlatBytesPerBlockPerIter = flatKPerWarp / BPackedSize;
-    static constexpr index_t NFlatPerBlockPerIter      = flatNPerWarp;
+    static constexpr index_t KFlatBytesPerBlockPerIter =
+        flatKPerWarp * sizeof(BDataType) / BPackedSize;
+    static constexpr index_t NFlatPerBlockPerIter = flatNPerWarp;
 
     static constexpr index_t MPerBlockPerIter = kMPerBlock / MIterPerWarp;
     static constexpr index_t KPerBlockPerIter = kKPerBlock / KIterPerWarp;
@@ -689,7 +690,8 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
 
             a_warp_tensor(loadIter) = load_tile_with_offset(
                 a_warp_window_ping,
-                tuple<number<mIter * WG::kM>, number<kIter * WG::kK / APackedSize>>{});
+                tuple<number<mIter * WG::kM>,
+                      number<kIter * WG::kK * sizeof(ADataType) / APackedSize>>{});
         });
         __builtin_amdgcn_sched_barrier(0);
 
