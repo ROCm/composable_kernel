@@ -248,10 +248,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     // Limitations of the current implementation:
     //  - no multiAB
-    //  - GemmSpecialization Default
-    //  - pipeline v1 because v3 is buggy (fixed in batched gemm gemm implementation)
-    // AK1Value == 8 is not really a limitation but a requirement for the method so
-    // it will stay
+    //  - GemmSpecialization Default with transpose
 #ifdef __gfx12__
     static constexpr bool IsAWaveTransferApplicable =
         !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
@@ -272,7 +269,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     // We need to investigate if it makes sense to remove cshuffle for smaller types
     // Currently we use direct store for NRepeat equal to 4 or 8. For 16 bit type we use at
-    // lease buffer store 64 bit for 16 contiguous threads -> 128 bytes in toral (full cache line)
+    // least buffer store 64 bit for 16 contiguous threads -> 128 bytes in total (full cache line)
     static constexpr bool UseDirectStore = is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
                                            sizeof(ComputeTypeB) == 2 && sizeof(EDataType) == 2 &&
                                            NumDTensor == 0 && (NRepeat == 4 || NRepeat == 8) &&

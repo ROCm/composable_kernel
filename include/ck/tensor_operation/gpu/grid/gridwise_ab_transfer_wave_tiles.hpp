@@ -132,7 +132,7 @@ struct ABTransferWaveTiles
                                                        index_t,
                                                        index_t)
     {
-        // Notes: padding is currently not supported
+        // Notes: padding is currently not supported with transpose
         static_assert(!((PadMN || PadK) && ABDoTranspose),
                       "padding is currently not supported with transpose");
 
