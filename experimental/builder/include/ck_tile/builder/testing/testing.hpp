@@ -220,10 +220,13 @@ UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args);
 /// @param args The run-time arguments of the operation.
 /// @param inputs The operation inputs to initialize with random data.
 ///
+/// @note This function is explicitly deleted to generate compile errors
+/// for missing implementations.
+///
 /// @see Inputs
 /// @see tensor_initialization
 template <auto SIGNATURE>
-void init_inputs(const Args<SIGNATURE>& args, Inputs<SIGNATURE> inputs);
+void init_inputs(const Args<SIGNATURE>& args, Inputs<SIGNATURE> inputs) = delete;
 
 /// @brief Allocate outputs corresponding to a signature.
 ///
@@ -236,13 +239,16 @@ void init_inputs(const Args<SIGNATURE>& args, Inputs<SIGNATURE> inputs);
 ///
 /// @param args The run-time arguments of the operation.
 ///
+/// @note This function is explicitly deleted to generate compile errors
+/// for missing implementations.
+///
 /// @see Outputs
 /// @see UniqueOutputs
 /// @see alloc_buffer()
 /// @see alloc_tensor_buffer()
 template <auto SIGNATURE>
     requires ValidUniqueOutputs<SIGNATURE>
-UniqueInputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args);
+UniqueInputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args) = delete;
 
 /// @brief Compare device operation outputs.
 ///
@@ -262,10 +268,14 @@ UniqueInputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args);
 /// @param actual The actual results, the results of the operation to-be-tested.
 /// @param expected The expected results, the results of the reference implementation.
 ///
+/// @note This function is explicitly deleted to generate compile errors
+/// for missing implementations.
+///
 /// @see ValidationReport
 template <auto SIGNATURE>
-ValidationReport
-validate(const Args<SIGNATURE>& args, Outputs<SIGNATURE> actual, Outputs<SIGNATURE> expected);
+ValidationReport validate(const Args<SIGNATURE>& args,
+                          Outputs<SIGNATURE> actual,
+                          Outputs<SIGNATURE> expected) = delete;
 
 /// @brief Invoke a device operation created by CK Builder.
 ///
@@ -296,10 +306,13 @@ validate(const Args<SIGNATURE>& args, Outputs<SIGNATURE> actual, Outputs<SIGNATU
 /// @param inputs The input tensor data. Will not be modified by this function.
 /// @param outputs The output tensor data. The contents will be overwritten by
 ///   this function.
+///
+/// @note This function is explicitly deleted to generate compile errors
+/// for missing implementations.
 template <auto SIGNATURE, typename Operation>
 void run(Operation& operation,
          const Args<SIGNATURE>& args,
          const Inputs<SIGNATURE>& inputs,
-         const Outputs<SIGNATURE>& outputs);
+         const Outputs<SIGNATURE>& outputs) = delete;
 
 } // namespace ck_tile::builder::test
