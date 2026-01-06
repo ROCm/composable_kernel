@@ -37,7 +37,11 @@ static inline constexpr ck::index_t NDimSpatial = 2;
 static constexpr auto ConvBwdDataDefault =
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default;
 
+static constexpr auto ConvBwdDataFilter1x1Stride1Pad0 =
+    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0;
+
 using FP16 = ck::half_t;
+using BF16 = ck::bhalf_t;
 using FP32 = float;
 using FP8  = ck::f8_t;
 using BF8  = ck::bf8_t;

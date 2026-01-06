@@ -59,94 +59,80 @@ struct GroupedConvolutionBackwardDataInvoker
             ConvConfig::NumWaveGroups>;
         constexpr auto scheduler = ConvConfig::Scheduler;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+            OutDataType,
+            WeiDataType,
+            AccDataType,
+            GemmShape,
+            GemmUniversalTraits,
+            scheduler,
+            ck_tile::element_wise::PassThrough,
+            ck_tile::element_wise::PassThrough,
+            InDataType,
+            GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
+            GroupedConvTraitsType::VectorSizeA,
+            GroupedConvTraitsType::VectorSizeB>;
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
-                OutDataType,
-                WeiDataType,
-                AccDataType,
-                GemmShape,
-                GemmUniversalTraits,
-                scheduler,
-                ck_tile::element_wise::PassThrough,
-                ck_tile::element_wise::PassThrough,
-                InDataType,
-                GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
-                GroupedConvTraitsType::VectorSizeA,
-                GroupedConvTraitsType::VectorSizeB>;
+        using GemmPipeline = typename PipelineTypeTraits<
+            ConvConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
-            using GemmPipeline = typename PipelineTypeTraits<
-                ConvConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+        using ConvEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+            OutDataType,
+            WeiDataType,
+            DsDataType,
+            AccDataType,
+            InDataType,
+            typename GroupedConvTraitsType::ImplicitGemmDsLayout,
+            typename GroupedConvTraitsType::FixedGemmParams::ELayout,
+            CDEElementWise,
+            TilePartitioner::MPerBlock,
+            TilePartitioner::NPerBlock,
+            ConvConfig::M_Warp,
+            ConvConfig::N_Warp,
+            ConvConfig::M_Warp_Tile,
+            ConvConfig::N_Warp_Tile,
+            ConvConfig::K_Warp_Tile,
+            GroupedConvTraitsType::FixedGemmParams::TransposeC,
+            ConvConfig::NumWaveGroups,
+            GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
+            GroupedConvTraitsType::VectorSizeC>>;
 
-            using ConvEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
-                OutDataType,
-                WeiDataType,
-                DsDataType,
-                AccDataType,
-                InDataType,
-                typename GroupedConvTraitsType::ImplicitGemmDsLayout,
-                typename GroupedConvTraitsType::FixedGemmParams::ELayout,
-                CDEElementWise,
-                TilePartitioner::MPerBlock,
-                TilePartitioner::NPerBlock,
-                ConvConfig::M_Warp,
-                ConvConfig::N_Warp,
-                ConvConfig::M_Warp_Tile,
-                ConvConfig::N_Warp_Tile,
-                ConvConfig::K_Warp_Tile,
-                GroupedConvTraitsType::FixedGemmParams::TransposeC,
-                memory_operation,
-                ConvConfig::NumWaveGroups,
-                GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
-                GroupedConvTraitsType::VectorSizeC>>;
+        using Kernel = ck_tile::GroupedConvolutionBackwardDataKernel<GroupedConvTraitsType,
+                                                                     TilePartitioner,
+                                                                     GemmPipeline,
+                                                                     ConvEpilogue>;
+        auto kargs   = Kernel::MakeKernelArgs(args);
 
-            using Kernel = ck_tile::GroupedConvolutionBackwardDataKernel<GroupedConvTraitsType,
-                                                                         TilePartitioner,
-                                                                         GemmPipeline,
-                                                                         ConvEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
+        const dim3 grids  = Kernel::GridSize(args);
+        const dim3 blocks = Kernel::BlockSize();
 
-            const dim3 grids  = Kernel::GridSize(args);
-            const dim3 blocks = Kernel::BlockSize();
+        if(!Kernel::IsSupportedArgument(kargs))
+        {
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
+        }
 
-            if(!Kernel::IsSupportedArgument(kargs))
-            {
-                throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
-            }
+        if(s.log_level_ > 0)
+        {
+            std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
+                      << "shape: " << GemmShape::GetName() << '\n'
+                      << "problem: " << UniversalGemmProblem::GetName() << '\n'
+                      << "pipeline: " << GemmPipeline::GetName() << '\n'
+                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << '\n'
+                      << "Vector size A: " << GemmPipeline::GetVectorSizeA()
+                      << ", Vector size B: " << GemmPipeline::GetVectorSizeB()
+                      << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
+        }
 
-            if(s.log_level_ > 0)
-            {
-                std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                          << "shape: " << GemmShape::GetName() << '\n'
-                          << "problem: " << UniversalGemmProblem::GetName() << '\n'
-                          << "pipeline: " << GemmPipeline::GetName() << '\n'
-                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << '\n'
-                          << "Vector size A: " << GemmPipeline::GetVectorSizeA()
-                          << ", Vector size B: " << GemmPipeline::GetVectorSizeB()
-                          << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
-            }
-
-            auto preprocess = [&]() {
-                ck_tile::hip_check_error(hipMemsetAsync(
-                    kargs.in_ptr, 0, args.template GetInputByte<InDataType>(), s.stream_id_));
-            };
-
-            return ck_tile::launch_kernel_time_mask(
-                s,
-                preprocess,
-                ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        auto preprocess = [&]() {
+            ck_tile::hip_check_error(hipMemsetAsync(
+                kargs.in_ptr, 0, args.template GetInputByte<InDataType>(), s.stream_id_));
         };
 
-        if(args.k_batch == 1)
-        {
-            return Run(MemoryOpSet{});
-        }
-        else
-        {
-            return Run(MemoryOpAtomicAdd{});
-        }
+        return ck_tile::launch_kernel_time_mask(
+            s,
+            preprocess,
+            ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
     }
 };

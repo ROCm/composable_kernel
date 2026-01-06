@@ -795,7 +795,6 @@ TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
                                          16 /*N_Warp_Tile*/,
                                          16 /*K_Warp_Tile*/,
                                          GroupedConvTraitsType::FixedGemmParams::TransposeC,
-                                         ck_tile::memory_operation_enum::set /*memory_operation*/,
                                          1 /*kNumWaveGroups*/,
                                          GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
                                          GroupedConvTraitsType::VectorSizeC>>;
