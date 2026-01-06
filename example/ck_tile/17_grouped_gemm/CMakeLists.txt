@@ -14,7 +14,7 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95")
     quant_grouped_gemm_bf8_rowcol.cpp
     quant_grouped_gemm_bf8_tensor.cpp
   )
-
+  add_executable(tile_example_abquant_grouped_gemm abquant_grouped_gemm.cpp)
   add_executable(tile_example_grouped_gemm_preshuffle grouped_gemm_preshuffle.cpp)
   add_executable(tile_example_grouped_gemm_multi_d grouped_gemm_multi_d.cpp)
   set(EXAMPLE_GEMM_COMPILE_OPTIONS)
@@ -25,4 +25,5 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95")
   target_compile_options(tile_example_grouped_gemm_preshuffle PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
   target_compile_options(tile_example_grouped_gemm_multi_d PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
   target_compile_options(tile_example_quant_grouped_gemm PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+  target_compile_options(tile_example_abquant_grouped_gemm PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 endif()
