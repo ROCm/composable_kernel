@@ -160,8 +160,7 @@ struct ThreadGroupTransferGlobal
             // check if src element is valid
             const bool is_src_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
-            oob_thread_scratch_.
-                template SetAsType<bool>(vgpr_data_idx_seq, is_src_valid);
+            oob_thread_scratch_.template SetAsType<bool>(vgpr_data_idx_seq, is_src_valid);
 
             // Vector length of elementwise operation
             constexpr auto get_elem_op_vec_len = []() {
@@ -201,9 +200,8 @@ struct ThreadGroupTransferGlobal
 
             // Load data from memory in src_vector first
             auto index = is_src_valid || !DoTranspose ? src_coord_.GetOffset() : 0;
-            src_vector_container src_vector =
-                src_vector_container{grid_buf.template Get<src_vector_container_t, DoTranspose>(
-                    index, true)};
+            src_vector_container src_vector = src_vector_container{
+                grid_buf.template Get<src_vector_container_t, DoTranspose>(index, true)};
 
             // apply the src elementwise op and convert to DstData under the hood if needed
             static_for<0, VectorSize / elem_op_vec_len, 1>{}([&](auto idx) {
@@ -214,9 +212,8 @@ struct ThreadGroupTransferGlobal
             // store result in dvgpr_ (static array holding loaded data).
             // At this point data is already converted to DstData type and
             // the elementwise operation has been applied
-            src_dvgpr_.template SetAsType<dst_vector_t>(
-                vgpr_data_idx_seq,
-                op_r_v.template AsType<dst_vector_t>()[I0]);
+            src_dvgpr_.template SetAsType<dst_vector_t>(vgpr_data_idx_seq,
+                                                        op_r_v.template AsType<dst_vector_t>()[I0]);
 
             // For each dimension move fwd, bwd or don't move
             static_for<0, nDim, 1>{}([&](auto i) {
@@ -425,8 +422,8 @@ struct ThreadGroupTransferGlobal
 
     __device__ static constexpr auto GetSrcThreadScratchDescriptor()
     {
-        constexpr auto access_lengths_as_tuple = container_push_back(
-            sequence_to_tuple_of_number(NumberOfIterations{}), Number<1>{});
+        constexpr auto access_lengths_as_tuple =
+            container_push_back(sequence_to_tuple_of_number(NumberOfIterations{}), Number<1>{});
 
         return make_naive_tensor_descriptor_packed(access_lengths_as_tuple);
     }
@@ -441,10 +438,10 @@ struct ThreadGroupTransferGlobal
     static constexpr auto src_oob_thread_scratch_desc_ =
         decltype(GetSrcThreadScratchDescriptor()){};
     using OOBThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
-                                                              bool,
-                                                              1,
-                                                              decltype(src_oob_thread_scratch_desc_),
-                                                              true>;
+                                                             bool,
+                                                             1,
+                                                             decltype(src_oob_thread_scratch_desc_),
+                                                             true>;
 
     ThreadScratchData src_dvgpr_;
     ThreadScratchData dst_dvgpr_;
