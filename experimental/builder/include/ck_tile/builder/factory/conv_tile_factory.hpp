@@ -116,7 +116,6 @@ struct ConvTileFactory
         BLOCK_GEMM.warp_tile.k,
         GroupedConvTraitsType::FixedGemmParams::TransposeC,
         // TODO:: This template parameter will be moved inside the kernel
-        ck_tile::memory_operation_enum::set,
         BLOCK_GEMM.num_wave_groups,
         GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
         SCALAR_PER_VECTOR.c>>;

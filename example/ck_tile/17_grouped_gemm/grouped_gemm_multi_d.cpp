@@ -61,72 +61,56 @@ float grouped_gemm_multi_d(const std::vector<grouped_gemm_multi_d_kargs>& gemm_d
 
     using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
         UniversalGemmProblem>;
-    const auto Run = [&](const auto memory_operation_) {
-        constexpr auto memory_operation = memory_operation_.value;
 
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             EDataType,
-                                             DsLayout,
-                                             ELayout,
-                                             CDEElementWise,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             memory_operation>>;
+    using GemmEpilogue = ck_tile::CShuffleEpilogue<
+        ck_tile::CShuffleEpilogueProblem<ADataType,
+                                         BDataType,
+                                         DsDataType,
+                                         AccDataType,
+                                         EDataType,
+                                         DsLayout,
+                                         ELayout,
+                                         CDEElementWise,
+                                         TilePartitioner::MPerBlock,
+                                         TilePartitioner::NPerBlock,
+                                         GemmConfig::M_Warp,
+                                         GemmConfig::N_Warp,
+                                         GemmConfig::M_Warp_Tile,
+                                         GemmConfig::N_Warp_Tile,
+                                         GemmConfig::K_Warp_Tile,
+                                         UniversalGemmProblem::TransposeC>>;
 
-        using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs   = Kernel::MakeKargs(gemm_descs);
-        if(!Kernel::IsSupportedArgument(kargs))
-        {
-            throw std::runtime_error("Kernel arguments not supported!");
-        }
-
-        const dim3 blocks = Kernel::BlockSize();
-        const dim3 grids  = Kernel::GridSize(gemm_descs);
-
-        HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
-                                            kargs.data(),
-                                            get_workspace_size(gemm_descs),
-                                            hipMemcpyHostToDevice,
-                                            s.stream_id_));
-
-        if(s.log_level_ > 0)
-        {
-            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: { "
-                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
-                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
-        }
-
-        return ck_tile::launch_kernel(
-            s,
-            ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                Kernel{},
-                grids,
-                blocks,
-                0,
-                ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                gemm_descs.size()));
-    };
-
-    if(gemm_descs[0].k_batch == 1)
+    using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+    auto kargs   = Kernel::MakeKargs(gemm_descs);
+    if(!Kernel::IsSupportedArgument(kargs))
     {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::set>{});
+        throw std::runtime_error("Kernel arguments not supported!");
     }
-    else
+
+    const dim3 blocks = Kernel::BlockSize();
+    const dim3 grids  = Kernel::GridSize(gemm_descs);
+
+    HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
+                                        kargs.data(),
+                                        get_workspace_size(gemm_descs),
+                                        hipMemcpyHostToDevice,
+                                        s.stream_id_));
+
+    if(s.log_level_ > 0)
     {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::atomic_add>{});
+        std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: { "
+                  << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
+                  << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
     }
+
+    return ck_tile::launch_kernel(s,
+                                  ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                                      Kernel{},
+                                      grids,
+                                      blocks,
+                                      0,
+                                      ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                                      gemm_descs.size()));
 }
 
 template <typename GemmConfig,
@@ -142,8 +126,7 @@ template <typename GemmConfig,
           typename CDEElementWise>
 float grouped_gemm_multi_d_tileloop(const ck_tile::stream_config& s,
                                     const ck_tile::index_t num_groups,
-                                    void* kargs_ptr,
-                                    bool splitk)
+                                    void* kargs_ptr)
 {
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
@@ -163,76 +146,55 @@ float grouped_gemm_multi_d_tileloop(const ck_tile::stream_config& s,
                                                    BLayout,
                                                    ELayout>;
 
-    float ave_time{0};
+    constexpr auto scheduler = GemmConfig::Scheduler;
 
-    const auto Run = [&](const auto memory_operation_) {
-        constexpr auto scheduler        = GemmConfig::Scheduler;
-        constexpr auto memory_operation = memory_operation_.value;
+    // We create the GEMM pipeline without specifying hotloop or tailnumber.
+    // These are automatically run inside the kernel based on the given input data.
+    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                       BDataType,
+                                                                       AccDataType,
+                                                                       GemmShape,
+                                                                       GemmUniversalTraits,
+                                                                       scheduler>;
 
-        // We create the GEMM pipeline without specifying hotloop or tailnumber.
-        // These are automatically run inside the kernel based on the given input data.
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler>;
+    using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
+        UniversalGemmProblem>;
+    using GemmEpilogue = ck_tile::CShuffleEpilogue<
+        ck_tile::CShuffleEpilogueProblem<ADataType,
+                                         BDataType,
+                                         DsDataType,
+                                         AccDataType,
+                                         EDataType,
+                                         DsLayout,
+                                         ELayout,
+                                         CDEElementWise,
+                                         TilePartitioner::MPerBlock,
+                                         TilePartitioner::NPerBlock,
+                                         GemmConfig::M_Warp,
+                                         GemmConfig::N_Warp,
+                                         GemmConfig::M_Warp_Tile,
+                                         GemmConfig::N_Warp_Tile,
+                                         GemmConfig::K_Warp_Tile,
+                                         UniversalGemmProblem::TransposeC>>;
+    using Kernel      = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+    const dim3 blocks = Kernel::BlockSize();
+    const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
 
-        using GemmPipeline = typename PipelineTypeTraits<
-            GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             EDataType,
-                                             DsLayout,
-                                             ELayout,
-                                             CDEElementWise,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             memory_operation>>;
-        using Kernel      = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        const dim3 blocks = Kernel::BlockSize();
-        const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
-
-        if(s.log_level_ > 0)
-        {
-            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
-                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
-                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
-        }
-
-        ave_time =
-            ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                       Kernel{},
-                                       grids,
-                                       blocks,
-                                       0,
-                                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                                       num_groups));
-
-        return ave_time;
-    };
-    if(!splitk)
+    if(s.log_level_ > 0)
     {
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::set>{});
-    }
-    else
-    {
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::atomic_add>{});
+        std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
+                  << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
+                  << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
     }
 
-    return ave_time;
+    return ck_tile::launch_kernel(s,
+                                  ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                                      Kernel{},
+                                      grids,
+                                      blocks,
+                                      0,
+                                      ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                                      num_groups));
 }
 
 #include "run_grouped_gemm_multi_d_example.inc"
