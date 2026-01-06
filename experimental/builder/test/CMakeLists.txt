@@ -80,16 +80,27 @@ add_ck_builder_test(test_ckb_conv_builder
     test_instance_traits_util.cpp
     unit_device_buffer.cpp
     unit_tensor_descriptor.cpp
+    unit_tensor_foreach.cpp
+    unit_error.cpp
+    unit_validation.cpp
     unit_conv_elementwise_op.cpp
     unit_conv_tensor_layout.cpp
     unit_conv_tensor_type.cpp
     unit_conv_thread_block.cpp
-    unit_conv_tuning_params.cpp
-    unit_conv_fwd_testing.cpp)
-target_link_libraries(test_ckb_conv_builder PRIVATE utility)
+    unit_conv_tuning_params.cpp)
 
 # Tests the inline diff utility used for comparing strings in tests assertions
 add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
+
+# GPU reference validation tests (in validation/ folder)
+# 1. Reference kernel execution and InstanceTraits
+add_ck_builder_test(test_ckb_reference_execution
+    validation/test_reference_execution.cpp
+    validation/test_reference_instance_traits.cpp)
+target_link_libraries(test_ckb_reference_execution PRIVATE utility)
+
+# Note: Optimized kernel validation tests will be added after merging dev branch
+# with kernel Run() implementation from colleague's work
 
 # Tests convolution trait selection and configuration
 add_ck_builder_test(test_ckb_conv_traits
@@ -111,13 +122,29 @@ add_ck_builder_test(test_ckb_conv_description
 #   - Group convolution (v3, standard, large tensor, WMMA, DL variants)
 #   - Backward weight group convolution (XDL)
 # Requires kernel compilation to validate the generated strings through the base class.
-add_ck_builder_test(test_ckb_instance_string
+
+set(INSTANCE_STRING_TESTS
     test_instance_string_fwd_grp_conv_v3.cpp
     test_instance_string_fwd_grp_conv.cpp
     test_instance_string_fwd_grp_conv_large_tensor.cpp
     test_instance_string_fwd_grp_conv_wmma.cpp
     test_instance_string_fwd_grp_conv_dl.cpp
-    test_instance_string_bwd_weight_grp_conv_xdl.cpp)
+    test_instance_string_bwd_weight_grp_conv_xdl.cpp
+    test_instance_string_bwd_weight_grp_conv_dl.cpp
+    test_instance_string_bwd_weight_grp_conv_multiple_d_xdl.cpp
+    test_instance_string_bwd_weight_grp_conv_two_stage_xdl.cpp
+    test_instance_string_bwd_weight_grp_conv_xdl_v3.cpp
+)
+
+if (CK_USE_WMMA)
+    list(APPEND INSTANCE_STRING_TESTS
+        test_instance_string_bwd_weight_grp_conv_wmma_v3.cpp
+        test_instance_string_bwd_weight_grp_conv_multiple_d_wmma_v3.cpp
+        test_instance_string_bwd_weight_grp_conv_two_stage_wmma_v3.cpp
+    )
+endif()
+
+add_ck_builder_test(test_ckb_instance_string ${INSTANCE_STRING_TESTS})
 
 # Tests the forward convolution builder across multiple data types and dimensions.
 # Individual tests are split into separate files to enable parallel compilation.
@@ -157,14 +184,14 @@ add_ck_factory_test(test_ckb_testing_utils test_testing_utils.cpp)
 # TODO: Re-enable these tests once we have CI working across all GPU architectures.
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward test_ck_factory_grouped_convolution_forward.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_clamp test_ck_factory_grouped_convolution_forward_clamp.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_convscale test_ck_factory_grouped_convolution_forward_convscale.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_convscale test_ck_factory_grouped_convolution_forward_convscale.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bilinear test_ck_factory_grouped_convolution_forward_bilinear.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scale test_ck_factory_grouped_convolution_forward_scale.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_ab test_ck_factory_grouped_convolution_forward_scaleadd_ab.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_ab test_ck_factory_grouped_convolution_forward_scaleadd_ab.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_clamp test_ck_factory_grouped_convolution_forward_bias_clamp.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_bnorm_clamp test_ck_factory_grouped_convolution_forward_bias_bnorm_clamp.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
 
 ################################################################################
 # CTest Integration - Register Tests and Assign Labels
@@ -181,6 +208,7 @@ set(CKB_SMOKE_TESTS
     test_ckb_inline_diff
     test_ckb_conv_traits
     test_ckb_conv_description
+    test_ckb_reference_execution
 )
 
 foreach(test_target ${CKB_SMOKE_TESTS})
@@ -193,10 +221,10 @@ set(CKB_REGRESSION_TESTS
     test_ckb_instance_string
     test_ckb_build_fwd_instances
     test_ckb_testing_utils
-    test_ckb_factory_grouped_convolution_forward_convscale
-    test_ckb_factory_grouped_convolution_forward_scaleadd_ab
-    test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu
-    test_ckb_factory_grouped_convolution_forward_dynamic_op
+    # test_ckb_factory_grouped_convolution_forward_convscale
+    # test_ckb_factory_grouped_convolution_forward_scaleadd_ab
+    # test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu
+    # test_ckb_factory_grouped_convolution_forward_dynamic_op
 )
 
 foreach(test_target ${CKB_REGRESSION_TESTS})

@@ -184,8 +184,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                    index_t n,
                                    index_t num_loop,
-                                   void* p_smem_ping,
-                                   void* p_smem_pong) const
+                                   void* p_smem) const
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -210,8 +209,10 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         __builtin_amdgcn_sched_barrier(0);
 
         // A tile in LDS
-        ADataType* p_a_lds_ping = static_cast<ADataType*>(p_smem_ping);
-        ADataType* p_a_lds_pong = static_cast<ADataType*>(p_smem_pong);
+        constexpr index_t smem_size = PipelinePolicy::template GetSmemSize<Problem>();
+        ADataType* p_a_lds_ping     = static_cast<ADataType*>(p_smem);
+        ADataType* p_a_lds_pong =
+            reinterpret_cast<ADataType*>(static_cast<char*>(p_smem) + smem_size);
 
         constexpr auto a_lds_block_desc =
             PipelinePolicy::template MakeALdsBlockDescriptor<Problem>();
@@ -561,9 +562,8 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                    index_t num_loop,
-                                   void* p_smem_ping,
-                                   void* p_smem_pong,
-                                   index_t n = 0) const // Default value for non-preshuffle case
+                                   void* p_smem,
+                                   index_t n = 0) const
     {
         return operator()<TailNum>(
             a_dram_block_window_tmp,
@@ -572,8 +572,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             bq_dram_block_window_tmp,
             n,
             num_loop,
-            p_smem_ping,
-            p_smem_pong);
+            p_smem);
     }
 
     template <typename ADramBlockWindowTmp,
@@ -584,8 +583,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                    index_t num_loop,
                                    TailNumber tail_number,
-                                   void* p_smem_ping,
-                                   void* p_smem_pong,
+                                   void* p_smem,
                                    index_t n = 0) const
     {
         const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
@@ -598,8 +596,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                 bq_dram_block_window_tmp,
                 n, // dummy value, won't be used
                 num_loop,
-                p_smem_ping,
-                p_smem_pong);
+                p_smem);
         };
         return Base::TailHandler(RunPipeline, true, tail_number);
     }

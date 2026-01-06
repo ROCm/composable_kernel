@@ -16,6 +16,7 @@
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
 #include "ck_tile/ops/gemm_quant.hpp"
+#include "ck_tile/ops/epilogue.hpp"
 #include "gemm_utils.hpp"
 
 template <typename GemmConfig,
@@ -192,7 +193,6 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             GemmConfig::N_Warp_Tile,
             GemmConfig::K_Warp_Tile,
             transpose_c,
-            ck_tile::memory_operation_enum::set,
             1,
             false,
             1,
@@ -418,41 +418,6 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
-
-    if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
-    {
-        if(K % AQuantGroupSize::kK != 0)
-        {
-            throw std::runtime_error(
-                "K must be aligned with QuantGroupSize for AQuantGrouped mode");
-        }
-    }
-    if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
-    {
-        if(K % BQuantGroupSize::kK != 0)
-        {
-            throw std::runtime_error(
-                "K must be aligned with QuantGroupSize for BQuantGrouped mode");
-        }
-    }
-    if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
-    {
-        if(K % AQuantGroupSize::kK != 0)
-        {
-            throw std::runtime_error(
-                "K must be aligned with QuantGroupSize for ABQuantGrouped mode");
-        }
-        if(K % BQuantGroupSize::kK != 0)
-        {
-            throw std::runtime_error(
-                "K must be aligned with QuantGroupSize for ABQuantGrouped mode");
-        }
-        if(K % BQuantGroupSize::kN != 0)
-        {
-            throw std::runtime_error(
-                "N must be aligned with QuantGroupSize for ABQuantGrouped mode");
-        }
-    }
 
     ck_tile::index_t AQK, BQK, BQN = 0;
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)

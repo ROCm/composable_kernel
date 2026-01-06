@@ -23,6 +23,7 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_weight.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_weight_gpu.hpp"
 
 namespace ck {
 namespace profiler {
@@ -93,29 +94,69 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     float max_accumulated_value = 0;
     if(do_verification)
     {
-        auto ref_conv     = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
-                                                                               InDataType,
-                                                                               WeiDataType,
-                                                                               OutDataType,
-                                                                               InElementOp,
-                                                                               WeiElementOp,
-                                                                               OutElementOp>{};
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(input,
-                                                  weight_host_result,
-                                                  output,
-                                                  conv_param.conv_filter_strides_,
-                                                  conv_param.conv_filter_dilations_,
-                                                  conv_param.input_left_pads_,
-                                                  conv_param.input_right_pads_,
-                                                  in_element_op,
-                                                  wei_element_op,
-                                                  out_element_op,
-                                                  {},
-                                                  {},
-                                                  {});
+        if(do_verification == 1)
+        {
+            // CPU reference
+            auto ref_conv     = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   OutDataType,
+                                                                                   InElementOp,
+                                                                                   WeiElementOp,
+                                                                                   OutElementOp>{};
+            auto ref_invoker  = ref_conv.MakeInvoker();
+            auto ref_argument = ref_conv.MakeArgument(input,
+                                                      weight_host_result,
+                                                      output,
+                                                      conv_param.conv_filter_strides_,
+                                                      conv_param.conv_filter_dilations_,
+                                                      conv_param.input_left_pads_,
+                                                      conv_param.input_right_pads_,
+                                                      in_element_op,
+                                                      wei_element_op,
+                                                      out_element_op,
+                                                      {},
+                                                      {},
+                                                      {});
 
-        ref_invoker.Run(ref_argument);
+            ref_invoker.Run(ref_argument);
+        }
+        else if(do_verification == 2)
+        {
+            // GPU reference
+            std::cout << "Running GPU reference implementation..." << std::endl;
+
+            // Allocate device memory for reference
+            DeviceMem in_ref_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
+            DeviceMem wei_ref_buf(sizeof(WeiDataType) *
+                                  weight_host_result.mDesc.GetElementSpaceSize());
+            DeviceMem out_ref_buf(sizeof(OutDataType) * output.mDesc.GetElementSpaceSize());
+
+            in_ref_buf.ToDevice(input.mData.data());
+            out_ref_buf.ToDevice(output.mData.data());
+
+            // Call GPU reference with ConvParam directly
+            ck::ref::naive_conv_bwd_weight<InLayout,
+                                           WeiLayout,
+                                           OutLayout,
+                                           InDataType,
+                                           WeiDataType,
+                                           OutDataType,
+                                           InElementOp,
+                                           WeiElementOp,
+                                           OutElementOp>(
+                static_cast<const InDataType*>(in_ref_buf.GetDeviceBuffer()),
+                static_cast<WeiDataType*>(wei_ref_buf.GetDeviceBuffer()),
+                static_cast<const OutDataType*>(out_ref_buf.GetDeviceBuffer()),
+                conv_param,
+                in_element_op,
+                wei_element_op,
+                out_element_op);
+
+            // Copy result back to host
+            wei_ref_buf.FromDevice(weight_host_result.mData.data());
+        }
+
         max_accumulated_value =
             *std::max_element(weight_host_result.mData.begin(), weight_host_result.mData.end());
     }
