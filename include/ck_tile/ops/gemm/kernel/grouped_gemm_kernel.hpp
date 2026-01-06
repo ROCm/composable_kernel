@@ -303,24 +303,15 @@ struct GroupedGemmKernel
         CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
 
         // allocate LDS
-        __shared__ char smem_ptr_0[GetSmemSize()];
+        __shared__ char smem_ptr[GetSmemSize()];
 
         // TO DO:
         // Can we simplify this branching logic?
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
 
-            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
-            RunGemmWithPipelineSelection2LDS(a_ptr,
-                                             b_ptr,
-                                             c_ptr,
-                                             kargs.ds_ptr,
-                                             smem_ptr_0,
-                                             smem_ptr_1,
-                                             kargs,
-                                             splitk_batch_offset,
-                                             i_m,
-                                             i_n);
+            RunGemmWithPipelineSelection2LDS(
+                a_ptr, b_ptr, c_ptr, kargs.ds_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
         }
         else // SingleSmemBuffer
         {
@@ -331,7 +322,7 @@ struct GroupedGemmKernel
                                              b_ptr,
                                              kargs.ds_ptr,
                                              c_ptr,
-                                             smem_ptr_0,
+                                             smem_ptr,
                                              kargs,
                                              splitk_batch_offset,
                                              i_m,
@@ -343,7 +334,7 @@ struct GroupedGemmKernel
                               {b_ptr},
                               kargs.ds_ptr,
                               c_ptr,
-                              smem_ptr_0,
+                              smem_ptr,
                               kargs,
                               splitk_batch_offset,
                               i_m,
@@ -425,9 +416,7 @@ struct GroupedGemmKernel
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
      * @param c_ptr output C pointer
-     * @param ds_ptr input Ds pointer
-     * @param smem_ptr_0 The starting pointer of 1st shared memory block.
-     * @param smem_ptr_1 The starting pointer of 2nd shared memory block.
+     * @param smem_ptr The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
      * @param splitk_batch_offset Utility structure used to calculate k batch.
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
@@ -439,8 +428,7 @@ struct GroupedGemmKernel
                                      const BDataType* b_ptr,
                                      CDataType* c_ptr,
                                      const std::array<const void*, NumDTensor_>& ds_ptr,
-                                     void* __restrict__ smem_ptr_0,
-                                     void* __restrict__ smem_ptr_1,
+                                     void* __restrict__ smem_ptr,
                                      const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
                                      const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                      const index_t block_idx_m,
@@ -460,8 +448,8 @@ struct GroupedGemmKernel
             amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
+        const auto& c_block_tile =
+            GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
 
         // Run Epilogue Pipeline
         if(kargs.k_batch == 1)
@@ -469,7 +457,7 @@ struct GroupedGemmKernel
             auto c_block_window = Base::template MakeCBlockWindows<memory_operation_enum::set>(
                 c_ptr, kargs, block_idx_m, block_idx_n);
 
-            EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+            EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr);
         }
         else
         {
@@ -477,7 +465,7 @@ struct GroupedGemmKernel
                 Base::template MakeCBlockWindows<memory_operation_enum::atomic_add>(
                     c_ptr, kargs, block_idx_m, block_idx_n);
 
-            EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+            EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr);
         }
     }
 
