@@ -758,7 +758,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                         a_warp_tensor(number<APackIter>{}) = load_tile_with_offset( //
                             a_warp_window_ping,
                             tuple<number<AmIter * WG::kM>,
-                                  number<AkIter * WG::kK / APackedSize>>{});
+                                  number<sizeof(ADataType) * AkIter * WG::kK / APackedSize>>{});
                     }
                 });
             // barrier as ds_load A(2i) and buffer_load_lds A(2i + 1) finished
@@ -847,7 +847,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                         a_warp_tensor(number<APackIter>{}) = load_tile_with_offset( //
                             a_warp_window_pong,
                             tuple<number<AmIter * WG::kM>,
-                                  number<AkIter * WG::kK / APackedSize>>{});
+                                  number<sizeof(ADataType) * AkIter * WG::kK / APackedSize>>{});
                     }
                 });
             // barrier as ds_load A(2i + 1) and buffer_load_lds A(2i + 2) finished
@@ -941,7 +941,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                         a_warp_tensor(number<APackIter>{}) = load_tile_with_offset( //
                             a_warp_window_ping,
                             tuple<number<AmIter * WG::kM>,
-                                  number<AkIter * WG::kK / APackedSize>>{});
+                                  number<sizeof(ADataType) * AkIter * WG::kK / APackedSize>>{});
                     }
                 });
             // barrier as ds_load A(2i) and buffer_load_lds A(2i + 1) finished
@@ -985,12 +985,12 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                     if constexpr(addr < (KIterPerWarp * MIterPerWarp) &&
                                  (n_iter == NIterPerWarp - 1))
                     {
-                        constexpr auto AmIter = addr % 2 + addr / 4 * 2;
-                        constexpr auto AkIter = addr / 2 % 2;
-                        a_warp_tensor(number<APackIter>{}) =
-                            load_tile_with_offset(a_warp_window_pong,
-                                                  tuple<number<AmIter * WG::kM>,
-                                                        number<AkIter * WG::kK / APackedSize>>{});
+                        constexpr auto AmIter              = addr % 2 + addr / 4 * 2;
+                        constexpr auto AkIter              = addr / 2 % 2;
+                        a_warp_tensor(number<APackIter>{}) = load_tile_with_offset(
+                            a_warp_window_pong,
+                            tuple<number<AmIter * WG::kM>,
+                                  number<sizeof(ADataType) * AkIter * WG::kK / APackedSize>>{});
                     }
                 });
             LastHotLoopScheduler();
