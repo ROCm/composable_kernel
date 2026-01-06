@@ -321,7 +321,7 @@ struct BQuantBlockUniversalGemmAsBsCr
                         {
                             // constexpr index_t reg_offset = nIter;
                             constexpr index_t reg_offset = [&]() {
-                                if constexpr(GemmTraits::QuantGroupSize::kN >=
+                                if constexpr(GemmTraits::QuantGroupSize::kN >
                                              (NWarp * WarpGemm::kN))
                                 {
                                     if constexpr(Traits::NPerBlock ==
