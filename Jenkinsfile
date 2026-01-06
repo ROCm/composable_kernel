@@ -1046,7 +1046,7 @@ def run_aiter_tests(Map conf=[:]){
                 sh "rocminfo"
                 sh "python3 --version"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
-                //sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py" //temporarily disable
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
