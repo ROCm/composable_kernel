@@ -574,6 +574,8 @@ def cmake_build(Map conf=[:]){
     def setup_cmd
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
+    //check the node gpu architecture
+    def arch_name = check_arch_name()
     if(!setup_args.contains("NO_CK_BUILD")){
         if (params.NINJA_BUILD_TRACE) {
             echo "running ninja build trace"
@@ -646,15 +648,15 @@ def cmake_build(Map conf=[:]){
 
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
-            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${check_arch_name()}.json"
-            archiveArtifacts "ck_build_trace_${check_arch_name()}.json"
-            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${check_arch_name()}.json"
+            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${arch_name}.json"
+            archiveArtifacts "ck_build_trace_${arch_name}.json"
+            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${arch_name}.json"
             if (params.NINJA_BUILD_TRACE || params.BUILD_INSTANCES_ONLY){
                 if (params.NINJA_FTIME_TRACE) {
                     echo "running ClangBuildAnalyzer"
                     sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
-                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${check_arch_name()}.log"
-                    archiveArtifacts "clang_build_analysis_${check_arch_name()}.log"
+                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${arch_name}.log"
+                    archiveArtifacts "clang_build_analysis_${arch_name}.log"
                 }
 
 
@@ -672,8 +674,8 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
@@ -699,16 +701,14 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
             }
         }
     }
 
-    //check the node gpu architecture
-    def arch_name = check_arch_name()
     if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
             archiveArtifacts "perf_fmha_*.log"
