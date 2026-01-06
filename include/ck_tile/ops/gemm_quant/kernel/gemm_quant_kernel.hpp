@@ -1851,7 +1851,8 @@ struct QuantGemmKernel
                 EpiloguePipeline{}(
                     c_block_window, c_block_tile, c_block_window, smem_ptr, aq_scale, bq_scale);
             }
-        }();
+        }
+        ();
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I4);
