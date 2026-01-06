@@ -58,6 +58,7 @@ struct FmhaFwdKernel
     static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
     static constexpr auto QScaleEnum        = FmhaPipeline::Problem::QScaleEnum;
     static constexpr bool kSkipMinSeqlenQ   = FmhaPipeline::Problem::kSkipMinSeqlenQ;
+    static constexpr bool kHasSink          = FmhaPipeline::kHasSink;
 
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
@@ -155,7 +156,7 @@ struct FmhaFwdKernel
     struct FmhaFwdMaskKargs
     {
         // ck_tile::index_t window_size_left, window_size_right;
-        ck_tile::index_t window_size_left, window_size_right;
+        ck_tile::index_t window_size_left, window_size_right, sink_size;
         ck_tile::GenericAttentionMaskEnum mask_type;
     };
 
@@ -335,6 +336,7 @@ struct FmhaFwdKernel
                   ck_tile::index_t batch_stride_o,
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
+                  ck_tile::index_t sink_size,
                   ck_tile::index_t mask_type,
                   float p_drop,
                   bool s_randval,
@@ -393,6 +395,7 @@ struct FmhaFwdKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
+            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
@@ -481,6 +484,7 @@ struct FmhaFwdKernel
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
+              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
@@ -529,6 +533,7 @@ struct FmhaFwdKernel
             batch_stride_o,
             window_size_left,
             window_size_right,
+            sink_size,
             mask_type,
             p_drop,
             s_randval,
@@ -580,6 +585,7 @@ struct FmhaFwdKernel
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
+              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
@@ -628,6 +634,7 @@ struct FmhaFwdKernel
             batch_stride_o,
             window_size_left,
             window_size_right,
+            sink_size,
             mask_type,
             p_drop,
             s_randval,
@@ -673,6 +680,7 @@ struct FmhaFwdKernel
                   ck_tile::index_t nhead_stride_o,
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
+                  ck_tile::index_t sink_size,
                   ck_tile::index_t mask_type,
                   ck_tile::index_t min_seqlen_q,
                   float p_drop,
@@ -732,6 +740,7 @@ struct FmhaFwdKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
+            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
@@ -817,6 +826,7 @@ struct FmhaFwdKernel
               ck_tile::index_t nhead_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
+              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               ck_tile::index_t min_seqlen_q,
               float p_drop,
@@ -861,6 +871,7 @@ struct FmhaFwdKernel
             nhead_stride_o,
             window_size_left,
             window_size_right,
+            sink_size,
             mask_type,
             min_seqlen_q,
             p_drop,
@@ -908,6 +919,7 @@ struct FmhaFwdKernel
               ck_tile::index_t nhead_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
+              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               ck_tile::index_t min_seqlen_q,
               float p_drop,
@@ -952,6 +964,7 @@ struct FmhaFwdKernel
             nhead_stride_o,
             window_size_left,
             window_size_right,
+            sink_size,
             mask_type,
             min_seqlen_q,
             p_drop,
@@ -1443,6 +1456,7 @@ struct FmhaFwdKernel
                     return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                         kargs.window_size_left,
                         kargs.window_size_right,
+                        kargs.sink_size,
                         kargs.seqlen_q,
                         kargs.seqlen_k,
                         kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
@@ -1485,14 +1499,28 @@ struct FmhaFwdKernel
 
             AttentionVariant variant;
             const auto variant_params = [&] {
+                const float scale_s = [&] {
+                    if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
+                    {
+                        float q_descale = *(reinterpret_cast<const float*>(kargs.q_descale_ptr));
+                        float k_descale = *(reinterpret_cast<const float*>(kargs.k_descale_ptr));
+
+                        return kargs.scale_s * q_descale * k_descale;
+                    }
+                    else
+                    {
+                        return kargs.scale_s;
+                    }
+                }();
+
                 if constexpr(kHasLogitsSoftCap)
                 {
                     return ck_tile::LogitsSoftCapParams<FmhaMask, CK_TILE_FMHA_FWD_FAST_EXP2>{
-                        mask, kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
+                        mask, scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
                 }
                 else
                 {
-                    return ck_tile::StandardAttentionParams<FmhaMask>{mask, kargs.scale_s};
+                    return ck_tile::StandardAttentionParams<FmhaMask>{mask, scale_s};
                 }
             }();
 
@@ -1502,11 +1530,8 @@ struct FmhaFwdKernel
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
                 {
                     // TODO - move global load of descale to pipeline
-                    float q_descale = *(reinterpret_cast<const float*>(kargs.q_descale_ptr));
-                    float k_descale = *(reinterpret_cast<const float*>(kargs.k_descale_ptr));
                     float v_descale = *(reinterpret_cast<const float*>(kargs.v_descale_ptr));
 
-                    float scale_s = kargs.scale_s * q_descale * k_descale;
                     float scale_p =
                         ck_tile::type_convert<float>(ck_tile::numeric<PDataType>::max());
                     float scale_o = v_descale / scale_p;
@@ -1534,7 +1559,7 @@ struct FmhaFwdKernel
                                           o_acc_element_func, // o_acc_element_func
                                           mask,
                                           position_encoding,
-                                          scale_s,
+                                          variant_params.sm_scale,
                                           variant,
                                           variant_params,
                                           block_indices,
@@ -1551,7 +1576,7 @@ struct FmhaFwdKernel
                                           lse_dram_window,
                                           mask,
                                           position_encoding,
-                                          kargs.scale_s,
+                                          variant_params.sm_scale,
                                           variant,
                                           variant_params,
                                           block_indices,
@@ -2182,6 +2207,7 @@ struct FmhaFwdKernel
                     return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                         kargs.window_size_left,
                         kargs.window_size_right,
+                        kargs.sink_size,
                         kargs.seqlen_q,
                         kargs.seqlen_k,
                         kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);

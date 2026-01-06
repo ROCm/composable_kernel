@@ -153,6 +153,7 @@ consteval ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdC
     case ConvFwdSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
     case ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
     case ConvFwdSpecialization::FILTER_3x3: return ck_conv_spec::Filter3x3;
+    case ConvFwdSpecialization::ODD_C: return ck_conv_spec::OddC;
     default: throw "Unknown ConvFwdSpecialization";
     }
 }
