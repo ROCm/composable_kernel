@@ -69,24 +69,56 @@ int run_mx_flatmm_with_layouts(int argc,
     ck_tile::HostTensor<ScaleType> scale_b(ck_tile::host_tensor_descriptor(
         K / ScaleGranularityK, N / ScaleGranularityN, scale_stride_B, is_row_major(b_layout)));
     if constexpr(std::is_same_v<ADataType, ck_tile::pk_fp6x16_t>)
+    // if constexpr(std::is_same_v<ADataType, ck_tile::fp8_t>)
     {
         auto a_buffer_bytes = a_host.get_element_space_size_in_bytes();
         auto b_buffer_bytes = b_origin_host.get_element_space_size_in_bytes();
-        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_a);
-        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_b);
+        ck_tile::FillUniformDistribution<>{-1.f, 1.f}(scale_a);
+        ck_tile::FillUniformDistribution<>{-1.f, 1.f}(scale_b);
         std::vector<int8_t> random_bufA(a_buffer_bytes);
         std::vector<int8_t> random_bufB(b_buffer_bytes);
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_int_distribution<int> dis(1, 1);
+        std::uniform_int_distribution<int> dis(1, 4);
+        std::uniform_int_distribution<int> dis2(1, 1);
 
         for(size_t i = 0; i < a_buffer_bytes; ++i)
         {
-            random_bufA[i] = static_cast<int8_t>(dis(gen));
+            // auto row= i / 192;
+            auto col       = i % 192;
+            random_bufA[i] = static_cast<int8_t>(col / 24);
+            // random_bufA[i] = static_cast<int8_t>(dis2(gen));
         }
         for(size_t i = 0; i < b_buffer_bytes; ++i)
         {
-            random_bufB[i] = static_cast<int8_t>(dis(gen));
+            random_bufB[i] = static_cast<int8_t>(dis2(gen));
+        }
+        memcpy(a_host.data(), random_bufA.data(), a_buffer_bytes);
+        memcpy(b_origin_host.data(), random_bufB.data(), b_buffer_bytes);
+    }
+    else if constexpr(std::is_same_v<ADataType, ck_tile::pk_fp4_t>)
+    {
+        auto a_buffer_bytes = a_host.get_element_space_size_in_bytes();
+        auto b_buffer_bytes = b_origin_host.get_element_space_size_in_bytes();
+        ck_tile::FillUniformDistribution<>{-1.f, 1.f}(scale_a);
+        ck_tile::FillUniformDistribution<>{-1.f, 1.f}(scale_b);
+        std::vector<int8_t> random_bufA(a_buffer_bytes);
+        std::vector<int8_t> random_bufB(b_buffer_bytes);
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> dis(1, 4);
+        std::uniform_int_distribution<int> dis2(1, 1);
+
+        for(size_t i = 0; i < a_buffer_bytes; ++i)
+        {
+            // auto row= i / 192;
+            auto col       = i % 128;
+            random_bufA[i] = static_cast<int8_t>(col / 16);
+            // random_bufA[i] = static_cast<int8_t>(dis2(gen));
+        }
+        for(size_t i = 0; i < b_buffer_bytes; ++i)
+        {
+            random_bufB[i] = static_cast<int8_t>(dis2(gen));
         }
         memcpy(a_host.data(), random_bufA.data(), a_buffer_bytes);
         memcpy(b_origin_host.data(), random_bufB.data(), b_buffer_bytes);

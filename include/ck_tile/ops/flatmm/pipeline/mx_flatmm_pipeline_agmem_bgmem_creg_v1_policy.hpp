@@ -247,11 +247,11 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                 tile_distribution_encoding< //
                     sequence<NWarps>,
                     tuple<sequence<MWarps, MXdlPack, MPerXdl>,
-                          sequence<KPerXdl / (K_Lane * APackedSize), K_Lane, DWORDx3>>,
+                          sequence<K_Lane, KPerXdl / (K_Lane * APackedSize), DWORDx3>>,
                     tuple<sequence<1, 0>, sequence<2, 1>>,
-                    tuple<sequence<0, 0>, sequence<1, 2>>,
+                    tuple<sequence<0, 0>, sequence<0, 2>>,
                     sequence<2, 2>,
-                    sequence<0, 2>>{});
+                    sequence<1, 2>>{});
         else
             static_assert(false, "unsupported datatype");
     }

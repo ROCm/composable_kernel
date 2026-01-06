@@ -458,6 +458,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
 
         do
         {
+            // printf("%d \n",total_work_tile_cnt);
             const auto [iM, iN] =
                 TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(partition_idx);
             const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
