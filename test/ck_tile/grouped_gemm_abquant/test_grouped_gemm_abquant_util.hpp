@@ -142,10 +142,9 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
         float ave_time{0};
 
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
-            constexpr auto scheduler        = Config::Scheduler;
-            constexpr auto memory_operation = ck_tile::memory_operation_enum::set;
+            constexpr bool has_hot_loop_v = has_hot_loop_.value;
+            constexpr auto tail_number_v  = tail_number_.value;
+            constexpr auto scheduler      = Config::Scheduler;
 
             using QuantGemmProblem = ck_tile::GemmABQuantPipelineProblem<ADataType,
                                                                          AQDataType,
@@ -180,8 +179,7 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
                                                  Config::M_Warp_Tile,
                                                  Config::N_Warp_Tile,
                                                  Config::K_Warp_Tile,
-                                                 QuantGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 QuantGemmProblem::TransposeC>>;
 
             using Kernel = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
                                                            GemmPipeline,
@@ -254,68 +252,59 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
                                                                  Config::DoubleSmemBuffer,
                                                                  Config::IsPersistent>;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
+        using QuantGemmProblem = ck_tile::GemmABQuantPipelineProblem<ADataType,
+                                                                     AQDataType,
+                                                                     BDataType,
+                                                                     BQDataType,
+                                                                     AccDataType,
+                                                                     GemmShape,
+                                                                     GemmUniversalTraits,
+                                                                     AQuantGroupSize,
+                                                                     BQuantGroupSize,
+                                                                     Config::TransposeC>;
 
-            using QuantGemmProblem = ck_tile::GemmABQuantPipelineProblem<ADataType,
-                                                                         AQDataType,
-                                                                         BDataType,
-                                                                         BQDataType,
-                                                                         AccDataType,
-                                                                         GemmShape,
-                                                                         GemmUniversalTraits,
-                                                                         AQuantGroupSize,
-                                                                         BQuantGroupSize,
-                                                                         Config::TransposeC>;
+        using GemmPipeline = ck_tile::ABQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>;
 
-            using GemmPipeline = ck_tile::ABQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>;
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             ck_tile::tuple<>,
+                                             AccDataType,
+                                             CDataType,
+                                             ck_tile::tuple<>,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             Config::M_Warp,
+                                             Config::N_Warp,
+                                             Config::M_Warp_Tile,
+                                             Config::N_Warp_Tile,
+                                             Config::K_Warp_Tile,
+                                             QuantGemmProblem::TransposeC>>;
 
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 ck_tile::tuple<>,
-                                                 AccDataType,
-                                                 CDataType,
-                                                 ck_tile::tuple<>,
-                                                 CLayout,
-                                                 ck_tile::element_wise::PassThrough,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 Config::M_Warp,
-                                                 Config::N_Warp,
-                                                 Config::M_Warp_Tile,
-                                                 Config::N_Warp_Tile,
-                                                 Config::K_Warp_Tile,
-                                                 QuantGemmProblem::TransposeC,
-                                                 memory_operation>>;
+        using Kernel      = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
+                                                            GemmPipeline,
+                                                            GemmEpilogue,
+                                                            GemmUniversalTraits::kQuantType>;
+        const dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
 
-            using Kernel      = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
-                                                                GemmPipeline,
-                                                                GemmEpilogue,
-                                                                GemmUniversalTraits::kQuantType>;
-            const dim3 blocks = Kernel::BlockSize();
-            const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
+        if(s.log_level_ > 0)
+        {
+            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
+                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
+                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
+        }
 
-            if(s.log_level_ > 0)
-            {
-                std::cout << "Launching kernel: " << Kernel::GetName()
-                          << " with args:" << " grid: {" << grids.x << ", " << grids.y << ", "
-                          << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
-                          << blocks.z << "}" << std::endl;
-            }
-
-            ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<Config::kBlockPerCu>(
-                                       Kernel{},
-                                       grids,
-                                       blocks,
-                                       0,
-                                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                                       num_groups));
-        };
-
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::set>{});
+        ck_tile::launch_kernel(s,
+                               ck_tile::make_kernel<Config::kBlockPerCu>(
+                                   Kernel{},
+                                   grids,
+                                   blocks,
+                                   0,
+                                   ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                                   num_groups));
     }
 
     public:
