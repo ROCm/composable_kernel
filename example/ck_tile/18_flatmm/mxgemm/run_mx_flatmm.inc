@@ -85,13 +85,15 @@ int run_mx_flatmm_with_layouts(int argc,
         for(size_t i = 0; i < a_buffer_bytes; ++i)
         {
             // auto row= i / 192;
-            auto col       = i % 192;
-            random_bufA[i] = static_cast<int8_t>(col / 24);
-            // random_bufA[i] = static_cast<int8_t>(dis2(gen));
+            // auto col       = i % 192;
+            // random_bufA[i] = static_cast<int8_t>(col / 24);
+            random_bufA[i] = static_cast<int8_t>(dis(gen));
         }
         for(size_t i = 0; i < b_buffer_bytes; ++i)
         {
-            random_bufB[i] = static_cast<int8_t>(dis2(gen));
+            // auto col       = i % 192;
+            // random_bufB[i] = static_cast<int8_t>(col / 24);
+            random_bufB[i] = static_cast<int8_t>(dis(gen));
         }
         memcpy(a_host.data(), random_bufA.data(), a_buffer_bytes);
         memcpy(b_origin_host.data(), random_bufB.data(), b_buffer_bytes);
@@ -118,7 +120,9 @@ int run_mx_flatmm_with_layouts(int argc,
         }
         for(size_t i = 0; i < b_buffer_bytes; ++i)
         {
-            random_bufB[i] = static_cast<int8_t>(dis2(gen));
+            auto col       = i % 128;
+            random_bufB[i] = static_cast<int8_t>(col / 16);
+            // random_bufB[i] = static_cast<int8_t>(dis2(gen));
         }
         memcpy(a_host.data(), random_bufA.data(), a_buffer_bytes);
         memcpy(b_origin_host.data(), random_bufB.data(), b_buffer_bytes);

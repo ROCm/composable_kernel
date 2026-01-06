@@ -289,14 +289,14 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                 tile_distribution_encoding< //
                     sequence<WaveRepeat>,
                     tuple<sequence<NWarps, NXdlPack>, // 4 2
-                          sequence<K_Thread * sizeof(BDataType) / (DWORDx3 * BPackedSize),
-                                   K0,
+                          sequence<K0,
                                    K1,
+                                   K_Thread * sizeof(BDataType) / (DWORDx3 * BPackedSize),
                                    DWORDx3>>, // 2 1 64 12
                     tuple<sequence<0, 1, 2>, sequence<2>>,
-                    tuple<sequence<0, 0, 1>, sequence<2>>,
+                    tuple<sequence<0, 0, 0>, sequence<1>>,
                     sequence<2, 2>,
-                    sequence<0, 3>>{});
+                    sequence<2, 3>>{});
         else
             static_assert(false, "unsupported datatype");
     }
