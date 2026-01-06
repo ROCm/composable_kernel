@@ -780,7 +780,8 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                 constexpr auto kIter    = loadIter / MXdlPack;
                 a_warp_tensor(loadIter) = load_tile_with_offset(
                     a_warp_window_pong,
-                    tuple<number<mIter * WG::kM>, number<kIter * WG::kK / APackedSize>>{});
+                    tuple<number<mIter * WG::kM>,
+                          number<kIter * WG::kK * sizeof(ADataType) / APackedSize>>{});
             });
             HotLoopScheduler();
 
@@ -874,11 +875,9 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
             HotLoopScheduler();
         };
 
-        printf("tailnum %d\n", static_cast<int>(TailNum));
         if constexpr(HasHotLoop)
         {
             index_t iCounter = (num_loop - 1) / 2;
-            printf("icounter %d\n", iCounter);
             do
             {
                 main_body_implx2();
@@ -1001,11 +1000,6 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         else if constexpr(TailNum == TailNumber::Odd)
         {
             // GEMM loopK
-            if(get_warp_id() == 3)
-            {
-                // printf("%d %d\n", KXdlPack, MXdlPack);
-                CK_PRINTF<uint8_t>{}(a_warp_tensor(number<2>{}));
-            }
             static_for_product<number<KPackIterPerWarp>,
                                number<MPackIterPerWarp>,
                                number<NPackIterPerWarp>,

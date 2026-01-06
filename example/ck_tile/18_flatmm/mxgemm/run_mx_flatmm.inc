@@ -73,8 +73,8 @@ int run_mx_flatmm_with_layouts(int argc,
     {
         auto a_buffer_bytes = a_host.get_element_space_size_in_bytes();
         auto b_buffer_bytes = b_origin_host.get_element_space_size_in_bytes();
-        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_a);
-        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_b);
+        ck_tile::FillUniformDistribution<>{-1.f, 1.f}(scale_a);
+        ck_tile::FillUniformDistribution<>{-1.f, 1.f}(scale_b);
         std::vector<int8_t> random_bufA(a_buffer_bytes);
         std::vector<int8_t> random_bufB(b_buffer_bytes);
         std::random_device rd;
@@ -87,13 +87,13 @@ int run_mx_flatmm_with_layouts(int argc,
             // auto row= i / 192;
             // auto col       = i % 192;
             // random_bufA[i] = static_cast<int8_t>(col / 24);
-            random_bufA[i] = static_cast<int8_t>(dis2(gen));
+            random_bufA[i] = static_cast<int8_t>(dis(gen));
         }
         for(size_t i = 0; i < b_buffer_bytes; ++i)
         {
             // auto col       = i % 192;
             // random_bufB[i] = static_cast<int8_t>(col / 24);
-            random_bufB[i] = static_cast<int8_t>(dis2(gen));
+            random_bufB[i] = static_cast<int8_t>(dis(gen));
         }
         memcpy(a_host.data(), random_bufA.data(), a_buffer_bytes);
         memcpy(b_origin_host.data(), random_bufB.data(), b_buffer_bytes);
