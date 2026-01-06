@@ -540,7 +540,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                  QuantMode == ck_tile::QuantType::RowColQuant)
     {
         bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
-            ck_tile::host_tensor_descriptor(BQK, N, stride_BQ, is_row_major(bq_layout)));
+            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, is_row_major(bq_layout)));
     }
     else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
     {
