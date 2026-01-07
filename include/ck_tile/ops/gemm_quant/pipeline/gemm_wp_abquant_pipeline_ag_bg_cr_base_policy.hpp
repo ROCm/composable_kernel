@@ -5,12 +5,28 @@
 
 #include "ck_tile/ops/gemm/block/block_wp_asmem_bsmem_creg_v1.hpp"
 #include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_base_policy.hpp"
+#include "ck_tile/ops/gemm_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm_quant/pipeline/gemm_bquant_pipeline_ag_bg_cr_policy.hpp"
 
 namespace ck_tile {
 
-struct GemmWPQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelineAgBgCrPolicy
+struct GemmWPABQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelineAgBgCrPolicy
 {
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeAQ()
+    {
+        using AQDataType              = remove_cvref_t<typename Problem::AQDataType>;
+        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlockAQ = KPerBlock / Problem::AQuantGroupSize::kK;
+
+        return GetABQGlobalVectorLoadSize<Problem, AQDataType, MPerBlock, KPerBlockAQ>();
+    }
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeAQDramTileDistribution()
+    {
+        return GemmAQuantPipelineAgBgCrDefaultPolicy::MakeAQDramTileDistribution<Problem>();
+    }
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeBQ()
     {
@@ -97,7 +113,7 @@ struct GemmWPQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelin
                                                               typename Problem::CDataType,
                                                               BlockWarps,
                                                               WarpGemm>;
-        return BlockGemmWeightPreshuffleBQuantARegBRegCReg<Problem, BlockGemmPolicy>{};
+        return BlockGemmWeightPreshuffleABQuantARegBRegCReg<Problem, BlockGemmPolicy>{};
     }
 };
 

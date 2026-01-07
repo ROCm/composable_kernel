@@ -5,6 +5,7 @@
 #include "utils/ckb_conv_test_utils.hpp"
 #include "utils/conv_algorithm_type_utils.hpp"
 #include "ck_tile/builder/testing/conv_fwd_ck.hpp"
+#include "ck_tile/builder/testing/conv_fwd_reference.hpp"
 #include "ck_tile/host/device_prop.hpp"
 #include "testing_utils.hpp"
 
@@ -33,6 +34,8 @@ constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xd
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;
+
+using Reference = ckb::ConvBuilder<SIGNATURE, ckt::ConvAlgorithm_Reference{}>::Instance;
 
 TEST(Fwd2DFp16_CShufV3_GNHWC, Create)
 {
@@ -81,18 +84,17 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
         .cde_elementwise_op = {},
     };
 
-    auto inputs  = ckt::alloc_inputs(args);
-    auto outputs = ckt::alloc_outputs(args);
+    auto inputs    = ckt::alloc_inputs(args);
+    auto outputs   = ckt::alloc_outputs(args);
+    auto reference = ckt::alloc_outputs(args);
 
     ckt::init_inputs(args, inputs.get());
 
     auto conv = Instance{};
     ckt::run(conv, args, inputs.get(), outputs.get());
 
-    // TODO: This should be allocated via ckt::alloc_outputs() and
-    // initialized via ckt::run() with the reference implementation
-    // instead.
-    auto reference = outputs.get();
+    auto ref_conv = Reference{};
+    ckt::run(ref_conv, args, inputs.get(), reference.get());
 
-    EXPECT_THAT(outputs.get(), MatchesReference(args, reference));
+    EXPECT_THAT(outputs.get(), MatchesReference(args, reference.get()));
 }
