@@ -92,6 +92,3 @@ test_data/*
 # The experimental/builder directory should be tracked despite matching build*
 !experimental/builder
 !experimental/builder/**
-
-# output directory on Windows platform
-out/install/**
