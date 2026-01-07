@@ -31,11 +31,12 @@ endif()
 # Default installation path
 if(NOT WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+else()
+    set(CMAKE_INSTALL_PREFIX "C:/dist/TheRock" CACHE PATH "")
 endif()
 
 set(version 1.2.0)
-# Check support for CUDA/HIP in Cmake
-project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
+project(composable_kernel VERSION ${version} LANGUAGES CXX)
 include(CTest)
 
 option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
@@ -123,39 +124,11 @@ add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
 
-if(WIN32)
-# Suppress warnings about unused linker arguments during compilation
-add_compile_options(-Wno-unused-command-line-argument)
-endif()
-
-# add -Og and debug info for debug builds
-# Use -gdwarf-4 on Windows (clang doesn't support -gdwarf64 on Windows)
-# Use -gdwarf64 on Linux for better debug info
-if(WIN32)
-    add_compile_options(
-        "$<$<CONFIG:Debug>:-Og>"
-        "$<$<CONFIG:Debug>:-gdwarf-4>"
-        "$<$<CONFIG:Debug>:-gsplit-dwarf>"
-    )
-    # Disable MSVC debug runtime checks for HIP device code
-    # The MSVC debug runtime (_DEBUG, msvcrtd) includes _CrtDbgReport which is host-only
-    # and cannot be called from device code
-    add_compile_options(
-        "$<$<CONFIG:Debug>:-D_ITERATOR_DEBUG_LEVEL=0>"
-        "$<$<CONFIG:Debug>:-U_DEBUG>"
-    )
-    # Use 64-bit PE format to avoid 4GB section size limit in debug builds
-    # The .hip_fatbin section can exceed 4GB with debug info
-    add_link_options(
-        "$<$<CONFIG:Debug>:-Xlinker>"
-        "$<$<CONFIG:Debug>:/MACHINE:X64>"
-    )
-else()
-    add_compile_options(
-        "$<$<CONFIG:Debug>:-Og>"
-        "$<$<CONFIG:Debug>:-gdwarf64>"
-    )
-endif()
+# add -Og -gdwarf64 for debug builds
+add_compile_options(
+    "$<$<CONFIG:Debug>:-Og>"
+    "$<$<CONFIG:Debug>:-gdwarf64>"
+)
 
 # Recent change in compiler makes this warning ON by default, which led to compile errors.
 add_compile_options(-Wno-nrvo)
@@ -190,56 +163,30 @@ execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD OUTPUT_VARIABLE COMMI
 configure_file(include/ck/version.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/version.h)
 
 set(ROCM_SYMLINK_LIBS OFF)
-if(NOT WIN32)
-    find_package(ROCM REQUIRED PATHS /opt/rocm)
-    include(ROCMInstallTargets)
-    include(ROCMPackageConfigHelpers)
-    include(ROCMSetupVersion)
-    include(ROCMInstallSymlinks)
-    include(ROCMCreatePackage)
-    include(ROCMCheckTargetIds)
-    rocm_setup_version(VERSION ${version})
+
+if (WIN32)
+    find_package(ROCmCMakeBuildTools REQUIRED PATHS C:/dist/TheRock)
 else()
-    # On Windows, provide stub implementations for ROCM CMake functions
-    function(rocm_package_setup_component)
-        # Stub function - does nothing on Windows
-    endfunction()
-    
-    function(rocm_install)
-        # On Windows, use standard CMake install
-        cmake_parse_arguments(ROCM_INSTALL "" "COMPONENT;DESTINATION;EXPORT;FILE" "FILES;TARGETS;DIRECTORY" ${ARGN})
-        if(ROCM_INSTALL_FILES)
-            install(FILES ${ROCM_INSTALL_FILES} DESTINATION ${ROCM_INSTALL_DESTINATION})
-        elseif(ROCM_INSTALL_TARGETS)
-            install(TARGETS ${ROCM_INSTALL_TARGETS} DESTINATION lib EXPORT ${ROCM_INSTALL_TARGETS}Targets OPTIONAL)
-        elseif(ROCM_INSTALL_DIRECTORY)
-            install(DIRECTORY ${ROCM_INSTALL_DIRECTORY} DESTINATION ${ROCM_INSTALL_DESTINATION})
-        elseif(ROCM_INSTALL_EXPORT)
-            # On Windows, silently skip export installation as it's handled differently
-            # The exports are primarily for Linux package management
-        endif()
-    endfunction()
-    
-    function(rocm_create_package)
-        # Stub function - does nothing on Windows
-    endfunction()
-    
-    function(rocm_install_targets)
-        cmake_parse_arguments(ROCM_INSTALL "" "" "TARGETS" ${ARGN})
-        if(ROCM_INSTALL_TARGETS)
-            install(TARGETS ${ROCM_INSTALL_TARGETS} DESTINATION lib)
-        endif()
-    endfunction()
-    
-    function(rocm_check_target_ids OUT_VAR)
-        cmake_parse_arguments(ROCM_CHECK "" "" "TARGETS" ${ARGN})
-        set(${OUT_VAR} ${ROCM_CHECK_TARGETS} PARENT_SCOPE)
-    endfunction()
+    find_package(ROCM REQUIRED PATHS /opt/rocm)
 endif()
+
+include(ROCMInstallTargets)
+include(ROCMPackageConfigHelpers)
+include(ROCMSetupVersion)
+include(ROCMInstallSymlinks)
+include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
+include(ROCMCheckTargetIds)
 include(TargetFlags)
 
-list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
+rocm_setup_version(VERSION ${version})
+
+if(WIN32)
+    set(HIP_PLATFORM "amd" CACHE STRING "HIP platform")
+    list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
+else()
+    list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip C:/dist/TheRock "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
+endif()
 
 message(STATUS "GPU_TARGETS= ${GPU_TARGETS}")
 message(STATUS "GPU_ARCHS= ${GPU_ARCHS}")
@@ -253,7 +200,10 @@ if(GPU_TARGETS)
 else()
     set(USER_GPU_TARGETS 0)
 endif()
+
 find_package(hip REQUIRED)
+enable_language(HIP)
+
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
 # SWDEV-413293 and https://reviews.llvm.org/D155213
 math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
