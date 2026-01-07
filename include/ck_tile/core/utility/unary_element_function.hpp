@@ -48,7 +48,7 @@ struct composes<F>
 };
 
 template <typename... Ts>
-CK_TILE_HOST_DEVICE_EXTERN composes(Ts&&...) -> composes<remove_cvref_t<Ts>...>;
+composes(Ts&&...) -> composes<remove_cvref_t<Ts>...>;
 
 template <typename SaturateType>
 struct saturates
