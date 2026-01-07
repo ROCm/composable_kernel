@@ -1085,18 +1085,14 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
             return false;
         }
 
-        if constexpr(std::is_same_v<CDataType, ck::half_t> ||
-                     std::is_same_v<CDataType, ck::bhalf_t>)
+        if(gemm_arg.KBatch > 1 && ck::is_gfx11_supported())
         {
-            if(gemm_arg.KBatch > 1 && ck::is_gfx11_supported())
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Unsupported splitK on gfx11." << std::endl;
-                }
-                // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-                return false;
+                std::cout << "Unsupported splitK on gfx11." << std::endl;
             }
+            // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+            return false;
         }
 
         if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||

@@ -1185,6 +1185,16 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
             return false;
         }
 
+        if(arg.k_batch_ > 1 && ck::is_gfx11_supported())
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported splitK on gfx11." << std::endl;
+            }
+            // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+            return false;
+        }
+
         // Check this here, it allows to use other instances from factory even
         // if workspace is not allocated
         if(!arg.p_workspace_)
