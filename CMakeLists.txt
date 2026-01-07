@@ -166,6 +166,7 @@ set(ROCM_SYMLINK_LIBS OFF)
 
 if (WIN32)
     find_package(ROCmCMakeBuildTools REQUIRED PATHS C:/dist/TheRock)
+    set(HIP_PLATFORM "amd" CACHE STRING "HIP platform")
 else()
     find_package(ROCM REQUIRED PATHS /opt/rocm)
 endif()
@@ -181,12 +182,7 @@ include(TargetFlags)
 
 rocm_setup_version(VERSION ${version})
 
-if(WIN32)
-    set(HIP_PLATFORM "amd" CACHE STRING "HIP platform")
-    list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
-else()
-    list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip C:/dist/TheRock "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
-endif()
+list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
 
 message(STATUS "GPU_TARGETS= ${GPU_TARGETS}")
 message(STATUS "GPU_ARCHS= ${GPU_ARCHS}")
