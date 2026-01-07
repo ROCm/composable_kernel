@@ -946,12 +946,16 @@ struct QuantGemmKernel
                 }
                 else
                 {
+                    constexpr auto tensor_dim =
+                        (QuantGroupSize::kN <= TilePartitioner::NPerBlock)
+                            ? TilePartitioner::NPerBlock / QuantGroupSize::kN
+                            : 1;
                     if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>)
                     {
                         return make_tile_window(
                             bq_tensor_view,
                             make_tuple(number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{},
-                                       number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{}),
+                                       number<tensor_dim>{}),
                             {0, i_n / QuantGroupSize::kN});
                     }
                     else
@@ -959,7 +963,7 @@ struct QuantGemmKernel
                         static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
                         return make_tile_window(
                             bq_tensor_view,
-                            make_tuple(number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{},
+                            make_tuple(number<tensor_dim>{},
                                        number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{}),
                             {i_n / QuantGroupSize::kN, 0});
                     }

@@ -26,7 +26,8 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t NPerBlockBQ = NPerBlock / QuantGroupSize::kN;
+    static constexpr index_t NPerBlockBQ =
+        (QuantGroupSize::kN <= NPerBlock) ? NPerBlock / QuantGroupSize::kN : 1;
     static constexpr index_t KPerBlockBQ = KPerBlock / QuantGroupSize::kK;
 
     // static_assert(NPerBlockBQ >= 1, "NPerBlock must be >= QuantGroupSize");
