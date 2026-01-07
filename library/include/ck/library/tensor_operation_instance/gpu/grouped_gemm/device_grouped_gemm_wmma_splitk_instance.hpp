@@ -31,16 +31,13 @@ using S = ck::Sequence<Is...>;
 
 using Empty_Tuple = ck::Tuple<>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
 
 using AccDataType = F32;
 using DsDataType  = Empty_Tuple;
 
 using DsLayout = Empty_Tuple;
 using ELayout  = Row;
-
-using AElementOp   = PassThrough;
-using BElementOp   = PassThrough;
-using CDEElementOp = PassThrough;
 
 static constexpr auto PipelineV1         = BlockGemmPipelineVersion::v1;
 static constexpr auto PipelineV3         = BlockGemmPipelineVersion::v3;
@@ -54,6 +51,9 @@ template <typename T,
           device::GemmSpecialization GemmSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
           BlockGemmPipelineVersion BlkGemmPipelineVer,
+          typename AElementOp,
+          typename BElementOp,
+          typename CDEElementOp,
           enable_if_t<sizeof(T) == 2, bool> = false>
 using device_grouped_gemm_wmma_universal_km_kn_mn_instances =
     std::tuple<
@@ -73,6 +73,9 @@ template <typename T,
           device::GemmSpecialization GemmSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
           BlockGemmPipelineVersion BlkGemmPipelineVer,
+          typename AElementOp,
+          typename BElementOp,
+          typename CDEElementOp,
           enable_if_t<sizeof(T) == 2, bool> = false>
 using device_grouped_gemm_wmma_universal_km_nk_mn_instances = std::tuple<
     // clang-format off
@@ -91,6 +94,9 @@ template <typename T,
           device::GemmSpecialization GemmSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
           BlockGemmPipelineVersion BlkGemmPipelineVer,
+          typename AElementOp,
+          typename BElementOp,
+          typename CDEElementOp,
           enable_if_t<sizeof(T) == 2, bool> = false>
 using device_grouped_gemm_wmma_universal_mk_kn_mn_instances =
     std::tuple<
@@ -110,6 +116,9 @@ template <typename T,
           device::GemmSpecialization GemmSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
           BlockGemmPipelineVersion BlkGemmPipelineVer,
+          typename AElementOp,
+          typename BElementOp,
+          typename CDEElementOp,
           enable_if_t<sizeof(T) == 2, bool> = false>
 using device_grouped_gemm_wmma_universal_mk_nk_mn_instances =
     std::tuple<
@@ -124,17 +133,38 @@ using device_grouped_gemm_wmma_universal_mk_nk_mn_instances =
         // clang-format on
         >;
 
+// List of instance variants to add (pipeline/scheduler/padding combinations)
+// Some are disabled now, can be re-enabled if needed
+using InstanceVariant =
+    ck::Tuple<device::GemmSpecialization, BlockGemmPipelineScheduler, BlockGemmPipelineVersion>;
+static constexpr InstanceVariant InstanceVariants[] = {
+
+    make_tuple(GemmDefault, IntrawaveScheduler, PipelineV1),
+    // make_tuple(GemmDefault, InterwaveScheduler, PipelineV1),
+    make_tuple(GemmDefault, IntrawaveScheduler, PipelineV3),
+
+    make_tuple(GemmMNKPadding, IntrawaveScheduler, PipelineV1),
+    // make_tuple(GemmMNKPadding, InterwaveScheduler, PipelineV1),
+    // make_tuple(GemmMNKPadding, IntrawaveScheduler, PipelineV3),
+};
+
 // Helper function to add a list of layout instances with specific A/B/E datatypes for all supported
 // padding/scheduler/pipeline version combinations
 template <typename ALayout,
           typename BLayout,
           template <device::GemmSpecialization GemmSpec,
                     BlockGemmPipelineScheduler BlkGemmPipeSched,
-                    BlockGemmPipelineVersion BlkGemmPipelineVer>
+                    BlockGemmPipelineVersion BlkGemmPipelineVer,
+                    typename AElementOp,
+                    typename BElementOp,
+                    typename CDEElementOp>
           typename LayoutInstances,
           typename ADataType, // NOTE: type parameters as last so that they can be inferred from the
           typename BDataType, // vector argument
-          typename EDataType>
+          typename EDataType,
+          typename AElementOp,
+          typename BElementOp,
+          typename CDEElementOp>
 void add_device_grouped_gemm_wmma_universal_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<ALayout,
                                                   BLayout,
@@ -148,18 +178,17 @@ void add_device_grouped_gemm_wmma_universal_instances(
                                                   BElementOp,
                                                   CDEElementOp>>>& instances)
 {
-    add_device_operation_instances(instances,
-                                   LayoutInstances<GemmDefault, IntrawaveScheduler, PipelineV1>{});
-    add_device_operation_instances(instances,
-                                   LayoutInstances<GemmDefault, InterwaveScheduler, PipelineV1>{});
-    add_device_operation_instances(instances,
-                                   LayoutInstances<GemmDefault, IntrawaveScheduler, PipelineV3>{});
-    add_device_operation_instances(
-        instances, LayoutInstances<GemmMNKPadding, IntrawaveScheduler, PipelineV1>{});
-    add_device_operation_instances(
-        instances, LayoutInstances<GemmMNKPadding, InterwaveScheduler, PipelineV1>{});
-    add_device_operation_instances(
-        instances, LayoutInstances<GemmMNKPadding, IntrawaveScheduler, PipelineV3>{});
+    // Add all instances from our instance list
+    static_for<0, std::size(InstanceVariants), 1>{}([&](auto i) {
+        constexpr auto instance = InstanceVariants[i];
+        add_device_operation_instances(instances,
+                                       LayoutInstances<instance.At(Number<0>{}),
+                                                       instance.At(Number<1>{}),
+                                                       instance.At(Number<2>{}),
+                                                       AElementOp,
+                                                       BElementOp,
+                                                       CDEElementOp>{});
+    });
 }
 
 // Helper function to add a list of layout instances for instances with matching A/B/E data types
@@ -170,8 +199,14 @@ template <typename T,
           template <typename T2,
                     device::GemmSpecialization GemmSpec,
                     BlockGemmPipelineScheduler BlkGemmPipeSched,
-                    BlockGemmPipelineVersion BlkGemmPipelineVer>
-          typename LayoutInstances>
+                    BlockGemmPipelineVersion BlkGemmPipelineVer,
+                    typename AElementOp,
+                    typename BElementOp,
+                    typename CDEElementOp>
+          typename LayoutInstances,
+          typename AElementOp, // NOTE: element-wise op parameters as last so that they can be
+          typename BElementOp, // inferred from the vector argument
+          typename CDEElementOp>
 void add_device_grouped_gemm_wmma_universal_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<ALayout,
                                                   BLayout,
@@ -185,18 +220,18 @@ void add_device_grouped_gemm_wmma_universal_instances(
                                                   BElementOp,
                                                   CDEElementOp>>>& instances)
 {
-    add_device_operation_instances(
-        instances, LayoutInstances<T, GemmDefault, IntrawaveScheduler, PipelineV1>{});
-    add_device_operation_instances(
-        instances, LayoutInstances<T, GemmDefault, InterwaveScheduler, PipelineV1>{});
-    add_device_operation_instances(
-        instances, LayoutInstances<T, GemmDefault, IntrawaveScheduler, PipelineV3>{});
-    add_device_operation_instances(
-        instances, LayoutInstances<T, GemmMNKPadding, IntrawaveScheduler, PipelineV1>{});
-    add_device_operation_instances(
-        instances, LayoutInstances<T, GemmMNKPadding, InterwaveScheduler, PipelineV1>{});
-    add_device_operation_instances(
-        instances, LayoutInstances<T, GemmMNKPadding, IntrawaveScheduler, PipelineV3>{});
+    // Add all instances from our instance list
+    static_for<0, std::size(InstanceVariants), 1>{}([&](auto i) {
+        constexpr auto instance = InstanceVariants[i];
+        add_device_operation_instances(instances,
+                                       LayoutInstances<T,
+                                                       instance.At(Number<0>{}),
+                                                       instance.At(Number<1>{}),
+                                                       instance.At(Number<2>{}),
+                                                       AElementOp,
+                                                       BElementOp,
+                                                       CDEElementOp>{});
+    });
 }
 
 } // namespace instance
