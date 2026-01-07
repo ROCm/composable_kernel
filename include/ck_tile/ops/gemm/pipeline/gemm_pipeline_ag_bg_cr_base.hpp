@@ -64,8 +64,8 @@ struct GemmPipelineAgBgCrImplBase
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
-    template <typename SrcDataType = void,
-              typename DstDataType = void,
+    template <typename SrcDataType,
+              typename DstDataType,
               index_t UnaryOpSize  = 8,
               typename DstBlockTile,
               typename SrcTileWindow,

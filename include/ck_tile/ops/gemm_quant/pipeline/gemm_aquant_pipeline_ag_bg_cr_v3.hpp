@@ -277,8 +277,8 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             // DRAM prefetch (global read 0)
             LoadAndConvertATile(a_block_tile, a_copy_dram_window);
             move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
-            Base::GlobalPrefetch(
+            Base::template GlobalPrefetch<BDataType, BDataType>(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            Base::template GlobalPrefetch<AQDataType, AQDataType>(
                 aq_block_tile[currIdx], aq_copy_dram_window, aq_dram_tile_window_step);
 
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -309,7 +309,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
             LoadAndConvertATile(a_block_tile, a_copy_dram_window);
             move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            Base::template GlobalPrefetch<BDataType, BDataType>(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
             block_sync_lds();
 
@@ -352,8 +352,8 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
                     LoadAndConvertATile(a_block_tile, a_copy_dram_window);
                     move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-                    Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
-                    Base::GlobalPrefetch(aq_block_tile[(currIdx + 1) % 2],
+                    Base::template GlobalPrefetch<BDataType, BDataType>(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                    Base::template GlobalPrefetch<AQDataType, AQDataType>(aq_block_tile[(currIdx + 1) % 2],
                                          aq_copy_dram_window,
                                          aq_dram_tile_window_step);
 
@@ -379,7 +379,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             }
             else
             {
-                Base::GlobalPrefetch(aq_block_tile[(currIdx + 1) % 2],
+                Base::template GlobalPrefetch<AQDataType, AQDataType>(aq_block_tile[(currIdx + 1) % 2],
                                      aq_copy_dram_window,
                                      aq_dram_tile_window_step);
                 block_gemm(
