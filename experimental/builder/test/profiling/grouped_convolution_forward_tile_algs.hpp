@@ -12,8 +12,6 @@
 
 #include "ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
 
-#include "ck_tile/host.hpp"
-
 namespace ck_tile::builder::profiling {
 
 namespace ckb = ck_tile::builder;

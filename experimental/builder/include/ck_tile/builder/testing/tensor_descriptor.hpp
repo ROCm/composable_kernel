@@ -415,6 +415,15 @@ struct TensorDescriptor
         return TensorDescriptor<DT, 1>(lengths, strides);
     }
 
+    /// @brief Print tensor descriptor details.
+    ///
+    /// Print tensor descriptor details - lengths and strides.
+    friend std::ostream& operator<<(std::ostream& os, const TensorDescriptor<DT, RANK>& tensor_desc)
+    {
+        os << tensor_desc.inner_descriptor_;
+        return os;
+    }
+
     private:
     ck_tile::HostTensorDescriptor inner_descriptor_;
 };
