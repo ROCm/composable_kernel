@@ -24,7 +24,7 @@ enum class DataType
     FP8,
     BF8,
     FP64,
-    INT32,
+    I32,
     I8,
     I8_I8,
     U8
@@ -267,7 +267,7 @@ inline std::string_view to_string(DataType dt)
     case FP8: return "FP8";
     case BF8: return "BF8";
     case FP64: return "FP64";
-    case INT32: return "INT32";
+    case I32: return "I32";
     case I8: return "I8";
     case I8_I8: return "I8_I8";
     case U8: return "U8";

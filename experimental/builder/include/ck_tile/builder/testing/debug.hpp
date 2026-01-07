@@ -293,7 +293,7 @@ struct TensorPrinter
         using CKType        = detail::cpp_type_t<DT>;
         const auto ck_value = *static_cast<const CKType*>(value);
 
-        if constexpr(DT == DataType::INT32 || DT == DataType::I8 || DT == DataType::U8)
+        if constexpr(DT == DataType::I32 || DT == DataType::I8 || DT == DataType::U8)
             ss << ck_value;
         else if constexpr(DT == DataType::FP64 || DT == DataType::FP32)
             ss << std::fixed << std::setprecision(config.float_precision) << ck_value;

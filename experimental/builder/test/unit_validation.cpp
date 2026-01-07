@@ -173,8 +173,8 @@ TEST(ValidationReportTests, MultipleSomeIncorrect)
     }
 
     {
-        auto desc = ckt::make_descriptor<ckb::DataType::INT32, 3>({'G', 'P', 'U'},
-                                                                  ckt::PackedRightLayout{});
+        auto desc =
+            ckt::make_descriptor<ckb::DataType::I32, 3>({'G', 'P', 'U'}, ckt::PackedRightLayout{});
 
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);

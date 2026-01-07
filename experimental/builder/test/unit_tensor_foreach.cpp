@@ -109,8 +109,8 @@ TEST(TensorForeach, VisitsEveryIndex)
 
 TEST(TensorForeach, FillTensorBuffer)
 {
-    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(ckt::Extent{31, 54, 13},
-                                                           ckt::PackedRightLayout{});
+    auto desc =
+        ckt::make_descriptor<ckb::DataType::I32>(ckt::Extent{31, 54, 13}, ckt::PackedRightLayout{});
 
     auto buffer = ckt::alloc_tensor_buffer(desc);
 
@@ -131,7 +131,7 @@ TEST(TensorForeach, FillTensor)
     // FillTensor with non-packed indices should not write out-of-bounds.
     const ckt::Extent shape = {4, 23, 35};
     const ckt::Extent pad   = {12, 53, 100};
-    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(shape, ckt::PackedRightLayout{}(pad));
+    auto desc = ckt::make_descriptor<ckb::DataType::I32>(shape, ckt::PackedRightLayout{}(pad));
     const auto strides = desc.get_strides();
 
     auto size   = desc.get_element_space_size();
@@ -191,7 +191,7 @@ TEST(TensorForeach, ClearTensorZeros)
     const ckt::Extent pad   = {6, 6, 6, 6, 6, 6, 6, 6};
 
     const auto desc =
-        ckt::make_descriptor<ckb::DataType::INT32>(shape, ckt::PackedRightLayout{}(pad));
+        ckt::make_descriptor<ckb::DataType::I32>(shape, ckt::PackedRightLayout{}(pad));
 
     auto buffer = ckt::alloc_tensor_buffer(desc);
     ckt::clear_tensor_buffer(desc, buffer.get());

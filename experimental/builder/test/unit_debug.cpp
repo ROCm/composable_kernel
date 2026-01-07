@@ -20,8 +20,8 @@ using ::testing::Gt;
 
 TEST(Debug, PrintDescriptor)
 {
-    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(ckt::Extent{10, 11, 12},
-                                                           ckt::PackedRightLayout{});
+    auto desc =
+        ckt::make_descriptor<ckb::DataType::I32>(ckt::Extent{10, 11, 12}, ckt::PackedRightLayout{});
 
     std::stringstream ss;
     ckt::print_descriptor("test", desc, ss);
@@ -29,7 +29,7 @@ TEST(Debug, PrintDescriptor)
     EXPECT_THAT(ss.str(),
                 StringEqWithDiff( //
                     "Descriptor \"test\":\n"
-                    "  data type: INT32\n"
+                    "  data type: I32\n"
                     "  size:      1'320 elements\n"
                     "  space:     1'320 elements (5'280 bytes)\n"
                     "  lengths:   [10, 11, 12]\n"
@@ -92,7 +92,7 @@ TEST(Debug, LimitedForeach)
 
 TEST(Debug, PrintTensor0D)
 {
-    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(ckt::Extent{}, ckt::PackedRightLayout{});
+    auto desc = ckt::make_descriptor<ckb::DataType::I32>(ckt::Extent{}, ckt::PackedRightLayout{});
 
     auto a = ckt::alloc_tensor_buffer(desc);
     ckt::fill_tensor_buffer(desc, a.get(), []([[maybe_unused]] size_t i) { return 123; });
@@ -108,8 +108,7 @@ TEST(Debug, PrintTensor0D)
 
 TEST(Debug, PrintTensor1D)
 {
-    auto desc =
-        ckt::make_descriptor<ckb::DataType::INT32>(ckt::Extent{44}, ckt::PackedRightLayout{});
+    auto desc = ckt::make_descriptor<ckb::DataType::I32>(ckt::Extent{44}, ckt::PackedRightLayout{});
 
     auto a = ckt::alloc_tensor_buffer(desc);
     ckt::fill_tensor_buffer(desc, a.get(), [](size_t i) { return i % 7; });
@@ -127,8 +126,8 @@ TEST(Debug, PrintTensor1D)
 
 TEST(Debug, PrintTensor4D)
 {
-    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(ckt::Extent{100, 110, 120, 130},
-                                                           ckt::PackedRightLayout{});
+    auto desc = ckt::make_descriptor<ckb::DataType::I32>(ckt::Extent{100, 110, 120, 130},
+                                                         ckt::PackedRightLayout{});
 
     auto a = ckt::alloc_tensor_buffer(desc);
     ckt::fill_tensor_buffer(desc, a.get(), [](size_t i) { return i; });
@@ -183,8 +182,8 @@ TEST(Debug, PrintTensor4D)
 
 TEST(Debug, PrintTensorCustomConfig)
 {
-    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(ckt::Extent{10, 10, 10},
-                                                           ckt::PackedRightLayout{});
+    auto desc =
+        ckt::make_descriptor<ckb::DataType::I32>(ckt::Extent{10, 10, 10}, ckt::PackedRightLayout{});
 
     auto a = ckt::alloc_tensor_buffer(desc);
     ckt::fill_tensor_buffer(desc, a.get(), [](size_t i) { return i * 101 % 77; });
@@ -257,7 +256,7 @@ TEST(Debug, PrintTensorUnlimitedMatrix)
     ASSERT_THAT(shape[1], Gt(default_config.col_limit));
     ASSERT_THAT(shape[2], Gt(default_config.row_limit));
 
-    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(shape, ckt::PackedRightLayout{});
+    auto desc = ckt::make_descriptor<ckb::DataType::I32>(shape, ckt::PackedRightLayout{});
 
     auto a = ckt::alloc_tensor_buffer(desc);
     ckt::fill_tensor_buffer(desc, a.get(), [](size_t i) { return i ^ 0xF; });
@@ -294,7 +293,7 @@ TEST(Debug, PrintTensorUnlimitedSlices)
     // any sense.
     ASSERT_THAT(shape[0], Gt(default_config.slice_limit));
 
-    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(shape, ckt::PackedRightLayout{});
+    auto desc = ckt::make_descriptor<ckb::DataType::I32>(shape, ckt::PackedRightLayout{});
 
     auto a = ckt::alloc_tensor_buffer(desc);
     ckt::fill_tensor_buffer(desc, a.get(), [](size_t i) { return i * 3; });

@@ -78,7 +78,7 @@ TEST(TensorDescriptor, MakeDescriptor)
 
         // Note: automatic inference of RANK.
         const auto desc =
-            ckt::make_descriptor<ckb::DataType::INT32>(lengths, ckt::PackedRightLayout{});
+            ckt::make_descriptor<ckb::DataType::I32>(lengths, ckt::PackedRightLayout{});
 
         EXPECT_THAT(desc.get_lengths(), ElementsAreArray(lengths));
         EXPECT_THAT(desc.get_strides(),
@@ -175,7 +175,7 @@ TEST(TensorDescriptor, ExtentFromVector)
 
 TEST(TensorDescriptor, IsPacked)
 {
-    constexpr auto dt = ckb::DataType::INT32; // Irrelevant for this test
+    constexpr auto dt = ckb::DataType::I32; // Irrelevant for this test
     EXPECT_TRUE(
         ckt::make_descriptor<dt>(ckt::Extent{101, 43, 25, 662, 654}, ckt::PackedLeftLayout{})
             .is_packed());
