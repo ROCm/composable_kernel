@@ -66,7 +66,7 @@ __device__ void DispatchBatchedGemmSplitKHack(const FloatA* p_a_grid,
 {
     if(split_k_offset_hack)
     {
-        GridwiseGemm::template Run<HasMainKBlockLoop, true, true>(
+        GridwiseGemm::template Run<HasMainKBlockLoop, true>(
             p_a_grid,
             p_b_grid,
             p_c_grid,
@@ -84,7 +84,7 @@ __device__ void DispatchBatchedGemmSplitKHack(const FloatA* p_a_grid,
     }
     else
     {
-        GridwiseGemm::template Run<HasMainKBlockLoop, false, false>(
+        GridwiseGemm::template Run<HasMainKBlockLoop, false>(
             p_a_grid,
             p_b_grid,
             p_c_grid,

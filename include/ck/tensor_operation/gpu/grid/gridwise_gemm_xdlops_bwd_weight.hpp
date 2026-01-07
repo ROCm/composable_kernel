@@ -151,8 +151,7 @@ template <typename GridwiseGemm,
           typename CElementwiseOperation,
           typename CBlockClusterAdaptor,
           bool HasMainKBlockLoop,
-          bool SplitKOffsetAHack,
-          bool SplitKOffsetBHack>
+          bool SplitKOffsetHack>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -178,7 +177,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-        GridwiseGemm::template Run<HasMainKBlockLoop, SplitKOffsetAHack, SplitKOffsetBHack>(
+        GridwiseGemm::template Run<HasMainKBlockLoop, SplitKOffsetHack>(
             p_a_grid,
             p_b_grid,
             p_c_grid,
@@ -659,9 +658,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         decltype(MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CMNGridDesc{}));
     using CBlockClusterAdaptor = decltype(MakeCBlockClusterAdaptor(CMNGridDesc{}, 1, 1, 1));
 
-    template <bool HasMainKBlockLoop,
-              bool SplitKOffsetAHack = false,
-              bool SplitKOffsetBHack = false>
+    template <bool HasMainKBlockLoop, bool SplitKOffsetHack = false>
     __device__ static void Run(const FloatA* __restrict__ p_a_grid,
                                const FloatB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
@@ -687,18 +684,18 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         const index_t k_batch_id = block_work_idx[I0];
 
         // Use compile-time branching based on template parameters
-        const long_index_t split_k_offset_a = SplitKOffsetAHack ? k_batch_id * split_k_stride_a : 0;
-        const long_index_t split_k_offset_b = SplitKOffsetBHack ? k_batch_id * split_k_stride_b : 0;
+        const long_index_t split_k_offset_a = SplitKOffsetHack ? k_batch_id * split_k_stride_a : 0;
+        const long_index_t split_k_offset_b = SplitKOffsetHack ? k_batch_id * split_k_stride_b : 0;
 
         // When hack is enabled, buffer size equals the stride (calculated from descriptor's
         // CalculateOffset method in the device layer). This properly accounts for the
         // descriptor's transform pipeline and non-compact strides.
         // When hack is disabled, use the full element space size.
         const long_index_t a_buffer_size =
-            SplitKOffsetAHack ? split_k_stride_a : a_b_k0_m_k1_grid_desc.GetElementSpaceSize();
+            SplitKOffsetHack ? split_k_stride_a : a_b_k0_m_k1_grid_desc.GetElementSpaceSize();
 
         const long_index_t b_buffer_size =
-            SplitKOffsetBHack ? split_k_stride_b : b_b_k0_n_k1_grid_desc.GetElementSpaceSize();
+            SplitKOffsetHack ? split_k_stride_b : b_b_k0_n_k1_grid_desc.GetElementSpaceSize();
 
         ignore = k_batch; // k_batch value itself not used in this function
 
@@ -759,8 +756,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
                                                 AThreadTransferSrcResetCoordinateAfterRun,
                                                 true>(
                 a_b_k0_m_k1_grid_desc,
-                make_multi_index(
-                    SplitKOffsetAHack ? 0 : k_batch_id, 0, m_block_data_idx_on_grid, 0),
+                make_multi_index(SplitKOffsetHack ? 0 : k_batch_id, 0, m_block_data_idx_on_grid, 0),
                 a_element_op,
                 a_b_k0_m_k1_block_desc,
                 make_multi_index(0, 0, 0, 0),
@@ -790,8 +786,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
                                                 BThreadTransferSrcResetCoordinateAfterRun,
                                                 true>(
                 b_b_k0_n_k1_grid_desc,
-                make_multi_index(
-                    SplitKOffsetBHack ? 0 : k_batch_id, 0, n_block_data_idx_on_grid, 0),
+                make_multi_index(SplitKOffsetHack ? 0 : k_batch_id, 0, n_block_data_idx_on_grid, 0),
                 b_element_op,
                 b_b_k0_n_k1_block_desc,
                 make_multi_index(0, 0, 0, 0),
