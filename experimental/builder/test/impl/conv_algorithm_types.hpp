@@ -479,4 +479,13 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileTh
                                                                           TileConvSpecialization_,
                                                                           TileOptimizations_>;
 
+// Reference algorithm descriptor - for GPU reference validation
+// This is a simple algorithm that requires no complex configuration,
+// just a specialization marker to identify it as a reference implementation.
+struct ConvAlgorithm_Reference
+{
+    static constexpr auto specialization = ckb::ConvAlgorithmSpecialization::REFERENCE;
+    // GPU reference uses simple algorithm, no tile configuration needed
+};
+
 } // namespace ck_tile::builder::test

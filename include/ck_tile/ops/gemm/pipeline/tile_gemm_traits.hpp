@@ -53,11 +53,11 @@ struct TileGemmUniversalTraits
     static constexpr int _VectorSize       = VectorSize_;
     static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
 
-    using AsLayout = AsLayout_;
-    using BsLayout = BsLayout_;
-    using CLayout  = CLayout_;
+    using AsLayout                   = AsLayout_;
+    using BsLayout                   = BsLayout_;
+    using CLayout                    = CLayout_;
+    static constexpr bool TransposeC = TransposeC_;
 
-    static constexpr bool TransposeC            = TransposeC_;
     static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
     static constexpr index_t NumWaveGroups      = NumWaveGroups_;
