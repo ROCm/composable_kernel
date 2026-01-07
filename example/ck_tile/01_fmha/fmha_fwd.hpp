@@ -284,8 +284,8 @@ struct fmha_fwd_args
     std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
         drop_seed_offset;
 
-    ck_tile::index_t block_scale_m;
-    ck_tile::index_t block_scale_n;
+    ck_tile::index_t block_scale_size_q;
+    ck_tile::index_t block_scale_size_kv;
 };
 
 struct fmha_fwd_pagedkv_args
@@ -653,8 +653,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.p_drop,
                                              args.s_randval,
                                              args.drop_seed_offset,
-                                             args.block_scale_m,
-                                             args.block_scale_n,
+                                             args.block_scale_size_q,
+                                             args.block_scale_size_kv,
                                              args.cu_seqlen_q_ptr,
                                              args.cu_seqlen_k_ptr);
         }
@@ -711,8 +711,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.p_drop,
                                              args.s_randval,
                                              args.drop_seed_offset,
-                                             args.block_scale_m,
-                                             args.block_scale_n,
+                                             args.block_scale_size_q,
+                                             args.block_scale_size_kv,
                                              args.cu_seqlen_q_ptr,
                                              args.cu_seqlen_k_ptr);
         }

@@ -173,8 +173,8 @@ struct FmhaFwdKernel
         ck_tile::index_t nhead_stride_k_descale;
         ck_tile::index_t nhead_stride_v_descale;
 
-        ck_tile::index_t block_scale_m;
-        ck_tile::index_t block_scale_n;
+        ck_tile::index_t block_scale_size_q;
+        ck_tile::index_t block_scale_size_kv;
     };
 
     struct FmhaFwdBatchBlockScaleKargs : public FmhaFwdCommonBlockScaleKargs
@@ -377,8 +377,8 @@ struct FmhaFwdKernel
                   bool s_randval,
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                       drop_seed_offset,
-                  ck_tile::index_t block_scale_m,
-                  ck_tile::index_t block_scale_n,
+                  ck_tile::index_t block_scale_size_q,
+                  ck_tile::index_t block_scale_size_kv,
                   const void* cu_seqlen_q_ptr = nullptr,
                   const void* cu_seqlen_k_ptr = nullptr)
     {
@@ -461,8 +461,8 @@ struct FmhaFwdKernel
             kargs.batch_stride_k_descale = batch_stride_k_descale;
             kargs.batch_stride_v_descale = batch_stride_v_descale;
 
-            kargs.block_scale_m = block_scale_m;
-            kargs.block_scale_n = block_scale_n;
+            kargs.block_scale_size_q  = block_scale_size_q;
+            kargs.block_scale_size_kv = block_scale_size_kv;
         }
         if constexpr(kHasDropout)
         {
@@ -549,8 +549,8 @@ struct FmhaFwdKernel
               float p_drop,
               bool s_randval,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset,
-              ck_tile::index_t block_scale_m,
-              ck_tile::index_t block_scale_n,
+              ck_tile::index_t block_scale_size_q,
+              ck_tile::index_t block_scale_size_kv,
               const void* cu_seqlen_q_ptr = nullptr,
               const void* cu_seqlen_k_ptr = nullptr)
     {
@@ -606,8 +606,8 @@ struct FmhaFwdKernel
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
-            block_scale_m,
-            block_scale_n,
+            block_scale_size_q,
+            block_scale_size_kv,
             cu_seqlen_q_ptr,
             cu_seqlen_k_ptr);
     }
@@ -666,8 +666,8 @@ struct FmhaFwdKernel
               float p_drop,
               bool s_randval,
               const std::tuple<const void*, const void*>& drop_seed_offset,
-              ck_tile::index_t block_scale_m,
-              ck_tile::index_t block_scale_n,
+              ck_tile::index_t block_scale_size_q,
+              ck_tile::index_t block_scale_size_kv,
               const void* cu_seqlen_q_ptr = nullptr,
               const void* cu_seqlen_k_ptr = nullptr)
     {
@@ -723,8 +723,8 @@ struct FmhaFwdKernel
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
-            block_scale_m,
-            block_scale_n,
+            block_scale_size_q,
+            block_scale_size_kv,
             cu_seqlen_q_ptr,
             cu_seqlen_k_ptr);
     }
@@ -778,8 +778,8 @@ struct FmhaFwdKernel
                   bool s_randval,
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                       drop_seed_offset,
-                  ck_tile::index_t block_scale_m,
-                  ck_tile::index_t block_scale_n,
+                  ck_tile::index_t block_scale_size_q,
+                  ck_tile::index_t block_scale_size_kv,
                   const void* cu_seqlen_q_ptr = nullptr,
                   const void* cu_seqlen_k_ptr = nullptr)
     {
@@ -857,8 +857,8 @@ struct FmhaFwdKernel
             kargs.nhead_stride_k_descale = nhead_stride_k_descale;
             kargs.nhead_stride_v_descale = nhead_stride_v_descale;
 
-            kargs.block_scale_m = block_scale_m;
-            kargs.block_scale_n = block_scale_n;
+            kargs.block_scale_size_q  = block_scale_size_q;
+            kargs.block_scale_size_kv = block_scale_size_kv;
 
             kargs.bseqstart_q_ptr = reinterpret_cast<const int32_t*>(bseqstart_q_ptr);
             kargs.bseqstart_k_ptr = reinterpret_cast<const int32_t*>(bseqstart_k_ptr);
@@ -946,8 +946,8 @@ struct FmhaFwdKernel
               float p_drop,
               bool s_randval,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset,
-              ck_tile::index_t block_scale_m,
-              ck_tile::index_t block_scale_n,
+              ck_tile::index_t block_scale_size_q,
+              ck_tile::index_t block_scale_size_kv,
               const void* cu_seqlen_q_ptr = nullptr,
               const void* cu_seqlen_k_ptr = nullptr)
     {
@@ -998,8 +998,8 @@ struct FmhaFwdKernel
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
-            block_scale_m,
-            block_scale_n,
+            block_scale_size_q,
+            block_scale_size_kv,
             cu_seqlen_q_ptr,
             cu_seqlen_k_ptr);
     }
@@ -1053,8 +1053,8 @@ struct FmhaFwdKernel
               float p_drop,
               bool s_randval,
               const std::tuple<const void*, const void*>& drop_seed_offset,
-              ck_tile::index_t block_scale_m,
-              ck_tile::index_t block_scale_n,
+              ck_tile::index_t block_scale_size_q,
+              ck_tile::index_t block_scale_size_kv,
               const void* cu_seqlen_q_ptr = nullptr,
               const void* cu_seqlen_k_ptr = nullptr)
     {
@@ -1105,8 +1105,8 @@ struct FmhaFwdKernel
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
-            block_scale_m,
-            block_scale_n,
+            block_scale_size_q,
+            block_scale_size_kv,
             cu_seqlen_q_ptr,
             cu_seqlen_k_ptr);
     }
@@ -1743,7 +1743,7 @@ struct FmhaFwdKernel
                             kargs.nhead_stride_v_descale +
                         batch_offset_v_descale;
 
-                    size_t idx      = i_m0 / kargs.block_scale_m;
+                    size_t idx      = i_m0 / kargs.block_scale_size_q;
                     float q_descale = q_descale_ptr[idx];
                     // BLOCKSCALE: P is scaled in exp2(x+shift) where shift=7 or 8
                     // Both P and rowsum are scaled by 2^shift, canceling in normalization
@@ -1774,7 +1774,7 @@ struct FmhaFwdKernel
                         dropout,
                         k_descale_ptr,
                         v_descale_ptr,
-                        kargs.block_scale_n);
+                        kargs.block_scale_size_kv);
                 }
                 else
                 {

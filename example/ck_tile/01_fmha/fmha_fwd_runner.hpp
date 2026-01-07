@@ -187,8 +187,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         const ck_tile::stream_config& stream_config,
                         std::optional<std::string> json = std::nullopt)
 {
-    constexpr ck_tile::index_t block_scale_m_ = 128;
-    constexpr ck_tile::index_t block_scale_n_ = 128;
+    constexpr ck_tile::index_t block_scale_size_q_  = 128;
+    constexpr ck_tile::index_t block_scale_size_kv_ = 128;
 
     const std::string data_type = []() {
         if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp32>)
@@ -451,8 +451,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
     std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
-    size_t num_block_scale_q              = 0;
-    size_t num_block_scale_k              = 0;
+    size_t i_block_scale_q                = 0;
+    size_t i_block_scale_k                = 0;
     std::vector<int32_t> bseqstart_q_host = {0};
     std::vector<int32_t> bseqstart_k_host = {0};
     auto max_seqlen_k                     = std::numeric_limits<int32_t>::min();
@@ -471,10 +471,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
             {
                 max_seqlen_k = real_seqlen_k;
             }
-            num_block_scale_q += ck_tile::integer_divide_ceil(real_seqlen_q, block_scale_m_);
-            num_block_scale_k += ck_tile::integer_divide_ceil(real_seqlen_k, block_scale_n_);
-            bseqstart_q_host.push_back(num_block_scale_q);
-            bseqstart_k_host.push_back(num_block_scale_k);
+            i_block_scale_q += ck_tile::integer_divide_ceil(real_seqlen_q, block_scale_size_q_);
+            i_block_scale_k += ck_tile::integer_divide_ceil(real_seqlen_k, block_scale_size_kv_);
+            bseqstart_q_host.push_back(i_block_scale_q);
+            bseqstart_k_host.push_back(i_block_scale_k);
 
             flop += nhead * (static_cast<std::size_t>(2) * mask.get_unmaskarea() * hdim_q +
                              static_cast<std::size_t>(2) * mask.get_unmaskarea() * hdim_v);
@@ -536,12 +536,14 @@ fwd_result fmha_fwd_run(mode_enum mode,
                                          ? seqstart_k_with_padding_host.back()
                                          : seqstart_k_host.back()));
 
-    const ck_tile::index_t num_block_scale_m =
-        (mode == mode_enum::batch) ? ck_tile::integer_divide_ceil(shape_seqlen_q, block_scale_m_)
-                                   : num_block_scale_q;
-    const ck_tile::index_t num_block_scale_n =
-        (mode == mode_enum::batch) ? ck_tile::integer_divide_ceil(shape_seqlen_k, block_scale_n_)
-                                   : num_block_scale_k;
+    const ck_tile::index_t num_block_scale_q =
+        (mode == mode_enum::batch)
+            ? ck_tile::integer_divide_ceil(shape_seqlen_q, block_scale_size_q_)
+            : i_block_scale_q;
+    const ck_tile::index_t num_block_scale_kv =
+        (mode == mode_enum::batch)
+            ? ck_tile::integer_divide_ceil(shape_seqlen_k, block_scale_size_kv_)
+            : i_block_scale_k;
 
     ck_tile::HostTensor<QDataType> q_host(
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
@@ -595,15 +597,15 @@ fwd_result fmha_fwd_run(mode_enum mode,
     // TODO - change the tensor length for different quant scale
     ck_tile::HostTensor<float> q_descale_host(
         qscale.type == quant_scale_enum::blockscale
-            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, num_block_scale_m}
+            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, num_block_scale_q}
             : std::array<ck_tile::index_t, 3>{1, 1, 1});
     ck_tile::HostTensor<float> k_descale_host(
         qscale.type == quant_scale_enum::blockscale
-            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead_k, num_block_scale_n}
+            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead_k, num_block_scale_kv}
             : std::array<ck_tile::index_t, 3>{1, 1, 1});
     ck_tile::HostTensor<float> v_descale_host(
         qscale.type == quant_scale_enum::blockscale
-            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead_k, num_block_scale_n}
+            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead_k, num_block_scale_kv}
             : std::array<ck_tile::index_t, 3>{1, 1, 1});
 
     // batch mode of lse data layout is [batch, nhead, seqlen_q]
@@ -985,9 +987,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
         const ck_tile::index_t nhead_stride_lse_acc   = (num_splits * shape_seqlen_q);
         const ck_tile::index_t nhead_stride_o_acc     = (num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o         = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
-        const ck_tile::index_t nhead_stride_q_descale = num_block_scale_m;
-        const ck_tile::index_t nhead_stride_k_descale = num_block_scale_n;
-        const ck_tile::index_t nhead_stride_v_descale = num_block_scale_n;
+        const ck_tile::index_t nhead_stride_q_descale = num_block_scale_q;
+        const ck_tile::index_t nhead_stride_k_descale = num_block_scale_kv;
+        const ck_tile::index_t nhead_stride_v_descale = num_block_scale_kv;
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
         const ck_tile::index_t batch_stride_k =
@@ -1005,9 +1007,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
         const ck_tile::index_t batch_stride_o_acc = (nhead * num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o     = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
-        const ck_tile::index_t batch_stride_q_descale   = num_block_scale_m * nhead;
-        const ck_tile::index_t batch_stride_k_descale   = num_block_scale_n * nhead_k;
-        const ck_tile::index_t batch_stride_v_descale   = num_block_scale_n * nhead_k;
+        const ck_tile::index_t batch_stride_q_descale   = num_block_scale_q * nhead;
+        const ck_tile::index_t batch_stride_k_descale   = num_block_scale_kv * nhead_k;
+        const ck_tile::index_t batch_stride_v_descale   = num_block_scale_kv * nhead_k;
         // setup split_stride_* arguments (only used in split-kv kernel)
         const ck_tile::index_t split_stride_lse_acc = (shape_seqlen_q);
         const ck_tile::index_t split_stride_o_acc   = (shape_seqlen_q * hdim_v);
@@ -1114,8 +1116,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                     args.batch_stride_k_descale = batch_stride_k_descale;
                     args.batch_stride_v_descale = batch_stride_v_descale;
 
-                    args.block_scale_m = block_scale_m_;
-                    args.block_scale_n = block_scale_n_;
+                    args.block_scale_size_q  = block_scale_size_q_;
+                    args.block_scale_size_kv = block_scale_size_kv_;
                 }
                 else
                 {
@@ -1644,10 +1646,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         return value * scale_s *
                                q_descale_host(b_idx,
                                               std::get<0>(idx),
-                                              q_offset + std::get<1>(idx) / block_scale_m_) *
+                                              q_offset + std::get<1>(idx) / block_scale_size_q_) *
                                k_descale_host(b_idx,
                                               std::get<0>(idx) / nr,
-                                              k_offset + std::get<2>(idx) / block_scale_n_);
+                                              k_offset + std::get<2>(idx) / block_scale_size_kv_);
                     });
             }
             else
@@ -1834,7 +1836,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                             return ck_tile::type_convert<float>(value) *
                                    v_descale_host(b_idx,
                                                   std::get<0>(idx) / nr,
-                                                  v_offset + std::get<2>(idx) / block_scale_n_);
+                                                  v_offset +
+                                                      std::get<2>(idx) / block_scale_size_kv_);
                         },
                         ck_tile::idx_identity{});
             }

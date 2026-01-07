@@ -192,7 +192,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                DropoutType& dropout,
                const float* k_descale_ptr,
                const float* v_descale_ptr,
-               index_t block_scale_n) const
+               index_t block_scale_size_kv) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -388,7 +388,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 const auto k_origin = k_dram_block_window.get_window_origin();
                 const auto row      = k_origin.at(number<0>{});
-                const index_t idx   = row / block_scale_n;
+                const index_t idx   = row / block_scale_size_kv;
                 k_descale           = k_descale_ptr[idx];
             }
             // STAGE 1, QK gemm
@@ -759,7 +759,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 const auto v_origin = v_dram_window.get_window_origin();
                 const auto col      = v_origin.at(number<1>{});
-                const index_t idx   = col / block_scale_n;
+                const index_t idx   = col / block_scale_size_kv;
                 v_descale           = v_descale_ptr[idx];
             }
             // STAGE 3, KV gemm
