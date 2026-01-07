@@ -40,8 +40,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
     // BDataType gets converted from PkInt4 during loading
     using OverrideBDataType =
-        std::conditional_t<std::is_same_v<BDataType, pk_int4_t> &&
-                               std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>,
+        std::conditional_t<std::is_same_v<BDataType, pk_int4_t>,
                            ADataType,
                            BDataType>;
 
