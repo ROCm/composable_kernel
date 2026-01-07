@@ -104,6 +104,35 @@ TYPED_TEST(TestBatchedContraction, BaseCase)
     this->params = std::vector<typename TestFixture::GemmParams>{
         // Gs, Ms, Ns, Ks
         {{1}, {4, 128}, {4, 16, 32}, {256}},
+        {{4}, {4, 128}, {4, 16, 32}, {256}},
+    };
+    this->Run();
+}
+TYPED_TEST(TestBatchedContraction, PadM)
+{
+    this->params = std::vector<typename TestFixture::GemmParams>{
+        // Gs, Ms, Ns, Ks
+        {{1}, {1, 130}, {2, 4, 32}, {256}},
+    };
+    this->Run();
+}
+
+// Disabled:  Currently fails on the XDL instances
+TYPED_TEST(TestBatchedContraction, DISABLED_PadN)
+{
+    this->params = std::vector<typename TestFixture::GemmParams>{
+        // Gs, Ms, Ns, Ks
+        {{1}, {1, 128}, {1, 1, 66}, {256}},
+    };
+    this->Run();
+}
+
+// Disabled: Currently fails on the WMMA and XDL instances
+TYPED_TEST(TestBatchedContraction, DISABLED_PadK)
+{
+    this->params = std::vector<typename TestFixture::GemmParams>{
+        // Gs, Ms, Ns, Ks
+        {{1}, {1, 128}, {1, 1, 64}, {258}},
     };
     this->Run();
 }
