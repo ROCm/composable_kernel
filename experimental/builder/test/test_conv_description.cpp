@@ -161,7 +161,7 @@ struct DefaultAlgorithm
 
     ckb::ConvSpecialization fwd_specialization  = ckb::ConvSpecialization::DEFAULT;
     ckb::GemmSpecialization gemm_specialization = ckb::GemmSpecialization::Default;
-    ckb::test::BlockGemm block_gemm{.pipeline_version = ckb::PipelineVersion::V4,
+    ckb::test::BlockGemmPipeline block_gemm_pipeline{.pipeline_version = ckb::PipelineVersion::V4,
                                     .scheduler        = ckb::PipelineScheduler::INTRAWAVE};
 };
 static_assert(ckb::ConvAlgorithmDescriptor<DefaultAlgorithm>);
