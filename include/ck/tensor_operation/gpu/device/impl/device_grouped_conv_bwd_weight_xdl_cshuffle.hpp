@@ -688,7 +688,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                         input_left_pads,
                         input_right_pads,
                         k_batch_,
-                        false,  // split_k_offset_a_hack (temporary)
                         false); // split_k_offset_b_hack (temporary)
 
             split_k_offset_hack_ =
@@ -718,7 +717,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                         input_left_pads,
                         input_right_pads,
                         k_batch_,
-                        split_k_offset_hack_,
                         split_k_offset_hack_);
 
             a_grid_desc_kbatch_k0_m_k1_ = descs[I0];

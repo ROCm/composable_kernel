@@ -732,7 +732,6 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         input_right_pads,
                         k_batch_,
                         false, // hack=false for initial check
-                        false, // hack=false for initial check
                         true); // use_full_batch_kindex
 
             ce_elementwise_grid_desc_m_n_ =
@@ -780,7 +779,6 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         input_left_pads,
                         input_right_pads,
                         k_batch_,
-                        split_k_offset_hack_, // Use determined hack flag
                         split_k_offset_hack_, // Use determined hack flag
                         true);                // use_full_batch_kindex
 

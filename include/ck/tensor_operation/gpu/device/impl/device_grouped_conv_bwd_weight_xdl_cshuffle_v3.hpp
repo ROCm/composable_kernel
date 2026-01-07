@@ -601,7 +601,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                         input_left_pads,
                         input_right_pads,
                         k_batch_,
-                        false, // split_k_offset_a_hack (temporary)
                         false, // split_k_offset_b_hack (temporary)
                         true); // use_full_batch_kindex=true for V1-compatible descriptors
 
@@ -632,7 +631,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                         input_left_pads,
                         input_right_pads,
                         k_batch_,
-                        split_k_offset_hack_,
                         split_k_offset_hack_,
                         true); // use_full_batch_kindex=true for V1-compatible descriptors
 

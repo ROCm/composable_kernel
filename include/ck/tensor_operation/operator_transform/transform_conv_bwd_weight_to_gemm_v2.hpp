@@ -326,7 +326,6 @@ struct TransformConvBwdWeightToGemmV2
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const index_t batch_k,
         const bool split_k_offset_hack   = false,
-        const bool                       = false, // Deprecated parameter for backward compatibility
         const bool use_full_batch_kindex = false)
     {
         using namespace ck;
@@ -503,7 +502,6 @@ struct TransformConvBwdWeightToGemmV2
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const index_t batch_k,
         const bool split_k_offset_hack   = false,
-        const bool                       = false, // Deprecated parameter for backward compatibility
         const bool use_full_batch_kindex = false)
     {
         using namespace ck;
@@ -695,7 +693,6 @@ struct TransformConvBwdWeightToGemmV2
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const index_t batch_k,
         const bool split_k_offset_hack   = false,
-        const bool                       = false, // Deprecated parameter for backward compatibility
         const bool use_full_batch_kindex = false)
     {
         using namespace ck;
