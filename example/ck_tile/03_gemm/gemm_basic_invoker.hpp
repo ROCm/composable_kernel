@@ -16,7 +16,8 @@ struct BasicInvoker
               typename DsLayout,
               typename CLayout,
               bool Persistent,
-              typename CDEElementWise>
+              typename CDEElementWise,
+              typename ComputeDataType = ADataType>
     static float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         if constexpr(Persistent)
@@ -24,11 +25,11 @@ struct BasicInvoker
             std::cout << "WARNING: Ignoring persistent kernel option for basic gemm." << std::endl;
         }
 
-        constexpr bool is_fp32 = std::is_same_v<ADataType, float>;
+        constexpr bool is_fp32_input = std::is_same_v<ADataType, float>;
 
         // This part comes from the Codegen
-        constexpr ck_tile::index_t M_Tile = is_fp32 ? 128 : 256;
-        constexpr ck_tile::index_t N_Tile = is_fp32 ? 128 : 256;
+        constexpr ck_tile::index_t M_Tile = is_fp32_input ? 128 : 256;
+        constexpr ck_tile::index_t N_Tile = is_fp32_input ? 128 : 256;
         constexpr ck_tile::index_t K_Tile = 64;
 
 #if CK_TILE_USE_WMMA
@@ -40,12 +41,12 @@ struct BasicInvoker
         constexpr ck_tile::index_t N_Warp_Tile = 16;
         constexpr ck_tile::index_t K_Warp_Tile = 16;
 #else
-        constexpr ck_tile::index_t M_Warp = is_fp32 ? 4 : 2;
-        constexpr ck_tile::index_t N_Warp = is_fp32 ? 4 : 2;
+        constexpr ck_tile::index_t M_Warp = is_fp32_input ? 4 : 2;
+        constexpr ck_tile::index_t N_Warp = is_fp32_input ? 4 : 2;
         constexpr ck_tile::index_t K_Warp = 1;
 
-        constexpr ck_tile::index_t M_Warp_Tile = is_fp32 ? 16 : 32;
-        constexpr ck_tile::index_t N_Warp_Tile = is_fp32 ? 16 : 32;
+        constexpr ck_tile::index_t M_Warp_Tile = is_fp32_input ? 16 : 32;
+        constexpr ck_tile::index_t N_Warp_Tile = is_fp32_input ? 16 : 32;
         constexpr ck_tile::index_t K_Warp_Tile = 16;
 #endif
 
@@ -63,11 +64,15 @@ struct BasicInvoker
                                                           BLayout,
                                                           CLayout>;
 
-        using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
-                                                                    BDataType,
-                                                                    AccDataType,
-                                                                    CodegenGemmShape,
-                                                                    CodegenGemmTraits>;
+        using CodegenPipelineProblem =
+            ck_tile::GemmPipelineProblem<ADataType,
+                                         BDataType,
+                                         AccDataType,
+                                         CodegenGemmShape,
+                                         CodegenGemmTraits,
+                                         ck_tile::element_wise::PassThrough,
+                                         ck_tile::element_wise::PassThrough,
+                                         ComputeDataType>;
 
         using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 

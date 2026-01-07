@@ -30,6 +30,26 @@ using WarpGemmMfmaF32F32F32M16N16K16TransposedCDistribution =
         4,
         AttrNumAccess>>;
 
+// tf32
+
+using WarpGemmMfmaTf32Tf32F32M16N16K8 = WarpGemmImpl<
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImplF32F32F32M16N16K8Tf32<WGAttrCtlEnum::Default_>>>;
+
+using WarpGemmMfmaTf32Tf32F32M32N32K4 = WarpGemmImpl<
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImplF32F32F32M32N32K4Tf32<WGAttrCtlEnum::Default_>>>;
+
+template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaTf32Tf32F32M16N16K16 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
+    WarpGemmAttributeMfmaImplF32F32F32M16N16K8Tf32<WGAttrCtlEnum::Default_>,
+    2,
+    AttrNumAccess>>;
+
+template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaTf32Tf32F32M32N32K16 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
+    WarpGemmAttributeMfmaImplF32F32F32M32N32K4Tf32<WGAttrCtlEnum::Default_>,
+    4,
+    AttrNumAccess>>;
+
 // fp16
 
 using WarpGemmMfmaF16F16F32M32N32K8 = WarpGemmImpl<

@@ -57,6 +57,33 @@ CK_TILE_TYPE_CONVERT(float, float, bf16_t, bf16)
 CK_TILE_TYPE_CONVERT(float, float, fp8_t, fp8)
 CK_TILE_TYPE_CONVERT(float, float, bf8_t, bf8)
 
+enum class tf32_rounding_mode
+{
+    truncate = 0,
+    standard = 1, // RTNE
+};
+
+template <tf32_rounding_mode rounding = tf32_rounding_mode::truncate>
+CK_TILE_HOST_DEVICE constexpr float float_to_tf32(float x)
+{
+    uint32_t i = bit_cast<uint32_t>(x);
+    if constexpr(rounding == tf32_rounding_mode::standard)
+    {
+        if((i & 0x7f800000) != 0x7f800000)
+        {
+            i += 0xfff + ((i >> 13) & 1);
+        }
+    }
+    i &= 0xFFFFE000u;
+    return bit_cast<float>(i);
+}
+
+template <typename Y, std::enable_if_t<std::is_same_v<Y, tf32_t>, bool> = false>
+CK_TILE_HOST_DEVICE constexpr float type_convert(float x)
+{
+    return float_to_tf32(x);
+}
+
 CK_TILE_TYPE_CONVERT(fp16_t, fp16, float, float)
 CK_TILE_TYPE_CONVERT(bf16_t, bf16, float, float)
 CK_TILE_TYPE_CONVERT(fp8_t, fp8, float, float)

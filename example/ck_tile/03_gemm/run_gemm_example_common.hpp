@@ -6,8 +6,9 @@
 template <typename GemmConfig,
           typename Invoker,
           typename APrecType,
-          typename BPrecType = APrecType,
-          typename CPrecType = APrecType>
+          typename BPrecType       = APrecType,
+          typename CPrecType       = APrecType,
+          typename ComputeDataType = APrecType>
 int run_gemm_example_prec_type(std::string a_layout,
                                std::string b_layout,
                                ck_tile::ArgParser& arg_parser)
@@ -54,7 +55,11 @@ int run_gemm_example_prec_type(std::string a_layout,
                                                      Invoker,
                                                      APrecType,
                                                      BPrecType,
-                                                     CPrecType>(
+                                                     CPrecType,
+                                                     decltype(a_layout_type),
+                                                     decltype(b_layout_type),
+                                                     Row,
+                                                     ComputeDataType>(
                     arg_parser, a_layout_type, b_layout_type, Row{});
             }
         },

@@ -157,17 +157,18 @@ struct UniversalGemmBasePolicy
                 constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileEncodingPattern::Y1;
                 constexpr auto K0PerThreadWrite = AK0 / KThreadWrite;
                 constexpr auto KThreadRead      = get_warp_size() / MPerXdl;
-                constexpr auto K0PerThreadRead  = AK0 / KThreadRead;
+                constexpr auto K0PerThreadRead  = (AK0 / KThreadRead) > 0 ? (AK0 / KThreadRead) : 1;
 
                 // check if we exceed all LDS banks
                 constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_words_per_128b();
-                constexpr auto kfold         = (AK1 * M0 * sizeof(ADataType) > LdsBanksWidth)
-                                                   ? 1
-                                                   : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
+                constexpr auto kfold          = (AK1 * M0 * sizeof(ADataType) > LdsBanksWidth ||
+                                        (AK1 * M0 * sizeof(ADataType)) == 0)
+                                                    ? 1
+                                                    : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
+                constexpr auto divisor        = (kfold * K0PerThreadWrite / K0PerThreadRead);
+                constexpr auto divisor_to_use = divisor > 0 ? divisor : 1;
                 constexpr auto KThreadReadPerm =
-                    (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
-                        ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
-                        : KThreadRead;
+                    (divisor > 1) ? KThreadRead / divisor_to_use : KThreadRead;
 
                 // 1<=mpair<=n0
                 constexpr auto mpair =
@@ -354,17 +355,18 @@ struct UniversalGemmBasePolicy
                 constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileEncodingPattern::Y1;
                 constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
                 constexpr auto KThreadRead      = get_warp_size() / NPerXdl;
-                constexpr auto K0PerThreadRead  = BK0 / KThreadRead;
+                constexpr auto K0PerThreadRead  = (BK0 / KThreadRead) > 0 ? (BK0 / KThreadRead) : 1;
 
                 // check if we exceed all LDS banks
                 constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_words_per_128b();
-                constexpr auto kfold         = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth)
-                                                   ? 1
-                                                   : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
+                constexpr auto kfold          = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth ||
+                                        (BK1 * N0 * sizeof(BDataType)) == 0)
+                                                    ? 1
+                                                    : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
+                constexpr auto divisor        = (kfold * K0PerThreadWrite / K0PerThreadRead);
+                constexpr auto divisor_to_use = divisor > 0 ? divisor : 1;
                 constexpr auto KThreadReadPerm =
-                    (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
-                        ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
-                        : KThreadRead;
+                    (divisor > 1) ? KThreadRead / divisor_to_use : KThreadRead;
 
                 // 1<=npair<=n0
                 constexpr auto npair =
@@ -897,6 +899,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+
         using ATypeToUse =
             std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
         using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
@@ -904,8 +908,13 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                               ADataType,
                                               BDataType>;
 
-        using WarpGemm = WarpGemmDispatcher<ATypeToUse,
-                                            BTypeToUse,
+        using ATypeForDispatcher =
+            std::conditional_t<std::is_same_v<ComputeDataType, tf32_t>, tf32_t, ATypeToUse>;
+        using BTypeForDispatcher =
+            std::conditional_t<std::is_same_v<ComputeDataType, tf32_t>, tf32_t, BTypeToUse>;
+
+        using WarpGemm = WarpGemmDispatcher<ATypeForDispatcher,
+                                            BTypeForDispatcher,
                                             typename Problem::CDataType,
                                             WarpTile::at(I0),
                                             WarpTile::at(I1),

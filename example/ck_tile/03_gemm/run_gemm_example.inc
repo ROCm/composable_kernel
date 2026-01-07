@@ -109,7 +109,8 @@ template <typename GemmConfig,
           typename BLayout,
           typename DsLayout,
           typename CLayout,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+          typename ComputeDataType = ADataType,
+          typename CDEElementWise  = ck_tile::element_wise::PassThrough>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
                   ck_tile::DeviceMem& c_m_n_dev_buf,
@@ -151,7 +152,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                           DsLayout,
                                           CLayout,
                                           true,
-                                          CDEElementWise>(
+                                          CDEElementWise,
+                                          ComputeDataType>(
             args,
             ck_tile::stream_config{
                 nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
@@ -169,7 +171,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                           DsLayout,
                                           CLayout,
                                           false,
-                                          CDEElementWise>(
+                                          CDEElementWise,
+                                          ComputeDataType>(
             args,
             ck_tile::stream_config{
                 nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
@@ -209,11 +212,12 @@ std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t> inline parse_ge
 template <typename GemmConfig,
           typename Invoker,
           typename ADataType,
-          typename BDataType = ADataType,
-          typename CDataType = ADataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout>
+          typename BDataType       = ADataType,
+          typename CDataType       = ADataType,
+          typename ALayout         = ck_tile::tensor_layout::gemm::RowMajor,
+          typename BLayout         = ck_tile::tensor_layout::gemm::ColumnMajor,
+          typename CLayout         = ck_tile::tensor_layout::gemm::RowMajor,
+          typename ComputeDataType = ADataType>
 int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                   const ALayout a_layout                  = ALayout{},
                                   const BLayout b_layout                  = BLayout{},
@@ -349,21 +353,22 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                  ALayout,
                                  BLayout,
                                  ck_tile::tuple<>,
-                                 CLayout>(a_m_k_dev_buf,
-                                          b_k_n_dev_buf,
-                                          c_m_n_dev_buf,
-                                          M,
-                                          N,
-                                          K,
-                                          stride_A,
-                                          stride_B,
-                                          stride_C,
-                                          kbatch,
-                                          n_warmup,
-                                          n_repeat,
-                                          persistent,
-                                          flush_cache,
-                                          rotating_count);
+                                 CLayout,
+                                 ComputeDataType>(a_m_k_dev_buf,
+                                                  b_k_n_dev_buf,
+                                                  c_m_n_dev_buf,
+                                                  M,
+                                                  N,
+                                                  K,
+                                                  stride_A,
+                                                  stride_B,
+                                                  stride_C,
+                                                  kbatch,
+                                                  n_warmup,
+                                                  n_repeat,
+                                                  persistent,
+                                                  flush_cache,
+                                                  rotating_count);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
@@ -393,7 +398,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
 
     if(arg_parser.get_int("v") == 1)
     {
-        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType, ComputeDataType>(
             a_m_k, b_k_n, c_m_n_ref);
         const float max_accumulated_value =
             *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
@@ -427,7 +432,8 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                     CDataType,
                                     ALayout,
                                     BLayout,
-                                    CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
+                                    CLayout,
+                                    ComputeDataType>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
 
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_ref.data());
 
