@@ -65,8 +65,6 @@ struct plus<void, void>
     }
 };
 
-plus() -> plus<void, void>;
-
 template <typename Left = void, typename Right = Left>
 struct minus
 {
@@ -88,8 +86,6 @@ struct minus<void, void>
     }
 };
 
-minus() -> minus<void, void>;
-
 template <typename Left = void, typename Right = Left>
 struct multiplies
 {
@@ -110,8 +106,6 @@ struct multiplies<void, void>
         return lhs * rhs;
     }
 };
-
-multiplies() -> multiplies<void, void>;
 
 template <typename T>
 struct maximize
@@ -341,8 +335,6 @@ struct equal<void, void>
     }
 };
 
-equal() -> equal<void, void>;
-
 template <>
 struct equal<float, float>
 {
@@ -382,8 +374,6 @@ struct less<void, void>
     }
 };
 
-less() -> less<void, void>;
-
 template <typename Left = void, typename Right = Left>
 struct less_equal
 {
@@ -404,8 +394,6 @@ struct less_equal<void, void>
         return lhs <= rhs;
     }
 };
-
-less_equal() -> less_equal<void, void>;
 
 template <>
 struct less_equal<float, float>
