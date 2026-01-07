@@ -24,9 +24,11 @@ struct BasicInvoker
             std::cout << "WARNING: Ignoring persistent kernel option for basic gemm." << std::endl;
         }
 
+        constexpr bool is_fp32 = std::is_same_v<ADataType, float>;
+
         // This part comes from the Codegen
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
+        constexpr ck_tile::index_t M_Tile = is_fp32 ? 128 : 256;
+        constexpr ck_tile::index_t N_Tile = is_fp32 ? 128 : 256;
         constexpr ck_tile::index_t K_Tile = 64;
 
 #if CK_TILE_USE_WMMA
@@ -38,12 +40,12 @@ struct BasicInvoker
         constexpr ck_tile::index_t N_Warp_Tile = 16;
         constexpr ck_tile::index_t K_Warp_Tile = 16;
 #else
-        constexpr ck_tile::index_t M_Warp = 2;
-        constexpr ck_tile::index_t N_Warp = 2;
+        constexpr ck_tile::index_t M_Warp = is_fp32 ? 4 : 2;
+        constexpr ck_tile::index_t N_Warp = is_fp32 ? 4 : 2;
         constexpr ck_tile::index_t K_Warp = 1;
 
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
+        constexpr ck_tile::index_t M_Warp_Tile = is_fp32 ? 16 : 32;
+        constexpr ck_tile::index_t N_Warp_Tile = is_fp32 ? 16 : 32;
         constexpr ck_tile::index_t K_Warp_Tile = 16;
 #endif
 

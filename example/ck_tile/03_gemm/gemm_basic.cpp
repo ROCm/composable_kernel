@@ -9,6 +9,8 @@
 
 int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
+    arg_parser.print();
+
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
@@ -39,6 +41,11 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     else if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<GemmConfig, Invoker, ck_tile::bf16_t>(
+            a_layout, b_layout, arg_parser);
+    }
+    else if(data_type == "fp32")
+    {
+        return run_gemm_example_prec_type<GemmConfig, Invoker, float>(
             a_layout, b_layout, arg_parser);
     }
     else if(data_type == "fp8")
