@@ -107,7 +107,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Wmm
     S<1, 32, 1, 8>,
     S<8, 8, 8>,
     ck::BlockGemmPipelineScheduler::Intrawave,
-    ck::BlockGemmPipelineVersion::v3>;
+    ck::BlockGemmPipelineVersion::v1>;
 
 int main(int argc, char* argv[])
 {
