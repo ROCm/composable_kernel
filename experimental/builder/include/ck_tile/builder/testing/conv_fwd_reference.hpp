@@ -69,10 +69,10 @@ template <auto SIGNATURE>
              // for now, just concern outselves with reference and see when the
              // rest of the bwd/weight plumbing is there.
              ConvDirectionIsForward<SIGNATURE>
-void run(RefConvInstance<SIGNATURE> auto& conv,
-         const Args<SIGNATURE>& args,
-         const Inputs<SIGNATURE>& inputs,
-         const Outputs<SIGNATURE>& outputs)
+float run(RefConvInstance<SIGNATURE> auto& conv,
+          const Args<SIGNATURE>& args,
+          const Inputs<SIGNATURE>& inputs,
+          const Outputs<SIGNATURE>& outputs)
 {
     // We don't want to compute the output dims manually, just get
     // them via the existing infrastructure
@@ -109,6 +109,7 @@ void run(RefConvInstance<SIGNATURE> auto& conv,
              param.conv_filter_strides_,
              param.conv_filter_dilations_,
              param.input_left_pads_);
+    return 0.f;
 }
 
 } // namespace ck_tile::builder::test

@@ -4,7 +4,7 @@
 #include "utils/ckb_conv_tile_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
 #include "utils/conv_algorithm_type_utils.hpp"
-#include "ck_tile/builder/testing/conv_fwd_ck.hpp"
+#include "ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
 #include "ck_tile/host/device_prop.hpp"
 
 namespace ckb = ck_tile::builder;
@@ -29,8 +29,9 @@ constexpr auto ALGORITHM =
         .with_tile_optimizations(ckt::TileOptimizations{
             .num_groups_to_merge = 1, .split_image = false, .explicit_gemm = false});
 
-using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-using Instance = Builder::Instance;
+using Builder   = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
+using Instance  = Builder::Instance;
+using Reference = ckb::ConvBuilder<SIGNATURE, ckt::ConvAlgorithm_Reference{}>::Instance;
 
 TEST(Fwd2DFp16_CShufV3_NHWGC, EndToEnd)
 {
@@ -70,5 +71,10 @@ TEST(Fwd2DFp16_CShufV3_NHWGC, EndToEnd)
     auto outputs = alloc_outputs(args);
 
     auto conv = Instance{};
-    ckt::run_tile(conv, args, inputs.get(), outputs.get());
+    ckt::run(conv, args, inputs.get(), outputs.get());
+
+    auto ref_conv = Reference{};
+    ckt::run(ref_conv, args, inputs.get(), reference.get());
+
+    EXPECT_THAT(outputs.get(), MatchesReference(args, reference.get()));
 }

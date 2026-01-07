@@ -8,9 +8,11 @@
 #include "../utils/ckb_conv_tile_test_configs.hpp"
 #include "../utils/ckb_conv_test_utils.hpp"
 #include "../utils/conv_algorithm_type_utils.hpp"
-#include "ck_tile/builder/testing/conv_fwd_ck.hpp"
-
 #include "grouped_convolution_signatures.hpp"
+
+#include "ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
+
+#include "ck_tile/host.hpp"
 
 namespace ck_tile::builder::profiling {
 
@@ -47,8 +49,14 @@ std::tuple<float, std::string> run_grouped_conv_forward_tile_algs<SIGNATURE_NHWG
     std::string best_op_name, op_name;
     float avg_time;
 
+    auto ref_conv =
+        ckb::ConvBuilder<SIGNATURE_NHWGC_FP32_FWD, ckt::ConvAlgorithm_Reference{}>::Instance{};
+    ckt::run(ref_conv, args, inputs.get(), reference.get());
+
     auto run_alg = [&](auto&& run_alg_func) {
         std::tie(avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
+        ck_tile::check_err(outputs.get(), reference.get());
+
         if(avg_time > 0.f)
         {
             best_avg_time = std::min(best_avg_time, avg_time);
@@ -73,6 +81,10 @@ std::tuple<float, std::string> run_grouped_conv_forward_tile_algs<SIGNATURE_NHWG
     float best_avg_time = std::numeric_limits<float>::max();
     std::string best_op_name, op_name;
     float avg_time;
+
+    auto ref_conv =
+        ckb::ConvBuilder<SIGNATURE_NHWGC_BF16_FWD, ckt::ConvAlgorithm_Reference{}>::Instance{};
+    ckt::run(ref_conv, args, inputs.get(), reference.get());
 
     auto run_alg = [&](auto&& run_alg_func) {
         std::tie(avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
@@ -101,6 +113,10 @@ std::tuple<float, std::string> run_grouped_conv_forward_tile_algs<SIGNATURE_NHWG
     std::string best_op_name, op_name;
     float avg_time;
 
+    auto ref_conv =
+        ckb::ConvBuilder<SIGNATURE_NHWGC_FP16_FWD, ckt::ConvAlgorithm_Reference{}>::Instance{};
+    ckt::run(ref_conv, args, inputs.get(), reference.get());
+
     auto run_alg = [&](auto&& run_alg_func) {
         std::tie(avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
         if(avg_time > 0.f)
@@ -127,6 +143,10 @@ std::tuple<float, std::string> run_grouped_conv_forward_tile_algs<SIGNATURE_NDHW
     float best_avg_time = std::numeric_limits<float>::max();
     std::string best_op_name, op_name;
     float avg_time;
+
+    auto ref_conv =
+        ckb::ConvBuilder<SIGNATURE_NDHWGC_FP32_FWD, ckt::ConvAlgorithm_Reference{}>::Instance{};
+    ckt::run(ref_conv, args, inputs.get(), reference.get());
 
     auto run_alg = [&](auto&& run_alg_func) {
         std::tie(avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
@@ -155,6 +175,10 @@ std::tuple<float, std::string> run_grouped_conv_forward_tile_algs<SIGNATURE_NDHW
     std::string best_op_name, op_name;
     float avg_time;
 
+    auto ref_conv =
+        ckb::ConvBuilder<SIGNATURE_NDHWGC_BF16_FWD, ckt::ConvAlgorithm_Reference{}>::Instance{};
+    ckt::run(ref_conv, args, inputs.get(), reference.get());
+
     auto run_alg = [&](auto&& run_alg_func) {
         std::tie(avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
         if(avg_time > 0.f)
@@ -181,6 +205,10 @@ std::tuple<float, std::string> run_grouped_conv_forward_tile_algs<SIGNATURE_NDHW
     float best_avg_time = std::numeric_limits<float>::max();
     std::string best_op_name, op_name;
     float avg_time;
+
+    auto ref_conv =
+        ckb::ConvBuilder<SIGNATURE_NDHWGC_FP16_FWD, ckt::ConvAlgorithm_Reference{}>::Instance{};
+    ckt::run(ref_conv, args, inputs.get(), reference.get());
 
     auto run_alg = [&](auto&& run_alg_func) {
         std::tie(avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);

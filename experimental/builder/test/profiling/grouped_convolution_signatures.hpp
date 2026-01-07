@@ -8,7 +8,7 @@
 #include "../utils/ckb_conv_tile_test_configs.hpp"
 #include "../utils/ckb_conv_test_utils.hpp"
 #include "../utils/conv_algorithm_type_utils.hpp"
-#include "ck_tile/builder/testing/conv_fwd_ck.hpp"
+#include "ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
 
 namespace ck_tile::builder::profiling {
 

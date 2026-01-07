@@ -88,14 +88,16 @@ def get_dtype(problem_name):
 
 
 def generate_calls_inc(instances, problem_name, direction):
-    with open(problem_name + "_calls.inc", "w") as f:
+    with open(
+        f"../experimental/builder/test/profiling/{problem_name}_calls.inc", "w"
+    ) as f:
         for instance in instances:
             instance_name = problem_name + "_" + str(instance.id)
             f.write(f"run_alg(run_{instance_name});\n")
 
 
 def generate_defs_inc(instances, problem_name, signature, direction):
-    with open(problem_name + ".inc", "w") as f:
+    with open(f"../experimental/builder/test/profiling/{problem_name}.inc", "w") as f:
         for instance in instances:
             instance_name = problem_name + "_" + str(instance.id)
             f.write(
@@ -110,9 +112,12 @@ def generate_defs_inc(instances, problem_name, signature, direction):
 def generate_fwd_cpp(instances, problem_name, config, direction):
     for instance in instances:
         instance_name = problem_name + "_" + str(instance.id)
-        directory_path = Path(f"src/{config}")
+        directory_path = Path(f"../experimental/builder/test/profiling/src/{config}")
         directory_path.mkdir(parents=True, exist_ok=True)
-        with open(f"src/{config}/{instance_name}.cpp", "w") as f:
+        with open(
+            f"../experimental/builder/test/profiling/src/{config}/{instance_name}.cpp",
+            "w",
+        ) as f:
             f.write(
                 f"// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.\n"
                 f"// SPDX-License-Identifier: MIT\n"
@@ -226,9 +231,10 @@ if __name__ == "__main__":
         "ndhwgc_fp16",
         "ndhwgc_bf16",
     ]
+
     for config in fwd_configs:
         instances = []
-        config_path = f"configs/{config}.conf"
+        config_path = f"../experimental/builder/test/profiling/configs/{config}.conf"
         with open(config_path, "r") as file:
             instances = file.readlines()
         problem_name = f"grouped_convolution_forward_tile_{config}"
