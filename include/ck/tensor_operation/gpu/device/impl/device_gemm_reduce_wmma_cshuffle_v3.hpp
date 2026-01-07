@@ -456,6 +456,42 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
             return false;
         }
 
+        if constexpr(GridwiseGemm::AWaveTransferApplicable() &&
+                     !(is_same<tensor_layout::gemm::RowMajor,
+                               typename GridwiseGemm::ALayout_>::value))
+        {
+            if(ck::is_gfx12_supported() &&
+               !(arg.KRaw_ % GridwiseGemm::ABlockTransferDstScalarPerVector_AK1_ == 0))
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Arg K value is not a multiple of "
+                                 "ABlockTransferDstScalarPerVector_AK1! K: "
+                              << arg.KRaw_ << " " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+        }
+
+        if constexpr(GridwiseGemm::BWaveTransferApplicable() &&
+                     !(is_same<tensor_layout::gemm::ColumnMajor,
+                               typename GridwiseGemm::BLayout_>::value))
+        {
+            if(ck::is_gfx12_supported() &&
+               !(arg.KRaw_ % GridwiseGemm::BBlockTransferDstScalarPerVector_BK1_ == 0))
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Arg K value is not a multiple of "
+                                 "BBlockTransferDstScalarPerVector_BK1! K: "
+                              << arg.KRaw_ << " " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+        }
+
         typename GridwiseGemm::Argument gemm_arg{std::array<const void*, 1>{arg.p_a_grid_},
                                                  std::array<const void*, 1>{arg.p_b_grid_},
                                                  std::array<const void*, 0>{},

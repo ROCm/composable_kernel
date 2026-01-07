@@ -296,6 +296,13 @@ template <typename ALayout,
 struct GridwiseGemm_wmma_cshuffle_v3_base
 {
 
+    using ALayout_ = ALayout;
+    using BLayout_ = BLayout;
+    static constexpr index_t ABlockTransferDstScalarPerVector_AK1_ =
+        ABlockTransferDstScalarPerVector_AK1;
+    static constexpr index_t BBlockTransferDstScalarPerVector_BK1_ =
+        BBlockTransferDstScalarPerVector_BK1;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -362,18 +369,27 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::selected_wmma
             .wave_size;
 
+    __host__ __device__ static constexpr bool AWaveTransferApplicable()
+    {
+        return !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
+               ABlockTransferSrcScalarPerVector == 8 && ABlockTransferDstScalarPerVector_AK1 == 8 &&
+               BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8 &&
+               !IsBPreShuffled;
+    }
+
+    __host__ __device__ static constexpr bool BWaveTransferApplicable()
+    {
+        return !ForceThreadTileTransfer && NumBTensor == 1 && BPackedSize == 1 &&
+               BBlockTransferSrcScalarPerVector == 8 && BBlockTransferDstScalarPerVector_BK1 == 8 &&
+               BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
+    }
+
     // Limitations of the current implementation:
     //  - no multiAB
 #ifdef __gfx12__
-    static constexpr bool IsAWaveTransferApplicable =
-        !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
-        ABlockTransferSrcScalarPerVector == 8 && ABlockTransferDstScalarPerVector_AK1 == 8 &&
-        BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8 && !IsBPreShuffled;
+    static constexpr bool IsAWaveTransferApplicable = AWaveTransferApplicable();
 
-    static constexpr bool IsBWaveTransferApplicable =
-        !ForceThreadTileTransfer && NumBTensor == 1 && BPackedSize == 1 &&
-        BBlockTransferSrcScalarPerVector == 8 && BBlockTransferDstScalarPerVector_BK1 == 8 &&
-        BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
+    static constexpr bool IsBWaveTransferApplicable = BWaveTransferApplicable();
 
     static constexpr bool IsWaveTileInterleavedFitting =
         (NPerBlock / NPerWmma / NRepeat) * (KPerBlock / KPack) >= (BlockSize / WaveSize);
