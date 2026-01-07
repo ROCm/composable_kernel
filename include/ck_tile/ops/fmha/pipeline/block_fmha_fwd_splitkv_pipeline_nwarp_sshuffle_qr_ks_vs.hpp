@@ -294,7 +294,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                     auto lse_acc =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    if (__builtin_isinf_sign(sink_v) >= 0)
+                    if(__builtin_isinf_sign(sink_v) >= 0)
                     {
                         set_tile(lse_acc, SMPLComputeDataType{sink_v});
                     }
