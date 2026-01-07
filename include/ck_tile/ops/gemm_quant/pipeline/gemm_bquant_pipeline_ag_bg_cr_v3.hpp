@@ -40,9 +40,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
     // BDataType gets converted from PkInt4 during loading
     using OverrideBDataType =
-        std::conditional_t<std::is_same_v<BDataType, pk_int4_t>,
-                           ADataType,
-                           BDataType>;
+        std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
 
     static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
     using I0 = number<0>;
