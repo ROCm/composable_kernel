@@ -2376,12 +2376,23 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
     return amd_buffer_load_impl<T, N, coherence>(
         src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
 #else
-    thread_buffer<T, N> tmp =
-        amd_buffer_load_impl<T, N, coherence>(src_wave_buffer_resource, src_thread_addr_offset, 0);
     if constexpr(oob_conditional_check)
-        return src_thread_element_valid ? tmp : thread_buffer<T, N>{numeric<T>::zero()};
+    {
+        if(src_thread_element_valid)
+        {
+            return amd_buffer_load_impl<T, N, coherence>(
+                src_wave_buffer_resource, src_thread_addr_offset, 0);
+        }
+        else
+        {
+            return thread_buffer<T, N>{numeric<T>::zero()};
+        }
+    }
     else
-        return tmp;
+    {
+        return amd_buffer_load_impl<T, N, coherence>(
+            src_wave_buffer_resource, src_thread_addr_offset, 0);
+    }
 #endif
 }
 

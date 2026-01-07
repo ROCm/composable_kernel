@@ -51,13 +51,13 @@ struct ConvBwdWeightWmmaFactory
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>, "Invalid A block transfer config");
     static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>, "Invalid B block transfer config");
     static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>, "Invalid C block transfer config");
-    static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.thread_cluster_order>,
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>,
                   "Invalid A thread cluster access order");
-    static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.thread_cluster_order>,
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>,
                   "Invalid B thread cluster access order");
-    static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.src_access_order>,
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>,
                   "Invalid A source access order");
-    static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.src_access_order>,
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>,
                   "Invalid B source access order");
 
     // The forward convolution kernel class instance.

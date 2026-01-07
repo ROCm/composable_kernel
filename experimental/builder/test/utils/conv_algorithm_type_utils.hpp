@@ -399,7 +399,7 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuf
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<4>>(t));
+        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 

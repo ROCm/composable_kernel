@@ -112,7 +112,7 @@ constexpr auto make_conv_instance()
         return typename ReferenceFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
     // CK Tile supports common factory for each direction
-    if constexpr(TileAlgorithm<AlgoType>)
+    else if constexpr(TileAlgorithm<AlgoType>)
     {
         return typename ConvTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
