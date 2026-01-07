@@ -669,7 +669,7 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3 =
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WmmaGemm_,
-                          Transfer_<4>,
+                          Transfer_<>,
                           ConvSpecializationBwdWeight_,
                           GridGemm_,
                           Prefetch_>;
