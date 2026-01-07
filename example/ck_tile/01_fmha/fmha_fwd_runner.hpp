@@ -485,8 +485,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
                                    sizeof(VDataType) * hdim_v * real_seqlen_k);
         }
     }
-    // std::cout << "bseqstart_q_host: " << bseqstart_q_host
-    //           << "bseqstart_k_host: " << bseqstart_k_host << std::endl;
 
     const ck_tile::index_t max_num_page_blocks =
         (0 < page_block_size
@@ -1103,9 +1101,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
                     args.v_descale_ptr =
                         reinterpret_cast<const float*>(v_descale_buf.GetDeviceBuffer());
 
-                    args.bseqstart_q_ptr =
+                    args.blk_scale_seqstart_q_ptr =
                         (mode == mode_enum::group ? bseqstart_q_buf.GetDeviceBuffer() : nullptr);
-                    args.bseqstart_k_ptr =
+                    args.blk_scale_seqstart_k_ptr =
                         (mode == mode_enum::group ? bseqstart_k_buf.GetDeviceBuffer() : nullptr);
 
                     args.nhead_stride_q_descale = nhead_stride_q_descale;
