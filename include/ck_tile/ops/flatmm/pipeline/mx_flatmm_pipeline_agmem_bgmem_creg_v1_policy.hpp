@@ -292,7 +292,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                           sequence<K0,
                                    K1,
                                    K_Thread * sizeof(BDataType) / (DWORDx3 * BPackedSize),
-                                   DWORDx3>>, // 2 1 64 12
+                                   DWORDx3>>, // 64 1 2 12
                     tuple<sequence<0, 1, 2>, sequence<2>>,
                     tuple<sequence<0, 0, 0>, sequence<1>>,
                     sequence<2, 2>,

@@ -115,15 +115,9 @@ float invoke_mx_flatmm(ck_tile::DeviceMem& a_dev_buf,
                                             CDEElementWise,
                                             split_k_.value,
                                             has_hot_loop_v,
-                                            tail_num_v>(args,
-                                                  ck_tile::stream_config{nullptr,
-                                                                         true,
-                                                                         1,
-                                                                         n_warmup - n_warmup,
-                                                                         n_repeat - n_repeat + 1,
-                                                                         true,
-                                                                         true,
-                                                                         50});
+                                            tail_num_v>(
+                    args,
+                    ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
             };
             return (args.k_batch == 1) ? invoke_splitk_path(std::false_type{})
                                        : invoke_splitk_path(std::true_type{});
