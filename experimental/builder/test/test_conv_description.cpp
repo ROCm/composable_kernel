@@ -130,26 +130,26 @@ struct DefaultAlgorithm
     ckb::test::TransferABC transfer{
         .a =
             {
-                .block_transfer              = {.k0 = 1, .m_n = 128, .k1 = 2},
-                .lds_transfer                = {.src_vector_dim            = 2,
-                                                .src_scalar_per_vector     = 2,
-                                                .lds_dst_scalar_per_vector = 2,
-                                                .is_direct_load            = false,
-                                                .lds_padding               = false},
+                .block_transfer               = {.k0 = 1, .m_n = 128, .k1 = 2},
+                .lds_transfer                 = {.src_vector_dim            = 2,
+                                                 .src_scalar_per_vector     = 2,
+                                                 .lds_dst_scalar_per_vector = 2,
+                                                 .is_direct_load            = false,
+                                                 .lds_padding               = false},
                 .thread_cluster_arrange_order = {.order = {0, 1, 2}},
-                .src_access_order            = {.order = {0, 1, 2}},
+                .src_access_order             = {.order = {0, 1, 2}},
 
             },
         .b =
             {
-                .block_transfer              = {.k0 = 1, .m_n = 128, .k1 = 2},
-                .lds_transfer                = {.src_vector_dim            = 2,
-                                                .src_scalar_per_vector     = 2,
-                                                .lds_dst_scalar_per_vector = 2,
-                                                .is_direct_load            = false,
-                                                .lds_padding               = false},
+                .block_transfer               = {.k0 = 1, .m_n = 128, .k1 = 2},
+                .lds_transfer                 = {.src_vector_dim            = 2,
+                                                 .src_scalar_per_vector     = 2,
+                                                 .lds_dst_scalar_per_vector = 2,
+                                                 .is_direct_load            = false,
+                                                 .lds_padding               = false},
                 .thread_cluster_arrange_order = {.order = {0, 1, 2}},
-                .src_access_order            = {.order = {0, 1, 2}},
+                .src_access_order             = {.order = {0, 1, 2}},
             },
         .c =
             {
