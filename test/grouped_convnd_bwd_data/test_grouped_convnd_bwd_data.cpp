@@ -15,7 +15,7 @@ static ck::index_t param_mask     = 0xffffff;
 static ck::index_t instance_index = -1;
 
 template <typename Tuple>
-class TestGroupedConvndBwdDataXdl : public ::testing::Test
+class TestGroupedConvndBwdData : public ::testing::Test
 {
     protected:
     using DataType  = std::tuple_element_t<0, Tuple>;
@@ -89,19 +89,19 @@ using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWK, GKZYXC, GNDHWC>
                                        std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>>;
 
 template <typename Tuple>
-class TestGroupedConvndBwdDataXdl2d : public TestGroupedConvndBwdDataXdl<Tuple>
+class TestGroupedConvndBwdData2d : public TestGroupedConvndBwdData<Tuple>
 {
 };
 
 template <typename Tuple>
-class TestGroupedConvndBwdDataXdl3d : public TestGroupedConvndBwdDataXdl<Tuple>
+class TestGroupedConvndBwdData3d : public TestGroupedConvndBwdData<Tuple>
 {
 };
 
-TYPED_TEST_SUITE(TestGroupedConvndBwdDataXdl2d, KernelTypes2d);
-TYPED_TEST_SUITE(TestGroupedConvndBwdDataXdl3d, KernelTypes3d);
+TYPED_TEST_SUITE(TestGroupedConvndBwdData2d, KernelTypes2d);
+TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
 
-TYPED_TEST(TestGroupedConvndBwdDataXdl2d, Test2D)
+TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
 {
     this->conv_params.clear();
 
@@ -137,7 +137,7 @@ TYPED_TEST(TestGroupedConvndBwdDataXdl2d, Test2D)
     this->template Run<2>();
 }
 
-TYPED_TEST(TestGroupedConvndBwdDataXdl3d, Test3D)
+TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
 {
     this->conv_params.clear();
     this->conv_params.push_back(

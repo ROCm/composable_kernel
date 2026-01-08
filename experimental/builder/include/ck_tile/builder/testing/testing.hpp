@@ -5,6 +5,8 @@
 
 #include <concepts>
 
+#include "ck_tile/builder/testing/validation.hpp"
+
 /// This file is the main header for the CK-Builder testing system. A high-level
 /// description of this testing system is documented in
 /// `ck_tile/builder/testing/README.md`. This file deals mainly deals with the
@@ -78,7 +80,7 @@ namespace ck_tile::builder::test {
 /// that this structure is an aggregrate so that it can be initialized using C++20
 /// designated initializers to keep the tests readable.
 ///
-/// @tparam SIGNATURE the signature to specialize the structure for.
+/// @tparam SIGNATURE The signature to specialize the structure for.
 template <auto SIGNATURE>
 struct Args;
 
@@ -98,7 +100,7 @@ struct Args;
 /// structure is an aggregrate so that it can be initialized using C++20
 /// designated initializers to keep the tests readable.
 ///
-/// @tparam SIGNATURE the signature to specialize the structure for.
+/// @tparam SIGNATURE The signature to specialize the structure for.
 template <auto SIGNATURE>
 struct Inputs;
 
@@ -118,7 +120,7 @@ struct Inputs;
 /// structure is an aggregrate so that it can be initialized using C++20
 /// designated initializers to keep the tests readable.
 ///
-/// @tparam SIGNATURE the signature to specialize the structure for.
+/// @tparam SIGNATURE The signature to specialize the structure for.
 template <auto SIGNATURE>
 struct Outputs;
 
@@ -133,7 +135,7 @@ struct Outputs;
 /// @note The easiest way to implement this type is to use the `DeviceBuffer`
 /// type to allocate individual device buffers for each input tensor.
 ///
-/// @tparam SIGNATURE the signature to specialize the structure for.
+/// @tparam SIGNATURE The signature to specialize the structure for.
 ///
 /// @see alloc_inputs()
 /// @see ValidUniqueInputs
@@ -152,7 +154,7 @@ struct UniqueInputs;
 /// @note The easiest way to implement this type is to use the `DeviceBuffer`
 /// type to allocate individual device buffers for each output tensor.
 ///
-/// @tparam SIGNATURE the signature to specialize the structure for.
+/// @tparam SIGNATURE The signature to specialize the structure for.
 ///
 /// @see alloc_outputs()
 /// @see ValidUniqueOutputs
@@ -195,7 +197,9 @@ concept ValidUniqueOutputs = requires(UniqueOutputs<SIGNATURE>& inputs) {
 /// amount of memory required and then allocate it on the device, for example
 /// using `alloc_buffer` or `alloc_tensor_buffer`.
 ///
-/// @tparam SIGNATURE the signature to specialize the structure for.
+/// @tparam SIGNATURE The signature to specialize the structure for.
+///
+/// @param args The run-time arguments of the operation.
 ///
 /// @see Inputs
 /// @see UniqueInputs
@@ -205,6 +209,25 @@ template <auto SIGNATURE>
     requires ValidUniqueInputs<SIGNATURE>
 UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args);
 
+/// @brief Allocate inputs corresponding to a signature.
+///
+/// The `init_inputs()` function is used to initialize pseudo-random data
+/// to the tensors specified in the Inputs structure. Implementors should
+/// fill each of the tensors in `inputs` with appropriate random data.
+///
+/// @tparam SIGNATURE the signature to specialize the structure for.
+///
+/// @param args The run-time arguments of the operation.
+/// @param inputs The operation inputs to initialize with random data.
+///
+/// @note This function is explicitly deleted to generate compile errors
+/// for missing implementations.
+///
+/// @see Inputs
+/// @see tensor_initialization
+template <auto SIGNATURE>
+void init_inputs(const Args<SIGNATURE>& args, Inputs<SIGNATURE> inputs) = delete;
+
 /// @brief Allocate outputs corresponding to a signature.
 ///
 /// The `alloc_outputs()` function is used to create an instance of
@@ -212,7 +235,12 @@ UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args);
 /// amount of memory required and then allocate it on the device, for example
 /// using `alloc_buffer` or `alloc_tensor_buffer`.
 ///
-/// @tparam SIGNATURE the signature to specialize the structure for.
+/// @tparam SIGNATURE The signature to specialize the structure for.
+///
+/// @param args The run-time arguments of the operation.
+///
+/// @note This function is explicitly deleted to generate compile errors
+/// for missing implementations.
 ///
 /// @see Outputs
 /// @see UniqueOutputs
@@ -220,7 +248,34 @@ UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args);
 /// @see alloc_tensor_buffer()
 template <auto SIGNATURE>
     requires ValidUniqueOutputs<SIGNATURE>
-UniqueInputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args);
+UniqueInputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args) = delete;
+
+/// @brief Compare device operation outputs.
+///
+/// This function implements the main comparison functionality, used to compare
+/// the output of one implementation for a particular `SIGNATURE` with that of
+/// another. Usually, the `expected` output should be computed by a reference
+/// implementation.
+///
+/// The implementation of this function generates a "report", which includes
+/// detailed information about which tensors are different, how many elements
+/// were incorrect, and where (a subset of) those elements are located within
+/// the tensor. See `ValidationReport` for more information about the report.
+///
+/// @tparam SIGNATURE The signature to specialize the structure for.
+///
+/// @param args The run-time arguments of the operation.
+/// @param actual The actual results, the results of the operation to-be-tested.
+/// @param expected The expected results, the results of the reference implementation.
+///
+/// @note This function is explicitly deleted to generate compile errors
+/// for missing implementations.
+///
+/// @see ValidationReport
+template <auto SIGNATURE>
+ValidationReport validate(const Args<SIGNATURE>& args,
+                          Outputs<SIGNATURE> actual,
+                          Outputs<SIGNATURE> expected) = delete;
 
 /// @brief Invoke a device operation created by CK Builder.
 ///
@@ -243,7 +298,7 @@ UniqueInputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args);
 /// @post The tensors in `outputs` are overwritten with the outputs of the device
 ///   operation.
 ///
-/// @tparam SIGNATURE the signature to specialize this function for
+/// @tparam SIGNATURE The signature to specialize this function for
 /// @tparam Operation the kernel of the operation to invoke. This type should be
 ///   one that is created using the Builder API.
 /// @param operation An instance of the operation to invoke.
@@ -251,10 +306,13 @@ UniqueInputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args);
 /// @param inputs The input tensor data. Will not be modified by this function.
 /// @param outputs The output tensor data. The contents will be overwritten by
 ///   this function.
+///
+/// @note This function is explicitly deleted to generate compile errors
+/// for missing implementations.
 template <auto SIGNATURE, typename Operation>
 void run(Operation& operation,
          const Args<SIGNATURE>& args,
          const Inputs<SIGNATURE>& inputs,
-         const Outputs<SIGNATURE>& outputs);
+         const Outputs<SIGNATURE>& outputs) = delete;
 
 } // namespace ck_tile::builder::test

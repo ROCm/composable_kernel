@@ -12,6 +12,12 @@ if (CK_USE_XDL OR CK_USE_WMMA)
         target_link_libraries(test_grouped_gemm_splitk PRIVATE utility device_grouped_gemm_instance)
         add_dependencies(test_grouped_gemm test_grouped_gemm_splitk)
     endif()
+
+    add_gtest_executable(test_grouped_gemm_fastgelu test_grouped_gemm_fastgelu.cpp)
+    if(result EQUAL 0)
+        target_link_libraries(test_grouped_gemm_fastgelu PRIVATE utility device_grouped_gemm_fastgelu_instance)
+        add_dependencies(test_grouped_gemm test_grouped_gemm_fastgelu)
+    endif()
 endif()
 
 add_gtest_executable(test_grouped_gemm_interface test_grouped_gemm_interface_xdl.cpp)

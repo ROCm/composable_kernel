@@ -40,6 +40,9 @@ set(REGRESSION_TESTS
     test_batchnorm_fwd_rank_4
     test_batchnorm_bwd_rank_4
     test_grouped_convnd_bwd_data_xdl
+    test_grouped_convnd_bwd_data_wmma
+    test_grouped_convnd_bwd_data_wmma_large_cases
+    test_grouped_conv_bwd_data_wmma_scale
     test_conv_tensor_rearrange
     test_gemm_mx
     test_ck_tile_batched_transpose
@@ -255,6 +258,7 @@ add_subdirectory(conv_util)
 add_subdirectory(reference_conv_fwd)
 add_subdirectory(gemm)
 add_subdirectory(gemm_add)
+add_subdirectory(gemm_bias_add_reduce)
 add_subdirectory(gemm_blockscale_wp)
 add_subdirectory(gemm_layernorm)
 add_subdirectory(gemm_multi_abd)
@@ -297,6 +301,7 @@ add_subdirectory(transpose)
 add_subdirectory(permute_scale)
 add_subdirectory(wrapper)
 add_subdirectory(quantization)
+add_subdirectory(device_memory)
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx11")
     add_subdirectory(wmma_op)
 endif()

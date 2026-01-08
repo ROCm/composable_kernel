@@ -30,6 +30,11 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
 
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_bwd_weight_two_stage_wmma_cshuffle_v3.hpp"
+#endif
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -48,7 +53,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3(
+    kernel_grouped_conv_bwd_weight_wmma_cshuffle_two_stage(
         typename GridwiseGemm::Argument karg,
         const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
         const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
@@ -58,28 +63,34 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const index_t num_k_per_block)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if defined(__gfx11__)
+    if constexpr(CGlobalMemoryDataOperation != InMemoryDataOperationEnum::AtomicAdd)
+    {
+#endif
+        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueCShuffle>();
+        __shared__ char p_shared[LDS_size];
 
-    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-        typename GridwiseGemm::EpilogueCShuffle>();
-    __shared__ char p_shared[LDS_size];
+        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
 
-    auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
-
-    GridwiseGemm::template Run<AGridDesc_AK0_M_K1,
-                               BGridDesc_BK0_N_K1,
-                               CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                               ComputePtrOffsetOfBatch,
-                               NumGroupsToMerge,
-                               HasMainKBlockLoop,
-                               CGlobalMemoryDataOperation,
-                               TailNum>(p_shared,
-                                        a_grid_desc_ak0_m_ak1,
-                                        b_grid_desc_bk0_n_bk1,
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                        compute_ptr_offset_of_batch,
-                                        num_k_per_block,
-                                        karg,
-                                        epilogue_args);
+        GridwiseGemm::template Run<AGridDesc_AK0_M_K1,
+                                   BGridDesc_BK0_N_K1,
+                                   CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   ComputePtrOffsetOfBatch,
+                                   NumGroupsToMerge,
+                                   HasMainKBlockLoop,
+                                   CGlobalMemoryDataOperation,
+                                   TailNum>(p_shared,
+                                            a_grid_desc_ak0_m_ak1,
+                                            b_grid_desc_bk0_n_bk1,
+                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            compute_ptr_offset_of_batch,
+                                            num_k_per_block,
+                                            karg,
+                                            epilogue_args);
+#if defined(__gfx11__)
+    }
+#endif
 #else
     ignore = karg;
     ignore = a_grid_desc_ak0_m_ak1;
@@ -468,7 +479,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
             {
                 hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
                     &max_occupancy,
-                    kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3<
+                    kernel_grouped_conv_bwd_weight_wmma_cshuffle_two_stage<
                         GridwiseGemm,
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
@@ -916,7 +927,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
                 {
                     if(gemm_arg.KBatch > 1)
                     {
-                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3<
+                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_two_stage<
                             GridwiseGemm,
                             remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                             remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
@@ -931,7 +942,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
                     }
                     else
                     {
-                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3<
+                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_two_stage<
                             GridwiseGemm,
                             remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                             remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
@@ -957,7 +968,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
                 {
                     if(gemm_arg.KBatch > 1)
                     {
-                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3<
+                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_two_stage<
                             GridwiseGemm,
                             remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                             remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
@@ -972,7 +983,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
                     }
                     else
                     {
-                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3<
+                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_two_stage<
                             GridwiseGemm,
                             remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                             remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
@@ -1171,6 +1182,16 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
             {
                 std::cout << "Unsupported: Architecture must be gfx11/gfx12." << std::endl;
             }
+            return false;
+        }
+
+        if(arg.k_batch_ > 1 && ck::is_gfx11_supported())
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported splitK on gfx11." << std::endl;
+            }
+            // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
             return false;
         }
 
@@ -1571,6 +1592,25 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
                 "The argument pointer is not an object of "
                 "DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3::Argument structure!");
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    std::string GetInstanceString() const override
+    {
+        static_assert(
+            ck_tile::reflect::HasInstanceTraits<DeviceOp>,
+            "Specialization of instance_traits not found. Please check that a "
+            "specialization exists in file "
+            "ck_tile/builder/reflect/"
+            "instance_traits_device_grouped_conv_bwd_weight_two_stage_wmma_cshuffle_v3.hpp "
+            "for the given template parameters.");
+        return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
+    }
+#endif
 };
 
 } // namespace device
