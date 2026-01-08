@@ -88,10 +88,16 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif // (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__)
 }
 
-// Computes C = A  * B0 * B1
-//         MN = MK * KL * LN
-//              ^^^^^^ (Acc0)
-//              ^^^^^^^^^^^ (Acc1)
+// Computes:
+//         Acc = Acc_Op(A_Op(A) * B0_Op(B0), D0_0, D0_1, ...)
+//         E = CDE1_Op(Acc_Op(Acc0) * B1_Op(B1), D1_0, D1_1, ...)
+//
+// Dimensions:
+//         A        = MK
+//         B0       = KL
+//         Acc/D0s  = ML
+//         B1       = LN
+//         E/D1s    = MN
 template <typename ALayout,
           typename B0layout,
           typename D0sLayout,
