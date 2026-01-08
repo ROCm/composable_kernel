@@ -683,10 +683,10 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
         const index_t num_k_block_per_scale = GetKBlockPerScale();
 
-        Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
-                           decltype(bs_grid_desc_bk0_n_bk1),
-                           decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
-                           decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+        Base::template Run<AsGridDescriptor_AK0_M_AK1,
+                           BsGridDescriptor_BK0_N_BK1,
+                           DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                           EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                            decltype(a_scale_struct),
                            decltype(b_scale_struct),
                            decltype(epilogue_args),
