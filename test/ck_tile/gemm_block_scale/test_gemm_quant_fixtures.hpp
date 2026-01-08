@@ -83,6 +83,12 @@ struct GemmConfigPreshuffleQuantTransposeC : public GemmConfigBase
     static constexpr bool TransposeC      = true;
 };
 
+struct GemmConfigPadding : public GemmConfigBase
+{
+    static constexpr bool kPadN = true;
+    static constexpr bool kPadK = true;
+};
+
 struct GemmConfigPreshuffleBDecode : public GemmConfigBase
 {
     static constexpr bool PreshuffleB      = true;
@@ -350,8 +356,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                                  Base::M_Warp_Tile,
                                                  Base::N_Warp_Tile,
                                                  Base::K_Warp_Tile,
-                                                 transpose_c,
-                                                 ck_tile::memory_operation_enum::set>>;
+                                                 transpose_c>>;
 
             using Kernel = ck_tile::QuantGemmKernel<TilePartitioner,
                                                     GemmPipeline,
@@ -635,7 +640,6 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                 Base::N_Warp_Tile,
                 Base::K_Warp_Tile,
                 false, // transpose_c
-                ck_tile::memory_operation_enum::set,
                 1,
                 false,
                 1,
@@ -890,10 +894,10 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                                                      CodegenGemmTraits,
                                                                      ComputeDataType>;
 
-        using BaseGemmPipeline =
-            std::conditional_t<PreshuffleB == false,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+        using BaseGemmPipeline = std::conditional_t<
+            PreshuffleB == true,
+            ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
+            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
 
         const ck_tile::index_t K_split  = (args.K + Base::K_Tile - 1) / Base::K_Tile * Base::K_Tile;
         const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
@@ -922,8 +926,8 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                                     tail_number_v>;
 
             using GemmPipeline =
-                std::conditional_t<PreshuffleB == false,
-                                   ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                std::conditional_t<PreshuffleB == true,
+                                   ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
@@ -943,7 +947,6 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                                  Base::N_Warp_Tile,
                                                  Base::K_Warp_Tile,
                                                  transpose_c,
-                                                 ck_tile::memory_operation_enum::set,
                                                  1,
                                                  false,
                                                  1,
@@ -1168,8 +1171,7 @@ class TestCkTileGemmRowColQuant
                                                  Base::M_Warp_Tile,
                                                  Base::N_Warp_Tile,
                                                  Base::K_Warp_Tile,
-                                                 transpose_c,
-                                                 ck_tile::memory_operation_enum::set>>;
+                                                 transpose_c>>;
 
             using Kernel = ck_tile::QuantGemmKernel<TilePartitioner,
                                                     GemmPipeline,
@@ -1383,8 +1385,7 @@ class TestCkTileGemmTensorQuant
                                                  Base::M_Warp_Tile,
                                                  Base::N_Warp_Tile,
                                                  Base::K_Warp_Tile,
-                                                 transpose_c,
-                                                 ck_tile::memory_operation_enum::set>>;
+                                                 transpose_c>>;
 
             using Kernel = ck_tile::QuantGemmKernel<TilePartitioner,
                                                     GemmPipeline,

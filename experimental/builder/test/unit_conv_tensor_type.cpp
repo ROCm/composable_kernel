@@ -11,40 +11,27 @@ namespace {
 namespace ckb = ck_tile::builder;
 using ck_tile::builder::factory::internal::DataTypeToCK;
 
-TEST(ConvTensorType, AssignsTypesForFP16)
-{
-    using CKType = DataTypeToCK<ckb::DataType::FP16>::type;
-    EXPECT_TRUE((std::is_same_v<CKType, ck::half_t>));
-}
+template <ckb::DataType DT, typename T>
+constexpr auto check_same = std::is_same_v<typename DataTypeToCK<DT>::type, T>;
 
-TEST(ConvTensorType, AssignsTypesForBF16)
+TEST(ConvTensorType, Exhaustive)
 {
-    using CKType = DataTypeToCK<ckb::DataType::BF16>::type;
-    EXPECT_TRUE((std::is_same_v<CKType, ck::bhalf_t>));
-}
+    using enum ckb::DataType;
 
-TEST(ConvTensorType, AssignsTypesForFP32)
-{
-    using CKType = DataTypeToCK<ckb::DataType::FP32>::type;
-    EXPECT_TRUE((std::is_same_v<CKType, float>));
-}
-
-TEST(ConvTensorType, AssignsTypesForINT32)
-{
-    using CKType = DataTypeToCK<ckb::DataType::INT32>::type;
-    EXPECT_TRUE((std::is_same_v<CKType, int32_t>));
-}
-
-TEST(ConvTensorType, AssignsTypesForI8)
-{
-    using CKType = DataTypeToCK<ckb::DataType::I8>::type;
-    EXPECT_TRUE((std::is_same_v<CKType, int8_t>));
-}
-
-TEST(ConvTensorType, AssignsTypesForFP8)
-{
-    using CKType = DataTypeToCK<ckb::DataType::FP8>::type;
-    EXPECT_TRUE((std::is_same_v<CKType, ck::f8_t>));
+    const auto type = FP32;
+    // This switch ensures that we get a warning (error with -Werror) if
+    // a variant is missing.
+    switch(type)
+    {
+    case UNDEFINED_DATA_TYPE: break;
+    case FP32: EXPECT_TRUE((check_same<FP32, float>)); break;
+    case FP16: EXPECT_TRUE((check_same<FP16, ck::half_t>)); break;
+    case BF16: EXPECT_TRUE((check_same<BF16, ck::bhalf_t>)); break;
+    case I32: EXPECT_TRUE((check_same<I32, uint32_t>)); break;
+    case FP8: EXPECT_TRUE((check_same<FP8, ck::f8_t>)); break;
+    case I8: EXPECT_TRUE((check_same<I8, int8_t>)); break;
+    case U8: EXPECT_TRUE((check_same<U8, uint8_t>)); break;
+    }
 }
 
 } // namespace

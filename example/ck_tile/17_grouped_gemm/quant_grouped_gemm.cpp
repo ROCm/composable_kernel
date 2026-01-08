@@ -3,332 +3,128 @@
 
 #include <hip/hip_runtime.h>
 
-#include <cstring>
-#include <iostream>
-#include <ostream>
-#include <string>
-#include <tuple>
-#include <memory>
-#include <type_traits>
+#include "quant_run_grouped_gemm_example.hpp"
 
-#include "ck_tile/core.hpp"
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm/pipeline/tile_gemm_traits.hpp"
-#include "ck_tile/ops/gemm_quant.hpp"
-#include "ck_tile/host.hpp"
-#include "quant_grouped_gemm.hpp"
+extern template int run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::TensorQuant>(
+    const ck_tile::ArgParser&, std::string, std::string, bool);
+extern template int run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::RowColQuant>(
+    const ck_tile::ArgParser&, std::string, std::string, bool);
+extern template int run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::AQuantGrouped>(
+    const ck_tile::ArgParser&, std::string, std::string, bool);
+extern template int run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::BQuantGrouped>(
+    const ck_tile::ArgParser&, std::string, std::string, bool);
+extern template int run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::TensorQuant>(
+    const ck_tile::ArgParser&, std::string, std::string, bool);
+extern template int run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::RowColQuant>(
+    const ck_tile::ArgParser&, std::string, std::string, bool);
+extern template int run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::AQuantGrouped>(
+    const ck_tile::ArgParser&, std::string, std::string, bool);
+extern template int run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::BQuantGrouped>(
+    const ck_tile::ArgParser&, std::string, std::string, bool);
 
-template <typename GemmConfig,
-          typename ALayout,
-          typename AQLayout,
-          typename BLayout,
-          typename BQLayout,
-          typename CLayout,
-          typename ADataType,
-          typename AQDataType,
-          typename BDataType,
-          typename BQDataType,
-          typename AccDataType,
-          typename CDataType,
-          typename QuantGroupSize,
-          ck_tile::QuantType QuantMode = ck_tile::QuantType::BQuantGrouped>
-float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
-                   const ck_tile::stream_config& s,
-                   void* kargs_ptr)
+auto create_args(int argc, char* argv[])
 {
-    constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-    constexpr ck_tile::index_t TileParitionerM01      = 4;
+    ck_tile::ArgParser arg_parser;
+    arg_parser.insert("Ms", "", "M dimensions - empty by default.")
+        .insert("Ns", "", "N dimensions - empty by default.")
+        .insert("Ks", "", "K dimensions - empty by default.")
+        .insert(
+            "stride_As",
+            "",
+            "Tensor A strides - it is empty by default.") // stride_As/stride_Bs/stride_Cs/stride_AQs/stride_BQs
+                                                          // can be set to zero if
+                                                          // Ms/Ns/Ks is not empty
+        .insert("stride_Bs", "", "Tensor B strides - it is empty by default.")
+        .insert("stride_Cs", "", "Tensor C strides - it is empty by default.")
+        .insert("stride_AQs", "", "Tensor AQ strides - it is empty by default.")
+        .insert("stride_BQs", "", "Tensor BQ strides - it is empty by default.")
+        .insert("a_layout", "R", "A tensor data layout - Row by default.")
+        .insert("b_layout", "C", "B tensor data layout - Column by default.")
+        .insert("c_layout", "R", "C tensor data layout - Row by default.")
+        .insert("validate", "1", "0. No validation, 1. Validation on CPU.")
+        .insert("prec", "fp8", "data type. fp16/bf16/fp8/bf8")
+        .insert("warmup", "10", "number of iterations before benchmark the kernel.")
+        .insert("repeat", "100", "number of iterations to benchmark the kernel.")
+        .insert("group_count", "8", "group count.")
+        .insert("kbatch", "1", "kbatch for SplitK")
+        .insert("quant_mode", "bquant", "Choose aquant, bquant (default), tensor, or rowcol")
+        .insert("init", "0", "0. Random, 2. One(s) (Constant)")
+        .insert("persistent", "0", "Kernel persistency. 0: non-persistent. 1: persistent.");
 
-    using GemmShape = ck_tile::TileGemmShape<
-        ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
-        ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
-        ck_tile::
-            sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>>;
-    using TilePartitioner = ck_tile::
-        GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
-
-    using Traits              = ck_tile::TileGemmTraits<GemmConfig::kPadM,
-                                                        GemmConfig::kPadN,
-                                                        GemmConfig::kPadK,
-                                                        ALayout,
-                                                        BLayout,
-                                                        CLayout>;
-    using GemmUniversalTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
-                                                             GemmConfig::kPadN,
-                                                             GemmConfig::kPadK,
-                                                             false, // PreshuffleQuant
-                                                             GemmConfig::PreshuffleB,
-                                                             ALayout,
-                                                             BLayout,
-                                                             CLayout,
-                                                             QuantMode,
-                                                             AQLayout,
-                                                             BQLayout,
-                                                             GemmConfig::TransposeC,
-                                                             GemmConfig::DoubleSmemBuffer,
-                                                             GemmConfig::Persistent>;
-    using GemmPipelineProblem =
-        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
-
-    using BaseGemmPipeline =
-        GemmQuantConfig<QuantMode>::template BaseGemmPipeline<GemmPipelineProblem,
-                                                              GemmConfig::PreshuffleB>;
-
-    const ck_tile::index_t k_grain = gemm_descs[0].k_batch * GemmConfig::K_Tile;
-    const ck_tile::index_t K_split = (gemm_descs[0].K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
-
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-
-    float ave_time{0};
-
-    const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
-        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-        constexpr auto tail_number_v    = tail_number_.value;
-        constexpr auto scheduler        = GemmConfig::Scheduler;
-        constexpr auto memory_operation = ck_tile::memory_operation_enum::set;
-
-        constexpr bool UseGroupedQuant = QuantMode == ck_tile::QuantType::AQuantGrouped ||
-                                         QuantMode == ck_tile::QuantType::BQuantGrouped;
-        using QuantGemmProblem = std::conditional_t<
-            UseGroupedQuant,
-            std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
-                               ck_tile::GemmAQuantPipelineProblem<ADataType,
-                                                                  AQDataType,
-                                                                  BDataType,
-                                                                  AccDataType,
-                                                                  GemmShape,
-                                                                  GemmUniversalTraits,
-                                                                  QuantGroupSize,
-                                                                  GemmConfig::TransposeC,
-                                                                  BDataType,
-                                                                  scheduler,
-                                                                  has_hot_loop_v,
-                                                                  tail_number_v>,
-                               ck_tile::GemmBQuantPipelineProblem<ADataType,
-                                                                  BDataType,
-                                                                  BQDataType,
-                                                                  AccDataType,
-                                                                  GemmShape,
-                                                                  GemmUniversalTraits,
-                                                                  QuantGroupSize,
-                                                                  ADataType,
-                                                                  scheduler,
-                                                                  has_hot_loop_v,
-                                                                  tail_number_v>>,
-            ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
-                                                          BDataType,
-                                                          AccDataType,
-                                                          AccDataType,
-                                                          GemmShape,
-                                                          GemmUniversalTraits,
-                                                          GemmConfig::TransposeC,
-                                                          BDataType,
-                                                          scheduler,
-                                                          has_hot_loop_v,
-                                                          tail_number_v>>;
-
-        using GemmPipeline =
-            GemmQuantConfig<QuantMode>::template GemmPipeline<QuantGemmProblem,
-                                                              GemmConfig::PreshuffleB>;
-
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             ck_tile::tuple<>,
-                                             AccDataType,
-                                             CDataType,
-                                             ck_tile::tuple<>,
-                                             CLayout,
-                                             ck_tile::element_wise::PassThrough,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             QuantGemmProblem::TransposeC,
-                                             memory_operation>>;
-
-        using Kernel = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
-                                                       GemmPipeline,
-                                                       GemmEpilogue,
-                                                       GemmUniversalTraits::kQuantType>;
-        auto kargs   = Kernel::MakeKargs(gemm_descs);
-        if(!Kernel::IsSupportedArgument(kargs))
-        {
-            throw std::runtime_error("Kernel arguments not supported!");
-        }
-
-        const dim3 blocks = Kernel::BlockSize();
-        const dim3 grids  = Kernel::GridSize(gemm_descs);
-
-        HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
-                                            kargs.data(),
-                                            get_workspace_size(gemm_descs),
-                                            hipMemcpyHostToDevice,
-                                            s.stream_id_));
-
-        if(s.log_level_ > 0)
-        {
-            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
-                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
-                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
-        }
-
-        return ave_time = ck_tile::launch_kernel(
-                   s,
-                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                       Kernel{},
-                       grids,
-                       blocks,
-                       0,
-                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                       gemm_descs.size()));
-    };
-
-    return ave_time = BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
+    bool result = arg_parser.parse(argc, argv);
+    return std::make_tuple(result, arg_parser);
 }
-
-template <typename GemmConfig,
-          typename ALayout,
-          typename AQLayout,
-          typename BLayout,
-          typename BQLayout,
-          typename CLayout,
-          typename ADataType,
-          typename AQDataType,
-          typename BDataType,
-          typename BQDataType,
-          typename AccDataType,
-          typename CDataType,
-          typename QuantGroupSize,
-          ck_tile::QuantType QuantMode = ck_tile::QuantType::BQuantGrouped>
-float grouped_gemm_tileloop(const ck_tile::stream_config& s,
-                            const ck_tile::index_t num_groups,
-                            void* kargs_ptr)
-{
-    constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-    constexpr ck_tile::index_t TileParitionerM01      = 4;
-
-    using GemmShape = ck_tile::TileGemmShape<
-        ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
-        ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
-        ck_tile::
-            sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>>;
-    using TilePartitioner = ck_tile::
-        GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
-
-    using GemmUniversalTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
-                                                             GemmConfig::kPadN,
-                                                             GemmConfig::kPadK,
-                                                             false, // PreshuffleQuant
-                                                             GemmConfig::PreshuffleB,
-                                                             ALayout,
-                                                             BLayout,
-                                                             CLayout,
-                                                             QuantMode,
-                                                             AQLayout,
-                                                             BQLayout,
-                                                             GemmConfig::TransposeC,
-                                                             GemmConfig::DoubleSmemBuffer,
-                                                             GemmConfig::Persistent>;
-
-    float ave_time{0};
-
-    const auto Run = [&](const auto memory_operation_) {
-        constexpr auto scheduler        = GemmConfig::Scheduler;
-        constexpr auto memory_operation = memory_operation_.value;
-
-        constexpr bool UseGroupedQuant = QuantMode == ck_tile::QuantType::AQuantGrouped ||
-                                         QuantMode == ck_tile::QuantType::BQuantGrouped;
-
-        using QuantGemmProblem = std::conditional_t<
-            UseGroupedQuant,
-            std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
-                               ck_tile::GemmAQuantPipelineProblem<ADataType,
-                                                                  AQDataType,
-                                                                  BDataType,
-                                                                  AccDataType,
-                                                                  GemmShape,
-                                                                  GemmUniversalTraits,
-                                                                  QuantGroupSize,
-                                                                  GemmConfig::TransposeC>,
-                               ck_tile::GemmBQuantPipelineProblem<ADataType,
-                                                                  BDataType,
-                                                                  BQDataType,
-                                                                  AccDataType,
-                                                                  GemmShape,
-                                                                  GemmUniversalTraits,
-                                                                  QuantGroupSize>>,
-            ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
-                                                          BDataType,
-                                                          AccDataType,
-                                                          AccDataType,
-                                                          GemmShape,
-                                                          GemmUniversalTraits,
-                                                          GemmConfig::TransposeC,
-                                                          BDataType,
-                                                          scheduler>>;
-
-        using GemmPipeline =
-            GemmQuantConfig<QuantMode>::template GemmPipeline<QuantGemmProblem,
-                                                              GemmConfig::PreshuffleB>;
-
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             ck_tile::tuple<>,
-                                             AccDataType,
-                                             CDataType,
-                                             ck_tile::tuple<>,
-                                             CLayout,
-                                             ck_tile::element_wise::PassThrough,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             QuantGemmProblem::TransposeC,
-                                             memory_operation>>;
-        using Kernel      = ck_tile::QuantGroupedGemmKernel<TilePartitioner,
-                                                            GemmPipeline,
-                                                            GemmEpilogue,
-                                                            GemmUniversalTraits::kQuantType>;
-        const dim3 blocks = Kernel::BlockSize();
-        const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
-
-        if(s.log_level_ > 0)
-        {
-            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
-                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
-                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
-        }
-
-        return ave_time = ck_tile::launch_kernel(
-                   s,
-                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                       Kernel{},
-                       grids,
-                       blocks,
-                       0,
-                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                       num_groups));
-    };
-
-    return ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                                     ck_tile::memory_operation_enum::set>{});
-}
-
-#include "quant_run_grouped_gemm_example.inc"
 
 int main(int argc, char* argv[])
 {
-    int result1 = run_grouped_gemm_example(argc, argv);
-    return result1;
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+    {
+        return -1;
+    }
+
+    const std::string a_layout  = arg_parser.get_str("a_layout");
+    const std::string b_layout  = arg_parser.get_str("b_layout");
+    const std::string data_type = arg_parser.get_str("prec");
+    std::string quant_mode      = arg_parser.get_str("quant_mode");
+    bool persistent             = arg_parser.get_bool("persistent");
+
+    if(data_type == "fp8")
+    {
+        if(quant_mode == "tensor")
+        {
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::TensorQuant>(
+                arg_parser, a_layout, b_layout, persistent);
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::RowColQuant>(
+                arg_parser, a_layout, b_layout, persistent);
+        }
+        else if(quant_mode == "aquant")
+        {
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::AQuantGrouped>(
+                arg_parser, a_layout, b_layout, persistent);
+        }
+        else if(quant_mode == "bquant")
+        {
+            return run_gemm_example_persistency<ck_tile::fp8_t, ck_tile::QuantType::BQuantGrouped>(
+                arg_parser, a_layout, b_layout, persistent);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported quantization mode!");
+        }
+    }
+    if(data_type == "bf8")
+    {
+        if(quant_mode == "tensor")
+        {
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::TensorQuant>(
+                arg_parser, a_layout, b_layout, persistent);
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::RowColQuant>(
+                arg_parser, a_layout, b_layout, persistent);
+        }
+        else if(quant_mode == "aquant")
+        {
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::AQuantGrouped>(
+                arg_parser, a_layout, b_layout, persistent);
+        }
+        else if(quant_mode == "bquant")
+        {
+            return run_gemm_example_persistency<ck_tile::bf8_t, ck_tile::QuantType::BQuantGrouped>(
+                arg_parser, a_layout, b_layout, persistent);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported quantization mode!");
+        }
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type configuration.");
+    }
 }
