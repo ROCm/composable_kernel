@@ -24,6 +24,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_offset_utils.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/host_utility/device_prop.hpp"
@@ -60,13 +61,19 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         [[maybe_unused]] const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock,
         [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-        [[maybe_unused]] const index_t num_k_per_block)
+        [[maybe_unused]] const index_t num_k_per_block,
+        const long_index_t split_k_stride_a,
+        const long_index_t split_k_stride_b,
+        bool split_k_offset_hack)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
-        const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
+        const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
+
+        const long_index_t split_k_offset_a = split_k_offset_hack ? k_idx * split_k_stride_a : 0;
+        const long_index_t split_k_offset_b = split_k_offset_hack ? k_idx * split_k_stride_b : 0;
 
         const long_index_t a_batch_offset = amd_wave_read_first_lane(
             static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
@@ -77,23 +84,29 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-        GridwiseGemm::template Run<AGridDesc_AK0_M_K1,
-                                   BGridDesc_BK0_N_K1,
-                                   CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                   HasMainKBlockLoop,
-                                   CGlobalMemoryDataOperation,
-                                   TailNum>(karg.p_a_grid + a_batch_offset,
-                                            karg.p_b_grid + b_batch_offset,
-                                            karg.p_c_grid + e_batch_offset,
-                                            p_shared,
-                                            karg,
-                                            a_grid_desc_ak0_m_ak1,
-                                            b_grid_desc_bk0_n_bk1,
-                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                            k_idx);
+        DispatchSplitKHack<GridwiseGemm,
+                           AGridDesc_AK0_M_K1,
+                           BGridDesc_BK0_N_K1,
+                           CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                           HasMainKBlockLoop,
+                           CGlobalMemoryDataOperation,
+                           TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
+                                    karg.p_b_grid + b_batch_offset + split_k_offset_b,
+                                    karg.p_c_grid + e_batch_offset,
+                                    p_shared,
+                                    karg,
+                                    a_grid_desc_ak0_m_ak1,
+                                    b_grid_desc_bk0_n_bk1,
+                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    k_idx * num_k_per_block,
+                                    gridDim.y,
+                                    split_k_offset_hack);
     }
 #else
     ignore = karg;
+    ignore = split_k_stride_a;
+    ignore = split_k_stride_b;
+    ignore = split_k_offset_hack;
 #endif // end of if (defined(__gfx9__))
 }
 
@@ -118,14 +131,20 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         [[maybe_unused]] const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock,
         [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-        [[maybe_unused]] const index_t num_k_per_block)
+        [[maybe_unused]] const index_t num_k_per_block,
+        const long_index_t split_k_stride_a,
+        const long_index_t split_k_stride_b,
+        bool split_k_offset_hack)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         // offset base pointer for each work-group
         const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
-        const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
+        const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
+
+        const long_index_t split_k_offset_a = split_k_offset_hack ? k_idx * split_k_stride_a : 0;
+        const long_index_t split_k_offset_b = split_k_offset_hack ? k_idx * split_k_stride_b : 0;
 
         const long_index_t a_batch_offset = amd_wave_read_first_lane(
             static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
@@ -139,24 +158,30 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
         __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-        GridwiseGemm::template Run_2Lds<AGridDesc_AK0_M_K1,
-                                        BGridDesc_BK0_N_K1,
-                                        CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                        HasMainKBlockLoop,
-                                        CGlobalMemoryDataOperation,
-                                        TailNum>(karg.p_a_grid + a_batch_offset,
-                                                 karg.p_b_grid + b_batch_offset,
-                                                 karg.p_c_grid + e_batch_offset,
-                                                 p_shared_0,
-                                                 p_shared_1,
-                                                 karg,
-                                                 a_grid_desc_ak0_m_ak1,
-                                                 b_grid_desc_bk0_n_bk1,
-                                                 c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                 k_idx);
+        DispatchSplitKHack_2Lds<GridwiseGemm,
+                                AGridDesc_AK0_M_K1,
+                                BGridDesc_BK0_N_K1,
+                                CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                HasMainKBlockLoop,
+                                CGlobalMemoryDataOperation,
+                                TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
+                                         karg.p_b_grid + b_batch_offset + split_k_offset_b,
+                                         karg.p_c_grid + e_batch_offset,
+                                         p_shared_0,
+                                         p_shared_1,
+                                         karg,
+                                         a_grid_desc_ak0_m_ak1,
+                                         b_grid_desc_bk0_n_bk1,
+                                         c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                         k_idx * num_k_per_block,
+                                         gridDim.y,
+                                         split_k_offset_hack);
     }
 #else
     ignore = karg;
+    ignore = split_k_offset_hack;
+    ignore = split_k_stride_a;
+    ignore = split_k_stride_b;
 #endif // end of if (defined(__gfx9__))
 }
 
@@ -693,7 +718,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 k_batch_ = split_k;
             }
 
-            const auto descs =
+            // Create initial descriptors with hack=false to check compactness
+            const auto descs_initial =
                 conv_to_gemm_transformer_v2
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
                         Conv_N_,
@@ -709,11 +735,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         conv_filter_dilations,
                         input_left_pads,
                         input_right_pads,
-                        k_batch_);
-
-            a_grid_desc_k0_m_k1_ = descs[I0];
-            b_grid_desc_k0_n_k1_ = descs[I1];
-            ce_grid_desc_m_n_    = descs[I2];
+                        k_batch_,
+                        false, // hack=false for initial check
+                        true); // use_full_batch_kindex
 
             ce_elementwise_grid_desc_m_n_ =
                 conv_to_gemm_transformer_v1
@@ -732,6 +756,67 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         input_left_pads,
                         input_right_pads,
                         k_batch_)[I2];
+
+            split_k_offset_hack_ =
+                SplitKHackEligibility<NDimSpatial, InLayout, WeiLayout, OutLayout>::Check(
+                    descs_initial[I0],
+                    descs_initial[I1],
+                    k_batch_,
+                    Conv_N_,
+                    output_spatial_lengths_,
+                    KPerBlock);
+
+            // Create final descriptors with correct hack flag
+            const auto descs =
+                conv_to_gemm_transformer_v2
+                    .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
+                        Conv_N_,
+                        Conv_K_,
+                        Conv_C_,
+                        input_spatial_lengths_,
+                        filter_spatial_lengths_,
+                        output_spatial_lengths_,
+                        b_g_n_c_wis_strides_transposed,
+                        e_g_k_c_xs_strides_transposed,
+                        a_g_n_k_wos_strides_transposed,
+                        conv_filter_strides,
+                        conv_filter_dilations,
+                        input_left_pads,
+                        input_right_pads,
+                        k_batch_,
+                        split_k_offset_hack_, // Use determined hack flag
+                        true);                // use_full_batch_kindex
+
+            a_grid_desc_k0_m_k1_ = descs[I0];
+            b_grid_desc_k0_n_k1_ = descs[I1];
+            ce_grid_desc_m_n_    = descs[I2];
+
+            // Step 5: Calculate stride using CalculateOffset on FINAL descriptors
+            if(split_k_offset_hack_)
+            {
+                const index_t k0_per_batch = a_grid_desc_k0_m_k1_.GetLength(I0) / k_batch_;
+                const auto idx_start       = make_multi_index(0, 0, 0);
+                const auto idx_next        = make_multi_index(k0_per_batch, 0, 0);
+                split_k_stride_a_          = a_grid_desc_k0_m_k1_.CalculateOffset(idx_next) -
+                                    a_grid_desc_k0_m_k1_.CalculateOffset(idx_start);
+            }
+            else
+            {
+                split_k_stride_a_ = a_grid_desc_k0_m_k1_.GetElementSpaceSize();
+            }
+
+            if(split_k_offset_hack_)
+            {
+                const index_t k0_per_batch = b_grid_desc_k0_n_k1_.GetLength(I0) / k_batch_;
+                const auto idx_start       = make_multi_index(0, 0, 0);
+                const auto idx_next        = make_multi_index(k0_per_batch, 0, 0);
+                split_k_stride_b_          = b_grid_desc_k0_n_k1_.CalculateOffset(idx_next) -
+                                    b_grid_desc_k0_n_k1_.CalculateOffset(idx_start);
+            }
+            else
+            {
+                split_k_stride_b_ = b_grid_desc_k0_n_k1_.GetElementSpaceSize();
+            }
 
             const index_t GemmM = a_grid_desc_k0_m_k1_.GetLength(I1);
             const index_t GemmN = b_grid_desc_k0_n_k1_.GetLength(I1);
@@ -869,6 +954,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         long_index_t c_space_size_bytes;
+
+        bool split_k_offset_hack_;
+        long_index_t split_k_stride_a_, split_k_stride_b_;
     };
 
     // Invoker
@@ -971,7 +1059,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         arg.b_grid_desc_k0_n_k1_,
                         arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                         arg.compute_ptr_offset_of_batch_,
-                        num_k_per_block);
+                        num_k_per_block,
+                        arg.split_k_stride_a_,
+                        arg.split_k_stride_b_,
+                        arg.split_k_offset_hack_);
                 }
                 else
                 {
@@ -987,7 +1078,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         arg.b_grid_desc_k0_n_k1_,
                         arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                         arg.compute_ptr_offset_of_batch_,
-                        num_k_per_block);
+                        num_k_per_block,
+                        arg.split_k_stride_a_,
+                        arg.split_k_stride_b_,
+                        arg.split_k_offset_hack_);
                 }
             };
 
@@ -1918,14 +2012,6 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             {
                 return false;
             }
-        }
-
-        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
-        if(!(arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
-             arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB &&
-             arg.ce_grid_desc_m_n_.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
-        {
-            return false;
         }
 
         return true;
