@@ -230,7 +230,11 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         clear_tile(o_acc);
         if((__builtin_isinf_sign(sink_v) >= 0) && i_split == 0)
         {
-            set_tile(m, SMPLComputeDataType{sink_v});
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+            set_tile(m, sink_v * C_LOG2E);
+#else
+            set_tile(m, sink_v);
+#endif
             set_tile(l, SMPLComputeDataType{1.0f});
         }
         else

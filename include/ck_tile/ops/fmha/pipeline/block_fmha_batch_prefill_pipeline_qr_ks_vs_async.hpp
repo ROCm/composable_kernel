@@ -92,6 +92,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
 #if CK_TILE_FMHA_FWD_FAST_EXP2
     static constexpr auto R_LOG2E = 1.0 / log2e_v<SaccDataType>;
+    static constexpr auto LOG2E   = log2e_v<SaccDataType>;
 #endif
 
     static constexpr index_t kBlockPerCu = []() {
@@ -285,7 +286,11 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         clear_tile(o_acc);
         if(__builtin_isinf_sign(sink_v) >= 0)
         {
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+            set_tile(m, sink_v * LOG2E);
+#else
             set_tile(m, sink_v);
+#endif
             set_tile(l, SMPLComputeDataType{1.0f});
         }
         else

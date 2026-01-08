@@ -233,7 +233,11 @@ struct BlockFmhaPipelineQRKSVS
         clear_tile(o_acc);
         if(__builtin_isinf_sign(sink_v) >= 0)
         {
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+            set_tile(m, sink_v * C_LOG2E);
+#else
             set_tile(m, sink_v);
+#endif
             set_tile(l, SMPLComputeDataType{1.0f});
         }
         else
@@ -274,7 +278,14 @@ struct BlockFmhaPipelineQRKSVS
                     auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
+                    if(__builtin_isinf_sign(sink_v) >= 0)
+                    {
+                        set_tile(lse_acc, SMPLComputeDataType{sink_v});
+                    }
+                    else
+                    {
+                        set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
+                    }
 
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
