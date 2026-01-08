@@ -35,7 +35,7 @@ def _import_benchmark_utils():
     # Load the module dynamically
     spec = importlib.util.spec_from_file_location(
         "benchmark_utils",
-        os.path.join(parent_dir, "commons", "benchmark_utils.py"),
+        os.path.join(parent_dir, "common", "benchmark_utils.py"),
     )
     benchmark_utils = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(benchmark_utils)

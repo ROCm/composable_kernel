@@ -12,20 +12,18 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "gemm_universal_profiler.hpp"
-#include "gemm_universal_common.hpp"
 
 // The kernel header is included via the compile command line with -include flag
 // It defines SelectedKernel struct and KERNEL_NAME
-// DataTypeTraits are now defined in gemm_common.hpp
 
 void benchmark_single(const ck_tile::ArgParser& arg_parser)
 {
     // Use DataTypeTraits to get the actual type names from the generated header
     // The generated header defines ADataType, BDataType, AccDataType, CDataType
-    std::string dtype_a   = DataTypeTraits<ADataType>::name;
-    std::string dtype_b   = DataTypeTraits<BDataType>::name;
-    std::string dtype_acc = DataTypeTraits<AccDataType>::name;
-    std::string dtype_c   = DataTypeTraits<CDataType>::name;
+    std::string dtype_a   = ck_tile::DataTypeTraits<ADataType>::name;
+    std::string dtype_b   = ck_tile::DataTypeTraits<BDataType>::name;
+    std::string dtype_acc = ck_tile::DataTypeTraits<AccDataType>::name;
+    std::string dtype_c   = ck_tile::DataTypeTraits<CDataType>::name;
 
     // Layout names from the layout types
     std::string layout_a = ALayout::name;
@@ -62,7 +60,7 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
                     arg_parser.get_bool("json_output")};
 
     // Get the profiler instance
-    auto& profiler = GemmProfiler::instance(setting);
+    auto& profiler = UniversalGemmProfiler::GemmProfiler::instance(setting);
 
     try
     {
