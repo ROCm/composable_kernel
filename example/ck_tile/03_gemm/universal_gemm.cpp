@@ -55,9 +55,9 @@ int main(int argc, char* argv[])
         return -1;
 
     try
-    {
-        return !run_gemm_example<GemmConfigComputeV3_1>(arg_parser);
-
+    {   run_gemm_example<GemmConfigComputeV4>(arg_parser);
+        run_gemm_example<GemmConfigComputeAsync>(arg_parser);
+        return 0;
     }
     catch(const std::runtime_error& e)
     {

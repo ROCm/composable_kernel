@@ -244,6 +244,13 @@ endif()
 rocm_check_target_ids(SUPPORTED_GPU_TARGETS
         TARGETS ${CK_GPU_TARGETS})
 
+# If SUPPORTED_GPU_TARGETS is empty but user specified GPU_TARGETS, use it directly
+# This allows building for newer architectures that rocm_check_target_ids might not recognize
+if(NOT SUPPORTED_GPU_TARGETS AND USER_GPU_TARGETS)
+    message(WARNING "rocm_check_target_ids returned empty, using GPU_TARGETS directly: ${GPU_TARGETS}")
+    set(SUPPORTED_GPU_TARGETS ${GPU_TARGETS})
+endif()
+
 message(STATUS "Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
 
 # Cache SUPPORTED_GPU_TARGETS for debug
@@ -424,7 +431,12 @@ endif()
 
 ## HIP
 set(CMAKE_HIP_PLATFORM amd)
-set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
+# Use ROCm clang for HIP compilation if available
+if(EXISTS "/opt/rocm/llvm/bin/clang++")
+    set(CMAKE_HIP_COMPILER "/opt/rocm/llvm/bin/clang++")
+else()
+    set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
+endif()
 set(CMAKE_HIP_EXTENSIONS ON)
 message(STATUS "CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
 
