@@ -156,7 +156,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
                 CShuffleMXDLPerWave,    CShuffleNXDLPerWave,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec, 1>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, IsInputGemm, IsSplitK, MulRoutedWeight,
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, IsInputGemm, IsSplitK, MulRoutedWeight,
                int32_t, A0DataType, A0DataType, A0DataType, A0DataType, true>;
 #else
 
@@ -186,6 +186,8 @@ int main(int argc, char* argv[])
     // GEMM shape
     ck::index_t N = 1536;
     ck::index_t K = 4096;
+    // ck::index_t N = 4096;
+    // ck::index_t K = 6144;
     // ck::index_t N       = 128;
     // ck::index_t K       = 512;
     ck::index_t experts = 16;
