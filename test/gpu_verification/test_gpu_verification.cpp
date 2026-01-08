@@ -23,11 +23,23 @@ using ck::ref::SimpleDeviceMem;
 class GPUVerificationTest : public ::testing::Test
 {
     protected:
+    // Random number generator - initialized once per test for reproducibility
+    std::mt19937 rng_;
+
     void SetUp() override
     {
         // Ensure HIP is initialized
         hipDeviceProp_t prop;
         [[maybe_unused]] hipError_t err = hipGetDeviceProperties(&prop, 0);
+
+        // Initialize RNG with fixed seed for reproducibility
+        // Can be overridden with CK_TEST_SEED environment variable
+        unsigned int seed = 12345;
+        if(const char* env_seed = std::getenv("CK_TEST_SEED"))
+        {
+            seed = std::stoul(env_seed);
+        }
+        rng_.seed(seed);
     }
 
     void TearDown() override
@@ -68,21 +80,21 @@ class GPUVerificationTest : public ::testing::Test
     std::vector<T> GenerateRandomData(size_t size, float min_val = -10.0f, float max_val = 10.0f)
     {
         std::vector<T> data(size);
-        std::random_device rd;
-        std::mt19937 gen(rd());
 
+        // Use test fixture's RNG (rng_) for reproducibility
+        // RNG is seeded in SetUp() with fixed seed or CK_TEST_SEED environment variable
         if constexpr(std::is_integral<T>::value)
         {
             std::uniform_int_distribution<int> dis(static_cast<int>(min_val),
                                                    static_cast<int>(max_val));
             for(auto& val : data)
-                val = static_cast<T>(dis(gen));
+                val = static_cast<T>(dis(rng_));
         }
         else
         {
             std::uniform_real_distribution<float> dis(min_val, max_val);
             for(auto& val : data)
-                val = ck::type_convert<T>(dis(gen));
+                val = ck::type_convert<T>(dis(rng_));
         }
         return data;
     }
@@ -584,13 +596,12 @@ TEST_F(GPUVerificationTest, ComputeRelativeTolerance_IntegerTypes_ReturnsZero)
 {
     // Integer types should have zero relative tolerance
     float rtol_int8  = compute_relative_tolerance<int8_t, int8_t, int8_t>();
+    float rtol_int16 = compute_relative_tolerance<int16_t, int16_t, int16_t>();
     float rtol_int32 = compute_relative_tolerance<int32_t, int32_t, int32_t>();
 
     EXPECT_FLOAT_EQ(0.0f, rtol_int8) << "INT8 should have zero relative tolerance";
+    EXPECT_FLOAT_EQ(0.0f, rtol_int16) << "INT16 should have zero relative tolerance";
     EXPECT_FLOAT_EQ(0.0f, rtol_int32) << "INT32 should have zero relative tolerance";
-
-    // Note: INT16 uses conservative default of 0.1 in current implementation
-    // This is acceptable as it ensures correctness, even if not optimal
 }
 
 TEST_F(GPUVerificationTest, ComputeRelativeTolerance_FP32_NonZero)

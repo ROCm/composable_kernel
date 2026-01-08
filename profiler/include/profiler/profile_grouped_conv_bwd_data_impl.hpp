@@ -117,6 +117,10 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
             in_element_op,
             wei_element_op,
             out_element_op);
+
+        // Compute max value on GPU for tolerance calculation (only 4 bytes transferred!)
+        max_accumulated_value = ck::profiler::gpu_reduce_max<InDataType>(
+            gpu_ref_in_buf.GetDeviceBuffer(), in_host.mDesc.GetElementSpaceSize());
     }
     else if(do_verification == 1)
     {

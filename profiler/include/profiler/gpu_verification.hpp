@@ -22,11 +22,12 @@ inline float compute_relative_tolerance(const int number_of_accumulations = 1)
     using BF16 = ck::bhalf_t;
     using F32  = float;
     using I8   = int8_t;
+    using I16  = int16_t;
     using I32  = int32_t;
 
     // For integer types, tolerance is 0
-    if constexpr(std::is_same_v<ComputeDataType, I8> || std::is_same_v<ComputeDataType, I32> ||
-                 std::is_same_v<ComputeDataType, int>)
+    if constexpr(std::is_same_v<ComputeDataType, I8> || std::is_same_v<ComputeDataType, I16> ||
+                 std::is_same_v<ComputeDataType, I32> || std::is_same_v<ComputeDataType, int>)
     {
         return 0.0f;
     }
@@ -113,6 +114,8 @@ bool gpu_verify(const void* device_result,
     hip_check_error(hipMemcpy(passed_dev, &passed_host, sizeof(int), hipMemcpyHostToDevice));
 
     // Launch kernel with grid-stride loop
+    // Use 65535 as max grid size (hardware limit for grid dimension in x)
+    // Grid-stride loop handles any tensor size regardless of grid dimensions
     constexpr int block_size = 256;
     int grid_size            = std::min<int>(65535, (size + block_size - 1) / block_size);
 
@@ -126,11 +129,8 @@ bool gpu_verify(const void* device_result,
 
     hip_check_error(hipGetLastError());
 
-    // Synchronize if using default stream, otherwise caller should sync
-    if(stream == nullptr)
-    {
-        hip_check_error(hipDeviceSynchronize());
-    }
+    // Synchronize the stream to ensure kernel completion before reading results
+    hip_check_error(hipStreamSynchronize(stream));
 
     // Get result
     hip_check_error(hipMemcpy(&passed_host, passed_dev, sizeof(int), hipMemcpyDeviceToHost));
@@ -186,6 +186,7 @@ bool gpu_verify(const void* device_result,
     // Call the explicit tolerance version
     return gpu_verify<OutDataType>(device_result, reference_result, rtol, atol, size, stream);
 }
+
 //
 // Helper function for atomic float max (using compare-and-swap)
 __device__ __forceinline__ float atomicMaxFloat(float* address, float val)
@@ -252,6 +253,10 @@ gpu_reduce_max_kernel(const T* __restrict__ data, long long size, float* __restr
         smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 1]);
     }
 
+    // Two-phase reduction pattern minimizes atomic contention:
+    // 1. Each block reduces to shared memory (above)
+    // 2. Single thread per block updates global max (below)
+    // This limits atomic operations to O(grid_size) rather than O(total_threads)
     if(threadIdx.x == 0)
     {
         atomicMaxFloat(max_val, shared_max[0]);
@@ -278,6 +283,8 @@ float gpu_reduce_max(const void* device_buffer, std::size_t size, hipStream_t st
     hip_check_error(hipMemcpy(max_dev, &init_val, sizeof(float), hipMemcpyHostToDevice));
 
     // Launch reduction kernel
+    // Use 1024 blocks max for reduction to balance occupancy vs. grid-stride iterations
+    // For very large tensors (>256M elements), grid-stride loop handles the remainder
     constexpr int block_size = 256;
     int grid_size            = std::min<int>(1024, (size + block_size - 1) / block_size);
 
