@@ -7,6 +7,7 @@
 #include <array>
 #include <vector>
 #include <sstream>
+#include <iosfwd>
 #include <concepts>
 #include <algorithm>
 #include <hip/hip_runtime.h>
@@ -122,6 +123,33 @@ struct Extent : std::array<size_t, RANK>
 // correct type. This definition is practically the same as that of `std::array`.
 template <typename... T>
 Extent(T...) -> Extent<sizeof...(T)>;
+
+/// @brief Extent printer
+///
+/// This function implements an ostream printing overload for `Extent`, so that
+/// they can be printed in the usual `stream << extent` fashion.
+///
+/// @tparam RANK Rank (number of spatial dimensions) of the extent.
+///
+/// @param stream The stream to print the extent to.
+/// @param extent The extent to print to the stream.
+template <size_t RANK>
+std::ostream& operator<<(std::ostream& stream, const Extent<RANK>& extent)
+{
+    stream << '[';
+    bool first = true;
+    for(const auto x : extent)
+    {
+        if(first)
+            first = false;
+        else
+            stream << ", ";
+
+        stream << x;
+    }
+
+    return stream << ']';
+}
 
 /// @brief Concept for automatically deriving tensor memory layout.
 ///
