@@ -381,5 +381,230 @@ bool test_conv_gpu_ref(const ck::utils::conv::ConvParam& params, ConvKernelType 
     }
 }
 
+// Forward convolution with D tensor support
+template <index_t NDimSpatial,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          typename OutElementOp>
+bool test_conv_fwd_with_d_tensor_impl(const ck::utils::conv::ConvParam& params,
+                                      const Tensor<InDataType>& input_cpu,
+                                      const Tensor<WeiDataType>& weight_cpu,
+                                      const Tensor<OutDataType>& d_cpu,
+                                      DeviceMem& input_dev,
+                                      DeviceMem& weight_dev,
+                                      DeviceMem& d_dev,
+                                      DeviceMem& output_dev,
+                                      OutElementOp out_element_op)
+{
+    using InElementOp  = tensor_operation::element_wise::PassThrough;
+    using WeiElementOp = tensor_operation::element_wise::PassThrough;
+
+    // Create D tensor lengths and strides for GPU reference
+    std::vector<index_t> d_lengths_vec(NDimSpatial + 3);
+    d_lengths_vec[0] = params.G_;
+    d_lengths_vec[1] = params.N_;
+    d_lengths_vec[2] = params.K_;
+    for(index_t i = 0; i < NDimSpatial; ++i)
+    {
+        d_lengths_vec[3 + i] = static_cast<index_t>(params.output_spatial_lengths_[i]);
+    }
+
+    std::vector<index_t> d_strides_vec =
+        ref::compute_conv_tensor_strides<OutLayout>(d_lengths_vec, params.num_dim_spatial_);
+
+    std::array<const OutDataType*, 1> d_ptrs = {
+        reinterpret_cast<const OutDataType*>(d_dev.GetDeviceBuffer())};
+    std::array<std::vector<index_t>, 1> d_lengths = {d_lengths_vec};
+    std::array<std::vector<index_t>, 1> d_strides = {d_strides_vec};
+
+    // Call GPU reference with D tensor
+    std::array<const InDataType*, 1> in_ptrs = {
+        reinterpret_cast<const InDataType*>(input_dev.GetDeviceBuffer())};
+    std::array<const WeiDataType*, 1> wei_ptrs = {
+        reinterpret_cast<const WeiDataType*>(weight_dev.GetDeviceBuffer())};
+
+    ref::naive_conv_fwd_multi_abd<0,
+                                  0,
+                                  1,
+                                  InLayout,
+                                  WeiLayout,
+                                  OutLayout,
+                                  InDataType,
+                                  WeiDataType,
+                                  OutDataType,
+                                  InElementOp,
+                                  WeiElementOp,
+                                  OutElementOp,
+                                  OutDataType>( // Explicitly specify TD = OutDataType
+        in_ptrs,
+        wei_ptrs,
+        d_ptrs,
+        reinterpret_cast<OutDataType*>(output_dev.GetDeviceBuffer()),
+        params,
+        d_lengths,
+        d_strides,
+        InElementOp{},
+        WeiElementOp{},
+        out_element_op);
+
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+    // Run CPU reference
+    std::vector<long_index_t> strides_long(params.conv_filter_strides_.begin(),
+                                           params.conv_filter_strides_.end());
+    std::vector<long_index_t> dilations_long(params.conv_filter_dilations_.begin(),
+                                             params.conv_filter_dilations_.end());
+    std::vector<long_index_t> pads_long(params.input_left_pads_.begin(),
+                                        params.input_left_pads_.end());
+
+    Tensor<InDataType> input_ref   = input_cpu;
+    Tensor<WeiDataType> weight_ref = weight_cpu;
+    Tensor<OutDataType> output_ref(
+        ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(params));
+
+    std::array<Tensor<OutDataType>, 1> d_tensors_ref = {d_cpu};
+
+    auto ref_conv    = tensor_operation::host::ReferenceConvFwd<NDimSpatial,
+                                                                InDataType,
+                                                                WeiDataType,
+                                                                OutDataType,
+                                                                InElementOp,
+                                                                WeiElementOp,
+                                                                OutElementOp,
+                                                                0, // NumA
+                                                                0, // NumB
+                                                                1  // NumD
+                                                                >();
+    auto ref_invoker = ref_conv.MakeInvoker();
+    auto ref_arg     = ref_conv.MakeArgument(input_ref,
+                                         weight_ref,
+                                         output_ref,
+                                         strides_long,
+                                         dilations_long,
+                                         pads_long,
+                                         pads_long,
+                                         InElementOp{},
+                                         WeiElementOp{},
+                                         out_element_op,
+                                             {}, // A tensors
+                                             {}, // B tensors
+                                         d_tensors_ref);
+    ref_invoker.Run(ref_arg);
+
+    // Copy result from device and compare
+    Tensor<OutDataType> output_gpu(output_ref.mDesc);
+    output_dev.FromDevice(output_gpu.mData.data());
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+    // Compare results
+    return ck::utils::check_err(output_gpu, output_ref);
+}
+
+// Forward convolution with multiple A/B tensor support
+template <index_t NDimSpatial,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          typename InElementOp,
+          typename WeiElementOp>
+bool test_conv_fwd_with_multi_ab_impl(const ck::utils::conv::ConvParam& params,
+                                      const Tensor<InDataType>& input_cpu,
+                                      const Tensor<WeiDataType>& weight_cpu,
+                                      const Tensor<InDataType>& a_extra_cpu,
+                                      const Tensor<WeiDataType>& b_extra_cpu,
+                                      DeviceMem& input_dev,
+                                      DeviceMem& weight_dev,
+                                      DeviceMem& a_extra_dev,
+                                      DeviceMem& b_extra_dev,
+                                      DeviceMem& output_dev,
+                                      InElementOp in_element_op,
+                                      WeiElementOp wei_element_op)
+{
+    using OutElementOp = tensor_operation::element_wise::PassThrough;
+
+    // Call GPU reference with extra A and B tensors
+    std::array<const InDataType*, 2> in_ptrs = {
+        reinterpret_cast<const InDataType*>(input_dev.GetDeviceBuffer()),
+        reinterpret_cast<const InDataType*>(a_extra_dev.GetDeviceBuffer())};
+    std::array<const WeiDataType*, 2> wei_ptrs = {
+        reinterpret_cast<const WeiDataType*>(weight_dev.GetDeviceBuffer()),
+        reinterpret_cast<const WeiDataType*>(b_extra_dev.GetDeviceBuffer())};
+    std::array<const OutDataType*, 0> d_ptrs      = {};
+    std::array<std::vector<index_t>, 0> d_lengths = {};
+    std::array<std::vector<index_t>, 0> d_strides = {};
+
+    ref::naive_conv_fwd_multi_abd<1, 1, 0, InLayout, WeiLayout, OutLayout>(
+        in_ptrs,
+        wei_ptrs,
+        d_ptrs,
+        reinterpret_cast<OutDataType*>(output_dev.GetDeviceBuffer()),
+        params,
+        d_lengths,
+        d_strides,
+        in_element_op,
+        wei_element_op,
+        OutElementOp{});
+
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+    // Run CPU reference
+    std::vector<long_index_t> strides_long(params.conv_filter_strides_.begin(),
+                                           params.conv_filter_strides_.end());
+    std::vector<long_index_t> dilations_long(params.conv_filter_dilations_.begin(),
+                                             params.conv_filter_dilations_.end());
+    std::vector<long_index_t> pads_long(params.input_left_pads_.begin(),
+                                        params.input_left_pads_.end());
+
+    Tensor<InDataType> input_ref   = input_cpu;
+    Tensor<WeiDataType> weight_ref = weight_cpu;
+    Tensor<OutDataType> output_ref(
+        ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(params));
+
+    std::array<Tensor<InDataType>, 1> a_tensors_ref  = {a_extra_cpu};
+    std::array<Tensor<WeiDataType>, 1> b_tensors_ref = {b_extra_cpu};
+
+    auto ref_conv    = tensor_operation::host::ReferenceConvFwd<NDimSpatial,
+                                                                InDataType,
+                                                                WeiDataType,
+                                                                OutDataType,
+                                                                InElementOp,
+                                                                WeiElementOp,
+                                                                OutElementOp,
+                                                                1, // NumA
+                                                                1, // NumB
+                                                                0  // NumD
+                                                                >();
+    auto ref_invoker = ref_conv.MakeInvoker();
+    auto ref_arg     = ref_conv.MakeArgument(input_ref,
+                                         weight_ref,
+                                         output_ref,
+                                         strides_long,
+                                         dilations_long,
+                                         pads_long,
+                                         pads_long,
+                                         in_element_op,
+                                         wei_element_op,
+                                         OutElementOp{},
+                                         a_tensors_ref,
+                                         b_tensors_ref,
+                                             {});
+    ref_invoker.Run(ref_arg);
+
+    // Copy result from device and compare
+    Tensor<OutDataType> output_gpu(output_ref.mDesc);
+    output_dev.FromDevice(output_gpu.mData.data());
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+    // Compare results
+    return ck::utils::check_err(output_gpu, output_ref);
+}
+
 } // namespace test
 } // namespace ck

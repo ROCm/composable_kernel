@@ -22,9 +22,39 @@ struct SimpleDeviceMem
         HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&p_mem_), mem_size));
     }
 
+    // Delete copy operations (resource should not be copied)
+    SimpleDeviceMem(const SimpleDeviceMem&)            = delete;
+    SimpleDeviceMem& operator=(const SimpleDeviceMem&) = delete;
+
+    // Define move operations
+    SimpleDeviceMem(SimpleDeviceMem&& other) noexcept : p_mem_(other.p_mem_)
+    {
+        other.p_mem_ = nullptr;
+    }
+
+    SimpleDeviceMem& operator=(SimpleDeviceMem&& other) noexcept
+    {
+        if(this != &other)
+        {
+            if(p_mem_)
+            {
+                (void)hipFree(p_mem_);
+            }
+            p_mem_       = other.p_mem_;
+            other.p_mem_ = nullptr;
+        }
+        return *this;
+    }
+
     void* GetDeviceBuffer() { return p_mem_; }
 
-    ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
+    ~SimpleDeviceMem()
+    {
+        if(p_mem_)
+        {
+            (void)hipFree(p_mem_);
+        }
+    }
 
     void* p_mem_;
 };
