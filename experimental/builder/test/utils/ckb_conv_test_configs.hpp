@@ -42,25 +42,25 @@ constexpr DlTransferABC DlFwdTransfer{.a =
 constexpr TransferABC FwdTransfer_4x64x1{
     .a =
         {
-            .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
-            .lds_transfer                = {.src_vector_dim            = 2,
-                                            .src_scalar_per_vector     = 2,
-                                            .lds_dst_scalar_per_vector = 8,
-                                            .is_direct_load            = false,
-                                            .lds_padding               = false},
+            .block_transfer               = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .lds_transfer                 = {.src_vector_dim            = 2,
+                                             .src_scalar_per_vector     = 2,
+                                             .lds_dst_scalar_per_vector = 4,
+                                             .is_direct_load            = false,
+                                             .lds_padding               = false},
             .thread_cluster_arrange_order = {1, 0, 2},
-            .src_access_order            = {1, 0, 2},
+            .src_access_order             = {1, 0, 2},
         },
     .b =
         {
-            .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
-            .lds_transfer                = {.src_vector_dim            = 2,
-                                            .src_scalar_per_vector     = 8,
-                                            .lds_dst_scalar_per_vector = 8,
-                                            .is_direct_load            = false,
-                                            .lds_padding               = false},
+            .block_transfer               = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .lds_transfer                 = {.src_vector_dim            = 2,
+                                             .src_scalar_per_vector     = 4,
+                                             .lds_dst_scalar_per_vector = 4,
+                                             .is_direct_load            = false,
+                                             .lds_padding               = false},
             .thread_cluster_arrange_order = {1, 0, 2},
-            .src_access_order            = {1, 0, 2},
+            .src_access_order             = {1, 0, 2},
         },
     .c =
         {
@@ -75,25 +75,25 @@ constexpr TransferABC FwdTransfer_4x64x1{
 constexpr TransferABC FwdTransfer_4x64x1_fp8{
     .a =
         {
-            .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
-            .lds_transfer                = {.src_vector_dim            = 2,
-                                            .src_scalar_per_vector     = 8,
-                                            .lds_dst_scalar_per_vector = 8,
-                                            .is_direct_load            = false,
-                                            .lds_padding               = true},
+            .block_transfer               = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .lds_transfer                 = {.src_vector_dim            = 2,
+                                             .src_scalar_per_vector     = 8,
+                                             .lds_dst_scalar_per_vector = 8,
+                                             .is_direct_load            = false,
+                                             .lds_padding               = true},
             .thread_cluster_arrange_order = {1, 0, 2},
-            .src_access_order            = {1, 0, 2},
+            .src_access_order             = {1, 0, 2},
         },
     .b =
         {
-            .block_transfer              = {.k0 = 4, .m_n = 64, .k1 = 1},
-            .lds_transfer                = {.src_vector_dim            = 2,
-                                            .src_scalar_per_vector     = 8,
-                                            .lds_dst_scalar_per_vector = 8,
-                                            .is_direct_load            = false,
-                                            .lds_padding               = true},
+            .block_transfer               = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .lds_transfer                 = {.src_vector_dim            = 2,
+                                             .src_scalar_per_vector     = 8,
+                                             .lds_dst_scalar_per_vector = 8,
+                                             .is_direct_load            = false,
+                                             .lds_padding               = true},
             .thread_cluster_arrange_order = {1, 0, 2},
-            .src_access_order            = {1, 0, 2},
+            .src_access_order             = {1, 0, 2},
         },
     .c =
         {
@@ -108,25 +108,25 @@ constexpr TransferABC FwdTransfer_4x64x1_fp8{
 constexpr TransferABC FwdTransfer_4x16x1{
     .a =
         {
-            .block_transfer              = {.k0 = 4, .m_n = 16, .k1 = 1},
-            .lds_transfer                = {.src_vector_dim            = 2,
-                                            .src_scalar_per_vector     = 8,
-                                            .lds_dst_scalar_per_vector = 8,
-                                            .is_direct_load            = false,
-                                            .lds_padding               = true},
+            .block_transfer               = {.k0 = 4, .m_n = 16, .k1 = 1},
+            .lds_transfer                 = {.src_vector_dim            = 2,
+                                             .src_scalar_per_vector     = 8,
+                                             .lds_dst_scalar_per_vector = 8,
+                                             .is_direct_load            = false,
+                                             .lds_padding               = true},
             .thread_cluster_arrange_order = {1, 0, 2},
-            .src_access_order            = {1, 0, 2},
+            .src_access_order             = {1, 0, 2},
         },
     .b =
         {
-            .block_transfer              = {.k0 = 4, .m_n = 16, .k1 = 1},
-            .lds_transfer                = {.src_vector_dim            = 2,
-                                            .src_scalar_per_vector     = 8,
-                                            .lds_dst_scalar_per_vector = 8,
-                                            .is_direct_load            = false,
-                                            .lds_padding               = true},
+            .block_transfer               = {.k0 = 4, .m_n = 16, .k1 = 1},
+            .lds_transfer                 = {.src_vector_dim            = 2,
+                                             .src_scalar_per_vector     = 8,
+                                             .lds_dst_scalar_per_vector = 8,
+                                             .is_direct_load            = false,
+                                             .lds_padding               = true},
             .thread_cluster_arrange_order = {1, 0, 2},
-            .src_access_order            = {1, 0, 2},
+            .src_access_order             = {1, 0, 2},
         },
     .c =
         {
@@ -142,25 +142,25 @@ constexpr TransferABC FwdTransfer_4x16x1{
 constexpr TransferABC FwdTransfer_4x32x1{
     .a =
         {
-            .block_transfer              = {.k0 = 4, .m_n = 32, .k1 = 1},
-            .lds_transfer                = {.src_vector_dim            = 2,
-                                            .src_scalar_per_vector     = 16,
-                                            .lds_dst_scalar_per_vector = 16,
-                                            .is_direct_load            = false,
-                                            .lds_padding               = true},
+            .block_transfer               = {.k0 = 4, .m_n = 32, .k1 = 1},
+            .lds_transfer                 = {.src_vector_dim            = 2,
+                                             .src_scalar_per_vector     = 16,
+                                             .lds_dst_scalar_per_vector = 16,
+                                             .is_direct_load            = false,
+                                             .lds_padding               = true},
             .thread_cluster_arrange_order = {1, 0, 2},
-            .src_access_order            = {1, 0, 2},
+            .src_access_order             = {1, 0, 2},
         },
     .b =
         {
-            .block_transfer              = {.k0 = 4, .m_n = 32, .k1 = 1},
-            .lds_transfer                = {.src_vector_dim            = 2,
-                                            .src_scalar_per_vector     = 16,
-                                            .lds_dst_scalar_per_vector = 16,
-                                            .is_direct_load            = false,
-                                            .lds_padding               = true},
+            .block_transfer               = {.k0 = 4, .m_n = 32, .k1 = 1},
+            .lds_transfer                 = {.src_vector_dim            = 2,
+                                             .src_scalar_per_vector     = 16,
+                                             .lds_dst_scalar_per_vector = 16,
+                                             .is_direct_load            = false,
+                                             .lds_padding               = true},
             .thread_cluster_arrange_order = {1, 0, 2},
-            .src_access_order            = {1, 0, 2},
+            .src_access_order             = {1, 0, 2},
         },
     .c =
         {

@@ -51,92 +51,64 @@ struct ConvFwdXdlV3Factory
     static constexpr auto BLOCK_GEMM       = internal::SetBlockGemm<ALGORITHM>();
 
     // Check limits for the algorithm parameters.
-    // TODO: Add more limits checks as needed.
-    static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
-    static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
-    static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
+    static_assert(ValidABlockTransfer<A_BLOCK_TRANSFER,
+                                      typename Types::ADataType,
+                                      BLOCK.block_size,
+                                      BLOCK.per_block>);
+    static_assert(ValidBBlockTransfer<B_BLOCK_TRANSFER,
+                                      typename Types::BDataType,
+                                      BLOCK.block_size,
+                                      BLOCK.per_block>);
+    static_assert(ValidCBlockTransfer<C_BLOCK_TRANSFER,
+                                      typename Types::EDataType,
+                                      BLOCK.block_size,
+                                      BLOCK.per_block>);
 
-    // product of thread cluster lengths must be <= workgroup size
-    static_assert(ValidBlockTransferClusterSize<A_BLOCK_TRANSFER, BLOCK.block_size>);
-    static_assert(ValidBlockTransferClusterSize<B_BLOCK_TRANSFER, BLOCK.block_size>);
-    static_assert(ValidBlockTransferClusterSize<C_BLOCK_TRANSFER, BLOCK.block_size>);
+    // Layout validations
+    using enum TensorLayout;
+    static_assert(IsValidLayout<SIGNATURE.input.config.layout,
+                                G_NW_C_strided,
+                                G_NHW_C_strided,
+                                G_NDHW_C_strided,
+                                GNWC,
+                                GNHWC,
+                                GNDHWC,
+                                NWGC,
+                                NHWGC,
+                                NDHWGC,
+                                NGCW,
+                                NGCHW,
+                                NGCDHW> &&
+                  A_BLOCK_TRANSFER.src_vector_dim == 2);
 
-    // threads must cover entire input tile
-    static_assert(ThreadsCoverATile<A_BLOCK_TRANSFER, BLOCK.per_block>);
-    static_assert(ThreadsCoverBTile<B_BLOCK_TRANSFER, BLOCK.per_block>);
-    static_assert(ThreadsCoverCTile<C_BLOCK_TRANSFER, BLOCK.per_block>);
+    static_assert(IsValidLayout<SIGNATURE.weight.config.layout,
+                                G_K_X_C_strided,
+                                G_K_YX_C_strided,
+                                G_K_ZYX_C_strided,
+                                GKXC,
+                                GKYXC,
+                                GKZYXC,
+                                KXGC,
+                                KYXGC,
+                                KZYXGC,
+                                GKCX,
+                                GKCYX,
+                                GKCZYX> &&
+                  B_BLOCK_TRANSFER.src_vector_dim == 2);
 
-    static_assert(IsVectorSizeValid<A_BLOCK_TRANSFER.src_scalar_per_vector,
-                                    sizeof(typename Types::ADataType)>);
-    static_assert(IsVectorSizeValid<B_BLOCK_TRANSFER.src_scalar_per_vector,
-                                    sizeof(typename Types::BDataType)>);
-    static_assert(
-        IsVectorSizeValid<C_BLOCK_TRANSFER.scalar_per_vector, sizeof(typename Types::EDataType)>);
-
-    static_assert(IsVectorSizeValid<A_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-                                    sizeof(typename Types::ADataType)>);
-    static_assert(IsVectorSizeValid<B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-                                    sizeof(typename Types::BDataType)>);
-
-    static constexpr auto IsValidALayout = []() -> bool {
-        using enum TensorLayout;
-        return is_any_value_of(SIGNATURE.input.config.layout,
-                               G_NW_C_strided,
-                               G_NHW_C_strided,
-                               G_NDHW_C_strided,
-                               GNWC,
-                               GNHWC,
-                               GNHWC,
-                               GNDHWC,
-                               NWGC,
-                               NHWGC,
-                               NDHWGC,
-                               NGCW,
-                               NGCHW,
-                               NGCDHW);
-    };
-
-    static constexpr auto IsValidBLayout = []() -> bool {
-        using enum TensorLayout;
-        return is_any_value_of(SIGNATURE.weight.config.layout,
-                               G_K_X_C_strided,
-                               G_K_YX_C_strided,
-                               G_K_ZYX_C_strided,
-                               GKXC,
-                               GKYXC,
-                               GKZYXC,
-                               KXGC,
-                               KYXGC,
-                               KZYXGC,
-                               GKCX,
-                               GKCYX,
-                               GKCZYX);
-    };
-
-    static constexpr auto IsValidCLayout = []() -> bool {
-        using enum TensorLayout;
-        return is_any_value_of(SIGNATURE.output.config.layout,
-                               G_NW_K_strided,
-                               G_NHW_K_strided,
-                               G_NDHW_K_strided,
-                               GNWK,
-                               GNHWK,
-                               GNDHWK,
-                               NWGK,
-                               NHWGK,
-                               NDHWGK,
-                               NGKW,
-                               NGKHW,
-                               NGKDHW);
-    };
-
-    static_assert(IsValidALayout() && A_BLOCK_TRANSFER.src_vector_dim == 2);
-    static_assert(IsValidBLayout() && B_BLOCK_TRANSFER.src_vector_dim == 2);
-    static_assert(IsValidCLayout());
+    static_assert(IsValidLayout<SIGNATURE.output.config.layout,
+                                G_NW_K_strided,
+                                G_NHW_K_strided,
+                                G_NDHW_K_strided,
+                                GNWK,
+                                GNHWK,
+                                GNDHWK,
+                                NWGK,
+                                NHWGK,
+                                NDHWGK,
+                                NGKW,
+                                NGKHW,
+                                NGKDHW>);
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
