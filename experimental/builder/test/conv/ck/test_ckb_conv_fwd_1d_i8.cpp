@@ -22,7 +22,7 @@ TEST(FwdConvInstances,
     constexpr ConvSignature FwdConvSignature{.spatial_dim            = 1,
                                              .direction              = FORWARD,
                                              .data_type              = I8,
-                                             .accumulation_data_type = INT32,
+                                             .accumulation_data_type = I32,
                                              .input                  = {.config = {.layout = GNWC}},
                                              .weight                 = {.config = {.layout = GKXC}},
                                              .output = {.config = {.layout = GNWK}}};
