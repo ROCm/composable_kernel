@@ -1048,6 +1048,10 @@ class KernelComponentFactoryGfx950(
             if (128, 128) in result.keys():
                 result[(128, 128)].append(
                     FmhaFwdTileSize(256, 32, 128, 128, 32, 128,  8, 1, 1,  8, 1, 1,  32, 32, 16,  32, 32, 16,  -1))  # fmt: skip
+        elif dtype in cls._DT_FP8BF16:
+            if (128, 128) in result.keys():
+                result[(128, 128)].append(
+                    FmhaFwdTileSize(256, 64, 128, 128, 64, 128,  8, 1, 1,  8, 1, 1,  32, 32, 32,  32, 32, 32,  -1))  # fmt: skip
         return result
 
     @classmethod
@@ -1085,6 +1089,15 @@ class KernelComponentFactoryGfx950(
                     pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "f", "f",
                         F_logits=logits, F_bias="no", F_lse="f", F_dropout="f", F_qscale=qscale, F_mask=mask, F_skip="f", F_trload="t", F_sink="f"))  # fmt: skip
 
+        elif dtype in cls._DT_FP8BF16:
+            # no need lse/dropout kernels
+            # qr_async_trload_v3 only supports (generic) causal mask
+            for logits, qscale, mask in itertools.product(
+                ["t", "f"],
+                ["no", "pertensor"],
+                ["no", "causal"],
+            ):
+                pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "f", "f", F_logits=logits, F_bias="no", F_lse="f", F_dropout="f", F_qscale=qscale, F_mask=mask, F_skip="f", F_trload="t", F_sink="f"))  # fmt: skip
         return pipelines
 
 
