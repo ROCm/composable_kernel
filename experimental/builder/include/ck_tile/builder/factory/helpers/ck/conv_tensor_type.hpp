@@ -33,7 +33,7 @@ struct DataTypeToCK<DataType::FP32>
     using type = float;
 };
 template <>
-struct DataTypeToCK<DataType::INT32>
+struct DataTypeToCK<DataType::I32>
 {
     using type = int32_t;
 };

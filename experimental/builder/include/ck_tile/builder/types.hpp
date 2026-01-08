@@ -24,7 +24,7 @@ enum class DataType
     FP8,
     BF8,
     FP64,
-    INT32,
+    I32,
     I8,
     I8_I8,
     U8
@@ -238,8 +238,8 @@ enum class ConvAlgorithmSpecialization
     MULTIPLE_D
 };
 
-// toString methods for enum classes
-inline std::string_view toString(DataType dt)
+// to_string methods for enum classes
+inline std::string_view to_string(DataType dt)
 {
     using enum DataType;
     switch(dt)
@@ -253,7 +253,7 @@ inline std::string_view toString(DataType dt)
     case FP8: return "FP8";
     case BF8: return "BF8";
     case FP64: return "FP64";
-    case INT32: return "INT32";
+    case I32: return "I32";
     case I8: return "I8";
     case I8_I8: return "I8_I8";
     case U8: return "U8";
@@ -262,7 +262,7 @@ inline std::string_view toString(DataType dt)
     }
 }
 
-inline std::string_view toString(ConvDirection dir)
+inline std::string_view to_string(ConvDirection dir)
 {
     using enum ConvDirection;
     switch(dir)
@@ -274,7 +274,7 @@ inline std::string_view toString(ConvDirection dir)
     }
 }
 
-inline std::string_view toString(ElementwiseOperation op)
+inline std::string_view to_string(ElementwiseOperation op)
 {
     using enum ElementwiseOperation;
     switch(op)
@@ -318,7 +318,7 @@ inline std::string_view toString(ElementwiseOperation op)
     }
 }
 
-inline std::string_view toString(PipelineVersion ver)
+inline std::string_view to_string(PipelineVersion ver)
 {
     using enum PipelineVersion;
     switch(ver)
@@ -333,7 +333,7 @@ inline std::string_view toString(PipelineVersion ver)
     }
 }
 
-inline std::string_view toString(GemmSpecialization spec)
+inline std::string_view to_string(GemmSpecialization spec)
 {
     using enum GemmSpecialization;
     switch(spec)
@@ -358,7 +358,7 @@ inline std::string_view toString(GemmSpecialization spec)
     }
 }
 
-inline std::string_view toString(ConvSpecialization spec)
+inline std::string_view to_string(ConvSpecialization spec)
 {
     using enum ConvSpecialization;
     switch(spec)
@@ -372,7 +372,7 @@ inline std::string_view toString(ConvSpecialization spec)
     }
 }
 
-inline std::string_view toString(GemmPadding padding)
+inline std::string_view to_string(GemmPadding padding)
 {
     using enum GemmPadding;
     switch(padding)
@@ -397,7 +397,7 @@ inline std::string_view toString(GemmPadding padding)
     }
 }
 
-inline std::string_view toString(PipelineScheduler sched)
+inline std::string_view to_string(PipelineScheduler sched)
 {
     using enum PipelineScheduler;
     switch(sched)
@@ -409,7 +409,7 @@ inline std::string_view toString(PipelineScheduler sched)
     }
 }
 
-inline std::string_view toString(TensorLayout layout)
+inline std::string_view to_string(TensorLayout layout)
 {
     using enum TensorLayout;
     switch(layout)
@@ -465,43 +465,46 @@ inline std::string_view toString(TensorLayout layout)
 }
 
 // ostream operator overloads for enum classes
-inline std::ostream& operator<<(std::ostream& os, DataType dt) { return os << toString(dt); }
+inline std::ostream& operator<<(std::ostream& os, DataType dt) { return os << to_string(dt); }
 
-inline std::ostream& operator<<(std::ostream& os, ConvDirection dir) { return os << toString(dir); }
+inline std::ostream& operator<<(std::ostream& os, ConvDirection dir)
+{
+    return os << to_string(dir);
+}
 
 inline std::ostream& operator<<(std::ostream& os, ElementwiseOperation op)
 {
-    return os << toString(op);
+    return os << to_string(op);
 }
 
 inline std::ostream& operator<<(std::ostream& os, PipelineVersion ver)
 {
-    return os << toString(ver);
+    return os << to_string(ver);
 }
 
 inline std::ostream& operator<<(std::ostream& os, GemmSpecialization spec)
 {
-    return os << toString(spec);
+    return os << to_string(spec);
 }
 
 inline std::ostream& operator<<(std::ostream& os, ConvSpecialization spec)
 {
-    return os << toString(spec);
+    return os << to_string(spec);
 }
 
 inline std::ostream& operator<<(std::ostream& os, GemmPadding padding)
 {
-    return os << toString(padding);
+    return os << to_string(padding);
 }
 
 inline std::ostream& operator<<(std::ostream& os, PipelineScheduler sched)
 {
-    return os << toString(sched);
+    return os << to_string(sched);
 }
 
 inline std::ostream& operator<<(std::ostream& os, TensorLayout layout)
 {
-    return os << toString(layout);
+    return os << to_string(layout);
 }
 
 } // namespace ck_tile::builder
