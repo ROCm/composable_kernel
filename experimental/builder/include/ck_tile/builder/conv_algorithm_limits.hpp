@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <concepts>
 #include <utility>
+#include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile::builder {
 
@@ -165,5 +166,41 @@ concept IsVectorSizeValid = requires {
     requires((ScalarPerVec & (ScalarPerVec - 1)) == 0) &&
                 ScalarPerVec <= detail::get_data_max_vec_size<DataTypeSize>();
 };
+
+// Composite concept for input block transfer validation (A)
+// Includes all validations: vector transfer limits, access order, cluster size,
+// vector size validity, and tile coverage
+template <auto A_BLOCK_TRANSFER, typename DataType, size_t BLOCK_SIZE, auto TILE_SIZE>
+concept ValidABlockTransfer =
+    InputVectorTransferLimits<A_BLOCK_TRANSFER> &&
+    AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order> &&
+    AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order> &&
+    ValidBlockTransferClusterSize<A_BLOCK_TRANSFER, BLOCK_SIZE> &&
+    IsVectorSizeValid<A_BLOCK_TRANSFER.src_scalar_per_vector, sizeof(DataType)> &&
+    IsVectorSizeValid<A_BLOCK_TRANSFER.lds_dst_scalar_per_vector, sizeof(DataType)> &&
+    ThreadsCoverATile<A_BLOCK_TRANSFER, TILE_SIZE>;
+
+// Composite concept for input block transfer validation (B)
+template <auto B_BLOCK_TRANSFER, typename DataType, size_t BLOCK_SIZE, auto TILE_SIZE>
+concept ValidBBlockTransfer =
+    InputVectorTransferLimits<B_BLOCK_TRANSFER> &&
+    AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order> &&
+    AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order> &&
+    ValidBlockTransferClusterSize<B_BLOCK_TRANSFER, BLOCK_SIZE> &&
+    IsVectorSizeValid<B_BLOCK_TRANSFER.src_scalar_per_vector, sizeof(DataType)> &&
+    IsVectorSizeValid<B_BLOCK_TRANSFER.lds_dst_scalar_per_vector, sizeof(DataType)> &&
+    ThreadsCoverBTile<B_BLOCK_TRANSFER, TILE_SIZE>;
+
+// Composite concept for output block transfer validation (C)
+template <auto C_BLOCK_TRANSFER, typename DataType, size_t BLOCK_SIZE, auto TILE_SIZE>
+concept ValidCBlockTransfer =
+    OutputVectorTransferLimits<C_BLOCK_TRANSFER> &&
+    ValidBlockTransferClusterSize<C_BLOCK_TRANSFER, BLOCK_SIZE> &&
+    IsVectorSizeValid<C_BLOCK_TRANSFER.scalar_per_vector, sizeof(DataType)> &&
+    ThreadsCoverCTile<C_BLOCK_TRANSFER, TILE_SIZE>;
+
+// Usage: IsValidLayout<ACTUAL_LAYOUT, VALID_LAYOUT_1, VALID_LAYOUT_2, ...>
+template <auto ACTUAL_LAYOUT, auto... VALID_LAYOUTS>
+concept IsValidLayout = ck_tile::is_any_value_of(ACTUAL_LAYOUT, VALID_LAYOUTS...);
 
 } // namespace ck_tile::builder
