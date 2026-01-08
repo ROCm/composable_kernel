@@ -67,7 +67,7 @@ TYPED_TEST(ValidationReportTests, SingleCorrect)
     // Generate a sort-of-random looking sequence
     auto generator = [strides = desc.get_strides()](const auto& index) {
         const auto flat_index = ckt::calculate_offset(index, strides);
-        return static_cast<float>(flat_index * 10'000'019 % 768'351);
+        return static_cast<float>((flat_index + 1) * 10'000'019 % 768'351);
     };
 
     ckt::fill_tensor(desc, a.get(), generator);
@@ -108,6 +108,27 @@ TYPED_TEST(ValidationReportTests, SingleIncorrect)
     EXPECT_THAT(errors[0].tensor_name, StrEq("incorrect"));
     EXPECT_THAT(errors[0].wrong_elements, Eq(expected_errors));
     EXPECT_THAT(errors[0].total_elements, Eq(desc.get_element_size()));
+}
+
+TYPED_TEST(ValidationReportTests, ZeroIsIncorrect)
+{
+    const auto desc = TypeParam::get_descriptor();
+
+    auto a = ckt::alloc_tensor_buffer(desc);
+    auto b = ckt::alloc_tensor_buffer(desc);
+
+    ckt::clear_tensor_buffer(desc, a.get());
+    ckt::clear_tensor_buffer(desc, b.get());
+
+    ckt::ValidationReport report;
+    report.check("zero_is_incorrect", desc, b.get(), a.get());
+
+    const auto errors = report.get_errors();
+    ASSERT_THAT(errors.size(), Eq(1));
+    EXPECT_THAT(errors[0].tensor_name, StrEq("zero_is_incorrect"));
+    EXPECT_THAT(errors[0].wrong_elements, Eq(0));
+    EXPECT_THAT(errors[0].total_elements, Eq(desc.get_element_size()));
+    EXPECT_THAT(errors[0].zero_elements, Eq(desc.get_element_size()));
 }
 
 TEST(ValidationReportTests, MultipleSomeIncorrect)

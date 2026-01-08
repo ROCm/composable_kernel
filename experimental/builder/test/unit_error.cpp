@@ -30,7 +30,7 @@ TEST(HipError, SourceInfo)
                     // ...the filename
                     HasSubstr("experimental/builder/test/unit_error.cpp"),
                     // ...the function name
-                    HasSubstr("throw_error"),
+                    HasSubstr("throw_error")
                     // Note: Don't include the row/column so that we can move
                     // stuff around in this file.
                     )));
