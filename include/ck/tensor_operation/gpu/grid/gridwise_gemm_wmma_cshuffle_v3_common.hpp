@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <iostream>
 #include <ostream>
@@ -295,13 +296,6 @@ template <typename ALayout,
           bool IsFusedKernel           = false>
 struct GridwiseGemm_wmma_cshuffle_v3_base
 {
-
-    using ALayout_ = ALayout;
-    using BLayout_ = BLayout;
-    static constexpr index_t ABlockTransferDstScalarPerVector_AK1_ =
-        ABlockTransferDstScalarPerVector_AK1;
-    static constexpr index_t BBlockTransferDstScalarPerVector_BK1_ =
-        BBlockTransferDstScalarPerVector_BK1;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -991,6 +985,55 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
 
         return de_grid_desc_mblock_mperblock_nblock_nperblock;
+    }
+
+    // Conditions for Wave Transfer with transpose:
+    // - 16 bit type: K % 8 == 0 (4 subtiles of 8x8)
+    // - 8 bit type: K % 8 == 0 and M % 16 == 0 (2 subtiles of 8x16)
+    __host__ static constexpr bool CheckValidityAWaveTransfer(const index_t& M, const index_t& K)
+    {
+        if constexpr(AWaveTransferApplicable() &&
+                     !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value))
+        {
+            if(!(K % ABlockTransferDstScalarPerVector_AK1 == 0))
+            {
+                return false;
+            }
+            bool pass = true;
+            static_for<0, NumATensor, 1>{}([&](auto i) {
+                using ADataType_ = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
+                pass &= !(sizeof(ADataType_) == 1 &&
+                          !(M % (2 * ABlockTransferSrcScalarPerVector) == 0));
+            });
+            return pass;
+        }
+        else
+        {
+            return true;
+        }
+    }
+
+    __host__ static constexpr bool CheckValidityBWaveTransfer(const index_t& N, const index_t& K)
+    {
+        if constexpr(BWaveTransferApplicable() &&
+                     !(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value))
+        {
+            if(!(K % BBlockTransferDstScalarPerVector_BK1 == 0))
+            {
+                return false;
+            }
+            bool pass = true;
+            static_for<0, NumBTensor, 1>{}([&](auto i) {
+                using BDataType_ = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
+                pass &= !(sizeof(BDataType_) == 1 &&
+                          !(N % (2 * BBlockTransferSrcScalarPerVector) == 0));
+            });
+            return pass;
+        }
+        else
+        {
+            return true;
+        }
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}

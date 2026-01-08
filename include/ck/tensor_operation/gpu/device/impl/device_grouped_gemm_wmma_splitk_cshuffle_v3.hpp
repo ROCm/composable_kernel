@@ -706,40 +706,24 @@ struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayou
         {
             const auto& a = arg.gemm_kernel_args_[i].karg_;
 
-            if constexpr(GridwiseGemm::AWaveTransferApplicable() &&
-                         !(is_same<tensor_layout::gemm::RowMajor,
-                                   typename GridwiseGemm::ALayout_>::value))
+            if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityAWaveTransfer(a.M, a.K))
             {
-                if(ck::is_gfx12_supported() &&
-                   !(a.K % GridwiseGemm::ABlockTransferDstScalarPerVector_AK1_ == 0))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                        std::cout << "Arg K value is not a multiple of "
-                                     "ABlockTransferDstScalarPerVector_AK1! K: "
-                                  << a.K << " " << __FILE__ << ":" << __LINE__
-                                  << ", in function: " << __func__ << std::endl;
-                    }
-                    return false;
+                    std::cout << "Wave Transfer not applicable for matrix A" << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
                 }
+                return false;
             }
 
-            if constexpr(GridwiseGemm::BWaveTransferApplicable() &&
-                         !(is_same<tensor_layout::gemm::ColumnMajor,
-                                   typename GridwiseGemm::BLayout_>::value))
+            if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityBWaveTransfer(a.N, a.K))
             {
-                if(ck::is_gfx12_supported() &&
-                   !(a.K % GridwiseGemm::BBlockTransferDstScalarPerVector_BK1_ == 0))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                        std::cout << "Arg K value is not a multiple of "
-                                     "BBlockTransferDstScalarPerVector_BK1! K: "
-                                  << a.K << " " << __FILE__ << ":" << __LINE__
-                                  << ", in function: " << __func__ << std::endl;
-                    }
-                    return false;
+                    std::cout << "Wave Transfer not applicable for matrix B" << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
                 }
+                return false;
             }
 
             bool group_arg_valid = GridwiseGemm::CheckValidity(a);

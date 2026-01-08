@@ -701,40 +701,26 @@ struct DeviceGemmMultipleDLayernorm_Wmma_CShuffleV3
             return false;
         }
 
-        if constexpr(GridwiseGemmWelford::AWaveTransferApplicable() &&
-                     !(is_same<tensor_layout::gemm::RowMajor,
-                               typename GridwiseGemmWelford::ALayout_>::value))
+        if(ck::is_gfx12_supported() &&
+           !GridwiseGemmWelford::CheckValidityAWaveTransfer(arg.MRaw_, arg.KRaw_))
         {
-            if(ck::is_gfx12_supported() &&
-               !(arg.KRaw_ % GridwiseGemmWelford::ABlockTransferDstScalarPerVector_AK1_ == 0))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg K value is not a multiple of "
-                                 "ABlockTransferDstScalarPerVector_AK1! K: "
-                              << arg.KRaw_ << " " << __FILE__ << ":" << __LINE__
-                              << ", in function: " << __func__ << std::endl;
-                }
-                return false;
+                std::cout << "Wave Transfer not applicable for matrix A" << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
             }
+            return false;
         }
 
-        if constexpr(GridwiseGemmWelford::BWaveTransferApplicable() &&
-                     !(is_same<tensor_layout::gemm::ColumnMajor,
-                               typename GridwiseGemmWelford::BLayout_>::value))
+        if(ck::is_gfx12_supported() &&
+           !GridwiseGemmWelford::CheckValidityBWaveTransfer(arg.NRaw_, arg.KRaw_))
         {
-            if(ck::is_gfx12_supported() &&
-               !(arg.KRaw_ % GridwiseGemmWelford::BBlockTransferDstScalarPerVector_BK1_ == 0))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg K value is not a multiple of "
-                                 "BBlockTransferDstScalarPerVector_BK1! K: "
-                              << arg.KRaw_ << " " << __FILE__ << ":" << __LINE__
-                              << ", in function: " << __func__ << std::endl;
-                }
-                return false;
+                std::cout << "Wave Transfer not applicable for matrix B" << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
             }
+            return false;
         }
 
         typename GridwiseGemmWelford::Argument gemm_arg{
