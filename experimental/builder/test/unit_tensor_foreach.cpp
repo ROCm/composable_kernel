@@ -16,6 +16,28 @@ namespace ckt = ck_tile::builder::test;
 using ::testing::Each;
 using ::testing::Eq;
 
+TEST(TensorForeach, NdIter)
+{
+    {
+        ckt::NdIter iter(ckt::Extent{523, 345, 123, 601});
+
+        EXPECT_THAT(iter.numel(), Eq(13'338'296'505ULL));
+        EXPECT_THAT(iter(0), Eq(ckt::Extent{0, 0, 0, 0}));
+        EXPECT_THAT(iter(1), Eq(ckt::Extent{0, 0, 0, 1}));
+        EXPECT_THAT(iter(601), Eq(ckt::Extent{0, 0, 1, 0}));
+        EXPECT_THAT(iter(601 * 123), Eq(ckt::Extent{0, 1, 0, 0}));
+        EXPECT_THAT(iter(601 * 123 * 10), Eq(ckt::Extent{0, 10, 0, 0}));
+        EXPECT_THAT(iter(((34 * 345 + 63) * 123 + 70) * 601 + 5), Eq(ckt::Extent{34, 63, 70, 5}));
+    }
+
+    {
+        ckt::NdIter iter(ckt::Extent{});
+
+        EXPECT_THAT(iter.numel(), Eq(1));
+        EXPECT_THAT(iter(0), Eq(ckt::Extent{}));
+    }
+}
+
 TEST(TensorForeach, CalculateOffset)
 {
     EXPECT_THAT(ckt::calculate_offset(ckt::Extent{1, 2, 3}, ckt::Extent{100, 10, 1}), Eq(123));
@@ -87,8 +109,8 @@ TEST(TensorForeach, VisitsEveryIndex)
 
 TEST(TensorForeach, FillTensorBuffer)
 {
-    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(ckt::Extent{31, 54, 13},
-                                                           ckt::PackedRightLayout{});
+    auto desc =
+        ckt::make_descriptor<ckb::DataType::I32>(ckt::Extent{31, 54, 13}, ckt::PackedRightLayout{});
 
     auto buffer = ckt::alloc_tensor_buffer(desc);
 
@@ -109,7 +131,7 @@ TEST(TensorForeach, FillTensor)
     // FillTensor with non-packed indices should not write out-of-bounds.
     const ckt::Extent shape = {4, 23, 35};
     const ckt::Extent pad   = {12, 53, 100};
-    auto desc = ckt::make_descriptor<ckb::DataType::INT32>(shape, ckt::PackedRightLayout{}(pad));
+    auto desc = ckt::make_descriptor<ckb::DataType::I32>(shape, ckt::PackedRightLayout{}(pad));
     const auto strides = desc.get_strides();
 
     auto size   = desc.get_element_space_size();
@@ -169,7 +191,7 @@ TEST(TensorForeach, ClearTensorZeros)
     const ckt::Extent pad   = {6, 6, 6, 6, 6, 6, 6, 6};
 
     const auto desc =
-        ckt::make_descriptor<ckb::DataType::INT32>(shape, ckt::PackedRightLayout{}(pad));
+        ckt::make_descriptor<ckb::DataType::I32>(shape, ckt::PackedRightLayout{}(pad));
 
     auto buffer = ckt::alloc_tensor_buffer(desc);
     ckt::clear_tensor_buffer(desc, buffer.get());
