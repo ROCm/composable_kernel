@@ -318,21 +318,18 @@ struct QuantGroupedGemmKernel
         CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
 
         // allocate LDS
-        __shared__ char smem_ptr_0[GetSmemSize()];
+        __shared__ char smem_ptr[GetSmemSize()];
 
         // Only for BQuantGrouped DoubleSmemBuffer is supported
         if constexpr(GemmPipeline::DoubleSmemBuffer == true &&
                      kQuantType == QuantType::BQuantGrouped)
         {
-
-            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
             RunGemmWithPipelineSelection2LDS(a_ptr,
                                              b_ptr,
                                              aq_ptr,
                                              bq_ptr,
                                              c_ptr,
-                                             smem_ptr_0,
-                                             smem_ptr_1,
+                                             smem_ptr,
                                              kargs,
                                              splitk_batch_offset,
                                              i_m,
@@ -348,7 +345,7 @@ struct QuantGroupedGemmKernel
                                              aq_ptr,
                                              bq_ptr,
                                              c_ptr,
-                                             smem_ptr_0,
+                                             smem_ptr,
                                              kargs,
                                              splitk_batch_offset,
                                              i_m,
@@ -361,7 +358,7 @@ struct QuantGroupedGemmKernel
                               aq_ptr,
                               bq_ptr,
                               c_ptr,
-                              smem_ptr_0,
+                              smem_ptr,
                               kargs,
                               splitk_batch_offset,
                               i_m,
@@ -374,47 +371,47 @@ struct QuantGroupedGemmKernel
     CK_TILE_DEVICE static void
     RunGemmWithPipelineSelection2LDS(const ADataType* a_ptr,
                                      const BDataType* b_ptr,
-                                     const AQDataType* aq_ptr,
+                                     [[maybe_unused]] const AQDataType* aq_ptr,
                                      const BQDataType* bq_ptr,
                                      CDataType* c_ptr,
-                                     void* smem_ptr_0,
-                                     void* smem_ptr_1,
+                                     void* smem_ptr,
                                      const QuantGroupedGemmKernelArgs& kargs,
                                      const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                      const index_t block_idx_m,
                                      const index_t block_idx_n)
     {
         static_assert(kQuantType == QuantType::BQuantGrouped, "kQuantType must be BQuantGrouped");
-        // Create Gemm tensor views, pad views and tile windows
-        const auto& gemm_tensor_views_tuple =
-            Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                a_ptr, b_ptr, aq_ptr, bq_ptr, c_ptr, kargs, splitk_batch_offset);
 
-        const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows =
-            Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+        // Create block windows using specialized methods
+        const auto& a_block_window =
+            Base::MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& b_block_window =
+            Base::MakeBBlockWindow(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
+        const auto& bq_block_window =
+            Base::MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
 
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
-        // Run GEMM cooperatively by whole workgroup.
-        const auto& a_block_window = gemm_tile_windows.at(Base::I0);
-        const auto& b_block_window = gemm_tile_windows.at(Base::I2);
+        // Run GEMM cooperatively by whole workgroup
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, bq_block_window, num_loop, tail_num, smem_ptr);
 
-        const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
-        const auto& c_block_tile    = GemmPipeline{}.template operator()(a_block_window,
-                                                                      b_block_window,
-                                                                      bq_block_window,
-                                                                      num_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0,
-                                                                      smem_ptr_1);
-
-        // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(Base::I4);
-
-        EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+        // Run Epilogue Pipeline with split_k dispatch
+        if(kargs.k_batch == 1)
+        {
+            auto c_block_window = Base::template MakeCBlockWindow<memory_operation_enum::set>(
+                c_ptr, kargs, block_idx_m, block_idx_n);
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr);
+        }
+        else
+        {
+            auto c_block_window =
+                Base::template MakeCBlockWindow<memory_operation_enum::atomic_add>(
+                    c_ptr, kargs, block_idx_m, block_idx_n);
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr);
+        }
     }
 
     /**
@@ -429,7 +426,7 @@ struct QuantGroupedGemmKernel
      * @param aq_ptr input AQ pointer
      * @param bq_ptr input BQ pointer
      * @param c_ptr output C pointer
-     * @param smem_ptr_0 The start memory pointer of the shared memory block.
+     * @param smem_ptr The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
      * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k
      * batch.
@@ -443,22 +440,21 @@ struct QuantGroupedGemmKernel
                                  const AQDataType* aq_ptr,
                                  const BQDataType* bq_ptr,
                                  CDataType* c_ptr,
-                                 void* smem_ptr_0,
+                                 void* smem_ptr,
                                  const QuantGroupedGemmKernelArgs& kargs,
                                  const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                  const index_t block_idx_m,
                                  const index_t block_idx_n)
     {
-        // Create Gemm tensor views, pad views and tile windows
-        const auto& gemm_tensor_views_tuple =
-            Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                a_ptr, b_ptr, aq_ptr, bq_ptr, c_ptr, kargs, splitk_batch_offset);
-
-        const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows =
-            Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
-        const auto& a_block_window = gemm_tile_windows.at(Base::I0);
-        const auto& b_block_window = gemm_tile_windows.at(Base::I2);
+        // Create block windows using specialized methods
+        const auto& a_block_window =
+            Base::MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& b_block_window =
+            Base::MakeBBlockWindow(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
+        const auto& aq_block_window =
+            Base::MakeAQBlockWindow(aq_ptr, kargs, block_idx_m, block_idx_n);
+        const auto& bq_block_window =
+            Base::MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
 
         // Get hot-loop and tail configuration
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
@@ -466,55 +462,65 @@ struct QuantGroupedGemmKernel
         const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
-        if constexpr(kQuantType == QuantType::AQuantGrouped)
-        {
-            const auto& aq_block_window = gemm_tile_windows.at(Base::I1);
-            // Run GEMM pipeline
-            const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
-                                                                          b_block_window,
-                                                                          aq_block_window,
-                                                                          num_loop,
-                                                                          has_hot_loop,
-                                                                          tail_num,
-                                                                          smem_ptr_0);
-
-            auto& c_block_window = gemm_tile_windows.at(Base::I4);
-
-            // Run Epilogue Pipeline
-            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
-        }
-        else if constexpr(kQuantType == QuantType::BQuantGrouped)
-        {
-            const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
-            // Run GEMM pipeline
-            const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
-                                                                          b_block_window,
-                                                                          bq_block_window,
-                                                                          num_loop,
-                                                                          has_hot_loop,
-                                                                          tail_num,
-                                                                          smem_ptr_0);
-
-            auto& c_block_window = gemm_tile_windows.at(Base::I4);
-
-            // Run Epilogue Pipeline
-            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
-        }
-        else
-        {
-            // Run GEMM pipeline
-            const auto& c_block_tile = GemmPipeline{}.template operator()(
-                a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0);
-            // Run Epilogue Pipeline
-            auto& c_block_window = gemm_tile_windows.at(Base::I4);
-            if constexpr(kQuantType == QuantType::RowColQuant)
+        // Run GEMM cooperatively by whole workgroup
+        const auto& c_block_tile = [&]() {
+            if constexpr(kQuantType == QuantType::AQuantGrouped)
             {
-                const auto& aq_block_window = gemm_tile_windows.at(Base::I1);
-                const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          aq_block_window,
+                                                          num_loop,
+                                                          has_hot_loop,
+                                                          tail_num,
+                                                          smem_ptr);
+            }
+            else if constexpr(kQuantType == QuantType::BQuantGrouped)
+            {
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          bq_block_window,
+                                                          num_loop,
+                                                          has_hot_loop,
+                                                          tail_num,
+                                                          smem_ptr);
+            }
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped)
+            {
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          aq_block_window,
+                                                          bq_block_window,
+                                                          num_loop,
+                                                          has_hot_loop,
+                                                          tail_num,
+                                                          smem_ptr);
+            }
+            else if constexpr(kQuantType == QuantType::RowColQuant ||
+                              kQuantType == QuantType::TensorQuant)
+            {
+                return GemmPipeline{}.template operator()(
+                    a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr);
+            }
+        }();
+
+        // Run Epilogue Pipeline with split_k dispatch
+        if(kargs.k_batch == 1)
+        {
+            auto c_block_window = Base::template MakeCBlockWindow<memory_operation_enum::set>(
+                c_ptr, kargs, block_idx_m, block_idx_n);
+
+            if constexpr(kQuantType == QuantType::AQuantGrouped ||
+                         kQuantType == QuantType::BQuantGrouped ||
+                         kQuantType == QuantType::ABQuantGrouped)
+            {
+                EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr);
+            }
+            else if constexpr(kQuantType == QuantType::RowColQuant)
+            {
                 EpiloguePipeline{}(c_block_window,
                                    c_block_tile,
                                    c_block_window,
-                                   smem_ptr_0,
+                                   smem_ptr,
                                    aq_block_window,
                                    bq_block_window);
             }
@@ -523,7 +529,36 @@ struct QuantGroupedGemmKernel
                 const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
                 const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
                 EpiloguePipeline{}(
-                    c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
+                    c_block_window, c_block_tile, c_block_window, smem_ptr, aq_scale, bq_scale);
+            }
+        }
+        else
+        {
+            auto c_block_window =
+                Base::template MakeCBlockWindow<memory_operation_enum::atomic_add>(
+                    c_ptr, kargs, block_idx_m, block_idx_n);
+
+            if constexpr(kQuantType == QuantType::AQuantGrouped ||
+                         kQuantType == QuantType::BQuantGrouped ||
+                         kQuantType == QuantType::ABQuantGrouped)
+            {
+                EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr);
+            }
+            else if constexpr(kQuantType == QuantType::RowColQuant)
+            {
+                EpiloguePipeline{}(c_block_window,
+                                   c_block_tile,
+                                   c_block_window,
+                                   smem_ptr,
+                                   aq_block_window,
+                                   bq_block_window);
+            }
+            else if constexpr(kQuantType == QuantType::TensorQuant)
+            {
+                const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
+                const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
+                EpiloguePipeline{}(
+                    c_block_window, c_block_tile, c_block_window, smem_ptr, aq_scale, bq_scale);
             }
         }
     }

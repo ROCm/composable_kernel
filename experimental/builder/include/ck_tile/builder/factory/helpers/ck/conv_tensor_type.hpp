@@ -33,7 +33,7 @@ struct DataTypeToCK<DataType::FP32>
     using type = float;
 };
 template <>
-struct DataTypeToCK<DataType::INT32>
+struct DataTypeToCK<DataType::I32>
 {
     using type = int32_t;
 };
@@ -46,6 +46,11 @@ template <>
 struct DataTypeToCK<DataType::FP8>
 {
     using type = ck::f8_t;
+};
+template <>
+struct DataTypeToCK<DataType::U8>
+{
+    using type = uint8_t;
 };
 
 struct CK_empty_tuple

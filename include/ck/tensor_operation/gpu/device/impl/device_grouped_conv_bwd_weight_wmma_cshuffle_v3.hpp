@@ -31,6 +31,11 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
 
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_bwd_weight_wmma_cshuffle_v3.hpp"
+#endif
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -59,11 +64,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 #if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
-    if constexpr(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
-                   (std::is_same_v<e_data_type, ck::half_t> ||
-                    std::is_same_v<e_data_type, ck::bhalf_t>)))
+    if constexpr(CGlobalMemoryDataOperation != InMemoryDataOperationEnum::AtomicAdd)
     {
 #endif
         constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
@@ -1084,18 +1085,14 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
             return false;
         }
 
-        if constexpr(std::is_same_v<CDataType, ck::half_t> ||
-                     std::is_same_v<CDataType, ck::bhalf_t>)
+        if(gemm_arg.KBatch > 1 && ck::is_gfx11_supported())
         {
-            if(gemm_arg.KBatch > 1 && ck::is_gfx11_supported())
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Unsupported splitK on gfx11." << std::endl;
-                }
-                // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-                return false;
+                std::cout << "Unsupported splitK on gfx11." << std::endl;
             }
+            // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+            return false;
         }
 
         if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||
@@ -1422,6 +1419,24 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
                 "The argument pointer is not an object of "
                 "DeviceGroupedConvBwdWeight_Wmma_CShuffleV3::Argument structure!");
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    std::string GetInstanceString() const override
+    {
+        static_assert(ck_tile::reflect::HasInstanceTraits<DeviceOp>,
+                      "Specialization of instance_traits not found. Please check that a "
+                      "specialization exists in file "
+                      "ck_tile/builder/reflect/"
+                      "instance_traits_device_grouped_conv_bwd_weight_wmma_cshuffle_v3.hpp "
+                      "for the given template parameters.");
+        return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
+    }
+#endif
 };
 
 } // namespace device
