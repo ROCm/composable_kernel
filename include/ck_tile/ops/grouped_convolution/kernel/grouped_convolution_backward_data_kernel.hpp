@@ -1036,84 +1036,16 @@ struct GroupedConvolutionBackwardDataKernel
         }
         else
         {
-            auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
-                c_ptr, kargs, group_id, block_idx_m, block_idx_n);
+            if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                           is_any_of<OutDataType, fp16_t, bf16_t>::value))
+            {
+                auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
+                    c_ptr, kargs, group_id, block_idx_m, block_idx_n);
 
-            EpiloguePipeline{}
-                .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-                    c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-    }
-
-    /**
-     * @brief Runs single GEMM problem cooperatively by whole workgroup.
-     *
-     * @note RunGemm2LDS in with two shared memory buffers using the ping pong buffer mechanism.
-     *
-     * @param a_ptr input A pointer
-     * @param b_ptr input B pointer
-     * @param c_ptr output C pointer
-     * @param smem_ptr_0 The starting pointer of 1st shared memory block.
-     * @param smem_ptr_1 The starting pointer of 2nd shared memory block.
-     * @param kargs Grouped Convolution Backward Data kernel arguments
-     * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
-     * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
-     *
-     */
-    CK_TILE_DEVICE static void RunGemm2LDS(const OutDataType* a_ptr,
-                                           const InDataType* b_ptr,
-                                           const std::array<const void*, NumDTensor>& ds_ptr,
-                                           WeiDataType* c_ptr,
-                                           void* __restrict__ smem_ptr_0,
-                                           void* __restrict__ smem_ptr_1,
-                                           const GroupedConvBwdDataKernelArgsSpecialized& kargs,
-                                           const index_t splitted_k,
-                                           const index_t block_idx_m,
-                                           const index_t block_idx_n,
-                                           const index_t block_idx_k,
-                                           const index_t group_id)
-    {
-        // Create block windows using specialized methods
-        const auto& a_block_window =
-            MakeABlockWindow(a_ptr, kargs, group_id, block_idx_m, block_idx_k);
-        const auto& b_block_window =
-            MakeBBlockWindow(b_ptr, kargs, group_id, block_idx_n, block_idx_k);
-        const auto& d_block_window =
-            MakeDBlockWindows(ds_ptr, kargs, group_id, block_idx_m, block_idx_n);
-
-        const index_t num_loop  = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitted_k));
-        const bool has_hot_loop = GemmPipeline::BlockHasHotloop(num_loop);
-        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
-
-        // Run GEMM cooperatively by whole workgroup.
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
-                                                                      b_block_window,
-                                                                      num_loop,
-                                                                      has_hot_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0,
-                                                                      smem_ptr_1);
-
-        const index_t k_batch = amd_wave_read_first_lane(kargs.k_batch);
-
-        // Run Epilogue Pipeline with k_batch dispatch
-        if(k_batch == 1)
-        {
-            auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
-                c_ptr, kargs, group_id, block_idx_m, block_idx_n);
-
-            EpiloguePipeline{}
-                .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-                    c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-        else
-        {
-            auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
-                c_ptr, kargs, group_id, block_idx_m, block_idx_n);
-
-            EpiloguePipeline{}
-                .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-                    c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+                EpiloguePipeline{}
+                    .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                        c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+            }
         }
     }
 
@@ -1195,46 +1127,18 @@ struct GroupedConvolutionBackwardDataKernel
             static_cast<InDataType*>(kargs.in_ptr) + group_offset_c + input_batch_offset;
 
         // allocate LDS
-        __shared__ char smem_ptr_0[GetSmemSize()];
-
-        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
-        {
-            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
-            if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                           is_any_of<OutDataType, fp16_t, bf16_t>::value))
-            {
-                RunGemm2LDS(a_ptr,
-                            b_ptr,
-                            kargs.ds_ptr,
-                            c_ptr,
-                            smem_ptr_0,
-                            smem_ptr_1,
-                            kargs,
-                            splitted_k,
-                            i_m,
-                            i_n,
-                            i_k,
-                            group_id);
-            }
-        }
-        else
-        {
-            if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                           is_any_of<OutDataType, fp16_t, bf16_t>::value))
-            {
-                RunGemm(a_ptr,
-                        b_ptr,
-                        kargs.ds_ptr,
-                        c_ptr,
-                        smem_ptr_0,
-                        kargs,
-                        splitted_k,
-                        i_m,
-                        i_n,
-                        i_k,
-                        group_id);
-            }
-        }
+        __shared__ char smem_ptr[GetSmemSize()];
+        RunGemm(a_ptr,
+                b_ptr,
+                kargs.ds_ptr,
+                c_ptr,
+                smem_ptr,
+                kargs,
+                splitted_k,
+                i_m,
+                i_n,
+                i_k,
+                group_id);
     }
 };
 
