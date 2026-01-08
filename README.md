@@ -139,7 +139,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
 ### Building for Windows
 
-Install TheRock from the nightly builds and run CMake configure as
+Install TheRock and run CMake configure as
 
 ```bash
     cmake                                                                                      \
@@ -151,12 +151,7 @@ Install TheRock from the nightly builds and run CMake configure as
     ..
 ```
 
-Use Ninja to build either the whole library or individual targets. To create a narrow build for MIOpen, 
-use an additional flag
-
-```bash
--D MIOPEN_REQ_LIBS_ONLY=ON
-```
+Use Ninja to build either the whole library or individual targets.
 
 ## Optional post-install steps
 
