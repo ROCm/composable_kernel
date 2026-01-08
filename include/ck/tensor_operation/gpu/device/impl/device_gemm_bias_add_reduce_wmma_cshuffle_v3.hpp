@@ -27,11 +27,12 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    kernel_gemm_reduce_wmma_cshuffle_v3(
+    kernel_gemm_bias_add_reduce_wmma_cshuffle_v3(
         typename GridwiseGemm::Argument karg,
         typename ReduceTrait::ReducePtrsGlobal_ p_reduces_grid,
         const typename ReduceTrait::ReduceInElementwiseOperations_ reduce_in_element_ops,
-        const typename ReduceTrait::ReduceAccElementwiseOperations_ reduce_out_element_ops)
+        const typename ReduceTrait::ReduceAccElementwiseOperations_ reduce_out_element_ops,
+        const typename ReduceTrait::D0ElementwiseOperation_ d0_element_op)
 {
 #if(defined(__gfx11__) || defined(__gfx12__))
 #if defined(__gfx11__)
@@ -49,11 +50,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-        auto epilogue_args = EpilogueType(p_reduces_grid,
-                                          reduce_in_element_ops,
-                                          reduce_out_element_ops,
-                                          karg.M,
-                                          tensor_operation::element_wise::PassThrough{});
+        auto epilogue_args = EpilogueType(
+            p_reduces_grid, reduce_in_element_ops, reduce_out_element_ops, karg.M, d0_element_op);
 
         GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
             p_shared, splitk_batch_offset, karg, epilogue_args);
@@ -65,6 +63,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     ignore = p_reduces_grid;
     ignore = reduce_in_element_ops;
     ignore = reduce_out_element_ops;
+    ignore = d0_element_op;
 #endif
 }
 
@@ -80,6 +79,8 @@ template <typename ALayout,
           typename ADataType,
           typename BDataType,
           typename EDataType,
+          typename BiasDataType,
+          typename D0DataType,
           typename AccDataType,
           typename CShuffleDataType,
           typename ReduceAccDataType, // Reduce
@@ -87,6 +88,7 @@ template <typename ALayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          typename D0ElementwiseOperation,
           typename ReduceOperations,                // Reduce
           typename ReduceInElementwiseOperations,   // Reduce
           typename ReduceAccElementwiseOperations,  // Reduce
@@ -118,8 +120,8 @@ template <typename ALayout,
           index_t BBlockLdsExtraN,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
-          typename CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t CDEShuffleBlockTransferScalarPerVector,
+          typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          index_t CShuffleBlockTransferScalarPerVector,
           typename CReduceThreadClusterLengths_MPerBlock_NPerBlock,            // Reduce
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,    // Reduce
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock, // Reduce
@@ -129,24 +131,23 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           bool PermuteA                               = false,
           bool PermuteB                               = false>
-struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOperations::Size()>
+struct DeviceGemmBiasAddReduce_Wmma_CShuffleV3
+    : public DeviceGemmReduce<1, ReduceOperations::Size()>
 {
-
-    using CDEShuffleBlockTransferScalarPerVectors =
-        Sequence<CDEShuffleBlockTransferScalarPerVector,
-                 CDEShuffleBlockTransferScalarPerVector,
-                 CDEShuffleBlockTransferScalarPerVector>;
+    using CDEShuffleBlockTransferScalarPerVectors = Sequence<CShuffleBlockTransferScalarPerVector,
+                                                             CShuffleBlockTransferScalarPerVector,
+                                                             CShuffleBlockTransferScalarPerVector>;
 
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         ALayout,
         BLayout,
-        Tuple<>,
+        Tuple<ELayout, ELayout>,
         ELayout,
         Tuple<ADataType>,
         Tuple<BDataType>,
         AccDataType,
         CShuffleDataType,
-        Tuple<>,
+        Tuple<BiasDataType, D0DataType>,
         EDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -180,7 +181,7 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
         BBlockLdsExtraN,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
-        CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEShuffleBlockTransferScalarPerVectors,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
@@ -191,7 +192,7 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
 
     using ReduceTrait = ReduceTrait_<ReduceAccDataType,
                                      ReducePtrsGlobal,
-                                     tensor_operation::element_wise::PassThrough,
+                                     D0ElementwiseOperation,
                                      ReduceOperations,
                                      ReduceInElementwiseOperations,
                                      ReduceAccElementwiseOperations,
@@ -205,7 +206,9 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
     {
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
-                 EDataType* p_c_grid,
+                 EDataType* p_e_grid,
+                 const BiasDataType* p_bias_grid,
+                 const D0DataType* p_d0_grid,
                  ReducePtrsGlobal p_reduces_grid,
                  index_t MRaw,
                  index_t NRaw,
@@ -213,14 +216,18 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                  index_t StrideA,
                  index_t StrideB,
                  index_t StrideC,
+                 index_t StrideC1,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
+                 D0ElementwiseOperation d0_element_op,
                  ReduceInElementwiseOperations reduce_in_element_ops,
                  ReduceAccElementwiseOperations reduce_out_element_ops)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
-              p_c_grid_{p_c_grid},
+              p_e_grid_{p_e_grid},
+              p_bias_grid_{p_bias_grid},
+              p_d0_grid_{p_d0_grid},
               p_reduces_grid_{p_reduces_grid},
               MRaw_{MRaw},
               NRaw_{NRaw},
@@ -228,17 +235,22 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
               StrideA_{StrideA},
               StrideB_{StrideB},
               StrideC_{StrideC},
+              StrideC1_{StrideC1},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
+              d0_element_op_{d0_element_op},
               reduce_in_element_ops_{reduce_in_element_ops},
               reduce_out_element_ops_{reduce_out_element_ops}
         {
         }
 
+        //  private:
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        EDataType* p_c_grid_;
+        EDataType* p_e_grid_;
+        const BiasDataType* p_bias_grid_;
+        const D0DataType* p_d0_grid_;
         ReducePtrsGlobal p_reduces_grid_;
         index_t MRaw_;
         index_t NRaw_;
@@ -246,9 +258,11 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
         index_t StrideA_;
         index_t StrideB_;
         index_t StrideC_;
+        index_t StrideC1_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        D0ElementwiseOperation d0_element_op_;
         ReduceInElementwiseOperations reduce_in_element_ops_;
         ReduceAccElementwiseOperations reduce_out_element_ops_;
     };
@@ -260,16 +274,16 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
             typename GridwiseGemm::Argument gemm_arg{
                 std::array<const void*, 1>{arg.p_a_grid_},
                 std::array<const void*, 1>{arg.p_b_grid_},
-                std::array<const void*, 0>{},
-                static_cast<EDataType*>(arg.p_c_grid_),
+                std::array<const void*, 2>{arg.p_bias_grid_, arg.p_d0_grid_},
+                static_cast<EDataType*>(arg.p_e_grid_),
                 arg.MRaw_,
                 arg.NRaw_,
                 arg.KRaw_,
-                std::array<index_t, 1>{arg.StrideA_}, // StrideAs
-                std::array<index_t, 1>{arg.StrideB_}, // StrideBs
-                std::array<index_t, 0>{},             // StrideDs
-                arg.StrideC_,                         // StrideE
-                1,                                    // kbatch
+                std::array<index_t, 1>{arg.StrideA_},     // StrideAs
+                std::array<index_t, 1>{arg.StrideB_},     // StrideBs
+                std::array<index_t, 2>{0, arg.StrideC1_}, // StrideDs
+                arg.StrideC_,                             // StrideE
+                1,                                        // kbatch
                 arg.a_element_op_,
                 arg.b_element_op_,
                 arg.c_element_op_};
@@ -306,7 +320,8 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                                                    gemm_arg,
                                                    arg.p_reduces_grid_,
                                                    arg.reduce_in_element_ops_,
-                                                   arg.reduce_out_element_ops_);
+                                                   arg.reduce_out_element_ops_,
+                                                   arg.d0_element_op_);
             };
 
             constexpr index_t minimum_occupancy = []() {
@@ -332,12 +347,12 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                 {
                     if(TailNum == TailNumber::Full)
                     {
-                        const auto kernel =
-                            kernel_gemm_reduce_wmma_cshuffle_v3<GridwiseGemm,
-                                                                ReduceTrait,
-                                                                true,
-                                                                InMemoryDataOperationEnum::Set,
-                                                                minimum_occupancy>;
+                        const auto kernel = kernel_gemm_bias_add_reduce_wmma_cshuffle_v3<
+                            GridwiseGemm,
+                            ReduceTrait,
+                            true,
+                            InMemoryDataOperationEnum::Set,
+                            minimum_occupancy>;
                         Run(kernel);
                     }
                     else
@@ -352,12 +367,12 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                 {
                     if(TailNum == TailNumber::Full)
                     {
-                        const auto kernel =
-                            kernel_gemm_reduce_wmma_cshuffle_v3<GridwiseGemm,
-                                                                ReduceTrait,
-                                                                false,
-                                                                InMemoryDataOperationEnum::Set,
-                                                                minimum_occupancy>;
+                        const auto kernel = kernel_gemm_bias_add_reduce_wmma_cshuffle_v3<
+                            GridwiseGemm,
+                            ReduceTrait,
+                            false,
+                            InMemoryDataOperationEnum::Set,
+                            minimum_occupancy>;
                         Run(kernel);
                     }
                     else
@@ -369,24 +384,24 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                 {
                     if(TailNum == TailNumber::Even)
                     {
-                        const auto kernel =
-                            kernel_gemm_reduce_wmma_cshuffle_v3<GridwiseGemm,
-                                                                ReduceTrait,
-                                                                false,
-                                                                InMemoryDataOperationEnum::Set,
-                                                                minimum_occupancy,
-                                                                TailNumber::Even>;
+                        const auto kernel = kernel_gemm_bias_add_reduce_wmma_cshuffle_v3<
+                            GridwiseGemm,
+                            ReduceTrait,
+                            false,
+                            InMemoryDataOperationEnum::Set,
+                            minimum_occupancy,
+                            TailNumber::Even>;
                         Run(kernel);
                     }
                     else if(TailNum == TailNumber::Odd)
                     {
-                        const auto kernel =
-                            kernel_gemm_reduce_wmma_cshuffle_v3<GridwiseGemm,
-                                                                ReduceTrait,
-                                                                false,
-                                                                InMemoryDataOperationEnum::Set,
-                                                                minimum_occupancy,
-                                                                TailNumber::Odd>;
+                        const auto kernel = kernel_gemm_bias_add_reduce_wmma_cshuffle_v3<
+                            GridwiseGemm,
+                            ReduceTrait,
+                            false,
+                            InMemoryDataOperationEnum::Set,
+                            minimum_occupancy,
+                            TailNumber::Odd>;
                         Run(kernel);
                     }
                     else
@@ -453,21 +468,22 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
             return false;
         }
 
-        typename GridwiseGemm::Argument gemm_arg{std::array<const void*, 1>{arg.p_a_grid_},
-                                                 std::array<const void*, 1>{arg.p_b_grid_},
-                                                 std::array<const void*, 0>{},
-                                                 static_cast<EDataType*>(arg.p_c_grid_),
-                                                 arg.MRaw_,
-                                                 arg.NRaw_,
-                                                 arg.KRaw_,
-                                                 std::array<index_t, 1>{arg.StrideA_}, // StrideAs
-                                                 std::array<index_t, 1>{arg.StrideB_}, // StrideBs
-                                                 std::array<index_t, 0>{},             // StrideDs
-                                                 arg.StrideC_,                         // StrideE
-                                                 1,                                    // kbatch
-                                                 arg.a_element_op_,
-                                                 arg.b_element_op_,
-                                                 arg.c_element_op_};
+        typename GridwiseGemm::Argument gemm_arg{
+            std::array<const void*, 1>{arg.p_a_grid_},
+            std::array<const void*, 1>{arg.p_b_grid_},
+            std::array<const void*, 2>{arg.p_bias_grid_, arg.p_d0_grid_},
+            static_cast<EDataType*>(arg.p_e_grid_),
+            arg.MRaw_,
+            arg.NRaw_,
+            arg.KRaw_,
+            std::array<index_t, 1>{arg.StrideA_},     // StrideAs
+            std::array<index_t, 1>{arg.StrideB_},     // StrideBs
+            std::array<index_t, 2>{0, arg.StrideC1_}, // StrideDs
+            arg.StrideC_,                             // StrideE
+            1,                                        // kbatch
+            arg.a_element_op_,
+            arg.b_element_op_,
+            arg.c_element_op_};
 
         return GridwiseGemm::CheckValidity(gemm_arg);
     }
@@ -482,7 +498,7 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
     static auto MakeArgument(const void* p_a,
                              const void* p_b,
                              const void* p_bias,
-                             std::array<const void*, 0> p_ds,
+                             std::array<const void*, 1> p_ds,
                              void* p_c,
                              std::array<void*, NumReduce> p_reduces,
                              ck::index_t M,
@@ -491,17 +507,12 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                              ck::index_t StrideA,
                              ck::index_t StrideB,
                              ck::index_t StrideC,
-                             std::array<ck::index_t, 0> StrideDs,
+                             std::array<ck::index_t, 1> StrideDs,
                              std::array<void*, 3> gemm_element_ops,
-                             std::array<void*, 0> d_element_ops,
+                             std::array<void*, 1> d_element_ops,
                              std::array<void*, NumReduce> reduce_in_element_op,
                              std::array<void*, NumReduce> reduce_out_element_op)
     {
-        (void)p_bias;
-        (void)p_ds;
-        (void)StrideDs;
-        (void)d_element_ops;
-
         ReducePtrsGlobal reduce_tuple = generate_tuple(
             [&](auto I) {
                 auto tmp = ReducePtrsGlobal{}[I];
@@ -517,7 +528,6 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                 return *(static_cast<T*>(reduce_in_element_op[I]));
             },
             Number<NumReduce>{});
-
         ReduceAccElementwiseOperations reduce_out_element_ops = generate_tuple(
             [&](auto I) {
                 auto tmp = ReduceAccElementwiseOperations{}[I];
@@ -532,10 +542,14 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
             *(static_cast<BElementwiseOperation*>(gemm_element_ops[1]));
         CElementwiseOperation c_element_op =
             *(static_cast<CElementwiseOperation*>(gemm_element_ops[2]));
+        D0ElementwiseOperation d_element_op =
+            *(static_cast<D0ElementwiseOperation*>(d_element_ops[0]));
 
         return Argument{static_cast<const ADataType*>(p_a),
                         static_cast<const BDataType*>(p_b),
                         static_cast<EDataType*>(p_c),
+                        static_cast<const BiasDataType*>(p_bias),
+                        static_cast<const D0DataType*>(p_ds[0]),
                         reduce_tuple,
                         M,
                         N,
@@ -543,9 +557,11 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                         StrideA,
                         StrideB,
                         StrideC,
+                        StrideDs[0],
                         a_element_op,
                         b_element_op,
                         c_element_op,
+                        d_element_op,
                         reduce_in_element_ops,
                         reduce_out_element_ops};
     }
@@ -557,7 +573,7 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
                         const void* p_bias,
-                        std::array<const void*, 0> p_ds,
+                        std::array<const void*, 1> p_ds,
                         void* p_c,
                         std::array<void*, NumReduce> p_reduces,
                         ck::index_t M,
@@ -566,18 +582,13 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                         ck::index_t StrideA,
                         ck::index_t StrideB,
                         ck::index_t StrideC,
-                        std::array<ck::index_t, 0> StrideDs,
+                        std::array<ck::index_t, 1> StrideDs,
                         std::array<void*, 3> gemm_element_ops,
-                        std::array<void*, 0> d_element_ops,
+                        std::array<void*, 1> d_element_ops,
                         std::array<void*, NumReduce> reduce_in_element_op,
                         std::array<void*, NumReduce> reduce_out_element_op,
-                        ck::index_t = 1) override
+                        index_t /* KBatch */ = 1) override
     {
-        (void)p_bias;
-        (void)p_ds;
-        (void)StrideDs;
-        (void)d_element_ops;
-
         ReducePtrsGlobal reduce_tuple = generate_tuple(
             [&](auto I) {
                 auto tmp = ReducePtrsGlobal{}[I];
@@ -607,10 +618,14 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
             *(static_cast<BElementwiseOperation*>(gemm_element_ops[1]));
         CElementwiseOperation c_element_op =
             *(static_cast<CElementwiseOperation*>(gemm_element_ops[2]));
+        D0ElementwiseOperation d_element_op =
+            *(static_cast<D0ElementwiseOperation*>(d_element_ops[0]));
 
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<EDataType*>(p_c),
+                                          static_cast<const BiasDataType*>(p_bias),
+                                          static_cast<const D0DataType*>(p_ds[0]),
                                           reduce_tuple,
                                           M,
                                           N,
@@ -618,9 +633,11 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                                           StrideA,
                                           StrideB,
                                           StrideC,
+                                          StrideDs[0],
                                           a_element_op,
                                           b_element_op,
                                           c_element_op,
+                                          d_element_op,
                                           reduce_in_element_ops,
                                           reduce_out_element_ops);
     }
@@ -637,7 +654,7 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemmReduce_Wmma_CShuffleV3"
+        str << "DeviceGemmBiasAddReduce_Wmma_CShuffleV3"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
@@ -652,7 +669,7 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
             << ABlockTransferSrcScalarPerVector << ", "
             << BBlockTransferSrcScalarPerVector << ", "
             << CShuffleMRepeatPerShuffle << ", "
-            << CShuffleNRepeatPerShuffle 
+            << CShuffleNRepeatPerShuffle
             << ">";
         // clang-format on
 
