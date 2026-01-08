@@ -619,9 +619,10 @@ struct FmhaFwdSplitKVKernel
         long_index_t batch_offset_o_acc   = 0;
         index_t kv_l2p_offset =
             0; // logical-to-physical offset of seqlen_k coordinate. only used for paged-kvcache
-        const float sink_value = kargs.sink_ptr != nullptr
-                                     ? *(static_cast<const float*>(kargs.sink_ptr) + i_nhead)
-                                     : static_cast<float>(-numeric<half_t>::infinity());
+        const float sink_value =
+            kargs.sink_ptr != nullptr
+                ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                : static_cast<float>(-numeric<half_t>::infinity());
 
         if constexpr(kIsGroupMode)
         {

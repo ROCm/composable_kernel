@@ -917,9 +917,10 @@ struct FmhaFwdPagedKVKernel
         long_index_t batch_offset_lse  = 0;
         long_index_t batch_offset_o    = 0;
         index_t kv_l2p_offset          = 0;
-        const float sink_value         = kargs.sink_ptr != nullptr
-                                             ? *(static_cast<const float*>(kargs.sink_ptr) + i_nhead)
-                                             : static_cast<float>(-numeric<half_t>::infinity());
+        const float sink_value =
+            kargs.sink_ptr != nullptr
+                ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                : static_cast<float>(-numeric<half_t>::infinity());
 
         if constexpr(kIsGroupMode)
         {

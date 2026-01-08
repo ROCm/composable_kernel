@@ -1118,9 +1118,10 @@ struct FmhaFwdKernel
             long_index_t batch_offset_randval = 0;
             long_index_t batch_offset_lse     = 0;
             long_index_t batch_offset_o       = 0;
-            const float sink_value            = kargs.sink_ptr != nullptr
-                                                    ? *(static_cast<const float*>(kargs.sink_ptr) + i_nhead)
-                                                    : static_cast<float>(-numeric<half_t>::infinity());
+            const float sink_value =
+                kargs.sink_ptr != nullptr
+                    ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                    : static_cast<float>(-numeric<half_t>::infinity());
 
             if constexpr(kIsGroupMode)
             {
@@ -1636,9 +1637,10 @@ struct FmhaFwdKernel
             constexpr bool PrefillCase = FmhaPipeline::kM0 > 64;
             // divide problem
             const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
-            const float sink_value                            = kargs.sink_ptr != nullptr
-                                                                    ? *(static_cast<const float*>(kargs.sink_ptr) + i_nhead)
-                                                                    : static_cast<float>(-numeric<half_t>::infinity());
+            const float sink_value =
+                kargs.sink_ptr != nullptr
+                    ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                    : static_cast<float>(-numeric<half_t>::infinity());
 
             const index_t i_m0 = i_tile_m * FmhaPipeline::kM0;
             const index_t i_n1 = i_tile_n * FmhaPipeline::kN1;

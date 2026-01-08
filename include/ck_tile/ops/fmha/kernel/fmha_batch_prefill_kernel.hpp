@@ -706,9 +706,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         long_index_t batch_offset_o       = 0;
 
         const int32_t num_page_blocks = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
-        const float sink_value        = kargs.sink_ptr != nullptr
-                                            ? *(static_cast<const float*>(kargs.sink_ptr) + i_nhead)
-                                            : static_cast<float>(-numeric<half_t>::infinity());
+        const float sink_value =
+            kargs.sink_ptr != nullptr
+                ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                : static_cast<float>(-numeric<half_t>::infinity());
 #if 0 // we assume page_block_size=1 for now
         const int32_t last_page_len   = kargs.kv_last_page_lens[i_batch];
 #endif
