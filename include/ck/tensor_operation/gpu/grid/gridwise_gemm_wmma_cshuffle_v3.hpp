@@ -650,11 +650,11 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                DsGridPointer& p_ds_grid,
                                EDataType* p_e_grid,
                                void* p_shared,
-                               const AsGridDescriptor_AK0_M_AK1& as_grid_desc_ak0_m_ak1,
-                               const BsGridDescriptor_BK0_N_BK1& bs_grid_desc_bk0_n_bk1,
-                               const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                               const AsGridDescriptor_AK0_M_AK1 as_grid_desc_ak0_m_ak1,
+                               const BsGridDescriptor_BK0_N_BK1 bs_grid_desc_bk0_n_bk1,
+                               const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                               const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                               const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2CTileMap& block_2_ctile_map,
                                AElementwiseOperation a_element_op,
@@ -688,10 +688,10 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
         const index_t num_k_block_per_scale = GetKBlockPerScale();
 
-        Base::template Run<AsGridDescriptor_AK0_M_AK1,
-                           BsGridDescriptor_BK0_N_BK1,
-                           DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                           EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+        Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
+                           decltype(bs_grid_desc_bk0_n_bk1),
+                           decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
+                           decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
                            decltype(a_scale_struct),
                            decltype(b_scale_struct),
                            decltype(epilogue_args),
