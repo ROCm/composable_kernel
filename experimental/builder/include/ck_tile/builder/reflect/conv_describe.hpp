@@ -11,10 +11,17 @@
 
 namespace ck_tile::reflect {
 
+/// @brief Concept to check if an Instance type has conv traits
+template <typename Instance>
+concept HasConvTraits = requires {
+    { conv::instance_to_conv_traits<Instance>() };
+};
+
 /// @brief Factory function to create ConvDescription from a convolution instance type
-/// @tparam Instance The convolution instance type (must have ConvTraits)
+/// @tparam Instance The convolution instance type
 /// @return A ConvDescription object populated with the instance's configuration details
-template <conv::HasConvTraits Instance>
+template <typename Instance>
+    requires HasConvTraits<Instance>
 conv::ConvDescription describe()
 {
     const auto traits = conv::instance_to_conv_traits<Instance>();
@@ -43,7 +50,7 @@ conv::ConvDescription describe()
             .conv_specialization = traits.conv_specialization,
             .padding             = traits.gemm_padding,
         },
-        []() { return reflect::instance_string<Instance>(); });
+        []<typename T = Instance>() { return reflect::instance_string<T>(); });
 }
 
 } // namespace ck_tile::reflect

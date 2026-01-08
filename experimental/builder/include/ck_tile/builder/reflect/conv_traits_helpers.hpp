@@ -26,89 +26,24 @@
 /// @file conv_traits_helpers.hpp
 /// @brief Helper utilities for extracting convolution traits from kernel instances
 ///
-/// This file contains multiple categories of helper code used by ConvTraits:
+/// This file contains helper code used by ConvTraits:
 ///
-/// 1. **Concepts**: Type trait concepts for checking if instance types have required members
-///    - Layout concepts (HasFwdConvLayouts)
-///    - Specialization concepts (HasGemmSpec)
-///    - Data type concepts (HasDataTypes)
-///    - Operation concepts (HasElementwiseOps)
-///    - Tile parameter concepts (HasTileParams)
-///    - Composite concepts (IsXdlFwdConv, HasConvTraits)
-///
-/// 2. **Enum Conversions**: Functions to convert CK enums to builder enums
+/// 1. **Enum Conversions**: Functions to convert CK enums to builder enums
 ///    - Pipeline version conversions (BlockGemmPipelineVersion, PipelineVersion)
 ///    - Pipeline scheduler conversions (BlockGemmPipelineScheduler, LoopScheduler)
 ///
-/// 3. **Signature Derivation**: Functions to extract signature information from instances
+/// 2. **Signature Derivation**: Functions to extract signature information from instances
 ///    - Convolution direction (conv_direction)
 ///    - Convolution specialization (conv_spec)
 ///    - Tensor layouts (conv_layout)
 ///    - Data types (conv_data_type)
 ///    - Elementwise operations (elementwise_op)
 ///    - GEMM padding (gemm_spec)
-///
-/// These helpers are kept together to facilitate refactoring and simplification efforts.
 
 namespace ck_tile::reflect::conv {
 
 // ============================================================================
-// SECTION 1: CONCEPTS
-// ============================================================================
-
-// Forward convolution layout concept - checks for A/B/E layout types
-template <typename T>
-concept HasFwdConvLayouts = requires {
-    typename T::ALayout;
-    typename T::BLayout;
-    typename T::ELayout;
-};
-
-// GEMM specialization concept - checks for kGemmSpecialization member
-template <typename T>
-concept HasGemmSpec = requires {
-    {
-        T::kGemmSpecialization
-    } -> std::convertible_to<ck::tensor_operation::device::GemmSpecialization>;
-};
-
-// Data types concept - checks for ADataType member
-template <typename T>
-concept HasDataTypes = requires { typename T::ADataType; };
-
-// Elementwise operations concept - checks for A/B/CDE elementwise operation types
-template <typename T>
-concept HasElementwiseOps = requires {
-    typename T::AElementwiseOperation;
-    typename T::BElementwiseOperation;
-    typename T::CDEElementwiseOperation;
-};
-
-// Tile parameters concept - checks for tile dimension and transfer members
-template <typename T>
-concept HasTileParams = requires {
-    { T::kKPerBlock } -> std::convertible_to<int>;
-    { T::kMPerBlock } -> std::convertible_to<int>;
-    { T::kNPerBlock } -> std::convertible_to<int>;
-    { T::kAK1 } -> std::convertible_to<int>;
-    { T::kBK1 } -> std::convertible_to<int>;
-    T::kCThreadClusterLengths;
-};
-
-// Comprehensive concept that checks if an instance has all XDL forward convolution traits
-// This concept is used to constrain ConvTraits specialization that expect XDL forward convolutions
-template <typename T>
-concept IsXdlFwdConv = HasFwdConvLayouts<T> && HasGemmSpec<T> && HasDataTypes<T> &&
-                       HasElementwiseOps<T> && HasTileParams<T>;
-
-// Primary concept for checking if a type can be described
-// Currently only forward convolutions are supported, but this can be extended
-// in the future to include backward data and backward weight convolutions
-template <typename T>
-concept HasConvTraits = IsXdlFwdConv<InstanceTraits<T>>;
-
-// ============================================================================
-// SECTION 2: ENUM CONVERSIONS
+// SECTION 1: ENUM CONVERSIONS
 // ============================================================================
 
 /// @brief Converts a CK BlockGemmPipelineVersion enum to a builder PipelineVersion enum.
@@ -327,7 +262,6 @@ template <typename A, typename B, typename E, int SpatialDim>
 ///             index 2 -> Output layout
 template <typename Instance>
 constexpr auto conv_layout()
-    requires HasFwdConvLayouts<InstanceTraits<Instance>>
 {
     // Helper lambda to construct layout array
     auto layouts = [](auto... Ls) { return std::array<builder::TensorLayout, 3>{Ls...}; };
@@ -410,7 +344,6 @@ template <typename ADataType>
 /// Returns a `builder::DataType` enum value (e.g., FP16, BF16, FP32, BF8).
 template <typename Instance>
 constexpr builder::DataType conv_data_type()
-    requires HasDataTypes<InstanceTraits<Instance>>
 {
     using InstTraits = InstanceTraits<Instance>;
     using ADataType  = typename InstTraits::ADataType;
@@ -565,7 +498,6 @@ constexpr builder::ElementwiseOperation elementwise_op()
 /// @return A `builder::GemmPadding` enum value corresponding to kernel padding.
 template <typename Instance>
 constexpr builder::GemmPadding gemm_spec()
-    requires HasGemmSpec<InstanceTraits<Instance>>
 {
     using InstTraits = InstanceTraits<Instance>;
     using enum builder::GemmPadding;
