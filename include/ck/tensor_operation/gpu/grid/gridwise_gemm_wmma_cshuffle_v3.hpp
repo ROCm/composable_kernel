@@ -601,21 +601,31 @@ struct GridwiseGemm_wmma_cshuffle_v3
             MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 e_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
-        Run(p_as_grid,
-            p_bs_grid,
-            p_ds_grid,
-            p_e_grid,
-            p_shared,
-            as_grid_desc_ak0_m_ak1,
-            bs_grid_desc_bk0_n_bk1,
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            e_grid_desc_mblock_mperblock_nblock_nperblock,
-            block_2_ctile_map,
-            a_element_op,
-            b_element_op,
-            cde_element_op,
-            epilogue_args,
-            k_id);
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            decltype(as_grid_desc_ak0_m_ak1),
+            decltype(bs_grid_desc_bk0_n_bk1),
+            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
+            decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+            Block2CTileMap,
+            EpilogueArgument,
+            BlockMapMBlockIndex,
+            BlockMapNBlockIndex>(p_as_grid,
+                                 p_bs_grid,
+                                 p_ds_grid,
+                                 p_e_grid,
+                                 p_shared,
+                                 as_grid_desc_ak0_m_ak1,
+                                 bs_grid_desc_bk0_n_bk1,
+                                 ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                 e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                 block_2_ctile_map,
+                                 a_element_op,
+                                 b_element_op,
+                                 cde_element_op,
+                                 epilogue_args,
+                                 k_id);
     }
 
     // Overload to pass in custom As/Bs/Ds/E grid descriptors
