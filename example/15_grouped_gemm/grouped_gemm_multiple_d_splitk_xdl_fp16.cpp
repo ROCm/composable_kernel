@@ -90,7 +90,7 @@ struct ExecutionConfig final
     bool do_verification = true;
     int init_method      = 1;
     int k_batch          = 128;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 };
 
 bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
