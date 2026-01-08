@@ -131,8 +131,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "grid size " << kGridSize << std::endl;
 
     using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
-    using Problem = ck_tile::
-        Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, decltype(reduce_ops)>;
+    using Problem = ck_tile::Reduce2dProblem<XDataType,
+                                             ComputeDataType,
+                                             YDataType,
+                                             Shape,
+                                             decltype(reduce_ops),
+                                             decltype(kept_dim),
+                                             decltype(reduce_dims),
+                                             4>;
 
     using Kernel                      = ck_tile::MultiReduceThreadWise<Problem>;
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();

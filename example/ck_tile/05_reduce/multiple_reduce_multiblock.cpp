@@ -138,8 +138,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
     using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
-    using Problem = ck_tile::
-        Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, decltype(reduce_ops)>;
+    using Problem = ck_tile::Reduce2dProblem<XDataType,
+                                             ComputeDataType,
+                                             YDataType,
+                                             Shape,
+                                             decltype(reduce_ops),
+                                             decltype(kept_dim),
+                                             decltype(reduce_dims),
+                                             4>;
 
     using Kernel = ck_tile::MultiReduceMultiblock<Problem>;
 

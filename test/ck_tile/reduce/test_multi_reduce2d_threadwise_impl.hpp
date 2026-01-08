@@ -86,7 +86,10 @@ class TestCkTileMultiReduceThreadwise : public ::testing::Test
                                                  ComputeDataType,
                                                  YDataType,
                                                  TestReduce2dShape,
-                                                 ReduceOpsType>;
+                                                 ReduceOpsType,
+                                                 KeptDimSeq,
+                                                 ReduceDimSeq,
+                                                 InputDim>;
 
         using Kernel = ck_tile::MultiReduceThreadWise<Problem>;
 
