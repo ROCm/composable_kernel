@@ -232,11 +232,34 @@ enum class PipelineScheduler
 
 enum class ConvAlgorithmSpecialization
 {
-    LARGE_TENSOR,
-    REFERENCE, // GPU reference implementation for validation,
-    TWO_STAGE,
-    MULTIPLE_D
+    NONE = 0,
+    LARGE_TENSOR = 1 << 0,
+    REFERENCE = 1 << 1, // GPU reference implementation for validation,
+    TWO_STAGE = 1 << 2,
+    MULTIPLE_D = 1 << 3,
+    PIPELINE_V3 = 1 << 4
 };
+
+constexpr ConvAlgorithmSpecialization operator|(ConvAlgorithmSpecialization lhs,
+                                                ConvAlgorithmSpecialization rhs)
+{
+    using T = std::underlying_type_t<ConvAlgorithmSpecialization>;
+    return static_cast<ConvAlgorithmSpecialization>(static_cast<T>(lhs) | static_cast<T>(rhs));
+}
+
+constexpr ConvAlgorithmSpecialization operator&(ConvAlgorithmSpecialization lhs,
+                                                ConvAlgorithmSpecialization rhs)
+{
+    using T = std::underlying_type_t<ConvAlgorithmSpecialization>;
+    return static_cast<ConvAlgorithmSpecialization>(static_cast<T>(lhs) & static_cast<T>(rhs));
+}
+
+// Enable direct boolean conversion for flag checks
+constexpr bool operator!(ConvAlgorithmSpecialization spec)
+{
+    using T = std::underlying_type_t<ConvAlgorithmSpecialization>;
+    return static_cast<T>(spec) == 0;
+}
 
 enum class MatrixInstructionType
 {

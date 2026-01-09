@@ -19,7 +19,7 @@ constexpr auto SIGNATURE =
                        .weight                 = {.config = {.layout = ckb::TensorLayout::GKYXC}},
                        .output                 = {.config = {.layout = ckb::TensorLayout::GNHWK}}};
 
-constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle{}
+constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle_V3{}
                                .with_thread_block(cku::ThreadBlock_64_32x32x32)
                                .with_gemm_config(cku::BwdGemmParams_Xdl_1x1_per_wave)
                                .with_transfer(cku::BwdTransfer_4x8x1_4x16x1_v3)

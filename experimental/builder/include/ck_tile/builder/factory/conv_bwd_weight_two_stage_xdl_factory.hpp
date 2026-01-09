@@ -105,7 +105,7 @@ struct ConvBwdWeightTwoStageXdlFactory
         C_BLOCK_TRANSFER.scalar_per_vector,
         BLOCK_GEMM.scheduler,
         BLOCK_GEMM.pipeline_version,
-        ALGORITHM.num_conv_groups_to_merge,
+        BLOCK_GEMM.num_conv_groups_to_merge,
         typename Types::OutComputeType,
         typename Types::InComputeType,
         ALGORITHM.max_transpose_transfer_src_scalar_per_vector,

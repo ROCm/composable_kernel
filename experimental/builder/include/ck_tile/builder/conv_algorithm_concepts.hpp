@@ -283,16 +283,6 @@ concept SpecifiesNumGroupsToMerge = requires {
 };
 
 template <typename T>
-concept SpecifiesLoopScheduler = requires {
-    { T::loop_scheduler } -> std::convertible_to<PipelineScheduler>;
-};
-
-template <typename T>
-concept SpecifiesGenericInstance = !requires {
-    { T::specialization };
-};
-
-template <typename T>
 concept SpecifiesTransposeTransfer = requires {
     { T::max_transpose_transfer_src_scalar_per_vector } -> SizeType;
     { T::max_transpose_transfer_dst_scalar_per_vector } -> SizeType;
@@ -308,10 +298,6 @@ template <typename T>
 concept TransposeTransferWellDefinedIfProvided =
     !HasTransposeTransfer<T> || SpecifiesTransposeTransfer<T>;
 
-template <typename T>
-concept SpecifiesGemmBatchOptions = requires {
-    { T::num_conv_groups_to_merge } -> SizeType;
-};
 
 /******************************************** */
 /* Algorithm specialization concepts          */
@@ -319,25 +305,39 @@ concept SpecifiesGemmBatchOptions = requires {
 template <typename T>
 concept SpecifiesLargeTensorSupport = requires {
     { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
-    requires T::specialization == ConvAlgorithmSpecialization::LARGE_TENSOR;
+    requires !!(T::specialization & ConvAlgorithmSpecialization::LARGE_TENSOR);
 };
 
 template <typename T>
 concept SpecifiesReferenceAlgorithm = requires {
     { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
-    requires T::specialization == ConvAlgorithmSpecialization::REFERENCE;
+    requires !!(T::specialization & ConvAlgorithmSpecialization::REFERENCE);
 };
 
 template <typename T>
 concept SpecifiesTwoStageSupport = requires {
     { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
-    requires T::specialization == ConvAlgorithmSpecialization::TWO_STAGE;
+    requires !!(T::specialization & ConvAlgorithmSpecialization::TWO_STAGE);
 };
 
 template <typename T>
 concept SpecifiesMultipleDSupport = requires {
     { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
-    requires T::specialization == ConvAlgorithmSpecialization::MULTIPLE_D;
+    requires !!(T::specialization & ConvAlgorithmSpecialization::MULTIPLE_D);
+};
+
+template <typename T>
+concept SpecifiesPipelineV3 = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires !!(T::specialization & ConvAlgorithmSpecialization::PIPELINE_V3);
+};
+
+template <typename T>
+concept SpecifiesGenericInstance = !requires {
+    { T::specialization };
+} || requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires !!(T::specialization == ConvAlgorithmSpecialization::NONE);
 };
 
 template <typename T>

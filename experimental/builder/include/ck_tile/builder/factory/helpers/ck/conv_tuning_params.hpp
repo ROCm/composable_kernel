@@ -31,6 +31,8 @@ ConvSpec(CONV_ENUM, GEMM_ENUM) -> ConvSpec<CONV_ENUM>;
 
 struct BlockGemmSpec
 {
+    size_t num_conv_groups_to_merge{1};
+    size_t num_gemm_k_prefetch_stages{1};
     ck::BlockGemmPipelineVersion pipeline_version;
     ck::BlockGemmPipelineScheduler scheduler;
 };
@@ -63,7 +65,11 @@ consteval BlockGemmSpec SetBlockGemm()
     default: throw "Unknown PipelineVersion";
     }
 
-    return BlockGemmSpec{.pipeline_version = version, .scheduler = scheduler};
+    return BlockGemmSpec{
+        .num_conv_groups_to_merge   = BG.num_conv_groups_to_merge,
+        .num_gemm_k_prefetch_stages = BG.num_gemm_k_prefetch_stages,
+        .pipeline_version = version, 
+        .scheduler = scheduler};
 }
 
 template <ConvAlgorithmDescriptor auto ALGORITHM>

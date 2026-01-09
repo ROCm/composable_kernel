@@ -13,8 +13,7 @@ concept FwdXdlAlgorithmBase =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
     SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-    SpecifiesNumPrefetchStages<T> && SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T> &&
+    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmPipeline<T> &&
     SpecifiesXdl<T>;
 
 template <typename T>
@@ -29,7 +28,8 @@ concept BwdXdlV3AlgorithmBase =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
     SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesXdl<T>;
+    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesXdl<T> &&
+    SpecifiesPipelineV3<T>;
 
 template <typename T>
 concept BwdWmmaAlgorithmBase =
@@ -43,7 +43,8 @@ concept BwdWmmaV3AlgorithmBase =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
     SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesWmma<T>;
+    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesWmma<T> &&
+    SpecifiesPipelineV3<T>;
 
 // Reference algorithm concept
 template <typename T>
@@ -67,7 +68,8 @@ concept FwdXdlV3Algorithm =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
     SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesXdl<T>;
+    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesXdl<T> &&
+    SpecifiesPipelineV3<T>;
 
 // FWD WMMA algorithm concepts
 template <typename T>
@@ -75,8 +77,7 @@ concept FwdWmmaAlgorithm =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
     SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
     SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-    SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T> && SpecifiesGemmPipeline<T> && SpecifiesWmma<T>;
+    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesWmma<T>;
 
 // FWD DL algorithms
 template <typename T>
@@ -94,17 +95,15 @@ template <typename T>
 concept BwdMultiDXdlAlgorithm = BwdXdlAlgorithmBase<T> && SpecifiesMultipleDSupport<T>;
 
 template <typename T>
-concept BwdXdlV3Algorithm = BwdXdlV3AlgorithmBase<T> && SpecifiesGenericInstance<T>;
+concept BwdXdlV3Algorithm = BwdXdlV3AlgorithmBase<T>;
 
 template <typename T>
-concept BwdTwoStageXdlAlgorithm = BwdXdlV3AlgorithmBase<T> && SpecifiesTransposeTransfer<T> &&
-                                  SpecifiesGemmBatchOptions<T> && SpecifiesTwoStageSupport<T>;
+concept BwdTwoStageXdlAlgorithm = BwdXdlV3AlgorithmBase<T> && SpecifiesTransposeTransfer<T> && SpecifiesTwoStageSupport<T>;
 
 // BWD weight WMMA algorithm concepts
 template <typename T>
 concept BwdWmmaAlgorithm =
-    BwdWmmaAlgorithmBase<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T> &&
-    SpecifiesGemmPipeline<T> && SpecifiesGenericInstance<T>;
+    BwdWmmaAlgorithmBase<T> && SpecifiesNumPrefetchStages<T> && SpecifiesGemmPipeline<T> && SpecifiesGenericInstance<T>;
 
 template <typename T>
 concept BwdMultiDWmmaV3Algorithm = BwdWmmaV3AlgorithmBase<T> && SpecifiesMultipleDSupport<T>;
@@ -115,7 +114,7 @@ concept BwdWmmaV3Algorithm =
 
 template <typename T>
 concept BwdTwoStageWmmaV3Algorithm = BwdWmmaV3AlgorithmBase<T> && SpecifiesTransposeTransfer<T> &&
-                                     SpecifiesGemmBatchOptions<T> && SpecifiesTwoStageSupport<T>;
+                                     SpecifiesTwoStageSupport<T>;
 
 // BWD weight DL algorithms
 template <typename T>

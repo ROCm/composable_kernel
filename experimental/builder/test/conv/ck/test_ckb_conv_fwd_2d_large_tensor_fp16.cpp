@@ -30,7 +30,6 @@ TEST(FwdConvInstances,
             .with_gemm_config(FwdGemmParams_Xdl_2x1_per_wave)
             .with_transfer(Transfer_4x16x1)
             .with_fwd_specializations(ConvSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
-            .with_prefetch_config(1, PipelineScheduler::DEFAULT)
             .with_num_conv_groups_to_merge(1);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
@@ -67,7 +66,6 @@ TEST(
             .with_transfer(Transfer_4x16x1)
             .with_fwd_specializations(ConvSpecialization::FILTER_1X1_PAD0,
                                       GemmSpecialization::MNKPadding)
-            .with_prefetch_config(1, PipelineScheduler::DEFAULT)
             .with_num_conv_groups_to_merge(1);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;

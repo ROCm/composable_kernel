@@ -40,6 +40,8 @@ static_assert(ckb::WarpGemmDescriptor<WarpGemmParams>);
 
 struct GemmPipeline
 {
+    size_t num_gemm_k_prefetch_stages{1};
+    size_t num_conv_groups_to_merge{1};
     PipelineVersion pipeline_version;
     PipelineScheduler scheduler{PipelineScheduler::DEFAULT};
 };
@@ -195,21 +197,10 @@ struct ConvSpecializationBwdWeight_
     ConvSpecialization bwd_weight_specialization;
 };
 
-struct Prefetch_
-{
-    size_t num_gemm_k_prefetch_stages;
-    PipelineScheduler loop_scheduler;
-};
-
 struct TransposeParams_
 {
     size_t max_transpose_transfer_src_scalar_per_vector{1};
     size_t max_transpose_transfer_dst_scalar_per_vector{1};
-};
-
-struct GemmBatchOptions_
-{
-    size_t num_conv_groups_to_merge{1};
 };
 
 struct GemmPipeline_
@@ -241,22 +232,10 @@ struct DlTransfer_
     DlTransfer<Dim> transfer;
 };
 
-struct TwoStageSpecialization_
+template <ConvAlgorithmSpecialization Specialization = ConvAlgorithmSpecialization::NONE>
+struct AlgorithmSpecialization_
 {
-    static constexpr ConvAlgorithmSpecialization specialization =
-        ConvAlgorithmSpecialization::TWO_STAGE;
-};
-
-struct MultipleDSpecialization_
-{
-    static constexpr ConvAlgorithmSpecialization specialization =
-        ConvAlgorithmSpecialization::MULTIPLE_D;
-};
-
-struct LargeTensorSpecialization_
-{
-    static constexpr ConvAlgorithmSpecialization specialization =
-        ConvAlgorithmSpecialization::LARGE_TENSOR;
+    static constexpr ConvAlgorithmSpecialization specialization = Specialization;
 };
 
 // Specify thread block dimensions for a GEMM (CK Tile).
@@ -378,15 +357,6 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
-    constexpr auto with_prefetch_config(size_t k_prefetch_stages, PipelineScheduler scheduler) const
-    {
-        static_assert(std::is_base_of_v<Prefetch_, ConvAlgorithmTemplate>);
-        auto result                       = *this;
-        result.num_gemm_k_prefetch_stages = k_prefetch_stages;
-        result.loop_scheduler             = scheduler;
-        return result;
-    }
-
     constexpr auto with_transpose_params(size_t max_src_scalar_per_vector,
                                          size_t max_dst_scalar_per_vector) const
     {
@@ -399,9 +369,17 @@ struct ConvAlgorithmTemplate : Components...
 
     constexpr auto with_num_conv_groups_to_merge(size_t num_groups_to_merge) const
     {
-        static_assert(std::is_base_of_v<GemmBatchOptions_, ConvAlgorithmTemplate>);
+        static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
         auto result                     = *this;
-        result.num_conv_groups_to_merge = num_groups_to_merge;
+        result.gemm_pipeline.num_conv_groups_to_merge = num_groups_to_merge;
+        return result;
+    }
+
+    constexpr auto with_num_gemm_k_prefetch_stages(size_t num_prefetch_stages) const
+    {
+        static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
+        auto result                     = *this;
+        result.gemm_pipeline.num_gemm_k_prefetch_stages = num_prefetch_stages;
         return result;
     }
 
@@ -419,6 +397,15 @@ struct ConvAlgorithmTemplate : Components...
         static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
         auto result             = *this;
         result.gemm_pipeline.pipeline_version = plv;
+        return result;
+    }
+
+    constexpr auto with_gemm_pipeline(const PipelineVersion plv, const PipelineScheduler sch) const
+    {
+        static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
+        auto result             = *this;
+        result.gemm_pipeline.pipeline_version = plv;
+        result.gemm_pipeline.scheduler        = sch;
         return result;
     }
 
@@ -498,29 +485,24 @@ struct ConvAlgorithmTemplate : Components...
 
 // Fwd algorithm types
 
-using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
+using enum ckb::ConvAlgorithmSpecialization;
+
+// Covers both XDL and WMMA variants for generic fwd convolution
+using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WarpGemm_,
                           InputOutputTileTransfer_<>,
                           ConvSpecializationFwd_,
-                          Prefetch_,
-                          GemmBatchOptions_>;
+                          GemmPipeline_,
+                          AlgorithmSpecialization_<>>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WarpGemm_,
                           InputOutputTileTransfer_<>,
                           ConvSpecializationFwd_,
-                          GemmPipeline_>;
-
-using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_,
-                          WarpGemm_,
-                          InputOutputTileTransfer_<>,
-                          ConvSpecializationFwd_,
                           GemmPipeline_,
-                          Prefetch_,
-                          GemmBatchOptions_>;
+                          AlgorithmSpecialization_<PIPELINE_V3>>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
     ConvAlgorithmTemplate<ThreadBlock_,
@@ -534,9 +516,8 @@ using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
                           WarpGemm_,
                           InputOutputTileTransfer_<>,
                           ConvSpecializationFwd_,
-                          Prefetch_,
-                          GemmBatchOptions_,
-                          LargeTensorSpecialization_>;
+                          GemmPipeline_,
+                          AlgorithmSpecialization_<LARGE_TENSOR | MULTIPLE_D>>;
 
 // CK Tile algorithm
 using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileThreadBlock_,
@@ -546,13 +527,7 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileTh
                                                                           TileOptimizations_>;
 
 // Reference algorithm descriptor - for GPU reference validation
-// This is a simple algorithm that requires no complex configuration,
-// just a specialization marker to identify it as a reference implementation.
-struct ConvAlgorithm_Reference
-{
-    static constexpr auto specialization = ckb::ConvAlgorithmSpecialization::REFERENCE;
-    // GPU reference uses simple algorithm, no tile configuration needed
-};
+using  ConvAlgorithm_Reference = ConvAlgorithmTemplate<AlgorithmSpecialization_<REFERENCE>>;
 
 // Bwd weight algorithm types
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle =
@@ -560,7 +535,8 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle =
                           WarpGemm_,
                           InputOutputTileTransfer_<4>,
                           ConvSpecializationBwdWeight_,
-                          TransposeParams_>;
+                          TransposeParams_,
+                          AlgorithmSpecialization_<>>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
@@ -568,25 +544,25 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle =
                           InputOutputTileTransfer_<>,
                           ConvSpecializationBwdWeight_,
                           GemmPipeline_,
-                          Prefetch_>;
+                          AlgorithmSpecialization_<>>;
 
 // Covers both XDL and WMMA variants
-using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle =
+using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WarpGemm_,
                           InputOutputTileTransfer_<>,
                           ConvSpecializationBwdWeight_,
                           GemmPipeline_,
                           TransposeParams_,
-                          GemmBatchOptions_,
-                          TwoStageSpecialization_>;
+                          AlgorithmSpecialization_<TWO_STAGE | PIPELINE_V3>>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WarpGemm_,
                           InputOutputTileTransfer_<>,
                           ConvSpecializationBwdWeight_,
-                          GemmPipeline_>;
+                          GemmPipeline_,
+                          AlgorithmSpecialization_<PIPELINE_V3>>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_,
@@ -594,7 +570,8 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 =
                           InputOutputTileTransfer_<>,
                           ConvSpecializationBwdWeight_,
                           GemmPipeline_,
-                          TransposeParams_>;
+                          TransposeParams_,
+                          AlgorithmSpecialization_<PIPELINE_V3>>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl =
     ConvAlgorithmTemplate<ThreadBlock_,
@@ -608,7 +585,7 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle =
                           WarpGemm_,
                           InputOutputTileTransfer_<4>,
                           ConvSpecializationBwdWeight_,
-                          MultipleDSpecialization_>;
+                          AlgorithmSpecialization_<MULTIPLE_D>>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_,
@@ -617,8 +594,7 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_Wmma_CShuffle_V3 =
                           ConvSpecializationBwdWeight_,
                           GemmPipeline_,
                           TransposeParams_,
-                          GemmBatchOptions_,
-                          TwoStageSpecialization_>;
+                          AlgorithmSpecialization_<TWO_STAGE | PIPELINE_V3>>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_,
@@ -626,6 +602,6 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle_V3 =
                           InputOutputTileTransfer_<>,
                           ConvSpecializationBwdWeight_,
                           GemmPipeline_,
-                          MultipleDSpecialization_>;
+                          AlgorithmSpecialization_<MULTIPLE_D | PIPELINE_V3>>;
 
 } // namespace ck_tile::builder::test

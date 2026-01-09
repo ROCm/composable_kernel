@@ -98,7 +98,7 @@ template <>
 inline std::string to_string<GemmPipeline>(GemmPipeline t)
 {
     std::ostringstream oss;
-    oss << to_string(t.scheduler) << "," << to_string(t.pipeline_version);
+    oss << t.num_gemm_k_prefetch_stages << "," << t.num_conv_groups_to_merge << "," << to_string(t.scheduler) << "," << to_string(t.pipeline_version);
     return oss.str();
 }
 
@@ -282,14 +282,6 @@ inline std::string to_string<ConvSpecializationBwdWeight_>(ConvSpecializationBwd
 }
 
 template <>
-inline std::string to_string<Prefetch_>(Prefetch_ t)
-{
-    std::ostringstream oss;
-    oss << t.num_gemm_k_prefetch_stages << "," << to_string(t.loop_scheduler);
-    return oss.str();
-}
-
-template <>
 inline std::string to_string<GemmPipeline_>(GemmPipeline_ t)
 {
     return to_string(t.gemm_pipeline);
@@ -322,28 +314,8 @@ inline std::string to_string<DlTransfer_<5>>(DlTransfer_<5> t)
 // Template specializations for algorithm types
 
 template <>
-inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>(
-    ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle t)
-{
-    std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
-    return oss.str();
-}
-
-template <>
-inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>(
-    ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 t)
-{
-    std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
-    return oss.str();
-}
-
-template <>
-inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>(
-    ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle t)
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle>(
+    ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle t)
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
@@ -425,8 +397,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_W
 
 // Covers both XDL and WMMA versions
 template <>
-inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle>(
-    ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle t)
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle_V3>(
+    ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle_V3 t)
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
