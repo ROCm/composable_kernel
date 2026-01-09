@@ -1538,10 +1538,11 @@ struct FmhaFwdKernel
 
                     auto o_acc_element_func = [&]() {
                         if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
-                            return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
-                                                     ck_tile::scales{scale_o});
+                            return ck_tile::composes(
+                                ck_tile::saturates<ck_tile::fp8_t>{},
+                                ck_tile::scales<remove_cvref_t<decltype(scale_o)>>{scale_o});
                         else
-                            return ck_tile::scales{scale_o};
+                            return ck_tile::scales<remove_cvref_t<decltype(scale_o)>>{scale_o};
                     }();
                     return FmhaPipeline{}(q_dram_window,
                                           identity{}, // q_element_func
@@ -1555,7 +1556,7 @@ struct FmhaFwdKernel
                                           lse_dram_window,
                                           identity{},         // lse_element_func
                                           identity{},         // s_acc_element_func
-                                          scales{scale_p},    // p_compute_element_func
+                                          scales<>{scale_p},  // p_compute_element_func
                                           o_acc_element_func, // o_acc_element_func
                                           mask,
                                           position_encoding,
