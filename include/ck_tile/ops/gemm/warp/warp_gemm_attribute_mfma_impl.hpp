@@ -61,6 +61,19 @@ enum class WGAttrCtlEnum
         DISPATCH_MFMA_(mfma_, "+a", "v", "v", "a")     \
     }
 
+// Helper function to convert float to bf16 pairs for tf32 emulation on gfx950
+// This is used to simulate tf32 using 3x bf16 MFMA: big*big + small*big + big*small
+template <index_t VecSize>
+CK_TILE_DEVICE void convert_float_to_bf16_pairs(const thread_buffer<float, VecSize>& reg_f32,
+                                                thread_buffer<bf16_t, VecSize>& reg_bf16_big,
+                                                thread_buffer<bf16_t, VecSize>& reg_bf16_small)
+{
+    static_for<0, VecSize, 1>{}([&](auto k) {
+        reg_bf16_big(k) = type_convert<bf16_t>(reg_f32[k]);
+        reg_bf16_small(k) = type_convert<bf16_t>(reg_f32[k] - type_convert<float>(reg_bf16_big[k]));
+    });
+}
+
 // F32
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 struct WarpGemmAttributeMfmaImplF32F32F32M16N16K4
@@ -315,6 +328,161 @@ struct WarpGemmAttributeMfmaImplF32F32F32M16N16K8Tf32
         ck_tile::ignore = b_vec;
         return CVecType{0.f};
 #endif
+    }
+};
+
+// tf32/xf32 emulation on gfx950 using 3x bf16 MFMA
+// Algorithm: split float into bf16_big and bf16_small, then compute:
+//   out = A_big * B_big + A_small * B_big + A_big * B_small
+// This provides tf32-like precision using bf16 hardware
+
+// V_MFMA_F32_32x32x16_XF32 emulated on gfx950 using 3x bf16 32x32x16
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+struct WarpGemmAttributeMfmaImplF32F32F32M32N32K16Tf32Gfx950
+{
+    static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
+
+    using ADataType = float;
+    using BDataType = float;
+    using CDataType = float;
+
+    // Input: 8 floats for K=16 (each lane holds 8 elements, kABKPerLane=8)
+    using AVecType = ext_vector_t<ADataType, 8>;
+    using BVecType = ext_vector_t<BDataType, 8>;
+    using CVecType = ext_vector_t<CDataType, 16>;
+
+    static constexpr index_t kM = 32;
+    static constexpr index_t kN = 32;
+    static constexpr index_t kK = 16;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
+    static constexpr index_t kAMLane     = 32;
+    static constexpr index_t kBNLane     = 32;
+    static constexpr index_t kABKLane    = 2;
+    static constexpr index_t kABKPerLane = 8;
+
+    static constexpr index_t kCMLane     = 2;
+    static constexpr index_t kCNLane     = 32;
+    static constexpr index_t kCM0PerLane = 4;
+    static constexpr index_t kCM1PerLane = 4;
+
+    // c_vec += a_vec * b_vec
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
+    {
+#if defined(__gfx950__)
+        // Convert ext_vector to thread_buffer for element access
+        const auto& a_f32 = reinterpret_cast<const thread_buffer<float, 8>&>(a_vec);
+        const auto& b_f32 = reinterpret_cast<const thread_buffer<float, 8>&>(b_vec);
+
+        // Convert float to bf16 pairs
+        thread_buffer<bf16_t, 8> a_bf16_big, a_bf16_small, b_bf16_big, b_bf16_small;
+        convert_float_to_bf16_pairs(a_f32, a_bf16_big, a_bf16_small);
+        convert_float_to_bf16_pairs(b_f32, b_bf16_big, b_bf16_small);
+
+        // Get bf16x8 vectors for MFMA
+        auto a_big = bit_cast<ext_vector_t<bf16_t, 8>>(a_bf16_big);
+        auto a_small = bit_cast<ext_vector_t<bf16_t, 8>>(a_bf16_small);
+        auto b_big = bit_cast<ext_vector_t<bf16_t, 8>>(b_bf16_big);
+        auto b_small = bit_cast<ext_vector_t<bf16_t, 8>>(b_bf16_small);
+
+        // Run 3 bf16 MFMAs: small*big, big*small, big*big
+        c_vec = __builtin_amdgcn_mfma_f32_32x32x16_bf16(a_small, b_big, c_vec, 0, 0, 0);
+        c_vec = __builtin_amdgcn_mfma_f32_32x32x16_bf16(a_big, b_small, c_vec, 0, 0, 0);
+        c_vec = __builtin_amdgcn_mfma_f32_32x32x16_bf16(a_big, b_big, c_vec, 0, 0, 0);
+#else
+        ck_tile::ignore = c_vec;
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+#endif
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        CVecType c_vec{0.f};
+        (*this)(c_vec, a_vec, b_vec);
+        return c_vec;
+    }
+};
+
+// V_MFMA_F32_16x16x32_XF32 emulated on gfx950 using 3x bf16 16x16x32
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+struct WarpGemmAttributeMfmaImplF32F32F32M16N16K32Tf32Gfx950
+{
+    static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
+
+    using ADataType = float;
+    using BDataType = float;
+    using CDataType = float;
+
+    // Input: 8 floats for K=32 (each lane holds 8 elements, kABKPerLane=8)
+    using AVecType = ext_vector_t<ADataType, 8>;
+    using BVecType = ext_vector_t<BDataType, 8>;
+    using CVecType = ext_vector_t<CDataType, 4>;
+
+    static constexpr index_t kM = 16;
+    static constexpr index_t kN = 16;
+    static constexpr index_t kK = 32;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
+    static constexpr index_t kAMLane     = 16;
+    static constexpr index_t kBNLane     = 16;
+    static constexpr index_t kABKLane    = 4;
+    static constexpr index_t kABKPerLane = 8;
+
+    static constexpr index_t kCMLane     = 4;
+    static constexpr index_t kCNLane     = 16;
+    static constexpr index_t kCM0PerLane = 1;
+    static constexpr index_t kCM1PerLane = 4;
+
+    // c_vec += a_vec * b_vec
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
+    {
+#if defined(__gfx950__)
+        // Convert ext_vector to thread_buffer for element access
+        const auto& a_f32 = reinterpret_cast<const thread_buffer<float, 8>&>(a_vec);
+        const auto& b_f32 = reinterpret_cast<const thread_buffer<float, 8>&>(b_vec);
+
+        // Convert float to bf16 pairs
+        thread_buffer<bf16_t, 8> a_bf16_big, a_bf16_small, b_bf16_big, b_bf16_small;
+        convert_float_to_bf16_pairs(a_f32, a_bf16_big, a_bf16_small);
+        convert_float_to_bf16_pairs(b_f32, b_bf16_big, b_bf16_small);
+
+        // Get bf16x8 vectors for MFMA
+        auto a_big = bit_cast<ext_vector_t<bf16_t, 8>>(a_bf16_big);
+        auto a_small = bit_cast<ext_vector_t<bf16_t, 8>>(a_bf16_small);
+        auto b_big = bit_cast<ext_vector_t<bf16_t, 8>>(b_bf16_big);
+        auto b_small = bit_cast<ext_vector_t<bf16_t, 8>>(b_bf16_small);
+
+        // Run 3 bf16 MFMAs: small*big, big*small, big*big
+        c_vec = __builtin_amdgcn_mfma_f32_16x16x32_bf16(a_small, b_big, c_vec, 0, 0, 0);
+        c_vec = __builtin_amdgcn_mfma_f32_16x16x32_bf16(a_big, b_small, c_vec, 0, 0, 0);
+        c_vec = __builtin_amdgcn_mfma_f32_16x16x32_bf16(a_big, b_big, c_vec, 0, 0, 0);
+#else
+        ck_tile::ignore = c_vec;
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+#endif
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        CVecType c_vec{0.f};
+        (*this)(c_vec, a_vec, b_vec);
+        return c_vec;
     }
 };
 

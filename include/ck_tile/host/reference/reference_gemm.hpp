@@ -8,6 +8,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
+#include "ck_tile/host/device_prop.hpp"
 
 namespace ck_tile {
 
@@ -450,6 +451,8 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
     const std::size_t N = b_k_n.get_length(1);
     const std::size_t K = a_m_k.get_length(1);
 
+    const std::string device_name = ck_tile::get_device_name();
+
     auto f_mn = [&](auto m, auto n) {
         AccDataType v_acc = 0;
 
@@ -486,8 +489,34 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
 
             if constexpr(std::is_same_v<ComputeDataType, tf32_t>)
             {
-                v_acc += ck_tile::type_convert<AccDataType>(ck_tile::type_convert<tf32_t>(v_a) *
-                                                            ck_tile::type_convert<tf32_t>(v_b));
+                if(device_name == "gfx950")
+                {
+                    // gfx950: use 3x bf16 emulation
+                    bf16_t v_a_bf16_big = ck_tile::type_convert<bf16_t>(v_a);
+                    bf16_t v_a_bf16_small =
+                        ck_tile::type_convert<bf16_t>(v_a - type_convert<AccDataType>(v_a_bf16_big));
+                    bf16_t v_b_bf16_big = ck_tile::type_convert<bf16_t>(v_b);
+                    bf16_t v_b_bf16_small =
+                        ck_tile::type_convert<bf16_t>(v_b - type_convert<AccDataType>(v_b_bf16_big));
+
+                    v_acc += ck_tile::type_convert<AccDataType>(v_a_bf16_big) *
+                                 ck_tile::type_convert<AccDataType>(v_b_bf16_small) +
+                             ck_tile::type_convert<AccDataType>(v_a_bf16_small) *
+                                 ck_tile::type_convert<AccDataType>(v_b_bf16_big) +
+                             ck_tile::type_convert<AccDataType>(v_a_bf16_big) *
+                                 ck_tile::type_convert<AccDataType>(v_b_bf16_big);
+                }
+                else if(device_name == "gfx942" || device_name == "gfx940" || device_name == "gfx941")
+                {
+                    // gfx94x: use native tf32 (xf32)
+                    v_acc += ck_tile::type_convert<AccDataType>(ck_tile::type_convert<tf32_t>(v_a) *
+                                                                ck_tile::type_convert<tf32_t>(v_b));
+                }
+                else
+                {
+                    // gfx11/gfx12 and others: tf32 not supported, use fp32 fallback
+                    v_acc += v_a * v_b;
+                }
             }
             else
             {
@@ -803,8 +832,26 @@ __global__ void naive_gemm_kernel(ADataType* A,
 
             if constexpr(std::is_same_v<ComputeDataType, tf32_t>)
             {
+#ifdef CK_GFX950_SUPPORT
+                // gfx950: use 3x bf16 emulation
+                bf16_t v_a_bf16_big = ck_tile::type_convert<bf16_t>(v_a);
+                bf16_t v_a_bf16_small =
+                    ck_tile::type_convert<bf16_t>(v_a - type_convert<AccDataType>(v_a_bf16_big));
+                bf16_t v_b_bf16_big = ck_tile::type_convert<bf16_t>(v_b);
+                bf16_t v_b_bf16_small =
+                    ck_tile::type_convert<bf16_t>(v_b - type_convert<AccDataType>(v_b_bf16_big));
+
+                acc += ck_tile::type_convert<AccDataType>(v_a_bf16_big) *
+                           ck_tile::type_convert<AccDataType>(v_b_bf16_small) +
+                       ck_tile::type_convert<AccDataType>(v_a_bf16_small) *
+                           ck_tile::type_convert<AccDataType>(v_b_bf16_big) +
+                       ck_tile::type_convert<AccDataType>(v_a_bf16_big) *
+                           ck_tile::type_convert<AccDataType>(v_b_bf16_big);
+#else
+                // gfx942 and others: use native tf32
                 acc += ck_tile::type_convert<AccDataType>(ck_tile::type_convert<tf32_t>(v_a) *
                                                           ck_tile::type_convert<tf32_t>(v_b));
+#endif
             }
             else
             {
@@ -926,8 +973,26 @@ __global__ void blockwise_gemm_kernel(ADataType* A,
 
             if constexpr(std::is_same_v<ComputeDataType, tf32_t>)
             {
+#ifdef CK_GFX950_SUPPORT
+                // gfx950: use 3x bf16 emulation
+                bf16_t v_a_bf16_big = ck_tile::type_convert<bf16_t>(v_a);
+                bf16_t v_a_bf16_small =
+                    ck_tile::type_convert<bf16_t>(v_a - type_convert<AccDataType>(v_a_bf16_big));
+                bf16_t v_b_bf16_big = ck_tile::type_convert<bf16_t>(v_b);
+                bf16_t v_b_bf16_small =
+                    ck_tile::type_convert<bf16_t>(v_b - type_convert<AccDataType>(v_b_bf16_big));
+
+                acc_temp += ck_tile::type_convert<AccDataType>(v_a_bf16_big) *
+                                ck_tile::type_convert<AccDataType>(v_b_bf16_small) +
+                            ck_tile::type_convert<AccDataType>(v_a_bf16_small) *
+                                ck_tile::type_convert<AccDataType>(v_b_bf16_big) +
+                            ck_tile::type_convert<AccDataType>(v_a_bf16_big) *
+                                ck_tile::type_convert<AccDataType>(v_b_bf16_big);
+#else
+                // gfx942 and others: use native tf32
                 acc_temp += ck_tile::type_convert<AccDataType>(ck_tile::type_convert<tf32_t>(v_a) *
                                                                ck_tile::type_convert<tf32_t>(v_b));
+#endif
             }
             else
             {

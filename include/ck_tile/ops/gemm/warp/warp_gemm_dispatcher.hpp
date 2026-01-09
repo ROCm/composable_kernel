@@ -35,11 +35,39 @@ struct Dispatcher;
 template<> struct Dispatcher<float, float, float, 16, 16,  4, false> { using Type = WarpGemmMfmaF32F32F32M16N16K4; };
 template<> struct Dispatcher<float, float, float, 16, 16, 16, false> { using Type = WarpGemmMfmaF32F32F32M16N16K16<>; };
 template<> struct Dispatcher<float, float, float, 16, 16, 16,  true> { using Type = WarpGemmMfmaF32F32F32M16N16K16TransposedCDistribution<>; };
+template<> struct Dispatcher<float, float, float, 16, 16, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaF32F32F32M16N16K16<EDouble>; };
+template<> struct Dispatcher<float, float, float, 16, 16, 16,  true, false, false, EDouble> { using Type = WarpGemmMfmaF32F32F32M16N16K16TransposedCDistribution<EDouble>; };
 // tf32
+// gfx942: uses native xf32 instructions (16x16x8, 32x32x4)
+// gfx950: uses 3x bf16 MFMA emulation (16x16x32, 32x32x16 native bf16 sizes)
+// gfx11/gfx12: tf32 not supported, dispatchers not defined
+#if defined(CK_GFX950_SUPPORT)
+// For tf32 on gfx950: epilogue uses float types but 32x32x16 tile
+template<> struct Dispatcher<float, float, float, 32, 32, 16, false> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<>; };
+template<> struct Dispatcher<float, float, float, 32, 32, 16,  true> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<>; };
+template<> struct Dispatcher<float, float, float, 32, 32, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<EDouble>; };
+template<> struct Dispatcher<float, float, float, 32, 32, 16, false, false, false, EQuad> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<EQuad>; };
+// On gfx950, tf32 uses bf16 emulation
+template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<>; };
+template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32, 16, false> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<>; };
+template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<EDouble>; };
+template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<EDouble>; };
+template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false, false, false, EQuad> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<EQuad>; };
+template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32, 16, false, false, false, EQuad> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<EQuad>; };
+#else
+// gfx942: uses native xf32 instructions
 template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16,  8, false> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K8; };
 template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32,  4, false> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K4; };
 template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<>; };
 template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32, 16, false> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<>; };
+template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<EDouble>; };
+template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<EDouble>; };
+template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false, false, false, EQuad> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<EQuad>; };
+template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32, 16, false, false, false, EQuad> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<EQuad>; };
+#endif
+// Note: For gfx11/gfx12 and other architectures that don't support tf32,
+// these dispatchers are not defined. Code using tf32 should be guarded
+// by CK_ENABLE_TF32 or CK_GFX950_SUPPORT macros.
 // fp16
 // ADataType, BDataType, AccDataType, MPerWave, NPerWave, KPerWave, TransposeC, SwizzleA, UseStructuredSparsity
 template<> struct Dispatcher<half_t, half_t, float, 32, 32,  8, false> { using Type = WarpGemmMfmaF16F16F32M32N32K8; };
