@@ -21,7 +21,8 @@ template <typename SrcDescs,
           typename StepsPerIteration,
           typename IterationOrder,
           index_t VectorSize,
-          bool DoTranspose>
+          bool DoTranspose,
+          index_t NumThreadScratch = 1>
 struct ThreadGroupTransferGlobal
 {
     static constexpr auto I0 = Number<0>{};
@@ -78,8 +79,11 @@ struct ThreadGroupTransferGlobal
     }
 
     template <typename GridBufferTypes,
+              index_t ThreadScratchId                                        = 0,
               enable_if_t<SrcDescs::Size() == GridBufferTypes::Size(), bool> = false>
-    __device__ void RunRead(SrcDescs& src_descs, const GridBufferTypes& grid_bufs)
+    __device__ void RunRead(SrcDescs& src_descs,
+                            const GridBufferTypes& grid_bufs,
+                            Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         constexpr auto src_access_lengths   = NumberOfIterations{};
         constexpr auto src_dim_access_order = IterationOrder{};
@@ -175,7 +179,8 @@ struct ThreadGroupTransferGlobal
                     grid_bufs[i].template Get<src_vector_t, DoTranspose>(index, true);
             });
 
-            oob_thread_scratch_.template SetAsType<bool>(vgpr_data_idx_seq, oob_val);
+            oob_thread_scratch_(thread_scratch_id)
+                .template SetAsType<bool>(vgpr_data_idx_seq, oob_val);
 
             // Vector length of elementwise operation
             constexpr auto get_elem_op_vec_len = []() {
@@ -237,8 +242,9 @@ struct ThreadGroupTransferGlobal
             // store result in dvgpr_ (static array holding loaded data).
             // At this point data is already converted to DstData type and
             // the elementwise operation has been applied
-            src_dvgpr_.template SetAsType<dst_vector_t>(vgpr_data_idx_seq,
-                                                        op_r_v.template AsType<dst_vector_t>()[I0]);
+            src_dvgpr_(thread_scratch_id)
+                .template SetAsType<dst_vector_t>(vgpr_data_idx_seq,
+                                                  op_r_v.template AsType<dst_vector_t>()[I0]);
 
             // Move each src coordinate
             static_for<0, nSrc, 1>{}([&](auto iSrc) {
@@ -294,8 +300,10 @@ struct ThreadGroupTransferGlobal
         });
     }
 
-    template <typename BlockBufferType>
-    __device__ void RunWrite(const DstDesc& dst_desc, BlockBufferType& dst_buf)
+    template <typename BlockBufferType, index_t ThreadScratchId = 0>
+    __device__ void RunWrite(const DstDesc& dst_desc,
+                             BlockBufferType& dst_buf,
+                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         using dst_vector_type = vector_type_maker_t<DstData, VectorSize>;
         using dst_vector_t    = typename dst_vector_type::type;
@@ -332,9 +340,10 @@ struct ThreadGroupTransferGlobal
                 },
                 Number<src_data_idx.Size() + 1>{});
 
-            auto op_r = src_dvgpr_.template GetAsType<dst_vector_t>(vgpr_data_idx_seq);
+            auto op_r =
+                src_dvgpr_(thread_scratch_id).template GetAsType<dst_vector_t>(vgpr_data_idx_seq);
             const bool is_src_valid =
-                oob_thread_scratch_.template GetAsType<bool>(vgpr_data_idx_seq);
+                oob_thread_scratch_(thread_scratch_id).template GetAsType<bool>(vgpr_data_idx_seq);
             auto op_r_v = is_src_valid ? op_r : dst_vector_t(0);
             dst_dvgpr_.template SetAsType<dst_vector_t>(vgpr_data_idx_seq, op_r_v);
         });
@@ -505,9 +514,9 @@ struct ThreadGroupTransferGlobal
                                                              decltype(src_oob_thread_scratch_desc_),
                                                              true>;
 
-    ThreadScratchData src_dvgpr_;
+    StaticallyIndexedArray<ThreadScratchData, NumThreadScratch> src_dvgpr_;
     ThreadScratchData dst_dvgpr_;
-    OOBThreadScratch oob_thread_scratch_;
+    StaticallyIndexedArray<OOBThreadScratch, NumThreadScratch> oob_thread_scratch_;
     SrcCoords src_coords_;
     DstCoord dst_coord_;
     const ElementwiseOperation element_op_;

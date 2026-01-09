@@ -218,10 +218,6 @@ struct ABTransferWaveTilesInterleave : ABTransferWaveTiles<ABLayout,
                                             const index_t block_mn_id,
                                             const index_t)
     {
-        // Note: GlobalBufferNum is currently not used but it will be needed
-        // once we add other pipelines. It is currently needed only for
-        // consistency with the thread tiles approach
-        static_assert(GlobalBufferNum == 1, "single global buffer is only supported");
         constexpr index_t NumABTensor = ABsDataType::Size();
 
         const auto wave_idx = GetWaveIdx();
@@ -257,7 +253,8 @@ struct ABTransferWaveTilesInterleave : ABTransferWaveTiles<ABLayout,
                                          Sequence<I1, KWaves_, I1, I1, I1>,
                                          Sequence<I0, I1, I2, I3, I4>,
                                          ABK1Value,
-                                         ABDoTranspose>(
+                                         ABDoTranspose,
+                                         GlobalBufferNum>(
             grid_descriptor,
             block_descriptor,
             idx_as_block_begin,
