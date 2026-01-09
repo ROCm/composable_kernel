@@ -71,10 +71,6 @@ class cpu_core_guard
         // restore original cpu set
         sched_setaffinity(0, sizeof(cpu_set_t), &original_cpu_set_);
     }
-#else
-    public:
-    // TODO: on non-Linux platforms, cpu_core_guard is currently a no-op
-    cpu_core_guard(unsigned int /*num_cores*/) {}
 #endif
 };
 } // namespace ck_tile
