@@ -465,6 +465,12 @@ struct PassThrough
         /*  otherwise (r-value or const)     → do nothing  */
     }
 
+    template <typename Y, typename X>
+    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
+    {
+        y = ck_tile::type_convert<raw_t<Y>>(x);
+    }
+
     template <typename E, typename C, typename... Ds>
     CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&...) const -> void
     {
