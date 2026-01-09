@@ -56,3 +56,10 @@ endfunction()
 add_gtest_fwd(${TEST_NAME}_fwd)
 add_gtest_bwd(${TEST_NAME}_bwd)
 add_custom_target(${TEST_NAME} DEPENDS ${TEST_NAME}_fwd ${TEST_NAME}_bwd)
+
+# Isolated test for debugging specific failing configuration
+add_gtest_executable(test_ck_tile_fmha_fwd_fp16_isolated_dropout_120 test_fmha_fwd_fp16_isolated_dropout_120.cpp)
+get_test_property(test_ck_tile_fmha_fwd_fp16_isolated_dropout_120 LABELS COMMON_LABELS)
+set_tests_properties(test_ck_tile_fmha_fwd_fp16_isolated_dropout_120 PROPERTIES LABELS "${COMMON_LABELS};${TEST_NAME};isolated")
+target_compile_options(test_ck_tile_fmha_fwd_fp16_isolated_dropout_120 PRIVATE --save-temps -Wno-gnu-line-marker)
+target_link_libraries(test_ck_tile_fmha_fwd_fp16_isolated_dropout_120 PRIVATE ${FMHA_FWD_INSTANCES})
