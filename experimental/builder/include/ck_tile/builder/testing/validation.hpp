@@ -7,7 +7,6 @@
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
 #include "ck_tile/builder/testing/tensor_foreach.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
-#include "ck/library/utility/check_err.hpp"
 #include "ck/utility/type_convert.hpp"
 #include <string_view>
 #include <vector>
