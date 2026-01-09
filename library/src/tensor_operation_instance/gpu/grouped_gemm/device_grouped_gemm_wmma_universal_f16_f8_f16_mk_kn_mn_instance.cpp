@@ -17,7 +17,10 @@ using EDataType = F16;
 
 template <device::GemmSpecialization GemmSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
-          BlockGemmPipelineVersion BlkGemmPipelineVer>
+          BlockGemmPipelineVersion BlkGemmPipelineVer,
+          typename AElementOp,
+          typename BElementOp,
+          typename CDEElementOp>
 using device_grouped_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_instances =
     std::tuple<
         // clang-format off
@@ -40,9 +43,9 @@ void add_device_grouped_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_instances(
                                                   BDataType,
                                                   DsDataType,
                                                   EDataType,
-                                                  AElementOp,
-                                                  BElementOp,
-                                                  CDEElementOp>>>& instances)
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances)
 {
 
     add_device_grouped_gemm_wmma_universal_instances<
