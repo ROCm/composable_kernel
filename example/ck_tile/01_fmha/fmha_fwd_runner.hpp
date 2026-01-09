@@ -1703,7 +1703,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                             s_with_sinks_ref(i_h, i_r, i_c) = s_host_ref(i_h, i_r, i_c);
                         }
                         // Append sink token at the end of each row
-                        s_with_sinks_ref(i_h, i_r, real_seqlen_k) = scale_s_host * sink_host(i_h);
+                        s_with_sinks_ref(i_h, i_r, real_seqlen_k) = sink_host(i_h);
                     }
                 }
 
