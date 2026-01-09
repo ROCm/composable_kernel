@@ -233,14 +233,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      CDataType,
                                                      AccDataType>(argc, argv, Col{}, Row{}, Row{});
     }
-    else if(a_layout == "C" && b_layout == "C")
-    {
-        return run_grouped_gemm_example_with_layouts<GemmConfig,
-                                                     ADataType,
-                                                     BDataType,
-                                                     CDataType,
-                                                     AccDataType>(argc, argv, Col{}, Col{}, Row{});
-    }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A and B tensors!");
@@ -260,20 +252,65 @@ int run_grouped_gemm_example(int argc, char* argv[])
     const std::string b_layout  = arg_parser.get_str("b_layout");
     const std::string data_type = arg_parser.get_str("prec");
 
-    if(data_type == "fp16")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "bf16")
+    if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>, ck_tile::bf16_t>(
             a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "fp8")
+    else
     {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
-            a_layout, b_layout, argc, argv);
+        throw std::runtime_error("Unsupported data type configuration.");
+    }
+}
+
+// Determine appropriate tile config based on N alignment
+int run_grouped_gemm_example_with_n_check(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+    {
+        return -1;
+    }
+
+    const std::string a_layout  = arg_parser.get_str("a_layout");
+    const std::string b_layout  = arg_parser.get_str("b_layout");
+    const std::string data_type = arg_parser.get_str("prec");
+    const int group_count       = arg_parser.get_int("group_count");
+    std::vector<ck_tile::index_t> Ns = arg_parser.get_int_vec("Ns");
+
+    // Check N alignment for all groups
+    bool all_n_mod_256 = true;
+    bool all_n_mod_128 = true;
+    
+    if(Ns.size() == static_cast<size_t>(group_count))
+    {
+        for(const auto& n : Ns)
+        {
+            if(n % 256 != 0)
+                all_n_mod_256 = false;
+            if(n % 128 != 0)
+                all_n_mod_128 = false;
+        }
+    }
+
+    if(data_type == "bf16")
+    {
+        if(all_n_mod_256)
+        {
+            std::cout << "[Config] Using 256x256 tile (N % 256 == 0)" << std::endl;
+            return run_gemm_example_prec_type<GemmConfigComputeV3_2<ck_tile::bf16_t>, ck_tile::bf16_t>(
+                a_layout, b_layout, argc, argv);
+        }
+        else if(all_n_mod_128)
+        {
+            std::cout << "[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)" << std::endl;
+            return run_gemm_example_prec_type<GemmConfigComputeV3_256x128<ck_tile::bf16_t>, ck_tile::bf16_t>(
+                a_layout, b_layout, argc, argv);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported error.");
+        }
     }
     else
     {
@@ -283,11 +320,5 @@ int run_grouped_gemm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-#if CK_TILE_USE_WMMA
-    return !run_grouped_gemm_example<GemmConfigComputeV4_Wmma>(argc, argv);
-#else
-    return !run_grouped_gemm_example<GemmConfigComputeV4>(argc, argv) ||
-           !run_grouped_gemm_example<GemmConfigComputeV3_2>(argc, argv) ||
-           !run_grouped_gemm_example<GemmConfigComputeV4_V2>(argc, argv);
-#endif
+    return !run_grouped_gemm_example_with_n_check(argc, argv);
 }

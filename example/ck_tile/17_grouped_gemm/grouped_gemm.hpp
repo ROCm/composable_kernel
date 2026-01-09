@@ -65,9 +65,72 @@ struct GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigComputeV3_2 : public GemmConfigBase
+struct GemmConfigMemoryInterwave : public GemmConfigBase
+{
+    // Memory friendly for Interwave scheduler
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 1;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile =  ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::MEMORY;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Interwave;
+};
+
+template <typename PrecType>
+struct GemmConfigMemoryIntrawave : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 1;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile =  ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::MEMORY;
+};
+
+template <typename PrecType>
+struct GemmConfigComputeV3_2 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+
+    static constexpr int kBlockPerCu = 1;
+};
+
+// 256x128 tile config for N % 128 == 0 but N % 256 != 0
+template <typename PrecType>
+struct GemmConfigComputeV3_256x128 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
@@ -286,7 +349,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
         .insert("b_layout", "C", "B tensor data layout - Row by default.")
         .insert("c_layout", "R", "C tensor data layout - Row by default.")
         .insert("validate", "1", "0. No validation, 1. Validation on CPU.")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
+        .insert("prec", "bf16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "10", "number of iterations before benchmark the kernel.")
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
