@@ -31,19 +31,18 @@ struct ConvFwdXdlV3Factory
     using Ops                           = internal::ElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
-    static_assert(ALGORITHM.transfer.a.lds_transfer.is_direct_load ==
-                      ALGORITHM.transfer.b.lds_transfer.is_direct_load,
+    static_assert(ALGORITHM.transfer.a.lds_transfer_params.is_direct_load ==
+                      ALGORITHM.transfer.b.lds_transfer_params.is_direct_load,
                   "A and B block transfers must both be direct load or not.");
 
-    static constexpr bool IS_DIRECT_LOAD = ALGORITHM.transfer.a.lds_transfer.is_direct_load;
+    static constexpr bool IS_DIRECT_LOAD = ALGORITHM.transfer.a.lds_transfer_params.is_direct_load;
     static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
     static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();
     static constexpr internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
                                                        .gemm_spec = GEMM_SPECIALIZATION};
 
     static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM = ALGORITHM.gridwise_gemm;
-    static constexpr auto XDL_PARAMS    = GRIDWISE_GEMM.xdl_params;
+    static constexpr auto XDL_PARAMS    = ALGORITHM.warp_gemm;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
@@ -83,12 +82,12 @@ struct ConvFwdXdlV3Factory
         BLOCK.per_block.m,
         BLOCK.per_block.n,
         BLOCK.per_block.k,
-        GRIDWISE_GEMM.ak1,
-        GRIDWISE_GEMM.bk1,
-        XDL_PARAMS.m_per_xdl,
-        XDL_PARAMS.n_per_xdl,
-        XDL_PARAMS.m_xdl_per_wave,
-        XDL_PARAMS.n_xdl_per_wave,
+        A_BLOCK_TRANSFER.global_memory_vector_load_size,
+        B_BLOCK_TRANSFER.global_memory_vector_load_size,
+        XDL_PARAMS.gemm_m_per_instruction,
+        XDL_PARAMS.gemm_n_per_instruction,
+        XDL_PARAMS.gemm_m_iters_per_wave,
+        XDL_PARAMS.gemm_n_iters_per_wave,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
         to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,

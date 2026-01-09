@@ -38,7 +38,7 @@ struct BlockGemmSpec
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval BlockGemmSpec SetBlockGemm()
 {
-    constexpr auto& BG = ALGORITHM.block_gemm_pipeline;
+    constexpr auto& BG = ALGORITHM.gemm_pipeline;
 
     ck::BlockGemmPipelineScheduler scheduler;
     ck::BlockGemmPipelineVersion version;

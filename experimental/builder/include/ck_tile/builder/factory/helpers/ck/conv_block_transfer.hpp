@@ -15,6 +15,7 @@ struct BlockTransfer
     ck::Array<size_t, 3> thread_cluster_dims{}; // k0, m, k1
     ck::Array<size_t, 3> thread_cluster_order{};
     ck::Array<size_t, 3> src_access_order{};
+    size_t global_memory_vector_load_size = 0;
     size_t src_vector_dim            = 0;
     size_t src_scalar_per_vector     = 0;
     size_t lds_dst_scalar_per_vector = 0;
@@ -28,6 +29,7 @@ struct BwdBlockTransfer
     ck::Array<size_t, ThreadSliceDim> thread_cluster_dims{};
     ck::Array<size_t, ThreadSliceDim> thread_cluster_order{};
     ck::Array<size_t, ThreadSliceDim> src_access_order{};
+    size_t global_memory_vector_load_size = 0;
     size_t src_vector_dim            = 0;
     size_t src_scalar_per_vector     = 0;
     size_t lds_dst_scalar_per_vector = 0;
@@ -37,15 +39,16 @@ struct BwdBlockTransfer
 template <auto TRANSFER>
 constexpr BlockTransfer SetFwdConvBlockTransfer()
 {
-    auto& block_xfer  = TRANSFER.block_transfer;
-    auto& block_order = TRANSFER.block_transfer_access_order;
+    auto& block_xfer  = TRANSFER.thread_distribution;
+    auto& block_order = TRANSFER.thread_distribution_access_order;
     auto& src_order   = TRANSFER.src_access_order;
-    auto& lds_cfg     = TRANSFER.lds_transfer;
+    auto& lds_cfg     = TRANSFER.lds_transfer_params;
 
     return BlockTransfer{
         .thread_cluster_dims   = {block_xfer.k0, block_xfer.m_n, block_xfer.k1},
         .thread_cluster_order  = {block_order.order[0], block_order.order[1], block_order.order[2]},
         .src_access_order      = {src_order.order[0], src_order.order[1], src_order.order[2]},
+        .global_memory_vector_load_size = lds_cfg.global_memory_vector_load_size,
         .src_vector_dim        = lds_cfg.src_vector_dim,
         .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
         .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
@@ -57,10 +60,10 @@ constexpr BlockTransfer SetFwdConvBlockTransfer()
 template <auto TRANSFER>
 constexpr auto SetBwdConvBlockTransfer()
 {
-    auto& block_xfer  = TRANSFER.block_transfer;
-    auto& block_order = TRANSFER.block_transfer_access_order;
+    auto& block_xfer  = TRANSFER.thread_distribution;
+    auto& block_order = TRANSFER.thread_distribution_access_order;
     auto& src_order   = TRANSFER.src_access_order;
-    auto& lds_cfg     = TRANSFER.lds_transfer;
+    auto& lds_cfg     = TRANSFER.lds_transfer_params;
 
     constexpr auto array_length = block_order.order.size();
     static_assert(block_order.order.size() == src_order.order.size(),
@@ -74,6 +77,7 @@ constexpr auto SetBwdConvBlockTransfer()
                                       block_order.order[1],
                                       block_order.order[2]},
             .src_access_order      = {src_order.order[0], src_order.order[1], src_order.order[2]},
+            .global_memory_vector_load_size = lds_cfg.global_memory_vector_load_size,
             .src_vector_dim        = lds_cfg.src_vector_dim,
             .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
             .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
@@ -95,6 +99,7 @@ constexpr auto SetBwdConvBlockTransfer()
                                           src_order.order[1],
                                           src_order.order[2],
                                           src_order.order[3]},
+            .global_memory_vector_load_size = lds_cfg.global_memory_vector_load_size,
             .src_vector_dim            = lds_cfg.src_vector_dim,
             .src_scalar_per_vector     = lds_cfg.src_scalar_per_vector,
             .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
@@ -119,17 +124,17 @@ struct CBlockTransfer
 template <ConvSignatureDescriptor auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr CBlockTransfer SetCBlockTransfer()
 {
-    auto& thread_cluster_dims = ALGORITHM.transfer.c.thread_cluster_dims;
+    auto& thread_cluster_dims = ALGORITHM.transfer.c.thread_distribution;
     auto& epilogue_config     = ALGORITHM.transfer.c.epilogue;
     return CBlockTransfer{
         .m_xdl_per_wave_per_shuffle = epilogue_config.m_xdl_per_wave_per_shuffle,
         .n_xdl_per_wave_per_shuffle = epilogue_config.n_per_wave_per_shuffle,
         .thread_cluster_dims =
             {
-                thread_cluster_dims.m_block,
-                thread_cluster_dims.m_wave_per_xdl,
-                thread_cluster_dims.n_block,
-                thread_cluster_dims.n_wave_per_xdl,
+                thread_cluster_dims.gemm_m_block_size,
+                thread_cluster_dims.gemm_m_per_block,
+                thread_cluster_dims.gemm_n_block_size,
+                thread_cluster_dims.gemm_n_per_block,
             },
         .scalar_per_vector = epilogue_config.scalar_per_vector,
     };

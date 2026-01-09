@@ -35,8 +35,7 @@ struct ConvBwdWeightXdlFactory
         internal::SetBwdWeightConvSpecialization<ALGORITHM>();
 
     static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM = ALGORITHM.gridwise_gemm;
-    static constexpr auto XDL_PARAMS    = GRIDWISE_GEMM.xdl_params;
+    static constexpr auto XDL_PARAMS    = ALGORITHM.warp_gemm;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
@@ -52,6 +51,12 @@ struct ConvBwdWeightXdlFactory
     static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.thread_cluster_order>);
     static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.src_access_order>);
     static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.src_access_order>);
+
+    static_assert(A_BLOCK_TRANSFER.global_memory_vector_load_size ==
+                      B_BLOCK_TRANSFER.global_memory_vector_load_size,
+                  "A nd B block transfer vector load size need to be the same");
+    static constexpr size_t GMEM_VECTOR_LOAD_SIZE = A_BLOCK_TRANSFER.global_memory_vector_load_size;
+
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
@@ -71,11 +76,11 @@ struct ConvBwdWeightXdlFactory
         BLOCK.per_block.m,
         BLOCK.per_block.n,
         BLOCK.per_block.k,
-        GRIDWISE_GEMM.k1,
-        XDL_PARAMS.m_per_xdl,
-        XDL_PARAMS.n_per_xdl,
-        XDL_PARAMS.m_xdl_per_wave,
-        XDL_PARAMS.n_xdl_per_wave,
+        GMEM_VECTOR_LOAD_SIZE,
+        XDL_PARAMS.gemm_m_per_instruction,
+        XDL_PARAMS.gemm_n_per_instruction,
+        XDL_PARAMS.gemm_m_iters_per_wave,
+        XDL_PARAMS.gemm_n_iters_per_wave,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
         to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,

@@ -38,8 +38,7 @@ struct ConvFwdLargeTensorFactory
 
     static constexpr auto LOOP_SCHEDULER = internal::SetLoopScheduler<ALGORITHM>();
     static constexpr auto BLOCK          = internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
-    static constexpr auto XDL_PARAMS     = GRIDWISE_GEMM.xdl_params;
+    static constexpr auto XDL_PARAMS     = ALGORITHM.warp_gemm;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
@@ -79,12 +78,12 @@ struct ConvFwdLargeTensorFactory
             BLOCK.per_block.m,
             BLOCK.per_block.n,
             BLOCK.per_block.k,
-            GRIDWISE_GEMM.ak1,
-            GRIDWISE_GEMM.bk1,
-            XDL_PARAMS.m_per_xdl,
-            XDL_PARAMS.n_per_xdl,
-            XDL_PARAMS.m_xdl_per_wave,
-            XDL_PARAMS.n_xdl_per_wave,
+            A_BLOCK_TRANSFER.global_memory_vector_load_size,
+            B_BLOCK_TRANSFER.global_memory_vector_load_size,
+            XDL_PARAMS.gemm_m_per_instruction,
+            XDL_PARAMS.gemm_n_per_instruction,
+            XDL_PARAMS.gemm_m_iters_per_wave,
+            XDL_PARAMS.gemm_n_iters_per_wave,
             to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
             to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
             to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,

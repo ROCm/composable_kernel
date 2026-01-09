@@ -38,7 +38,7 @@ struct ConvFwdWmmaFactory
 
     static constexpr auto LOOP_SCHEDULER = internal::SetLoopScheduler<ALGORITHM>();
     static constexpr auto BLOCK          = internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
+    static constexpr auto WARP_GEMM      = ALGORITHM.warp_gemm;
     static constexpr auto GRIDWISE_GEMM_PIPELINE_VERSION =
         internal::SetGridwiseGemmPipelineVersion<ALGORITHM>();
     static constexpr auto A_BLOCK_TRANSFER =
@@ -56,6 +56,11 @@ struct ConvFwdWmmaFactory
     static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>);
     static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>);
     static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>);
+
+    static_assert(A_BLOCK_TRANSFER.global_memory_vector_load_size ==
+                      B_BLOCK_TRANSFER.global_memory_vector_load_size,
+                  "A nd B block transfer vector load size need to be the same");
+    static constexpr size_t GMEM_VECTOR_LOAD_SIZE = A_BLOCK_TRANSFER.global_memory_vector_load_size;
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Wmma_CShuffle<
@@ -80,11 +85,11 @@ struct ConvFwdWmmaFactory
         BLOCK.per_block.m,
         BLOCK.per_block.n,
         BLOCK.per_block.k,
-        GRIDWISE_GEMM.k1,
-        GRIDWISE_GEMM.m_per_wmma,
-        GRIDWISE_GEMM.n_per_wmma,
-        GRIDWISE_GEMM.m_wmma_per_wave,
-        GRIDWISE_GEMM.n_wmma_per_wave,
+        GMEM_VECTOR_LOAD_SIZE,
+        WARP_GEMM.gemm_m_per_instruction,
+        WARP_GEMM.gemm_n_per_instruction,
+        WARP_GEMM.gemm_m_iters_per_wave,
+        WARP_GEMM.gemm_n_iters_per_wave,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
         to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,

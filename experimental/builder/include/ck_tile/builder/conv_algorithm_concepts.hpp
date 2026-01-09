@@ -172,8 +172,8 @@ concept SpecifiesTileThreadBlock = requires {
 
 // Concept to check if a struct specifies warp GEMM info.
 template <typename T>
-concept SpecifiesWarpGemm = requires(T t) {
-    { t.warp_gemm } -> WarpGemmDescriptor;
+concept SpecifiesWarpGemm = requires {
+    { T::warp_gemm } -> WarpGemmDescriptor;
 };
 
 // Concept to check if a struct specifies convolution input and output block transfer info.
@@ -212,8 +212,8 @@ concept SpecifiesLdsTransfer = requires(T t) {
 // Concept to check if a struct specifies thread cluster access order info.
 template <typename T>
 concept SpecifiesThreadClusterAccessOrder = requires(T t) {
-    { T::transfer.a.block_transfer_access_order } -> AccessOrderDescriptor;
-    { T::transfer.b.block_transfer_access_order } -> AccessOrderDescriptor;
+    { T::transfer.a.thread_distribution_access_order } -> AccessOrderDescriptor;
+    { T::transfer.b.thread_distribution_access_order } -> AccessOrderDescriptor;
 };
 
 // Concept to check if a struct specifies source access order info.
@@ -341,15 +341,15 @@ concept SpecifiesMultipleDSupport = requires {
 };
 
 template <typename T>
-concept SpecifiesXdl = requires {
-    { T::warp_gemm.matrix_instruction } -> std::convertible_to<MatrixInstructionType>;
-    requires T::warp_gemm.matrix_instruction == MatrixInstructionType::XDL;
+concept SpecifiesXdl = requires (T t){
+    { t.warp_gemm.matrix_instruction } -> std::convertible_to<MatrixInstructionType>;
+    { t.warp_gemm.matrix_instruction == MatrixInstructionType::XDL};
 };
 
 template <typename T>
-concept SpecifiesWmma = requires {
-    { T::warp_gemm.matrix_instruction } -> std::convertible_to<MatrixInstructionType>;
-    requires T::warp_gemm.matrix_instruction == MatrixInstructionType::WMMA;
+concept SpecifiesWmma = requires (T t){
+    { t.warp_gemm.matrix_instruction } -> std::convertible_to<MatrixInstructionType>;
+    { t.warp_gemm.matrix_instruction == MatrixInstructionType::WMMA};
 };
 
 /******************************************** */
