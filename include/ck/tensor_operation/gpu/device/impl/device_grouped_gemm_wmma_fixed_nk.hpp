@@ -12,9 +12,7 @@
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/tuple.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -179,10 +177,6 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         ALayout,
         BLayout,
@@ -239,146 +233,9 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
         remove_cvref_t<decltype(GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
             1, 1, 1, 1, 1))>;
 
-    template <typename UnderlyingBlockToCTileMap>
-    struct OffsettedBlockToCTileMapMLoops
-    {
-        using underlying_type = UnderlyingBlockToCTileMap;
-
-        __host__ __device__ OffsettedBlockToCTileMapMLoops(
-            UnderlyingBlockToCTileMap block_to_ctile_map, index_t block_start, index_t id_off = 0)
-        {
-            block_to_ctile_map_ = block_to_ctile_map;
-            block_start_        = block_start;
-            id_off_             = id_off;
-        }
-
-        template <typename TopIdx>
-        __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
-        {
-            auto idx_bot = block_to_ctile_map_.CalculateBottomIndex(
-                make_multi_index(idx_top[Number<0>{}] - block_start_ + id_off_));
-
-            return make_tuple(idx_bot[Number<0>{}], idx_bot[Number<1>{}], idx_bot[Number<2>{}]);
-        }
-
-        template <typename CTileIdx, typename CTileDim>
-        __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
-                                                 const CTileDim& c_tile_dim) const
-        {
-            return block_to_ctile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
-        }
-
-        template <typename CGridDesc_M_N>
-        __host__ bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
-        {
-            return block_to_ctile_map_.CheckValidity(c_grid_desc_m_n);
-        }
-
-        template <typename CGridDesc_M_N>
-        __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
-        {
-            return block_to_ctile_map_.CalculateGridSize(c_grid_desc_m_n);
-        }
-
-        UnderlyingBlockToCTileMap block_to_ctile_map_;
-        index_t block_start_;
-        index_t id_off_;
-    };
-
-    template <index_t MPerBlock_, index_t NPerBlock_>
-    struct BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops
-    {
-        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops() = default;
-
-        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops(
-            const BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&) = default;
-        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops(
-            BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&&) = default;
-        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&
-        operator=(const BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&) = default;
-        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&
-        operator=(BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&&) = default;
-
-        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops(index_t M,
-                                                                          index_t N,
-                                                                          index_t KBatch,
-                                                                          index_t M01 = 8)
-            : M_(M), N_(N), KBatch_(KBatch), M01_(M01)
-        {
-        }
-
-        template <typename CGridDesc_M_N>
-        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops(
-            const CGridDesc_M_N& c_grid_desc_m_n, index_t KBatch, index_t M01 = 8)
-            : BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops(
-                  c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), KBatch, M01)
-        {
-        }
-
-        __host__ __device__ constexpr index_t CalculateGridSize(index_t M, index_t N) const
-        {
-            const auto M0 = math::integer_divide_ceil(M, MPerBlock);
-            const auto N0 = math::integer_divide_ceil(N, NPerBlock);
-
-            return M0 * N0 * KBatch_;
-        }
-
-        template <typename CGridDesc_M_N>
-        __host__ __device__ constexpr index_t
-        CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
-        {
-            return CalculateGridSize(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1));
-        }
-
-        template <typename CGridDesc_M_N>
-        __host__ bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
-        {
-            return true;
-        }
-
-        template <typename TopIdx>
-        __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
-        {
-            auto block_1d_id = idx_top[I0];
-
-            const auto M0 = math::integer_divide_ceil(M_, MPerBlock_);
-            const auto N0 = math::integer_divide_ceil(N_, NPerBlock_);
-
-            block_1d_id = block_1d_id % (M0 * N0 * KBatch_); // hide groups
-
-            const index_t idx_ksplit = block_1d_id / (M0 * N0);
-            block_1d_id              = block_1d_id % (M0 * N0);
-
-            index_t idx_N0 = block_1d_id % N0;
-            index_t idx_M0 = block_1d_id / N0;
-
-            const auto M01_adapt = (idx_M0 < M0 - M0 % M01_) ? M01_ : M0 % M01_;
-
-            index_t idx_M00          = idx_M0 / M01_;
-            index_t idx_M01          = idx_M0 % M01_;
-            index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
-
-            return make_tuple(idx_ksplit,
-                              idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
-                              idx_N0_M01_local / M01_adapt);
-        }
-
-        template <typename CTileIdx, typename CTileDim>
-        __host__ __device__ bool ValidCTileIndex(const CTileIdx& /* c_tile_idx */,
-                                                 const CTileDim& /* c_tile_dim */) const
-        {
-            return true; // always valid provided that user gets grid size from CalculateGridSize()
-        }
-
-        private:
-        index_t M_;
-        index_t N_;
-        index_t KBatch_;
-        index_t M01_;
-    };
-
-    using Block2ETileMap = BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops<MPerBlock, NPerBlock>;
-    using GroupedGemmBlock2ETileMap = OffsettedBlockToCTileMapMLoops<Block2ETileMap>;
+    using Block2ETileMap = BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>;
+    static constexpr index_t B2E_M01 = 8;
+    using GroupedGemmBlock2ETileMap = OffsettedBlockToCTileMap<Block2ETileMap>;
 
     static constexpr index_t DefaultKBatch = 1;
     using KernelArgument                   = typename GridwiseGemm::Argument;
@@ -446,12 +303,10 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
                  CDEElementwiseOperation c_element_op,
                  index_t kbatch)
             : group_count_{ck::type_convert<ck::index_t>(gemm_descs.size())},
-              grouped_gemm_kernel_args_dev{nullptr},
               gemm_kernel_host_args_{nullptr},
               grid_size_{0},
               k_batch_{kbatch}
         {
-
             if(!(group_count_ == ck::type_convert<ck::index_t>(p_As.size()) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_Bs.size()) &&
                  ((NumDTensor == 0 && p_Ds.size() == 0) ||
@@ -466,7 +321,7 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
             const index_t fixed_N = gemm_descs[0].N_;
             const index_t fixed_K = gemm_descs[0].K_;
 
-            for(std::size_t i = 0; i < gemm_descs.size(); i++)
+            for(std::size_t i = 0; i < gemm_descs.size(); ++i)
             {
                 const index_t M = gemm_descs[i].M_;
                 const index_t N = gemm_descs[i].N_;
@@ -477,30 +332,21 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
                     throw std::runtime_error("wrong! N or K are not fixed across GEMM groups");
                 }
 
-                a_mtx_mraw_kraw_.emplace_back(M, K);
-                b_mtx_nraw_kraw_.emplace_back(N, K);
-
                 const index_t StrideA = gemm_descs[i].stride_A_;
                 const index_t StrideB = gemm_descs[i].stride_B_;
                 const index_t StrideE = gemm_descs[i].stride_C_;
-                // pointer
-                std::array<const void*, NumDTensor> p_ds_grid;
+                const auto& stride_d_vec = gemm_descs[i].stride_Ds_;
 
-                static_for<0, NumDTensor, 1>{}([&](auto j) { p_ds_grid[j] = nullptr; });
+                if(!(NumDTensor == ck::type_convert<ck::index_t>(stride_d_vec.size())))
+                {
+                    throw std::runtime_error("wrong! stride D mismatch");
+                }
 
                 std::array<index_t, NumDTensor> StrideDs;
-
-                static_for<0, NumDTensor, 1>{}([&](auto j) {
-                    // using DLayout = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
-
-                    if(gemm_descs[i].stride_Ds_.size() != NumDTensor)
-                    {
-                        throw std::runtime_error(
-                            "wrong! gemm_descs[i].stride_Ds_.size() does not match NumDTensor");
-                    }
-
-                    StrideDs[j] = gemm_descs[i].stride_Ds_[j];
-                });
+                if constexpr(NumDTensor > 0)
+                {
+                    std::copy(stride_d_vec.begin(), stride_d_vec.end(), StrideDs);
+                }
 
                 const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
                 const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
@@ -510,9 +356,9 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
                         M, m_padded, N, n_padded, StrideE);
 
                 // block-to-e-tile map
-                const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, k_batch_};
+                const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, B2E_M01, k_batch_};
 
-                grid_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
+                const index_t grid_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
 
                 if(!local_b2c_tile_map.CheckValidity(e_grid_desc_m_n))
                 {
@@ -546,20 +392,7 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
 
                 gemm_desc_kernel_arg_.emplace_back(
                     std::move(karg), std::move(grouped_block_2_ctile_map), block_start, block_end);
-
             }
-
-            const auto e_grid_desc_sum_m_n =
-                GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
-                    group_count_ * gemm_descs[0].M_,
-                    group_count_ * gemm_descs[0].M_,
-                    gemm_descs[0].N_,
-                    gemm_descs[0].N_,
-                    gemm_descs[0].stride_C_);
-            const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_sum_m_n, k_batch_};
-            grid_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_sum_m_n);
-
-            barrier_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_sum_m_n);
         }
 
         /**
@@ -590,7 +423,7 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
                     GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
                         karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideE);
 
-                const auto local_b2c_tile_map = Block2ETileMap{c_grid_desc_m_n, k_batch_};
+                const auto local_b2c_tile_map = Block2ETileMap{c_grid_desc_m_n, B2E_M01, k_batch_};
                 const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(c_grid_desc_m_n);
 
                 const index_t block_start = grid_size_;
@@ -611,32 +444,17 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
                 gemm_desc_kernel_arg_[i].block_end_         = block_end;
             }
 
-            const auto e_grid_desc_sum_m_n =
-                GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
-                    group_count_ * gemm_desc_kernel_arg_[0].karg_.M,
-                    group_count_ * gemm_desc_kernel_arg_[0].karg_.M,
-                    gemm_desc_kernel_arg_[0].karg_.N,
-                    gemm_desc_kernel_arg_[0].karg_.N,
-                    gemm_desc_kernel_arg_[0].karg_.StrideE);
 
-            const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_sum_m_n, k_batch_};
-            grid_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_sum_m_n);
-
-            barrier_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_sum_m_n);
         }
 
         //  private:
         index_t group_count_;
 
         std::vector<GemmTransKernelArg> gemm_desc_kernel_arg_;
-        std::vector<Tuple<index_t, index_t>> a_mtx_mraw_kraw_;
-        std::vector<Tuple<index_t, index_t>> b_mtx_nraw_kraw_;
 
-        const void* grouped_gemm_kernel_args_dev;
         void* gemm_kernel_host_args_;
         index_t grid_size_;
-        index_t grid_size_grp_;
-        index_t barrier_size_grp_;
+
         index_t k_batch_;
     };
 
@@ -833,42 +651,65 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) != arg.group_count_)
+        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
         {
             return false;
         }
-
-        bool supported = true;
-
-        // If we use padding we do not support vector loads for dimensions not divisible by
-        // vector load size.
-        if constexpr(GemmSpec != GemmSpecialization::Default)
+        if constexpr(std::is_same_v<EDataType, ck::half_t> ||
+                     std::is_same_v<EDataType, ck::bhalf_t>)
         {
-            // [A|B]BlockTransferSrcVectorDim value define dimension in the block {K0,M,K1}
-            // layout, thus we have to adapt it to the {M,K} or {N,K} layout.
-            const auto a_raw_vector_dim = ABlockTransferSrcVectorDim != 1 ? 1 : 0;
-            const auto b_raw_vector_dim = BBlockTransferSrcVectorDim != 1 ? 1 : 0;
-
-            for(index_t i = 0; i < arg.group_count_; ++i)
+            if(arg.k_batch_ > 1 && ck::is_gfx11_supported())
             {
-                const auto a_vector_dim = arg.a_mtx_mraw_kraw_[i].At(Number<a_raw_vector_dim>{});
-                const auto b_vector_dim = arg.b_mtx_nraw_kraw_[i].At(Number<b_raw_vector_dim>{});
-
-                supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
-                supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
+                // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+                return false;
             }
         }
 
-        // For bf16 datatype only kbatch = 1 is supported since there is no AtomicAdd
-        // instruction that supports bf16 and we cannot use splitk because of that
-        if constexpr(std::is_same<ADataType, ck::bhalf_t>::value)
+        if constexpr(!std::is_same_v<CDEElementwiseOperation,
+                                     ck::tensor_operation::element_wise::PassThrough>)
         {
-            supported = supported & (arg.k_batch_ == 1);
+            if(arg.k_batch_ > 1)
+            {
+                // Using SplitK and a C element op would require a two stage kernel where the second
+                // stage applies the op on the accumulated results
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "C element operators are not supported when using SplitK. Set "
+                                 "K_BATCH to 1 or remove the operator."
+                              << std::endl;
+                }
+                return false;
+            }
         }
 
+        if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||
+                     std::is_same_v<ComputeTypeB, f8_t> || std::is_same_v<ComputeTypeB, bf8_t>)
+        {
+            if(ck::is_gfx11_supported())
+            {
+                return false;
+            }
+        }
+
+        bool supported = true;
+        for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); ++i)
+        {
+            const auto& a        = arg.gemm_desc_kernel_arg_[i].karg_;
+            bool group_arg_valid = GridwiseGemm::CheckValidity(a);
+
+            if(not group_arg_valid)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "[" << __func__ << "] group id: " << i
+                              << " has invalid GridwiseGemm settings!" << std::endl;
+                    a.Print();
+                }
+            }
+            supported = supported && group_arg_valid;
+        }
         return supported;
     }
-
     // polymorphic
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
@@ -966,7 +807,7 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
     static void SetKBatch(Argument& arg, index_t k_batch) { arg.UpdateKBatch(k_batch); }
 
     // polymorphic
-    void SetKBatch(BaseArgument* p_arg, index_t k_batch) const override
+    void SetKBatchSize(BaseArgument* p_arg, index_t k_batch) const override
     {
         auto arg_ptr = dynamic_cast<Argument*>(p_arg);
         if(arg_ptr)
@@ -978,17 +819,6 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
                                      "DeviceGroupedGemm_Wmma_Fixed_Nk::Argument structure!");
     }
 
-    void SetKBatchSize(BaseArgument* p_arg, index_t kbatch) const override
-    {
-        auto arg_ptr = dynamic_cast<Argument*>(p_arg);
-        if(arg_ptr)
-        {
-            arg_ptr->UpdateKBatch(kbatch);
-        }
-        else
-            throw std::runtime_error("The argument pointer is not an object of "
-                                     "DeviceGroupedGemm_Wmma_Fixed_Nk::Argument structure!");
-    }
 
     void SetHostKernelArgsPointer(BaseArgument* p_arg, void* p_host_kernel_args) const
     {

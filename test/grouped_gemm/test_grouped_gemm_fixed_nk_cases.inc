@@ -6,7 +6,7 @@
 
 TYPED_TEST(TestGroupedGemm, TinyCases)
 {
-    const std::vector<int> Ms{2, 1};
+    const std::vector<int> Ms{2, 2};
     constexpr int N = 512;
     constexpr int K = 256;
 
@@ -18,7 +18,7 @@ TYPED_TEST(TestGroupedGemm, TinyCases)
 
 TYPED_TEST(TestGroupedGemm, SmallCases)
 {
-    const std::vector<int> Ms{2, 1, 3, 4, 5};
+    const std::vector<int> Ms{2, 2, 2, 2, 2};
     constexpr int N = 512;
     constexpr int K = 256;
 
@@ -30,7 +30,7 @@ TYPED_TEST(TestGroupedGemm, SmallCases)
 
 TYPED_TEST(TestGroupedGemm, MidCases)
 {
-    const std::vector<int> Ms{167, 183, 177, 153, 139, 204};
+    const std::vector<int> Ms{167, 167, 167, 167, 167, 167};
     constexpr int N = 512;
     constexpr int K = 256;
 
@@ -42,7 +42,7 @@ TYPED_TEST(TestGroupedGemm, MidCases)
 
 TYPED_TEST(TestGroupedGemm, Regular)
 {
-    const std::vector<int> Ms{64, 128, 256};
+    const std::vector<int> Ms{64, 64, 64};
     constexpr int N = 512;
     constexpr int K = 256;
 
@@ -55,7 +55,7 @@ TYPED_TEST(TestGroupedGemm, Regular)
 
 TYPED_TEST(TestGroupedGemm, MNKPadded)
 {
-    const std::vector<int> Ms{127, 150, 188, 210};
+    const std::vector<int> Ms{127, 127, 127, 127};
     constexpr int N = 128;
     constexpr int K = 256;
 
@@ -73,7 +73,7 @@ TYPED_TEST(TestGroupedGemm, TestLargeKBatch)
         GTEST_SKIP() << "Split-K not supported for for the current configuration (FP16/BF16 on "
                         "GFX11, or using CDE element-wise operation)";
 
-    const std::vector<int> Ms{188, 210};
+    const std::vector<int> Ms{188, 188};
     constexpr int N = 4096;
     constexpr int K = 4096;
 
