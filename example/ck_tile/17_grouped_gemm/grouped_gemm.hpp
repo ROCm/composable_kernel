@@ -149,6 +149,52 @@ struct GemmConfigComputeV3_256x128 : public GemmConfigBase
     static constexpr int kBlockPerCu = 1;
 };
 
+// 32x128 tile config (small M, from FBGEMM)
+template <typename PrecType>
+struct GemmConfigComputeV3_32x128 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 32;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+
+    static constexpr int kBlockPerCu = 1;
+};
+
+// 128x128 tile config with kBlockPerCu=2 (from FBGEMM)
+template <typename PrecType>
+struct GemmConfigComputeV3_128x128 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+
+    static constexpr int kBlockPerCu = 2;
+};
+
 template <typename PrecType>
 struct GemmConfigComputeV4 : public GemmConfigBase
 {
@@ -355,7 +401,8 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
         .insert("group_count", "8", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("jsonfile", "grouped_gemm.json", "json file name to dump results");
+        .insert("jsonfile", "grouped_gemm.json", "json file name to dump results")
+        .insert("config", "", "Tile config: compute_v3 (default), memory_interwave, memory_intrawave");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_pair(result, arg_parser);

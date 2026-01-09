@@ -1,0 +1,1838 @@
+========================================================================================================
+Running BF16 Worst 30 Cases - Grouped GEMM Benchmark (Forward + Backward)
+Config: all
+========================================================================================================
+
+========================================================================================================
+Rank 1: DeepSeek-V2-Lite-Down (TestID=62)
+  B=2, M=512, N=2048, K=1408
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0626825 ms, 94.2142 TFlops, 296.929 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:  0.0551789 ms, 107.026 TFlops, 337.307 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0412992 ms, 142.995 TFlops, 450.668 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0848606 ms, 69.5916 TFlops, 219.327 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:   0.060559 ms, 97.5178 TFlops, 307.34 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0921685 ms, 64.0737 TFlops, 201.937 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:  0.0269379 ms, 219.229 TFlops, 690.931 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:  0.0714839 ms, 82.6141 TFlops, 260.369 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.063841 ms, 92.5046 TFlops, 291.54 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0259645 ms, 227.449 TFlops, 716.835 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0517923 ms, 114.024 TFlops, 359.362 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0461432 ms, 127.984 TFlops, 403.358 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 2: DeepSeek-V2-Lite-GateUP (TestID=61)
+  B=2, M=512, N=2816, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0878935 ms, 134.38 TFlops, 375.797 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.122686 ms, 96.2716 TFlops, 269.226 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0516124 ms, 228.843 TFlops, 639.965 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    0.10554 ms, 111.912 TFlops, 312.963 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.115576 ms, 102.194 TFlops, 285.788 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.197902 ms, 59.6819 TFlops, 166.902 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:  0.0552851 ms, 213.641 TFlops, 597.451 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    0.10542 ms, 112.039 TFlops, 313.319 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.123151 ms, 95.9077 TFlops, 268.208 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0520171 ms, 227.063 TFlops, 634.987 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0759218 ms, 155.57 TFlops, 435.055 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0869292 ms, 135.871 TFlops, 379.966 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 3: DeepSeek-V2-Lite-Down (TestID=72)
+  B=4, M=512, N=2048, K=1408
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0662986 ms, 178.151 TFlops, 561.466 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:  0.0618741 ms, 190.89 TFlops, 601.616 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0539183 ms, 219.057 TFlops, 690.386 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0970523 ms, 121.699 TFlops, 383.551 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:  0.0737546 ms, 160.141 TFlops, 504.707 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.192184 ms, 61.4576 TFlops, 193.692 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:  0.0508726 ms, 232.172 TFlops, 731.72 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.110957 ms, 106.448 TFlops, 335.484 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.123338 ms, 95.7629 TFlops, 301.81 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0504948 ms, 233.908 TFlops, 737.193 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0774451 ms, 152.51 TFlops, 480.656 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.089225 ms, 132.375 TFlops, 417.198 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 4: DeepSeek-V2-Lite-Down (TestID=64)
+  B=2, M=1024, N=2048, K=1408
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0649082 ms, 181.967 TFlops, 395.792 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:  0.0607742 ms, 194.345 TFlops, 422.714 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0692762 ms, 170.494 TFlops, 370.836 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0932129 ms, 126.712 TFlops, 275.607 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:  0.0744876 ms, 158.566 TFlops, 344.891 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.108232 ms, 109.128 TFlops, 237.361 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:  0.0471142 ms, 250.692 TFlops, 545.273 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.110165 ms, 107.213 TFlops, 233.196 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.112756 ms, 104.75 TFlops, 227.838 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0479411 ms, 246.368 TFlops, 535.869 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:     0.0776 ms, 152.206 TFlops, 331.058 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0808483 ms, 146.09 TFlops, 317.757 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 5: Mixtral-8x7B-Down (TestID=162)
+  B=1, M=512, N=4096, K=14336
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=4096, K=14336 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.542575 ms, 110.822 TFlops, 251.237 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=14336, K=4096 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.199669 ms, 301.147 TFlops, 682.706 GB/s, Grouped Gemm
+[Backward grad_B] M=14336, N=4096, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.175034 ms, 343.531 TFlops, 778.791 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=4096, K=14336 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.326312 ms, 184.27 TFlops, 417.744 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=14336, K=4096 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.202976 ms, 296.24 TFlops, 671.581 GB/s, Grouped Gemm
+[Backward grad_B] M=14336, N=4096, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.812838 ms, 73.9749 TFlops, 167.702 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=4096, K=14336 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.258183 ms, 232.895 TFlops, 527.978 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=14336, K=4096 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.427382 ms, 140.693 TFlops, 318.953 GB/s, Grouped Gemm
+[Backward grad_B] M=14336, N=4096, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.549487 ms, 109.429 TFlops, 248.077 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=4096, K=14336 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.254755 ms, 236.028 TFlops, 535.081 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=14336, K=4096 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.320793 ms, 187.44 TFlops, 424.93 GB/s, Grouped Gemm
+[Backward grad_B] M=14336, N=4096, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.384837 ms, 156.247 TFlops, 354.214 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 6: Qwen3-30B-A3B-Down (TestID=102)
+  B=4, M=512, N=2048, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0916859 ms, 187.377 TFlops, 548.957 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0967991 ms, 177.48 TFlops, 519.96 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0585704 ms, 293.32 TFlops, 859.336 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.112366 ms, 152.892 TFlops, 447.927 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.116759 ms, 147.14 TFlops, 431.074 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:     0.2042 ms, 84.1325 TFlops, 246.482 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:  0.0723152 ms, 237.569 TFlops, 696.003 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.149579 ms, 114.855 TFlops, 336.489 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    0.17176 ms, 100.022 TFlops, 293.034 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0722363 ms, 237.829 TFlops, 696.764 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    0.11007 ms, 156.081 TFlops, 457.268 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.120138 ms, 143.002 TFlops, 418.95 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 7: DeepSeek-V2-Lite-GateUP (TestID=71)
+  B=4, M=512, N=2816, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0993737 ms, 237.712 TFlops, 664.767 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.128227 ms, 184.223 TFlops, 515.184 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.102667 ms, 230.087 TFlops, 643.443 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.126337 ms, 186.979 TFlops, 522.89 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:     0.1318 ms, 179.229 TFlops, 501.217 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.318934 ms, 74.0664 TFlops, 207.128 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.095373 ms, 247.684 TFlops, 692.652 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.205686 ms, 114.846 TFlops, 321.17 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.231504 ms, 102.038 TFlops, 285.352 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0979809 ms, 241.091 TFlops, 674.216 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.147462 ms, 160.193 TFlops, 447.982 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.160217 ms, 147.439 TFlops, 412.317 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 8: Mixtral-8x22B-Down (TestID=172)
+  B=1, M=512, N=6144, K=16384
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=6144, K=16384 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.624575 ms, 165.039 TFlops, 359.277 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=16384, K=6144 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    0.30706 ms, 335.697 TFlops, 730.786 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=6144, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.327085 ms, 315.145 TFlops, 686.045 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=6144, K=16384 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.390742 ms, 263.804 TFlops, 574.28 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=16384, K=6144 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.287035 ms, 359.117 TFlops, 781.768 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=6144, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    1.31989 ms, 78.0968 TFlops, 170.011 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=6144, K=16384 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.445298 ms, 231.484 TFlops, 503.922 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=16384, K=6144 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.739005 ms, 139.484 TFlops, 303.645 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=6144, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    0.94266 ms, 109.349 TFlops, 238.045 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=6144, K=16384 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    0.44683 ms, 230.69 TFlops, 502.194 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=16384, K=6144 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.534697 ms, 192.78 TFlops, 419.668 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=6144, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.646975 ms, 159.325 TFlops, 346.838 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 9: DeepSeek-V2-Lite-GateUP (TestID=63)
+  B=2, M=1024, N=2816, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0988161 ms, 239.053 TFlops, 435.067 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.126754 ms, 186.363 TFlops, 339.173 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0852896 ms, 276.966 TFlops, 504.067 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.127235 ms, 185.66 TFlops, 337.893 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.130892 ms, 180.472 TFlops, 328.451 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.231647 ms, 101.976 TFlops, 185.591 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:  0.0898262 ms, 262.978 TFlops, 478.609 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    0.20225 ms, 116.798 TFlops, 212.567 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.216845 ms, 108.936 TFlops, 198.26 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0895675 ms, 263.738 TFlops, 479.991 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.146225 ms, 161.547 TFlops, 294.009 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.155759 ms, 151.659 TFlops, 276.013 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 10: Grok-2-Down (TestID=92)
+  B=1, M=512, N=8192, K=16384
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=8192, K=16384 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.630551 ms, 217.966 TFlops, 465.627 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=16384, K=8192 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.413481 ms, 332.395 TFlops, 710.071 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=8192, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    0.40006 ms, 343.546 TFlops, 733.893 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=8192, K=16384 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.441669 ms, 311.181 TFlops, 664.755 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=16384, K=8192 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.370543 ms, 370.912 TFlops, 792.354 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=8192, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    2.08493 ms, 65.9201 TFlops, 140.821 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=8192, K=16384 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.602942 ms, 227.947 TFlops, 486.948 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=16384, K=8192 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    1.01903 ms, 134.872 TFlops, 288.118 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=8192, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    1.24018 ms, 110.822 TFlops, 236.741 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=8192, K=16384 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.570556 ms, 240.886 TFlops, 514.588 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=16384, K=8192 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.742393 ms, 185.13 TFlops, 395.479 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=8192, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.845784 ms, 162.499 TFlops, 347.135 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 11: Qwen3-30B-A3B-GateUP (TestID=101)
+  B=4, M=512, N=4096, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=4096, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.111882 ms, 307.107 TFlops, 824.751 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=4096 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.179033 ms, 191.919 TFlops, 515.406 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=4096, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.114314 ms, 300.573 TFlops, 807.203 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=4096, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.161743 ms, 212.434 TFlops, 570.501 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=4096 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.163441 ms, 210.227 TFlops, 564.576 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=4096, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.425134 ms, 80.8209 TFlops, 217.048 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=4096, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.132471 ms, 259.376 TFlops, 696.566 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=4096 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.285792 ms, 120.226 TFlops, 322.873 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=4096, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    0.32238 ms, 106.581 TFlops, 286.229 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=4096, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.131673 ms, 260.948 TFlops, 700.788 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=4096 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.208485 ms, 164.807 TFlops, 442.596 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=4096, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.227031 ms, 151.344 TFlops, 406.441 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 12: DeepSeek-V2-Lite-Down (TestID=82)
+  B=8, M=512, N=2048, K=1408
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0828492 ms, 285.124 TFlops, 898.607 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:  0.0820588 ms, 287.87 TFlops, 907.262 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.103923 ms, 227.306 TFlops, 716.386 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.143306 ms, 164.838 TFlops, 519.51 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:   0.159442 ms, 148.156 TFlops, 466.935 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.311502 ms, 75.8336 TFlops, 239 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:  0.0949303 ms, 248.839 TFlops, 784.248 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.194182 ms, 121.651 TFlops, 383.398 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.232095 ms, 101.779 TFlops, 320.769 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0924049 ms, 255.639 TFlops, 805.681 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.137828 ms, 171.39 TFlops, 540.158 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.163922 ms, 144.107 TFlops, 454.172 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 13: Qwen3-30B-A3B-Down (TestID=112)
+  B=8, M=512, N=2048, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.115409 ms, 297.721 TFlops, 872.23 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.121129 ms, 283.663 TFlops, 831.044 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.113344 ms, 303.146 TFlops, 888.122 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.169025 ms, 203.281 TFlops, 595.551 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.179583 ms, 191.33 TFlops, 560.538 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.414874 ms, 82.8197 TFlops, 242.636 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.141607 ms, 242.642 TFlops, 710.865 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    0.26631 ms, 129.021 TFlops, 377.992 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.325615 ms, 105.523 TFlops, 309.148 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.135696 ms, 253.211 TFlops, 741.829 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.191896 ms, 179.054 TFlops, 524.573 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.229073 ms, 149.995 TFlops, 439.438 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 14: DeepSeek-V2-Lite-Down (TestID=74)
+  B=4, M=1024, N=2048, K=1408
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0819887 ms, 288.117 TFlops, 626.675 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:  0.0811006 ms, 291.272 TFlops, 633.537 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0879556 ms, 268.571 TFlops, 584.161 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.138781 ms, 170.213 TFlops, 370.224 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:    0.16285 ms, 145.055 TFlops, 315.506 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.224949 ms, 105.012 TFlops, 228.408 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:  0.0908399 ms, 260.043 TFlops, 565.613 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.191543 ms, 123.327 TFlops, 268.244 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.219211 ms, 107.761 TFlops, 234.387 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0895368 ms, 263.828 TFlops, 573.845 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    0.13417 ms, 176.062 TFlops, 382.947 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.156517 ms, 150.925 TFlops, 328.273 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 15: Mixtral-8x7B-Down (TestID=164)
+  B=1, M=1024, N=4096, K=14336
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=1024, N=4096, K=14336 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.551979 ms, 217.869 TFlops, 281.151 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=14336, K=4096 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.260081 ms, 462.392 TFlops, 596.697 GB/s, Grouped Gemm
+[Backward grad_B] M=14336, N=4096, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.296106 ms, 406.135 TFlops, 524.1 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=1024, N=4096, K=14336 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.383636 ms, 313.472 TFlops, 404.523 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=14336, K=4096 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    0.41382 ms, 290.607 TFlops, 375.017 GB/s, Grouped Gemm
+[Backward grad_B] M=14336, N=4096, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.896466 ms, 134.148 TFlops, 173.112 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=1024, N=4096, K=14336 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.517849 ms, 232.228 TFlops, 299.68 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=14336, K=4096 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.846088 ms, 142.135 TFlops, 183.42 GB/s, Grouped Gemm
+[Backward grad_B] M=14336, N=4096, K=1024 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    1.00311 ms, 119.886 TFlops, 154.708 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=1024, N=4096, K=14336 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    0.52416 ms, 229.432 TFlops, 296.072 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=14336, K=4096 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.623166 ms, 192.981 TFlops, 249.033 GB/s, Grouped Gemm
+[Backward grad_B] M=14336, N=4096, K=1024 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.714685 ms, 168.269 TFlops, 217.143 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 16: Qwen3-30B-A3B-Down (TestID=104)
+  B=4, M=1024, N=2048, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=1024, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.114273 ms, 300.682 TFlops, 587.27 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.120654 ms, 284.78 TFlops, 556.211 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0980178 ms, 350.546 TFlops, 684.66 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=1024, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.160165 ms, 214.527 TFlops, 418.997 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.164682 ms, 208.643 TFlops, 407.506 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.243811 ms, 140.928 TFlops, 275.25 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=1024, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.131662 ms, 260.97 TFlops, 509.707 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.263974 ms, 130.163 TFlops, 254.225 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.303539 ms, 113.197 TFlops, 221.088 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=1024, N=2048, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.130083 ms, 264.138 TFlops, 515.894 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2048 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    0.18942 ms, 181.394 TFlops, 354.286 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.220833 ms, 155.592 TFlops, 303.89 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 17: DeepSeek-V2-Lite-Down (TestID=66)
+  B=2, M=2048, N=2048, K=1408
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=2048, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:  0.0798299 ms, 295.908 TFlops, 499.135 GB/s, Grouped Gemm
+[Backward grad_A] M=2048, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:  0.0781722 ms, 302.183 TFlops, 509.719 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=2048 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.123888 ms, 190.674 TFlops, 321.627 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=2048, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    0.12837 ms, 184.018 TFlops, 310.399 GB/s, Grouped Gemm
+[Backward grad_A] M=2048, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:   0.155448 ms, 151.963 TFlops, 256.33 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=2048 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.138594 ms, 170.442 TFlops, 287.501 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=2048, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:  0.0905057 ms, 261.004 TFlops, 440.258 GB/s, Grouped Gemm
+[Backward grad_A] M=2048, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.187483 ms, 125.997 TFlops, 212.531 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=2048 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.209628 ms, 112.687 TFlops, 190.079 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=2048, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:  0.0895787 ms, 263.705 TFlops, 444.814 GB/s, Grouped Gemm
+[Backward grad_A] M=2048, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.130707 ms, 180.728 TFlops, 304.85 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=2048 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.147221 ms, 160.454 TFlops, 270.653 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 18: DeepSeek-V2-Down (TestID=32)
+  B=5, M=512, N=5120, K=1536
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.107131 ms, 375.85 TFlops, 1052.19 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.218064 ms, 184.649 TFlops, 516.921 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.125219 ms, 321.559 TFlops, 900.199 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.252979 ms, 159.165 TFlops, 445.578 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.187015 ms, 215.306 TFlops, 602.744 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.445611 ms, 90.3599 TFlops, 252.961 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.167156 ms, 240.884 TFlops, 674.351 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.351915 ms, 114.418 TFlops, 320.31 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.380291 ms, 105.88 TFlops, 296.41 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    0.15908 ms, 253.114 TFlops, 708.587 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.254672 ms, 158.107 TFlops, 442.617 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.266813 ms, 150.912 TFlops, 422.475 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 19: Qwen3-235B-A22B-Down (TestID=132)
+  B=4, M=512, N=4096, K=4096
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=4096, K=4096 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.206479 ms, 332.816 TFlops, 812.54 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=4096, K=4096 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.213985 ms, 321.141 TFlops, 784.036 GB/s, Grouped Gemm
+[Backward grad_B] M=4096, N=4096, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.217989 ms, 315.243 TFlops, 769.635 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=4096, K=4096 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.218932 ms, 313.885 TFlops, 766.321 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=4096, K=4096 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.222842 ms, 308.377 TFlops, 752.874 GB/s, Grouped Gemm
+[Backward grad_B] M=4096, N=4096, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.817947 ms, 84.0145 TFlops, 205.114 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=4096, K=4096 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.269472 ms, 255.015 TFlops, 622.595 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=4096, K=4096 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.501486 ms, 137.032 TFlops, 334.55 GB/s, Grouped Gemm
+[Backward grad_B] M=4096, N=4096, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    0.62817 ms, 109.396 TFlops, 267.081 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=4096, K=4096 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.274066 ms, 250.741 TFlops, 612.16 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=4096, K=4096 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.359641 ms, 191.078 TFlops, 466.499 GB/s, Grouped Gemm
+[Backward grad_B] M=4096, N=4096, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.437917 ms, 156.923 TFlops, 383.114 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 20: DeepSeek-V2-Lite-GateUP (TestID=81)
+  B=8, M=512, N=2816, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.131136 ms, 360.271 TFlops, 1007.51 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.160772 ms, 293.862 TFlops, 821.791 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.167215 ms, 282.538 TFlops, 790.122 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.291978 ms, 161.809 TFlops, 452.502 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.190254 ms, 248.324 TFlops, 694.444 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.555114 ms, 85.108 TFlops, 238.006 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    0.19772 ms, 238.947 TFlops, 668.221 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.369263 ms, 127.943 TFlops, 357.795 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    0.44443 ms, 106.304 TFlops, 297.281 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.197996 ms, 238.615 TFlops, 667.29 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    0.25976 ms, 181.878 TFlops, 508.625 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.315224 ms, 149.876 TFlops, 419.132 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 21: DeepSeek-V2-GateUP (TestID=31)
+  B=5, M=512, N=3072, K=5120
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=3072, K=5120 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.250359 ms, 321.66 TFlops, 795.774 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=5120, K=3072 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.203733 ms, 395.275 TFlops, 977.893 GB/s, Grouped Gemm
+[Backward grad_B] M=5120, N=3072, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.235952 ms, 341.301 TFlops, 844.363 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=3072, K=5120 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.243361 ms, 330.911 TFlops, 818.66 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=5120, K=3072 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.352386 ms, 228.529 TFlops, 565.372 GB/s, Grouped Gemm
+[Backward grad_B] M=5120, N=3072, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.917266 ms, 87.7942 TFlops, 217.199 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=3072, K=5120 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.345741 ms, 232.922 TFlops, 576.24 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=5120, K=3072 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.597116 ms, 134.866 TFlops, 333.653 GB/s, Grouped Gemm
+[Backward grad_B] M=5120, N=3072, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.741811 ms, 108.56 TFlops, 268.572 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=3072, K=5120 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    0.34444 ms, 233.801 TFlops, 578.415 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=5120, K=3072 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.426148 ms, 188.973 TFlops, 467.512 GB/s, Grouped Gemm
+[Backward grad_B] M=5120, N=3072, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.513887 ms, 156.709 TFlops, 387.691 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 22: DeepSeek-V2-Down (TestID=42)
+  B=10, M=512, N=5120, K=1536
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.207911 ms, 387.332 TFlops, 1084.33 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.269346 ms, 298.986 TFlops, 837.004 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.243537 ms, 330.67 TFlops, 925.705 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.412362 ms, 195.291 TFlops, 546.714 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.250052 ms, 322.055 TFlops, 901.587 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.872639 ms, 92.284 TFlops, 258.347 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.344307 ms, 233.892 TFlops, 654.775 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.630257 ms, 127.774 TFlops, 357.701 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.745178 ms, 108.069 TFlops, 302.537 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.352499 ms, 228.456 TFlops, 639.559 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.453578 ms, 177.545 TFlops, 497.035 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.519839 ms, 154.914 TFlops, 433.68 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 23: Mixtral-8x7B-GateUP (TestID=161)
+  B=1, M=512, N=28672, K=4096
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=28672, K=4096 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.254343 ms, 472.823 TFlops, 1055.41 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=4096, K=28672 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    1.12662 ms, 106.743 TFlops, 238.266 GB/s, Grouped Gemm
+[Backward grad_B] M=4096, N=28672, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.339226 ms, 354.511 TFlops, 791.318 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=28672, K=4096 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.409455 ms, 293.705 TFlops, 655.591 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=4096, K=28672 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.621024 ms, 193.647 TFlops, 432.247 GB/s, Grouped Gemm
+[Backward grad_B] M=4096, N=28672, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:     1.3871 ms, 86.6981 TFlops, 193.523 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=28672, K=4096 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.452185 ms, 265.951 TFlops, 593.641 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=4096, K=28672 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    0.94607 ms, 127.114 TFlops, 283.737 GB/s, Grouped Gemm
+[Backward grad_B] M=4096, N=28672, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    1.09116 ms, 110.212 TFlops, 246.008 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=28672, K=4096 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.440491 ms, 273.011 TFlops, 609.401 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=4096, K=28672 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.682337 ms, 176.246 TFlops, 393.406 GB/s, Grouped Gemm
+[Backward grad_B] M=4096, N=28672, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.753895 ms, 159.517 TFlops, 356.065 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 24: DeepSeek-V2-Lite-GateUP (TestID=73)
+  B=4, M=1024, N=2816, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.129107 ms, 365.934 TFlops, 665.984 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.155357 ms, 304.103 TFlops, 553.454 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    0.17381 ms, 271.818 TFlops, 494.697 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.289181 ms, 163.374 TFlops, 297.334 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.186139 ms, 253.814 TFlops, 461.93 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.373764 ms, 126.402 TFlops, 230.047 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.186794 ms, 252.924 TFlops, 460.311 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.362462 ms, 130.344 TFlops, 237.22 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.409841 ms, 115.276 TFlops, 209.797 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.183905 ms, 256.897 TFlops, 467.542 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.255059 ms, 185.23 TFlops, 337.111 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.291139 ms, 162.275 TFlops, 295.333 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 25: Mixtral-8x22B-GateUP (TestID=171)
+  B=1, M=512, N=32768, K=6144
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=512, N=32768, K=6144 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.421817 ms, 488.739 TFlops, 1049.03 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=6144, K=32768 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    1.29545 ms, 159.141 TFlops, 341.58 GB/s, Grouped Gemm
+[Backward grad_B] M=6144, N=32768, K=512 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.592346 ms, 348.037 TFlops, 747.028 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=512, N=32768, K=6144 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.578229 ms, 356.534 TFlops, 765.266 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=6144, K=32768 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.784873 ms, 262.665 TFlops, 563.784 GB/s, Grouped Gemm
+[Backward grad_B] M=6144, N=32768, K=512 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    2.28395 ms, 90.2638 TFlops, 193.743 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=512, N=32768, K=6144 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.860947 ms, 239.455 TFlops, 513.968 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=6144, K=32768 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    1.67525 ms, 123.061 TFlops, 264.139 GB/s, Grouped Gemm
+[Backward grad_B] M=6144, N=32768, K=512 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    1.86483 ms, 110.551 TFlops, 237.286 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=512, N=32768, K=6144 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.808581 ms, 254.963 TFlops, 547.254 GB/s, Grouped Gemm
+[Backward grad_A] M=512, N=6144, K=32768 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    1.15376 ms, 178.683 TFlops, 383.526 GB/s, Grouped Gemm
+[Backward grad_B] M=6144, N=32768, K=512 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    1.28922 ms, 159.91 TFlops, 343.231 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 26: Mixtral-8x22B-Down (TestID=174)
+  B=1, M=1024, N=6144, K=16384
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=1024, N=6144, K=16384 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.673418 ms, 306.137 TFlops, 367.475 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=16384, K=6144 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.404506 ms, 509.655 TFlops, 611.768 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=6144, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.532669 ms, 387.029 TFlops, 464.574 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=1024, N=6144, K=16384 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.499769 ms, 412.507 TFlops, 495.156 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=16384, K=6144 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.620375 ms, 332.313 TFlops, 398.894 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=6144, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    1.46564 ms, 140.661 TFlops, 168.844 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=1024, N=6144, K=16384 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.946842 ms, 217.733 TFlops, 261.357 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=16384, K=6144 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    1.47924 ms, 139.367 TFlops, 167.291 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=6144, K=1024 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:    1.72072 ms, 119.809 TFlops, 143.814 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=1024, N=6144, K=16384 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.947602 ms, 217.558 TFlops, 261.148 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=16384, K=6144 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    1.07768 ms, 191.298 TFlops, 229.626 GB/s, Grouped Gemm
+[Backward grad_B] M=16384, N=6144, K=1024 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    1.21224 ms, 170.063 TFlops, 204.137 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 27: DeepSeek-V2-Lite-Down (TestID=84)
+  B=8, M=1024, N=2048, K=1408
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.114581 ms, 412.324 TFlops, 896.833 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:   0.160726 ms, 293.945 TFlops, 639.35 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.174824 ms, 270.241 TFlops, 587.793 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.273879 ms, 172.502 TFlops, 375.204 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)
+Perf:   0.257405 ms, 183.542 TFlops, 399.217 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.370567 ms, 127.493 TFlops, 277.306 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.179421 ms, 263.317 TFlops, 572.734 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.374336 ms, 126.209 TFlops, 274.514 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.416213 ms, 113.511 TFlops, 246.894 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=1024, N=2048, K=1408 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.175582 ms, 269.075 TFlops, 585.257 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1408, K=2048 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.270401 ms, 174.721 TFlops, 380.03 GB/s, Grouped Gemm
+[Backward grad_B] M=1408, N=2048, K=1024 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    0.29459 ms, 160.374 TFlops, 348.825 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 28: DeepSeek-V2-Down (TestID=34)
+  B=5, M=1024, N=5120, K=1536
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=1024, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    0.20815 ms, 386.887 TFlops, 705.263 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.264883 ms, 304.023 TFlops, 554.209 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.208127 ms, 386.93 TFlops, 705.341 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=1024, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.409389 ms, 196.709 TFlops, 358.585 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.252129 ms, 319.402 TFlops, 582.244 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.526666 ms, 152.906 TFlops, 278.736 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=1024, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.324473 ms, 248.189 TFlops, 452.427 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.623007 ms, 129.261 TFlops, 235.632 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=1024 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.686076 ms, 117.379 TFlops, 213.972 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=1024, N=5120, K=1536 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.318784 ms, 252.618 TFlops, 460.502 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=1536, K=5120 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.441466 ms, 182.416 TFlops, 332.53 GB/s, Grouped Gemm
+[Backward grad_B] M=1536, N=5120, K=1024 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.487681 ms, 165.13 TFlops, 301.018 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 29: DeepSeek-V2-Lite-GateUP (TestID=65)
+  B=2, M=2048, N=2816, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=2048, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.124021 ms, 380.941 TFlops, 507.29 GB/s, Grouped Gemm
+[Backward grad_A] M=2048, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.152455 ms, 309.891 TFlops, 412.675 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=2048 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.150418 ms, 314.089 TFlops, 418.265 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=2048, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.274053 ms, 172.393 TFlops, 229.571 GB/s, Grouped Gemm
+[Backward grad_A] M=2048, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.172437 ms, 273.982 TFlops, 364.856 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=2048 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.300833 ms, 157.046 TFlops, 209.135 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=2048, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.176937 ms, 267.014 TFlops, 355.576 GB/s, Grouped Gemm
+[Backward grad_A] M=2048, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.359729 ms, 131.334 TFlops, 174.894 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=2048 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.410776 ms, 115.013 TFlops, 153.16 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=2048, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.173043 ms, 273.023 TFlops, 363.579 GB/s, Grouped Gemm
+[Backward grad_A] M=2048, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.249934 ms, 189.029 TFlops, 251.725 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=2048 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.293271 ms, 161.095 TFlops, 214.527 GB/s, Grouped Gemm
+
+========================================================================================================
+Rank 30: DeepSeek-V2-Lite-GateUP (TestID=83)
+  B=8, M=1024, N=2816, K=2048
+========================================================================================================
+
+--- Config: compute_v3 ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.265781 ms, 355.516 TFlops, 647.024 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.211309 ms, 447.161 TFlops, 813.815 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.278925 ms, 338.762 TFlops, 616.533 GB/s, Grouped Gemm
+
+--- Config: compute_v3_kbatch2 ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [compute_v3_kbatch2] Forward
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    0.46026 ms, 205.296 TFlops, 373.629 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [compute_v3_kbatch2] grad_A
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:    0.37162 ms, 254.263 TFlops, 462.749 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [compute_v3_kbatch2] grad_B
+[Config] Using 256x256 tile (N % 256 == 0)
+Perf:   0.654696 ms, 144.325 TFlops, 262.666 GB/s, Grouped Gemm
+
+--- Config: memory_interwave ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_interwave] Forward
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.380876 ms, 248.084 TFlops, 451.503 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_interwave] grad_A
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.715253 ms, 132.106 TFlops, 240.428 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [memory_interwave] grad_B
+[Config] Using 128x32 tile (Memory Interwave)
+Perf:   0.811792 ms, 116.396 TFlops, 211.836 GB/s, Grouped Gemm
+
+--- Config: memory_intrawave ---
+[Forward] M=1024, N=2816, K=2048 (a_layout=R, b_layout=C)
+  [memory_intrawave] Forward
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:    0.38888 ms, 242.978 TFlops, 442.21 GB/s, Grouped Gemm
+[Backward grad_A] M=1024, N=2048, K=2816 (a_layout=R, b_layout=R)
+  [memory_intrawave] grad_A
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.507363 ms, 186.236 TFlops, 338.942 GB/s, Grouped Gemm
+[Backward grad_B] M=2048, N=2816, K=1024 (a_layout=C, b_layout=R)
+  [memory_intrawave] grad_B
+[Config] Using 128x32 tile (Memory Intrawave)
+Perf:   0.575179 ms, 164.278 TFlops, 298.979 GB/s, Grouped Gemm
+
+========================================================================================================
+All tests completed!
+========================================================================================================

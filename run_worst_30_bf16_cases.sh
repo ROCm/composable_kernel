@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # BF16 表现最差的前 30 个 Case 测试脚本 (Forward + Backward)
-# 按平均 TFLOPS 从低到高排序
+# 测试三种 config: compute_v3, memory_interwave, memory_intrawave
 
 BINARY="./build/bin/tile_example_grouped_gemm"
 
@@ -12,8 +12,15 @@ if [ ! -f "$BINARY" ]; then
     exit 1
 fi
 
+# 可选参数: 指定要测试的 config (默认全部测试)
+# 用法: ./run_worst_30_bf16_cases.sh [config]
+#   config: compute_v3, compute_v3_32x128, compute_v3_128x128, memory_intrawave, all (默认)
+#   所有 config 都会测试 kbatch=1 和 kbatch=2
+TEST_CONFIG=${1:-all}
+
 echo "========================================================================================================"
 echo "Running BF16 Worst 30 Cases - Grouped GEMM Benchmark (Forward + Backward)"
+echo "Config: $TEST_CONFIG"
 echo "========================================================================================================"
 echo ""
 
@@ -32,7 +39,40 @@ repeat_param() {
     echo "$result"
 }
 
-# 运行单个测试 (Forward + Backward)
+# 运行单个 GEMM 测试
+# 用法: run_gemm config kbatch a_layout b_layout Ms Ns Ks strides B label
+run_gemm() {
+    local config=$1
+    local kbatch=$2
+    local a_layout=$3
+    local b_layout=$4
+    local Ms=$5
+    local Ns=$6
+    local Ks=$7
+    local strides=$8
+    local B=$9
+    local label=${10}
+    
+    local config_arg=""
+    local kbatch_arg="-kbatch=$kbatch"
+    
+    if [ "$config" = "compute_v3" ]; then
+        config_arg=""  # default
+    else
+        config_arg="-config=$config"
+    fi
+    
+    local config_name="$config"
+    if [ "$kbatch" = "2" ]; then
+        config_name="${config}_kb2"
+    fi
+    
+    echo "  [$config_name] $label"
+    $BINARY -Ms=$Ms -Ns=$Ns -Ks=$Ks -stride_As=$strides -stride_Bs=$strides -stride_Cs=$strides \
+        -group_count=$B -prec=bf16 -validate=0 -a_layout=$a_layout -b_layout=$b_layout $config_arg $kbatch_arg 2>&1 | grep -E "Config|Perf"
+}
+
+# 运行单个测试 (Forward + Backward) 对比三种 config
 # 用法: run_test rank testid case B M N K
 run_test() {
     local rank=$1
@@ -48,43 +88,48 @@ run_test() {
     echo "  B=$B, M=$M, N=$N, K=$K"
     echo "========================================================================================================"
     
-    # ==================== Forward ====================
-    # Forward: (M, K) @ (K, N) = (M, N)
     local fwd_Ms=$(repeat_param $M $B)
     local fwd_Ns=$(repeat_param $N $B)
     local fwd_Ks=$(repeat_param $K $B)
     local strides=$(repeat_param 0 $B)
     
-    echo ""
-    echo "[Forward] GEMM: M=$M, N=$N, K=$K"
-    echo "  Command: $BINARY -Ms=$fwd_Ms -Ns=$fwd_Ns -Ks=$fwd_Ks -stride_As=$strides -stride_Bs=$strides -stride_Cs=$strides -group_count=$B -prec=bf16 -validate=1"
-    $BINARY -Ms=$fwd_Ms -Ns=$fwd_Ns -Ks=$fwd_Ks -stride_As=$strides -stride_Bs=$strides -stride_Cs=$strides -group_count=$B -prec=bf16 -validate=1
-    
-    # ==================== Backward grad_A ====================
-    # grad_A = grad_Y @ W^T
-    # (M, N) @ (N, K) = (M, K)
-    # GEMM: M=M, N=K, K=N
     local bwd_a_Ms=$(repeat_param $M $B)
     local bwd_a_Ns=$(repeat_param $K $B)
     local bwd_a_Ks=$(repeat_param $N $B)
     
-    echo ""
-    echo "[Backward grad_A] GEMM: M=$M, N=$K, K=$N"
-    echo "  Command: $BINARY -Ms=$bwd_a_Ms -Ns=$bwd_a_Ns -Ks=$bwd_a_Ks -stride_As=$strides -stride_Bs=$strides -stride_Cs=$strides -group_count=$B -prec=bf16 -validate=1"
-    $BINARY -Ms=$bwd_a_Ms -Ns=$bwd_a_Ns -Ks=$bwd_a_Ks -stride_As=$strides -stride_Bs=$strides -stride_Cs=$strides -group_count=$B -prec=bf16 -validate=1
-    
-    # ==================== Backward grad_B ====================
-    # grad_B = X^T @ grad_Y
-    # (K, M) @ (M, N) = (K, N)
-    # GEMM: M=K, N=N, K=M
     local bwd_b_Ms=$(repeat_param $K $B)
     local bwd_b_Ns=$(repeat_param $N $B)
     local bwd_b_Ks=$(repeat_param $M $B)
     
-    echo ""
-    echo "[Backward grad_B] GEMM: M=$K, N=$N, K=$M"
-    echo "  Command: $BINARY -Ms=$bwd_b_Ms -Ns=$bwd_b_Ns -Ks=$bwd_b_Ks -stride_As=$strides -stride_Bs=$strides -stride_Cs=$strides -group_count=$B -prec=bf16 -validate=1"
-    $BINARY -Ms=$bwd_b_Ms -Ns=$bwd_b_Ns -Ks=$bwd_b_Ks -stride_As=$strides -stride_Bs=$strides -stride_Cs=$strides -group_count=$B -prec=bf16 -validate=1
+    # 确定要测试的 configs
+    local configs=""
+    if [ "$TEST_CONFIG" = "all" ]; then
+        configs="compute_v3 compute_v3_32x128 compute_v3_128x128 memory_intrawave"
+    else
+        configs="$TEST_CONFIG"
+    fi
+    
+    # 测试每个 config 的 kbatch=1 和 kbatch=2
+    for cfg in $configs; do
+        for kbatch in 1 2; do
+            local cfg_name="$cfg"
+            if [ "$kbatch" = "2" ]; then
+                cfg_name="${cfg}_kb2"
+            fi
+            
+            echo ""
+            echo "--- Config: $cfg_name ---"
+            
+            echo "[Forward] M=$M, N=$N, K=$K (a_layout=R, b_layout=C)"
+            run_gemm $cfg $kbatch R C "$fwd_Ms" "$fwd_Ns" "$fwd_Ks" "$strides" $B "Forward"
+            
+            echo "[Backward grad_A] M=$M, N=$K, K=$N (a_layout=R, b_layout=R)"
+            run_gemm $cfg $kbatch R R "$bwd_a_Ms" "$bwd_a_Ns" "$bwd_a_Ks" "$strides" $B "grad_A"
+            
+            echo "[Backward grad_B] M=$K, N=$N, K=$M (a_layout=C, b_layout=R)"
+            run_gemm $cfg $kbatch C R "$bwd_b_Ms" "$bwd_b_Ns" "$bwd_b_Ks" "$strides" $B "grad_B"
+        done
+    done
     
     echo ""
 }

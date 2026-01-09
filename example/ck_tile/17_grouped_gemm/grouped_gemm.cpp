@@ -263,7 +263,7 @@ int run_grouped_gemm_example(int argc, char* argv[])
     }
 }
 
-// Determine appropriate tile config based on N alignment
+// Determine appropriate tile config based on N alignment and config selection
 int run_grouped_gemm_example_with_n_check(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -276,11 +276,13 @@ int run_grouped_gemm_example_with_n_check(int argc, char* argv[])
     const std::string b_layout  = arg_parser.get_str("b_layout");
     const std::string data_type = arg_parser.get_str("prec");
     const int group_count       = arg_parser.get_int("group_count");
+    const std::string config    = arg_parser.get_str("config");
     std::vector<ck_tile::index_t> Ns = arg_parser.get_int_vec("Ns");
 
     // Check N alignment for all groups
     bool all_n_mod_256 = true;
     bool all_n_mod_128 = true;
+    bool all_n_mod_32  = true;
     
     if(Ns.size() == static_cast<size_t>(group_count))
     {
@@ -290,26 +292,69 @@ int run_grouped_gemm_example_with_n_check(int argc, char* argv[])
                 all_n_mod_256 = false;
             if(n % 128 != 0)
                 all_n_mod_128 = false;
+            if(n % 32 != 0)
+                all_n_mod_32 = false;
         }
     }
 
     if(data_type == "bf16")
     {
-        if(all_n_mod_256)
+        // Allow manual config selection via -config parameter
+        if(config == "memory_interwave")
         {
-            std::cout << "[Config] Using 256x256 tile (N % 256 == 0)" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigComputeV3_2<ck_tile::bf16_t>, ck_tile::bf16_t>(
+            if(!all_n_mod_32)
+                throw std::runtime_error("N must be multiple of 32 for memory_interwave config");
+            std::cout << "[Config] Using 128x32 tile (Memory Interwave)" << std::endl;
+            return run_gemm_example_prec_type<GemmConfigMemoryInterwave<ck_tile::bf16_t>, ck_tile::bf16_t>(
                 a_layout, b_layout, argc, argv);
         }
-        else if(all_n_mod_128)
+        else if(config == "memory_intrawave")
         {
-            std::cout << "[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigComputeV3_256x128<ck_tile::bf16_t>, ck_tile::bf16_t>(
+            if(!all_n_mod_32)
+                throw std::runtime_error("N must be multiple of 32 for memory_intrawave config");
+            std::cout << "[Config] Using 128x32 tile (Memory Intrawave)" << std::endl;
+            return run_gemm_example_prec_type<GemmConfigMemoryIntrawave<ck_tile::bf16_t>, ck_tile::bf16_t>(
                 a_layout, b_layout, argc, argv);
+        }
+        else if(config == "compute_v3_32x128")
+        {
+            if(!all_n_mod_128)
+                throw std::runtime_error("N must be multiple of 128 for compute_v3_32x128 config");
+            std::cout << "[Config] Using 32x128 tile (Compute V3)" << std::endl;
+            return run_gemm_example_prec_type<GemmConfigComputeV3_32x128<ck_tile::bf16_t>, ck_tile::bf16_t>(
+                a_layout, b_layout, argc, argv);
+        }
+        else if(config == "compute_v3_128x128")
+        {
+            if(!all_n_mod_128)
+                throw std::runtime_error("N must be multiple of 128 for compute_v3_128x128 config");
+            std::cout << "[Config] Using 128x128 tile (Compute V3, kBlockPerCu=2)" << std::endl;
+            return run_gemm_example_prec_type<GemmConfigComputeV3_128x128<ck_tile::bf16_t>, ck_tile::bf16_t>(
+                a_layout, b_layout, argc, argv);
+        }
+        else if(config == "compute_v3" || config == "")
+        {
+            // Default: auto-select based on N alignment
+            if(all_n_mod_256)
+            {
+                std::cout << "[Config] Using 256x256 tile (N % 256 == 0)" << std::endl;
+                return run_gemm_example_prec_type<GemmConfigComputeV3_2<ck_tile::bf16_t>, ck_tile::bf16_t>(
+                    a_layout, b_layout, argc, argv);
+            }
+            else if(all_n_mod_128)
+            {
+                std::cout << "[Config] Using 256x128 tile (N % 128 == 0, N % 256 != 0)" << std::endl;
+                return run_gemm_example_prec_type<GemmConfigComputeV3_256x128<ck_tile::bf16_t>, ck_tile::bf16_t>(
+                    a_layout, b_layout, argc, argv);
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported N alignment for compute_v3 config.");
+            }
         }
         else
         {
-            throw std::runtime_error("Unsupported error.");
+            throw std::runtime_error("Unknown config: " + config + ". Use: compute_v3, compute_v3_32x128, compute_v3_128x128, memory_interwave, memory_intrawave");
         }
     }
     else
