@@ -50,7 +50,7 @@ class TestGroupedConvndFwd : public ::testing::Test
                                                                                   DataType,
                                                                                   IndexType,
                                                                                   false /*BiasGK*/>(
-                               true,  // do_verification
+                               2,     // do_verification: GPU reference
                                1,     // init_method: integer value
                                false, // do_log
                                false, // time_kernel
