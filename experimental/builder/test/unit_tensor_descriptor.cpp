@@ -6,11 +6,13 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <array>
+#include <sstream>
 #include <vector>
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
 
+using ck_tile::test::StringEqWithDiff;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::Throws;
@@ -76,7 +78,7 @@ TEST(TensorDescriptor, MakeDescriptor)
 
         // Note: automatic inference of RANK.
         const auto desc =
-            ckt::make_descriptor<ckb::DataType::INT32>(lengths, ckt::PackedRightLayout{});
+            ckt::make_descriptor<ckb::DataType::I32>(lengths, ckt::PackedRightLayout{});
 
         EXPECT_THAT(desc.get_lengths(), ElementsAreArray(lengths));
         EXPECT_THAT(desc.get_strides(),
@@ -169,4 +171,40 @@ TEST(TensorDescriptor, ExtentFromVector)
 
     EXPECT_THAT([] { return ckt::Extent<5>::from_vector(std::vector<size_t>{1, 2}); },
                 Throws<std::runtime_error>());
+}
+
+TEST(TensorDescriptor, IsPacked)
+{
+    constexpr auto dt = ckb::DataType::I32; // Irrelevant for this test
+    EXPECT_TRUE(
+        ckt::make_descriptor<dt>(ckt::Extent{101, 43, 25, 662, 654}, ckt::PackedLeftLayout{})
+            .is_packed());
+    EXPECT_TRUE(
+        ckt::make_descriptor<dt>(ckt::Extent{5334, 235, 1563, 256, 23}, ckt::PackedRightLayout{})
+            .is_packed());
+    EXPECT_TRUE(ckt::make_descriptor<dt>(ckt::Extent{}, ckt::Extent{}).is_packed());
+    EXPECT_TRUE(
+        ckt::make_descriptor<dt>(ckt::Extent{461, 345, 5, 93}, ckt::Extent{160425, 5, 1, 1725})
+            .is_packed());
+    EXPECT_FALSE(
+        ckt::make_descriptor<dt>(ckt::Extent{10, 11, 12}, ckt::Extent{1, 100, 1100}).is_packed());
+    EXPECT_FALSE(
+        ckt::make_descriptor<dt>(ckt::Extent{30, 20, 10}, ckt::Extent{1, 1, 1}).is_packed());
+}
+
+TEST(TensorDescriptor, PrintExtent)
+{
+    {
+        const ckt::Extent extent{6233, 55, 1235, 52, 203};
+        std::stringstream ss;
+        ss << extent;
+        EXPECT_THAT(ss.str(), StringEqWithDiff("[6233, 55, 1235, 52, 203]"));
+    }
+
+    {
+        const ckt::Extent extent{};
+        std::stringstream ss;
+        ss << extent;
+        EXPECT_THAT(ss.str(), StringEqWithDiff("[]"));
+    }
 }

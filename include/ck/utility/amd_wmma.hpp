@@ -10,7 +10,8 @@
 namespace ck {
 
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
-    defined(__gfx1103__) || defined(__gfx11_generic__)
+    defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
+    defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
 

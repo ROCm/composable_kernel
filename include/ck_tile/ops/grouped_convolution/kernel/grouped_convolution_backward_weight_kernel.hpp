@@ -829,66 +829,14 @@ struct GroupedConvolutionBackwardWeightKernel
         }
         else
         {
-            auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
-                c_ptr, kargs, block_idx_m, block_idx_n);
+            if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                           is_any_of<WeiDataType, fp16_t, bf16_t>::value))
+            {
+                auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
+                    c_ptr, kargs, block_idx_m, block_idx_n);
 
-            EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-    }
-
-    /**
-     * @brief Runs single GEMM problem cooperatively by whole workgroup.
-     *
-     * @note RunGEMM2LDS in with two shared memory buffers using the ping pong buffer mechanism.
-     *
-     * @param a_ptr input A pointer
-     * @param b_ptr input B pointer
-     * @param c_ptr output C pointer
-     * @param smem_ptr_0 The starting pointer of 1st shared memory block.
-     * @param smem_ptr_1 The starting pointer of 2nd shared memory block.
-     * @param kargs Grouped Convolution Backward Weight kernel arguments
-     * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
-     * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
-     *
-     */
-    CK_TILE_DEVICE static void RunGemm2LDS(const OutDataType* a_ptr,
-                                           const InDataType* b_ptr,
-                                           const std::array<const void*, NumDTensor>& ds_ptr,
-                                           WeiDataType* c_ptr,
-                                           void* __restrict__ smem_ptr_0,
-                                           void* __restrict__ smem_ptr_1,
-                                           const GroupedConvBwdWeightKernelArgsSpecialized& kargs,
-                                           const index_t num_loop,
-                                           const index_t block_idx_m,
-                                           const index_t block_idx_n,
-                                           const index_t block_idx_k)
-    {
-        // Create block windows using helper methods
-        const auto& a_block_window = MakeABlockWindow(a_ptr, kargs, block_idx_m, block_idx_k);
-        const auto& b_block_window = MakeBBlockWindow(b_ptr, kargs, block_idx_n, block_idx_k);
-        const auto& d_block_window = MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
-
-        // Run GEMM cooperatively by whole workgroup.
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
-
-        // Run Epilogue Pipeline with k_batch dispatching
-        if(kargs.k_batch == 1)
-        {
-            auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
-                c_ptr, kargs, block_idx_m, block_idx_n);
-
-            EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-        else
-        {
-#if defined(__gfx11__)
-            return;
-#endif
-            auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
-                c_ptr, kargs, block_idx_m, block_idx_n);
-
-            EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+                EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+            }
         }
     }
 
@@ -949,44 +897,9 @@ struct GroupedConvolutionBackwardWeightKernel
             const InDataType* b_ptr = static_cast<const InDataType*>(kargs.in_ptr) + group_offset_b;
             WeiDataType* c_ptr      = static_cast<WeiDataType*>(kargs.wei_ptr) + group_offset_c;
 
-            __shared__ char smem_ptr_0[GetSmemSize()];
+            __shared__ char smem_ptr[GetSmemSize()];
 
-            if constexpr(GemmPipeline::DoubleSmemBuffer == true)
-            {
-                __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
-                if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                               is_any_of<WeiDataType, fp16_t, bf16_t>::value))
-                {
-                    RunGemm2LDS(a_ptr,
-                                b_ptr,
-                                kargs.ds_ptr,
-                                c_ptr,
-                                smem_ptr_0,
-                                smem_ptr_1,
-                                kargs,
-                                num_loop,
-                                i_m,
-                                i_n,
-                                i_k);
-                }
-            }
-            else
-            {
-                if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                               is_any_of<WeiDataType, fp16_t, bf16_t>::value))
-                {
-                    RunGemm(a_ptr,
-                            b_ptr,
-                            kargs.ds_ptr,
-                            c_ptr,
-                            smem_ptr_0,
-                            kargs,
-                            num_loop,
-                            i_m,
-                            i_n,
-                            i_k);
-                }
-            }
+            RunGemm(a_ptr, b_ptr, kargs.ds_ptr, c_ptr, smem_ptr, kargs, num_loop, i_m, i_n, i_k);
         }
     }
 };

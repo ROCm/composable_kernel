@@ -7,7 +7,9 @@
 #include <array>
 #include <vector>
 #include <sstream>
+#include <iosfwd>
 #include <concepts>
+#include <algorithm>
 #include <hip/hip_runtime.h>
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/testing/type_traits.hpp"
@@ -121,6 +123,33 @@ struct Extent : std::array<size_t, RANK>
 // correct type. This definition is practically the same as that of `std::array`.
 template <typename... T>
 Extent(T...) -> Extent<sizeof...(T)>;
+
+/// @brief Extent printer
+///
+/// This function implements an ostream printing overload for `Extent`, so that
+/// they can be printed in the usual `stream << extent` fashion.
+///
+/// @tparam RANK Rank (number of spatial dimensions) of the extent.
+///
+/// @param stream The stream to print the extent to.
+/// @param extent The extent to print to the stream.
+template <size_t RANK>
+std::ostream& operator<<(std::ostream& stream, const Extent<RANK>& extent)
+{
+    stream << '[';
+    bool first = true;
+    for(const auto x : extent)
+    {
+        if(first)
+            first = false;
+        else
+            stream << ", ";
+
+        stream << x;
+    }
+
+    return stream << ']';
+}
 
 /// @brief Concept for automatically deriving tensor memory layout.
 ///
@@ -367,6 +396,35 @@ struct TensorDescriptor
         // type. When we are going to support packed types such as i4 and fp6, this
         // is going to become more complicated.
         return get_element_space_size() * data_type_sizeof(DT);
+    }
+
+    /// @brief Check if a tensor is packed in memory.
+    ///
+    /// This function checks whether the tensor memory is "packed", that is, whether
+    /// all elements are continuous in memory with no gaps.
+    bool is_packed() const
+    {
+        // First sort by stride, then check if they match the scan of the
+        // sizes.
+        const auto& lengths = inner_descriptor_.get_lengths();
+        const auto& strides = inner_descriptor_.get_strides();
+
+        std::array<size_t, RANK> indices;
+        std::iota(indices.begin(), indices.end(), 0);
+        std::sort(indices.begin(), indices.end(), [&](auto i, auto j) {
+            return strides[i] < strides[j];
+        });
+
+        size_t x = 1;
+        for(size_t i = 0; i < RANK; ++i)
+        {
+            if(strides[indices[i]] != x)
+                return false;
+
+            x *= lengths[indices[i]];
+        }
+
+        return true;
     }
 
     /// @brief Get a tensor descriptor for the space backing a tensor.
