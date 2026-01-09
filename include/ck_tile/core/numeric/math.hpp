@@ -195,22 +195,12 @@ CK_TILE_HOST_DEVICE constexpr index_t max(index_t x, number<Y>)
     return x > Y ? x : Y;
 }
 
-#if defined(_WIN32) || defined(_WIN64)
-template <typename X, typename... Ys>
-CK_TILE_HOST_DEVICE constexpr typename std::common_type<X, Ys...>::type max(X x, Ys... ys)
-{
-    static_assert(sizeof...(Ys) > 0, "not enough argument");
-    using CommonType = typename std::common_type<X, Ys...>::type;
-    return max(static_cast<CommonType>(x), max(static_cast<CommonType>(ys)...));
-}
-#else
 template <typename X, typename... Ys>
 CK_TILE_HOST_DEVICE constexpr auto max(X x, Ys... ys)
 {
     static_assert(sizeof...(Ys) > 0, "not enough argument");
     return max(x, max(ys...));
 }
-#endif
 
 template <typename T>
 CK_TILE_HOST_DEVICE constexpr T min(T x)
@@ -254,22 +244,12 @@ CK_TILE_HOST_DEVICE constexpr index_t min(index_t x, number<Y>)
     return x < Y ? x : Y;
 }
 
-#if defined(_WIN32) || defined(_WIN64)
-template <typename X, typename... Ys>
-CK_TILE_HOST_DEVICE constexpr typename std::common_type<X, Ys...>::type min(X x, Ys... ys)
-{
-    static_assert(sizeof...(Ys) > 0, "not enough argument");
-    using CommonType = typename std::common_type<X, Ys...>::type;
-    return min(static_cast<CommonType>(x), min(static_cast<CommonType>(ys)...));
-}
-#else
 template <typename X, typename... Ys>
 CK_TILE_HOST_DEVICE constexpr auto min(X x, Ys... ys)
 {
     static_assert(sizeof...(Ys) > 0, "not enough argument");
     return min(x, min(ys...));
 }
-#endif
 
 template <typename T>
 CK_TILE_HOST_DEVICE constexpr T clamp(const T& x, const T& lowerbound, const T& upperbound)
