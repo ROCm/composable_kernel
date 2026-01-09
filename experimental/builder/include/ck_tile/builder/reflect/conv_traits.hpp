@@ -42,6 +42,8 @@ struct ConvTraits
 
     OutputTileTransferInfo c_tile_transfer;
 
+    int num_gemm_prefetch_stage = 0;
+
     builder::PipelineVersion pipeline_version;
     builder::PipelineScheduler pipeline_scheduler;
 };

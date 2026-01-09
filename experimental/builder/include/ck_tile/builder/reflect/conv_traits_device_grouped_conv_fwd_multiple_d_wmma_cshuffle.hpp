@@ -63,21 +63,22 @@ constexpr ConvTraits instance_to_conv_traits()
                                  .dst_scalar_per_vector_k1 =
                                      InstTraits::kBBlockTransferDstScalarPerVectorK1,
                                  .lds_padding = static_cast<bool>(InstTraits::kBBlockLdsExtraN)}},
-        .warp_gemm          = {.gemm_m = InstTraits::kMPerWmma,
-                               .gemm_n = InstTraits::kNPerWmma,
-                               .m_iter = InstTraits::kMRepeat,
-                               .n_iter = InstTraits::kNRepeat},
-        .c_tile_transfer    = {.shuffle_params      = {.m_gemms_per_shuffle =
-                                                           InstTraits::kCShuffleMRepeatPerShuffle,
-                                                       .n_gemms_per_shuffle =
-                                                           InstTraits::kCShuffleNRepeatPerShuffle},
-                               .thread_cluster_dims = {InstTraits::kCThreadClusterLengths[0],
-                                                       InstTraits::kCThreadClusterLengths[1],
-                                                       InstTraits::kCThreadClusterLengths[2],
-                                                       InstTraits::kCThreadClusterLengths[3]},
-                               .scalar_per_vector   = InstTraits::kCBlockTransferScalarPerVector},
-        .pipeline_version   = get_pipeline_version<InstTraits>(),
-        .pipeline_scheduler = get_pipeline_scheduler<InstTraits>(),
+        .warp_gemm               = {.gemm_m = InstTraits::kMPerWmma,
+                                    .gemm_n = InstTraits::kNPerWmma,
+                                    .m_iter = InstTraits::kMRepeat,
+                                    .n_iter = InstTraits::kNRepeat},
+        .c_tile_transfer         = {.shuffle_params      = {.m_gemms_per_shuffle =
+                                                                InstTraits::kCShuffleMRepeatPerShuffle,
+                                                            .n_gemms_per_shuffle =
+                                                                InstTraits::kCShuffleNRepeatPerShuffle},
+                                    .thread_cluster_dims = {InstTraits::kCThreadClusterLengths[0],
+                                                            InstTraits::kCThreadClusterLengths[1],
+                                                            InstTraits::kCThreadClusterLengths[2],
+                                                            InstTraits::kCThreadClusterLengths[3]},
+                                    .scalar_per_vector   = InstTraits::kCBlockTransferScalarPerVector},
+        .num_gemm_prefetch_stage = InstTraits::kNumGemmPrefetchStage,
+        .pipeline_version        = get_pipeline_version<InstTraits>(),
+        .pipeline_scheduler      = get_pipeline_scheduler<InstTraits>(),
     };
 }
 
