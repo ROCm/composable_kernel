@@ -55,7 +55,7 @@ using KernelTypes = ::testing::Types<
     ck::Tuple<     Row, Col, Row, BF16, I8, BF16>,
 #endif
 
-#if defined(CK_USE_OCP_FP8) || defined(CK_USE_FNUZ_FP8) || defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_WMMA_FP8)
+#if CK_USE_OCP_FP8 || CK_USE_FNUZ_FP8 || defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_WMMA_FP8)
     // FP8 instances. Unfortunately CK_ENABLE_FP8 is always defined when not explicitly disabled, even if FP8 is 
     // not supported for any included architecture.
     ck::Tuple<     Row, Row, Row, F8, F16, F16>,
