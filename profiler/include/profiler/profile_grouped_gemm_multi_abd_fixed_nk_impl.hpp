@@ -15,8 +15,8 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm_multi_abd.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_gemm_multi_abd_fixed_nk.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_gemm_multi_abd.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
@@ -25,7 +25,6 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/utility/fill.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
 namespace profiler {
@@ -47,12 +46,12 @@ template <typename AsDataType,
           typename BsLayout,
           typename DsLayout,
           typename ELayout,
-          typename AElementOp = ck::tensor_operation::element_wise::PassThrough,
-          typename BElementOp = ck::tensor_operation::element_wise::Multiply,
+          typename AElementOp   = ck::tensor_operation::element_wise::PassThrough,
+          typename BElementOp   = ck::tensor_operation::element_wise::Multiply,
           typename CDEElementOp = ck::tensor_operation::element_wise::PassThrough>
-bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
+bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
                                                   int init_method,
-                                                  bool /*do_log*/,
+                                                  bool do_log,
                                                   bool time_kernel,
                                                   const std::vector<int>& Ms,
                                                   const std::vector<int>& Ns,
@@ -60,10 +59,10 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
                                                   const std::vector<int>& StrideAs,
                                                   const std::vector<int>& StrideBs,
                                                   const std::vector<int>& StrideDs,
-                                                  int StrideE,
-                                                  int kbatch   = 1,
-                                                  int n_warmup = 1,
-                                                  int n_iter   = 10)
+                                                  const std::vector<int>& StrideE,
+                                                  const std::vector<int>& kbatch_list = {1},
+                                                  int n_warmup                        = 1,
+                                                  int n_iter                          = 10)
 {
     bool pass = true;
 
@@ -83,14 +82,15 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
 
     std::size_t group_count = Ms.size();
 
-    if(!(group_count == Ns.size() && group_count == Ks.size() && group_count == StrideAs.size() &&
-         group_count == StrideBs.size() && group_count == StrideDs.size()))
-    {
-        throw std::runtime_error("wrong! inconsistent M/N/Ks, StrideA/B/Cs size\n");
-    }
     static constexpr index_t NumATensor = AsDataType::Size();
     static constexpr index_t NumBTensor = BsDataType::Size();
     static constexpr index_t NumDTensor = DsDataType::Size();
+
+    if(group_count != Ns.size() || group_count != Ks.size() || group_count != StrideAs.size() ||
+       group_count != StrideBs.size() || (NumDTensor > 0 && group_count != StrideDs.size()))
+    {
+        throw std::runtime_error("wrong! inconsistent M/N/Ks, StrideAs/Bs/Ds/E size\n");
+    }
 
     auto generateInputTupleA = [&](std::size_t g) {
         if constexpr(NumATensor == 0)
@@ -99,7 +99,7 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
         }
         else
         {
-            using ALayout   = remove_cvref_t<tuple_element_t<Number<0>{}, AsLayout>>;
+            using ALayout = remove_cvref_t<tuple_element_t<Number<0>{}, AsLayout>>;
             return generate_tuple(
                 [&](auto i) {
                     using ADataType = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
@@ -116,7 +116,7 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
         }
         else
         {
-            using BLayout   = remove_cvref_t<tuple_element_t<Number<0>{}, BsLayout>>;
+            using BLayout = remove_cvref_t<tuple_element_t<Number<0>{}, BsLayout>>;
             return generate_tuple(
                 [&](auto i) {
                     using BDataType = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
@@ -133,7 +133,7 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
         }
         else
         {
-            using DLayout   = remove_cvref_t<tuple_element_t<Number<0>{}, DsLayout>>;
+            using DLayout = remove_cvref_t<tuple_element_t<Number<0>{}, DsLayout>>;
             return generate_tuple(
                 [&](auto i) {
                     using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
@@ -144,14 +144,14 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
         }
     };
 
-    using InputTupleA = decltype(generateInputTupleA(0));
-    using InputTupleB = decltype(generateInputTupleB(0));
-    using InputTupleD = decltype(generateInputTupleD(0));
+    using AsTensorTuple = decltype(generateInputTupleA(0));
+    using BsTensorTuple = decltype(generateInputTupleB(0));
+    using DsTensorTuple = decltype(generateInputTupleD(0));
 
-    auto g_as_m_k = reserveVector<InputTupleA>(group_count);
-    auto g_bs_k_n = reserveVector<InputTupleB>(group_count);
-    auto g_ds_m_n = reserveVector<InputTupleD>(group_count);
-    auto g_e_m_n_host_results = reserveVector<Tensor<EDataType>>(group_count);
+    auto g_as_m_k               = reserveVector<AsTensorTuple>(group_count);
+    auto g_bs_k_n               = reserveVector<BsTensorTuple>(group_count);
+    auto g_ds_m_n               = reserveVector<DsTensorTuple>(group_count);
+    auto g_e_m_n_host_results   = reserveVector<Tensor<EDataType>>(group_count);
     auto g_e_m_n_device_results = reserveVector<Tensor<EDataType>>(group_count);
     // int sum_of_m = 0;
 
@@ -159,30 +159,30 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
     {
         // sum_of_m += Ms[g];
 
-        auto as_m_k = g_as_m_k.emplace_back(generateInputTupleA(g));
-        auto bs_k_n = g_bs_k_n.emplace_back(generateInputTupleB(g));
-        auto ds_m_n = g_ds_m_n.emplace_back(generateInputTupleD(g));
+        auto& as_m_k = g_as_m_k.emplace_back(generateInputTupleA(g));
+        auto& bs_k_n = g_bs_k_n.emplace_back(generateInputTupleB(g));
+        auto& ds_m_n = g_ds_m_n.emplace_back(generateInputTupleD(g));
 
         g_e_m_n_host_results.push_back(
-            Tensor<EDataType>(f_host_tensor_descriptor(Ms[g], Ns[g], StrideE, ELayout{})));
+            Tensor<EDataType>(f_host_tensor_descriptor(Ms[g], Ns[g], StrideE[g], ELayout{})));
         g_e_m_n_device_results.push_back(
-            Tensor<EDataType>(f_host_tensor_descriptor(Ms[g], Ns[g], StrideE, ELayout{})));
+            Tensor<EDataType>(f_host_tensor_descriptor(Ms[g], Ns[g], StrideE[g], ELayout{})));
 
-        // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-        // {
-        //     std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n["
-        //               << i << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
-        //               << "]:" << c_m_n_device_results[i].mDesc << std::endl;
-        // }
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            std::cout << "group: " << g << std::endl;
+            static_for<0, NumATensor, 1>{}([&](auto i) {
+                std::cout << "a" << i.value << "_m_k: " << as_m_k(i).mDesc << std::endl;
+            });
+            static_for<0, NumBTensor, 1>{}([&](auto i) {
+                std::cout << "b" << i.value << "_k_n: " << bs_k_n(i).mDesc << std::endl;
+            });
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                std::cout << "d" << i.value << "_m_n: " << ds_m_n(i).mDesc << std::endl;
+            });
+            std::cout << "e_m_n: " << g_e_m_n_device_results[g].mDesc << std::endl;
+        }
 
-        // static_for<0, NumATensor, 1>{}(
-        //     [&](auto i) { std::cout << "a" << i.value << "_m_k: " << as_m_k(i).mDesc << std::endl; });
-        // static_for<0, NumBTensor, 1>{}(
-        //     [&](auto i) { std::cout << "b" << i.value << "_k_n: " << bs_k_n(i).mDesc << std::endl; });
-        // static_for<0, NumDTensor, 1>{}(
-        //     [&](auto i) { std::cout << "d" << i.value << "_m_n: " << ds_m_n(i).mDesc << std::endl; });
-        // std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
-        
         std::size_t num_thread = 1;
         switch(init_method)
         {
@@ -235,12 +235,13 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
     std::vector<std::array<const void*, NumATensor>> g_as_device_view(group_count);
     std::vector<std::array<const void*, NumBTensor>> g_bs_device_view(group_count);
     std::vector<std::array<const void*, NumDTensor>> g_ds_device_view(group_count);
-    std::vector<void *> g_e_device_view(group_count);
+    std::vector<void*> g_e_device_view(group_count);
 
-    auto gemm_descs = reserveVector<tensor_operation::device::GemmMultiABDDesc>(group_count);
+    auto g_gemm_descs = reserveVector<tensor_operation::device::GemmMultiABDDesc>(group_count);
 
     auto grouped_gemm_kernel_args_host =
-        reserveVector<tensor_operation::device::GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>>(
+        reserveVector<tensor_operation::device::
+                          GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>>(
             group_count);
 
     for(std::size_t g = 0; g < group_count; g++)
@@ -280,34 +281,42 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
         auto& ds_device_view = g_ds_device_view[g];
 
         static_for<0, NumDTensor, 1>{}([&](auto i) {
-            using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-            return std::make_unique<DeviceMem>(sizeof(DDataType) *
-                                               ds_m_n(i).mDesc.GetElementSpaceSize());
+            using DDataType  = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+            ds_device_buf[i] = std::make_unique<DeviceMem>(sizeof(DDataType) *
+                                                           ds_m_n(i).mDesc.GetElementSpaceSize());
             ds_device_buf[i]->ToDevice(ds_m_n[i].mData.data());
             ds_device_view[i] = ds_device_buf[i]->GetDeviceBuffer();
             ds_stride[i]      = StrideDs[g];
         });
 
-        gemm_descs.push_back(tensor_operation::device::GemmMultiABDDesc{
+        g_e_device_buf[g] = std::make_unique<DeviceMem>(
+            sizeof(EDataType) * g_e_m_n_host_results[g].mDesc.GetElementSpaceSize());
+        g_e_device_view[g] = g_e_device_buf[g]->GetDeviceBuffer();
+
+        g_gemm_descs.push_back(tensor_operation::device::GemmMultiABDDesc{
             Ms[g],
             Ns[g],
             Ks[g],
             std::vector<ck::index_t>(as_stride.begin(), as_stride.end()),
-            std::vector<ck::index_t>(bs_stride.begin(), as_stride.end()),
-            std::vector<ck::index_t>(ds_stride.begin(), as_stride.end()),
-            StrideE});
+            std::vector<ck::index_t>(bs_stride.begin(), bs_stride.end()),
+            std::vector<ck::index_t>(ds_stride.begin(), ds_stride.end()),
+            StrideE[g]});
 
-        grouped_gemm_kernel_args_host.push_back({as_device_view,
-                                             bs_device_view,
-                                             ds_device_view,
-                                             g_e_device_buf[g]->GetDeviceBuffer(),
-                                             Ms[g],
-                                             Ns[g],
-                                             Ks[g],
-                                             std::move(as_stride),
-                                             std::move(bs_stride),
-                                             std::move(ds_stride),
-                                             StrideE});
+        tensor_operation::device::
+            GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>
+                tmp{as_device_view,
+                    bs_device_view,
+                    ds_device_view,
+                    g_e_device_view[g],
+                    Ms[g],
+                    Ns[g],
+                    Ks[g],
+                    as_stride,
+                    bs_stride,
+                    ds_stride,
+                    StrideE[g]};
+
+        grouped_gemm_kernel_args_host.push_back(std::move(tmp));
     }
 
     using DeviceOp = tensor_operation::device::DeviceGroupedGemmMultiABDFixedNK<AsLayout,
@@ -336,46 +345,58 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
     float best_gb_per_sec = 0;
     float best_kbatch     = 0;
 
-    auto p_ds = std::vector<std::array<const void*, 0>>{};
+    if(do_verification)
+    {
+        using AComputeType =
+            typename std::conditional<(NumATensor > 1),
+                                      EDataType,
+                                      remove_cvref_t<tuple_element_t<0, AsDataType>>>::type;
 
-    // if(do_verification)
-    // {
-    //     for(std::size_t i = 0; i < gemm_descs.size(); i++)
-    //     {
-    //         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-    //                                                                                 BDataType,
-    //                                                                                 CDataType,
-    //                                                                                 AccDataType,
-    //                                                                                 AElementOp,
-    //                                                                                 BElementOp,
-    //                                                                                 CElementOp>;
+        using BComputeType =
+            typename std::conditional<(NumBTensor > 1),
+                                      EDataType,
+                                      remove_cvref_t<tuple_element_t<0, BsDataType>>>::type;
 
-    //         auto ref_gemm    = ReferenceGemmInstance{};
-    //         auto ref_invoker = ref_gemm.MakeInvoker();
+        for(std::size_t i = 0; i < group_count; i++)
+        {
+            using ReferenceGemmInstance =
+                ck::tensor_operation::host::ReferenceGemmMultiABD<AsTensorTuple,
+                                                                  BsTensorTuple,
+                                                                  DsTensorTuple,
+                                                                  EDataType,
+                                                                  AccDataType,
+                                                                  AElementOp,
+                                                                  BElementOp,
+                                                                  CDEElementOp,
+                                                                  AComputeType,
+                                                                  BComputeType>;
 
-    //         auto ref_argument = ref_gemm.MakeArgument(a_m_k[i],
-    //                                                   b_k_n[i],
-    //                                                   c_m_n_host_results[i],
-    //                                                   a_element_op,
-    //                                                   b_element_op,
-    //                                                   c_element_op);
+            auto ref_gemm    = ReferenceGemmInstance{};
+            auto ref_invoker = ref_gemm.MakeInvoker();
 
-    //         ref_invoker.Run(ref_argument);
-    //     }
-    // }
+            auto ref_argument = ref_gemm.MakeArgument(g_as_m_k[i],
+                                                      g_bs_k_n[i],
+                                                      g_ds_m_n[i],
+                                                      g_e_m_n_host_results[i],
+                                                      a_element_op,
+                                                      b_element_op,
+                                                      c_element_op);
+
+            ref_invoker.Run(ref_argument);
+        }
+    }
 
     // profile device GEMM instances
     for(auto& gemm_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            gemm_ptr->MakeArgumentPointer(g_as_device_view,
-                                          g_bs_device_view,
-                                          g_ds_device_view,
-                                          g_e_device_view,
-                                          gemm_descs,
-                                          a_element_op,
-                                          b_element_op,
-                                          c_element_op);
+        auto argument_ptr = gemm_ptr->MakeArgumentPointer(g_as_device_view,
+                                                          g_bs_device_view,
+                                                          g_ds_device_view,
+                                                          g_e_device_view,
+                                                          g_gemm_descs,
+                                                          a_element_op,
+                                                          b_element_op,
+                                                          c_element_op);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
@@ -396,103 +417,103 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int /*do_verification*/,
 
         std::string gemm_name = gemm_ptr->GetTypeString();
 
-        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 20, 24, 32, 48, 64};
-
-        if(kbatch > 0)
+        for(const auto kbatch_curr : kbatch_list)
         {
-            kbatch_list = {kbatch};
-        }
-
-        for(std::size_t j = 0; j < kbatch_list.size(); j++)
-        {
-
-            auto kbatch_curr = kbatch_list[j];
-
             gemm_ptr->SetKBatch(argument_ptr.get(), kbatch_curr);
 
             if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                // for(std::size_t i = 0; i < gemm_descs.size(); i++)
-                //     c_device_buf[i]->SetZero();
+                for(std::size_t g = 0; g < group_count; g++)
+                {
+                    g_e_device_buf[g]->SetZero();
+                }
 
                 invoker_ptr->Run(argument_ptr.get(),
                                  StreamConfig{nullptr, false, 0, n_warmup, n_iter});
 
-                // if(do_verification)
-                // {
-                //     bool instance_pass = true;
-                //     for(std::size_t i = 0; i < gemm_descs.size(); i++)
-                //     {
+                if(do_verification)
+                {
+                    bool instance_pass = true;
+                    for(std::size_t g = 0; g < group_count; g++)
+                    {
+                        g_e_device_buf[g]->FromDevice(g_e_m_n_device_results[g].mData.data());
 
-                //         c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
+                        instance_pass =
+                            instance_pass && ck::utils::check_err(g_e_m_n_device_results[g],
+                                                                  g_e_m_n_host_results[g]);
 
-                //         if(std::is_same_v<CDataType, ck::half_t> && kbatch_curr > 1)
-                //         {
-                //             instance_pass =
-                //                 instance_pass && ck::utils::check_err(c_m_n_device_results[i],
-                //                                                       c_m_n_host_results[i],
-                //                                                       "Error: Incorrect results!",
-                //                                                       0.06);
-                //         }
-                //         else
-                //         {
-                //             instance_pass =
-                //                 instance_pass && ck::utils::check_err(c_m_n_device_results[i],
-                //                                                       c_m_n_host_results[i]);
-                //         }
+                        if(do_log)
+                        {
+                            static_for<0, NumATensor, 1>{}([&](auto i) {
+                                LogRangeAsType<float>(
+                                    std::cout << "a[" << g << "] : ", g_as_m_k[g](i).mData, ",")
+                                    << std::endl;
+                            });
+                            static_for<0, NumBTensor, 1>{}([&](auto i) {
+                                LogRangeAsType<float>(
+                                    std::cout << "b[" << g << "]: ", g_bs_k_n[g](i).mData, ",")
+                                    << std::endl;
+                            });
+                            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                                LogRangeAsType<float>(
+                                    std::cout << "d[" << g << "]: ", g_ds_m_n[g](i).mData, ",")
+                                    << std::endl;
+                            });
+                            LogRangeAsType<float>(
+                                std::cout << "c_device: ", g_e_m_n_device_results[g].mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(
+                                std::cout << "c_host  : ", g_e_m_n_host_results[g].mData, ",")
+                                << std::endl;
+                        }
+                    }
 
-                //         if(do_log)
-                //         {
-                //             LogRangeAsType<float>(std::cout << "a : ", a_m_k[i].mData, ",")
-                //                 << std::endl;
-                //             LogRangeAsType<float>(std::cout << "b: ", b_k_n[i].mData, ",")
-                //                 << std::endl;
-                //             LogRangeAsType<float>(
-                //                 std::cout << "c_device: ", c_m_n_device_results[i].mData, ",")
-                //                 << std::endl;
-                //             LogRangeAsType<float>(
-                //                 std::cout << "c_host  : ", c_m_n_host_results[i].mData, ",")
-                //                 << std::endl;
-                //         }
-                //     }
+                    std::cout << "Instance: " << gemm_name << " verification "
+                              << (instance_pass ? "SUCCEED" : "FAILED") << std::endl;
 
-                //     std::cout << "Instance: " << gemm_name << " verification "
-                //               << (instance_pass ? "SUCCEED" : "FAILED") << std::endl;
+                    pass = pass && instance_pass;
+                }
 
-                //     pass = pass && instance_pass;
-                // }
-
-                /*float ave_time =*/ invoker_ptr->Run(
+                float ave_time = invoker_ptr->Run(
                     argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
 
-                // if(time_kernel)
-                // {
-                //     std::size_t flop = 0, num_btype = 0;
-                //     for(std::size_t i = 0; i < gemm_descs.size(); i++)
-                //     {
-                //         flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
+                if(time_kernel)
+                {
+                    std::size_t flop = 0, num_btype = 0;
+                    for(std::size_t g = 0; g < group_count; g++)
+                    {
+                        flop += std::size_t(2) * Ms[g] * Ns[g] * Ks[g];
 
-                //         num_btype += sizeof(ADataType) * Ms[i] * Ks[i] +
-                //                      sizeof(BDataType) * Ks[i] * Ns[i] +
-                //                      sizeof(CDataType) * Ms[i] * Ns[i];
-                //     }
+                        static_for<0, NumATensor, 1>{}([&](auto i) {
+                            using ADataType = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
+                            num_btype += sizeof(ADataType) * Ms[g] * Ks[g];
+                        });
+                        static_for<0, NumBTensor, 1>{}([&](auto i) {
+                            using BDataType = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
+                            num_btype += sizeof(BDataType) * Ks[g] * Ns[g];
+                        });
+                        static_for<0, NumDTensor, 1>{}([&](auto i) {
+                            using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                            num_btype += sizeof(DDataType) * Ms[g] * Ns[g];
+                        });
+                    }
 
-                //     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+                    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-                //     float gb_per_sec = num_btype / 1.E6 / ave_time;
-                //     std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
-                //               << " TFlops, " << gb_per_sec << " GB/s, " << gemm_name << ", KBatch "
-                //               << kbatch_curr << std::endl;
+                    float gb_per_sec = num_btype / 1.E6 / ave_time;
+                    std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
+                              << " TFlops, " << gb_per_sec << " GB/s, " << gemm_name << ", KBatch "
+                              << kbatch_curr << std::endl;
 
-                //     if(tflops > best_tflops)
-                //     {
-                //         best_gemm_name  = gemm_name;
-                //         best_tflops     = tflops;
-                //         best_ave_time   = ave_time;
-                //         best_gb_per_sec = gb_per_sec;
-                //         best_kbatch     = kbatch_curr;
-                //     }
-                // }
+                    if(tflops > best_tflops)
+                    {
+                        best_gemm_name  = gemm_name;
+                        best_tflops     = tflops;
+                        best_ave_time   = ave_time;
+                        best_gb_per_sec = gb_per_sec;
+                        best_kbatch     = kbatch_curr;
+                    }
+                }
             }
             else
             {
