@@ -99,8 +99,8 @@ void bquant_quantgrouped_fp8_instance_factory(
 //     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 // void bquant_quantgrouped_bf16fp4_instance_factory(
 //     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-// void bquant_quantgrouped_preshuffleb_instance_factory(
-//     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshuffleb_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_preshufflequant_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 // void bquant_quantgrouped_preshuffleb_preshufflequant_instance_factory(
@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
     // bquant_quantgrouped_fp8i4_instance_factory(lut);
     // bquant_quantgrouped_bf8i4_instance_factory(lut);
     // bquant_quantgrouped_bf16fp4_instance_factory(lut);
-    // bquant_quantgrouped_preshuffleb_instance_factory(lut);
+    bquant_quantgrouped_preshuffleb_instance_factory(lut);
     bquant_quantgrouped_preshufflequant_instance_factory(lut);
     // bquant_quantgrouped_preshuffleb_preshufflequant_instance_factory(lut);
     // quant_rowcol_instance_factory(lut);

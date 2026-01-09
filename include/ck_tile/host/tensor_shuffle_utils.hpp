@@ -154,9 +154,14 @@ template <typename GemmConfig, typename T>
 auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmConfig)
 {
     assert(t.get_lengths().size() == 2);
-    int n_      = t.get_lengths()[1];
-    int k_      = t.get_lengths()[0];
+    int n_ = t.get_lengths()[1];
+    int k_ = t.get_lengths()[0];
+    printf("KxN: %dx%d\n", k_, n_);
     int NRepeat = gemmConfig.N_Tile / gemmConfig.N_Warp_Tile / gemmConfig.N_Warp;
+    printf("gemmConfig.N_tile: %d, gemmConfig.N_warp_tile: %d, gemmConfig.N_Warp: %d \n",
+           gemmConfig.N_Tile,
+           gemmConfig.N_Warp_Tile,
+           gemmConfig.N_Warp);
     if(ck_tile::is_gfx12_supported())
     {
         constexpr int divisor      = 2;
@@ -193,6 +198,40 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmC
                                        divisor,
                                        gemmConfig.K_Warp_Tile / divisor});
         std::copy(t.begin(), t.end(), t_view.begin());
+        printf("I am inside shuffle_bq PermuteN\n");
+        printf("t_view.get_lengths(): %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
+               t_view.get_lengths()[0],
+               t_view.get_lengths()[1],
+               t_view.get_lengths()[2],
+               t_view.get_lengths()[3],
+               t_view.get_lengths()[4],
+               t_view.get_lengths()[5],
+               t_view.get_lengths()[6]);
+        // for(int i = 0; i < static_cast<int>(t_view.get_lengths()[0]); i++)
+        // {
+        //     for(int j = 0; j < static_cast<int>(t_view.get_lengths()[1]); j++)
+        //     {
+        //         for(int k = 0; k < static_cast<int>(t_view.get_lengths()[2]); k++)
+        //         {
+        //             for(int l = 0; l < static_cast<int>(t_view.get_lengths()[3]); l++)
+        //             {
+        //                 for(int m = 0; m < static_cast<int>(t_view.get_lengths()[4]); m++)
+        //                 {
+        //                     for(int n = 0; n < static_cast<int>(t_view.get_lengths()[5]); n++)
+        //                     {
+        //                         for(int p = 0; p < static_cast<int>(t_view.get_lengths()[6]);
+        //                         p++)
+        //                         {
+        //                             printf("t_view[%d][%d][%d][%d][%d][%d][%d]: %d\n", i, j, k,
+        //                             l, m, n, p, static_cast<int>(t_view(i, j, k,l, m, n, p)));
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+        printf("I am inside shuffle_bq\n");
         return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 5, 2, 6});
     }
 }
