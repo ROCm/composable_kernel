@@ -26,7 +26,7 @@ TEST(FwdConvInstances,
                                              .output = {.config = {.layout = NHWGK}}};
 
     constexpr auto FwdConvAlgorithm =
-        ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
+        ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle_V3{}
             .with_thread_block(ThreadBlock_256_256x256x32)
             .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
             .with_transfer(Transfer_4x64x1)
@@ -63,7 +63,7 @@ TEST(FwdConvInstances,
                                              .output = {.config = {.layout = NHWGK}}};
 
     constexpr auto FwdConvAlgorithm =
-        ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
+        ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle_V3{}
             .with_thread_block(ThreadBlock_256_256x256x32)
             .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
             .with_transfer(Transfer_4x64x1)

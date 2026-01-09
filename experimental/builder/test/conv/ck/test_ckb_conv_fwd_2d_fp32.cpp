@@ -25,7 +25,7 @@ TEST(FwdConvInstances,
                                              .output = {.config = {.layout = NGKHW}}};
 
     constexpr auto FwdConvAlgorithm =
-        ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
+        ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle_V3{}
             .with_thread_block(ThreadBlock_256_128x128x32)
             .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
             .with_transfer(Transfer_4x64x1)

@@ -31,7 +31,7 @@ TEST(FwdConvInstances,
                              .with_auxiliary_operand_configs<NHWGK, G_K_strided>()}};
 
     constexpr auto FwdConvAlgorithm =
-        ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle{}
+        ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle{}
             .with_thread_block(ThreadBlock_64_64x32x32)
             .with_gemm_config(FwdGemmParams_Xdl_2x1_per_wave)
             .with_transfer(Transfer_4x16x1)

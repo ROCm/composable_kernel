@@ -400,6 +400,14 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
+    constexpr auto with_gemm_pipeline(const PipelineScheduler sch) const
+    {
+        static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
+        auto result             = *this;
+        result.gemm_pipeline.scheduler = sch;
+        return result;
+    }
+
     constexpr auto with_gemm_pipeline(const PipelineVersion plv, const PipelineScheduler sch) const
     {
         static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
@@ -496,7 +504,7 @@ using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle =
                           GemmPipeline_,
                           AlgorithmSpecialization_<>>;
 
-using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
+using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle_V3 =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WarpGemm_,
                           InputOutputTileTransfer_<>,

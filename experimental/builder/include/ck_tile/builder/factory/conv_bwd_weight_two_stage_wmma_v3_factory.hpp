@@ -106,7 +106,7 @@ struct ConvBwdWeightTwoStageWmmaV3Factory
             C_BLOCK_TRANSFER.scalar_per_vector,
             BLOCK_GEMM.scheduler,
             BLOCK_GEMM.pipeline_version,
-            ALGORITHM.num_conv_groups_to_merge,
+            ALGORITHM.gemm_pipeline.num_gemm_k_prefetch_stages,
             typename Types::OutComputeType,
             typename Types::InComputeType,
             ALGORITHM.max_transpose_transfer_src_scalar_per_vector,

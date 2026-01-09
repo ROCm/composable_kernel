@@ -73,7 +73,7 @@ struct ConvFwdLargeTensorFactory
             typename Ops::CDEElementwiseOp,
             SPECIALIZATION.conv_spec,
             SPECIALIZATION.gemm_spec,
-            ALGORITHM.num_gemm_k_prefetch_stages,
+            ALGORITHM.gemm_pipeline.num_gemm_k_prefetch_stages,
             BLOCK.block_size,
             BLOCK.per_block.m,
             BLOCK.per_block.n,

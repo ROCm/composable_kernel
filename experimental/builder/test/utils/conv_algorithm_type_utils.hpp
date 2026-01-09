@@ -324,6 +324,16 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuf
 }
 
 template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle_V3>(
+    ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle_V3 t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+    return oss.str();
+}
+
+template <>
 inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>(
     ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK t)
 {

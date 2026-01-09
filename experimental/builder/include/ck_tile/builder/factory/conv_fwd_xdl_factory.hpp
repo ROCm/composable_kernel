@@ -73,7 +73,7 @@ struct ConvFwdXdlFactory
         typename Ops::CDEElementwiseOp,
         SPECIALIZATION.conv_spec,
         SPECIALIZATION.gemm_spec,
-        ALGORITHM.num_gemm_k_prefetch_stages,
+        ALGORITHM.gemm_pipeline.num_gemm_k_prefetch_stages,
         BLOCK.block_size,
         BLOCK.per_block.m,
         BLOCK.per_block.n,
@@ -105,7 +105,7 @@ struct ConvFwdXdlFactory
         typename Types::AComputeType,
         typename Types::BComputeType,
         LOOP_SCHEDULER,
-        ALGORITHM.num_conv_groups_to_merge>;
+        ALGORITHM.gemm_pipeline.num_conv_groups_to_merge>;
 };
 
 } // namespace ck_tile::builder::factory

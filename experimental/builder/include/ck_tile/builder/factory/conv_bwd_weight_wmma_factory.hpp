@@ -106,7 +106,7 @@ struct ConvBwdWeightWmmaFactory
         C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
         C_BLOCK_TRANSFER.scalar_per_vector,
-        ALGORITHM.num_gemm_k_prefetch_stages,
+        ALGORITHM.gemm_pipeline.num_gemm_k_prefetch_stages,
         LOOP_SCHEDULER,
         GRIDWISE_GEMM_PIPELINE_VERSION>;
 };
