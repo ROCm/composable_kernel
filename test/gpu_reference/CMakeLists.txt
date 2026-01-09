@@ -12,3 +12,6 @@ target_link_libraries(test_gpu_reference_conv_bwd_data PRIVATE utility)
 
 add_gtest_executable(test_gpu_reference_conv_bwd_weight test_gpu_reference_conv_bwd_weight.cpp)
 target_link_libraries(test_gpu_reference_conv_bwd_weight PRIVATE utility)
+
+add_gtest_executable(test_gpu_batchnorm_clamp test_gpu_batchnorm_clamp.cpp)
+target_link_libraries(test_gpu_batchnorm_clamp PRIVATE utility)

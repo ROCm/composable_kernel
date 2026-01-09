@@ -860,5 +860,116 @@ inline void naive_conv_fwd(const TIn* p_in,
                                                                       stream);
 }
 
+// Batch normalization + clamp kernel (to be run after convolution for bias_bnorm tests)
+template <typename DataType>
+__global__ void naive_batchnorm_clamp_infer_kernel(DataType* __restrict__ p_out,
+                                                   const DataType* __restrict__ p_in,
+                                                   const DataType* __restrict__ p_mean,
+                                                   const DataType* __restrict__ p_variance,
+                                                   const DataType* __restrict__ p_scale,
+                                                   const DataType* __restrict__ p_shift,
+                                                   const index_t* __restrict__ param_strides,
+                                                   const index_t* __restrict__ tensor_strides,
+                                                   const index_t* __restrict__ lengths,
+                                                   int num_dims,
+                                                   long_index_t total_elements,
+                                                   float epsilon,
+                                                   float floor,
+                                                   float ceil)
+{
+    const long_index_t tid         = blockIdx.x * blockDim.x + threadIdx.x;
+    const long_index_t num_threads = blockDim.x * gridDim.x;
+
+    for(long_index_t idx = tid; idx < total_elements; idx += num_threads)
+    {
+        // Extract dimensions from linear index
+        long_index_t remaining  = idx;
+        long_index_t param_idx  = 0;
+        long_index_t tensor_idx = 0;
+
+        // Extract coordinates and compute indices
+        for(int dim = num_dims - 1; dim >= 0; --dim)
+        {
+            index_t coord = remaining % lengths[dim];
+            remaining /= lengths[dim];
+            param_idx += coord * param_strides[dim];
+            tensor_idx += coord * tensor_strides[dim];
+        }
+
+        // Batch normalization + clamp
+        const float x = type_convert<float>(p_in[tensor_idx]);
+        const float inv_variance =
+            1.0f / std::sqrt(epsilon + type_convert<float>(p_variance[param_idx]));
+        const float norm_x = (x - type_convert<float>(p_mean[param_idx])) * inv_variance;
+        float y            = type_convert<float>(p_scale[param_idx]) * norm_x +
+                  type_convert<float>(p_shift[param_idx]);
+
+        // Clamp
+        y = y > floor ? (y < ceil ? y : ceil) : floor;
+
+        p_out[tensor_idx] = type_convert<DataType>(y);
+    }
+}
+
+// Wrapper for batch normalization + clamp on GPU
+template <typename DataType>
+void naive_batchnorm_clamp_infer_gpu(DataType* p_out,
+                                     const DataType* p_in,
+                                     const DataType* p_mean,
+                                     const DataType* p_variance,
+                                     const DataType* p_scale,
+                                     const DataType* p_shift,
+                                     const std::vector<index_t>& tensor_lengths,
+                                     const std::vector<index_t>& param_strides,
+                                     const std::vector<index_t>& tensor_strides,
+                                     long_index_t total_elements,
+                                     float epsilon,
+                                     float floor,
+                                     float ceil,
+                                     hipStream_t stream = nullptr)
+{
+    // Copy strides and lengths to device
+    SimpleDeviceMem param_strides_buf(param_strides.size() * sizeof(index_t));
+    SimpleDeviceMem tensor_strides_buf(tensor_strides.size() * sizeof(index_t));
+    SimpleDeviceMem lengths_buf(tensor_lengths.size() * sizeof(index_t));
+
+    index_t* d_param_strides  = static_cast<index_t*>(param_strides_buf.GetDeviceBuffer());
+    index_t* d_tensor_strides = static_cast<index_t*>(tensor_strides_buf.GetDeviceBuffer());
+    index_t* d_lengths        = static_cast<index_t*>(lengths_buf.GetDeviceBuffer());
+
+    HIP_CHECK_ERROR(hipMemcpy(d_param_strides,
+                              param_strides.data(),
+                              param_strides.size() * sizeof(index_t),
+                              hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(d_tensor_strides,
+                              tensor_strides.data(),
+                              tensor_strides.size() * sizeof(index_t),
+                              hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(d_lengths,
+                              tensor_lengths.data(),
+                              tensor_lengths.size() * sizeof(index_t),
+                              hipMemcpyHostToDevice));
+
+    constexpr int block_size = 256;
+    const int grid_size      = (total_elements + block_size - 1) / block_size;
+
+    naive_batchnorm_clamp_infer_kernel<<<grid_size, block_size, 0, stream>>>(p_out,
+                                                                             p_in,
+                                                                             p_mean,
+                                                                             p_variance,
+                                                                             p_scale,
+                                                                             p_shift,
+                                                                             d_param_strides,
+                                                                             d_tensor_strides,
+                                                                             d_lengths,
+                                                                             tensor_lengths.size(),
+                                                                             total_elements,
+                                                                             epsilon,
+                                                                             floor,
+                                                                             ceil);
+
+    HIP_CHECK_ERROR(hipGetLastError());
+}
+
 } // namespace ref
 } // namespace ck
