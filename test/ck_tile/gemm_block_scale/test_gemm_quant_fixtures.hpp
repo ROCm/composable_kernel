@@ -894,10 +894,10 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                                                      CodegenGemmTraits,
                                                                      ComputeDataType>;
 
-        using BaseGemmPipeline =
-            std::conditional_t<PreshuffleB == false,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+        using BaseGemmPipeline = std::conditional_t<
+            PreshuffleB == true,
+            ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
+            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
 
         const ck_tile::index_t K_split  = (args.K + Base::K_Tile - 1) / Base::K_Tile * Base::K_Tile;
         const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
@@ -926,8 +926,8 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                                     tail_number_v>;
 
             using GemmPipeline =
-                std::conditional_t<PreshuffleB == false,
-                                   ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                std::conditional_t<PreshuffleB == true,
+                                   ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<

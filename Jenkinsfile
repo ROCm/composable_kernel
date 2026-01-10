@@ -1046,7 +1046,7 @@ def run_aiter_tests(Map conf=[:]){
                 sh "rocminfo"
                 sh "python3 --version"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
-                //sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py" //temporarily disable
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
@@ -1469,8 +1469,8 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 test_grouped_convnd_fwd_large_cases test_grouped_convnd_bwd_data_xdl_large_cases test_grouped_convnd_fwd_bias_clamp_large_cases && \
-                                           ./bin/test_grouped_convnd_fwd_large_cases && ./bin/test_grouped_convnd_bwd_data_xdl_large_cases && ./bin/test_grouped_convnd_fwd_bias_clamp_large_cases"""
+                                           make -j64 test_grouped_convnd_fwd_large_cases test_grouped_convnd_bwd_data_large_cases test_grouped_convnd_fwd_bias_clamp_large_cases && \
+                                           ./bin/test_grouped_convnd_fwd_large_cases && ./bin/test_grouped_convnd_bwd_data_large_cases && ./bin/test_grouped_convnd_fwd_bias_clamp_large_cases"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
