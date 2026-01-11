@@ -6,12 +6,14 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "../utils/ckb_conv_tile_test_configs.hpp"
-#include "../utils/ckb_conv_test_utils.hpp"
-#include "../utils/conv_algorithm_type_utils.hpp"
-#include "ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
+#include "../../experimental/builder/test/utils/ckb_conv_tile_test_configs.hpp"
+#include "../../experimental/builder/test/utils/ckb_conv_test_utils.hpp"
+#include "../../experimental/builder/test/utils/conv_algorithm_type_utils.hpp"
+#include "../../experimental/builder/include/ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
 #include "ck_tile/host/device_prop.hpp"
-#include "grouped_convolution_forward_tile_algs.hpp"
+#include "profiler/grouped_convolution_forward_tile_algs.hpp"
+
+#include "profiler_operation_registry.hpp"
 
 namespace {
 
@@ -85,29 +87,34 @@ namespace cku = ck_tile::builder::test_utils;
 namespace ckp = ck_tile::builder::profiling;
 
 template <auto SIGNATURE>
-int profile(const ckt::Args<SIGNATURE>& args, bool time_kernel)
+int call_profiler(const ckt::Args<SIGNATURE>& args, bool time_kernel)
 {
     auto inputs  = alloc_inputs(args);
     auto outputs = alloc_outputs(args);
+    ckt::init_inputs(args, inputs.get());
 
     std::cout << args.make_input_descriptor() << std::endl;
     std::cout << args.make_weight_descriptor() << std::endl;
     std::cout << args.make_output_descriptor() << std::endl;
     float avg_time;
     std::string op_name;
-    std::tie(avg_time, op_name) = ckp::run_grouped_conv_forward_tile_algs(
+    bool valid;
+    std::tie(valid, avg_time, op_name) = ckp::run_grouped_conv_forward_tile_algs(
         args, inputs.get(), outputs.get(), ck_tile::stream_config{nullptr, time_kernel});
     if(time_kernel)
     {
         std::cout << "Best configuration parameters:" << "\nname: " << op_name
                   << "\navg_time: " << avg_time << std::endl;
     }
-    return 0;
+    return !valid;
 }
+
+#define OP_NAME "grouped_conv_fwd_tile"
+#define OP_DESC "Grouped Convolution Forward (CK Tile)"
 
 } // namespace
 
-int main(int argc, char* argv[])
+int profile_grouped_conv_fwd_tile(int argc, char* argv[])
 {
     // 8 for control, 1 for num_dim_spatial
     if(argc < 10)
@@ -116,17 +123,14 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    const auto data_type  = static_cast<ConvDataType>(std::stoi(argv[2]));
-    const auto layout     = static_cast<ConvLayout>(std::stoi(argv[3]));
-    const auto index_type = static_cast<IndexType>(std::stoi(argv[4]));
-    // TODO: Add support
+    const auto data_type                        = static_cast<ConvDataType>(std::stoi(argv[2]));
+    const auto layout                           = static_cast<ConvLayout>(std::stoi(argv[3]));
+    const auto index_type                       = static_cast<IndexType>(std::stoi(argv[4]));
     [[maybe_unused]] const bool do_verification = std::stoi(argv[5]);
-    // TODO: Add support
-    [[maybe_unused]] const int init_method = std::stoi(argv[6]);
-    // TODO: Add support
-    [[maybe_unused]] const bool do_log = std::stoi(argv[7]);
-    const bool time_kernel             = std::stoi(argv[8]);
-    const int num_dim_spatial          = std::stoi(argv[9]);
+    [[maybe_unused]] const int init_method      = std::stoi(argv[6]);
+    [[maybe_unused]] const bool do_log          = std::stoi(argv[7]);
+    const bool time_kernel                      = std::stoi(argv[8]);
+    const int num_dim_spatial                   = std::stoi(argv[9]);
 
     // 9 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
     if(argc != 9 + 1 + 4 + 6 * num_dim_spatial)
@@ -134,6 +138,8 @@ int main(int argc, char* argv[])
         print_helper_msg();
         return 1;
     }
+
+    const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 10, argv);
 
     if(index_type == IndexType::LONG_INDEX_T)
     {
@@ -155,7 +161,8 @@ int main(int argc, char* argv[])
                                        .input  = {.config = {.layout = ckb::TensorLayout::NHWGC}},
                                        .weight = {.config = {.layout = ckb::TensorLayout::GKYXC}},
                                        .output = {.config = {.layout = ckb::TensorLayout::NHWGK}}};
-                return profile<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv), time_kernel);
+                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                                                time_kernel);
             }
             else if(data_type == ConvDataType::F16_F16_F16)
             {
@@ -167,7 +174,8 @@ int main(int argc, char* argv[])
                                        .input  = {.config = {.layout = ckb::TensorLayout::NHWGC}},
                                        .weight = {.config = {.layout = ckb::TensorLayout::GKYXC}},
                                        .output = {.config = {.layout = ckb::TensorLayout::NHWGK}}};
-                return profile<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv), time_kernel);
+                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                                                time_kernel);
             }
             else if(data_type == ConvDataType::BF16_BF16_BF16)
             {
@@ -179,7 +187,8 @@ int main(int argc, char* argv[])
                                        .input  = {.config = {.layout = ckb::TensorLayout::NHWGC}},
                                        .weight = {.config = {.layout = ckb::TensorLayout::GKYXC}},
                                        .output = {.config = {.layout = ckb::TensorLayout::NHWGK}}};
-                return profile<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv), time_kernel);
+                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                                                time_kernel);
             }
         }
         else if(num_dim_spatial == 3)
@@ -194,7 +203,8 @@ int main(int argc, char* argv[])
                                        .input  = {.config = {.layout = ckb::TensorLayout::NDHWGC}},
                                        .weight = {.config = {.layout = ckb::TensorLayout::GKZYXC}},
                                        .output = {.config = {.layout = ckb::TensorLayout::NDHWGK}}};
-                return profile<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv), time_kernel);
+                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                                                time_kernel);
             }
             else if(data_type == ConvDataType::F16_F16_F16)
             {
@@ -206,7 +216,8 @@ int main(int argc, char* argv[])
                                        .input  = {.config = {.layout = ckb::TensorLayout::NDHWGC}},
                                        .weight = {.config = {.layout = ckb::TensorLayout::GKZYXC}},
                                        .output = {.config = {.layout = ckb::TensorLayout::NDHWGK}}};
-                return profile<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv), time_kernel);
+                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                                                time_kernel);
             }
             else if(data_type == ConvDataType::BF16_BF16_BF16)
             {
@@ -218,7 +229,8 @@ int main(int argc, char* argv[])
                                        .input  = {.config = {.layout = ckb::TensorLayout::NDHWGC}},
                                        .weight = {.config = {.layout = ckb::TensorLayout::GKZYXC}},
                                        .output = {.config = {.layout = ckb::TensorLayout::NDHWGK}}};
-                return profile<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv), time_kernel);
+                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                                                time_kernel);
             }
         }
     }
@@ -227,3 +239,5 @@ int main(int argc, char* argv[])
 
     return 1;
 }
+
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_grouped_conv_fwd_tile);

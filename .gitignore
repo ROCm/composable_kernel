@@ -92,6 +92,6 @@ test_data/*
 # The experimental/builder directory should be tracked despite matching build*
 !experimental/builder
 !experimental/builder/**
-experimental/builder/test/profiling/src/*
-!experimental/builder/test/profiling/src/*.inc
-experimental/builder/test/profiling/*.inc
+experimental/builder/src/instances/*
+!experimental/builder/src/instances/*.inc
+experimental/builder/src/*.inc

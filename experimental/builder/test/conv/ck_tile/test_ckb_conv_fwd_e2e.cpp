@@ -5,7 +5,9 @@
 #include "utils/ckb_conv_test_utils.hpp"
 #include "utils/conv_algorithm_type_utils.hpp"
 #include "ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
+#include "ck_tile/builder/testing/conv_fwd_reference.hpp"
 #include "ck_tile/host/device_prop.hpp"
+#include "testing_utils.hpp"
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
@@ -67,8 +69,10 @@ TEST(Fwd2DFp16_CShufV3_NHWGC, EndToEnd)
         .cde_elementwise_op = {},
     };
 
-    auto inputs  = alloc_inputs(args);
-    auto outputs = alloc_outputs(args);
+    auto inputs    = alloc_inputs(args);
+    auto outputs   = alloc_outputs(args);
+    auto reference = alloc_outputs(args);
+    ckt::init_inputs(args, inputs.get());
 
     auto conv = Instance{};
     ckt::run(conv, args, inputs.get(), outputs.get());
@@ -76,5 +80,5 @@ TEST(Fwd2DFp16_CShufV3_NHWGC, EndToEnd)
     auto ref_conv = Reference{};
     ckt::run(ref_conv, args, inputs.get(), reference.get());
 
-    EXPECT_THAT(outputs.get(), MatchesReference(args, reference.get()));
+    EXPECT_THAT(outputs.get(), ck_tile::test::MatchesReference(args, reference.get()));
 }

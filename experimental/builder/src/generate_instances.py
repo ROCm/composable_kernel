@@ -1,6 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
+import argparse
 from pathlib import Path
 
 
@@ -87,17 +88,21 @@ def get_dtype(problem_name):
         raise RuntimeError("wrong dtype")
 
 
-def generate_calls_inc(instances, problem_name, direction):
-    with open(
-        f"../experimental/builder/test/profiling/{problem_name}_calls.inc", "w"
-    ) as f:
+def generate_calls_inc(instances, problem_name, direction, filter_pattern):
+    generate_dir = Path(__file__).resolve().parent
+    with open(f"{generate_dir}/{problem_name}_calls.inc", "w") as f:
+        if problem_name.find(filter_pattern) == -1:
+            return
         for instance in instances:
             instance_name = problem_name + "_" + str(instance.id)
             f.write(f"run_alg(run_{instance_name});\n")
 
 
-def generate_defs_inc(instances, problem_name, signature, direction):
-    with open(f"../experimental/builder/test/profiling/{problem_name}.inc", "w") as f:
+def generate_defs_inc(instances, problem_name, signature, direction, filter_pattern):
+    generate_dir = Path(__file__).resolve().parent
+    with open(f"{generate_dir}/{problem_name}.inc", "w") as f:
+        if problem_name.find(filter_pattern) == -1:
+            return
         for instance in instances:
             instance_name = problem_name + "_" + str(instance.id)
             f.write(
@@ -109,13 +114,16 @@ def generate_defs_inc(instances, problem_name, signature, direction):
             )
 
 
-def generate_fwd_cpp(instances, problem_name, config, direction):
+def generate_fwd_cpp(instances, problem_name, config, direction, filter_pattern):
     for instance in instances:
+        if problem_name.find(filter_pattern) == -1:
+            break
         instance_name = problem_name + "_" + str(instance.id)
-        directory_path = Path(f"../experimental/builder/test/profiling/src/{config}")
+        generate_dir = Path(__file__).resolve().parent
+        directory_path = Path(f"{generate_dir}/instances/{config}")
         directory_path.mkdir(parents=True, exist_ok=True)
         with open(
-            f"../experimental/builder/test/profiling/src/{config}/{instance_name}.cpp",
+            f"{generate_dir}/instances/{config}/{instance_name}.cpp",
             "w",
         ) as f:
             f.write(
@@ -212,14 +220,18 @@ def parse_fwd_instances(instances, problem_name):
     return convs
 
 
-def generate_instances_fwd(instances, problem_name, config):
+def generate_instances_fwd(instances, problem_name, config, filter_pattern):
     direction = "forward"
     instances = parse_fwd_instances(instances, problem_name)
-    generate_calls_inc(instances, problem_name, direction)
+    generate_calls_inc(instances, problem_name, direction, filter_pattern)
     generate_defs_inc(
-        instances, problem_name, f"SIGNATURE_{config.upper()}_FWD", direction
+        instances,
+        problem_name,
+        f"SIGNATURE_{config.upper()}_FWD",
+        direction,
+        filter_pattern,
     )
-    generate_fwd_cpp(instances, problem_name, config, direction)
+    generate_fwd_cpp(instances, problem_name, config, direction, filter_pattern)
 
 
 if __name__ == "__main__":
@@ -232,10 +244,22 @@ if __name__ == "__main__":
         "ndhwgc_bf16",
     ]
 
+    parser = argparse.ArgumentParser(
+        description="Generate grouped conv CK Tile instances."
+    )
+    parser.add_argument(
+        "--filter_pattern",
+        type=str,
+        default="convolution",
+        help="Filter pattern for configs.",
+    )
+    args = parser.parse_args()
+
     for config in fwd_configs:
         instances = []
-        config_path = f"../experimental/builder/test/profiling/configs/{config}.conf"
+        generate_dir = Path(__file__).resolve().parent
+        config_path = f"{generate_dir}/configs/{config}.conf"
         with open(config_path, "r") as file:
             instances = file.readlines()
         problem_name = f"grouped_convolution_forward_tile_{config}"
-        generate_instances_fwd(instances, problem_name, config)
+        generate_instances_fwd(instances, problem_name, config, args.filter_pattern)

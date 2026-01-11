@@ -275,8 +275,6 @@ add_custom_target(check-builder
     COMMENT "Running all experimental builder tests..."
 )
 
-add_subdirectory(profiling)
-
 ################################################################################
 # Build Summary
 ################################################################################
