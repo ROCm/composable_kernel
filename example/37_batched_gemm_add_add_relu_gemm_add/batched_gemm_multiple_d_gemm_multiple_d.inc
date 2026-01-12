@@ -291,7 +291,7 @@ int run_example(int argc, char* argv[])
                                                              PassThrough>;
 
         using ReferenceGemm1Instance =
-            ck::tensor_operation::host::ReferenceBatchedGemm<AccDataType,
+            ck::tensor_operation::host::ReferenceBatchedGemm<A0DataType,
                                                              B1DataType,
                                                              AccDataType,
                                                              AccDataType,
@@ -301,7 +301,7 @@ int run_example(int argc, char* argv[])
 
         // Output of Gemm0 is input A of Gemm1
         Tensor<AccDataType> c0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
-        Tensor<AccDataType> e0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
+        Tensor<A0DataType> e0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
         Tensor<AccDataType> c1_g_m_o(f_host_tensor_descriptor(BatchCount, M, O, O, M * O, Row{}));
 
         auto ref_gemm0          = ReferenceGemm0Instance{};
@@ -312,8 +312,12 @@ int run_example(int argc, char* argv[])
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         // bias+bias+relu
+        // Note that we also convert from AccDataType to A0DataType to match what the device
+        // operation does
         e0_g_m_n.ForEach([&](auto&, auto idx) {
-            cde0_element_op(e0_g_m_n(idx), c0_g_m_n(idx), d00_g_m_n(idx), d01_g_m_n(idx));
+            AccDataType out;
+            cde0_element_op(out, c0_g_m_n(idx), d00_g_m_n(idx), d01_g_m_n(idx));
+            e0_g_m_n(idx) = ck::type_convert<A0DataType>(out);
         });
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
@@ -328,7 +332,14 @@ int run_example(int argc, char* argv[])
             cde1_element_op(e1_g_m_o_host_result(idx), c1_g_m_o(idx), d1_g_m_o(idx));
         });
 
-        bool validation_result = ck::utils::check_err(e1_g_m_o_device_result, e1_g_m_o_host_result);
+        // Default rtol/atol for fp16 is 1e-3f, but since we do two gemms and multi-d ops we
+        // increase it to allow some error
+        const std::string error_message = "Error: Incorrect results!";
+        const float rtol                = 5e-2f;
+        const float atol                = 1e-1f;
+
+        bool validation_result = ck::utils::check_err(
+            e1_g_m_o_device_result, e1_g_m_o_host_result, error_message, rtol, atol);
         std::cout << "Validation result: " << (validation_result ? "SUCCESS" : "FAIL") << "."
                   << std::endl;
 
