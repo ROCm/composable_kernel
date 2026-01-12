@@ -276,7 +276,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t stride_v,
                const index_t page_stride_k,
                const index_t page_stride_v,
-               DropoutType& dropout
+               DropoutType& dropout,
                const float sink_v) const
     {
         static_assert(
