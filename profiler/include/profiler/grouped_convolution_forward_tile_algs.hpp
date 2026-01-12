@@ -48,7 +48,7 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
     auto ref_conv = ReferenceInstance{};
     ckt::run(ref_conv, args, inputs, reference.get());
 
-    auto run_alg = [&](auto&& run_alg_func) {
+    [[maybe_unused]] auto run_alg = [&](auto&& run_alg_func) {
         std::tie(avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
         if(avg_time > 0.f)
         {

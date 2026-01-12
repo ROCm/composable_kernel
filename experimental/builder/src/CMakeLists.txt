@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: MIT
 
 if(GPU_TARGETS MATCHES "gfx9")
-  # Generate instances using python script if they are not exist
+  # Generate instances using python script (empty to just generate empty instance list)
   find_package(Python3 COMPONENTS Interpreter Development)
   execute_process(
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_instances.py
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_instances.py --filter_pattern=empty
     RESULT_VARIABLE ret
   )
 
