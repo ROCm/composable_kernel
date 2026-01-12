@@ -204,6 +204,7 @@ struct DummySignature
 constexpr DummySignature DUMMY_SIGNATURE = {};
 
 namespace ck_tile::builder::test {
+
 template <>
 struct Args<DUMMY_SIGNATURE>
 {
@@ -225,6 +226,7 @@ struct Outputs<DUMMY_SIGNATURE>
     void* b;
 };
 
+// Explicitly implement validate for this type to test that that works.
 template <>
 ValidationReport validate<DUMMY_SIGNATURE>(const Args<DUMMY_SIGNATURE>& args,
                                            Outputs<DUMMY_SIGNATURE> actual,
