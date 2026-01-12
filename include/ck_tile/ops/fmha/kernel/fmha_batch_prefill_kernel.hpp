@@ -1256,7 +1256,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       stride_v_for_pipeline,
                                       kargs.batch_stride_k,
                                       kargs.batch_stride_v,
-                                      dropout，
+                                      dropout,
                                       sink_value);
             }
         }();
