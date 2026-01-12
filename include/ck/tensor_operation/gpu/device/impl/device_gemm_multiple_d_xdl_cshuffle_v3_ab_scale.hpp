@@ -92,13 +92,30 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
                                          BElementwiseOperation,
                                          CElementwiseOperation>
 {
-    GET_NXDL_PER_WAVE_IMPL
-    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
-    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
-    static constexpr index_t NumDTensor = DsDataType::Size();
+    static constexpr auto WarpTileConfig64 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               CShuffleMXdlPerWavePerShuffle,
+                                                               CShuffleNXdlPerWavePerShuffle,
+                                                               true>();
+    static constexpr auto WarpTileConfig32 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               CShuffleMXdlPerWavePerShuffle,
+                                                               CShuffleNXdlPerWavePerShuffle,
+                                                               false>();
+    static constexpr auto NXdlPerWave64    = WarpTileConfig64.At(3);
+    static constexpr auto NXdlPerWave32    = WarpTileConfig32.At(3);
+    static constexpr index_t NumDTensor    = DsDataType::Size();
 
     // GridwiseGemm
-    template <index_t NXdlPerWave_>
+    template <typename WarpTileConfig>
     using GridwiseGemmBase = GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3<
         ALayout,
         BLayout,
@@ -123,10 +140,10 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
         KPerBlock,
         AK1,
         BK1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave,
-        NXdlPerWave_,
+        WarpTileConfig::At(0),
+        WarpTileConfig::At(1),
+        WarpTileConfig::At(2),
+        WarpTileConfig::At(3),
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -143,8 +160,8 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
         BBlockTransferDstScalarPerVector_BK1,
         false,
         BBlockLdsExtraN,
-        CShuffleMXdlPerWavePerShuffle,
-        math::min(CShuffleNXdlPerWavePerShuffle, NXdlPerWave_),
+        WarpTileConfig::At(4),
+        WarpTileConfig::At(5),
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEShuffleBlockTransferScalarPerVectors,
         BlkGemmPipeSched,
@@ -153,8 +170,8 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
         ComputeTypeB,
         LDSTypeA,
         LDSTypeB>;
-    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
-    using GridwiseGemm32 = GridwiseGemmBase<math::max(NXdlPerWave32, 1)>;
+    using GridwiseGemm64 = GridwiseGemmBase<decltype(WarpTileConfig64)>;
+    using GridwiseGemm32 = GridwiseGemmBase<decltype(WarpTileConfig32)>;
 
     using Argument = typename GridwiseGemm64::Argument;
 
@@ -352,17 +369,23 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
         arg.KBatch = KBatch;
         if(get_warp_size() == 64)
         {
-            arg.KRead   = GridwiseGemm64::CalculateKRead(arg.K, KBatch);
-            arg.KPadded = GridwiseGemm64::CalculateKPadded(arg.K, KBatch);
-            arg.AK0     = GridwiseGemm64::CalculateAK0Padded(arg.K, KBatch);
-            arg.BK0     = GridwiseGemm64::CalculateBK0Padded(arg.K, KBatch);
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                arg.KRead   = GridwiseGemm64::CalculateKRead(arg.K, KBatch);
+                arg.KPadded = GridwiseGemm64::CalculateKPadded(arg.K, KBatch);
+                arg.AK0     = GridwiseGemm64::CalculateAK0Padded(arg.K, KBatch);
+                arg.BK0     = GridwiseGemm64::CalculateBK0Padded(arg.K, KBatch);
+            }
         }
         else
         {
-            arg.KRead   = GridwiseGemm32::CalculateKRead(arg.K, KBatch);
-            arg.KPadded = GridwiseGemm32::CalculateKPadded(arg.K, KBatch);
-            arg.AK0     = GridwiseGemm32::CalculateAK0Padded(arg.K, KBatch);
-            arg.BK0     = GridwiseGemm32::CalculateBK0Padded(arg.K, KBatch);
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                arg.KRead   = GridwiseGemm32::CalculateKRead(arg.K, KBatch);
+                arg.KPadded = GridwiseGemm32::CalculateKPadded(arg.K, KBatch);
+                arg.AK0     = GridwiseGemm32::CalculateAK0Padded(arg.K, KBatch);
+                arg.BK0     = GridwiseGemm32::CalculateBK0Padded(arg.K, KBatch);
+            }
         }
     }
 
@@ -381,7 +404,12 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             return false;
         }
 
-        if(!ck::is_xdl_wmma_supported<ComputeTypeA, ComputeTypeB, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<ComputeTypeA,
+                                      ComputeTypeB,
+                                      MPerXDL,
+                                      NPerXDL,
+                                      WarpTileConfig32.At(0),
+                                      WarpTileConfig32.At(1)>())
         {
             return false;
         }

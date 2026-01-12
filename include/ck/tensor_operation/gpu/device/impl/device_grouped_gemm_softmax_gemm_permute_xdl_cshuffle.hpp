@@ -205,10 +205,26 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  CElementwiseOperation,
                                                  MaskingSpec>
 {
-    static constexpr auto MXdlPerWave64 =
-        GetXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, true>();
-    static constexpr auto MXdlPerWave32 =
-        GetXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, false>();
+    static constexpr auto WarpTileConfig64 = GetWarpTileConfig<BlockSize,
+                                                               NPerBlock,
+                                                               MPerBlock,
+                                                               NPerXDL,
+                                                               MPerXDL,
+                                                               NXdlPerWave,
+                                                               1,
+                                                               1,
+                                                               true>();
+    static constexpr auto WarpTileConfig32 = GetWarpTileConfig<BlockSize,
+                                                               NPerBlock,
+                                                               MPerBlock,
+                                                               NPerXDL,
+                                                               MPerXDL,
+                                                               NXdlPerWave,
+                                                               1,
+                                                               1,
+                                                               false>();
+    static constexpr auto MXdlPerWave64    = WarpTileConfig64.At(3);
+    static constexpr auto MXdlPerWave32    = WarpTileConfig32.At(3);
 
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
@@ -350,7 +366,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
     };
 
     // GridwiseGemm
-    template <index_t MXdlPerWave_>
+    template <typename WarpTileConfig>
     using GridwiseGemmBase = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
@@ -376,11 +392,11 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         AK1,
         BK1,
         B1K1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave_,
-        NXdlPerWave,
-        Gemm1NXdlPerWave,
+        WarpTileConfig::At(1),
+        WarpTileConfig::At(0),
+        WarpTileConfig::At(3),
+        WarpTileConfig::At(2),
+        Gemm1NXdlPerWave * NPerXDL / WarpTileConfig::At(0),
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -406,14 +422,15 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         false,
         B1BlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
+        math::min(CShuffleNXdlPerWavePerShuffle* NPerXDL / WarpTileConfig::At(0),
+                  Gemm1NXdlPerWave* NPerXDL / WarpTileConfig::At(0)),
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         Transform::matrix_padder.PadN,
         MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle>;
-    using GridwiseGemm64 = GridwiseGemmBase<math::max(MXdlPerWave64, 1)>;
-    using GridwiseGemm32 = GridwiseGemmBase<MXdlPerWave32>;
+    using GridwiseGemm64 = GridwiseGemmBase<decltype(WarpTileConfig64)>;
+    using GridwiseGemm32 = GridwiseGemmBase<decltype(WarpTileConfig32)>;
 
     using Block2CTileMap = OffsettedBlockToCTileMap<typename GridwiseGemm64::DefaultBlock2CTileMap>;
 
@@ -715,7 +732,12 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<ADataType,
+                                      BDataType,
+                                      MPerXDL,
+                                      NPerXDL,
+                                      WarpTileConfig32.At(1),
+                                      WarpTileConfig32.At(0)>())
         {
             return false;
         }

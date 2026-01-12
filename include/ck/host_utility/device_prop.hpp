@@ -103,6 +103,20 @@ inline bool is_xdl_wmma_supported()
     }
 }
 
+template <typename ADataType, index_t KPerBlock, index_t KPack = 256>
+inline bool is_xdl_wmma_k_supported()
+{
+    if(is_gfx12_supported())
+    {
+        return (KPerBlock % 16 == 0) && (KPack % 8 == 0);
+    }
+    else if(is_gfx11_supported())
+    {
+        return (KPerBlock % 16 == 0) && (KPack % 16 == 0);
+    }
+    return true;
+}
+
 inline bool is_lds_direct_load_supported()
 {
     // Check if direct loads from global memory to LDS are supported.

@@ -445,7 +445,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
 
     static constexpr index_t NumMacClusters  = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS;
     static constexpr index_t KPerInnerLoop   = math::max(KPerThread / NumMacClusters, KPack);
-    static constexpr index_t KRepeat         = KPerThread / KPerInnerLoop;
+    static constexpr index_t KRepeat         = math::max(KPerThread / KPerInnerLoop, 1);
     static constexpr index_t PrefetchStages  = 1;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;

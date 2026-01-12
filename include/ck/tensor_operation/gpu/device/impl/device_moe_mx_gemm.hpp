@@ -90,11 +90,28 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                                                            BElementwiseOperation,
                                                            CElementwiseOperation>
 {
-    GET_NXDL_PER_WAVE_IMPL
-    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
-    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
-    static constexpr index_t NumDTensor = DsDataType::Size();
-    template <index_t NXdlPerWave_>
+    static constexpr auto WarpTileConfig64 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               CShuffleMXdlPerWavePerShuffle,
+                                                               CShuffleNXdlPerWavePerShuffle,
+                                                               true>();
+    static constexpr auto WarpTileConfig32 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               CShuffleMXdlPerWavePerShuffle,
+                                                               CShuffleNXdlPerWavePerShuffle,
+                                                               false>();
+    static constexpr auto NXdlPerWave64    = WarpTileConfig64.At(3);
+    static constexpr auto NXdlPerWave32    = WarpTileConfig32.At(3);
+    static constexpr index_t NumDTensor    = DsDataType::Size();
+    template <typename WarpTileConfig>
     using GridwiseGemmBase =
         GridwiseMoeGemmMX<ALayout,
                           BLayout,
@@ -119,10 +136,10 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                           KPerBlock,
                           AK1,
                           BK1,
-                          MPerXDL,
-                          NPerXDL,
-                          MXdlPerWave,
-                          NXdlPerWave_,
+                          WarpTileConfig::At(0),
+                          WarpTileConfig::At(1),
+                          WarpTileConfig::At(2),
+                          WarpTileConfig::At(3),
                           ABlockTransferThreadClusterLengths_AK0_M_AK1,
                           ABlockTransferThreadClusterArrangeOrder,
                           ABlockTransferSrcAccessOrder,
@@ -139,8 +156,8 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                           BBlockTransferDstScalarPerVector_BK1,
                           false,
                           BBlockLdsExtraN,
-                          CShuffleMXdlPerWavePerShuffle,
-                          CShuffleNXdlPerWavePerShuffle,
+                          WarpTileConfig::At(4),
+                          WarpTileConfig::At(5),
                           CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                           CDEShuffleBlockTransferScalarPerVectors,
                           BlkGemmPipeSched,
@@ -152,14 +169,17 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                           IndexType,
                           ComputeTypeA,
                           ComputeTypeB>;
-    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
-    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
+    using GridwiseGemm64 = GridwiseGemmBase<decltype(WarpTileConfig64)>;
+    using GridwiseGemm32 = GridwiseGemmBase<decltype(WarpTileConfig32)>;
 
     using Argument                       = typename GridwiseGemm64::Argument;
     static constexpr index_t APackedSize = packed_size_v<ADataType>;
     static constexpr index_t BPackedSize = packed_size_v<BDataType>;
 
-    int GetPreShuffleParameters() override { return NPerXDL; }
+    int GetPreShuffleParameters() override
+    {
+        return get_warp_size() == 64 ? WarpTileConfig64.At(1) : WarpTileConfig32.At(1);
+    }
 
     // Invoker
     struct Invoker : public BaseInvoker
@@ -368,7 +388,12 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
         {
             return false;
         }
-        if(!ck::is_xdl_wmma_supported<ComputeTypeA, ComputeTypeB, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<ComputeTypeA,
+                                      ComputeTypeB,
+                                      MPerXDL,
+                                      NPerXDL,
+                                      WarpTileConfig32.At(0),
+                                      WarpTileConfig32.At(1)>())
         {
             return false;
         }

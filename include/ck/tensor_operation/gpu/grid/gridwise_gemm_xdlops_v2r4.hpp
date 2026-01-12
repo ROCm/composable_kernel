@@ -179,6 +179,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
+        if constexpr(K1Value % MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, true>::selected_mfma
+                                   .k_per_blk !=
+                     0)
+        {
+            return false;
+        }
         return ck::tensor_operation::device::IsValidGemmCompilationParameter<
             BlockSize,
             MPerBlock,
@@ -205,6 +211,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         static_assert((MPerBlock % (MPerXDL * MRepeat) == 0) &&
                           (NPerBlock % (NRepeat * NPerXDL)) == 0,
                       "Invalid tuning param!");
+
+        if(!is_xdl_wmma_k_supported<FloatAB, K0PerBlock * K1Value, K1Value>())
+        {
+            return false;
+        }
 
         const auto M      = a_b_k0_m_k1_grid_desc.GetLength(I2);
         const auto N      = b_b_k0_n_k1_grid_desc.GetLength(I2);

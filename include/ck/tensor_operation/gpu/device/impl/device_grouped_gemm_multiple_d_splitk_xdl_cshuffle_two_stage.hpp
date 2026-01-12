@@ -91,12 +91,28 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                                      BElementwiseOperation,
                                      CDEElementwiseOperation>
 {
-    using DeviceOp = DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage;
-    GET_NXDL_PER_WAVE_IMPL
-    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
-    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
-
-    static constexpr index_t NumDTensor = DsDataType::Size();
+    using DeviceOp                         = DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage;
+    static constexpr auto WarpTileConfig64 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               CShuffleMXdlPerWavePerShuffle,
+                                                               CShuffleNXdlPerWavePerShuffle,
+                                                               true>();
+    static constexpr auto WarpTileConfig32 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               CShuffleMXdlPerWavePerShuffle,
+                                                               CShuffleNXdlPerWavePerShuffle,
+                                                               false>();
+    static constexpr auto NXdlPerWave64    = WarpTileConfig64.At(3);
+    static constexpr auto NXdlPerWave32    = WarpTileConfig32.At(3);
+    static constexpr index_t NumDTensor    = DsDataType::Size();
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -109,7 +125,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
     using WorkspaceDataType = float;
 
     // First stage GridwiseGEMM kernel.
-    template <index_t NXdlPerWave_>
+    template <typename WarpTileConfig>
     using GridwiseGemmBase = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
         ADataType,
@@ -127,11 +143,11 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         MPerBlock,
         NPerBlock,
         K0PerBlock,
-        MPerXDL,
-        NPerXDL,
+        WarpTileConfig::At(0),
+        WarpTileConfig::At(1),
         AK1,
-        MXdlPerWave,
-        NXdlPerWave_,
+        WarpTileConfig::At(2),
+        WarpTileConfig::At(3),
         ABlockTransferThreadClusterLengths_KBatch_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -148,15 +164,15 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         BBlockTransferDstScalarPerVector_BK1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsExtraN,
-        CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
+        WarpTileConfig::At(4),
+        WarpTileConfig::At(5),
         CDEShuffleBlockTransferScalarPerVector_NPerBlock,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         LoopSched,
         PipelineVer,
         ComputeDataType>;
-    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
-    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
+    using GridwiseGemm64 = GridwiseGemmBase<decltype(WarpTileConfig64)>;
+    using GridwiseGemm32 = GridwiseGemmBase<decltype(WarpTileConfig32)>;
 
     // Use gemm_padder for consistent descriptor creation
     static constexpr auto gemm_padder =
@@ -254,14 +270,15 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
     using GroupedGemmBlock2ETileMap  = OffsettedBlockToCTileMap<Block2ETileMapKSplit>;
     using GemmKernelArgument         = typename GridwiseGemm64::Argument;
 
+    template <typename GridwiseGemm>
     struct GemmTransKernelArg
     {
-        GemmKernelArgument karg_;
+        typename GridwiseGemm::Argument karg_;
         GroupedGemmBlock2ETileMap block_2_ctile_map_;
         index_t block_start_, block_end_;
 
         GemmTransKernelArg() = default;
-        GemmTransKernelArg(GemmKernelArgument&& karg,
+        GemmTransKernelArg(typename GridwiseGemm::Argument&& karg,
                            GroupedGemmBlock2ETileMap&& b2c_map,
                            index_t block_start,
                            index_t block_end)
@@ -546,7 +563,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
         std::vector<std::array<const void*, NumDTensor>>& p_Ds_;
         std::vector<std::array<index_t, NumDTensor>> stride_Ds_;
-        std::vector<GemmTransKernelArg> gemm_kernel_args_;
+        std::vector<GemmTransKernelArg<GridwiseGemm64>> gemm_kernel_args_;
         std::vector<index_t> group_grid_size_;
 
         std::vector<CGridDesc_M_N> elementwise_c_grid_descs_m_n_;
@@ -742,7 +759,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         {
             const auto gemm_kernel =
                 kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
-                                               GemmTransKernelArg,
+                                               GemmTransKernelArg<GridwiseGemm>,
                                                HasMainKBlockLoop,
                                                InMemoryDataOperationEnum::AtomicAdd,
                                                AElementwiseOperation,
@@ -756,15 +773,15 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                                                                ck::Tuple<EDataType*>,
                                                                Block2TileMap,
                                                                CDEElementwiseOperation>;
-            return LaunchKernel(gemm_kernel,
-                                elementwise_kernel,
-                                arg,
-                                dev_gemm_kargs,
-                                dev_gemm_workspace,
-                                stream_config);
+            return LaunchKernel<GridwiseGemm>(gemm_kernel,
+                                              elementwise_kernel,
+                                              arg,
+                                              dev_gemm_kargs,
+                                              dev_gemm_workspace,
+                                              stream_config);
         }
 
-        template <typename KernelFunction, typename KernelFunction2>
+        template <typename GridwiseGemm, typename KernelFunction, typename KernelFunction2>
         float LaunchKernel(const KernelFunction& gemm_kernel,
                            const KernelFunction2& elementwise_kernel,
                            const Argument& arg,
@@ -774,12 +791,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         {
             float time{0.f};
 
-            hip_check_error(
-                hipMemcpyAsync(dev_gemm_kargs,
-                               arg.gemm_kernel_args_.data(),
-                               arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
-                               hipMemcpyHostToDevice,
-                               stream_config.stream_id_));
+            hip_check_error(hipMemcpyAsync(dev_gemm_kargs,
+                                           arg.gemm_kernel_args_.data(),
+                                           arg.gemm_kernel_args_.size() *
+                                               sizeof(GemmTransKernelArg<GridwiseGemm>),
+                                           hipMemcpyHostToDevice,
+                                           stream_config.stream_id_));
 
             auto preprocess = [&]() {
                 hip_check_error(hipMemsetAsync(
@@ -831,7 +848,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<ADataType,
+                                      BDataType,
+                                      MPerXDL,
+                                      NPerXDL,
+                                      WarpTileConfig32.At(0),
+                                      WarpTileConfig32.At(1)>())
         {
             return false;
         }
@@ -1026,7 +1048,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         auto arg = dynamic_cast<const Argument*>(p_arg);
         if(arg)
         {
-            return arg->gemm_kernel_args_.size() * sizeof(GemmTransKernelArg);
+            return arg->gemm_kernel_args_.size() * sizeof(GemmTransKernelArg<GridwiseGemm64>);
         }
         else
             throw std::runtime_error(

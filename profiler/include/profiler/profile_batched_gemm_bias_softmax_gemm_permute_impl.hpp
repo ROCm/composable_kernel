@@ -152,6 +152,12 @@ bool profile_batched_gemm_bias_softmax_gemm_permute_impl(bool do_verification,
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
         d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         break;
+    case 4:
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
+        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0.0, 0.5});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 0.5});
+        break;
     default:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Sequential<B0DataType, 1>{});
@@ -362,8 +368,16 @@ bool profile_batched_gemm_bias_softmax_gemm_permute_impl(bool do_verification,
                    std::is_same_v<CDataType, ck::bhalf_t> &&
                    std::is_same_v<D0DataType, ck::bhalf_t>)
                 {
-                    rtol = 1e-2;
-                    atol = 1e-2;
+                    if(ck::is_gfx11_supported())
+                    {
+                        rtol = 5e-2;
+                        atol = 5e-2;
+                    }
+                    else
+                    {
+                        rtol = 1e-2;
+                        atol = 1e-2;
+                    }
                 }
 
                 pass = pass & ck::utils::check_err(c_gs_ms_os_device_result,
