@@ -318,7 +318,10 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuf
     ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << t.transfer.b.lds_transfer_params.global_memory_vector_load_size << ","
+        << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
@@ -328,7 +331,10 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuf
     ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << t.transfer.b.lds_transfer_params.global_memory_vector_load_size << ","
+        << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
@@ -350,7 +356,10 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CSh
     ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << t.transfer.b.lds_transfer_params.global_memory_vector_load_size << ","
+        << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
@@ -360,7 +369,9 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuff
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<4>>(t));
     return oss.str();
 }
@@ -370,7 +381,9 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuff
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
@@ -380,7 +393,9 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuf
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
@@ -390,7 +405,9 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuf
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
@@ -400,7 +417,9 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_W
     ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
@@ -411,7 +430,9 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_C
     ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+    oss << to_string(static_cast<ThreadBlock_>(t)) 
+        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << "," << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
@@ -434,7 +455,9 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_X
     ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WarpGemm_>(t))
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<4>>(t));
     return oss.str();
 }

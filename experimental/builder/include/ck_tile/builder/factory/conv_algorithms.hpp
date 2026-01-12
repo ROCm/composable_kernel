@@ -8,119 +8,128 @@
 namespace ck_tile::builder::factory {
 
 // Base algorithm concepts
-template <typename T>
+template <auto Value>
 concept FwdXdlAlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
-    SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmPipeline<T> &&
-    SpecifiesXdl<T>;
+    ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesThreadBlock<decltype(Value)> && 
+    SpecifiesThreadDistribution3D<decltype(Value)> && SpecifiesLdsTransfer<decltype(Value)> && 
+    SpecifiesThreadClusterAccessOrder<decltype(Value)> && SpecifiesSourceAccessOrder<decltype(Value)> && 
+    SpecifiesWarpGemm<decltype(Value)> && SpecifiesFwdConvSpecialization<decltype(Value)> && 
+    SpecifiesGemmPipeline<decltype(Value)> && SpecifiesXdl<Value>;
 
-template <typename T>
+template <auto Value>
 concept BwdXdlAlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution4D<T> &&
-    SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesXdl<T>;
+    ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesThreadBlock<decltype(Value)> && 
+    SpecifiesThreadDistribution4D<decltype(Value)> && SpecifiesLdsTransfer<decltype(Value)> && 
+    SpecifiesThreadClusterAccessOrder<decltype(Value)> && SpecifiesSourceAccessOrder<decltype(Value)> && 
+    SpecifiesWarpGemm<decltype(Value)> && SpecifiesBwdWeightConvSpecialization<decltype(Value)> && 
+    SpecifiesXdl<Value>;
 
-template <typename T>
+template <auto Value>
 concept BwdXdlV3AlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
-    SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesXdl<T> &&
-    SpecifiesPipelineV3<T>;
+    ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesThreadBlock<decltype(Value)> && 
+    SpecifiesThreadDistribution3D<decltype(Value)> && SpecifiesLdsTransfer<decltype(Value)> && 
+    SpecifiesThreadClusterAccessOrder<decltype(Value)> && SpecifiesSourceAccessOrder<decltype(Value)> && 
+    SpecifiesWarpGemm<decltype(Value)> && SpecifiesBwdWeightConvSpecialization<decltype(Value)> && 
+    SpecifiesGemmPipeline<decltype(Value)> && SpecifiesXdl<Value> && SpecifiesPipelineV3<decltype(Value)>;
 
-template <typename T>
+template <auto Value>
 concept BwdWmmaAlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
-    SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesWmma<T>;
+    ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesThreadBlock<decltype(Value)> && 
+    SpecifiesThreadDistribution3D<decltype(Value)> && SpecifiesLdsTransfer<decltype(Value)> && 
+    SpecifiesThreadClusterAccessOrder<decltype(Value)> && SpecifiesSourceAccessOrder<decltype(Value)> && 
+    SpecifiesWarpGemm<decltype(Value)> && SpecifiesBwdWeightConvSpecialization<decltype(Value)> && 
+    SpecifiesWmma<Value>;
 
-template <typename T>
+template <auto Value>
 concept BwdWmmaV3AlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
-    SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesWmma<T> &&
-    SpecifiesPipelineV3<T>;
+    ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesThreadBlock<decltype(Value)> && 
+    SpecifiesThreadDistribution3D<decltype(Value)> && SpecifiesLdsTransfer<decltype(Value)> && 
+    SpecifiesThreadClusterAccessOrder<decltype(Value)> && SpecifiesSourceAccessOrder<decltype(Value)> && 
+    SpecifiesWarpGemm<decltype(Value)> && SpecifiesBwdWeightConvSpecialization<decltype(Value)> && 
+    SpecifiesGemmPipeline<decltype(Value)> && SpecifiesWmma<Value> && SpecifiesPipelineV3<decltype(Value)>;
 
 // Reference algorithm concept
-template <typename T>
-concept ReferenceAlgorithm = ConvAlgorithmDescriptor<T> && SpecifiesReferenceAlgorithm<T>;
+template <auto Value>
+concept ReferenceAlgorithm = ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesReferenceAlgorithm<decltype(Value)>;
 
 // Tile-based algorithm concept
-template <typename T>
-concept TileAlgorithm = ConvAlgorithmDescriptor<T> && SpecifiesTileThreadBlock<T> &&
-                        SpecifiesTileTransfer<T> && SpecifiesTileConvSpecialization<T> &&
-                        SpecifiesTileBlockGemm<T> && SpecifiesTileOptimizations<T>;
+template <auto Value>
+concept TileAlgorithm = ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesTileThreadBlock<decltype(Value)> &&
+                        SpecifiesTileTransfer<decltype(Value)> && SpecifiesTileConvSpecialization<decltype(Value)> &&
+                        SpecifiesTileBlockGemm<decltype(Value)> && SpecifiesTileOptimizations<decltype(Value)>;
 
 // FWD XDL algorithm concepts
-template <typename T>
-concept FwdXdlAlgorithm = FwdXdlAlgorithmBase<T> && SpecifiesGenericInstance<T>;
+template <auto Value>
+concept FwdXdlAlgorithm = FwdXdlAlgorithmBase<Value> && SpecifiesGenericInstance<decltype(Value)>;
 
-template <typename T>
-concept LargeTensorAlgorithm = FwdXdlAlgorithmBase<T> && SpecifiesLargeTensorSupport<T>;
+template <auto Value>
+concept LargeTensorAlgorithm = FwdXdlAlgorithmBase<Value> && SpecifiesLargeTensorSupport<decltype(Value)>;
 
-template <typename T>
+template <auto Value>
 concept FwdXdlV3Algorithm =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
-    SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesXdl<T> &&
-    SpecifiesPipelineV3<T>;
+    ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesThreadBlock<decltype(Value)> && 
+    SpecifiesThreadDistribution3D<decltype(Value)> && SpecifiesLdsTransfer<decltype(Value)> && 
+    SpecifiesThreadClusterAccessOrder<decltype(Value)> && SpecifiesSourceAccessOrder<decltype(Value)> && 
+    SpecifiesWarpGemm<decltype(Value)> && SpecifiesFwdConvSpecialization<decltype(Value)> && 
+    SpecifiesGemmPipeline<decltype(Value)> && SpecifiesXdl<Value> && SpecifiesPipelineV3<decltype(Value)>;
 
 // FWD WMMA algorithm concepts
-template <typename T>
+template <auto Value>
 concept FwdWmmaAlgorithm =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesThreadDistribution3D<T> &&
-    SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesWarpGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmPipeline<T> && SpecifiesWmma<T>;
+    ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesThreadBlock<decltype(Value)> && 
+    SpecifiesThreadDistribution3D<decltype(Value)> && SpecifiesLdsTransfer<decltype(Value)> && 
+    SpecifiesThreadClusterAccessOrder<decltype(Value)> && SpecifiesSourceAccessOrder<decltype(Value)> && 
+    SpecifiesWarpGemm<decltype(Value)> && SpecifiesFwdConvSpecialization<decltype(Value)> && 
+    SpecifiesGemmPipeline<decltype(Value)> && SpecifiesWmma<Value>;
 
 // FWD DL algorithms
-template <typename T>
+template <auto Value>
 concept FwdDlAlgorithm =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesFwdConvSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesDlThreadConfig<T> && SpecifiesDlThreadCluster<T> &&
-    SpecifiesDlFwdBlockTransfer<T> && SpecifiesDlEpilogue<T>;
+    ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesThreadBlock<decltype(Value)> && 
+    SpecifiesFwdConvSpecialization<decltype(Value)> && SpecifiesGemmSpecialization<decltype(Value)> && 
+    SpecifiesDlThreadConfig<decltype(Value)> && SpecifiesDlThreadCluster<decltype(Value)> &&
+    SpecifiesDlFwdBlockTransfer<decltype(Value)> && SpecifiesDlEpilogue<decltype(Value)>;
 
 // BWD weight XDL algorithm concepts
-template <typename T>
+template <auto Value>
 concept BwdXdlAlgorithm =
-    BwdXdlAlgorithmBase<T> && SpecifiesTransposeTransfer<T> && SpecifiesGenericInstance<T>;
+    BwdXdlAlgorithmBase<Value> && SpecifiesTransposeTransfer<decltype(Value)> && 
+    SpecifiesGenericInstance<decltype(Value)>;
 
-template <typename T>
-concept BwdMultiDXdlAlgorithm = BwdXdlAlgorithmBase<T> && SpecifiesMultipleDSupport<T>;
+template <auto Value>
+concept BwdMultiDXdlAlgorithm = BwdXdlAlgorithmBase<Value> && SpecifiesMultipleDSupport<decltype(Value)>;
 
-template <typename T>
-concept BwdXdlV3Algorithm = BwdXdlV3AlgorithmBase<T>;
+template <auto Value>
+concept BwdXdlV3Algorithm = BwdXdlV3AlgorithmBase<Value>;
 
-template <typename T>
-concept BwdTwoStageXdlAlgorithm = BwdXdlV3AlgorithmBase<T> && SpecifiesTransposeTransfer<T> && SpecifiesTwoStageSupport<T>;
+template <auto Value>
+concept BwdTwoStageXdlAlgorithm = BwdXdlV3AlgorithmBase<Value> && SpecifiesTransposeTransfer<decltype(Value)> && 
+                                   SpecifiesTwoStageSupport<decltype(Value)>;
 
 // BWD weight WMMA algorithm concepts
-template <typename T>
+template <auto Value>
 concept BwdWmmaAlgorithm =
-    BwdWmmaAlgorithmBase<T> && SpecifiesNumPrefetchStages<T> && SpecifiesGemmPipeline<T> && SpecifiesGenericInstance<T>;
+    BwdWmmaAlgorithmBase<Value> && SpecifiesNumPrefetchStages<decltype(Value)> && 
+    SpecifiesGemmPipeline<decltype(Value)> && SpecifiesGenericInstance<decltype(Value)>;
 
-template <typename T>
-concept BwdMultiDWmmaV3Algorithm = BwdWmmaV3AlgorithmBase<T> && SpecifiesMultipleDSupport<T>;
+template <auto Value>
+concept BwdMultiDWmmaV3Algorithm = BwdWmmaV3AlgorithmBase<Value> && SpecifiesMultipleDSupport<decltype(Value)>;
 
-template <typename T>
+template <auto Value>
 concept BwdWmmaV3Algorithm =
-    BwdWmmaV3AlgorithmBase<T> && SpecifiesTransposeTransfer<T> && SpecifiesGenericInstance<T>;
+    BwdWmmaV3AlgorithmBase<Value> && SpecifiesTransposeTransfer<decltype(Value)> && 
+    SpecifiesGenericInstance<decltype(Value)>;
 
-template <typename T>
-concept BwdTwoStageWmmaV3Algorithm = BwdWmmaV3AlgorithmBase<T> && SpecifiesTransposeTransfer<T> &&
-                                     SpecifiesTwoStageSupport<T>;
+template <auto Value>
+concept BwdTwoStageWmmaV3Algorithm = BwdWmmaV3AlgorithmBase<Value> && SpecifiesTransposeTransfer<decltype(Value)> &&
+                                     SpecifiesTwoStageSupport<decltype(Value)>;
 
 // BWD weight DL algorithms
-template <typename T>
+template <auto Value>
 concept BwdDlAlgorithm =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesDlThreadConfig<T> &&
-    SpecifiesDlThreadCluster<T> && SpecifiesDlBwdBlockTransfer<T> && SpecifiesDlEpilogue<T>;
+    ConvAlgorithmDescriptor<decltype(Value)> && SpecifiesThreadBlock<decltype(Value)> &&
+    SpecifiesBwdWeightConvSpecialization<decltype(Value)> && SpecifiesDlThreadConfig<decltype(Value)> &&
+    SpecifiesDlThreadCluster<decltype(Value)> && SpecifiesDlBwdBlockTransfer<decltype(Value)> && 
+    SpecifiesDlEpilogue<decltype(Value)>;
 
 } // namespace ck_tile::builder::factory

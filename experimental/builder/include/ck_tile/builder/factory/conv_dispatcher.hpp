@@ -104,38 +104,36 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           StringLiteral VERSION>
 constexpr auto make_conv_instance()
 {
-    using AlgoType = std::remove_const_t<decltype(ALGORITHM)>;
-
     // Reference algorithm supports all directions
-    if constexpr(ReferenceAlgorithm<AlgoType>)
+    if constexpr(ReferenceAlgorithm<ALGORITHM>)
     {
         return typename ReferenceFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
     // CK Tile supports common factory for each direction
-    else if constexpr(TileAlgorithm<AlgoType>)
+    else if constexpr(TileAlgorithm<ALGORITHM>)
     {
         return typename ConvTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
     // Forward direction (supports most algorithm variants)
     else if constexpr(ConvDirectionIsForward<SIGNATURE>)
     {
-        if constexpr(FwdXdlV3Algorithm<AlgoType>)
+        if constexpr(FwdXdlV3Algorithm<ALGORITHM>)
         {
             return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(FwdXdlAlgorithm<AlgoType>)
+        else if constexpr(FwdXdlAlgorithm<ALGORITHM>)
         {
             return typename ConvFwdXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(FwdWmmaAlgorithm<AlgoType>)
+        else if constexpr(FwdWmmaAlgorithm<ALGORITHM>)
         {
             return typename ConvFwdWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(FwdDlAlgorithm<AlgoType>)
+        else if constexpr(FwdDlAlgorithm<ALGORITHM>)
         {
             return typename ConvFwdDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(LargeTensorAlgorithm<AlgoType>)
+        else if constexpr(LargeTensorAlgorithm<ALGORITHM>)
         {
             return typename ConvFwdLargeTensorFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
@@ -159,42 +157,42 @@ constexpr auto make_conv_instance()
     // Backward weight direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
-        if constexpr(BwdXdlAlgorithm<AlgoType>)
+        if constexpr(BwdXdlAlgorithm<ALGORITHM>)
         {
             return typename ConvBwdWeightXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdXdlV3Algorithm<AlgoType>)
+        else if constexpr(BwdXdlV3Algorithm<ALGORITHM>)
         {
             return typename ConvBwdWeightXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdTwoStageXdlAlgorithm<AlgoType>)
+        else if constexpr(BwdTwoStageXdlAlgorithm<ALGORITHM>)
         {
             return
                 typename ConvBwdWeightTwoStageXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdDlAlgorithm<AlgoType>)
+        else if constexpr(BwdDlAlgorithm<ALGORITHM>)
         {
             return typename ConvBwdWeightDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdMultiDXdlAlgorithm<AlgoType>)
+        else if constexpr(BwdMultiDXdlAlgorithm<ALGORITHM>)
         {
             return
                 typename ConvBwdWeightMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdWmmaV3Algorithm<AlgoType>)
+        else if constexpr(BwdWmmaV3Algorithm<ALGORITHM>)
         {
             return typename ConvBwdWeightWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdTwoStageWmmaV3Algorithm<AlgoType>)
+        else if constexpr(BwdTwoStageWmmaV3Algorithm<ALGORITHM>)
         {
             return typename ConvBwdWeightTwoStageWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::
                 Instance{};
         }
-        else if constexpr(BwdWmmaAlgorithm<AlgoType>)
+        else if constexpr(BwdWmmaAlgorithm<ALGORITHM>)
         {
             return typename ConvBwdWeightWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdMultiDWmmaV3Algorithm<AlgoType>)
+        else if constexpr(BwdMultiDWmmaV3Algorithm<ALGORITHM>)
         {
             return typename ConvBwdWeightMultiDWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::
                 Instance{};

@@ -340,16 +340,14 @@ concept SpecifiesGenericInstance = !requires {
     requires !!(T::specialization == ConvAlgorithmSpecialization::NONE);
 };
 
-template <typename T>
-concept SpecifiesXdl = requires (T t){
-    { t.warp_gemm.matrix_instruction } -> std::convertible_to<MatrixInstructionType>;
-    { t.warp_gemm.matrix_instruction == MatrixInstructionType::XDL};
+template <auto Algorithm>
+concept SpecifiesXdl = requires {
+    requires Algorithm.warp_gemm.matrix_instruction == MatrixInstructionType::XDL;
 };
 
-template <typename T>
-concept SpecifiesWmma = requires (T t){
-    { t.warp_gemm.matrix_instruction } -> std::convertible_to<MatrixInstructionType>;
-    { t.warp_gemm.matrix_instruction == MatrixInstructionType::WMMA};
+template <auto Algorithm>
+concept SpecifiesWmma = requires {
+    requires Algorithm.warp_gemm.matrix_instruction == MatrixInstructionType::WMMA;
 };
 
 /******************************************** */

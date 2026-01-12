@@ -196,7 +196,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x16x1{
     .a =
         {
             .thread_distribution              = {.k0 = 4, .m_n = 16, .k1 = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer_params              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
@@ -208,7 +208,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x16x1{
     .b =
         {
             .thread_distribution              = {.k0 = 4, .m_n = 16, .k1 = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer_params              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
@@ -232,7 +232,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x32x1{
     .a =
         {
             .thread_distribution              = {.k0 = 4, .m_n = 32, .k1 = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer_params              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 16,
                                             .lds_dst_scalar_per_vector = 16,
@@ -244,7 +244,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x32x1{
     .b =
         {
             .thread_distribution              = {.k0 = 4, .m_n = 32, .k1 = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer_params              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 16,
                                             .lds_dst_scalar_per_vector = 16,
@@ -260,6 +260,41 @@ constexpr InputOutputTileTransfer<> Transfer_4x32x1{
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                          .n_per_wave_per_shuffle     = 1,
                          .scalar_per_vector          = 8},
+        },
+};
+
+constexpr InputOutputTileTransfer<> Transfer_4x32x1_vector_load_16_generic{
+    .a =
+        {
+            .thread_distribution              = {.k0 = 4, .m_n = 32, .k1 = 1},
+            .lds_transfer_params              = {.global_memory_vector_load_size = 16,
+                                            .src_vector_dim            = 2,
+                                            .src_scalar_per_vector     = 1,
+                                            .lds_dst_scalar_per_vector = 16,
+                                            .is_direct_load            = false,
+                                            .lds_padding               = true},
+            .thread_distribution_access_order = {1, 0, 2},
+            .src_access_order            = {1, 0, 2},
+        },
+    .b =
+        {
+            .thread_distribution              = {.k0 = 4, .m_n = 32, .k1 = 1},
+            .lds_transfer_params              = {.global_memory_vector_load_size = 16,
+                                            .src_vector_dim            = 2,
+                                            .src_scalar_per_vector     = 1,
+                                            .lds_dst_scalar_per_vector = 16,
+                                            .is_direct_load            = false,
+                                            .lds_padding               = true},
+            .thread_distribution_access_order = {1, 0, 2},
+            .src_access_order            = {1, 0, 2},
+        },
+    .c =
+        {
+            .thread_distribution =
+                {.gemm_m_block_size = 1, .gemm_m_per_block = 32, .gemm_n_block_size = 1, .gemm_n_per_block = 4},
+            .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
+                         .n_per_wave_per_shuffle     = 1,
+                         .scalar_per_vector          = 1},
         },
 };
 
@@ -287,13 +322,13 @@ constexpr WarpGemmParams FwdGemmParams_Xdl_2x1_per_wave{
     .matrix_instruction = MatrixInstructionType::XDL,
     .gemm_m_per_instruction = 32, .gemm_n_per_instruction = 32, .gemm_m_iters_per_wave = 2, .gemm_n_iters_per_wave = 1};
 
-constexpr WarpGemmParams GemmParams_Wmma_2x1_per_wave{
-    .matrix_instruction = MatrixInstructionType::WMMA,
-    .gemm_m_per_instruction = 32, .gemm_n_per_instruction = 32, .gemm_m_iters_per_wave = 2, .gemm_n_iters_per_wave = 1};
-
 constexpr WarpGemmParams GemmParams_Wmma_16x16_2x1_per_wave{
     .matrix_instruction = MatrixInstructionType::WMMA,
     .gemm_m_per_instruction = 16, .gemm_n_per_instruction = 16, .gemm_m_iters_per_wave = 2, .gemm_n_iters_per_wave = 1};
+
+constexpr WarpGemmParams GemmParams_Wmma_16x16_2x2_per_wave{
+    .matrix_instruction = MatrixInstructionType::WMMA,
+    .gemm_m_per_instruction = 16, .gemm_n_per_instruction = 16, .gemm_m_iters_per_wave = 2, .gemm_n_iters_per_wave = 2};
 
 constexpr ThreadBlock ThreadBlock_256_256x256x32{.block_size = 256,
                                                  .tile_size  = {.m = 256, .n = 256, .k = 32}};
