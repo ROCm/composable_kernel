@@ -28,25 +28,121 @@ namespace ck_tile::builder {
 template <auto N>
 concept ConvSpatialDim = std::is_integral_v<decltype(N)> && (N == 1 || N == 2 || N == 3);
 
-// Constraints for forward convolution layouts.
-template <auto LayoutValue, size_t SpatialDim>
-concept ValidConvLayoutForSpatialDim =
-    (SpatialDim == 1 && std::same_as<decltype(LayoutValue), GroupConvLayout1D>) ||
-    (SpatialDim == 2 && std::same_as<decltype(LayoutValue), GroupConvLayout2D>) ||
-    (SpatialDim == 3 && std::same_as<decltype(LayoutValue), GroupConvLayout3D>);
-
 // Constrains convolution data types to common floating-point types.
 template <DataType T>
-concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
-                       (T == DataType::FP8) || (T == DataType::I8) || (T == DataType::U8);
+concept ValidConvDataType =
+    (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
+    (T == DataType::FP8) || (T == DataType::I8) || (T == DataType::U8);
 
-template <typename T>
-concept ConvLayout = std::same_as<std::remove_cvref_t<T>, GroupConvLayout>;
+template <TensorLayout L>
+concept BiasTensorLayout =
+    (L == TensorLayout::GC) || (L == TensorLayout::G_C_strided) || (L == TensorLayout::G_K_strided);
 
+template <TensorLayout L>
+concept ConvInputLayout1D =
+    (L == TensorLayout::GNCW) || (L == TensorLayout::GNWC) || (L == TensorLayout::NWGC) ||
+    (L == TensorLayout::NGCW) || (L == TensorLayout::G_NW_C_strided);
+
+template <TensorLayout L>
+concept ConvInputLayout2D =
+    (L == TensorLayout::GNCHW) || (L == TensorLayout::GNHWC) || (L == TensorLayout::NHWGC) ||
+    (L == TensorLayout::NGCHW) || (L == TensorLayout::G_NHW_C_strided);
+
+template <TensorLayout L>
+concept ConvInputLayout3D =
+    (L == TensorLayout::GNCDHW) || (L == TensorLayout::GNDHWC) || (L == TensorLayout::NDHWGC) ||
+    (L == TensorLayout::NGCDHW) || (L == TensorLayout::G_NDHW_C_strided);
+
+template <TensorLayout L>
+concept ConvWeightLayout1D = (L == TensorLayout::GKXC) || (L == TensorLayout::GKCX) ||
+                             (L == TensorLayout::KXGC) || (L == TensorLayout::G_K_X_C_strided);
+
+template <TensorLayout L>
+concept ConvWeightLayout2D = (L == TensorLayout::GKYXC) || (L == TensorLayout::GKCYX) ||
+                             (L == TensorLayout::KYXGC) || (L == TensorLayout::G_K_YX_C_strided);
+
+template <TensorLayout L>
+concept ConvWeightLayout3D = (L == TensorLayout::GKZYXC) || (L == TensorLayout::GKCZYX) ||
+                             (L == TensorLayout::KZYXGC) || (L == TensorLayout::G_K_ZYX_C_strided);
+
+template <TensorLayout L>
+concept ConvOutputLayout1D =
+    (L == TensorLayout::GNKW) || (L == TensorLayout::GNWK) || (L == TensorLayout::NWGK) ||
+    (L == TensorLayout::NGKW) || (L == TensorLayout::G_NW_K_strided);
+
+template <TensorLayout L>
+concept ConvOutputLayout2D =
+    (L == TensorLayout::GNKHW) || (L == TensorLayout::GNHWK) || (L == TensorLayout::NHWGK) ||
+    (L == TensorLayout::NGKHW) || (L == TensorLayout::G_NHW_K_strided);
+
+template <TensorLayout L>
+concept ConvOutputLayout3D =
+    (L == TensorLayout::GNKDHW) || (L == TensorLayout::GNDHWK) || (L == TensorLayout::NDHWGK) ||
+    (L == TensorLayout::NGKDHW) || (L == TensorLayout::G_NDHW_K_strided);
+
+namespace detail {
 template <typename T>
-concept HasElementwiseOp = requires(T t) {
-    { t.elementwise_operation };
+concept HasDataType = requires(T t) {
+    { t.data_type };
 };
+
+// Note: for signature and TensorConfigDescriptor,
+// it is not required to provide a default data type, but if one is provided, check if well defined
+template <typename T>
+concept DataTypeWellDefinedIfProvided = requires(T t) {
+    requires !HasDataType<T> || requires {
+        { t.data_type } -> std::convertible_to<DataType>;
+    };
+};
+
+} // namespace detail
+template <typename T>
+concept TensorConfigDescriptor = requires(T t) {
+    { t.layout } -> std::convertible_to<TensorLayout>;
+    requires detail::DataTypeWellDefinedIfProvided<T>;
+};
+
+template <typename T>
+concept HasAuxiliaryOperandConfigs = requires(T t) {
+    { t.auxiliary_operand_configs };
+};
+
+namespace detail {
+template <typename T>
+struct IsArrayOfTensorConfigDescriptors : std::false_type
+{
+};
+
+template <typename T, std::size_t N>
+    requires TensorConfigDescriptor<T>
+struct IsArrayOfTensorConfigDescriptors<std::array<T, N>> : std::true_type
+{
+};
+
+template <typename T>
+concept ConvertibleToArrayOfTensorConfigs =
+    detail::IsArrayOfTensorConfigDescriptors<std::remove_cvref_t<T>>::value;
+
+template <typename T>
+concept AuxiliaryOperandConfigsWellDefinedIfProvided = requires(T t) {
+    requires !HasAuxiliaryOperandConfigs<T> || requires {
+        { t.auxiliary_operand_configs } -> ConvertibleToArrayOfTensorConfigs;
+    };
+};
+} // namespace detail
+
+template <typename T>
+concept TensorOperatorDescriptor = requires(T t) {
+    { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
+    requires detail::AuxiliaryOperandConfigsWellDefinedIfProvided<T>;
+};
+
+template <typename T>
+concept HasTensorOp = requires(T t) {
+    { t.operation };
+};
+
+namespace detail {
 
 template <typename T>
 concept HasConvolutionDirection = requires(T t) {
@@ -56,11 +152,8 @@ concept HasConvolutionDirection = requires(T t) {
 // Note: it is not required to provide an ElementwiseOp, but if one is provided, check if well
 // defined
 template <typename T>
-concept ElementwiseOpWellDefinedIfProvided = requires(T t) {
-    requires !HasElementwiseOp<T> || requires {
-        { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
-    };
-};
+concept ElementwiseOpWellDefinedIfProvided =
+    !HasTensorOp<T> || requires(T t) { requires TensorOperatorDescriptor<decltype(t.operation)>; };
 
 // Note: it is not required to provide a convolution, but if one is provided, check if well defined
 template <typename T>
@@ -70,21 +163,38 @@ concept ConvolutionDirectionWellDefinedIfProvided = requires(T t) {
     };
 };
 
+} // namespace detail
+
+// Concept for the convolution tensor
+template <typename T>
+concept ConvTensorDescriptor = requires(T t) {
+    { t.config } -> TensorConfigDescriptor;
+    requires detail::ElementwiseOpWellDefinedIfProvided<T>;
+};
+
+template <typename T>
+concept HasElementwiseOpWithAuxiliaryOperands = requires(T t) {
+    requires HasTensorOp<T>;
+    requires HasAuxiliaryOperandConfigs<decltype(t.operation)>;
+};
+
 // Concept for a type that defines a convolution's operational signature.
 template <typename T>
 concept ConvSignatureDescriptor = requires(T t) {
     { t.spatial_dim } -> std::convertible_to<unsigned int>;
-    { t.layout } -> ConvLayout;
-    { t.data_type } -> std::convertible_to<DataType>;
-    requires ElementwiseOpWellDefinedIfProvided<T>;
-    requires ConvolutionDirectionWellDefinedIfProvided<T>;
+    { t.input } -> ConvTensorDescriptor;
+    { t.weight } -> ConvTensorDescriptor;
+    { t.output } -> ConvTensorDescriptor;
+    requires detail::ConvolutionDirectionWellDefinedIfProvided<T>;
+    requires detail::DataTypeWellDefinedIfProvided<T>;
+    requires detail::ElementwiseOpWellDefinedIfProvided<T>;
 };
 
 // Concept to validate a convolution signature's values.
 template <auto Sig>
 concept ValidConvSignature = requires {
     requires ConvSpatialDim<Sig.spatial_dim>;
-    requires ConvDataType<Sig.data_type>;
+    requires ValidConvDataType<Sig.data_type>;
 };
 
 // Predicate for forward convolution (default if direction is not included).
@@ -99,5 +209,23 @@ concept ConvDirectionIsBackwardData = (Sig.direction == ConvDirection::BACKWARD_
 // Predicate for backward weight convolution.
 template <auto Sig>
 concept ConvDirectionIsBackwardWeight = (Sig.direction == ConvDirection::BACKWARD_WEIGHT);
+
+// Constraints for forward convolution input layouts.
+template <TensorLayout L, size_t SpatialDim>
+concept ValidConvInputLayoutForSpatialDim =
+    (SpatialDim == 1 && ConvInputLayout1D<L>) || (SpatialDim == 2 && ConvInputLayout2D<L>) ||
+    (SpatialDim == 3 && ConvInputLayout3D<L>);
+
+// Constraints for forward convolution output layouts.
+template <TensorLayout L, size_t SpatialDim>
+concept ValidConvOutputLayoutForSpatialDim =
+    (SpatialDim == 1 && ConvOutputLayout1D<L>) || (SpatialDim == 2 && ConvOutputLayout2D<L>) ||
+    (SpatialDim == 3 && ConvOutputLayout3D<L>);
+
+// Constraints for forward convolution weight layouts.
+template <TensorLayout L, size_t SpatialDim>
+concept ValidConvWeightLayoutForSpatialDim =
+    (SpatialDim == 1 && ConvWeightLayout1D<L>) || (SpatialDim == 2 && ConvWeightLayout2D<L>) ||
+    (SpatialDim == 3 && ConvWeightLayout3D<L>);
 
 } // namespace ck_tile::builder

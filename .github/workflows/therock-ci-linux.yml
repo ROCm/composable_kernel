@@ -20,7 +20,7 @@ jobs:
     permissions:
       id-token: write
     container:
-      image: ghcr.io/rocm/therock_build_manylinux_x86_64@sha256:2f3ebd0beb04c449fdb36933e54bdc69483b914fb9005594d3fc9444c206b54b
+      image: ghcr.io/rocm/therock_build_manylinux_x86_64@sha256:583d473f263a289222c48d4b493e2956b2354a45796f09dee6f2c8ecd4504ab6
       options: -v /runner/config:/home/awsconfig/
     env:
       AMDGPU_FAMILIES: ${{ inputs.amdgpu_families }}
@@ -54,7 +54,7 @@ jobs:
         with:
           repository: "ROCm/TheRock"
           path: "TheRock"
-          ref: f3f77a3161922df3eee006b888b439d75b2b4668 # 2025-10-29 commit
+          ref: e4d4316c3c20819045722f60fc63928944ebc397 # 2026-01-01 commit
 
       - name: Setup ccache
         run: |
@@ -78,8 +78,9 @@ jobs:
         run: |
           git config --global --add safe.directory '*'
           # Remove patches here if they cannot be applied cleanly, and they have not been deleted from TheRock repo
-          rm -f ./TheRock/patches/amd-mainline/rocm-libraries/0008-Revert-remove-options-no-enumerate-966.patch
-          git -c user.name="therockbot" -c "user.email=therockbot@amd.com" am --whitespace=nowarn ./TheRock/patches/amd-mainline/rocm-libraries/*.patch
+          rm ./TheRock/patches/amd-mainline/rocm-libraries/0003-Find-rocm_smi-via-config-files.patch
+          rm ./TheRock/patches/amd-mainline/rocm-libraries/0007-Remove-Windows-third_party_dlls-copying-code.patch
+          # git -c user.name="therockbot" -c "user.email=therockbot@amd.com" am --whitespace=nowarn ./TheRock/patches/amd-mainline/rocm-libraries/*.patch
 
       - name: Install python deps
         run: |

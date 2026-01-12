@@ -25,10 +25,9 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
-    using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
+    using QuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
     static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant preshuffle kernel!");
-    static_assert(QuantGroupSize::kN == 1, "no block for N supported yet!");
 
     static constexpr auto I0   = number<0>();
     static constexpr auto I1   = number<1>();
@@ -205,7 +204,17 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                     }
                     else
                     {
-                        constexpr index_t reg_offset = nIter * KPerBlockBQ + kQScale;
+                        index_t reg_offset = [&]() {
+                            if constexpr(QuantGroupSize::kN >= (NWarp * WG::kN))
+                            {
+                                return (nIter * NWarp * WG::kN) / QuantGroupSize::kN * KPerBlockBQ +
+                                       kQScale;
+                            }
+                            else
+                            {
+                                return nIter * KPerBlockBQ + kQScale;
+                            }
+                        }();
                         auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
                         float scale_reg_f = cvt_scale_to_fp32(scale_reg);
 

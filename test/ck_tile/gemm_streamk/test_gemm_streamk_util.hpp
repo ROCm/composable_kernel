@@ -105,67 +105,60 @@ class TestCkTileStreamK : public ::testing::Test
                                                                      NumWaveGroup,
                                                                      preshuffle>;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
-            constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
+        constexpr auto scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
 
-            // We create the GEMM pipeline without specifying has_hot_loop or tail_num.
-            // This is because num_loop can vary (a) per WG and (b) per iteration of the Stream-K
-            // while loop. Instead, has_hot_loop and tail_num are determined in the Stream-K
-            // Kernel's RunGemm function. This is a similar pattern used by grouped GEMM.
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                               BDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               scheduler>;
-            // For initial testing, we will just test with one pipeline.
-            // More extensive testing is coming later and will test other pipelines.
-            using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
+        // We create the GEMM pipeline without specifying has_hot_loop or tail_num.
+        // This is because num_loop can vary (a) per WG and (b) per iteration of the Stream-K
+        // while loop. Instead, has_hot_loop and tail_num are determined in the Stream-K
+        // Kernel's RunGemm function. This is a similar pattern used by grouped GEMM.
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                           BDataType,
+                                                                           AccDataType,
+                                                                           GemmShape,
+                                                                           GemmUniversalTraits,
+                                                                           scheduler>;
+        // For initial testing, we will just test with one pipeline.
+        // More extensive testing is coming later and will test other pipelines.
+        using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 ck_tile::tuple<>,
-                                                 AccDataType,
-                                                 CDataType,
-                                                 ck_tile::tuple<>,
-                                                 CLayout,
-                                                 ck_tile::element_wise::PassThrough,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 M_Warp,
-                                                 N_Warp,
-                                                 M_Warp_Tile,
-                                                 N_Warp_Tile,
-                                                 K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             ck_tile::tuple<>,
+                                             AccDataType,
+                                             CDataType,
+                                             ck_tile::tuple<>,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC>>;
 
-            using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
-            auto kargs = Kernel::MakeKernelArgs(args);
+        auto kargs                = Kernel::MakeKernelArgs(args);
+        const auto workspace_size = Kernel::GetWorkSpaceSize(kargs);
+        ck_tile::DeviceMem workspace_data(workspace_size);
+        workspace_data.SetZero();
+        kargs.workspace_ptr = workspace_data.GetDeviceBuffer();
 
-            if(!Kernel::IsSupportedArgument(kargs))
-            {
-                EXPECT_TRUE(false);
-            }
+        if(!Kernel::IsSupportedArgument(kargs))
+        {
+            EXPECT_TRUE(false);
+        }
 
-            dim3 grid_dims  = Kernel::GridSize(kargs.tile_partitioner);
-            dim3 block_dims = Kernel::BlockSize();
+        dim3 grid_dims  = Kernel::GridSize(kargs.tile_partitioner);
+        dim3 block_dims = Kernel::BlockSize();
 
-            ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grid_dims, block_dims, 0, kargs));
+        ck_tile::ignore = ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grid_dims, block_dims, 0, kargs));
 
-            return kargs.tile_partitioner.estimate_num_wgs_per_tile();
-        };
-
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              // Since we are doing stream K, in the case of
-                                              // atomics, multiple workgroups may write to the same
-                                              // output tile in the C tensor, so we must atomic add
-                                              // the results (not set)
-                                              ck_tile::memory_operation_enum::atomic_add>{});
+        return kargs.tile_partitioner.estimate_num_wgs_per_tile();
     }
 
     public:
@@ -183,11 +176,6 @@ class TestCkTileStreamK : public ::testing::Test
         std::cout << "M: " << M << ", N: " << N << ", K: " << K << std::endl;
 
         using namespace ck_tile::literals;
-
-        if(reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
-        {
-            throw std::runtime_error("Reduction Strategy is current unsupported!\n");
-        }
 
         auto f_host_tensor_descriptor = [](std::size_t row,
                                            std::size_t col,
@@ -252,9 +240,25 @@ class TestCkTileStreamK : public ::testing::Test
                                       stride_B,
                                       stride_C};
 
-        ck_tile::index_t num_accumulations_per_tile =
-            invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
+        ck_tile::index_t num_accumulations_per_tile;
+
+        if(reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic)
+        {
+            num_accumulations_per_tile = invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
                 args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
+        }
+        else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
+        {
+            num_accumulations_per_tile =
+                invoke_streamk<ck_tile::StreamKReductionStrategy::Reduction>(
+                    args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
+        }
+        else
+        {
+            num_accumulations_per_tile =
+                invoke_streamk<ck_tile::StreamKReductionStrategy::TreeReduction>(
+                    args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
+        }
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 

@@ -132,6 +132,7 @@ enum class MoeFlatmmKind
     kFFN_gemm1_gate_only,
     kFFN_gemm1_gate_up,
     kFFN_gemm2,
+    kFFN_gemm1_split_k,
 };
 
 namespace moe {
@@ -217,12 +218,15 @@ struct MoeFlatmmKernel
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
     static constexpr auto I3 = number<3>();
+    static constexpr auto I4 = number<4>();
 
     static_assert(DsLayout::size() == DsDataType::size(),
                   "The size of DsLayout and DsDataType should be the same");
 
-    static constexpr bool IsInputGemm = kind != MoeFlatmmKind::kFFN_gemm2;
-    static constexpr bool IsGateUp    = kind == MoeFlatmmKind::kFFN_gemm1_gate_up;
+    static constexpr bool IsInputGemm   = kind != MoeFlatmmKind::kFFN_gemm2;
+    static constexpr bool IsGateUp      = kind == MoeFlatmmKind::kFFN_gemm1_gate_up;
+    static constexpr bool IsGemm1SplitK = kind == MoeFlatmmKind::kFFN_gemm1_split_k;
+    static constexpr bool IsBShuffled   = true;
 
     // static constexpr index_t kBlockSize     = EpiloguePipeline::kBlockSize;
     static constexpr index_t kMPerBlock     = EpiloguePipeline::kMPerBlock;
@@ -241,12 +245,24 @@ struct MoeFlatmmKernel
         IsGateUp ? TilePartitioner::NPerBlock / 2 : TilePartitioner::NPerBlock;
 
     // MXF4_Pipeline only has the of scale B and granularityK is 32
-    static constexpr bool MXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
-    static constexpr int MXFP4N_Pack     = 2;
-    static constexpr int MXFP4K_Pack     = 2;
+    static constexpr bool AQUANT_Pipeline = std::is_same_v<ADataType, bf8_t> ||
+                                            std::is_same_v<ADataType, fp8_t> ||
+                                            std::is_same_v<ADataType, pk_fp4_t>;
+    static constexpr bool BMXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
 
-    static constexpr int N_Pack = MXFP4_Pipeline ? MXFP4N_Pack : 1;
-    static constexpr int K_Pack = MXFP4_Pipeline ? MXFP4K_Pack : 1;
+    static constexpr bool MXF8F6F4MFMA =
+#ifdef __gfx950__
+        AQUANT_Pipeline && BMXFP4_Pipeline;
+#else
+        false;
+#endif
+    static constexpr int MXFP4M_Pack = 2;
+    static constexpr int MXFP4N_Pack = 2;
+    static constexpr int MXFP4K_Pack = 2;
+
+    static constexpr int M_Pack = AQUANT_Pipeline ? MXFP4M_Pack : 1;
+    static constexpr int N_Pack = BMXFP4_Pipeline ? MXFP4N_Pack : 1;
+    static constexpr int K_Pack = BMXFP4_Pipeline ? MXFP4K_Pack : 1;
 
     static constexpr int WeightPackedSize = numeric_traits<BDataType>::PackedSize;
 
@@ -382,15 +398,6 @@ struct MoeFlatmmKernel
                 a_k_split_offset = k_id * KRead * kargs.stride_A;
             }
 
-            if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
-            {
-                b_k_split_offset = k_id * KRead * kargs.stride_B;
-            }
-            else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
-            {
-                b_k_split_offset = k_id * KRead;
-            }
-
             if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
             {
                 splitted_k = KRead;
@@ -398,6 +405,22 @@ struct MoeFlatmmKernel
             else
             {
                 splitted_k = kargs.K - KRead * (kargs.k_batch - 1);
+            }
+
+            if constexpr(IsBShuffled)
+            {
+                b_k_split_offset = k_id * splitted_k * NPerXdl;
+            }
+            else
+            {
+                if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+                {
+                    b_k_split_offset = k_id * KRead * kargs.stride_B;
+                }
+                else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+                {
+                    b_k_split_offset = k_id * KRead;
+                }
             }
         }
 
@@ -560,15 +583,16 @@ struct MoeFlatmmKernel
         return DTesnorIsValid;
     }
 
-    template <memory_operation_enum DstInMemOp = IsInputGemm ? memory_operation_enum::set
-                                                             : memory_operation_enum::atomic_add,
+    template <memory_operation_enum DstInMemOp = (IsInputGemm && !IsGemm1SplitK)
+                                                     ? memory_operation_enum::set
+                                                     : memory_operation_enum::atomic_add,
               typename KernelArgs>
     CK_TILE_DEVICE static auto
     MakeGemmTensorViews(const ADataType* a_ptr,
                         const BDataType* b_flat_ptr,
                         EDataType* e_ptr,
                         [[maybe_unused]] const AccDataType* exp_weight_ptr,
-                        const int expert_id,
+                        [[maybe_unused]] const int expert_id,
                         const KernelArgs& kargs,
                         const SplitKBatchOffset& splitk_batch_offset)
     {
@@ -595,16 +619,44 @@ struct MoeFlatmmKernel
             }
         }();
 
-        index_t kFlatK = kargs.K * BlockGemmShape::WarpTile::at(I1); // TODO (support splitK)
-        index_t kFlatN = kargs.N * kargs.K / kFlatK;
-
         const auto& b_flat_tensor_view = [&]() {
-            return make_naive_tensor_view<address_space_enum::global>(
-                b_flat_ptr,
-                make_tuple(kFlatN - kargs.n_padded_zeros / NPerXdl, kFlatK),
-                make_tuple(kFlatK, 1),
-                number<FlatmmPipeline::GetVectorSizeB()>{},
-                number<1>{});
+            if constexpr(!FlatmmPipeline::BPreShufflePermute)
+            {
+                index_t kFlatK =
+                    kargs.K * BlockGemmShape::WarpTile::at(I1); // TODO (support splitK)
+                index_t kFlatN = kargs.N * kargs.K / kFlatK;
+
+                return make_naive_tensor_view<address_space_enum::global,
+                                              memory_operation_enum::set,
+                                              FlatmmPipeline::BMemNTType>(
+                    b_flat_ptr,
+                    make_tuple(kFlatN - kargs.n_padded_zeros / NPerXdl, kFlatK),
+                    make_tuple(kFlatK, 1),
+                    number<FlatmmPipeline::GetVectorSizeB()>{},
+                    number<1>{});
+            }
+            else
+            {
+                index_t kFlatK  = FlatmmPipeline::flatKPerWarp;
+                index_t kFlatN0 = (kargs.N >> 4);
+                index_t kFlatK0 = (kargs.K >> 7);
+
+                auto b_tensor_view_naive = make_naive_tensor_view<address_space_enum::global,
+                                                                  memory_operation_enum::set,
+                                                                  FlatmmPipeline::BMemNTType>(
+                    b_flat_ptr,
+                    make_tuple(kFlatK0, kFlatN0 - kargs.n_padded_zeros / NPerXdl, kFlatK),
+                    make_tuple(kFlatK * (kFlatN0 - kargs.n_padded_zeros / NPerXdl), kFlatK, 1),
+                    number<FlatmmPipeline::GetVectorSizeB()>{},
+                    number<1>{});
+                return transform_tensor_view(
+                    b_tensor_view_naive,
+                    make_tuple(
+                        make_pass_through_transform(kFlatN0 - kargs.n_padded_zeros / NPerXdl),
+                        make_merge_transform_v3_division_mod(make_tuple(kFlatK0, kFlatK))),
+                    make_tuple(sequence<1>{}, sequence<0, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
         }();
 
         // TODO: enable vector write for C in ColMajor
@@ -631,23 +683,95 @@ struct MoeFlatmmKernel
             }
         }();
 
-        auto scale_n               = kargs.scale_n;
-        constexpr int GranularityK = decltype(scale_n)::GranularityK;
+        const auto& scale_a_tensor_view = [&]() {
+            auto scale_m_desc = kargs.scale_m;
+            if constexpr(AQUANT_Pipeline)
+            {
+                constexpr int AGranularityK = decltype(scale_m_desc)::GranularityK == 0
+                                                  ? 1
+                                                  : decltype(scale_m_desc)::GranularityK;
 
-        index_t scale_k    = GranularityK == 0 ? 1 : (kargs.K + GranularityK - 1) / GranularityK;
-        index_t FlatScaleK = scale_k * N_Pack * BlockGemmShape::WarpTile::at(I1);
-        index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
+                constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(I0);
+                constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I0);
+                index_t scale_m_packs       = kargs.M / (MXFP4M_Pack * MThreadPerXdl);
+                index_t scale_k_packs = kargs.K / (MXFP4K_Pack * AGranularityK * KThreadPerXdl);
+                // Pack 2x2 e8m0 over M/K dimension into 1 int32_t to trigger dword width load
+                const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
+                    make_tuple(scale_m_packs, scale_k_packs, KThreadPerXdl, MThreadPerXdl));
+                const auto scale_a_desc = transform_tensor_descriptor(
+                    scale_a_naive_desc,
+                    make_tuple(make_merge_transform(make_tuple(scale_m_packs, MThreadPerXdl)),
+                               make_merge_transform(make_tuple(scale_k_packs, KThreadPerXdl))),
+                    make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+                return make_tensor_view<address_space_enum::global>(
+                    reinterpret_cast<const int32_t*>(scale_m_desc.ptr), scale_a_desc);
+            }
+            else
+            {
+                constexpr int AGranularityK = 32;
+                constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(I0);
+                constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I0);
+                index_t scale_m_packs       = kargs.M / (MXFP4M_Pack * MThreadPerXdl);
+                index_t scale_k_packs = kargs.K / (MXFP4K_Pack * AGranularityK * KThreadPerXdl);
+                return make_naive_tensor_view<address_space_enum::global>(
+                    reinterpret_cast<const int32_t*>(scale_m_desc.ptr),
+                    make_tuple(scale_m_packs * MThreadPerXdl, scale_k_packs * KThreadPerXdl),
+                    make_tuple(scale_k_packs * KThreadPerXdl, 1),
+                    number<8>{},
+                    number<1>{});
+            }
+        }();
 
-        using ScaleType = std::conditional_t<MXFP4_Pipeline, e8m0_t, float>;
+        const auto scale_b_flat_view = [&]() {
+            auto scale_n = kargs.scale_n;
+            constexpr int BGranularityK =
+                decltype(scale_n)::GranularityK == 0 ? 1 : decltype(scale_n)::GranularityK;
+            if constexpr(AQUANT_Pipeline)
+            {
+                index_t scale_k =
+                    BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
+                constexpr int NThreadPerXdl = BlockGemmShape::WarpTile::at(I1);
+                constexpr int KThreadPerXdl = 64 / BlockGemmShape::WarpTile::at(I1);
+                index_t scale_n_packs       = kargs.N / (MXFP4N_Pack * NThreadPerXdl);
+                index_t scale_k_packs = kargs.K / (MXFP4K_Pack * BGranularityK * KThreadPerXdl);
+                const auto scale_b_navie_desc = make_naive_tensor_descriptor_packed(
+                    make_tuple(scale_n_packs, scale_k_packs, KThreadPerXdl, NThreadPerXdl));
+                const auto scale_b_desc = transform_tensor_descriptor(
+                    scale_b_navie_desc,
+                    make_tuple(make_merge_transform(make_tuple(scale_n_packs, NThreadPerXdl)),
+                               make_merge_transform(make_tuple(scale_k_packs, KThreadPerXdl))),
+                    make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
 
-        const auto scale_b_flat_view = make_naive_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const ScaleType*>(scale_n.ptr) + expert_id * kargs.N * scale_k,
-            make_tuple(FlatScaleN - kargs.n_padded_zeros / NPerXdl / N_Pack, FlatScaleK),
-            make_tuple(FlatScaleK, 1),
-            number<8>{},
-            number<1>{});
+                return make_tensor_view<address_space_enum::global>(
+                    reinterpret_cast<const int32_t*>(scale_n.ptr) +
+                        expert_id * kargs.N * scale_k / 4,
+                    scale_b_desc);
+            }
+            else
+            {
+                index_t scale_k =
+                    BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
+                const auto scale_k_offset =
+                    (splitk_batch_offset.b_k_split_offset / BGranularityK) * K_Pack;
+                index_t FlatScaleK = scale_k * N_Pack * BlockGemmShape::WarpTile::at(I1);
+                index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
 
-        return make_tuple(a_tensor_view, b_flat_tensor_view, c_tensor_view, scale_b_flat_view);
+                return make_naive_tensor_view<address_space_enum::global>(
+                    scale_n.ptr + expert_id * kargs.N * scale_k + scale_k_offset,
+                    make_tuple(FlatScaleN - kargs.n_padded_zeros / NPerXdl / N_Pack, FlatScaleK),
+                    make_tuple(FlatScaleK, 1),
+                    number<8>{},
+                    number<1>{});
+            }
+        }();
+
+        return make_tuple(a_tensor_view,
+                          b_flat_tensor_view,
+                          c_tensor_view,
+                          scale_a_tensor_view,
+                          scale_b_flat_view);
     }
 
     template <typename TensorView>
@@ -690,7 +814,7 @@ struct MoeFlatmmKernel
             }
         }();
 
-        return make_tuple(a_pad_view, views.at(I1), c_pad_view, views.at(I3));
+        return make_tuple(a_pad_view, views.at(I1), c_pad_view, views.at(I3), views.at(I4));
     }
 
     template <typename PadView>
@@ -719,7 +843,7 @@ struct MoeFlatmmKernel
             }
         }();
 
-        constexpr bool isNonInterleaveGateUp = !IsGateUp || MXFP4_Pipeline;
+        constexpr bool isNonInterleaveGateUp = !IsGateUp || BMXFP4_Pipeline;
 
         const auto& b_flat_block_window =
             make_tile_window(b_flat_pad_view,
@@ -738,17 +862,40 @@ struct MoeFlatmmKernel
              output_N_offset});
 
         constexpr int GranularityK = 32; // fixed config for MXF4_Pipeline
+        auto a_scale_block_window  = make_tile_window(
+            views.at(I3),
+            make_tuple(number<TilePartitioner::MPerBlock / M_Pack>{},
+                       number<TilePartitioner::KPerBlock / (GranularityK * K_Pack)>{}),
+            {coord_m / M_Pack, 0});
+
         constexpr int XDLPerLoadScaleB =
-            MXFP4_Pipeline ? 4 : 1; // GranularityK32 / XDL16x16x32_K8 = 4
+            BMXFP4_Pipeline ? 4 : 1; // GranularityK32 / XDL16x16x32_K8 = 4
 
-        auto scale_block_window =
-            make_tile_window(views.at(I3),
-                             make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                                        number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
-                                               XDLPerLoadScaleB / GranularityK>{}),
-                             {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
+        auto b_scale_block_window = [&]() {
+            if constexpr(MXF8F6F4MFMA)
+            {
+                return make_tile_window(
+                    views.at(I4),
+                    make_tuple(number<TilePartitioner::NPerBlock / N_Pack>{},
+                               number<TilePartitioner::KPerBlock / (GranularityK * K_Pack)>{}),
+                    {coord_n / N_Pack, 0});
+            }
+            else
+            {
+                return make_tile_window(
+                    views.at(I4),
+                    make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                               number<FlatmmPipeline::flatKPerWarp * N_Pack * K_Pack *
+                                      XDLPerLoadScaleB / GranularityK>{}),
+                    {coord_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
+            }
+        }();
 
-        return make_tuple(a_block_window, b_flat_block_window, c_block_window, scale_block_window);
+        return make_tuple(a_block_window,
+                          b_flat_block_window,
+                          c_block_window,
+                          a_scale_block_window,
+                          b_scale_block_window);
     }
 
     template <class MoeFlatmmKernelArgs>
@@ -803,7 +950,6 @@ struct MoeFlatmmKernel
 
         if(coord_m >= max_token_id)
             return;
-
         static_for<0, DramMRepeat, 1>{}([&](auto m0) {
             const auto row_idx =
                 coord_m + m0 * (TilePartitioner::MPerBlock / DramMRepeat) + a_coord[I0];
@@ -836,9 +982,10 @@ struct MoeFlatmmKernel
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
 
         // Run GEMM cooperatively by whole workgroup.
-        const auto& a_block_window     = gemm_tile_windows.at(I0);
-        const auto& b_block_window     = gemm_tile_windows.at(I1);
-        const auto& scale_block_window = gemm_tile_windows.at(I3);
+        const auto& a_block_window       = gemm_tile_windows.at(I0);
+        const auto& b_block_window       = gemm_tile_windows.at(I1);
+        const auto& a_scale_block_window = gemm_tile_windows.at(I3);
+        const auto& b_scale_block_window = gemm_tile_windows.at(I4);
 
         auto a_gather_block_tile =
             ck_tile::make_tile_scatter_gather(a_block_window.get_bottom_tensor_view(),
@@ -848,17 +995,32 @@ struct MoeFlatmmKernel
                                               a_offsets); // K DRAM tile window for
 
         auto c_block_tile = [&] {
-            if constexpr(MXFP4_Pipeline)
+            if constexpr(BMXFP4_Pipeline)
             {
-                // MXFP4_Pipeline uses gate-up interleave 16 layout for weight
+                // BMXFP4_Pipeline uses gate-up interleave 16 layout for weight
                 // so don't need extra processing
-                return FlatmmPipeline{}(a_gather_block_tile,
-                                        b_block_window,
-                                        scale_block_window, // weight scale with granularityK = 32
-                                        num_loop,
-                                        kargs.k_padded_zeros,
-                                        smem_ptr_ping,
-                                        smem_ptr_pong);
+                if constexpr(AQUANT_Pipeline)
+                {
+                    return FlatmmPipeline{}(
+                        a_gather_block_tile,
+                        b_block_window,
+                        a_scale_block_window, // weight scale with granularityK = 32
+                        b_scale_block_window, // weight scale with granularityK = 32
+                        num_loop,
+                        smem_ptr_ping,
+                        smem_ptr_pong);
+                }
+                else
+                {
+                    return FlatmmPipeline{}(
+                        a_gather_block_tile,
+                        b_block_window,
+                        b_scale_block_window, // weight scale with granularityK = 32
+                        num_loop,
+                        kargs.k_padded_zeros,
+                        smem_ptr_ping,
+                        smem_ptr_pong);
+                }
             }
             else
             {
@@ -936,7 +1098,7 @@ struct MoeFlatmmKernel
             constexpr index_t ScaleMRepeat = MRepeat * kM0 * kM2;
             statically_indexed_array<index_t, ScaleMRepeat> scale_m_offsets;
 
-            if constexpr(!MXFP4_Pipeline)
+            if constexpr(!BMXFP4_Pipeline)
                 static_for<0, MRepeat, 1>{}([&](auto mIter) {
                     static_for<0, kM0, 1>{}([&](auto m0) {
                         static_for<0, kM2, 1>{}([&](auto m2) {
@@ -1031,7 +1193,7 @@ struct MoeFlatmmKernel
                 number<1>{});
 
             auto exp_bias_window = make_tile_window(
-                permute_tensor_view(exp_bias_view, number<(MXFP4_Pipeline && !IsInputGemm)>{}),
+                permute_tensor_view(exp_bias_view, number<(BMXFP4_Pipeline && !IsInputGemm)>{}),
                 make_tuple(number<TilePartitioner::MPerBlock>{},
                            number < IsGateUp ? TilePartitioner::NPerBlock / 2
                                              : TilePartitioner::NPerBlock > {}),
@@ -1073,7 +1235,7 @@ struct MoeFlatmmKernel
             ExpBiasBuffer exp_bias_buffer, exp_bias_up_buffer;
             ExpWeightBuffer exp_weight_buffer;
 
-            if constexpr(!MXFP4_Pipeline)
+            if constexpr(!BMXFP4_Pipeline)
             {
                 scale_m_window.load(scale_m_buffer);
                 scale_n_buffer = load_tile(scale_n_window);
@@ -1205,7 +1367,7 @@ struct MoeFlatmmKernel
                     auto epi_exp_bias_up = epi_tile_idx_slice(exp_bias_up_buffer, epi_m, epi_n);
 
                     static_for<0, ActVectorSize, 1>{}([&](auto idx) {
-                        if constexpr(!MXFP4_Pipeline)
+                        if constexpr(!BMXFP4_Pipeline)
                         {
                             gate_tensor.get_thread_buffer()[idx] *=
                                 epi_scale_m[idx] * epi_scale_n[idx];
@@ -1232,14 +1394,19 @@ struct MoeFlatmmKernel
                     auto epi_exp_bias   = epi_tile_idx_slice(exp_bias_buffer, epi_m, epi_n);
 
                     static_for<0, ActVectorSize, 1>{}([&](auto idx) {
-                        if constexpr(!MXFP4_Pipeline)
+                        if constexpr(!BMXFP4_Pipeline)
                             lds_tile[lds_stage].get_thread_buffer()[idx] *=
                                 epi_scale_m[idx] * epi_scale_n[idx];
-                        if constexpr(EnableBias)
-                            lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
-                        if constexpr(!IsInputGemm)
-                            lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
-                        else // for mlp1 gate-only
+                        if(kind !=
+                           MoeFlatmmKind::kFFN_gemm1_split_k) // disable weight and bias for split-k
+                        {
+                            if constexpr(EnableBias)
+                                lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
+                            if constexpr(!IsInputGemm)
+                                lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
+                        }
+                        if constexpr(kind ==
+                                     MoeFlatmmKind::kFFN_gemm1_gate_only) // for mlp1 gate-only
                             lds_tile[lds_stage].get_thread_buffer()[idx] =
                                 ActivationOp{}(lds_tile[lds_stage].get_thread_buffer()[idx]);
                     });
@@ -1259,12 +1426,12 @@ struct MoeFlatmmKernel
                     auto fused_token =
                         kargs.p_sorted_token_ids[row_idx]; // topk-idx[31:24] + token_idx[23:0]
 
-                    index_t scatter_token_id = fused_token & token_id_mask;
+                    index_t scatter_token_id    = fused_token & token_id_mask;
+                    c_scatter_valids[mIter][m0] = (scatter_token_id < kargs.NumTokens);
                     if constexpr(IsInputGemm)
                         scatter_token_id =
                             scatter_token_id * kargs.TopK + (fused_token >> token_id_offset);
                     c_scatter_offsets[mIter][m0] = scatter_token_id * kargs.stride_C;
-                    c_scatter_valids[mIter][m0]  = (scatter_token_id < kargs.NumTokens);
                 });
             });
 
@@ -1309,7 +1476,8 @@ struct MoeFlatmmKernel
                                              c_scatter_valids[mIter]);
 
                 if constexpr(!IsInputGemm ||
-                             EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add)
+                             decltype(c_block_window.get_bottom_tensor_view())::DstInMemOp ==
+                                 memory_operation_enum::atomic_add)
                     c_scatter_tile_window.update(c_out_tensor);
                 else
                     c_scatter_tile_window.store(c_out_tensor);

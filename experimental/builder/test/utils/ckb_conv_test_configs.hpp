@@ -68,7 +68,7 @@ constexpr TransferABC FwdTransfer_4x64x1{
                 {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                          .n_per_wave_per_shuffle     = 1,
-                         .scalar_per_vector          = 8},
+                         .scalar_per_vector          = 4},
         },
 };
 
@@ -177,6 +177,9 @@ constexpr GridwiseXdlGemm FwdGemmParams_Xdl_4x4_per_wave{
 
 constexpr GridwiseXdlGemm FwdGemmParams_Xdl_4x2_per_wave{
     .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 2};
+
+constexpr GridwiseXdlGemm FwdGemmParams_Xdl_2x2_per_wave{
+    .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 2};
 
 constexpr GridwiseXdlGemm FwdGemmParams_Xdl_2x1_per_wave{
     .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 1};
