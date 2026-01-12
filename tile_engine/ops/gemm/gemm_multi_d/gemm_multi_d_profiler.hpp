@@ -11,25 +11,28 @@
 #include <functional>
 #include <tuple>
 
-
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "gemm/gemm_profiler.hpp"
+#include "common/utils.hpp"
 #include "gemm_multi_d_benchmark.hpp"
 
-class GemmMultiDProfiler: public GemmProfiler<GemmMultiDProfiler,
-                          GemmMultiDProblem,
-                          ck_tile::GemmMultiDHostArgs<DsDataType::size()>>
+class GemmMultiDProfiler : public GemmProfiler<GemmMultiDProfiler,
+                                               GemmMultiDProblem,
+                                               ck_tile::GemmMultiDHostArgs<DsDataType::size()>>
 {
-public:
+    public:
     using BaseGemm = GemmProfiler<GemmMultiDProfiler,
-                              GemmMultiDProblem,
-                              ck_tile::GemmMultiDHostArgs<DsDataType::size()>>;
+                                  GemmMultiDProblem,
+                                  ck_tile::GemmMultiDHostArgs<DsDataType::size()>>;
     using BaseGemm::benchmark;
 
     GemmMultiDProfiler(Setting setting)
-        : GemmProfiler<GemmMultiDProfiler, GemmMultiDProblem, ck_tile::GemmMultiDHostArgs<DsDataType::size()>>(setting) {}
-
+        : GemmProfiler<GemmMultiDProfiler,
+                       GemmMultiDProblem,
+                       ck_tile::GemmMultiDHostArgs<DsDataType::size()>>(setting)
+    {
+    }
 
     void benchmark(
         GemmMultiDProblem& gemm_multi_d_problem,
@@ -157,5 +160,4 @@ public:
                            kernel_run_result);
         }
     }
-
 };

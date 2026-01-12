@@ -11,6 +11,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
+#include "gemm/gemm_common.hpp"
 #include "gemm_universal_profiler.hpp"
 
 // The kernel header is included via the compile command line with -include flag

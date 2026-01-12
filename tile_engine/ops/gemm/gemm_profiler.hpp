@@ -11,17 +11,14 @@
 #include <functional>
 #include <tuple>
 
-
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "gemm_benchmark.hpp"
 
-template <typename Gemm,
-          typename Problem,
-          typename GemmArgs>
+template <typename Gemm, typename Problem, typename GemmArgs>
 class GemmProfiler
 {
-public:
+    public:
     static Gemm& instance(Setting setting)
     {
         static Gemm instance{setting};
@@ -30,27 +27,25 @@ public:
 
     // Overload for single kernel benchmarking
     void benchmark(Problem& gemm_problem,
-                   std::function<float(const GemmArgs&, const ck_tile::stream_config&)>
-                       kernel_func)
+                   std::function<float(const GemmArgs&, const ck_tile::stream_config&)> kernel_func)
     {
         // Create a vector with a single callable that returns both name and time
-        std::vector<std::function<std::tuple<std::string, float>(GemmArgs&,
-                                                                 const ck_tile::stream_config&)>>
+        std::vector<
+            std::function<std::tuple<std::string, float>(GemmArgs&, const ck_tile::stream_config&)>>
             callables;
 
-        callables.push_back(
-            [kernel_func](GemmArgs& args, const ck_tile::stream_config& stream) {
-                float time = kernel_func(args, stream);
-                return std::make_tuple(std::string(KERNEL_NAME), time);
-            });
+        callables.push_back([kernel_func](GemmArgs& args, const ck_tile::stream_config& stream) {
+            float time = kernel_func(args, stream);
+            return std::make_tuple(std::string(KERNEL_NAME), time);
+        });
 
-        benchmark(gemm_problem, callables); // TODO: need to cast this?
+        benchmark(gemm_problem, callables);
     }
 
     virtual void benchmark(Problem& gemm_problem,
-                   std::vector<std::function<std::tuple<std::string, float>(
-                       GemmArgs&, const ck_tile::stream_config&)>>& callables) = 0;
-   
+                           std::vector<std::function<std::tuple<std::string, float>(
+                               GemmArgs&, const ck_tile::stream_config&)>>& callables) = 0;
+
     void process_result(const Problem& gemm_problem,
                         ck_tile::DeviceMem& c_m_n_dev_buf,
                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
@@ -58,7 +53,7 @@ public:
                         const std::tuple<std::string, float>& kernel_run_result)
     {
         auto [name, avg_time] = kernel_run_result;
-	using DDataType = typename get_DsDataType<Problem>::type;
+        using DDataType       = typename get_DsDataType<Problem>::type;
 
         KernelInstance<Problem> kernel_instance{name, gemm_problem, {-1.0f, -1.0f, -1.0f}};
 
@@ -68,16 +63,14 @@ public:
                                sizeof(BDataType) * gemm_problem.n_ * gemm_problem.k_ +
                                sizeof(CDataType) * gemm_problem.m_ * gemm_problem.n_;
 
-
-	if constexpr (!std::is_void_v<DDataType>)
-	{
-		ck_tile::static_for<0, DDataType::size(), 1>{}([&](auto i) {
-				using DType = ck_tile::remove_cvref_t<std::tuple_element_t<i, DDataType>>;
-		    		num_byte += sizeof(DType) * gemm_problem.m_ * gemm_problem.n_;
-		    		flop     += sizeof(DType) * gemm_problem.m_ * gemm_problem.n_;
-				});
-	}
-
+        if constexpr(!std::is_void_v<DDataType>)
+        {
+            ck_tile::static_for<0, DDataType::size(), 1>{}([&](auto i) {
+                using DType = ck_tile::remove_cvref_t<std::tuple_element_t<i, DDataType>>;
+                num_byte += sizeof(DType) * gemm_problem.m_ * gemm_problem.n_;
+                flop += sizeof(DType) * gemm_problem.m_ * gemm_problem.n_;
+            });
+        }
 
         // update
         kernel_instance.perf_result_.latency_   = avg_time;
@@ -91,15 +84,14 @@ public:
 
         // verify result
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
-	int split_k = 1;
-    	if constexpr (std::is_same_v<Problem, GemmProblem>)
-    	{
-        	split_k = gemm_problem.split_k_;
-    	}
+        int split_k = 1;
+        if constexpr(std::is_same_v<Problem, GemmProblem>)
+        {
+            split_k = gemm_problem.split_k_;
+        }
         bool verified_correct =
             !setting_.verify_ ||
-            compare<Problem>(
-                name, gemm_problem.k_, split_k, c_m_n_dev_result, c_m_n_host_result);
+            compare<Problem>(name, gemm_problem.k_, split_k, c_m_n_dev_result, c_m_n_host_result);
 
         if(verified_correct)
         {
@@ -196,5 +188,3 @@ public:
 
     std::vector<KernelInstance<Problem>> kernel_instances_;
 };
-
-

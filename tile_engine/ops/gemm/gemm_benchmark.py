@@ -3,15 +3,10 @@
 # SPDX-License-Identifier: MIT
 
 import os
-import sys
-import json
-import subprocess
-import argparse
-import csv
-import time
 import importlib.util
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
+
 
 # TODO: explore modularizing tile engine to avoid accessing imports like this
 def _import_benchmark_utils():
@@ -29,10 +24,14 @@ def _import_benchmark_utils():
 
     return benchmark_utils
 
+
 benchmark_utils = _import_benchmark_utils()
 
+
 class GemmBenchmark:
-    def __init__(self, build_dir: str, verbose: bool = False, name: str = "benchmark_gemm_"):
+    def __init__(
+        self, build_dir: str, verbose: bool = False, name: str = "benchmark_gemm_"
+    ):
         self.build_dir = Path(build_dir)
         self.verbose = verbose
         self.results = []
@@ -57,7 +56,7 @@ class GemmBenchmark:
         """Extract comprehensive kernel information from filename"""
         name = kernel_path.stem
         if name.startswith(self.name):
-            args = name[len(self.name):]
+            args = name[len(self.name) :]
         else:
             args = name
 
@@ -245,7 +244,9 @@ class GemmBenchmark:
 
         for kernel_path in kernels:
             kernel_info = self.extract_kernel_info(kernel_path)
-            result = benchmark_utils.run_kernel(self.build_dir, kernel_path, params, verbose=self.verbose)
+            result = benchmark_utils.run_kernel(
+                self.build_dir, kernel_path, params, verbose=self.verbose
+            )
             if result:
                 # Create new structured result format
                 structured_result = {
@@ -327,5 +328,3 @@ class GemmBenchmark:
 
         self.results = all_results
         return best_kernels
-
-

@@ -11,6 +11,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
+#include "gemm/gemm_common.hpp"
 #include "gemm_multi_d_profiler.hpp"
 
 // The kernel header is included via the compile command line with -include flag
@@ -35,29 +36,27 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
     std::string layout_d1 = D1Layout::name;
 
     // Create GemmMultiDProblem struct
-    GemmMultiDProblem gemm_multi_d_problem{
-	    				GemmProblem{
-	    				   arg_parser.get_int("split_k"),
-                                           arg_parser.get_int("m"),
-                                           arg_parser.get_int("n"),
-                                           arg_parser.get_int("k"),
-                                           arg_parser.get_int("stride_a"),
-                                           arg_parser.get_int("stride_b"),
-                                           arg_parser.get_int("stride_c"),
-                                           dtype_a,
-                                           dtype_b,
-                                           dtype_acc,
-                                           dtype_c,
-                                           layout_a,
-                                           layout_b,
-                                           layout_c,
-					   arg_parser.get_bool("structured_sparsity")},
-					   arg_parser.get_int("stride_ds"),
-        				   arg_parser.get_int("stride_ds"),
-        				   dtype_d0,                 
-        				   dtype_d1,                      
-        				   layout_d0,                       
-        				   layout_d1};
+    GemmMultiDProblem gemm_multi_d_problem{GemmProblem{arg_parser.get_int("split_k"),
+                                                       arg_parser.get_int("m"),
+                                                       arg_parser.get_int("n"),
+                                                       arg_parser.get_int("k"),
+                                                       arg_parser.get_int("stride_a"),
+                                                       arg_parser.get_int("stride_b"),
+                                                       arg_parser.get_int("stride_c"),
+                                                       dtype_a,
+                                                       dtype_b,
+                                                       dtype_acc,
+                                                       dtype_c,
+                                                       layout_a,
+                                                       layout_b,
+                                                       layout_c,
+                                                       arg_parser.get_bool("structured_sparsity")},
+                                           arg_parser.get_int("stride_ds"),
+                                           arg_parser.get_int("stride_ds"),
+                                           dtype_d0,
+                                           dtype_d1,
+                                           layout_d0,
+                                           layout_d1};
 
     // Create Setting struct
     Setting setting{arg_parser.get_int("warmup"),

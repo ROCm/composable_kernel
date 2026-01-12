@@ -4,28 +4,26 @@
 #pragma once
 
 #include "ck_tile/host/device_prop.hpp"
+#include "ck_tile/host/tensor_shuffle_utils.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "gemm/gemm_profiler.hpp"
 #include "gemm_preshuffle_benchmark.hpp"
 
-class GemmPreshuffleProfiler : public GemmProfiler<GemmPreshuffleProfiler,
-                          GemmProblem,
-                          ck_tile::GemmHostArgs>
+class GemmPreshuffleProfiler
+    : public GemmProfiler<GemmPreshuffleProfiler, GemmProblem, ck_tile::GemmHostArgs>
 {
-public:
-    using BaseGemm = GemmProfiler<GemmPreshuffleProfiler,
-                              GemmProblem,
-                              ck_tile::GemmHostArgs>;
+    public:
+    using BaseGemm = GemmProfiler<GemmPreshuffleProfiler, GemmProblem, ck_tile::GemmHostArgs>;
     using BaseGemm::benchmark;
 
     GemmPreshuffleProfiler(Setting setting)
-        : GemmProfiler<GemmPreshuffleProfiler, GemmProblem, ck_tile::GemmHostArgs>(setting) {}
-
+        : GemmProfiler<GemmPreshuffleProfiler, GemmProblem, ck_tile::GemmHostArgs>(setting)
+    {
+    }
 
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
-                       ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables,
-                   KernelConfig& config) override
+                       ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables) override
     {
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
@@ -97,21 +95,28 @@ public:
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
+        // Create a lambda that wraps the kernel launch
+        KernelConfig config{SelectedKernel::WarpTileM,
+                            SelectedKernel::WarpTileN,
+                            SelectedKernel::WarpTileK,
+                            SelectedKernel::TileM,
+                            SelectedKernel::TileN,
+                            SelectedKernel::TileK,
+                            SelectedKernel::WarpPerBlock_M,
+                            SelectedKernel::WarpPerBlock_N,
+                            SelectedKernel::WarpPerBlock_K,
+                            SelectedKernel::PermuteN};
+
         for(const auto& callable : callables)
         {
-            ck_tile::index_t N_Warp_Tile = std::get<1>(config.warp_tile_dims);
-            ck_tile::index_t K_Warp_Tile = std::get<2>(config.warp_tile_dims);
-            ck_tile::index_t N_Tile      = std::get<1>(config.tile_dims);
-            ck_tile::index_t N_Warp      = std::get<1>(config.warp_dims);
-
             ck_tile::HostTensor<BDataType> b_shuffle_host = [&]() {
                 if(config.permuteN)
                 {
-                    return shuffle_b_permuteN(b_k_n, N_Warp_Tile, K_Warp_Tile, N_Tile, N_Warp);
+                    return ck_tile::shuffle_b_permuteN<KernelConfig>(b_k_n, config);
                 }
                 else
                 {
-                    return shuffle_b(b_k_n, N_Warp_Tile, K_Warp_Tile);
+                    return ck_tile::shuffle_b<KernelConfig>(b_k_n, config);
                 }
             }();
 
@@ -144,5 +149,4 @@ public:
                 gemm_problem, c_m_n_dev_buf, c_m_n_ref, c_m_n_dev_result, kernel_run_result);
         }
     }
-
 };

@@ -8,6 +8,23 @@
 #include "gemm_preshuffle_common.hpp"
 #include "gemm/gemm_benchmark.hpp"
 
+struct KernelConfig
+{
+    ck_tile::index_t M_Tile;
+    ck_tile::index_t N_Tile;
+    ck_tile::index_t K_Tile;
+
+    ck_tile::index_t M_Warp;
+    ck_tile::index_t N_Warp;
+    ck_tile::index_t K_Warp;
+
+    ck_tile::index_t M_Warp_Tile;
+    ck_tile::index_t N_Warp_Tile;
+    ck_tile::index_t K_Warp_Tile;
+
+    bool permuteN;
+};
+
 /// @brief Function to get the kernel output with reference implementation on CPU/GPU
 void gemm_host_reference(int verify,
                          ck_tile::HostTensor<ADataType>& a_m_k,

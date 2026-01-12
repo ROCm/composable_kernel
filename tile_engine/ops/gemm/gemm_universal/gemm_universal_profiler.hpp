@@ -9,21 +9,21 @@
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "gemm_universal_benchmark.hpp"
+#include "gemm/gemm_benchmark.hpp"
 #include "gemm/gemm_profiler.hpp"
+#include "gemm_universal_benchmark.hpp"
 
-class UniversalGemmProfiler : public GemmProfiler<UniversalGemmProfiler,
-                          GemmProblem,
-                          ck_tile::GemmHostArgs>
+class UniversalGemmProfiler
+    : public GemmProfiler<UniversalGemmProfiler, GemmProblem, ck_tile::GemmHostArgs>
 {
-public:
-    using BaseGemm = GemmProfiler<UniversalGemmProfiler,
-                              GemmProblem,
-                              ck_tile::GemmHostArgs>;
+    public:
+    using BaseGemm = GemmProfiler<UniversalGemmProfiler, GemmProblem, ck_tile::GemmHostArgs>;
     using BaseGemm::benchmark;
 
     UniversalGemmProfiler(Setting setting)
-        : GemmProfiler<UniversalGemmProfiler, GemmProblem, ck_tile::GemmHostArgs>(setting) {}
+        : GemmProfiler<UniversalGemmProfiler, GemmProblem, ck_tile::GemmHostArgs>(setting)
+    {
+    }
 
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(

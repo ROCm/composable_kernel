@@ -3,14 +3,10 @@
 
 import os
 import sys
-import json
-import subprocess
 import argparse
-import csv
 import time
 import importlib.util
-from pathlib import Path
-from typing import List, Dict, Tuple, Optional
+
 
 def _import_gemm_benchmark():
     """Import validation utilities from commons directory."""
@@ -27,6 +23,7 @@ def _import_gemm_benchmark():
 
     return gemm_benchmark_module.GemmBenchmark
 
+
 def _import_benchmark_utils():
     """Import benchmark utilities from commons directory."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -42,12 +39,15 @@ def _import_benchmark_utils():
 
     return benchmark_utils
 
+
 GemmBenchmark = _import_gemm_benchmark()
 benchmark_utils = _import_benchmark_utils()
+
 
 class GemmMultiDBenchmark(GemmBenchmark):
     def __init__(self, build_dir: str, verbose: bool = False):
         super().__init__(build_dir, verbose, name="benchmark_gemm_multi_d_")
+
 
 def main():
     parser = argparse.ArgumentParser(

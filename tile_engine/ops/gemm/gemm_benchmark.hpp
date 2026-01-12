@@ -52,19 +52,27 @@ struct GemmProblem
 
 // Detect Problem::DsDataType, default to void when absent
 template <class T, class = void>
-struct get_DsDataType { using type = void; };
+struct get_DsDataType
+{
+    using type = void;
+};
 
 template <class T>
-struct get_DsDataType<T, std::void_t<typename T::DsDataType>> {
+struct get_DsDataType<T, std::void_t<typename T::DsDataType>>
+{
     using type = typename T::DsDataType;
 };
 
 // Detect Problem::D0DataType, default to void when absent
 template <class T, class = void>
-struct get_D0DataType { using type = void; };
+struct get_D0DataType
+{
+    using type = void;
+};
 
 template <class T>
-struct get_D0DataType<T, std::void_t<typename T::D0DataType>> {
+struct get_D0DataType<T, std::void_t<typename T::D0DataType>>
+{
     using type = typename T::D0DataType;
 };
 
@@ -79,10 +87,10 @@ bool compare(std::string instanceName,
     using DDataType = typename get_D0DataType<Problem>::type;
     const float max_accumulated_value =
         *std::max_element(c_m_n_host_result.mData.begin(), c_m_n_host_result.mData.end());
-    //const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-        //K, kbatch, max_accumulated_value);
+    // const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+    // K, kbatch, max_accumulated_value);
     auto rtol_atol = [&] {
-        if constexpr (std::is_void_v<DDataType>)
+        if constexpr(std::is_void_v<DDataType>)
         {
             return calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
                 K, kbatch, max_accumulated_value);

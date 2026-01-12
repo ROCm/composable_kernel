@@ -2,17 +2,16 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-import sys
 import json
 import subprocess
-import argparse
 import csv
-import time
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Optional
 
 
-def run_kernel(build_dir: Path, kernel_path: Path, params: Dict[str, str], verbose: bool = False) -> Optional[Dict]:
+def run_kernel(
+    build_dir: Path, kernel_path: Path, params: Dict[str, str], verbose: bool = False
+) -> Optional[Dict]:
     """Run a single kernel with given parameters and save output to individual JSON file"""
     # Create results directory
     results_dir = build_dir / "results"
@@ -59,6 +58,7 @@ def run_kernel(build_dir: Path, kernel_path: Path, params: Dict[str, str], verbo
         print(f"Error running {kernel_path.name}: {e}")
         return None
 
+
 def parse_json_file(json_file: Path, verbose: bool = False) -> Optional[Dict]:
     """Parse JSON data from individual kernel output file"""
     try:
@@ -88,9 +88,8 @@ def parse_json_file(json_file: Path, verbose: bool = False) -> Optional[Dict]:
             print(f"Error reading JSON file {json_file}: {e}")
         return None
 
-def find_best_kernel(
-     results: List[Dict], metric: str = "tflops"
-) -> Optional[Dict]:
+
+def find_best_kernel(results: List[Dict], metric: str = "tflops") -> Optional[Dict]:
     """Find the best performing kernel based on metric"""
     if not results:
         return None
@@ -126,7 +125,8 @@ def export_csv(results: List[Dict], filename: str, verbose: bool = False):
 
     print(f"Results exported to {filename}")
 
-def export_best_kernels( best_kernels: Dict, filename: str, verbose: bool = False):
+
+def export_best_kernels(best_kernels: Dict, filename: str, verbose: bool = False):
     """Export best kernel selections to file"""
     with open(filename, "w") as f:
         f.write("# Best kernel selections\n")
@@ -141,7 +141,10 @@ def export_best_kernels( best_kernels: Dict, filename: str, verbose: bool = Fals
 
     print(f"Best kernels exported to {filename}")
 
-def export_json(results: List[Dict], filename: str, best_kernels: Dict = None, verbose: bool = False):
+
+def export_json(
+    results: List[Dict], filename: str, best_kernels: Dict = None, verbose: bool = False
+):
     """Export all results and best kernels to JSON with comprehensive metadata"""
     from datetime import datetime
 
@@ -223,9 +226,7 @@ def export_json(results: List[Dict], filename: str, best_kernels: Dict = None, v
         "benchmark_metadata": {
             "timestamp": datetime.now().isoformat(),
             "total_kernels_tested": len(results),
-            "unique_kernels": len(
-                set(r.get("name", "unknown") for r in results)
-            ),
+            "unique_kernels": len(set(r.get("name", "unknown") for r in results)),
             "successful_runs": len(successful_results),
             "failed_runs": len(results) - len(successful_results),
         },
@@ -265,9 +266,7 @@ def export_json(results: List[Dict], filename: str, best_kernels: Dict = None, v
                 "by_scheduler": scheduler_stats,
                 "by_data_type": data_type_stats,
             },
-            "total_problem_configurations": len(best_kernels)
-            if best_kernels
-            else 0,
+            "total_problem_configurations": len(best_kernels) if best_kernels else 0,
         },
         "kernel_results": results,
         "best_kernels_by_problem": best_kernels or {},
@@ -282,4 +281,3 @@ def export_json(results: List[Dict], filename: str, best_kernels: Dict = None, v
     print(f"  - Best TFLOPS: {max(tflops_values, default=0):.2f}")
     print(f"  - Best bandwidth: {max(bandwidth_values, default=0):.2f} GB/s")
     print(f"  - Best latency: {min(latency_values, default=0):.2f}ms")
-
