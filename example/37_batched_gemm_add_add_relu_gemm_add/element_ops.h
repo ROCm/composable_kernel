@@ -18,7 +18,7 @@ struct AddAddRelu
     __host__ __device__ void
     operator()(float& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
     {
-        const float x = c + (d0 + d1);
+        const float x = c + ck::type_convert<float>(d0) + ck::type_convert<float>(d1);
 
         ck::tensor_operation::element_wise::Relu{}.operator()(e, x);
     }
