@@ -15,7 +15,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "tile_engine/ops/gemm/gemm_streamk/gemm_streamk_common.hpp"
+#include "tile_engine/ops/gemm_streamk/gemm_streamk_common.hpp"
 
 // The kernel header is included via compile command line with -include flag
 // It defines SelectedKernel struct, KERNEL_NAME, and tensor data types

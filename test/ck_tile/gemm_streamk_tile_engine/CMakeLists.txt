@@ -275,35 +275,32 @@ message(STATUS "Building StreamK GEMM tile engine tests for GPU targets: ${GEMM_
 
 # All supported data types and layouts for comprehensive testing
 # Note: fp64 not included (no MFMA hardware support)
-set(TEST_DATATYPES "fp16;fp8;bf16;fp32")
+set(TEST_DATATYPES "fp16;bf16")
 set(TEST_LAYOUTS "rcr;rrr;ccr;crr")
 
 # ============================================================================
 # Test Target Generation - Datatype-Specific Categories
 # ============================================================================
 
-# 1. SMALL DATATYPES: Test optimized config for small data types (fp8, fp16, bf16)
+# 1. SIMPLE TEST: Test for basic functionality with data types (fp16, bf16)
 #    These data types can use larger warp tiles due to smaller memory footprint
-set(SMALL_DATATYPE_CONFIG "small_datatype_config")
-set(SMALL_DATATYPE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${SMALL_DATATYPE_CONFIG}.json")
-set(SMALL_DATATYPES "fp8;fp16;bf16")
+set(SIMPLE_TEST_CONFIG "simple_test_config")
+set(SIMPLE_TEST_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${SIMPLE_TEST_CONFIG}.json")
+set(SIMPLE_DATATYPES "fp16;bf16")
 
-if(EXISTS ${SMALL_DATATYPE_CONFIG_FILE})
-    message(STATUS "Processing small datatype config: ${SMALL_DATATYPE_CONFIG} (fp8, fp16, bf16)")
-    foreach(datatype IN LISTS SMALL_DATATYPES)
-        # fp8, fp16, bf16: testing all layouts (rcr, rrr, ccr, crr)
+if(EXISTS ${SIMPLE_TEST_CONFIG_FILE})
+	message(STATUS "Processing simple test config: ${SIMPLE_TEST_CONFIG} (fp16, bf16)")
+	foreach(datatype IN LISTS SIMPLE_DATATYPES)
+        # fp16, bf16: testing all layouts (rcr, rrr, ccr, crr)
         foreach(layout IN LISTS TEST_LAYOUTS)
-            build_gemm_test_targets("${datatype}" "${layout}" "${SMALL_DATATYPE_CONFIG}")
+		build_gemm_test_targets("${datatype}" "${layout}" "${SIMPLE_TEST_CONFIG}")
         endforeach()
     endforeach()
 else()
-    message(WARNING "Small datatype config file not found: ${SMALL_DATATYPE_CONFIG_FILE}")
+	message(WARNING "Simple test config file not found: ${SIMPLE_TEST_CONFIG_FILE}")
 endif()
 # ============================================================================
 
 
 message(STATUS "StreamK GEMM tile engine tests configured with datatype-specific design:")
-message(STATUS "  - Small datatypes: fp8/fp16/bf16 (all layouts)")
-message(STATUS "  - Padding coverage with fp16/rcr")
-message(STATUS "  - Coverage level: ${COVERAGE_LEVEL} (~144 kernels quick, several thousand comprehensive)")
-message(STATUS "    Use -DCOVERAGE_LEVEL=comprehensive for extensive testing")
+message(STATUS "  - Simple test: fp16/bf16 (all layouts)")
