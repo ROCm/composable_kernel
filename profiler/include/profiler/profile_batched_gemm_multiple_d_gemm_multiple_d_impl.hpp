@@ -356,9 +356,6 @@ bool profile_batched_gemm_multiple_d_gemm_multiple_d_impl(
         }
     }
 
-    std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
-              << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
-
     if(instances_supported == 0)
     {
         if(do_log)
@@ -371,6 +368,11 @@ bool profile_batched_gemm_multiple_d_gemm_multiple_d_impl(
             return false;
         }
     };
+
+    printf("\033[36mFound %d supported instances\033[0m\n", instances_supported);
+
+    std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
+              << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
 
     return pass;
 }
