@@ -150,18 +150,20 @@ __global__ void naive_conv_fwd_packed_multi_abd(
                 }
             }
 
-            OutDataType result = type_convert<OutDataType>(acc);
-
-            // Handle output element-wise operation with D tensors
+            // Keep intermediate result in float to match CPU reference precision
+            // Apply element-wise operations on float, convert to OutDataType only at the end
             if constexpr(NumD == 0)
             {
-                out_op(out_val, result);
+                out_op(out_val, acc);
             }
             else if constexpr(NumD == 1)
             {
                 const long_index_t d_idx = g * p_d_strides[0][0] + n * p_d_strides[0][1] +
                                            k * p_d_strides[0][2] + wo * p_d_strides[0][3];
-                out_op(out_val, result, p_ds[0][d_idx]);
+                const float d_float = type_convert<float>(p_ds[0][d_idx]);
+                float temp_out;
+                out_op(temp_out, acc, d_float);
+                out_val = type_convert<OutDataType>(temp_out);
             }
             else if constexpr(NumD == 2)
             {
@@ -169,7 +171,11 @@ __global__ void naive_conv_fwd_packed_multi_abd(
                                             k * p_d_strides[0][2] + wo * p_d_strides[0][3];
                 const long_index_t d1_idx = g * p_d_strides[1][0] + n * p_d_strides[1][1] +
                                             k * p_d_strides[1][2] + wo * p_d_strides[1][3];
-                out_op(out_val, result, p_ds[0][d0_idx], p_ds[1][d1_idx]);
+                const float d0_float = type_convert<float>(p_ds[0][d0_idx]);
+                const float d1_float = type_convert<float>(p_ds[1][d1_idx]);
+                float temp_out;
+                out_op(temp_out, acc, d0_float, d1_float);
+                out_val = type_convert<OutDataType>(temp_out);
             }
 
             p_out[g * out_stride_g + n * out_stride_n + k * out_stride_k + wo] = out_val;
@@ -278,19 +284,21 @@ __global__ void naive_conv_fwd_packed_multi_abd(
                 }
             }
 
-            OutDataType result = type_convert<OutDataType>(acc);
-
-            // Handle output element-wise operation with D tensors
+            // Keep intermediate result in float to match CPU reference precision
+            // Apply element-wise operations on float, convert to OutDataType only at the end
             if constexpr(NumD == 0)
             {
-                out_op(out_val, result);
+                out_op(out_val, acc);
             }
             else if constexpr(NumD == 1)
             {
                 const long_index_t d_idx = g * p_d_strides[0][0] + n * p_d_strides[0][1] +
                                            k * p_d_strides[0][2] + ho * p_d_strides[0][3] +
                                            wo * p_d_strides[0][4];
-                out_op(out_val, result, p_ds[0][d_idx]);
+                const float d_float = type_convert<float>(p_ds[0][d_idx]);
+                float temp_out;
+                out_op(temp_out, acc, d_float);
+                out_val = type_convert<OutDataType>(temp_out);
             }
             else if constexpr(NumD == 2)
             {
@@ -300,7 +308,11 @@ __global__ void naive_conv_fwd_packed_multi_abd(
                 const long_index_t d1_idx = g * p_d_strides[1][0] + n * p_d_strides[1][1] +
                                             k * p_d_strides[1][2] + ho * p_d_strides[1][3] +
                                             wo * p_d_strides[1][4];
-                out_op(out_val, result, p_ds[0][d0_idx], p_ds[1][d1_idx]);
+                const float d0_float = type_convert<float>(p_ds[0][d0_idx]);
+                const float d1_float = type_convert<float>(p_ds[1][d1_idx]);
+                float temp_out;
+                out_op(temp_out, acc, d0_float, d1_float);
+                out_val = type_convert<OutDataType>(temp_out);
             }
 
             p_out[g * out_stride_g + n * out_stride_n + k * out_stride_k + ho * out_stride_h + wo] =
@@ -436,19 +448,21 @@ __global__ void naive_conv_fwd_packed_multi_abd(
                 }
             }
 
-            OutDataType result = type_convert<OutDataType>(acc);
-
-            // Handle output element-wise operation with D tensors
+            // Keep intermediate result in float to match CPU reference precision
+            // Apply element-wise operations on float, convert to OutDataType only at the end
             if constexpr(NumD == 0)
             {
-                out_op(out_val, result);
+                out_op(out_val, acc);
             }
             else if constexpr(NumD == 1)
             {
                 const long_index_t d_idx = g * p_d_strides[0][0] + n * p_d_strides[0][1] +
                                            k * p_d_strides[0][2] + do_idx * p_d_strides[0][3] +
                                            ho * p_d_strides[0][4] + wo * p_d_strides[0][5];
-                out_op(out_val, result, p_ds[0][d_idx]);
+                const float d_float = type_convert<float>(p_ds[0][d_idx]);
+                float temp_out;
+                out_op(temp_out, acc, d_float);
+                out_val = type_convert<OutDataType>(temp_out);
             }
             else if constexpr(NumD == 2)
             {
@@ -458,7 +472,11 @@ __global__ void naive_conv_fwd_packed_multi_abd(
                 const long_index_t d1_idx = g * p_d_strides[1][0] + n * p_d_strides[1][1] +
                                             k * p_d_strides[1][2] + do_idx * p_d_strides[1][3] +
                                             ho * p_d_strides[1][4] + wo * p_d_strides[1][5];
-                out_op(out_val, result, p_ds[0][d0_idx], p_ds[1][d1_idx]);
+                const float d0_float = type_convert<float>(p_ds[0][d0_idx]);
+                const float d1_float = type_convert<float>(p_ds[1][d1_idx]);
+                float temp_out;
+                out_op(temp_out, acc, d0_float, d1_float);
+                out_val = type_convert<OutDataType>(temp_out);
             }
 
             p_out[g * out_stride_g + n * out_stride_n + k * out_stride_k + do_idx * out_stride_d +
