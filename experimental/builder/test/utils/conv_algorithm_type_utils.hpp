@@ -318,11 +318,21 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuf
     ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
-        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
-        << t.transfer.b.lds_transfer_params.global_memory_vector_load_size << ","
-        << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+    if (t.warp_gemm.matrix_instruction == MatrixInstructionType::WMMA)
+    {
+        oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+            << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+            << to_string(static_cast<WarpGemm_>(t))
+            << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+    }
+    else 
+    {
+        oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+            << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+            << t.transfer.b.lds_transfer_params.global_memory_vector_load_size << ","
+            << to_string(static_cast<WarpGemm_>(t))
+            << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+        }
     return oss.str();
 }
 
@@ -431,7 +441,7 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_C
 {
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) 
-        << t.transfer.a.lds_transfer_params.global_memory_vector_load_size << ","
+        << "," << t.transfer.a.lds_transfer_params.global_memory_vector_load_size
         << "," << to_string(static_cast<WarpGemm_>(t))
         << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();

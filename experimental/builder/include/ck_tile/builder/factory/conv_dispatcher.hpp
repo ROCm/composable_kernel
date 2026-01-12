@@ -157,45 +157,46 @@ constexpr auto make_conv_instance()
     // Backward weight direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
-        if constexpr(BwdXdlAlgorithm<ALGORITHM>)
-        {
-            return typename ConvBwdWeightXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(BwdXdlV3Algorithm<ALGORITHM>)
-        {
-            return typename ConvBwdWeightXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(BwdTwoStageXdlAlgorithm<ALGORITHM>)
+        // Start from more specialized and end with least specialized.
+        if constexpr(BwdTwoStageXdlAlgorithm<ALGORITHM>)
         {
             return
                 typename ConvBwdWeightTwoStageXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(BwdDlAlgorithm<ALGORITHM>)
-        {
-            return typename ConvBwdWeightDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(BwdMultiDXdlAlgorithm<ALGORITHM>)
-        {
-            return
-                typename ConvBwdWeightMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(BwdWmmaV3Algorithm<ALGORITHM>)
-        {
-            return typename ConvBwdWeightWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else if constexpr(BwdTwoStageWmmaV3Algorithm<ALGORITHM>)
         {
             return typename ConvBwdWeightTwoStageWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::
                 Instance{};
         }
-        else if constexpr(BwdWmmaAlgorithm<ALGORITHM>)
+        else if constexpr(BwdMultiDXdlAlgorithm<ALGORITHM>)
         {
-            return typename ConvBwdWeightWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            return
+                typename ConvBwdWeightMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else if constexpr(BwdMultiDWmmaV3Algorithm<ALGORITHM>)
         {
             return typename ConvBwdWeightMultiDWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::
                 Instance{};
+        }
+        else if constexpr(BwdDlAlgorithm<ALGORITHM>)
+        {
+            return typename ConvBwdWeightDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr(BwdXdlV3Algorithm<ALGORITHM>)
+        {
+            return typename ConvBwdWeightXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr(BwdWmmaV3Algorithm<ALGORITHM>)
+        {
+            return typename ConvBwdWeightWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr(BwdXdlAlgorithm<ALGORITHM>)
+        {
+            return typename ConvBwdWeightXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr(BwdWmmaAlgorithm<ALGORITHM>)
+        {
+            return typename ConvBwdWeightWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
         else
         {
