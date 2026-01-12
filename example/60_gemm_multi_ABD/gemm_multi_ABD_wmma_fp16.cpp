@@ -141,7 +141,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Wmm
     8,
     8,
     0,
-    S<4, 64, 1>,
+    S<4, 16, 1>,
     S<1, 0, 2>,
     S<1, 0, 2>,
     1,
