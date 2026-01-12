@@ -113,10 +113,19 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     static constexpr auto BL0 = Number<L0PerBlock>{};
     static constexpr auto BL1 = Number<L1Value>{};
 
-    static constexpr auto MWaves   = MPerBlock / (MRepeat * MPerWmma);
-    static constexpr auto LWaves   = LPerBlock / (LRepeat * LPerWmma);
-    static constexpr auto NWaves   = NPerBlock / (NRepeat * NPerWmma);
-    static constexpr auto WaveSize = BlockSize / (MWaves * LWaves);
+    static constexpr auto MWaves    = MPerBlock / (MRepeat * MPerWmma);
+    static constexpr auto LWaves    = LPerBlock / (LRepeat * LPerWmma);
+    static constexpr auto NWaves    = NPerBlock / (NRepeat * NPerWmma);
+    static constexpr auto WaveSize0 = BlockSize / (MWaves * LWaves);
+    static constexpr auto WaveSize1 = BlockSize / (LWaves * NWaves);
+    static constexpr auto WaveSize  = WaveSize0;
+
+    static_assert(
+        WaveSize0 == 32 || WaveSize0 == 64,
+        "Misconfigured wave parameters: BlockSize / (MWaves * LWaves) != 32/64 threads per wave");
+    static_assert(
+        WaveSize1 == 32 || WaveSize1 == 64,
+        "Misconfigured wave parameters: BlockSize / (LWaves * NWaves) != 32/64 threads per wave");
 
     static constexpr index_t KPerWmmaBlk =
         WmmaSelector<ADataType, B0DataType, Acc0DataType, MPerWmma, LPerWmma>::selected_wmma
