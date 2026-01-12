@@ -34,4 +34,25 @@ struct FilterExtent<3>
     size_t depth  = 1;
 };
 
+template <int SPATIAL_DIM>
+FilterExtent<SPATIAL_DIM> from_vector(const std::vector<std::size_t>& vec);
+
+template <>
+FilterExtent<1> from_vector<1>(const std::vector<std::size_t>& vec)
+{
+    return FilterExtent<1>{.width = vec[0]};
+}
+
+template <>
+FilterExtent<2> from_vector<2>(const std::vector<std::size_t>& vec)
+{
+    return FilterExtent<2>{.width = vec[1], .height = vec[0]};
+}
+
+template <>
+FilterExtent<3> from_vector<3>(const std::vector<std::size_t>& vec)
+{
+    return FilterExtent<3>{.width = vec[2], .height = vec[1], .depth = vec[0]};
+}
+
 } // namespace ck_tile::builder::test

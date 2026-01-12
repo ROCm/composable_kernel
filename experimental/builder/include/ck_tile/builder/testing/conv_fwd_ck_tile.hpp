@@ -56,14 +56,13 @@ float run(CkTileConvInstance<SIGNATURE> auto& conv,
           const Args<SIGNATURE>& args,
           const Inputs<SIGNATURE>& inputs,
           const Outputs<SIGNATURE>& outputs,
-          const ck_tile::index_t k_batch      = 1,
           const ck_tile::stream_config s_conf = {})
 {
     using Conv       = std::remove_reference_t<decltype(conv)>;
     const auto param = args.to_ck_tile_conv_param();
 
     ck_tile::GroupedConvFwdHostArgs<> host_args(
-        param, inputs.input, inputs.weight, {}, outputs.output, k_batch);
+        param, inputs.input, inputs.weight, {}, outputs.output, args.k_batch);
 
     auto kargs = Conv::MakeKernelArgs(host_args);
 

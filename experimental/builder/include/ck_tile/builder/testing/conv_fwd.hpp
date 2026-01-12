@@ -94,6 +94,8 @@ struct Args<SIGNATURE>
     Ops::BElementwiseOp b_elementwise_op;
     Ops::CDEElementwiseOp cde_elementwise_op;
 
+    int k_batch = 1;
+
     /// This function returns the `TensorDescriptor` corresponding to
     /// the input-tensor of the convolution problem. This can then
     /// be used to, for example, allocate memory.
@@ -248,105 +250,25 @@ CK_TILE_HOST auto parse_conv_args(int arg_idx, char* const argv[])
         input_right_pads[i] = static_cast<size_t>(std::stol(argv[arg_idx++]));
     }
 
-    if constexpr(num_dim_spatial == 1)
-    {
-        Args<SIGNATURE> args = {
-            .lengths =
-                {
-                    .batch_size      = N,
-                    .groups          = G,
-                    .input_channels  = C,
-                    .output_channels = K,
-                    .image =
-                        {
-                            .width = input_spatial_lengths[0],
-                        },
-                    .filter =
-                        {
-                            .width = filter_spatial_lengths[0],
-                        },
-                },
-            .filter_strides     = {.width = conv_filter_strides[0]},
-            .filter_dilation    = {.width = conv_filter_dilations[0]},
-            .input_left_pad     = {.width = input_left_pads[0]},
-            .input_right_pad    = {.width = input_right_pads[0]},
-            .a_elementwise_op   = {},
-            .b_elementwise_op   = {},
-            .cde_elementwise_op = {},
-        };
-        return args;
-    }
-    else if constexpr(num_dim_spatial == 2)
-    {
-        Args<SIGNATURE> args = {
-            .lengths =
-                {
-                    .batch_size      = N,
-                    .groups          = G,
-                    .input_channels  = C,
-                    .output_channels = K,
-                    .image =
-                        {
-                            .width  = input_spatial_lengths[1],
-                            .height = input_spatial_lengths[0],
-                        },
-                    .filter =
-                        {
-                            .width  = filter_spatial_lengths[1],
-                            .height = filter_spatial_lengths[0],
-                        },
-                },
-            .filter_strides   = {.width = conv_filter_strides[1], .height = conv_filter_strides[0]},
-            .filter_dilation  = {.width  = conv_filter_dilations[1],
-                                 .height = conv_filter_dilations[0]},
-            .input_left_pad   = {.width = input_left_pads[1], .height = input_left_pads[0]},
-            .input_right_pad  = {.width = input_right_pads[1], .height = input_right_pads[0]},
-            .a_elementwise_op = {},
-            .b_elementwise_op = {},
-            .cde_elementwise_op = {},
-        };
-        return args;
-    }
-    else
-    {
-        Args<SIGNATURE> args = {
-            .lengths =
-                {
-                    .batch_size      = N,
-                    .groups          = G,
-                    .input_channels  = C,
-                    .output_channels = K,
-                    .image =
-                        {
-                            .width  = input_spatial_lengths[2],
-                            .height = input_spatial_lengths[1],
-                            .depth  = input_spatial_lengths[0],
-                        },
-                    .filter =
-                        {
-                            .width  = filter_spatial_lengths[2],
-                            .height = filter_spatial_lengths[1],
-                            .depth  = filter_spatial_lengths[0],
-                        },
-                },
-            .filter_strides     = {.width  = conv_filter_strides[2],
-                                   .height = conv_filter_strides[1],
-                                   .depth  = conv_filter_strides[0]},
-            .filter_dilation    = {.width  = conv_filter_dilations[2],
-                                   .height = conv_filter_dilations[1],
-                                   .depth  = conv_filter_dilations[0]},
-            .input_left_pad     = {.width  = input_left_pads[2],
-                                   .height = input_left_pads[1],
-                                   .depth  = input_left_pads[0]},
-            .input_right_pad    = {.width  = input_right_pads[2],
-                                   .height = input_right_pads[1],
-                                   .depth  = input_right_pads[0]},
-            .a_elementwise_op   = {},
-            .b_elementwise_op   = {},
-            .cde_elementwise_op = {},
-        };
-        return args;
-    }
+    Args<SIGNATURE> args = {
+        .lengths =
+            {
+                .batch_size      = N,
+                .groups          = G,
+                .input_channels  = C,
+                .output_channels = K,
+                .image           = from_vector<num_dim_spatial>(input_spatial_lengths),
+                .filter          = from_vector<num_dim_spatial>(filter_spatial_lengths),
+            },
+        .filter_strides     = from_vector<num_dim_spatial>(conv_filter_strides),
+        .filter_dilation    = from_vector<num_dim_spatial>(conv_filter_dilations),
+        .input_left_pad     = from_vector<num_dim_spatial>(input_left_pads),
+        .input_right_pad    = from_vector<num_dim_spatial>(input_right_pads),
+        .a_elementwise_op   = {},
+        .b_elementwise_op   = {},
+        .cde_elementwise_op = {},
+    };
+    return args;
 }
 
 /// @brief `Inputs` specialization for forward convolution.

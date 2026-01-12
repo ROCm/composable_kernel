@@ -98,8 +98,7 @@ float run(CkConvInstance<SIGNATURE> auto& conv,
           const Args<SIGNATURE>& args,
           const Inputs<SIGNATURE>& inputs,
           const Outputs<SIGNATURE>& outputs,
-          [[maybe_unused]] const ck_tile::index_t k_batch = 1,
-          const StreamConfig s_conf                       = {})
+          const StreamConfig s_conf = {})
 {
     constexpr auto spatial_dim = SIGNATURE.spatial_dim;
 
