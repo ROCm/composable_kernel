@@ -1267,3 +1267,10 @@ slice_sequence(Seq, number<SliceSize>, Mask = typename uniform_sequence_gen<Seq:
 }
 
 } // namespace ck_tile
+
+// Include optimized sequence operations (C++20)
+// Define CK_TILE_USE_OPTIMIZED_SEQUENCE_OPS before including to enable
+// optimized versions that replace O(N²) recursive templates with O(N) constexpr functions
+#if __cplusplus >= 202002L
+#include "ck_tile/core/container/sequence_optimized.hpp"
+#endif
