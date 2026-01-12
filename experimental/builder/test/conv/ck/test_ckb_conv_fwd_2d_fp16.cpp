@@ -4,8 +4,8 @@
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
 #include "utils/conv_algorithm_type_utils.hpp"
-#include "ck_tile/builder/testing/conv_fwd_ck.hpp"
-#include "ck_tile/builder/testing/conv_fwd_reference.hpp"
+#include "ck_tile/builder/testing/conv/fwd_ck.hpp"
+#include "ck_tile/builder/testing/conv/fwd_reference.hpp"
 #include "ck_tile/host/device_prop.hpp"
 #include "testing_utils.hpp"
 

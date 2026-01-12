@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ck_tile/builder/testing/conv_fwd.hpp"
+#include "ck_tile/builder/testing/conv/fwd.hpp"
 #include <stdexcept>
 #include <vector>
 
