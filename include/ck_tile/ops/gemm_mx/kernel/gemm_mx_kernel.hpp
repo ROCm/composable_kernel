@@ -199,36 +199,27 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
 
         static_assert(ScaleM::GranularityK == ScaleN::GranularityK, "M and N scales must have same K granularity!");
         static constexpr int BlockScaleSize = ScaleM::GranularityK;
-        const auto&& scale_packs_m = integer_divide_ceil(kargs.M, (MXdlPack * MThreadPerXdl));
-        const auto&& scale_packs_n = integer_divide_ceil(kargs.N, (NXdlPack * NThreadPerXdl));
-        const auto&& scale_packs_k = kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl);
+        
+        // With 1D K-only packing: each int32 contains KXdlPack consecutive e8m0 values
+        // Scale A layout: [M, K/BlockScaleSize/KXdlPack] where each element is int32
+        // Scale B layout: [N, K/BlockScaleSize/KXdlPack] where each element is int32
+        const auto&& scale_k_packed = kargs.K / BlockScaleSize / KXdlPack;
 
-        // A scale tensor view
+        // A scale tensor view - simple 2D layout [M, K/32/4]
         const auto& scale_a_tensor_view = [&]() {
-            // Pack 2x2 e8m0 over M/K dimension into 1 int32_t to trigger dword width load
-            const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
-                make_tuple(scale_packs_m, scale_packs_k, KThreadPerXdl, MThreadPerXdl));
-            const auto scale_a_desc = transform_tensor_descriptor(
-                scale_a_naive_desc,
-                make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
-                           make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
-                make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+            const auto scale_a_desc = make_naive_tensor_descriptor_packed(
+                make_tuple(kargs.M, scale_k_packed));
 
             return make_tensor_view<address_space_enum::global>(
                 reinterpret_cast<const int32_t*>(scale_a.ptr), scale_a_desc);
         }();
 
-        // B scale tensor view
+        // B scale tensor view - layout [K/32/4, N] to match reference
+        // Reference provides scale_b(k/32, n), so it's [K/32, N] in e8m0
+        // With KXdlPack=4, we pack 4 e8m0 into 1 int32, so it's [K/32/4, N]
         const auto& scale_b_tensor_view = [&]() {
-            const auto scale_b_naive_desc = make_naive_tensor_descriptor_packed(
-                make_tuple(scale_packs_n, scale_packs_k, KThreadPerXdl, NThreadPerXdl));
-            const auto scale_b_desc = transform_tensor_descriptor(
-                scale_b_naive_desc,
-                make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
-                           make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
-                make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+            const auto scale_b_desc = make_naive_tensor_descriptor_packed(
+                make_tuple(scale_k_packed, kargs.N));
 
             return make_tensor_view<address_space_enum::global>(
                 reinterpret_cast<const int32_t*>(scale_b.ptr), scale_b_desc);
@@ -254,19 +245,20 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
 
         static constexpr int BlockScaleSize = 32;
 
-        // We are packing 2x2 (MXdlPack x KXdlPack) scales (e8m0) into one int32 element
+        // With 1D K-only packing: MXdlPack=1, NXdlPack=1, KXdlPack=4
+        // Each int32 contains KXdlPack consecutive e8m0 scales
         auto scale_a_block_window = make_tile_window(
             views.at(I4),
-            make_tuple(number<TilePartitioner::MPerBlock / MXdlPack>{},
-                       number<TilePartitioner::KPerBlock / (BlockScaleSize * KXdlPack)>{}),
-            {i_m / MXdlPack, 0});
+            make_tuple(number<TilePartitioner::MPerBlock>{},
+                       number<TilePartitioner::KPerBlock / BlockScaleSize / KXdlPack>{}),
+            {i_m, 0});
 
-        // We are packing 2x2 (NXdlPack x KXdlPack) scales (e8m0) into one int32 element
+        // Scale B window matches [K/32/4, N] layout from reference
         auto scale_b_block_window = make_tile_window(
             views.at(I5),
-            make_tuple(number<TilePartitioner::NPerBlock / NXdlPack>{},
-                       number<TilePartitioner::KPerBlock / (BlockScaleSize * KXdlPack)>{}),
-            {i_n / NXdlPack, 0});
+            make_tuple(number<TilePartitioner::KPerBlock / BlockScaleSize / KXdlPack>{},
+                       number<TilePartitioner::NPerBlock>{}),
+            {0, i_n});
 
         return make_tuple(tile_windows.at(I0),
                           tile_windows.at(I1),

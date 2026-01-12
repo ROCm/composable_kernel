@@ -22,9 +22,9 @@ template <typename ADataType,
           ck_tile::TailNumber TailNum_ = ck_tile::TailNumber::Full>
 struct MXGemmPipelineProblem : ck_tile::GemmPipelineProblem<ADataType, BDataType, CDataType, BlockGemmShape, Traits>
 {
-    static constexpr int MXdlPack = 2;
-    static constexpr int NXdlPack = 2;
-    static constexpr int KXdlPack = 2;
+    static constexpr int MXdlPack = 1;  // No M packing
+    static constexpr int NXdlPack = 1;  // No N packing
+    static constexpr int KXdlPack = 4;  // Pack 4 consecutive e8m0 scales in K = 4 bytes = 1 int32
     static constexpr auto Scheduler = Scheduler_;
     static constexpr auto HasHotLoop = HasHotLoop_;
     static constexpr auto TailNum = TailNum_;

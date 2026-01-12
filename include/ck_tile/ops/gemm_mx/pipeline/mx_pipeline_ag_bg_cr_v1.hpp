@@ -155,26 +155,29 @@ struct MXGemmPipelineAgBgCrV1
                              PipelinePolicy::MakeMX_BDramTileDistribution());
 
         // Scale A DRAM Window
+        // With 1D K-only packing: window size is [MWarp * WG::kM, kKPerBlock / 32 / KXdlPack]
+        constexpr index_t ScaleBlockSize = 32;
         auto scale_a_dram_window = make_tile_window(
             scale_a_window.get_bottom_tensor_view(),
-            make_tuple(number<MWarp * WG::kM>{}, number<64 / WG::kM>{}),
+            make_tuple(number<MWarp * WG::kM>{}, number<kKPerBlock / ScaleBlockSize / KXdlPack>{}),
             scale_a_window.get_window_origin(),
             PipelinePolicy::MakeMX_ScaleA_FlatDramTileDistribution());
         const auto scale_a_dram_step_m = amd_wave_read_first_lane(
             scale_a_dram_window.get_load_offset(tuple<number<MWarp * WG::kM>, number<0>>{}));
         const auto scale_a_dram_step_k = amd_wave_read_first_lane(
-            scale_a_dram_window.get_load_offset(tuple<number<0>, number<64 / WG::kM>>{}));
+            scale_a_dram_window.get_load_offset(tuple<number<0>, number<kKPerBlock / ScaleBlockSize / KXdlPack>>{}));
 
         // Scale B DRAM Window
+        // With 1D K-only packing and [K/32/4, N] layout: window size is [kKPerBlock / 32 / KXdlPack, NWarp * WG::kN]
         auto scale_b_dram_window = make_tile_window(
             scale_b_window.get_bottom_tensor_view(),
-            make_tuple(number<NWarp * WG::kN>{}, number<64 / WG::kN>{}),
+            make_tuple(number<kKPerBlock / ScaleBlockSize / KXdlPack>{}, number<NWarp * WG::kN>{}),
             scale_b_window.get_window_origin(),
             PipelinePolicy::MakeMX_ScaleB_DramTileDistribution());
-        const auto scale_b_dram_step_n = amd_wave_read_first_lane(
-            scale_b_dram_window.get_load_offset(tuple<number<NWarp * WG::kN>, number<0>>{}));
         const auto scale_b_dram_step_k = amd_wave_read_first_lane(
-            scale_b_dram_window.get_load_offset(tuple<number<0>, number<64 / WG::kN>>{}));
+            scale_b_dram_window.get_load_offset(tuple<number<kKPerBlock / ScaleBlockSize / KXdlPack>, number<0>>{}));
+        const auto scale_b_dram_step_n = amd_wave_read_first_lane(
+            scale_b_dram_window.get_load_offset(tuple<number<0>, number<NWarp * WG::kN>>{}));
 
         // LDS Views
         ADataType* p_a_lds_ping = static_cast<ADataType*>(p_smem_ping);
@@ -215,8 +218,12 @@ struct MXGemmPipelineAgBgCrV1
         });
 
         // Scale Tiles
-        using ScaleATileType = statically_indexed_array<statically_indexed_array<decltype(load_tile_with_offset(scale_a_dram_window, tuple<number<0>, number<0>>{})), KPackIterPerWarp>, MPackIterPerWarp>;
-        using ScaleBTileType = statically_indexed_array<statically_indexed_array<decltype(load_tile_with_offset(scale_b_dram_window, tuple<number<0>, number<0>>{})), KPackIterPerWarp>, NPackIterPerWarp>;
+        // With 1D K-only packing: one scale tile per M/N iter, indexed by K packed iter
+        // K dimension: each K iter processes WG::kK elements, each int32 has KXdlPack scales covering KXdlPack*32 elements
+        // So each KIterPerWarp needs KIterPerWarp/(KXdlPack) packed scale elements
+        constexpr index_t ScaleKPackedPerIter = (KIterPerWarp * WG::kK) / (32 * KXdlPack);
+        using ScaleATileType = statically_indexed_array<statically_indexed_array<decltype(load_tile_with_offset(scale_a_dram_window, tuple<number<0>, number<0>>{})), ScaleKPackedPerIter>, MIterPerWarp>;
+        using ScaleBTileType = statically_indexed_array<statically_indexed_array<decltype(load_tile_with_offset(scale_b_dram_window, tuple<number<0>, number<0>>{})), ScaleKPackedPerIter>, NIterPerWarp>;
 
         ScaleATileType scale_a_tile_ping, scale_a_tile_pong;
         ScaleBTileType scale_b_tile_ping, scale_b_tile_pong;
@@ -226,20 +233,22 @@ struct MXGemmPipelineAgBgCrV1
         };
 
         auto load_scales_ = [&](auto& scale_a, auto& scale_b) {
-            static_for<0, MPackIterPerWarp, 1>{}([&](auto mIter_pack) {
-                static_for<0, KPackIterPerWarp, 1>{}([&](auto kIter_pack) {
-                    scale_a(mIter_pack)(kIter_pack) = load_tile_with_offset(
-                        scale_a_dram_window, mIter_pack * scale_a_dram_step_m + kIter_pack * scale_a_dram_step_k);
+            // Load scales for each M/N iteration
+            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                static_for<0, ScaleKPackedPerIter, 1>{}([&](auto kPacked) {
+                    scale_a(mIter)(kPacked) = load_tile_with_offset(
+                        scale_a_dram_window, mIter * scale_a_dram_step_m + kPacked * scale_a_dram_step_k);
                 });
             });
-            static_for<0, NPackIterPerWarp, 1>{}([&](auto nIter_pack) {
-                static_for<0, KPackIterPerWarp, 1>{}([&](auto kIter_pack) {
-                    scale_b(nIter_pack)(kIter_pack) = load_tile_with_offset(
-                        scale_b_dram_window, nIter_pack * scale_b_dram_step_n + kIter_pack * scale_b_dram_step_k);
+            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                static_for<0, ScaleKPackedPerIter, 1>{}([&](auto kPacked) {
+                    // Scale B is [K/32/4, N], so K is first dimension
+                    scale_b(nIter)(kPacked) = load_tile_with_offset(
+                        scale_b_dram_window, kPacked * scale_b_dram_step_k + nIter * scale_b_dram_step_n);
                 });
             });
-            move_tile_window(scale_a_dram_window, {0, kKPerBlock / (32 * KXdlPack)});
-            move_tile_window(scale_b_dram_window, {0, kKPerBlock / (32 * KXdlPack)});
+            move_tile_window(scale_a_dram_window, {0, kKPerBlock / ScaleBlockSize / KXdlPack});
+            move_tile_window(scale_b_dram_window, {kKPerBlock / ScaleBlockSize / KXdlPack, 0});
         };
 
         // Helper for Main Loop
@@ -276,25 +285,28 @@ struct MXGemmPipelineAgBgCrV1
                     load_k(number<k_iter + 1>{}, number<nxt_buf>{});
                 }
 
-                constexpr auto kIter_pack = number<k_iter / KXdlPack>{};
-                constexpr auto ikxdl      = k_iter % KXdlPack;
+                // Map k_iter to packed scale index
+                // Each k_iter processes WG::kK elements
+                // Each packed int32 contains KXdlPack scales, each covering 32 elements
+                // So we need k_iter * WG::kK / (32 * KXdlPack) to get the packed index
+                // and k_iter * WG::kK / 32 % KXdlPack to get which scale within the pack
+                constexpr index_t kScalePacked = (k_iter * WG::kK) / (32 * KXdlPack);
+                constexpr index_t kScaleInPack = ((k_iter * WG::kK) / 32) % KXdlPack;
 
                 static_for<0, MIterPerWarp, 1>{}([&](auto m_iter) {
-                    constexpr auto mIter_pack = number<m_iter / MXdlPack>{};
-                    constexpr auto imxdl      = m_iter % MXdlPack;
-                    constexpr auto OpSelA     = ikxdl * MXdlPack + imxdl;
+                    // OpSel selects which of the KXdlPack packed e8m0 values to use
+                    constexpr auto OpSelA = kScaleInPack;
 
                     static_for<0, NIterPerWarp, 1>{}([&](auto n_iter) {
-                        constexpr auto nIter_pack = number<n_iter / NXdlPack>{};
-                        constexpr auto inxdl      = n_iter % NXdlPack;
-                        constexpr auto OpSelB     = ikxdl * NXdlPack + inxdl;
+                        // OpSel selects which of the KXdlPack packed e8m0 values to use
+                        constexpr auto OpSelB = kScaleInPack;
 
                         WG{}.template operator()<OpSelA, OpSelB>(
                             c_warp_tensors(m_iter)(n_iter),
                             bit_cast<typename WG::AWarpTensor>(a_vals(number<cur_buf>{})(m_iter)),
                             bit_cast<typename WG::BWarpTensor>(b_vals(number<cur_buf>{})(n_iter)),
-                            scale_a(mIter_pack)(kIter_pack).get_thread_buffer()[0],
-                            scale_b(nIter_pack)(kIter_pack).get_thread_buffer()[0]);
+                            scale_a(m_iter)(number<kScalePacked>{}).get_thread_buffer()[0],
+                            scale_b(n_iter)(number<kScalePacked>{}).get_thread_buffer()[0]);
                     });
                 });
             });

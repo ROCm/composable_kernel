@@ -21,9 +21,9 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     static constexpr index_t kDramLoadPackBytes = 128;
     static constexpr index_t DWORDx4            = 16;
 
-    static constexpr int MXdlPack = 2;
-    static constexpr int NXdlPack = 2;
-    static constexpr int KXdlPack = 2;
+    static constexpr int MXdlPack = 1;  // No M packing
+    static constexpr int NXdlPack = 1;  // No N packing
+    static constexpr int KXdlPack = 4;  // Pack 4 consecutive e8m0 scales in K = 4 bytes = 1 int32
 
     using ADataType                      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType                      = remove_cvref_t<typename Problem::BDataType>;
@@ -451,17 +451,19 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_DramTileDistribution()
     {
+        // With 1D K-only packing: MXdlPack=1, so no complex M packing
+        // Simple 2D distribution for [M, K/32/KXdlPack] layout
         constexpr index_t M_Lanes = TileShape::WarpTile::at(I0);
         constexpr index_t K_Lanes = 64 / M_Lanes;
 
-        // Y dimension (M) decomposition
+        // Y dimension (M) decomposition - no packing factor
         constexpr index_t Y2 = M_Lanes;
         constexpr index_t Y1 = MWarps;
-        constexpr index_t Y0 = MPerBlock / (MXdlPack * Y1 * Y2);
+        constexpr index_t Y0 = MPerBlock / (Y1 * Y2);
 
-        // X dimension (K) decomposition
+        // X dimension (K) decomposition - each int32 contains KXdlPack scales
         constexpr index_t X0 = K_Lanes;
-        constexpr index_t X1 = 1; // packed 2x2 E8M0 data into 1 int32_t for load
+        constexpr index_t X1 = 1; // vec load of int32
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<NWarps>, // repeat NWarps
@@ -474,33 +476,36 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleB_DramTileDistribution()
     {
+        // With 1D K-only packing and [K/32/4, N] layout to match reference
+        // Layout is [K, N] where K is packed int32
         constexpr index_t N_Lanes = TileShape::WarpTile::at(I1);
         constexpr index_t K_Lanes = 64 / N_Lanes;
 
-        // Y dimension (M) decomposition
-        constexpr index_t Y2 = N_Lanes;
-        constexpr index_t Y1 = NWarps;
-        constexpr index_t Y0 = NPerBlock / (NXdlPack * Y1 * Y2);
+        // First tuple element: K dimension decomposition
+        constexpr index_t K0 = K_Lanes;
+        constexpr index_t K1 = 1; // vec load of int32
 
-        // X dimension (K) decomposition
-        constexpr index_t X0 = K_Lanes;
-        constexpr index_t X1 = 1; // packed 2x2 E8M0 data into 1 int32_t for load
+        // Second tuple element: N dimension decomposition
+        constexpr index_t N2 = N_Lanes;
+        constexpr index_t N1 = NWarps;
+        constexpr index_t N0 = NPerBlock / (N1 * N2);
 
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<MWarps>, // ?
-                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
-                                       tuple<sequence<0, 1>, sequence<2, 1>>,
-                                       tuple<sequence<0, 1>, sequence<0, 2>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
+            tile_distribution_encoding<sequence<MWarps>, // repeat MWarps
+                                       tuple<sequence<K0, K1>, sequence<N0, N1, N2>>,
+                                       tuple<sequence<2, 1>, sequence<0, 1>>,
+                                       tuple<sequence<0, 1>, sequence<0, 1>>,
+                                       sequence<2, 1>,
+                                       sequence<1, 0>>{});
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_FlatDramTileDistribution()
     {
+        // With 1D K-only packing: simpler distribution for [MWarp*MPerXdl, K/32/KXdlPack]
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<NWarps>,                      // repeat over NWarps
-                                       tuple<sequence<MWarps, MPerXdl>,       // second direction
-                                             sequence<K_Lane, 1>>,            // first direction
+                                       tuple<sequence<MWarps, MPerXdl>,       // M dimension
+                                             sequence<K_Lane, 1>>,            // K dimension (int32 vec load)
                                        tuple<sequence<1, 0>, sequence<2, 1>>, // which direction
                                        tuple<sequence<0, 0>, sequence<0, 1>>, // which index
                                        // <repeat, vec_load>
@@ -510,15 +515,16 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleB_FlatDramTileDistribution()
     {
+        // With 1D K-only packing and [K/32/4, N] layout: [K/32/KXdlPack, NWarp*NPerXdl]
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<MWarps>,                      // repeat over MWarps
-                                       tuple<sequence<NWarps, NPerXdl>,       // second direction
-                                             sequence<K_Lane, 1>>,            // first direction
-                                       tuple<sequence<0, 1>, sequence<2, 1>>, // which direction
-                                       tuple<sequence<0, 0>, sequence<0, 1>>, // which index
+                                       tuple<sequence<K_Lane, 1>,             // K dimension (int32 vec load)
+                                             sequence<NWarps, NPerXdl>>,      // N dimension
+                                       tuple<sequence<2, 1>, sequence<0, 1>>, // which direction
+                                       tuple<sequence<0, 1>, sequence<0, 0>>, // which index
                                        // <repeat, vec_load>
-                                       sequence<2>,
-                                       sequence<1>>{});
+                                       sequence<1>,
+                                       sequence<2>>{});
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
