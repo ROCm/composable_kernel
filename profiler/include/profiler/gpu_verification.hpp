@@ -20,11 +20,11 @@ namespace profiler {
 // Provides backward compatibility via operator bool()
 struct GpuVerifyResult
 {
-    bool passed;           // Overall pass/fail result
-    long long error_count; // Number of elements that exceeded tolerance
-    float max_error;       // Maximum error value observed
-    std::size_t total;     // Total number of elements compared
-    bool all_zero;         // True if device result is all zeros (likely kernel issue)
+    bool passed;                    // Overall pass/fail result
+    unsigned long long error_count; // Number of elements that exceeded tolerance
+    float max_error;                // Maximum error value observed
+    std::size_t total;              // Total number of elements compared
+    bool all_zero;                  // True if device result is all zeros (likely kernel issue)
 
     // Implicit conversion to bool for backward compatibility
     // Allows: if (gpu_verify(...)) { ... }
@@ -124,31 +124,14 @@ __device__ __forceinline__ float atomicMaxFloat(float* address, float val)
     return __int_as_float(old);
 }
 
-// Helper function for atomic 64-bit add (using compare-and-swap)
-// Needed because atomicAdd for long long isn't always available
-__device__ __forceinline__ long long atomicAdd64(long long* address, long long val)
-{
-    unsigned long long* address_as_ull = reinterpret_cast<unsigned long long*>(address);
-    unsigned long long old             = *address_as_ull;
-    unsigned long long assumed;
-
-    do
-    {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed, assumed + static_cast<unsigned long long>(val));
-    } while(assumed != old);
-
-    return static_cast<long long>(old);
-}
-
 // Device-side result structure for kernel output
 // Packed into a single struct to minimize device memory allocations
 struct GpuVerifyDeviceResult
 {
-    int passed;            // 1 = passed, 0 = failed
-    long long error_count; // Number of errors found
-    float max_error;       // Maximum error value
-    int all_zero;          // 1 = device result is all zeros, 0 = has non-zero values
+    int passed;                     // 1 = passed, 0 = failed
+    unsigned long long error_count; // Number of errors found
+    float max_error;                // Maximum error value
+    int all_zero;                   // 1 = device result is all zeros, 0 = has non-zero values
 };
 
 // GPU verification kernel - compares device result against reference using relative and absolute
@@ -170,16 +153,16 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
     constexpr int block_size = 256;
 
     // Shared memory for block-level reduction
-    __shared__ long long shared_error_count[block_size];
+    __shared__ unsigned long long shared_error_count[block_size];
     __shared__ float shared_max_error[block_size];
     __shared__ int shared_has_error[block_size];
     __shared__ int shared_has_nonzero[block_size];
 
     // Thread-local accumulators (in registers)
-    long long local_error_count = 0;
-    float local_max_error       = 0.0f;
-    int local_has_error         = 0;
-    int local_has_nonzero       = 0;
+    unsigned long long local_error_count = 0;
+    float local_max_error                = 0.0f;
+    int local_has_error                  = 0;
+    int local_has_nonzero                = 0;
 
     // Grid-stride loop to handle any tensor size
     long long idx    = blockIdx.x * blockDim.x + threadIdx.x;
@@ -235,10 +218,10 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
     if(threadIdx.x < 32)
     {
         // Use volatile to prevent compiler from caching shared memory reads
-        volatile long long* smem_count = shared_error_count;
-        volatile float* smem_max       = shared_max_error;
-        volatile int* smem_has         = shared_has_error;
-        volatile int* smem_nonzero     = shared_has_nonzero;
+        volatile unsigned long long* smem_count = shared_error_count;
+        volatile float* smem_max                = shared_max_error;
+        volatile int* smem_has                  = shared_has_error;
+        volatile int* smem_nonzero              = shared_has_nonzero;
 
         smem_count[threadIdx.x] += smem_count[threadIdx.x + 32];
         smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 32]);
@@ -277,7 +260,7 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
         if(shared_has_error[0])
         {
             atomicMin(&result->passed, 0);
-            atomicAdd64(&result->error_count, shared_error_count[0]);
+            atomicAdd(&result->error_count, shared_error_count[0]);
             atomicMaxFloat(&result->max_error, shared_max_error[0]);
         }
         // Update all_zero flag: if no nonzero values found, mark as all zero
