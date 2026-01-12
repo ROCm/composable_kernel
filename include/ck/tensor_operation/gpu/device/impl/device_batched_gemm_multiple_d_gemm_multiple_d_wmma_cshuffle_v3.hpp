@@ -981,6 +981,34 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
         }
     }
 
+    template <typename DataTypes>
+    std::string DataTypeTupleToString() const
+    {
+        const auto string_types = generate_tuple(
+            [&](auto i) {
+                using ElementType = remove_cvref_t<tuple_element_t<i.value, DataTypes>>;
+                return DataTypeToString<ElementType>();
+            },
+            Number<DataTypes::Size()>{});
+
+        return TupleReduce<0, DataTypes::Size()>(
+            [&](std::string s, std::string a) { return a + ", " + s; }, string_types);
+    };
+
+    template <typename Layouts>
+    std::string LayoutTupleToString() const
+    {
+        const auto string_layouts = generate_tuple(
+            [&](auto i) {
+                using ElementLayout = remove_cvref_t<tuple_element_t<i.value, Layouts>>;
+                return std::string(1, ElementLayout::name[0]);
+            },
+            Number<Layouts::Size()>{});
+
+        return TupleReduce<0, Layouts::Size()>([&](std::string s, std::string a) { return a + s; },
+                                               string_layouts);
+    };
+
     // polymorphic
     std::string GetTypeString() const override
     {
@@ -999,16 +1027,19 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
 
         // clang-format off
         str << "DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3"
-            << "<"
+            << "<A/B0/B1/E: "
             << ALayout::name[0]
             << B0layout::name[0]
             << B1Layout::name[0]
-            << E1Layout::name[0] << ", "
+            << E1Layout::name[0]  << ", "
+            << "D0s: " << LayoutTupleToString<D0sLayout>() << " "
+            << "D1s: " << LayoutTupleToString<D1sLayout>()
+            << ", "
             << "A " << DataTypeToString<ADataType>() << ", "
             << "B0 " << DataTypeToString<B0DataType>() << ", "
-            << "D0n " << D0sDataType::Size() << ", "
+            << "D0s (" << DataTypeTupleToString<D0sDataType>() << "), "
             << "B1 " << DataTypeToString<B1DataType>() << ", "
-            << "D1n " << D1sDataType::Size() << ", "
+            << "D1s (" << DataTypeTupleToString<D1sDataType>() << "), "
             << "E1 " << DataTypeToString<E1DataType>() << ", "
             << "Acc " << DataTypeToString<AccDataType>() << ", "
             << "Cshuf " << DataTypeToString<CShuffleDataType>() << ", "
@@ -1022,14 +1053,14 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Wmma_CShuffleV3
             << NPerBlock << ", "
             << LTilePerBlock << ", "
             << L1 << ", "
-            << getGemmSpecializationString(GemmSpec)
-            << ">"
+            << getGemmSpecializationString(GemmSpec) << ", "
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseOp::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseOp::BlockwiseGemmPipe::PrefetchStages 
+            << ">";
         // clang-format on
 
         return str.str();
