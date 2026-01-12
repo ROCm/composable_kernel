@@ -20,7 +20,6 @@ namespace profiler {
 // Provides backward compatibility via operator bool()
 struct GpuVerifyResult
 {
-    bool passed;                    // Overall pass/fail result
     unsigned long long error_count; // Number of elements that exceeded tolerance
     float max_error;                // Maximum error value observed
     std::size_t total;              // Total number of elements compared
@@ -28,7 +27,7 @@ struct GpuVerifyResult
 
     // Implicit conversion to bool for backward compatibility
     // Allows: if (gpu_verify(...)) { ... }
-    operator bool() const { return passed; }
+    operator bool() const { return error_count == 0; }
 
     // Calculate error percentage
     float error_percentage() const
@@ -41,7 +40,7 @@ struct GpuVerifyResult
     // Print error summary to stderr (matches check_err format)
     void print_error_summary() const
     {
-        if(!passed)
+        if(error_count > 0)
         {
             if(all_zero)
             {
@@ -111,7 +110,6 @@ inline float compute_relative_tolerance(const int number_of_accumulations = 1)
 // Packed into a single struct to minimize device memory allocations
 struct GpuVerifyDeviceResult
 {
-    int passed;                     // 1 = passed, 0 = failed
     unsigned long long error_count; // Number of errors found
     float max_error;                // Maximum error value
     int all_zero;                   // 1 = device result is all zeros, 0 = has non-zero values
@@ -196,53 +194,20 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
         __syncthreads();
     }
 
-    // Warp-level reduction: 32 -> 16 -> 8 -> 4 -> 2 -> 1
-    // No sync needed within a warp (warp-synchronous programming)
-    if(threadIdx.x < 32)
-    {
-        // Use volatile to prevent compiler from caching shared memory reads
-        volatile unsigned long long* smem_count = shared_error_count;
-        volatile float* smem_max                = shared_max_error;
-        volatile int* smem_has                  = shared_has_error;
-        volatile int* smem_nonzero              = shared_has_nonzero;
-
-        smem_count[threadIdx.x] += smem_count[threadIdx.x + 32];
-        smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 32]);
-        smem_has[threadIdx.x] |= smem_has[threadIdx.x + 32];
-        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 32];
-
-        smem_count[threadIdx.x] += smem_count[threadIdx.x + 16];
-        smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 16]);
-        smem_has[threadIdx.x] |= smem_has[threadIdx.x + 16];
-        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 16];
-
-        smem_count[threadIdx.x] += smem_count[threadIdx.x + 8];
-        smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 8]);
-        smem_has[threadIdx.x] |= smem_has[threadIdx.x + 8];
-        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 8];
-
-        smem_count[threadIdx.x] += smem_count[threadIdx.x + 4];
-        smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 4]);
-        smem_has[threadIdx.x] |= smem_has[threadIdx.x + 4];
-        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 4];
-
-        smem_count[threadIdx.x] += smem_count[threadIdx.x + 2];
-        smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 2]);
-        smem_has[threadIdx.x] |= smem_has[threadIdx.x + 2];
-        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 2];
-
-        smem_count[threadIdx.x] += smem_count[threadIdx.x + 1];
-        smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 1]);
-        smem_has[threadIdx.x] |= smem_has[threadIdx.x + 1];
-        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 1];
-    }
-
-    // Single atomic update per block (reduces contention from O(errors) to O(blocks))
+    // Final reduction of remaining 32 elements in thread 0
     if(threadIdx.x == 0)
     {
+        for(int i = 1; i < 32; ++i)
+        {
+            shared_error_count[0] += shared_error_count[i];
+            shared_max_error[0] = fmaxf(shared_max_error[0], shared_max_error[i]);
+            shared_has_error[0] |= shared_has_error[i];
+            shared_has_nonzero[0] |= shared_has_nonzero[i];
+        }
+
+        // Single atomic update per block (reduces contention from O(errors) to O(blocks))
         if(shared_has_error[0])
         {
-            atomicMin(&result->passed, 0);
             atomicAdd(&result->error_count, shared_error_count[0]);
             atomicMax(&result->max_error, shared_max_error[0]);
         }
@@ -274,7 +239,6 @@ GpuVerifyResult gpu_verify(const void* device_result,
 
     // Initialize result struct
     GpuVerifyDeviceResult result_host;
-    result_host.passed      = 1;    // Start as passed
     result_host.error_count = 0;    // No errors yet
     result_host.max_error   = 0.0f; // No error observed
     result_host.all_zero    = 1;    // Start assuming all zeros (will be cleared if nonzero found)
@@ -309,7 +273,6 @@ GpuVerifyResult gpu_verify(const void* device_result,
 
     // Build and return result struct
     GpuVerifyResult result;
-    result.passed      = (result_host.passed == 1);
     result.error_count = result_host.error_count;
     result.max_error   = result_host.max_error;
     result.total       = size;
@@ -399,26 +362,16 @@ gpu_reduce_max_kernel(const T* __restrict__ data, long long size, float* __restr
         __syncthreads();
     }
 
-    // Warp-level reduction: 32 -> 16 -> 8 -> 4 -> 2 -> 1
-    // No sync needed within a warp
-    if(threadIdx.x < 32)
-    {
-        volatile float* smem = shared_max;
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 32]);
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 16]);
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 8]);
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 4]);
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 2]);
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 1]);
-    }
-
-    // Two-phase reduction pattern minimizes atomic contention:
-    // 1. Each block reduces to shared memory (above)
-    // 2. Single thread per block updates global max (below)
-    // This limits atomic operations to O(grid_size) rather than O(total_threads)
+    // Final reduction of remaining 32 elements in thread 0
     if(threadIdx.x == 0)
     {
-        atomicMaxFloat(max_val, shared_max[0]);
+        for(int i = 1; i < 32; ++i)
+        {
+            shared_max[0] = fmaxf(shared_max[0], shared_max[i]);
+        }
+
+        // Single atomic update per block
+        atomicMax(max_val, shared_max[0]);
     }
 }
 
