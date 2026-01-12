@@ -63,34 +63,51 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     const auto out_g_n_k_wos_desc =
         ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
 
+    std::cout << "input: " << in_g_n_c_wis_desc << std::endl;
+    std::cout << "weight: " << wei_g_k_c_xs_desc << std::endl;
+    std::cout << "output: " << out_g_n_k_wos_desc << std::endl;
+
+    // Get element space sizes
+    const auto input_element_space_size  = in_g_n_c_wis_desc.GetElementSpaceSize();
+    const auto weight_element_space_size = wei_g_k_c_xs_desc.GetElementSpaceSize();
+    const auto output_element_space_size = out_g_n_k_wos_desc.GetElementSpaceSize();
+
+    // Allocate GPU buffers
+    DeviceMem in_device_buf(sizeof(InDataType) * input_element_space_size);
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight_element_space_size);
+    DeviceMem out_device_buf(sizeof(OutDataType) * output_element_space_size);
+
+    // Generate data directly on GPU using DeviceMem methods
+    switch(init_method)
+    {
+    case 0:
+        // Zero initialization
+        in_device_buf.SetZero();
+        out_device_buf.SetZero();
+        break;
+    case 1:
+        // Discrete integer values in range [-5, 5]
+        in_device_buf.FillUniformRandInteger<InDataType>(-5, 5);
+        out_device_buf.FillUniformRandInteger<OutDataType>(-5, 5);
+        break;
+    default:
+        // Continuous float values
+        in_device_buf.FillUniformRandFp<InDataType>(0.0f, 1.0f);
+        out_device_buf.FillUniformRandFp<OutDataType>(-0.5f, 0.5f);
+    }
+
+    // Create host tensors (needed only for verification)
     Tensor<InDataType> input(in_g_n_c_wis_desc);
     Tensor<WeiDataType> weight_host_result(wei_g_k_c_xs_desc);
     Tensor<WeiDataType> weight_device_result(wei_g_k_c_xs_desc);
     Tensor<OutDataType> output(out_g_n_k_wos_desc);
 
-    std::cout << "input: " << input.mDesc << std::endl;
-    std::cout << "weight: " << weight_host_result.mDesc << std::endl;
-    std::cout << "output: " << output.mDesc << std::endl;
-
-    switch(init_method)
+    // Copy to host only if CPU verification is needed
+    if(do_verification == 1)
     {
-    case 0: break;
-    case 1:
-        input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        output.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
-        break;
-    default:
-        input.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        output.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
+        in_device_buf.FromDevice(input.mData.data());
+        out_device_buf.FromDevice(output.mData.data());
     }
-
-    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) *
-                             weight_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * output.mDesc.GetElementSpaceSize());
-
-    in_device_buf.ToDevice(input.mData.data());
-    out_device_buf.ToDevice(output.mData.data());
 
     // Allocate GPU reference buffer (used only if do_verification == 2)
     DeviceMem gpu_ref_wei_buf(
