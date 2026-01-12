@@ -1053,7 +1053,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t page_stride_k,
                const index_t page_stride_v,
                DropoutType& dropout,
-               const float sink_v) const
+               float sink_v) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -1082,7 +1082,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           page_stride_k,
                           page_stride_v,
                           dropout,
-                          const float sink_v);
+                          sink_v);
     }
 };
 
