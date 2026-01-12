@@ -107,23 +107,6 @@ inline float compute_relative_tolerance(const int number_of_accumulations = 1)
     }
 }
 
-// Helper function for atomic float max (using compare-and-swap)
-__device__ __forceinline__ float atomicMaxFloat(float* address, float val)
-{
-    int* address_as_int = reinterpret_cast<int*>(address);
-    int old             = *address_as_int;
-    int assumed;
-
-    do
-    {
-        assumed = old;
-        old =
-            atomicCAS(address_as_int, assumed, __float_as_int(fmaxf(val, __int_as_float(assumed))));
-    } while(assumed != old);
-
-    return __int_as_float(old);
-}
-
 // Device-side result structure for kernel output
 // Packed into a single struct to minimize device memory allocations
 struct GpuVerifyDeviceResult
@@ -261,7 +244,7 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
         {
             atomicMin(&result->passed, 0);
             atomicAdd(&result->error_count, shared_error_count[0]);
-            atomicMaxFloat(&result->max_error, shared_max_error[0]);
+            atomicMax(&result->max_error, shared_max_error[0]);
         }
         // Update all_zero flag: if no nonzero values found, mark as all zero
         if(!shared_has_nonzero[0])
