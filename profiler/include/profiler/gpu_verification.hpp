@@ -24,6 +24,7 @@ struct GpuVerifyResult
     long long error_count; // Number of elements that exceeded tolerance
     float max_error;       // Maximum error value observed
     std::size_t total;     // Total number of elements compared
+    bool all_zero;         // True if device result is all zeros (likely kernel issue)
 
     // Implicit conversion to bool for backward compatibility
     // Allows: if (gpu_verify(...)) { ... }
@@ -42,6 +43,12 @@ struct GpuVerifyResult
     {
         if(!passed)
         {
+            if(all_zero)
+            {
+                std::cerr << "WARNING: Device result is all zeros - kernel may not have executed "
+                             "properly!"
+                          << std::endl;
+            }
             std::cerr << "max err: " << max_error;
             std::cerr << ", number of errors: " << error_count;
             std::cerr << ", " << std::setprecision(2) << std::fixed << error_percentage()
@@ -141,6 +148,7 @@ struct GpuVerifyDeviceResult
     int passed;            // 1 = passed, 0 = failed
     long long error_count; // Number of errors found
     float max_error;       // Maximum error value
+    int all_zero;          // 1 = device result is all zeros, 0 = has non-zero values
 };
 
 // GPU verification kernel - compares device result against reference using relative and absolute
@@ -165,11 +173,13 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
     __shared__ long long shared_error_count[block_size];
     __shared__ float shared_max_error[block_size];
     __shared__ int shared_has_error[block_size];
+    __shared__ int shared_has_nonzero[block_size];
 
     // Thread-local accumulators (in registers)
     long long local_error_count = 0;
     float local_max_error       = 0.0f;
     int local_has_error         = 0;
+    int local_has_nonzero       = 0;
 
     // Grid-stride loop to handle any tensor size
     long long idx    = blockIdx.x * blockDim.x + threadIdx.x;
@@ -180,6 +190,12 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
         // Convert to float for comparison
         float dev_val = type_convert<float>(device_result[i]);
         float ref_val = type_convert<float>(reference_result[i]);
+
+        // Check if device value is non-zero
+        if(dev_val != 0.0f)
+        {
+            local_has_nonzero = 1;
+        }
 
         // Compute absolute difference
         float abs_diff = fabsf(dev_val - ref_val);
@@ -197,6 +213,7 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
     shared_error_count[threadIdx.x] = local_error_count;
     shared_max_error[threadIdx.x]   = local_max_error;
     shared_has_error[threadIdx.x]   = local_has_error;
+    shared_has_nonzero[threadIdx.x] = local_has_nonzero;
     __syncthreads();
 
     // Block-level reduction: 256 -> 128 -> 64 -> 32
@@ -208,6 +225,7 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
             shared_max_error[threadIdx.x] =
                 fmaxf(shared_max_error[threadIdx.x], shared_max_error[threadIdx.x + s]);
             shared_has_error[threadIdx.x] |= shared_has_error[threadIdx.x + s];
+            shared_has_nonzero[threadIdx.x] |= shared_has_nonzero[threadIdx.x + s];
         }
         __syncthreads();
     }
@@ -220,30 +238,37 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
         volatile long long* smem_count = shared_error_count;
         volatile float* smem_max       = shared_max_error;
         volatile int* smem_has         = shared_has_error;
+        volatile int* smem_nonzero     = shared_has_nonzero;
 
         smem_count[threadIdx.x] += smem_count[threadIdx.x + 32];
         smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 32]);
         smem_has[threadIdx.x] |= smem_has[threadIdx.x + 32];
+        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 32];
 
         smem_count[threadIdx.x] += smem_count[threadIdx.x + 16];
         smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 16]);
         smem_has[threadIdx.x] |= smem_has[threadIdx.x + 16];
+        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 16];
 
         smem_count[threadIdx.x] += smem_count[threadIdx.x + 8];
         smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 8]);
         smem_has[threadIdx.x] |= smem_has[threadIdx.x + 8];
+        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 8];
 
         smem_count[threadIdx.x] += smem_count[threadIdx.x + 4];
         smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 4]);
         smem_has[threadIdx.x] |= smem_has[threadIdx.x + 4];
+        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 4];
 
         smem_count[threadIdx.x] += smem_count[threadIdx.x + 2];
         smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 2]);
         smem_has[threadIdx.x] |= smem_has[threadIdx.x + 2];
+        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 2];
 
         smem_count[threadIdx.x] += smem_count[threadIdx.x + 1];
         smem_max[threadIdx.x] = fmaxf(smem_max[threadIdx.x], smem_max[threadIdx.x + 1]);
         smem_has[threadIdx.x] |= smem_has[threadIdx.x + 1];
+        smem_nonzero[threadIdx.x] |= smem_nonzero[threadIdx.x + 1];
     }
 
     // Single atomic update per block (reduces contention from O(errors) to O(blocks))
@@ -254,6 +279,15 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
             atomicMin(&result->passed, 0);
             atomicAdd64(&result->error_count, shared_error_count[0]);
             atomicMaxFloat(&result->max_error, shared_max_error[0]);
+        }
+        // Update all_zero flag: if no nonzero values found, mark as all zero
+        if(!shared_has_nonzero[0])
+        {
+            atomicMin(&result->all_zero, 1);
+        }
+        else
+        {
+            atomicMin(&result->all_zero, 0);
         }
     }
 }
@@ -277,6 +311,7 @@ GpuVerifyResult gpu_verify(const void* device_result,
     result_host.passed      = 1;    // Start as passed
     result_host.error_count = 0;    // No errors yet
     result_host.max_error   = 0.0f; // No error observed
+    result_host.all_zero    = 1;    // Start assuming all zeros (will be cleared if nonzero found)
     hip_check_error(
         hipMemcpy(result_dev, &result_host, sizeof(GpuVerifyDeviceResult), hipMemcpyHostToDevice));
 
@@ -312,6 +347,7 @@ GpuVerifyResult gpu_verify(const void* device_result,
     result.error_count = result_host.error_count;
     result.max_error   = result_host.max_error;
     result.total       = size;
+    result.all_zero    = (result_host.all_zero == 1);
 
     return result;
 }
