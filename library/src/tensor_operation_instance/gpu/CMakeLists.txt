@@ -1,6 +1,11 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
+include(CheckCXXCompilerFlag)
+
+# We need to pass '-x hip' since check_cxx_compiler_flag assumes c++ and not HIP. 
+check_cxx_compiler_flag("--offload-compress -x hip" CXX_COMPILER_SUPPORTS_OFFLOAD_COMPRESS)
+
 function(add_instance_library INSTANCE_NAME)
     message(DEBUG "adding instance ${INSTANCE_NAME}")
     set(result 1)
@@ -192,8 +197,9 @@ function(add_instance_library INSTANCE_NAME)
         if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
             target_compile_options(${INSTANCE_NAME} PRIVATE -gsplit-dwarf)
         endif()
+
         # flags to compress the library
-        if(NOT DISABLE_OFFLOAD_COMPRESS AND NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+        if(NOT DISABLE_OFFLOAD_COMPRESS AND CXX_COMPILER_SUPPORTS_OFFLOAD_COMPRESS)
             message(DEBUG "Adding --offload-compress flag for ${INSTANCE_NAME}")
             target_compile_options(${INSTANCE_NAME} PRIVATE --offload-compress)
         endif()

@@ -88,3 +88,11 @@ TEST(DeviceBuffer, AllocTensorBuffer)
     EXPECT_THAT(hipMemset(buffer.get(), 0xFF, descriptor.get_element_space_size_in_bytes()),
                 HipSuccess());
 }
+
+TEST(DeviceBuffer, AlignForward)
+{
+    EXPECT_THAT(ckt::align_fwd(24, 8), Eq(24));
+    EXPECT_THAT(ckt::align_fwd(25, 8), Eq(32));
+    EXPECT_THAT(ckt::align_fwd(0xd7c563, 0x1000), Eq(0xd7d000));
+    EXPECT_THAT(ckt::align_fwd(19561, 23), Eq(19573));
+}

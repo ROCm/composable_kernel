@@ -980,8 +980,7 @@ struct GroupedConvolutionForwardKernel
         else
         {
             if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                           is_any_of<OutDataType, fp16_t, bf16_t>::value) &&
-                         IsSplitKSupported)
+                           is_any_of<OutDataType, fp16_t, bf16_t>::value))
             {
                 auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
                     c_ptr, c_desc, block_idx_m, block_idx_n);
