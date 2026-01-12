@@ -1538,7 +1538,7 @@ struct FmhaFwdKernel
 
                     auto o_acc_element_func = [&]() {
                         if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
-                            return ck_tile::composes(
+                            return make_composes(
                                 ck_tile::saturates<ck_tile::fp8_t>{},
                                 ck_tile::scales<remove_cvref_t<decltype(scale_o)>>{scale_o});
                         else

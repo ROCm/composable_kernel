@@ -1340,9 +1340,9 @@ struct FmhaFwdPagedKVKernel
                                       identity{}, // s_acc_element_func
                                       scales<remove_cvref_t<decltype(kargs.scale_p)>>{
                                           kargs.scale_p}, // p_compute_element_func
-                                      composes(saturates<fp8_t>{},
-                                               scales<remove_cvref_t<decltype(kargs.scale_o)>>{
-                                                   kargs.scale_o}), // o_acc_element_func
+                                      make_composes(saturates<fp8_t>{},
+                                                    scales<remove_cvref_t<decltype(kargs.scale_o)>>{
+                                                        kargs.scale_o}), // o_acc_element_func
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
