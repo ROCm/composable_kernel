@@ -3,9 +3,8 @@
 
 #pragma once
 
-#include "ck_tile/builder/testing/conv_fwd.hpp"
+#include "ck_tile/builder/testing/conv/testing.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
 #include <type_traits>

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ck_tile/builder/testing/conv/fwd.hpp"
+#include "ck_tile/builder/testing/testing.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include <type_traits>
