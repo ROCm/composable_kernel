@@ -60,7 +60,7 @@ template <typename GridwiseGemm,
           BlockGemmPipelineVersion BlkGemmPipelineVer>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_grouped_gemm_multiple_d_xdl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                        const index_t group_count,
@@ -71,7 +71,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
-        constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
+        constexpr index_t shared_size =
+            GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch());
         __shared__ uint8_t p_shared[shared_size];
         __shared__ uint8_t p_shared1[shared_size];
 
