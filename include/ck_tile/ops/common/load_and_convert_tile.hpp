@@ -13,11 +13,11 @@ template <typename DstDataType, index_t UnaryOpSize>
 struct ConverterLoader
 {
     template <typename WarpWindow, typename WarpTile>
-    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& dst, const WarpWindow& src)
+    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& dst, const WarpWindow& src_window)
     {
         static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
         constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
-        const auto tmp                       = load_tile(src);
+        const auto src                       = load_tile(src_window);
 
         // NOTE: we rely on types packing neatly here
         using RawSrcType          = typename WarpWindow::Base::DataType::type;
@@ -29,27 +29,27 @@ struct ConverterLoader
             const element_wise::PassThroughPack8 elementwise_op{};
 
             elementwise_op(dst.get_thread_buffer().template get_as<DstVectorType>()(i),
-                           tmp.get_thread_buffer().template get_as<SrcVectorType>()[i]);
+                           src.get_thread_buffer().template get_as<SrcVectorType>()[i]);
         });
     }
 };
 
 template <index_t UnaryOpSize, bool LoadTranspose = false, typename WarpTile, typename WarpWindow>
-CK_TILE_DEVICE void load_and_convert_tile(WarpTile& dst, const WarpWindow& src)
+CK_TILE_DEVICE void load_and_convert_tile(WarpTile& dst, const WarpWindow& src_window)
 {
     if constexpr(is_packed_type_v<typename WarpWindow::Base::DataType>)
     {
         static_assert(!LoadTranspose, "LoadTranspose not supported with pk_int4_t or pk_fp4_t");
-        ConverterLoader<typename WarpTile::DataType, UnaryOpSize>::load_interleaved_pk_type(dst,
-                                                                                            src);
+        ConverterLoader<typename WarpTile::DataType, UnaryOpSize>::load_interleaved_pk_type(
+            dst, src_window);
     }
     else if constexpr(LoadTranspose)
     {
-        load_tile_transpose(dst, src);
+        load_tile_transpose(dst, src_window);
     }
     else
     {
-        load_tile(dst, src);
+        load_tile(dst, src_window);
     }
 }
 
