@@ -197,7 +197,11 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
         if(__builtin_isinf_sign(sink_v) >= 0)
         {
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-            set_tile(m, sink_v * C_LOG2E);
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                         BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                set_tile(m, sink_v * C_LOG2E * scale_s);
+            else
+                set_tile(m, sink_v * C_LOG2E);
 #else
             set_tile(m, sink_v);
 #endif
@@ -722,7 +726,11 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
         if(__builtin_isinf_sign(sink_v) >= 0)
         {
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-            set_tile(m, sink_v * C_LOG2E);
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                         BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                set_tile(m, sink_v * C_LOG2E * scale_s);
+            else
+                set_tile(m, sink_v * C_LOG2E);
 #else
             set_tile(m, sink_v);
 #endif
@@ -752,7 +760,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
                     if(__builtin_isinf_sign(sink_v) >= 0)
                     {
-                        set_tile(lse_acc, SMPLComputeDataType{sink_v});
+                        set_tile(lse_acc, SMPLComputeDataType{sink_v * scale_s});
                     }
                     else
                     {
