@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cinttypes>
 #include <cstdlib>
 #include <thread>
 
@@ -28,7 +29,7 @@ CK_TILE_HOST void reference_grouped_conv_bwd_data(HostTensor<InDataType>& input,
          output.get_num_of_dimension() == NDimSpatial + 3))
     {
 
-        printf("%lu %lu %lu",
+        printf("%" PRIu64 " %" PRIu64 " %" PRIu64,
                input.get_num_of_dimension(),
                weight.get_num_of_dimension(),
                output.get_num_of_dimension());

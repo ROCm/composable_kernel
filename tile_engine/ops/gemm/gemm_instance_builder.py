@@ -719,8 +719,8 @@ struct SelectedKernel {{
         elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code += f"""
             
-            // Kernel type
-            using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        // Kernel type
+        using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             
             // Kernel arguments
             auto kargs = GemmKernel::MakeKernelArgs(args);
@@ -802,15 +802,14 @@ struct SelectedKernel {{
                 ck_tile::tuple<>,  // DsLayout
                 CLayout,
                 ck_tile::element_wise::PassThrough,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
+                TileM,  // kM_
+                TileN,  // kN_
                 WarpPerBlock_M,              // MWave_
                 WarpPerBlock_N,              // NWave_
                 WarpTileM,                   // MPerXdl_
                 WarpTileN,                   // NPerXdl_
                 WarpTileK,                   // KPerXdl_
                 TransposeC,                  // isCTransposed_
-                memory_operation,            // MemoryOperation_
                 NumWaveGroups>;              // kNumWaveGroups_
             
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
@@ -827,15 +826,14 @@ struct SelectedKernel {{
                 DsLayout,
                 CLayout,
                 ElementWiseFn,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
+                TileM,  // kM_
+                TileN,  // kN_
                 WarpPerBlock_M,              // MWave_
                 WarpPerBlock_N,              // NWave_
                 WarpTileM,                   // MPerXdl_
                 WarpTileN,                   // NPerXdl_
                 WarpTileK,                   // KPerXdl_
-                TransposeC,                  // isCTransposed_
-                memory_operation>;           // MemoryOperation_ 
+                TransposeC>;                  // isCTransposed_
        
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
         return instance_code
@@ -851,15 +849,14 @@ struct SelectedKernel {{
                 ck_tile::tuple<>,  // DsLayout
                 CLayout,
                 ck_tile::element_wise::PassThrough,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
+                TileM,  // kM_
+                TileN,  // kN_
                 WarpPerBlock_M,              // MWave_
                 WarpPerBlock_N,              // NWave_
                 WarpTileM,                   // MPerXdl_
                 WarpTileN,                   // NPerXdl_
                 WarpTileK,                   // KPerXdl_
                 TransposeC,                  // isCTransposed_
-                memory_operation,            // MemoryOperation_
                 NumWaveGroups,               // kNumWaveGroups_
                 false,                       // FixedVectorSize_
                 1,                           // VectorSizeC_
@@ -879,8 +876,8 @@ struct SelectedKernel {{
                 ck_tile::tuple<>,  // DsLayout
                 CLayout,
                 ck_tile::element_wise::PassThrough,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
+                TileM,  // kM_
+                TileN,  // kN_
                 kPadM,
                 kPadN,
                 WarpTileM,  // kMPerXdl_
@@ -902,8 +899,8 @@ struct SelectedKernel {{
                 DsLayout,
                 CLayout,
                 ElementWiseFn,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
+                TileM,  // kM_
+                TileN,  // kN_
                 kPadM,
                 kPadN,
                 WarpTileM,  // kMPerXdl_
@@ -925,8 +922,8 @@ struct SelectedKernel {{
                 ck_tile::tuple<>,  // DsLayout
                 CLayout,
                 ck_tile::element_wise::PassThrough,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
+                TileM,  // kM_
+                TileN,  // kN_
                 kPadM,
                 kPadN,
                 WarpTileM,  // kMPerXdl_
