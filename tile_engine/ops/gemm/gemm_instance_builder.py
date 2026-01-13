@@ -643,19 +643,10 @@ struct SelectedKernel {{
             
         using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
 
-        # # Runfunction body
-        # instance_code += """
-
-        # const auto Run = [&](const auto memory_operation_) {"""
-
         # Scheduler initialization
         if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += f"""
         constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
-
-        # # Memory operation
-        # instance_code += """
-        #     [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;"""
 
         # UniversalGemmProblem
         if self.kernel_name_prefix in ["gemm_universal"]:
