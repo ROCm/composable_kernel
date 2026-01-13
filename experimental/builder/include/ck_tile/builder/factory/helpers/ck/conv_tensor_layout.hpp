@@ -226,11 +226,6 @@ struct ConvTensorLayouts
     using WeiLayout = decltype(TensorLayoutToCK<Signature.weight.config.layout>());
     using OutLayout  = decltype(TensorLayoutToCK<Signature.output.config.layout>());
     using DsLayout  = decltype(GetAuxiliaryTensorLayouts<Signature, SPATIAL_DIM>())::type;
-
-    // TODO: Remove,now left for compatibility. Factories do not need it anymore.
-    // using ALayout = InLayout;
-    // using BLayout = WeiLayout;
-    // using ELayout = OutLayout;
 };
 
 } // namespace ck_tile::builder::factory::internal

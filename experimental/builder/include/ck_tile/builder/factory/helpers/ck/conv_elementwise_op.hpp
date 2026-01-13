@@ -71,11 +71,6 @@ struct ConvElementwiseOps
     using InElementwiseOp  = typename decltype(input_op)::Op;
     using WeiElementwiseOp = typename decltype(weight_op)::Op;
     using OutElementwiseOp = typename decltype(output_op)::Op;
-   
-    // TODO: Remove, now left for compatibility. Factories do not need it anymore.
-    // using AElementwiseOp   = InElementwiseOp;
-    // using BElementwiseOp   = WeiElementwiseOp;
-    // using CDEElementwiseOp = OutElementwiseOp;
 };
 
 } // namespace ck_tile::builder::factory::internal
