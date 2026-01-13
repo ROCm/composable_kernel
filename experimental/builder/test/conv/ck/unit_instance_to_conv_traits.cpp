@@ -230,7 +230,7 @@ TEST(InstanceToConvTraits, ExtractsDefaultSpecialization)
 
     using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
 
-    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvFwdSpecialization::DEFAULT);
+    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
 }
 
 TEST(InstanceToConvTraits, ExtractsFilter1x1Pad0Specialization)
@@ -289,8 +289,7 @@ TEST(InstanceToConvTraits, ExtractsFilter1x1Pad0Specialization)
 
     using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
 
-    EXPECT_EQ(Traits::conv_specialization,
-              ck_tile::builder::ConvFwdSpecialization::FILTER_1X1_PAD0);
+    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvSpecialization::FILTER_1X1_PAD0);
 }
 
 // ============================================================================
