@@ -1351,8 +1351,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
         auto oacc_element_func = [&]() {
             if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t> && supports_qscale)
-                return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
-                                         ck_tile::scales{scale_o_host});
+                return ck_tile::make_composes(ck_tile::saturates<ck_tile::fp8_t>{},
+                                              ck_tile::scales{scale_o_host});
             else if constexpr(supports_qscale)
                 return ck_tile::scales{scale_o_host};
             else
