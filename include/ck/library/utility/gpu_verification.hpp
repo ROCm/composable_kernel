@@ -181,7 +181,7 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
     __syncthreads();
 
     // Block-level reduction: 256 -> 128 -> 64 -> 32
-    for(unsigned int s = block_size / 2; s > 32; s >>= 1)
+    for(unsigned int s = block_size / 2; s >= 32; s >>= 1)
     {
         if(threadIdx.x < s)
         {
@@ -353,7 +353,7 @@ gpu_reduce_max_kernel(const T* __restrict__ data, long long size, float* __restr
     __syncthreads();
 
     // Block-level reduction: 256 -> 128 -> 64 -> 32
-    for(unsigned int s = block_size / 2; s > 32; s >>= 1)
+    for(unsigned int s = block_size / 2; s >= 32; s >>= 1)
     {
         if(threadIdx.x < s)
         {
