@@ -24,6 +24,7 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_weight.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_weight_gpu.hpp"
+#include "profiler/gpu_verification.hpp"
 
 namespace ck {
 namespace profiler {
@@ -91,6 +92,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     in_device_buf.ToDevice(input.mData.data());
     out_device_buf.ToDevice(output.mData.data());
 
+    // Allocate GPU reference buffer (used only if do_verification == 2)
+    DeviceMem gpu_ref_wei_buf(
+        do_verification == 2 ? sizeof(WeiDataType) * weight_host_result.mDesc.GetElementSpaceSize()
+                             : 0);
+
     float max_accumulated_value = 0;
     if(do_verification)
     {
@@ -120,20 +126,13 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                       {});
 
             ref_invoker.Run(ref_argument);
+            max_accumulated_value =
+                *std::max_element(weight_host_result.mData.begin(), weight_host_result.mData.end());
         }
         else if(do_verification == 2)
         {
-            // GPU reference
-            std::cout << "Running GPU reference implementation..." << std::endl;
-
-            // Allocate device memory for reference
-            DeviceMem in_ref_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
-            DeviceMem wei_ref_buf(sizeof(WeiDataType) *
-                                  weight_host_result.mDesc.GetElementSpaceSize());
-            DeviceMem out_ref_buf(sizeof(OutDataType) * output.mDesc.GetElementSpaceSize());
-
-            in_ref_buf.ToDevice(input.mData.data());
-            out_ref_buf.ToDevice(output.mData.data());
+            // Use GPU reference with GPU verification
+            std::cout << "Using GPU reference with GPU verification" << std::endl;
 
             // Call GPU reference with ConvParam directly
             ck::ref::naive_conv_bwd_weight<InLayout,
@@ -145,20 +144,14 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                            InElementOp,
                                            WeiElementOp,
                                            OutElementOp>(
-                static_cast<const InDataType*>(in_ref_buf.GetDeviceBuffer()),
-                static_cast<WeiDataType*>(wei_ref_buf.GetDeviceBuffer()),
-                static_cast<const OutDataType*>(out_ref_buf.GetDeviceBuffer()),
+                static_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
+                static_cast<WeiDataType*>(gpu_ref_wei_buf.GetDeviceBuffer()),
+                static_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
                 conv_param,
                 in_element_op,
                 wei_element_op,
                 out_element_op);
-
-            // Copy result back to host
-            wei_ref_buf.FromDevice(weight_host_result.mData.data());
         }
-
-        max_accumulated_value =
-            *std::max_element(weight_host_result.mData.begin(), weight_host_result.mData.end());
     }
 
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdWeight<NDimSpatial,
@@ -320,8 +313,109 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     best_split_k    = split_k_param_str;
                 }
 
-                if(do_verification)
+                // Synchronize before verification to ensure kernel has completed
+                if(do_verification > 0 && !time_kernel)
                 {
+                    hip_check_error(hipStreamSynchronize(nullptr));
+                }
+
+                if(do_verification == 2)
+                {
+                    // GPU verification path
+                    using ComputeType =
+                        std::conditional_t<sizeof(ComputeTypeA) < sizeof(ComputeTypeB),
+                                           ComputeTypeA,
+                                           ComputeTypeB>;
+                    using AccDataType =
+                        std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
+
+                    // Calculate number of accumulations accounting for split_k
+                    const int num_accums =
+                        static_cast<int>(output.GetElementSize() / conv_param.K_ / split_k_value);
+
+                    // Additional tolerance for split_k accumulation if needed
+                    int total_accums = num_accums;
+                    if(split_k_value > 1)
+                    {
+                        total_accums = std::max(num_accums, static_cast<int>(split_k_value));
+                    }
+
+                    // Perform GPU verification (max value computed internally on GPU)
+                    const std::size_t tensor_size =
+                        weight_device_result.mDesc.GetElementSpaceSize();
+                    bool gpu_passed =
+                        ck::profiler::gpu_verify<WeiDataType, ComputeType, AccDataType>(
+                            wei_device_buf.GetDeviceBuffer(),
+                            gpu_ref_wei_buf.GetDeviceBuffer(),
+                            total_accums,
+                            tensor_size);
+
+                    if(!gpu_passed)
+                    {
+                        // GPU verification failed - fall back to CPU for detailed diagnostics
+                        std::cout
+                            << "GPU verification failed, running CPU verification for details..."
+                            << std::endl;
+
+                        // Copy both buffers to host
+                        wei_device_buf.FromDevice(weight_device_result.mData.data());
+                        gpu_ref_wei_buf.FromDevice(weight_host_result.mData.data());
+
+                        // Recalculate tolerances for CPU verification with original logic
+                        const index_t num_accums_full    = output.GetElementSize() / conv_param.K_;
+                        const index_t num_accums_split_k = split_k_value;
+                        auto rtol                        = ck::utils::
+                            get_relative_threshold<ComputeType, WeiDataType, AccDataType>(
+                                num_accums_full / num_accums_split_k);
+                        auto atol = ck::utils::
+                            get_absolute_threshold<ComputeType, WeiDataType, AccDataType>(
+                                max_accumulated_value / num_accums_split_k,
+                                num_accums_full / num_accums_split_k);
+
+                        if(split_k_value > 1)
+                        {
+                            auto rtol_split_k =
+                                ck::utils::get_relative_threshold<WeiDataType,
+                                                                  WeiDataType,
+                                                                  WeiDataType>(num_accums_split_k);
+                            auto atol_split_k = ck::utils::
+                                get_absolute_threshold<WeiDataType, WeiDataType, WeiDataType>(
+                                    max_accumulated_value, num_accums_split_k);
+                            rtol = std::max(rtol, rtol_split_k);
+                            atol = std::max(atol, atol_split_k);
+                        }
+
+                        // Run CPU verification for detailed error messages
+                        ck::utils::check_err(weight_device_result,
+                                             weight_host_result,
+                                             "Error: Incorrect results!",
+                                             rtol,
+                                             atol);
+                        all_pass = false;
+
+                        std::cout << "Relative error threshold: " << rtol
+                                  << " Absolute error threshold: " << atol << std::endl;
+                        std::cout << "Fail info: splitK: " << split_k_value << " "
+                                  << op_ptr->GetTypeString() << std::endl;
+
+                        if(do_log)
+                        {
+                            LogRangeAsType<float>(std::cout << "output : ", output.mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(
+                                std::cout << "weight (device): ", weight_device_result.mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(
+                                std::cout << "weight (host): ", weight_host_result.mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(std::cout << "input: ", input.mData, ",")
+                                << std::endl;
+                        }
+                    }
+                }
+                else if(do_verification == 1)
+                {
+                    // CPU verification path (original behavior)
                     wei_device_buf.FromDevice(weight_device_result.mData.data());
 
                     using ComputeType =
