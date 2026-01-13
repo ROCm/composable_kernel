@@ -13,9 +13,6 @@
 #include "ck/tensor_operation/gpu/device/device_batched_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
-#include "ck/host_utility/flush_cache.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_wmma_cshuffle_v3_common.hpp"
 
 namespace ck {
@@ -337,12 +334,6 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
     {
         return DeviceGemmCommon::IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-
-    // TODO: This is not part of the DeviceBatchedGemm base class but it was part of
-    // DeviceBatchedGemmV2. Remove?
-    // index_t GetKPerBlock() override { return KPerBlock; }
-    // bool GetPermuteA() override { return PermuteA; }
-    // bool GetPermuteB() override { return PermuteB; }
 
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
