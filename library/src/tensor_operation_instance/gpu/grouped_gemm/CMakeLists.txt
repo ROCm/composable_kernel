@@ -36,7 +36,7 @@ add_instance_library(device_grouped_gemm_instance
    device_grouped_gemm_multiple_d_splitk_xdl_two_stage_bf16_bf16_bf16_mk_nk_mn_instance.cpp
    device_grouped_gemm_multiple_d_splitk_xdl_two_stage_bf16_i8_bf16_mk_kn_mn_instance.cpp
    device_grouped_gemm_multiple_d_splitk_xdl_two_stage_bf16_i8_bf16_mk_nk_mn_instance.cpp
-   
+
    device_grouped_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_instance.cpp
    device_grouped_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_instance.cpp
 
