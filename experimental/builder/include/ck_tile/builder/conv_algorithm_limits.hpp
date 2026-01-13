@@ -7,6 +7,7 @@
 #include <concepts>
 #include <utility>
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/arch/arch.hpp"
 
 namespace ck_tile::builder {
 
@@ -51,6 +52,10 @@ concept HasTupleSize = requires {
     { std::tuple_size<T>::value } -> std::convertible_to<size_t>;
 };
 
+// Helper for dependent static_assert
+template <typename>
+constexpr bool always_false = false;
+
 // Get compile-time size of a range
 template <typename Range>
 constexpr size_t get_range_size()
@@ -62,6 +67,10 @@ constexpr size_t get_range_size()
     else if constexpr(HasTupleSize<Range>)
     {
         return std::tuple_size_v<Range>;
+    }
+    else
+    {
+        static_assert(always_false<Range>, "Unsupported type of range object.");
     }
 }
 
@@ -120,8 +129,7 @@ constexpr auto get_mn_coverage()
 template <size_t DataTypeSize>
 constexpr auto get_data_max_vec_size()
 {
-    // this is arch specific - but all current gfx9 has same value
-    constexpr auto max_vec_inst_size_bytes = 16;
+    constexpr auto max_vec_inst_size_bytes = get_max_mem_vec_inst_width();
     static_assert(max_vec_inst_size_bytes % DataTypeSize == 0,
                   "The max vec instruction size is not a multiple of given data type size.");
     return max_vec_inst_size_bytes / DataTypeSize;
@@ -161,11 +169,12 @@ concept ThreadsCoverCTile = requires {
                            CBlockTransfer.scalar_per_vector) == 0;
 };
 
+template <size_t Value>
+concept IsPowerOf2 = (Value > 0) && ((Value & (Value - 1)) == 0);
+
 template <size_t ScalarPerVec, size_t DataTypeSize>
-concept IsVectorSizeValid = requires {
-    requires((ScalarPerVec & (ScalarPerVec - 1)) == 0) &&
-                ScalarPerVec <= detail::get_data_max_vec_size<DataTypeSize>();
-};
+concept IsVectorSizeValid =
+    IsPowerOf2<ScalarPerVec> && (ScalarPerVec <= detail::get_data_max_vec_size<DataTypeSize>());
 
 // Composite concept for input block transfer validation (A)
 // Includes all validations: vector transfer limits, access order, cluster size,
