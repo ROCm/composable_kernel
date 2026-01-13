@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_STATICALLY_INDEXED_ARRAY_MULTI_INDEX_HPP
 #define CK_STATICALLY_INDEXED_ARRAY_MULTI_INDEX_HPP

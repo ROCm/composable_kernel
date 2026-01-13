@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -57,6 +57,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kIsPagedKV        = Problem::kIsPagedKV;
     static constexpr bool kHasUnevenSplits  = Problem::kHasUnevenSplits;
+    static constexpr bool kHasSink          = Problem::kHasSink;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
@@ -256,11 +257,23 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         set_tile(m, -numeric<SMPLComputeDataType>::infinity());
         clear_tile(l);
 
-        const auto q_origin = q_dram_window.get_window_origin();
-        const auto [logical_seqlen_k_start, logical_seqlen_k_end] = mask.GetTileRangeAlongX(
-            q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
+        const auto q_origin          = q_dram_window.get_window_origin();
+        const auto tile_range_result = [&mask, &q_origin, num_splits, i_split]() {
+            if constexpr(kHasSink)
+                return mask.GetSinkTileRangeAlongX(
+                    q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
+            else
+            {
+                auto [start, end] = mask.GetTileRangeAlongX(
+                    q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
+                return ck_tile::make_tuple(0, start, end);
+            }
+        }();
+        const auto sink_seq_end           = tile_range_result.get(ck_tile::number<0>{});
+        const auto logical_seqlen_k_start = tile_range_result.get(ck_tile::number<1>{});
+        const auto logical_seqlen_k_end   = tile_range_result.get(ck_tile::number<2>{});
 
-        // check early exit if no work to do
+        const auto num_sink_loop = integer_divide_ceil(sink_seq_end, kN0);
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK || kHasUnevenSplits)
         {
             const index_t logical_num_total_loop =
@@ -304,24 +317,33 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                     return physical_seqlen_k_start_;
                 }
             }();
+        const auto kv_load_start = (sink_seq_end == 0 && aligned_physical_seqlen_k_start > 0)
+                                       ? aligned_physical_seqlen_k_start
+                                       : 0;
         const index_t num_total_loop =
-            integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0);
+            integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0) +
+            num_sink_loop;
 
         auto [i_page_block_k, k_dram_block_window] = k_page_block_navigator.make_tile_window(
-            k_dram_block_window_lengths, {aligned_physical_seqlen_k_start, 0});
+            k_dram_block_window_lengths, {kv_load_start, 0});
 
-        const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
+        const auto bias_origin      = bias_dram_block_window_tmp.get_window_origin();
+        const index_t bias_n_offset = [&]() {
+            if constexpr(kHasSink)
+                return kv_load_start;
+            else
+                return logical_seqlen_k_start -
+                       (physical_seqlen_k_start - aligned_physical_seqlen_k_start);
+        }();
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              bias_dram_block_window_tmp.get_window_lengths(),
-                             {bias_origin.at(number<0>{}),
-                              logical_seqlen_k_start - (physical_seqlen_k_start -
-                                                        aligned_physical_seqlen_k_start)}, // M/N
+                             {bias_origin.at(number<0>{}), bias_n_offset},
                              Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
             v_dram_block_window_lengths,
-            {0, aligned_physical_seqlen_k_start}, // TODO: hdim split?
+            {0, kv_load_start}, // TODO: hdim split?
             Policy::template MakeVDramTileDistribution<Problem>());
 
         // store Q into LDS
@@ -369,7 +391,13 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         {
             // STAGE 1, QK gemm
             clear_tile(s_acc); // initialize C
-
+            const bool is_sink_tile  = ((num_sink_loop - 1) == i_total_loops);
+            const auto k_move_offset = [&]() {
+                if constexpr(kHasSink)
+                    return is_sink_tile ? logical_seqlen_k_start - sink_seq_end + kN0 : kN0;
+                else
+                    return kN0;
+            }();
             // load the second tile of the first iteration
             k_block_tile = load_tile(k_dram_window);
 
@@ -494,7 +522,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
 #endif
                 }
             }
-            move_tile_window(bias_dram_window, {0, kN0});
+            move_tile_window(bias_dram_window, {0, k_move_offset});
 
             /// TODO: only check in first/last iteration without increasing code size
             if constexpr(kHasUnevenSplits)
@@ -505,7 +533,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                     s_acc,
                     -numeric<SMPLComputeDataType>::infinity(),
                     [&,
-                     physical_seqlen_k_start_ = physical_seqlen_k_start,
+                     physical_seqlen_k_start_ = is_sink_tile ? 0 : physical_seqlen_k_start,
                      physical_seqlen_k_end_   = physical_seqlen_k_end](auto tile_idx) {
                         const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
                         if constexpr(kIsPagedKV)
@@ -530,12 +558,26 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                                                            number<kN0>{});
                 if(need_perpixel_check)
                 {
-                    set_tile_if(
-                        s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return mask.IsOutOfBound(row, col - kv_l2p_offset);
-                        });
+                    auto apply_mask = [&](auto&& mask_func) {
+                        set_tile_if(
+                            s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                                const auto row =
+                                    q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                const auto col =
+                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                return mask_func(row, col - kv_l2p_offset);
+                            });
+                    };
+
+                    if constexpr(kHasSink)
+                    {
+                        apply_mask(
+                            [&](auto row, auto col) { return mask.IsOutOfSinkBound(row, col); });
+                    }
+                    else
+                    {
+                        apply_mask([&](auto row, auto col) { return mask.IsOutOfBound(row, col); });
+                    }
                 }
             }
 
@@ -546,7 +588,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             {
                 // move K tile windows
                 i_page_block_k = k_page_block_navigator.move_tile_window(
-                    i_page_block_k, k_dram_block_window, {kN0, 0});
+                    i_page_block_k, k_dram_block_window, {k_move_offset, 0});
 
                 k_dram_window = make_tile_window(
                     k_dram_block_window,
@@ -742,6 +784,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                 // moving k_dram_window is an in-page-block operation, so there is
                 // no need to invoke k_page_block_navigator.move_tile_window() here.
                 move_tile_window(k_dram_window, {0, kK0});
+                i_page_block_v = v_page_block_navigator.move_tile_window(
+                    i_page_block_v, v_dram_window, {0, k_move_offset - kN0});
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
             }
         } while(++i_total_loops < num_total_loop);

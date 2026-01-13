@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <iomanip>
@@ -16,6 +16,8 @@
 #include "ck/library/tensor_operation_instance/gpu/grouped_gemm_multi_abd_fixed_nk.hpp"
 
 #include "ck/host_utility/hip_check_error.hpp"
+
+using ::ck::hip_check_error;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;

@@ -1,12 +1,12 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include "ck_tile/host.hpp"
 #include "practice_gemm.hpp"
 #include "reference_gemm.hpp"
 
-int main()
+int main(int argc, char* argv[])
 {
     // TODO: GemmTypeConfig
     using ADataType   = ck_tile::half_t;
@@ -14,11 +14,22 @@ int main()
     using CDataType   = float;
     using AccDataType = float;
 
-    // ArgParser
-    ck_tile::index_t M            = 512;
-    ck_tile::index_t N            = 256;
-    ck_tile::index_t K            = 64;
-    ck_tile::index_t verification = 1;
+    // Setup simple argument parser for M, N, K
+    ck_tile::ArgParser arg_parser;
+    arg_parser.insert("m", "512", "m dimension")
+        .insert("n", "256", "n dimension")
+        .insert("k", "64", "k dimension")
+        .insert("v", "1", "verification: 0=off, 1=on");
+
+    auto result = arg_parser.parse(argc, argv);
+    if(!result)
+        return -1;
+
+    // Get problem dimensions from command line
+    ck_tile::index_t M            = arg_parser.get_int("m");
+    ck_tile::index_t N            = arg_parser.get_int("n");
+    ck_tile::index_t K            = arg_parser.get_int("k");
+    ck_tile::index_t verification = arg_parser.get_int("v");
 
     ck_tile::index_t stride_a = K;
     ck_tile::index_t stride_b = K;
@@ -61,9 +72,6 @@ int main()
     ck_tile::DeviceMem c_device(c_host);
 
     // TODO: BlockTileConfig
-    // constexpr ck_tile::index_t warpSize    = 64;
-    constexpr ck_tile::index_t kBlockSize = 256;
-
     using BlockTile = ck_tile::sequence<256, 128, 32>;
     using WaveTile  = ck_tile::sequence<16, 16, 16>;
 
@@ -77,11 +85,13 @@ int main()
     ck_tile::index_t kGridSize = ck_tile::integer_divide_ceil(M, PracticeGemmShape::BlockTile_M) *
                                  ck_tile::integer_divide_ceil(N, PracticeGemmShape::BlockTile_N);
 
-    std::cout << "kGridSize: " << kGridSize << std::endl;
+    std::cout << "Total number of thread blocks: " << kGridSize << std::endl;
     constexpr ck_tile::index_t kBlockPerCU = 1; // 1 block per CU
 
-    std::cout << "kBlockSize: " << kBlockSize << std::endl;
-    std::cout << "kBlockPerCU: " << kBlockPerCU << std::endl;
+    // Block size is now derived from the shape configuration
+    constexpr ck_tile::index_t kBlockSize = PracticeGemmShape::kBlockSize;
+    std::cout << "Number of threads per block: " << kBlockSize << std::endl;
+    std::cout << "Number of blocks per compute unit: " << kBlockPerCU << std::endl;
 
     using gemm_kernel =
         ck_tile::PracticeGemmKernel<PracticeGemmHostProblem, PracticeGemmHostPolicy>;

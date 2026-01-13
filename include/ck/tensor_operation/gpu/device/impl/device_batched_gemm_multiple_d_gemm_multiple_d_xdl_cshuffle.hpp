@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -235,20 +235,20 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 {
     using DeviceOp = DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle;
 
-    static constexpr auto Gemm0MXdlPerWave64 = GetNXdlPerWave2<BlockSize,
-                                                               Gemm0NPerBlock,
-                                                               Gemm0MPerBlock,
-                                                               Gemm0NPerXdl,
-                                                               Gemm0MPerXdl,
-                                                               Gemm0NXdlPerWave,
-                                                               true>();
-    static constexpr auto Gemm0MXdlPerWave32 = GetNXdlPerWave2<BlockSize,
-                                                               Gemm0NPerBlock,
-                                                               Gemm0MPerBlock,
-                                                               Gemm0NPerXdl,
-                                                               Gemm0MPerXdl,
-                                                               Gemm0NXdlPerWave,
-                                                               false>();
+    static constexpr auto Gemm0MXdlPerWave64 = GetXdlPerWave2<BlockSize,
+                                                              Gemm0NPerBlock,
+                                                              Gemm0MPerBlock,
+                                                              Gemm0NPerXdl,
+                                                              Gemm0MPerXdl,
+                                                              Gemm0NXdlPerWave,
+                                                              true>();
+    static constexpr auto Gemm0MXdlPerWave32 = GetXdlPerWave2<BlockSize,
+                                                              Gemm0NPerBlock,
+                                                              Gemm0MPerBlock,
+                                                              Gemm0NPerXdl,
+                                                              Gemm0MPerXdl,
+                                                              Gemm0NXdlPerWave,
+                                                              false>();
 
     static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static constexpr index_t NumD1Tensor = D1sDataType::Size();

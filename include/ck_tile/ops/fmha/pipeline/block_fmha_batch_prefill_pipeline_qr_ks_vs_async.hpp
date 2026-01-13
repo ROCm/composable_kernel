@@ -1,17 +1,87 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_batch_prefill_pipeline_qr_ks_vs_async_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
+template <typename OffsetVecType,
+          typename CoordVecType,
+          index_t kCoordAxis,
+          index_t kPageBlockSize,
+          index_t kLog2PageSize,
+          index_t kLoopStart,
+          index_t kLoopCount,
+          index_t kLoopStride,
+          BlockAttentionKVCacheMemoryLayoutEnum kKVMemoryLayout,
+          bool kIsKcache,
+          index_t kVectorSize>
+CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_vec,
+                                                   const index_t& stride_kv,
+                                                   const index_t& page_stride_kv,
+                                                   const CoordVecType& coord_vec,
+                                                   OffsetVecType& kv_offset_vec,
+                                                   index_t global_seq_offset = 0)
+{
+    const index_t& thread_coord_start   = coord_vec[kCoordAxis];
+    constexpr index_t kInPageOffsetMask = (1 << kLog2PageSize) - 1;
+    if constexpr(kIsKcache)
+    {
+        // for k offsets
+        static_for<0, kLoopCount, 1>{}([&](auto k0) {
+            const index_t global_token_idx =
+                global_seq_offset + thread_coord_start + kLoopStart + kLoopStride * k0.value;
+            const index_t page_id     = global_token_idx >> kLog2PageSize;
+            const index_t page_offset = global_token_idx & kInPageOffsetMask;
+            kv_offset_vec[k0] = static_cast<long_index_t>(page_vec[page_id]) * page_stride_kv +
+                                static_cast<long_index_t>(page_offset) * stride_kv;
+        });
+    }
+    else
+    {
+        // for v offsets
+        const index_t lane0_start = __builtin_amdgcn_readfirstlane(thread_coord_start);
+        const index_t lane0_page_id =
+            (global_seq_offset + lane0_start + kLoopStart) >> kLog2PageSize;
+
+        const long_index_t page_loc =
+            static_cast<long_index_t>(page_vec[lane0_page_id]) * page_stride_kv;
+
+        static_for<0, kLoopCount, 1>{}([&](auto k0) {
+            const index_t page_offset =
+                (global_seq_offset + thread_coord_start + kLoopStart + k0.value) &
+                kInPageOffsetMask;
+
+            if constexpr(kKVMemoryLayout ==
+                         BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+            {
+                // Vectorized layout offset
+                // Layout: [BlockSize/kVectorSize, HeadDim, kVectorSize]
+                // Offset(s) = (s / kVectorSize) * (HeadDim * kVectorSize) + (s % kVectorSize)
+                const index_t s = page_offset;
+                const index_t D = stride_kv;
+
+                const long_index_t s_offset =
+                    static_cast<long_index_t>((s / kVectorSize) * (D * kVectorSize)) +
+                    (s % kVectorSize);
+
+                kv_offset_vec[k0] = page_loc + s_offset;
+            }
+            else // BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT
+            {
+                kv_offset_vec[k0] = page_loc + static_cast<long_index_t>(page_offset) * stride_kv;
+            }
+        });
+    }
+}
 
 // a variation of qr/ks/vs, where we use async copy to load k (potentially v in the future)
 template <typename Problem_,
@@ -41,19 +111,25 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0           = BlockFmhaShape::kM0;
-    static constexpr index_t kN0           = BlockFmhaShape::kN0;
-    static constexpr index_t kK0           = BlockFmhaShape::kK0;
-    static constexpr index_t kN1           = BlockFmhaShape::kN1;
-    static constexpr index_t kK1           = BlockFmhaShape::kK1;
-    static constexpr index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
-    static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
-    static constexpr auto I0               = number<0>{};
-    static constexpr auto I1               = number<1>{};
-    static constexpr auto I2               = number<2>{};
-    static constexpr auto I3               = number<3>{};
+    static constexpr index_t kM0            = BlockFmhaShape::kM0;
+    static constexpr index_t kN0            = BlockFmhaShape::kN0;
+    static constexpr index_t kK0            = BlockFmhaShape::kK0;
+    static constexpr index_t kN1            = BlockFmhaShape::kN1;
+    static constexpr index_t kK1            = BlockFmhaShape::kK1;
+    static constexpr index_t kQKHeaddim     = BlockFmhaShape::kQKHeaddim;
+    static constexpr index_t kSubQKHeaddim  = BlockFmhaShape::kSubQKHeaddim;
+    static constexpr index_t kPageBlockSize = Problem::kPageBlockSize;
+    static constexpr index_t kLog2PageSize  = Problem::kLog2PageSize;
+    static constexpr index_t kVectorSize    = Problem::kVectorSize;
+    static constexpr auto I0                = number<0>{};
+    static constexpr auto I1                = number<1>{};
+    static constexpr auto I2                = number<2>{};
+    static constexpr auto I3                = number<3>{};
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
+    static_assert(kPageBlockSize % kN0 == 0,
+                  "V offset assumes each tile stays within a page; kPageBlockSize must be "
+                  "divisible by kN0.");
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     // TODO: seq_q always support padding, hdim_q/v support multiple of vector(like 8x)
@@ -68,6 +144,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr auto kKVMemoryLayout   = Problem::kKVMemoryLayout;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
@@ -87,6 +164,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr index_t kAlignmentO = Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentRandVal =
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentRandVal<Problem>();
 
 #if CK_TILE_FMHA_FWD_FAST_EXP2
     static constexpr auto R_LOG2E = 1.0 / log2e_v<SaccDataType>;
@@ -194,6 +273,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t* page_idx,
                const index_t stride_k,
                const index_t stride_v,
+               const index_t page_stride_k,
+               const index_t page_stride_v,
                DropoutType& dropout) const
     {
         static_assert(
@@ -323,9 +404,20 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         using KDstrEncode         = typename decltype(k_dist)::DstrEncode;
         constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I0];
         statically_indexed_array<index_t, NRepeat> k_offsets;
-        static_for<0, NRepeat, 1>{}([&](auto n0) {
-            k_offsets[n0] = page_idx[k_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
-        });
+        index_t current_seq_k = seqlen_k_start;
+        kv_offset_array_transform<statically_indexed_array<index_t, NRepeat>,
+                                  decltype(k_coord),
+                                  0,
+                                  kPageBlockSize,
+                                  kLog2PageSize,
+                                  0,
+                                  NRepeat,
+                                  kN0 / NRepeat,
+                                  kKVMemoryLayout,
+                                  true,
+                                  kVectorSize>(
+            page_idx, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
+
         auto k_dram_window = make_tile_scatter_gather(k_dram_block_window.get_bottom_tensor_view(),
                                                       k_dram_block_window.get_window_lengths(),
                                                       k_dram_block_window.get_window_origin(),
@@ -358,10 +450,18 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         using VDstrEncode           = typename decltype(v_dist)::DstrEncode;
         constexpr index_t V_KRepeat = VDstrEncode::hs_lengthss_[I1][I3];
         statically_indexed_array<index_t, V_KRepeat> v_offsets;
-        (void)stride_k;
-        static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-            v_offsets[k0] = page_idx[v_coord[VPageIndexDim] + k0.value] * stride_v;
-        });
+        kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
+                                  decltype(v_coord),
+                                  VPageIndexDim,
+                                  kPageBlockSize,
+                                  kLog2PageSize,
+                                  0,
+                                  V_KRepeat,
+                                  1,
+                                  kKVMemoryLayout,
+                                  false,
+                                  kVectorSize>(
+            page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
 
         auto v_dram_window =
             make_tile_scatter_gather(v_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -423,13 +523,6 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             async_load_fence();
             __builtin_amdgcn_s_barrier();
 
-            const auto bias_tile = load_tile(bias_dram_window); // load bias tile
-            auto v_buf           = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
-            static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                v_offsets[k0] = page_idx[kK1 + v_coord[VPageIndexDim] + k0.value] * stride_v;
-            });
-            v_dram_window.update_page_idx(v_offsets);
-
             __builtin_amdgcn_sched_barrier(0);
             { // tail
                 gemm_0(
@@ -442,49 +535,67 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             }
             __builtin_amdgcn_sched_barrier(1);
 
-            // STAGE 2, scale_s, add bias, mask, softmax
-            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
-            {
-                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
-                tile_elementwise_inout(
-                    [&](auto& x, const auto& y) {
-#if !CK_TILE_FMHA_FWD_FAST_EXP2
-                        x += type_convert<SaccDataType>(bias_element_func(y));
-#else
-                        x += log2e_v<SaccDataType> *
-                             type_convert<SaccDataType>(bias_element_func(y));
-#endif
-                    },
-                    s_acc,
-                    bias_tile);
-            }
-            else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
-            {
-                const auto k_origin    = k_dram_block_window.get_window_origin();
-                constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
-                s_acc                  = tile_elementwise_in(s_acc_element_func, s_acc);
-                sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
-                        const auto tile_idx = get_x_indices_from_distributed_indices(
-                            s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
+            auto v_buf = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
+            kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
+                                      decltype(v_coord),
+                                      VPageIndexDim,
+                                      kPageBlockSize,
+                                      kLog2PageSize,
+                                      kK1,
+                                      V_KRepeat,
+                                      1,
+                                      kKVMemoryLayout,
+                                      false,
+                                      kVectorSize>(
+                page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+            v_dram_window.update_page_idx(v_offsets);
 
-                        const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                        const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+            const auto p = [&]() {
+                const auto bias_tile = load_tile(bias_dram_window); // load bias tile
 
-                        s_acc(i_j_idx) *= scale_s;
-                        position_encoding.update(s_acc(i_j_idx), row, col);
-                    });
-                });
-            }
-            else
-            {
-                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
-                if constexpr(kHasLogitsSoftCap)
+                // STAGE 2, scale_s, add bias, mask, softmax
+                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 {
-                    auto apply_logits_transform =
-                        [&variant, &variant_params, &block_indices](auto& x) {
+                    s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                    tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+                    tile_elementwise_inout(
+                        [&](auto& x, const auto& y) {
+#if !CK_TILE_FMHA_FWD_FAST_EXP2
+                            x += type_convert<SaccDataType>(bias_element_func(y));
+#else
+                            x += log2e_v<SaccDataType> *
+                                 type_convert<SaccDataType>(bias_element_func(y));
+#endif
+                        },
+                        s_acc,
+                        bias_tile);
+                }
+                else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                {
+                    const auto k_origin    = k_dram_block_window.get_window_origin();
+                    constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
+                    s_acc                  = tile_elementwise_in(s_acc_element_func, s_acc);
+                    sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
+                            const auto tile_idx = get_x_indices_from_distributed_indices(
+                                s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
+
+                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                            s_acc(i_j_idx) *= scale_s;
+                            position_encoding.update(s_acc(i_j_idx), row, col);
+                        });
+                    });
+                }
+                else
+                {
+                    s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                    if constexpr(kHasLogitsSoftCap)
+                    {
+                        auto apply_logits_transform = [&variant, &variant_params, &block_indices](
+                                                          auto& x) {
                             x = variant.LogitsTransform(variant_params,
                                                         variant.QueryTransform(variant_params, x),
                                                         block_indices.batch_idx,
@@ -492,224 +603,237 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                                         block_indices.kv_head_idx);
                         };
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                    for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
-                    {
-                        apply_logits_transform(s_acc.thread_buf_[i]);
-                    }
+                        for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
+                        {
+                            apply_logits_transform(s_acc.thread_buf_[i]);
+                        }
 #else
-                    for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
-                    {
+                        for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
+                        {
 #if(defined(__gfx90a__) || defined(__gfx94__)) &&                                               \
     (CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN && \
      CK_TILE_ATTENTION_USE_SOFTSIGN_ASM)
-                        // Avoid data hazard if v_mfma is followed by inline asm consumer
-                        // instructions. In this case, compiler won't add s_nop for us
-                        if(i == s_acc.thread_buf_.size() / 2)
-                        {
-                            __builtin_amdgcn_sched_barrier(0);
+                            // Avoid data hazard if v_mfma is followed by inline asm consumer
+                            // instructions. In this case, compiler won't add s_nop for us
+                            if(i == s_acc.thread_buf_.size() / 2)
+                            {
+                                __builtin_amdgcn_sched_barrier(0);
+                            }
+#endif
+                            apply_logits_transform(s_acc.thread_buf_[i]);
                         }
 #endif
-                        apply_logits_transform(s_acc.thread_buf_[i]);
-                    }
-#endif
-                }
-                else
-                {
-#if !CK_TILE_FMHA_FWD_FAST_EXP2
-                    tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
-#endif
-                }
-            }
-            move_tile_window(bias_dram_window, {0, kN0});
-            if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
-            {
-                const auto k_origin      = k_dram_block_window.get_window_origin();
-                bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
-                                                           k_origin.at(number<0>{}),
-                                                           number<kM0>{},
-                                                           number<kN0>{});
-
-                if(need_perpixel_check)
-                {
-                    set_tile_if(
-                        s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return !variant.LogitsMask(variant_params,
-                                                       block_indices.batch_idx,
-                                                       row,
-                                                       col,
-                                                       block_indices.qo_head_idx,
-                                                       block_indices.kv_head_idx);
-                        });
-                }
-            }
-
-            const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
-            auto m_local = block_tile_reduce<SMPLComputeDataType>(
-                s,
-                sequence<1>{},
-                f_max,
-                -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
-            block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
-
-            const auto m_old = m; // m{j-1}
-            tile_elementwise_inout(
-                [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local); // m{j}
-
-            auto p_compute = make_static_distributed_tensor<SMPLComputeDataType>(
-                s.get_tile_distribution()); // Pcompute{j}
-
-            __builtin_amdgcn_sched_barrier(0x7F);
-            // store & prefetch next v, after the max reduction
-            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
-                    Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
-                shuffle_tile(v_shuffle_tmp, v_buf);
-
-                auto v_lds_window_tmp =
-                    get_slice_tile(v_lds_window,
-                                   sequence<(LdsSeq.at(number<k0_loops>{})) * kN1, 0>{},
-                                   sequence<(LdsSeq.at(number<k0_loops>{}) + 1) * kN1, kK1>{});
-
-                store_tile(
-                    v_lds_window_tmp,
-                    tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
-            }
-            else
-            {
-                auto v_lds_window_tmp =
-                    get_slice_tile(v_lds_window,
-                                   sequence<(LdsSeq.at(number<k0_loops>{})) * kN1, 0>{},
-                                   sequence<(LdsSeq.at(number<k0_loops>{}) + 1) * kN1, kK1>{});
-                store_tile(v_lds_window_tmp,
-                           tile_elementwise_in(v_element_func, v_buf)); // store the prefetch
-            }
-
-            if constexpr(k1_loops > 1)
-            {
-                move_tile_window(
-                    v_dram_window,
-                    {0, kK1}); // will have scratch if move this right after load_tile(v_dram)...
-                v_buf = load_tile(
-                    v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
-                static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                    v_offsets[k0] =
-                        page_idx[kK1 * 2 + v_coord[VPageIndexDim] + k0.value] * stride_v;
-                });
-                v_dram_window.update_page_idx(v_offsets);
-            }
-            __builtin_amdgcn_sched_barrier(0);
-
-            static const auto get_validated_m = [](SMPLComputeDataType raw_m) {
-                /// NOTICE: bias might be materialized mask including -inf values, need
-                /// consideration. alibi does not have this problem
-                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                             FmhaMask::IsMasking)
-                {
-                    return raw_m == -numeric<SMPLComputeDataType>::infinity()
-                               ? type_convert<SMPLComputeDataType>(0.f)
-                               : raw_m;
-                }
-                else
-                {
-                    return raw_m;
-                }
-            };
-
-            constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
-            sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                auto row_max = scale_s * get_validated_m(m[i_idx]);
-#endif
-                sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
-                    {
-                        p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                     }
                     else
                     {
-                        if constexpr(kHasLogitsSoftCap)
+#if !CK_TILE_FMHA_FWD_FAST_EXP2
+                        tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+#endif
+                    }
+                }
+                move_tile_window(bias_dram_window, {0, kN0});
+                if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
+                {
+                    const auto k_origin      = k_dram_block_window.get_window_origin();
+                    bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
+                                                               k_origin.at(number<0>{}),
+                                                               number<kM0>{},
+                                                               number<kN0>{});
+
+                    if(need_perpixel_check)
+                    {
+                        set_tile_if(
+                            s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                                const auto row =
+                                    q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                const auto col =
+                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                return !variant.LogitsMask(variant_params,
+                                                           block_indices.batch_idx,
+                                                           row,
+                                                           col,
+                                                           block_indices.qo_head_idx,
+                                                           block_indices.kv_head_idx);
+                            });
+                    }
+                }
+
+                const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
+                auto m_local = block_tile_reduce<SMPLComputeDataType>(
+                    s,
+                    sequence<1>{},
+                    f_max,
+                    -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
+                block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
+
+                const auto m_old = m; // m{j-1}
+                tile_elementwise_inout([](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); },
+                                       m,
+                                       m_old,
+                                       m_local); // m{j}
+
+                auto p_compute = make_static_distributed_tensor<SMPLComputeDataType>(
+                    s.get_tile_distribution()); // Pcompute{j}
+
+                __builtin_amdgcn_sched_barrier(0x7F);
+                // store & prefetch next v, after the max reduction
+                if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+                {
+                    auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
+                        Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+                    shuffle_tile(v_shuffle_tmp, v_buf);
+
+                    auto v_lds_window_tmp =
+                        get_slice_tile(v_lds_window,
+                                       sequence<(LdsSeq.at(number<k0_loops>{})) * kN1, 0>{},
+                                       sequence<(LdsSeq.at(number<k0_loops>{}) + 1) * kN1, kK1>{});
+
+                    store_tile(
+                        v_lds_window_tmp,
+                        tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
+                }
+                else
+                {
+                    auto v_lds_window_tmp =
+                        get_slice_tile(v_lds_window,
+                                       sequence<(LdsSeq.at(number<k0_loops>{})) * kN1, 0>{},
+                                       sequence<(LdsSeq.at(number<k0_loops>{}) + 1) * kN1, kK1>{});
+                    store_tile(v_lds_window_tmp,
+                               tile_elementwise_in(v_element_func, v_buf)); // store the prefetch
+                }
+
+                if constexpr(k1_loops > 1)
+                {
+                    move_tile_window(
+                        v_dram_window,
+                        {0,
+                         kK1}); // will have scratch if move this right after load_tile(v_dram)...
+                    v_buf = load_tile(
+                        v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
+                    kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
+                                              decltype(v_coord),
+                                              VPageIndexDim,
+                                              kPageBlockSize,
+                                              kLog2PageSize,
+                                              2 * kK1,
+                                              V_KRepeat,
+                                              1,
+                                              kKVMemoryLayout,
+                                              false,
+                                              kVectorSize>(
+                        page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+                    v_dram_window.update_page_idx(v_offsets);
+                }
+                __builtin_amdgcn_sched_barrier(0);
+
+                static const auto get_validated_m = [](SMPLComputeDataType raw_m) {
+                    /// NOTICE: bias might be materialized mask including -inf values, need
+                    /// consideration. alibi does not have this problem
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                 FmhaMask::IsMasking)
+                    {
+                        return raw_m == -numeric<SMPLComputeDataType>::infinity()
+                                   ? type_convert<SMPLComputeDataType>(0.f)
+                                   : raw_m;
+                    }
+                    else
+                    {
+                        return raw_m;
+                    }
+                };
+
+                constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
+                sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+                    auto row_max = scale_s * get_validated_m(m[i_idx]);
+#endif
+                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
                         {
                             p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                         }
                         else
                         {
-                            p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+                            if constexpr(kHasLogitsSoftCap)
+                            {
+                                p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                            }
+                            else
+                            {
+                                p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+                            }
                         }
-                    }
 #else
-                    p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
 #endif
+                    });
                 });
-            });
 
-            auto rowsum_p = block_tile_reduce<SMPLComputeDataType>(
-                p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
+                auto rowsum_p = block_tile_reduce<SMPLComputeDataType>(
+                    p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
-            block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
-            // l{j}, Oacc{j}
-            constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
-            sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
+                block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+                // l{j}, Oacc{j}
+                constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
+                sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                const auto tmp = [&]() {
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
-                    {
-                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
-                    }
-                    else
-                    {
-                        if constexpr(kHasLogitsSoftCap)
+                    const auto tmp = [&]() {
+                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
                         {
                             return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                         }
                         else
                         {
-                            auto row_max = scale_s * get_validated_m(m[i_idx]);
-                            return exp2(scale_s * m_old[i_idx] - row_max);
+                            if constexpr(kHasLogitsSoftCap)
+                            {
+                                return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                            }
+                            else
+                            {
+                                auto row_max = scale_s * get_validated_m(m[i_idx]);
+                                return exp2(scale_s * m_old[i_idx] - row_max);
+                            }
                         }
-                    }
-                }();
+                    }();
 #else
-                const auto tmp = exp(m_old[i_idx] - get_validated_m(m[i_idx]));
+                    const auto tmp = exp(m_old[i_idx] - get_validated_m(m[i_idx]));
 #endif
-                l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
-                sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    // FIXME: this use different equation from FA v2 paper,
-                    // but produce correc result.
-                    // Is the equation wrong?
-                    o_acc(i_j_idx) *= tmp;
+                    l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                    sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        // FIXME: this use different equation from FA v2 paper,
+                        // but produce correc result.
+                        // Is the equation wrong?
+                        o_acc(i_j_idx) *= tmp;
+                    });
                 });
-            });
 
-            if constexpr(kHasDropout)
-            {
-                auto randval_ptr =
-                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
-                dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    randval_ptr,
-                    seqlen_k_start + i_total_loops * kN0,
-                    p_compute,
-                    randval_dram_window);
-            }
+                if constexpr(kHasDropout)
+                {
+                    auto randval_ptr = reinterpret_cast<char*>(smem_ptr) +
+                                       Policy::template GetSmemSizeKV<Problem>();
+                    dropout
+                        .template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
+                            randval_ptr,
+                            seqlen_k_start + i_total_loops * kN0,
+                            p_compute,
+                            randval_dram_window);
+                }
 
-            const auto p = [&]() {
 #if CK_TILE_FMHA_FLOAT_TO_FLOAT16_RTN
                 // For fp32 to fp16,
-                // impl::cast_tile_pk_fp16_fp32 would cause precision issue,
+                // impl::cast_tile_pkrtz_fp16_fp32 would cause precision issue,
                 // since it uses __builtin_amdgcn_cvt_pkrtz, which is round to zero.
                 return cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 #else
                 if constexpr(std::is_same_v<PDataType, fp16_t>)
-                    return impl::cast_tile_pk_fp16_fp32<PDataType>(
+                    return impl::cast_tile_pkrtz_fp16_fp32<PDataType>(
                         tile_elementwise_in(p_compute_element_func, p_compute));
                 else
                     return cast_tile<PDataType>(
@@ -725,11 +849,18 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     {
                         v_buf = load_tile(
                             v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
-                        static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                            v_offsets[k0] = page_idx[kK1 * 2 + i_k1.value * kK1 +
-                                                     v_coord[VPageIndexDim] + k0.value] *
-                                            stride_v;
-                        });
+                        kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
+                                                  decltype(v_coord),
+                                                  VPageIndexDim,
+                                                  kPageBlockSize,
+                                                  kLog2PageSize,
+                                                  (2 + i_k1.value) * kK1,
+                                                  V_KRepeat,
+                                                  1,
+                                                  kKVMemoryLayout,
+                                                  false,
+                                                  kVectorSize>(
+                            page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
                         v_dram_window.update_page_idx(v_offsets);
                     }
                     block_sync_lds();
@@ -770,14 +901,23 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             i_total_loops++;
             if(i_total_loops < num_total_loop)
             {
-                page_idx += kN0;
+                current_seq_k += kN0;
                 // move K tile windows
                 move_tile_window(k_dram_block_window, {kN0, 0});
                 k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    k_offsets[n0] = page_idx[k_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
-                });
+                kv_offset_array_transform<statically_indexed_array<index_t, NRepeat>,
+                                          decltype(k_coord),
+                                          0,
+                                          kPageBlockSize,
+                                          kLog2PageSize,
+                                          0,
+                                          NRepeat,
+                                          kN0 / NRepeat,
+                                          kKVMemoryLayout,
+                                          true,
+                                          kVectorSize>(
+                    page_idx, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
                 k_dram_window.update_page_idx(k_offsets);
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
@@ -885,6 +1025,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t* page_idx,
                const index_t stride_k,
                const index_t stride_v,
+               const index_t page_stride_k,
+               const index_t page_stride_v,
                DropoutType& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
@@ -911,6 +1053,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           page_idx,
                           stride_k,
                           stride_v,
+                          page_stride_k,
+                          page_stride_v,
                           dropout);
     }
 };

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <set>
 #include <vector>
@@ -334,13 +334,13 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     if(moe_buf_bytes > 0)
     {
 #if MOE_SORTING_FMOE_2D_BUF
-        printf("moe_buf:%lu(%d,%d), ",
+        printf("moe_buf:%" PRIu64 "(%d,%d), ",
                static_cast<uint64_t>(moe_buf_bytes),
                moe_buf_interm_dim,
                moe_buf_elem_bytes);
 #else
 
-        printf("moe_buf:%lu, ", static_cast<uint64_t>(moe_buf_bytes));
+        printf("moe_buf:%" PRIu64 ", ", static_cast<uint64_t>(moe_buf_bytes));
 #endif
     }
 

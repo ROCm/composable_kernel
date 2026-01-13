@@ -1,5 +1,5 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
 
 #include "test_streamk_tile_partitioner_common.hpp"
 
@@ -84,7 +84,7 @@ TEST(StreamKTilePartitionerBaseEstimateNumWgsPerTile, EstimateNumWgsPerTileLower
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
         Config::M, Config::N, Config::K, Config::GRID};
 
-    EXPECT_EQ(tile_partitioner.estimate_num_wgs_per_tile(), 1);
+    EXPECT_EQ(tile_partitioner.estimate_num_wgs_per_tile(), 2);
 }
 
 TEST(StreamKTilePartitionerBaseEstimateNumWgsPerTile, EstimateNumWgsPerTileEqualValue)
@@ -372,79 +372,157 @@ TEST(StreamKTilePartitionerBaseGetOutputTileIndex, TestAllMappings)
     }
 }
 
+TEST(StreamKTilePartitionerBaseGetTileLocalCtaIndex, SKOnlyLargeK)
+{
+    /*
+    The StreamKTilePartitionerBaseConfigSKOnlyLargeK has the following form:
+    - tiles in the C tensor: 2
+    - iters_per_tile: 5
+    - grid: 5
+    - dp_tiles: 0
+    - sk_tiles: 2
+    - iters_per_sk_cta: 2
+    - extra_iters: 0
+
+    The tiles with iters are as follows:
+
+    tile_idx: __________0_________|_________1_________|
+    tile_iter:| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+              |   |   |   |   |   |   |   |   |   |   |
+              <---------------SK Tiles--------------->|
+
+    From the above configuration, we get the following:
+    - SK CTA 0: tile_iter_start is 0 with local CTA index of 0 in tile 0
+    - SK CTA 1: tile_iter_start is 0 with local CTA index of 1 in tile 0
+    - SK CTA 2: tile_iter_start is 0 with local CTA index of 2 in tile 0
+    - SK CTA 2: tile_iter_start is 5 with local CTA index of 0 in tile 1
+    - SK CTA 3: tile_iter_start is 5 with local CTA index of 1 in tile 1
+    - SK CTA 4: tile_iter_start is 5 with local CTA index of 2 in tile 1
+    */
+
+    // Now we create a vector of triplets (tile_iter_start, cta_idx, tile_local_cta_idx) to test
+    std::vector<std::array<ck_tile::index_t, 3>> sk_triplets{
+        {0, 0, 0}, {0, 1, 1}, {0, 2, 2}, {5, 2, 0}, {5, 3, 1}, {5, 4, 2}};
+
+    for(const auto& triplet : sk_triplets)
+    {
+        const auto& [tile_iter_start, cta_idx, tile_local_cta_idx] = triplet;
+        test_get_tile_local_cta_idx<StreamKTilePartitionerBaseConfigSKOnlyLargeK>(
+            tile_iter_start, cta_idx, tile_local_cta_idx);
+    }
+}
+
+TEST(StreamKTilePartitionerBaseGetTileLocalCtaIndex, DP2TileSK)
+{
+    /*
+    The StreamKTilePartitionerBaseConfigDP2TileSK has the following form:
+    - tiles in the C tensor: 7
+    - iters_per_tile: 3
+    - grid: 3
+    - dp_tiles: 3
+    - sk_tiles: 4
+    - iters_per_sk_cta: 2
+    - extra_iters: 2
+
+    The tiles with iters are as follows:
+
+    tile_idx: ____0___|___1___|___2___|___3___|___4___|____5____|____6____|
+    tile_iter:| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 |
+              |   |   |   |   |   |   |   |   |   |   |    |    |    |    |
+              |<-------DP Tiles------>|<------------SK Tiles------------->|
+
+    From the above configuration, we get the following:
+    - SK CTA 0: tile_iter_start is 6 with local CTA index of 0 in tile 3
+    - SK CTA 0: tile_iter_start is 8 with local CTA index of 0 in tile 4
+    - SK CTA 1: tile_iter_start is 8 with local CTA index of 1 in tile 4
+    - SK CTA 1: tile_iter_start is 10 with local CTA index of 0 in tile 5
+    - SK CTA 2: tile_iter_start is 12 with local CTA index of 0 in tile 6
+    */
+
+    // Now we create a vector of triplets (tile_iter_start, cta_idx, tile_local_cta_idx) to test
+    std::vector<std::array<ck_tile::index_t, 3>> sk_triplets{
+        {6, 0, 0}, {8, 0, 0}, {8, 1, 1}, {10, 1, 0}, {12, 2, 0}};
+
+    for(const auto& triplet : sk_triplets)
+    {
+        const auto& [tile_iter_start, cta_idx, tile_local_cta_idx] = triplet;
+        test_get_tile_local_cta_idx<StreamKTilePartitionerBaseConfigDP2TileSK>(
+            tile_iter_start, cta_idx, tile_local_cta_idx);
+    }
+}
+
 // Persistent
-TEST(StreamKTilePartitioner_v2_PersistentConstructor, SKOnly)
+TEST(StreamKTilePartitioner_PersistentConstructor, SKOnly)
 {
     using Config = StreamKTilePartitionerBaseConfigSKOnly;
 
-    ck_tile::StreamKTilePartitioner_v2<Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       true>
-        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+    ck_tile::
+        StreamKTilePartitioner<Config::GemmShape, ck_tile::StreamKReductionStrategy::Atomic, true>
+            tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2PersistentExpected expected_values{0, 0, 3};
-    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_persistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
-TEST(StreamKTilePartitioner_v2_PersistentConstructor, DPOnly)
+TEST(StreamKTilePartitioner_PersistentConstructor, DPOnly)
 {
     using Config = StreamKTilePartitionerBaseConfigDPOnly;
 
-    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       true>
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    true>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2PersistentExpected expected_values{2, 0, 3};
-    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_persistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
-TEST(StreamKTilePartitioner_v2_PersistentConstructor, DP2TileSK)
+TEST(StreamKTilePartitioner_PersistentConstructor, DP2TileSK)
 {
     using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
 
-    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       true>
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    true>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2PersistentExpected expected_values{1, 0, 3};
-    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_persistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
-TEST(StreamKTilePartitioner_v2_PersistentConstructor, EdgeCase)
+TEST(StreamKTilePartitioner_PersistentConstructor, EdgeCase)
 {
     using Config = StreamKTilePartitionerBaseConfigEdgeCase;
 
-    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       true>
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    true>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2PersistentExpected expected_values{0, 1, 4};
-    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_persistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
-TEST(StreamKTilePartitioner_v2_GridSize_Persistent, SKOnly)
+TEST(StreamKTilePartitioner_GridSize_Persistent, SKOnly)
 {
     using Config = StreamKTilePartitionerBaseConfigSKOnly;
 
-    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       true>
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    true>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     const auto g = tile_partitioner.grid_size();
     EXPECT_EQ(g.x, Config::GRID);
 }
 
-TEST(StreamKTilePartitioner_v2_GridSize_Persistent, EdgeCase)
+TEST(StreamKTilePartitioner_GridSize_Persistent, EdgeCase)
 {
     using Config = StreamKTilePartitionerBaseConfigEdgeCase;
 
-    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       true>
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    true>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     const auto g = tile_partitioner.grid_size();
@@ -452,65 +530,64 @@ TEST(StreamKTilePartitioner_v2_GridSize_Persistent, EdgeCase)
 }
 
 // Non-Persistent Tests
-TEST(StreamKTilePartitioner_v2_NonPersistentConstructor, SKOnly)
+TEST(StreamKTilePartitioner_NonPersistentConstructor, SKOnly)
 {
     using Config = StreamKTilePartitionerBaseConfigSKOnly;
 
-    ck_tile::StreamKTilePartitioner_v2<Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       false>
-        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+    ck_tile::
+        StreamKTilePartitioner<Config::GemmShape, ck_tile::StreamKReductionStrategy::Atomic, false>
+            tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2NonPersistentExpected expected_values{0, 0, 0, 3};
-    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
-TEST(StreamKTilePartitioner_v2_NonPersistentConstructor, DPOnly)
+TEST(StreamKTilePartitioner_NonPersistentConstructor, DPOnly)
 {
     using Config = StreamKTilePartitionerBaseConfigDPOnly;
 
-    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       false>
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    false>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2NonPersistentExpected expected_values{6, 0, 6, 3};
-    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
-TEST(StreamKTilePartitioner_v2_NonPersistentConstructor, DP2TileSK)
+TEST(StreamKTilePartitioner_NonPersistentConstructor, DP2TileSK)
 {
     using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
 
-    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       false>
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    false>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2NonPersistentExpected expected_values{3, 0, 3, 3};
-    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
-TEST(StreamKTilePartitioner_v2_NonPersistentConstructor, EdgeCase)
+TEST(StreamKTilePartitioner_NonPersistentConstructor, EdgeCase)
 {
     using Config = StreamKTilePartitionerBaseConfigEdgeCase;
 
-    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       false>
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    false>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2NonPersistentExpected expected_values{1, 0, 1, 4};
-    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
-TEST(StreamKTilePartitioner_v2_GridSize_NonPersistent, DP2TileSK)
+TEST(StreamKTilePartitioner_GridSize_NonPersistent, DP2TileSK)
 {
     using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
 
-    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
-                                       ck_tile::StreamKReductionStrategy::Atomic,
-                                       false>
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    false>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     const auto g = tile_partitioner.grid_size();

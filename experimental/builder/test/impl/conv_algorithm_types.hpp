@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -91,7 +91,7 @@ static_assert(LdsTransferDescriptor<LdsTransfer>);
 
 struct Epilogue
 {
-    size_t m_per_wave_per_shuffle;
+    size_t m_xdl_per_wave_per_shuffle;
     size_t n_per_wave_per_shuffle;
     size_t scalar_per_vector;
 };
@@ -103,18 +103,25 @@ struct AccessOrder
 };
 static_assert(AccessOrderDescriptor<AccessOrder>);
 
-struct BlockTransferABC
+struct TransferAB
 {
-    BlockTransfer block_transfer_a;
-    BlockTransfer block_transfer_b;
-    ThreadCluster thread_cluster_dims_c;
-    LdsTransfer lds_transfer_a;
-    LdsTransfer lds_transfer_b;
-    Epilogue epilogue_c;
-    AccessOrder block_transfer_access_order_a;
-    AccessOrder block_transfer_access_order_b;
-    AccessOrder src_access_order_a;
-    AccessOrder src_access_order_b;
+    BlockTransfer block_transfer;
+    LdsTransfer lds_transfer;
+    AccessOrder block_transfer_access_order;
+    AccessOrder src_access_order;
+};
+
+struct TransferC
+{
+    ThreadCluster thread_cluster_dims;
+    Epilogue epilogue;
+};
+
+struct TransferABC
+{
+    TransferAB a;
+    TransferAB b;
+    TransferC c;
 };
 
 // DL-specific descriptors
@@ -172,9 +179,9 @@ struct WmmaGemm_
     GridwiseWmmaGemm gridwise_gemm;
 };
 
-struct BlockTransfer_
+struct Transfer_
 {
-    BlockTransferABC block_transfer;
+    TransferABC transfer;
 };
 
 struct ConvSpecialization_
@@ -205,15 +212,26 @@ struct DlThreadCluster_
     DlThreadCluster thread_cluster;
 };
 
-struct DlBlockTransfer_
+struct DlBlockTransferAB
 {
-    DlBlockTransfer block_transfer_a;
-    DlBlockTransfer block_transfer_b;
+    DlBlockTransfer block_transfer;
 };
 
-struct DlEpilogue_
+struct DlBlockTransferC
 {
-    DlEpilogue epilogue_c;
+    DlEpilogue epilogue;
+};
+
+struct DlTransferABC
+{
+    DlBlockTransferAB a;
+    DlBlockTransferAB b;
+    DlBlockTransferC c;
+};
+
+struct DlTransfer_
+{
+    DlTransferABC transfer;
 };
 
 // Specialization wrapper for large tensor support
@@ -223,6 +241,73 @@ struct LargeTensorWrapper
     BaseAlgorithm base_algorithm;
     static constexpr ConvAlgorithmSpecialization specialization =
         ConvAlgorithmSpecialization::LARGE_TENSOR;
+};
+
+// Specify thread block dimensions for a GEMM (CK Tile).
+struct TileThreadBlock
+{
+    // Size of the submatrix problem in a thread block.
+    MNK<size_t> tile_size;
+};
+static_assert(ckb::TileThreadBlockDescriptor<TileThreadBlock>);
+
+struct TileTransfer
+{
+    size_t a_scalar_per_vector;
+    size_t b_scalar_per_vector;
+    size_t c_scalar_per_vector;
+};
+static_assert(ckb::TileTransferDescriptor<TileTransfer>);
+
+struct TileBlockGemm
+{
+    // Number of warps per each dimension.
+    MNK<int> warps;
+    // Number of data processed per each dimension for each XDL/WMMA instruction.
+    MNK<int> warp_tile;
+    // Double LDS buffer.
+    bool double_smem_buffer;
+    // Waves grouping (Ping-Pong scheduler).
+    int num_wave_groups;
+    PipelineVersion pipeline_version;
+    PipelineScheduler scheduler;
+};
+static_assert(ckb::TileBlockGemmDescriptor<TileBlockGemm>);
+
+struct TileOptimizations
+{
+    // Number of convolution groups processed per one workgroup
+    int num_groups_to_merge;
+    // Split image for large tensors
+    bool split_image;
+    // Explicit gemm for 1x1, stride=0, pad=0 cases
+    bool explicit_gemm;
+};
+static_assert(ckb::TileOptimizationsDescriptor<TileOptimizations>);
+
+struct TileConvSpecialization_
+{
+    TileConvSpecialization specialization;
+};
+
+struct TileThreadBlock_
+{
+    TileThreadBlock thread_block;
+};
+
+struct TileTransfer_
+{
+    TileTransfer transfer;
+};
+
+struct TileBlockGemm_
+{
+    TileBlockGemm block_gemm;
+};
+
+struct TileOptimizations_
+{
+    TileOptimizations optimizations;
 };
 
 // Factory
@@ -255,12 +340,12 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
-    template <typename BT>
-    constexpr auto with_block_transfer(const BT& bt) const
+    template <typename T>
+    constexpr auto with_transfer(const T& t) const
     {
-        static_assert(std::is_base_of_v<BlockTransfer_, ConvAlgorithmTemplate>);
-        auto result           = *this;
-        result.block_transfer = bt;
+        static_assert(std::is_base_of_v<Transfer_, ConvAlgorithmTemplate>);
+        auto result     = *this;
+        result.transfer = t;
         return result;
     }
 
@@ -313,21 +398,57 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
-    template <typename BTA, typename BTB>
-    constexpr auto with_dl_block_transfer(const BTA& bta, const BTB& btb) const
+    template <typename T>
+    constexpr auto with_dl_transfer(const T& t) const
     {
-        static_assert(std::is_base_of_v<DlBlockTransfer_, ConvAlgorithmTemplate>);
-        auto result             = *this;
-        result.block_transfer_a = bta;
-        result.block_transfer_b = btb;
+        static_assert(std::is_base_of_v<DlTransfer_, ConvAlgorithmTemplate>);
+        auto result     = *this;
+        result.transfer = t;
         return result;
     }
 
-    constexpr auto with_dl_epilogue(const DlEpilogue& epi) const
+    template <typename S>
+    constexpr auto with_tile_specializations(const S& s) const
     {
-        static_assert(std::is_base_of_v<DlEpilogue_, ConvAlgorithmTemplate>);
+        static_assert(std::is_base_of_v<TileConvSpecialization_, ConvAlgorithmTemplate>);
+        auto result           = *this;
+        result.specialization = s;
+        return result;
+    }
+
+    template <typename TB>
+    constexpr auto with_tile_thread_block(const TB& tb) const
+    {
+        static_assert(std::is_base_of_v<TileThreadBlock_, ConvAlgorithmTemplate>);
+        auto result         = *this;
+        result.thread_block = tb;
+        return result;
+    }
+
+    template <typename BG>
+    constexpr auto with_tile_block_gemm(const BG& bg) const
+    {
+        static_assert(std::is_base_of_v<TileBlockGemm_, ConvAlgorithmTemplate>);
         auto result       = *this;
-        result.epilogue_c = epi;
+        result.block_gemm = bg;
+        return result;
+    }
+
+    template <typename T>
+    constexpr auto with_tile_transfer(const T& t) const
+    {
+        static_assert(std::is_base_of_v<TileTransfer_, ConvAlgorithmTemplate>);
+        auto result     = *this;
+        result.transfer = t;
+        return result;
+    }
+
+    template <typename O>
+    constexpr auto with_tile_optimizations(const O& o) const
+    {
+        static_assert(std::is_base_of_v<TileOptimizations_, ConvAlgorithmTemplate>);
+        auto result          = *this;
+        result.optimizations = o;
         return result;
     }
 };
@@ -335,22 +456,36 @@ struct ConvAlgorithmTemplate : Components...
 // Algorithm types
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_, XdlGemm_, BlockTransfer_, ConvSpecialization_, Prefetch_>;
+    ConvAlgorithmTemplate<ThreadBlock_, XdlGemm_, Transfer_, ConvSpecialization_, Prefetch_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
-    ConvAlgorithmTemplate<ThreadBlock_, XdlGemm_, BlockTransfer_, ConvSpecialization_, BlockGemm_>;
+    ConvAlgorithmTemplate<ThreadBlock_, XdlGemm_, Transfer_, ConvSpecialization_, BlockGemm_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle =
-    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, BlockTransfer_, ConvSpecialization_, Prefetch_>;
+    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_, ConvSpecialization_, Prefetch_>;
 using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
     ConvAlgorithmTemplate<ThreadBlock_,
                           ConvSpecialization_,
                           DlThreadConfig_,
                           DlThreadCluster_,
-                          DlBlockTransfer_,
-                          DlEpilogue_>;
+                          DlTransfer_>;
 
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
     LargeTensorWrapper<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>;
+
+using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileThreadBlock_,
+                                                                          TileBlockGemm_,
+                                                                          TileTransfer_,
+                                                                          TileConvSpecialization_,
+                                                                          TileOptimizations_>;
+
+// Reference algorithm descriptor - for GPU reference validation
+// This is a simple algorithm that requires no complex configuration,
+// just a specialization marker to identify it as a reference implementation.
+struct ConvAlgorithm_Reference
+{
+    static constexpr auto specialization = ckb::ConvAlgorithmSpecialization::REFERENCE;
+    // GPU reference uses simple algorithm, no tile configuration needed
+};
 
 } // namespace ck_tile::builder::test

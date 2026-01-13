@@ -1,10 +1,12 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <sstream>
 #include <hip/hip_runtime.h>
+
+namespace ck {
 
 // To be removed, which really does not tell the location of failed HIP functional call
 inline void hip_check_error(hipError_t x)
@@ -30,3 +32,5 @@ inline void hip_check_error(hipError_t x)
             throw std::runtime_error(ostr.str());                                  \
         }                                                                          \
     } while(0)
+
+} // namespace ck

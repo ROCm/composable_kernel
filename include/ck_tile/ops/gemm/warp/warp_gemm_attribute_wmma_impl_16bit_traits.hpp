@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,6 +10,8 @@ template <>
 struct WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16>
     : WmmaTraitsBase<gfx11_t, fp16_t, fp16_t, float>
 {
+    using ArchType = gfx11_t;
+
     template <bool clamp = false>
     CK_TILE_DEVICE static CVecType
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
@@ -30,6 +32,8 @@ template <>
 struct WmmaTraits<gfx11_t, bf16_t, bf16_t, float, 16, 16, 16>
     : WmmaTraitsBase<gfx11_t, bf16_t, bf16_t, float>
 {
+    using ArchType = gfx11_t;
+
     template <bool clamp = false>
     CK_TILE_DEVICE static CVecType
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
@@ -50,6 +54,8 @@ template <>
 struct WmmaTraits<gfx12_t, fp16_t, fp16_t, float, 16, 16, 16>
     : WmmaTraitsBase<gfx12_t, fp16_t, fp16_t, float>
 {
+    using ArchType = gfx12_t;
+
     template <bool clamp = false>
     CK_TILE_DEVICE static CVecType
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
@@ -70,6 +76,8 @@ template <>
 struct WmmaTraits<gfx12_t, bf16_t, bf16_t, float, 16, 16, 16>
     : WmmaTraitsBase<gfx12_t, bf16_t, bf16_t, float>
 {
+    using ArchType = gfx12_t;
+
     template <bool clamp = false>
     CK_TILE_DEVICE static CVecType
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)

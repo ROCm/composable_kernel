@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -68,6 +68,19 @@ struct WarpGemmAttributeWmma
 {
     using Impl = remove_cvref_t<WarpGemmAttributeWmmaImpl_>;
 
+    // When kTransC is true and A/B types differ, we need an impl with swapped types
+    using TransposedImpl =
+        std::conditional_t<kTransC &&
+                               !std::is_same_v<typename Impl::ADataType, typename Impl::BDataType>,
+                           WarpGemmAttributeWmmaImpl<WmmaTraits<typename Impl::TraitsType::ArchType,
+                                                                typename Impl::BDataType,
+                                                                typename Impl::ADataType,
+                                                                typename Impl::CDataType,
+                                                                Impl::kM,
+                                                                Impl::kN,
+                                                                Impl::kK>>,
+                           Impl>;
+
     using ADataType = typename Impl::ADataType;
     using BDataType = typename Impl::BDataType;
     using CDataType = typename Impl::CDataType;
@@ -104,7 +117,7 @@ struct WarpGemmAttributeWmma
     {
         if constexpr(kTransC)
         {
-            Impl{}(c_vec, b_vec, a_vec, bool_constant<post_nop_>{});
+            TransposedImpl{}(c_vec, b_vec, a_vec, bool_constant<post_nop_>{});
         }
         else
         {
@@ -117,7 +130,7 @@ struct WarpGemmAttributeWmma
     {
         if constexpr(kTransC)
         {
-            return Impl{}(b_vec, a_vec);
+            return TransposedImpl{}(b_vec, a_vec);
         }
         else
         {

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,7 @@ enum class BlockFmhaPipelineEnum
     QSKSVS,
     QRKSVS_ASYNC_TRLOAD,
     QRKSVS_WHOLEK_PREFETCH,
+    QRKSVS_ASYNC_TRLOAD_V3,
 };
 
 template <BlockFmhaPipelineEnum>

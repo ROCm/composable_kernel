@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gemm_util.hpp"
 
@@ -104,7 +104,7 @@ int main(int argc, char* argv[])
     };
 
     bool do_verification = true;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
     int problem_index    = -1;
 
     if(argc == 1)

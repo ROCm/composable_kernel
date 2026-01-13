@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -97,15 +97,27 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPackA()
     {
-        return Problem::VectorLoadSize;
+        using A         = remove_cvref_t<typename Problem::ADataType>;
+        using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
+
+        constexpr index_t KPack    = static_cast<index_t>(BlockGemm::Traits::KPack);
+        constexpr index_t VecElems = static_cast<index_t>(Problem::VectorLoadSize / sizeof(A));
+
+        return (KPack < VecElems) ? KPack : VecElems;
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPackB()
     {
-        return Problem::VectorLoadSize;
+        using B         = remove_cvref_t<typename Problem::BDataType>;
+        using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
+
+        constexpr index_t KPack    = static_cast<index_t>(BlockGemm::Traits::KPack);
+        constexpr index_t VecElems = static_cast<index_t>(Problem::VectorLoadSize / sizeof(B));
+
+        return (KPack < VecElems) ? KPack : VecElems;
     }
 
     template <typename Problem>

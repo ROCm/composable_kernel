@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -162,6 +162,17 @@ struct StandardAttention
     {
         return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
     }
+
+    template <typename Params>
+    __device__ __forceinline__ bool LogitsSinkMask(const Params& params,
+                                                   [[maybe_unused]] uint32_t batch_idx,
+                                                   uint32_t qo_idx,
+                                                   uint32_t kv_idx,
+                                                   [[maybe_unused]] uint32_t qo_head_idx,
+                                                   [[maybe_unused]] uint32_t kv_head_idx) const
+    {
+        return !params.impl_mask.IsOutOfSinkBound(qo_idx, kv_idx);
+    }
 };
 
 template <bool UseExp2 = false>
@@ -223,6 +234,17 @@ struct LogitsSoftCap
                                                [[maybe_unused]] uint32_t kv_head_idx) const
     {
         return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
+    }
+
+    template <typename Params>
+    __device__ __forceinline__ bool LogitsSinkMask(const Params& params,
+                                                   [[maybe_unused]] uint32_t batch_idx,
+                                                   uint32_t qo_idx,
+                                                   uint32_t kv_idx,
+                                                   [[maybe_unused]] uint32_t qo_head_idx,
+                                                   [[maybe_unused]] uint32_t kv_head_idx) const
+    {
+        return !params.impl_mask.IsOutOfSinkBound(qo_idx, kv_idx);
     }
 };
 
@@ -296,6 +318,17 @@ struct ComposedAttention
                                                [[maybe_unused]] uint32_t kv_head_idx) const
     {
         return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
+    }
+
+    template <typename Params>
+    __device__ __forceinline__ bool LogitsSinkMask(const Params& params,
+                                                   [[maybe_unused]] uint32_t batch_idx,
+                                                   uint32_t qo_idx,
+                                                   uint32_t kv_idx,
+                                                   [[maybe_unused]] uint32_t qo_head_idx,
+                                                   [[maybe_unused]] uint32_t kv_head_idx) const
+    {
+        return !params.impl_mask.IsOutOfSinkBound(qo_idx, kv_idx);
     }
 };
 

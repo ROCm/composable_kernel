@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 if(GPU_TARGETS MATCHES "gfx9")
 # Fwd scaleadd scaleadd relu
 add_executable(client_grouped_convnd_fwd_scaleadd_scaleadd_relu_fp32

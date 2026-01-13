@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 // Utility functions and helpers for instance_traits.hpp
@@ -8,28 +8,30 @@
 #pragma once
 
 #include <array>
-#include <string>
-#include <concepts>
-#include <string_view>
-#include <sstream>
-#include <type_traits>
-#include <limits.h>
 #include <cmath>
-#include <ostream>
+#include <concepts>
 #include <iostream>
-#include <ck/utility/data_type.hpp>
-#include <ck/utility/sequence.hpp>
-#include <ck/utility/blkgemmpipe_scheduler.hpp>
-#include <ck/utility/loop_scheduler.hpp>
-#include <ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp>
-#include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
-#include <ck_tile/ops/common/tensor_layout.hpp>
-#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
-#include <ck_tile/ops/gemm.hpp>
-#include "ck_tile/ops/epilogue.hpp"
+#include <limits.h>
+#include <ostream>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/pipeline_enum.hpp"
+#include "ck/utility/scheduler_enum.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck_tile/core/container/tuple.hpp"
+#include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/float8.hpp"
+#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/convolution_specialization.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
 

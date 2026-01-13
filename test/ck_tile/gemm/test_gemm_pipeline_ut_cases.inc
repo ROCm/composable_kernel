@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,7 +31,14 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
             if constexpr(std::is_same_v<typename TestFixture::ALayout,
                                         ck_tile::tensor_layout::gemm::ColumnMajor>)
             {
-                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                if(M * sizeof(typename TestFixture::ADataType) % 4 == 0) // oob fit dword
+                {
+                    this->Run(M, N, K);
+                }
+                else
+                {
+                    EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                }
             }
             else
             {
@@ -84,7 +91,14 @@ TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
                 }
                 else
                 {
-                    EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                    if(M * sizeof(typename TestFixture::ADataType) % 4 == 0) // oob fit dword
+                    {
+                        this->Run(M, N, K);
+                    }
+                    else
+                    {
+                        EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                    }
                 }
             }
             else
@@ -103,18 +117,7 @@ TYPED_TEST(TEST_SUITE_NAME, PaddK)
 
     for(int M : Ms)
     {
-        if constexpr(std::is_same_v<typename TestFixture::BDataType, ck_tile::pk_int4_t>)
-        {
-#if defined(ARCH_GFX12) || defined(ARCH_GFX11)
-            this->Run(M, N, K);
-#else
-            EXPECT_THROW(this->Run(M, N, K), std::runtime_error);
-#endif
-        }
-        else
-        {
-            this->Run(M, N, K);
-        }
+        this->Run(M, N, K);
     }
 }
 

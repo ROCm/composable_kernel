@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -45,10 +45,10 @@ float invoke_batched_contraction_kernel(
     const void* b_full_dims_dev_buf,
     const std::array<const void*, DsDataType::size()>& ds_dev_buf,
     void* e_full_dims_dev_buf,
-    const std::vector<ck_tile::index_t>& G_dims,
-    const std::vector<ck_tile::index_t>& M_dims,
-    const std::vector<ck_tile::index_t>& N_dims,
-    const std::vector<ck_tile::index_t>& K_dims,
+    ck_tile::index_t num_g_dims,
+    ck_tile::index_t num_m_dims,
+    ck_tile::index_t num_n_dims,
+    ck_tile::index_t num_k_dims,
     const std::vector<ck_tile::index_t>& A_dims, // [G0,G1,..,M0,M1,..,K0,K1,..]
     const std::vector<ck_tile::index_t>& B_dims, // [G0,G1,..,N0,N1,..,K0,K1,..]
     const std::array<std::vector<ck_tile::index_t>, DsDataType::size()>&
@@ -79,9 +79,8 @@ float invoke_batched_contraction_kernel(
                                                                  E_strides            // E_strides
     );
 
-    std::cout << "Calling batched_contraction with dimensions: G=" << G_dims.size()
-              << ", M=" << M_dims.size() << ", N=" << N_dims.size() << ", K=" << K_dims.size()
-              << std::endl;
+    std::cout << "Calling batched_contraction with dimensions: G=" << num_g_dims
+              << ", M=" << num_m_dims << ", N=" << num_n_dims << ", K=" << num_k_dims << std::endl;
 
     float ave_time = batched_contraction<ADataType,
                                          BDataType,
@@ -95,16 +94,38 @@ float invoke_batched_contraction_kernel(
                                          CDEElementWise>(
         args,
         ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
-        G_dims.size(), // num_g_dims
-        M_dims.size(), // num_m_dims
-        N_dims.size(), // num_n_dims
-        K_dims.size()  // num_k_dims
-    );
+        num_g_dims,
+        num_m_dims,
+        num_n_dims,
+        num_k_dims);
 
     return ave_time;
 }
 
-template <typename ALayout, typename BLayout, typename DLayout, typename ELayout>
+// C++17-compatible helper function to create array of HostTensors
+namespace {
+template <typename DDataType, std::size_t NumDTensor, std::size_t... Is>
+std::array<ck_tile::HostTensor<DDataType>, NumDTensor>
+make_ds_host_tensors_impl(const std::array<ck_tile::HostTensorDescriptor, NumDTensor>& descs,
+                          std::index_sequence<Is...>)
+{
+    return {ck_tile::HostTensor<DDataType>(descs[Is])...};
+}
+
+template <typename DDataType, std::size_t NumDTensor>
+std::array<ck_tile::HostTensor<DDataType>, NumDTensor>
+make_ds_host_tensors(const std::array<ck_tile::HostTensorDescriptor, NumDTensor>& descs)
+{
+    return make_ds_host_tensors_impl<DDataType, NumDTensor>(descs,
+                                                            std::make_index_sequence<NumDTensor>{});
+}
+} // anonymous namespace
+
+template <typename ALayout,
+          typename BLayout,
+          typename DLayout,
+          typename ELayout,
+          ck_tile::index_t NumDTensor>
 int run_batched_contraction_example_with_layouts(
     int argc,
     char* argv[],
@@ -121,8 +142,6 @@ int run_batched_contraction_example_with_layouts(
     std::vector<ck_tile::index_t> M_dims = parse_dimensions(arg_parser.get_str("m_dims"));
     std::vector<ck_tile::index_t> N_dims = parse_dimensions(arg_parser.get_str("n_dims"));
     std::vector<ck_tile::index_t> K_dims = parse_dimensions(arg_parser.get_str("k_dims"));
-
-    constexpr ck_tile::index_t NumDTensor = 2;
 
     ck_tile::index_t G_total = calculate_total_elements(G_dims);
     ck_tile::index_t M_total = calculate_total_elements(M_dims);
@@ -148,13 +167,105 @@ int run_batched_contraction_example_with_layouts(
         return converted;
     };
 
-    ck_tile::HostTensorDescriptor a_desc(A_dims);
-    ck_tile::HostTensorDescriptor b_desc(B_dims);
-    ck_tile::HostTensorDescriptor e_desc(E_dims);
-    std::array<ck_tile::HostTensorDescriptor, NumDTensor> ds_descs;
-    for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+    // Get custom stride arguments
+    std::string strides_a_str  = arg_parser.get_str("strides_a");
+    std::string strides_b_str  = arg_parser.get_str("strides_b");
+    std::string strides_e_str  = arg_parser.get_str("strides_e");
+    std::string strides_ds_str = arg_parser.get_str("strides_ds");
+
+    // Create A descriptor with custom or default strides
+    ck_tile::HostTensorDescriptor a_desc;
+    if(!strides_a_str.empty())
     {
-        ds_descs[d] = ck_tile::HostTensorDescriptor(Ds_dims[d], e_desc.get_strides());
+        std::vector<ck_tile::index_t> custom_a_strides = parse_dimensions(strides_a_str);
+        if(custom_a_strides.size() != A_dims.size())
+        {
+            throw std::runtime_error("strides_a size must match A_dims size");
+        }
+        std::vector<std::size_t> a_strides_size_t(custom_a_strides.begin(), custom_a_strides.end());
+        a_desc = ck_tile::HostTensorDescriptor(A_dims, a_strides_size_t);
+        std::cout << "Using custom strides for A (non-contiguous)" << std::endl;
+    }
+    else
+    {
+        a_desc = ck_tile::HostTensorDescriptor(A_dims);
+    }
+
+    // Create B descriptor with custom or default strides
+    ck_tile::HostTensorDescriptor b_desc;
+    if(!strides_b_str.empty())
+    {
+        std::vector<ck_tile::index_t> custom_b_strides = parse_dimensions(strides_b_str);
+        if(custom_b_strides.size() != B_dims.size())
+        {
+            throw std::runtime_error("strides_b size must match B_dims size");
+        }
+        std::vector<std::size_t> b_strides_size_t(custom_b_strides.begin(), custom_b_strides.end());
+        b_desc = ck_tile::HostTensorDescriptor(B_dims, b_strides_size_t);
+        std::cout << "Using custom strides for B (non-contiguous)" << std::endl;
+    }
+    else
+    {
+        b_desc = ck_tile::HostTensorDescriptor(B_dims);
+    }
+
+    // Create E descriptor with custom or default strides
+    ck_tile::HostTensorDescriptor e_desc;
+    if(!strides_e_str.empty())
+    {
+        std::vector<ck_tile::index_t> custom_e_strides = parse_dimensions(strides_e_str);
+        if(custom_e_strides.size() != E_dims.size())
+        {
+            throw std::runtime_error("strides_e size must match E_dims size");
+        }
+        std::vector<std::size_t> e_strides_size_t(custom_e_strides.begin(), custom_e_strides.end());
+        e_desc = ck_tile::HostTensorDescriptor(E_dims, e_strides_size_t);
+        std::cout << "Using custom strides for E (non-contiguous)" << std::endl;
+    }
+    else
+    {
+        e_desc = ck_tile::HostTensorDescriptor(E_dims);
+    }
+    // Create D descriptors with custom or default strides (default = same as E)
+    std::array<ck_tile::HostTensorDescriptor, NumDTensor> ds_descs;
+    if(!strides_ds_str.empty())
+    {
+        // Parse semicolon-separated stride vectors for multiple D tensors
+        std::vector<std::vector<ck_tile::index_t>> all_ds_strides;
+        std::stringstream ss(strides_ds_str);
+        std::string d_stride_str;
+
+        while(std::getline(ss, d_stride_str, ';'))
+        {
+            all_ds_strides.push_back(parse_dimensions(d_stride_str));
+        }
+
+        if(all_ds_strides.size() != NumDTensor)
+        {
+            throw std::runtime_error("Number of D stride vectors must match num_d=" +
+                                     std::to_string(NumDTensor));
+        }
+
+        std::cout << "Using custom strides for D tensors (non-contiguous)" << std::endl;
+        for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+        {
+            if(all_ds_strides[d].size() != E_dims.size())
+            {
+                throw std::runtime_error("D tensor " + std::to_string(d) +
+                                         " stride size must match E_dims size");
+            }
+            std::vector<std::size_t> d_strides_size_t(all_ds_strides[d].begin(),
+                                                      all_ds_strides[d].end());
+            ds_descs[d] = ck_tile::HostTensorDescriptor(Ds_dims[d], d_strides_size_t);
+        }
+    }
+    else
+    {
+        // Default: use same strides as E
+        for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+        {
+            ds_descs[d] = ck_tile::HostTensorDescriptor(Ds_dims[d], e_desc.get_strides());
+        }
     }
 
     std::vector<ck_tile::index_t> A_strides = convert_strides(a_desc.get_strides());
@@ -201,11 +312,8 @@ int run_batched_contraction_example_with_layouts(
     ck_tile::HostTensor<::BDataType> b_full_dims_host(b_desc);
     ck_tile::HostTensor<::EDataType> e_full_dims_host(e_desc);
 
-    std::vector<ck_tile::HostTensor<::DDataType>> ds_full_dims_host;
-    for(int d = 0; d < NumDTensor; ++d)
-    {
-        ds_full_dims_host.emplace_back(ck_tile::HostTensor<::DDataType>(ds_descs[d]));
-    }
+    // Construct array of HostTensors - C++17 compatible
+    auto ds_full_dims_host = make_ds_host_tensors<::DDataType, NumDTensor>(ds_descs);
 
     ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f, std::nullopt}(a_full_dims_host);
     ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f, std::nullopt}(b_full_dims_host);
@@ -260,10 +368,10 @@ int run_batched_contraction_example_with_layouts(
                                                           b_full_dims_dev_buf.GetDeviceBuffer(),
                                                           ds_ptr_buf,
                                                           e_full_dims_dev_buf.GetDeviceBuffer(),
-                                                          G_dims,
-                                                          M_dims,
-                                                          N_dims,
-                                                          K_dims,
+                                                          G_dims.size(),
+                                                          M_dims.size(),
+                                                          N_dims.size(),
+                                                          K_dims.size(),
                                                           A_dims,
                                                           B_dims,
                                                           Ds_dims,
@@ -316,20 +424,25 @@ int run_batched_contraction_example_with_layouts(
 
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        calculate_reference_flat_indexing<ADataType,
-                                          BDataType,
-                                          DDataType,
-                                          EDataType,
-                                          AccDataType,
-                                          CDEElementWise>(a_full_dims_host,
-                                                          b_full_dims_host,
-                                                          ds_full_dims_host,
-                                                          e_full_dims_host_ref,
-                                                          G_total,
-                                                          M_total,
-                                                          N_total,
-                                                          K_total,
-                                                          CDEElementWise{});
+        ck_tile::compute_reference_batched_contraction<ADataType,
+                                                       BDataType,
+                                                       DDataType,
+                                                       EDataType,
+                                                       AccDataType,
+                                                       CDEElementWise,
+                                                       NumDTensor>(a_full_dims_host,
+                                                                   b_full_dims_host,
+                                                                   ds_full_dims_host,
+                                                                   e_full_dims_host_ref,
+                                                                   G_total,
+                                                                   M_total,
+                                                                   N_total,
+                                                                   K_total,
+                                                                   CDEElementWise{},
+                                                                   G_dims,
+                                                                   M_dims,
+                                                                   N_dims,
+                                                                   K_dims);
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
@@ -387,15 +500,45 @@ int run_batched_contraction_example(int argc, char* argv[])
     if(!result)
         return -1;
 
+    // Get NumDTensor to dispatch at runtime
+    const int num_d = arg_parser.get_int("num_d");
+
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
 
+    // Runtime dispatch based on num_d value
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_batched_contraction_example_with_layouts(argc, argv, Row{}, Col{}, Row{}, Row{});
+        // Dispatch to appropriate template instantiation based on runtime num_d
+        switch(num_d)
+        {
+        case 0:
+            std::cout << "Running with 0 D tensors" << std::endl;
+            return run_batched_contraction_example_with_layouts<Row, Col, Row, Row, 0>(
+                argc, argv, Row{}, Col{}, Row{}, Row{});
+        case 1:
+            std::cout << "Running with 1 D tensor" << std::endl;
+            return run_batched_contraction_example_with_layouts<Row, Col, Row, Row, 1>(
+                argc, argv, Row{}, Col{}, Row{}, Row{});
+        case 2:
+            std::cout << "Running with 2 D tensors" << std::endl;
+            return run_batched_contraction_example_with_layouts<Row, Col, Row, Row, 2>(
+                argc, argv, Row{}, Col{}, Row{}, Row{});
+        case 3:
+            std::cout << "Running with 3 D tensors" << std::endl;
+            return run_batched_contraction_example_with_layouts<Row, Col, Row, Row, 3>(
+                argc, argv, Row{}, Col{}, Row{}, Row{});
+        case 4:
+            std::cout << "Running with 4 D tensors" << std::endl;
+            return run_batched_contraction_example_with_layouts<Row, Col, Row, Row, 4>(
+                argc, argv, Row{}, Col{}, Row{}, Row{});
+        default:
+            throw std::runtime_error("num_d must be between 0 and 4, got: " +
+                                     std::to_string(num_d));
+        }
     }
     else
     {

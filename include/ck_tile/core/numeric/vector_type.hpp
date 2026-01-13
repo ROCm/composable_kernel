@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -152,6 +152,7 @@ using bf16x64_t = bfloat16_t __attribute__((ext_vector_type(64)));
 // i32
 // using int32_t = ...
 using int32x2_t  = int32_t __attribute__((ext_vector_type(2)));
+using int32x3_t  = int32_t __attribute__((ext_vector_type(3)));
 using int32x4_t  = int32_t __attribute__((ext_vector_type(4)));
 using int32x8_t  = int32_t __attribute__((ext_vector_type(8)));
 using int32x16_t = int32_t __attribute__((ext_vector_type(16)));

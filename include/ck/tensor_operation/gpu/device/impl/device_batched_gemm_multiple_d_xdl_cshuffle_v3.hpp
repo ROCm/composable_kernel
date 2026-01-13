@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -349,6 +349,11 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
               compute_ptr_offset_of_batch{
                   BatchStrideA_, BatchStrideB_, BatchStrideDs_, BatchStrideE_}
         {
+        }
+        template <typename EType>
+        void SetEPointer(void* ptr)
+        {
+            this->p_c_grid = static_cast<EType*>(ptr);
         }
     };
     using Argument = ArgumentBase<GridwiseGemm64>;
