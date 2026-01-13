@@ -10,6 +10,7 @@ enum class BlockFmhaPipelineEnum
 {
     QRKSVS = 0,
     QRKSVS_ASYNC,
+    QRKSVS_ASYNC_V2,
     QSKSVS,
     QRKSVS_ASYNC_TRLOAD,
     QRKSVS_ASYNC_TRLOAD_V3,
@@ -27,6 +28,11 @@ template <>
 struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_ASYNC>
 {
     static constexpr const char* name = "qr_async";
+};
+template <>
+struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_ASYNC_V2>
+{
+    static constexpr const char* name = "qr_async_v2";
 };
 template <>
 struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QSKSVS>

@@ -301,7 +301,12 @@ class FmhaFwdApiTrait:
     def scheck(self) -> str:
         if self.mode == "group":
             return "true/*group mode spad always true*/"  # group mode only generate spad/skpad == true
-        if self.pipeline_tag in ["qr_async", "qr_async_trload", "qr_async_trload_v3"]:
+        if self.pipeline_tag in [
+            "qr_async",
+            "qr_async_v2",
+            "qr_async_trload",
+            "qr_async_trload_v3",
+        ]:
             if self.spad == "t":
                 return "true"  # always support
             else:
@@ -324,7 +329,7 @@ class FmhaFwdApiTrait:
     def skcheck(self) -> str:
         if self.mode == "group":
             return "true/*group mode skpad always true*/"  # group mode only generate spad/skpad == true
-        if self.pipeline_tag == "qr_async":
+        if self.pipeline_tag in ["qr_async", "qr_async_v2"]:
             if self.skpad == "t":
                 return f"(a.cu_seqlen_k_ptr != nullptr) || (a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0)"
             else:
@@ -344,7 +349,7 @@ class FmhaFwdApiTrait:
 
     @property
     def dcheck(self) -> str:
-        if self.pipeline_tag == "qr_async":
+        if self.pipeline_tag in ["qr_async", "qr_async_v2"]:
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dpad == "t":
                 return f"a.hdim_q % {vec} == 0"
@@ -361,7 +366,7 @@ class FmhaFwdApiTrait:
 
     @property
     def dvcheck(self) -> str:
-        if self.pipeline_tag == "qr_async":
+        if self.pipeline_tag in ["qr_async", "qr_async_v2"]:
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dvpad == "t":
                 return f"a.hdim_v % {vec} == 0"
@@ -827,7 +832,7 @@ class CompatibilityRuleFactory:
 
 
 class CompatibilityRuleFactoryGfx9(CompatibilityRuleFactory):
-    _AVAILABLE_PIPELINES = frozenset({"qr", "qr_async", "qs"})
+    _AVAILABLE_PIPELINES = frozenset({"qr", "qr_async", "qr_async_v2", "qs"})
 
     @classmethod
     def get_rules(cls) -> List[CompatibilityRule]:
@@ -837,7 +842,7 @@ class CompatibilityRuleFactoryGfx9(CompatibilityRuleFactory):
             problem_ctx: ProblemContext, kernel_ctx: KernelContext
         ) -> bool:
             if problem_ctx.dtype != "fp32":
-                # TODO: update if >=gfx11 archs get qr_async and qr_async_trload support
+                # TODO: update if >=gfx11 archs get qr_async, qr_async_v2 and qr_async_trload support
                 if kernel_ctx.pipeline.tag in cls._AVAILABLE_PIPELINES and (
                     (
                         (problem_ctx.hdim, problem_ctx.hdim_v) == (128, 128)
@@ -849,7 +854,7 @@ class CompatibilityRuleFactoryGfx9(CompatibilityRuleFactory):
                     )
                 ):
                     # non qr_async_trload only support km0=128 tile size when hdim is not 128
-                    # non qr_async only support kn0=128 tile size when hdim is 128
+                    # non qr_async, qr_async_v2 only support kn0=128 tile size when hdim is 128
                     return False
             return True
 
@@ -1010,8 +1015,8 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                         pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
                         pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
                     else:
-                        pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
-                        pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
+                        pipelines.append(FmhaFwdPipeline("qr_async_v2", "row", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
+                        pipelines.append(FmhaFwdPipeline("qr_async_v2", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
                     if receipt == 1 and bias != "bias":
                         pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip # TODO: cover arbitraty hdim# fmt: skip
         elif dtype in cls._DT_FP8BF16 or dtype in cls._DT_FP8FP32:
@@ -1027,8 +1032,8 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                     pipelines.append(FmhaFwdPipeline("qr", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
                     pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
                 else:
-                    pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_async_v2", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_async_v2", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
         elif dtype in ["fp8", "fp8fp16", "bf8"]:
             # TODO
             pass
