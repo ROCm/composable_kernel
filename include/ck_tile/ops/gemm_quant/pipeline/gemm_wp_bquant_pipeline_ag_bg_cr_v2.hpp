@@ -146,7 +146,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                 // into the same cycle in the model.
                 if constexpr(ds_rep > 0)
                 {
-                    if( i_inst % ds_rep == 0)
+                    if(i_inst % ds_rep == 0)
                     {
                         __builtin_amdgcn_sched_group_barrier(
                             LLVMSchedGroupMask::DS_READ, 1, 0); // DS read
