@@ -133,7 +133,8 @@ inline std::string to_string(BlockTransfer<ThreadClusterRank> t)
     }
     else
     {
-        static_assert(ThreadClusterRank == 3 || ThreadClusterRank == 4, "Unsupported ThreadClusterRank");
+        static_assert(ThreadClusterRank == 3 || ThreadClusterRank == 4,
+                      "Unsupported ThreadClusterRank");
     }
 }
 

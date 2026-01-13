@@ -9,7 +9,7 @@ namespace ck_tile::builder::factory {
 
 // Base algorithm concepts
 template <typename T, size_t ThreadClusterRank = 3>
-concept TileTransferParameters = 
+concept TileTransferParameters =
     SpecifiesBlockTransfer<T, ThreadClusterRank> && SpecifiesLdsTransfer<T> &&
     SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T>;
 
@@ -19,36 +19,34 @@ concept SpecifiesTileTransferParameters3D = TileTransferParameters<T, 3>;
 template <typename T>
 concept SpecifiesTileTransferParameters4D = TileTransferParameters<T, 4>;
 
-
 template <typename T>
 concept FwdXdlAlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> && 
-    SpecifiesGridwiseFwdXdlGemm<T> && SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-    SpecifiesNumPrefetchStages<T> && SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T>;
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
+    SpecifiesGridwiseFwdXdlGemm<T> && SpecifiesFwdConvSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> &&
+    SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T>;
 
 template <typename T>
 concept BwdXdlAlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && 
-    SpecifiesTileTransferParameters4D<T> && SpecifiesGridwiseBwdXdlGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T>;
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters4D<T> &&
+    SpecifiesGridwiseBwdXdlGemm<T> && SpecifiesBwdWeightConvSpecialization<T>;
 
 template <typename T>
 concept BwdXdlV3AlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && 
-    SpecifiesTileTransferParameters3D<T> && SpecifiesGridwiseBwdXdlGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesBlockGemm<T>;
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
+    SpecifiesGridwiseBwdXdlGemm<T> && SpecifiesBwdWeightConvSpecialization<T> &&
+    SpecifiesBlockGemm<T>;
 
 template <typename T>
 concept BwdWmmaAlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && 
-    SpecifiesTileTransferParameters3D<T> && SpecifiesGridwiseWmmaGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T>;
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
+    SpecifiesGridwiseWmmaGemm<T> && SpecifiesBwdWeightConvSpecialization<T>;
 
 template <typename T>
 concept BwdWmmaV3AlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && 
-    SpecifiesTileTransferParameters3D<T> && SpecifiesGridwiseWmmaGemm<T> &&
-    SpecifiesBwdWeightConvSpecialization<T> && SpecifiesBlockGemm<T>;
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
+    SpecifiesGridwiseWmmaGemm<T> && SpecifiesBwdWeightConvSpecialization<T> &&
+    SpecifiesBlockGemm<T>;
 
 // Reference algorithm concept
 template <typename T>
@@ -69,17 +67,17 @@ concept LargeTensorAlgorithm = FwdXdlAlgorithmBase<T> && SpecifiesLargeTensorSup
 
 template <typename T>
 concept FwdXdlV3Algorithm =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && 
-    SpecifiesTileTransferParameters3D<T> && SpecifiesGridwiseFwdXdlGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T>;
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
+    SpecifiesGridwiseFwdXdlGemm<T> && SpecifiesFwdConvSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T>;
 
 // FWD WMMA algorithm concepts
 template <typename T>
 concept FwdWmmaAlgorithm =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && 
-    SpecifiesTileTransferParameters3D<T> && SpecifiesGridwiseWmmaGemm<T> &&
-    SpecifiesFwdConvSpecialization<T> && SpecifiesGemmSpecialization<T> &&
-    SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T> && SpecifiesGridwiseGemmPipeline<T>;
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
+    SpecifiesGridwiseWmmaGemm<T> && SpecifiesFwdConvSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T> &&
+    SpecifiesGridwiseGemmPipeline<T>;
 
 // FWD DL algorithms
 template <typename T>

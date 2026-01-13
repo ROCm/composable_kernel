@@ -224,7 +224,7 @@ struct ConvTensorLayouts
 {
     using InLayout  = decltype(TensorLayoutToCK<Signature.input.config.layout>());
     using WeiLayout = decltype(TensorLayoutToCK<Signature.weight.config.layout>());
-    using OutLayout  = decltype(TensorLayoutToCK<Signature.output.config.layout>());
+    using OutLayout = decltype(TensorLayoutToCK<Signature.output.config.layout>());
     using DsLayout  = decltype(GetAuxiliaryTensorLayouts<Signature, SPATIAL_DIM>())::type;
 };
 
