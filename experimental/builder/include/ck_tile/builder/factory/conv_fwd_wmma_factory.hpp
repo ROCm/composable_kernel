@@ -27,7 +27,7 @@ struct ConvFwdWmmaFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Types                         = internal::ConvTensorDataTypes<SIGNATURE>;
     using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
@@ -64,12 +64,12 @@ struct ConvFwdWmmaFactory
         typename Layouts::WeiLayout,
         typename Layouts::DsLayout,
         typename Layouts::OutLayout,
-        typename Types::ADataType,
-        typename Types::BDataType,
+        typename Types::InDataType,
+        typename Types::WeiDataType,
         typename Types::AccDataType,
-        typename Types::CShuffleDataType,
-        typename Types::DsDataTypes,
-        typename Types::EDataType,
+        typename Types::OutComputeType,
+        typename Types::DsDataType,
+        typename Types::OutDataType,
         typename Ops::InElementwiseOp,
         typename Ops::WeiElementwiseOp,
         typename Ops::OutElementwiseOp,

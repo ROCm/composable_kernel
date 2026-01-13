@@ -25,7 +25,7 @@ struct ConvFwdDlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Types                         = internal::ConvTensorDataTypes<SIGNATURE>;
     using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
@@ -89,10 +89,10 @@ struct ConvFwdDlFactory
     // The DL forward convolution kernel class instance
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<
         SPATIAL_DIM,
-        typename Types::ADataType,
-        typename Types::BDataType,
-        typename Types::DsDataTypes,
-        typename Types::EDataType,
+        typename Types::InDataType,
+        typename Types::WeiDataType,
+        typename Types::DsDataType,
+        typename Types::OutDataType,
         typename Types::AccDataType,
         typename Layouts::InLayout,
         typename Layouts::WeiLayout,

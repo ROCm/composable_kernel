@@ -27,7 +27,7 @@ struct ConvFwdXdlV3Factory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
+    using Types                         = internal::ConvTensorDataTypes<SIGNATURE>;
     using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
@@ -68,12 +68,12 @@ struct ConvFwdXdlV3Factory
         typename Layouts::WeiLayout,
         typename Layouts::DsLayout,
         typename Layouts::OutLayout,
-        typename Types::ADataType,
-        typename Types::BDataType,
+        typename Types::InDataType,
+        typename Types::WeiDataType,
         typename Types::AccDataType,
-        typename Types::CShuffleDataType,
-        typename Types::DsDataTypes,
-        typename Types::EDataType,
+        typename Types::OutComputeType,
+        typename Types::DsDataType,
+        typename Types::OutDataType,
         typename Ops::InElementwiseOp,
         typename Ops::WeiElementwiseOp,
         typename Ops::OutElementwiseOp,
@@ -109,8 +109,8 @@ struct ConvFwdXdlV3Factory
         C_BLOCK_TRANSFER.scalar_per_vector,
         BLOCK_GEMM.scheduler,
         BLOCK_GEMM.pipeline_version,
-        typename Types::AComputeType,
-        typename Types::BComputeType,
+        typename Types::InComputeType,
+        typename Types::WeiComputeType,
         IS_DIRECT_LOAD>;
 };
 
