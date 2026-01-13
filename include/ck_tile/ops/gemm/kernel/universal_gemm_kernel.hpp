@@ -1035,7 +1035,6 @@ struct UniversalGemmKernel
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
      */
-    template <bool UseDefaultScheduler = true>
     CK_TILE_DEVICE static void RunGemm(const std::array<const ADataType*, NumATensor>& as_ptr,
                                        const std::array<const BDataType*, NumBTensor>& bs_ptr,
                                        const std::array<const void*, NumDTensor>& ds_ptr,
@@ -1161,9 +1160,7 @@ struct UniversalGemmKernel
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        constexpr auto scheduler_type =
-            GemmPipeline::DoubleSmemBuffer || (GemmPipeline::NumWaveGroups == 1);
-        RunGemm<scheduler_type>(
+        RunGemm(
             as_ptr, bs_ptr, kargs.ds_ptr, e_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
     }
 
