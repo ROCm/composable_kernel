@@ -139,7 +139,7 @@ int profile_grouped_conv_fwd_tile(int argc, char* argv[])
     }
 
     std::cout << "IMPORTANT: Generate instances using: python "
-                 "experimental/builder/src/generate_instances.py"
+                 "experimental/builder/src/generate_instances.py --mode=profiler and rerun cmake"
               << std::endl;
 
     const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 10, argv);

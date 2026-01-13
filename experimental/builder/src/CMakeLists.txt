@@ -3,11 +3,13 @@
 
 if(GPU_TARGETS MATCHES "gfx9")
   # Generate instances using python script (empty to just generate empty instance list)
-  find_package(Python3 COMPONENTS Interpreter Development)
-  execute_process(
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_instances.py --filter_pattern=empty
-    RESULT_VARIABLE ret
-  )
+  if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/grouped_convolution_forward_tile_ndhwgc_fp32.inc)
+    find_package(Python3 COMPONENTS Interpreter Development)
+    execute_process(
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_instances.py --mode=tests
+      RESULT_VARIABLE ret
+    )
+  endif()
 
   # Find cpp files and create lib for instances
   file(GLOB_RECURSE GROUPED_CONV_FWD_TILE "instances/*.cpp")

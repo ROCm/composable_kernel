@@ -35,22 +35,22 @@ struct FilterExtent<3>
 };
 
 template <int SPATIAL_DIM>
-FilterExtent<SPATIAL_DIM> from_vector(const std::vector<std::size_t>& vec);
+inline FilterExtent<SPATIAL_DIM> filter_extent_from_vector(const std::vector<std::size_t>& vec);
 
 template <>
-FilterExtent<1> from_vector<1>(const std::vector<std::size_t>& vec)
+inline FilterExtent<1> filter_extent_from_vector<1>(const std::vector<std::size_t>& vec)
 {
     return FilterExtent<1>{.width = vec[0]};
 }
 
 template <>
-FilterExtent<2> from_vector<2>(const std::vector<std::size_t>& vec)
+inline FilterExtent<2> filter_extent_from_vector<2>(const std::vector<std::size_t>& vec)
 {
     return FilterExtent<2>{.width = vec[1], .height = vec[0]};
 }
 
 template <>
-FilterExtent<3> from_vector<3>(const std::vector<std::size_t>& vec)
+inline FilterExtent<3> filter_extent_from_vector<3>(const std::vector<std::size_t>& vec)
 {
     return FilterExtent<3>{.width = vec[2], .height = vec[1], .depth = vec[0]};
 }

@@ -418,6 +418,10 @@ struct TensorDescriptor
         size_t x = 1;
         for(size_t i = 0; i < RANK; ++i)
         {
+            if(lengths[indices[i]] == 1)
+            {
+                continue;
+            }
             if(strides[indices[i]] != x)
                 return false;
 
