@@ -115,7 +115,7 @@ auto create_args(int argc, char* argv[])
                 "",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.")
-        .insert("init_sink", "1", "value to init the output tensor sink value for validation");
+        .insert("init_sink", "0", "value to init the output tensor sink value for validation");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
