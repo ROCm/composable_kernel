@@ -17,9 +17,11 @@ TEST(ConvTuningParams, AssignsBlockGemmParams)
     {
         struct BlockGemm
         {
+            size_t num_conv_groups_to_merge       = 1;
+            size_t num_gemm_k_prefetch_stages     = 1;
             ckb::PipelineVersion pipeline_version = ckb::PipelineVersion::V3;
             ckb::PipelineScheduler scheduler      = ckb::PipelineScheduler::INTRAWAVE;
-        } block_gemm_pipeline;
+        } gemm_pipeline;
     } kAlgorithm;
     constexpr auto block_gemm = SetBlockGemm<kAlgorithm>();
 
@@ -31,7 +33,10 @@ TEST(ConvTuningParams, AssignsLoopSchedulerParam)
 {
     constexpr struct Algorithm
     {
-        ckb::PipelineScheduler loop_scheduler = ckb::PipelineScheduler::INTERWAVE;
+        struct GemmPipeline
+        {
+            ckb::PipelineScheduler scheduler = ckb::PipelineScheduler::INTERWAVE;
+        } gemm_pipeline;
     } kAlgorithm;
     constexpr auto loop_scheduler = SetLoopScheduler<kAlgorithm>();
 
@@ -42,7 +47,10 @@ TEST(ConvTuningParams, AssignsGridwiseGemmPipelineVersion)
 {
     constexpr struct Algorithm
     {
-        ckb::PipelineVersion pipeline_version = ckb::PipelineVersion::V4;
+        struct GemmPipeline
+        {
+            ckb::PipelineVersion pipeline_version = ckb::PipelineVersion::V4;
+        } gemm_pipeline;
     } kAlgorithm;
     constexpr auto pipeline_version = SetGridwiseGemmPipelineVersion<kAlgorithm>();
 

@@ -117,33 +117,49 @@ constexpr auto make_conv_instance()
     // Forward direction (supports most algorithm variants)
     else if constexpr(ConvDirectionIsForward<SIGNATURE>)
     {
-        if constexpr(FwdXdlV3Algorithm<ALGORITHM>)
+        if constexpr (SpecifiesXdl<ALGORITHM>)
         {
-            return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            if constexpr(FwdXdlV3Algorithm<ALGORITHM>)
+            {
+                return typename ConvFwdXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else if constexpr(FwdXdlAlgorithm<ALGORITHM>)
+            {
+                return typename ConvFwdXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else if constexpr(LargeTensorAlgorithm<ALGORITHM>)
+            {
+                return typename ConvFwdLargeTensorFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else
+            {
+                static_assert(
+                    SpecifiesValidFwdXdlAlgorithm<ALGORITHM>,
+                    "No suitable forward convolution XDL kernel factory found for the provided ALGORITHM. "
+                    "The ALGORITHM must satisfy requirements for one of: XDL V3, generic XDL, "
+                    "DL (NHWC layout), or Large Tensor variant.");
+            }
         }
-        else if constexpr(FwdXdlAlgorithm<ALGORITHM>)
+        else if constexpr (SpecifiesWmma<ALGORITHM>)
         {
-            return typename ConvFwdXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            if constexpr(FwdWmmaAlgorithm<ALGORITHM>)
+            {
+                return typename ConvFwdWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else 
+            {
+                static_assert(FwdWmmaAlgorithm<ALGORITHM>,
+                              "Did not find matching WMMA factory.");
+            }
         }
-        else if constexpr(FwdWmmaAlgorithm<ALGORITHM>)
-        {
-            return typename ConvFwdWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(FwdDlAlgorithm<ALGORITHM>)
+        else if constexpr (FwdDlAlgorithm<ALGORITHM>)
         {
             return typename ConvFwdDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(LargeTensorAlgorithm<ALGORITHM>)
-        {
-            return typename ConvFwdLargeTensorFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
         else
         {
-            static_assert(
-                false,
-                "No suitable forward convolution kernel factory found for the provided ALGORITHM. "
-                "The ALGORITHM must satisfy requirements for one of: Reference, Tile, XDL V3, XDL, "
-                "WMMA, DL (NHWC layout), or Large Tensor variant.");
+            static_assert(FwdWarpGemmOrDL<ALGORITHM>,
+                          "Forward convolution: Algorithm must specify either DL, XDL or WMMA.");
         }
     }
     // Backward data direction (will expand with more algorithms in the future)
@@ -157,55 +173,72 @@ constexpr auto make_conv_instance()
     // Backward weight direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
     {
-        // Start from more specialized and end with least specialized.
-        if constexpr(BwdTwoStageXdlAlgorithm<ALGORITHM>)
+        if constexpr (SpecifiesXdl<ALGORITHM>)
         {
-            return
-                typename ConvBwdWeightTwoStageXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            // Start from more specialized and end with least specialized.
+            if constexpr(BwdTwoStageXdlAlgorithm<ALGORITHM>)
+            {
+                return
+                    typename ConvBwdWeightTwoStageXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else if constexpr(BwdMultiDXdlAlgorithm<ALGORITHM>)
+            {
+                return
+                    typename ConvBwdWeightMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else if constexpr(BwdXdlV3Algorithm<ALGORITHM>)
+            {
+                return typename ConvBwdWeightXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else if constexpr(BwdXdlAlgorithm<ALGORITHM>)
+            {
+                return typename ConvBwdWeightXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else
+            {
+                static_assert(
+                    SpecifiesValidBwdXdlAlgorithm<ALGORITHM>,
+                    "No suitable backward weight convolution XDL kernel factory found for the provided ALGORITHM. "
+                    "The ALGORITHM must satisfy requirements for one of: Two-Stage XDL, Multi-D XDL, DL, "
+                    "generic XDL, or XDL V3 variant.");
+            }
         }
-        else if constexpr(BwdTwoStageWmmaV3Algorithm<ALGORITHM>)
+        else if constexpr (SpecifiesWmma<ALGORITHM>)
         {
-            return typename ConvBwdWeightTwoStageWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::
-                Instance{};
-        }
-        else if constexpr(BwdMultiDXdlAlgorithm<ALGORITHM>)
-        {
-            return
-                typename ConvBwdWeightMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(BwdMultiDWmmaV3Algorithm<ALGORITHM>)
-        {
-            return typename ConvBwdWeightMultiDWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::
-                Instance{};
+            // Start from more specialized and end with least specialized.
+            if constexpr(BwdTwoStageWmmaV3Algorithm<ALGORITHM>)
+            {
+                return typename ConvBwdWeightTwoStageWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else if constexpr(BwdMultiDWmmaV3Algorithm<ALGORITHM>)
+            {
+                return typename ConvBwdWeightMultiDWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else if constexpr(BwdWmmaV3Algorithm<ALGORITHM>)
+            {
+                return typename ConvBwdWeightWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else if constexpr(BwdWmmaAlgorithm<ALGORITHM>)
+            {
+                return typename ConvBwdWeightWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+            }
+            else 
+            {
+                static_assert(
+                    SpecifiesValidBwdWmmaAlgorithm<ALGORITHM>,
+                    "No suitable backward weight convolution WMMA kernel factory found for the provided ALGORITHM. "
+                    "The ALGORITHM must satisfy requirements for one of: Two-Stage WMMA V3, Multi-D WMMA V3, "
+                    "WMMA V3, or generic WMMA variant.");
+            }
         }
         else if constexpr(BwdDlAlgorithm<ALGORITHM>)
         {
             return typename ConvBwdWeightDlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
-        else if constexpr(BwdXdlV3Algorithm<ALGORITHM>)
+        else 
         {
-            return typename ConvBwdWeightXdlV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(BwdWmmaV3Algorithm<ALGORITHM>)
-        {
-            return typename ConvBwdWeightWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(BwdXdlAlgorithm<ALGORITHM>)
-        {
-            return typename ConvBwdWeightXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else if constexpr(BwdWmmaAlgorithm<ALGORITHM>)
-        {
-            return typename ConvBwdWeightWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else
-        {
-            static_assert(
-                false,
-                "No suitable backward weight convolution kernel factory found for the provided "
-                "ALGORITHM. The ALGORITHM must satisfy requirements for one of: Reference, Tile, "
-                "XDL, XDL V3, Two-Stage XDL, DL, Multi-D XDL, WMMA V3, Two-Stage "
-                "WMMA V3, WMMA, or Multi-D WMMA V3 variant.");
+            static_assert(BwdWarpGemmOrDL<ALGORITHM>,
+                          "Backward convolution: Algorithm must specify either DL, XDL or WMMA.");
         }
     }
     else

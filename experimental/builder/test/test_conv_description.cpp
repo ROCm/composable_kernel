@@ -117,42 +117,47 @@ static_assert(!ckb::ConvSignatureDescriptor<ConvSignatureWithInvalidOptionalPara
 
 struct DefaultAlgorithm
 {
+    static constexpr ckb::ConvAlgorithmSpecialization specialization = 
+        ckb::ConvAlgorithmSpecialization::PIPELINE_V3;
+
     ckb::test::ThreadBlock thread_block{.block_size = 256,
                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    ckb::test::GridwiseFwdXdlGemm gridwise_gemm{
-        .ak1        = 8,
-        .bk1        = 8,
-        .xdl_params = {.m_per_xdl = 16, .n_per_xdl = 16, .m_xdl_per_wave = 8, .n_xdl_per_wave = 8}};
+    ckb::test::WarpGemmParams warp_gemm{
+        .matrix_instruction = ckb::MatrixInstructionType::XDL,
+        .gemm_m_per_instruction = 16, .gemm_n_per_instruction = 16, .gemm_m_iters_per_wave = 8, .gemm_n_iters_per_wave = 8};
 
-    ckb::test::Transfer<> transfer{
+
+    ckb::test::InputOutputTileTransfer<> transfer{
         .a =
             {
-                .block_transfer              = {.k0 = 1, .m_n = 128, .k1 = 2},
-                .lds_transfer                = {.src_vector_dim            = 2,
+                .thread_distribution         = {.k0 = 1, .m_n = 128, .k1 = 2},
+                .lds_transfer_params         = {.global_memory_vector_load_size = 8,
+                                                .src_vector_dim            = 2,
                                                 .src_scalar_per_vector     = 2,
                                                 .lds_dst_scalar_per_vector = 2,
                                                 .is_direct_load            = false,
                                                 .lds_padding               = false},
-                .block_transfer_access_order = {.order = {0, 1, 2}},
+                .thread_distribution_access_order = {.order = {0, 1, 2}},
                 .src_access_order            = {.order = {0, 1, 2}},
 
             },
         .b =
             {
-                .block_transfer              = {.k0 = 1, .m_n = 128, .k1 = 2},
-                .lds_transfer                = {.src_vector_dim            = 2,
+                .thread_distribution         = {.k0 = 1, .m_n = 128, .k1 = 2},
+                .lds_transfer_params         = {.global_memory_vector_load_size = 8,
+                                                .src_vector_dim            = 2,
                                                 .src_scalar_per_vector     = 2,
                                                 .lds_dst_scalar_per_vector = 2,
                                                 .is_direct_load            = false,
                                                 .lds_padding               = false},
-                .block_transfer_access_order = {.order = {0, 1, 2}},
+                .thread_distribution_access_order = {.order = {0, 1, 2}},
                 .src_access_order            = {.order = {0, 1, 2}},
             },
         .c =
             {
-                .thread_cluster_dims =
-                    {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+                .thread_distribution =
+                    {.gemm_m_block_size = 1, .gemm_m_per_block = 32, .gemm_n_block_size = 1, .gemm_n_per_block = 8},
                 .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                              .n_per_wave_per_shuffle     = 1,
                              .scalar_per_vector          = 2},
@@ -161,9 +166,8 @@ struct DefaultAlgorithm
 
     ckb::ConvSpecialization fwd_specialization  = ckb::ConvSpecialization::DEFAULT;
     ckb::GemmSpecialization gemm_specialization = ckb::GemmSpecialization::Default;
-    ckb::test::BlockGemmPipeline block_gemm_pipeline{.pipeline_version = ckb::PipelineVersion::V4,
-                                                     .scheduler =
-                                                         ckb::PipelineScheduler::INTRAWAVE};
+    ckb::test::GemmPipeline gemm_pipeline{.pipeline_version = ckb::PipelineVersion::V4,
+                                          .scheduler =ckb::PipelineScheduler::INTRAWAVE};
 };
 static_assert(ckb::ConvAlgorithmDescriptor<DefaultAlgorithm>);
 

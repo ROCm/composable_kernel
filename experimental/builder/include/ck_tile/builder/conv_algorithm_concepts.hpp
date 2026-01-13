@@ -350,6 +350,9 @@ concept SpecifiesWmma = requires {
     requires Algorithm.warp_gemm.matrix_instruction == MatrixInstructionType::WMMA;
 };
 
+template <auto Algorithm>
+concept SpecifiesValidWarpGemm = SpecifiesXdl<Algorithm> || SpecifiesWmma<Algorithm>;
+
 /******************************************** */
 /* DL-specific descriptors and requirements   */
 /******************************************** */

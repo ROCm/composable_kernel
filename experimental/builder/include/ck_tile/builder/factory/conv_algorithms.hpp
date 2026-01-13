@@ -132,4 +132,29 @@ concept BwdDlAlgorithm =
     SpecifiesDlThreadCluster<decltype(Value)> && SpecifiesDlBwdBlockTransfer<decltype(Value)> && 
     SpecifiesDlEpilogue<decltype(Value)>;
 
+// Concepts for valid XDL/WMMA algorithms
+template <auto Value>
+concept SpecifiesValidFwdXdlAlgorithm = 
+FwdXdlAlgorithm<Value> || FwdXdlV3Algorithm<Value> || LargeTensorAlgorithm<Value>;
+
+template <auto Value>
+concept SpecifiesValidFwdWmmaAlgorithm = FwdWmmaAlgorithm<Value>;
+
+template <auto Value>
+concept SpecifiesValidBwdXdlAlgorithm = 
+    BwdXdlAlgorithm<Value> || BwdXdlV3Algorithm<Value> || 
+    BwdTwoStageXdlAlgorithm<Value> || BwdMultiDXdlAlgorithm<Value>;
+
+template <auto Value>
+concept SpecifiesValidBwdWmmaAlgorithm = 
+    BwdWmmaAlgorithm<Value> || BwdWmmaV3Algorithm<Value> || 
+    BwdTwoStageWmmaV3Algorithm<Value> || BwdMultiDWmmaV3Algorithm<Value>;
+
+
+template <auto Value>
+concept FwdWarpGemmOrDL = SpecifiesValidWarpGemm<Value> || FwdDlAlgorithm<Value>;
+
+template <auto Value>
+concept BwdWarpGemmOrDL = SpecifiesValidWarpGemm<Value> || BwdDlAlgorithm<Value>;
+
 } // namespace ck_tile::builder::factory
