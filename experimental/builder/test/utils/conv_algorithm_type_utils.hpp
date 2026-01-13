@@ -120,20 +120,20 @@ inline std::string to_string<BlockGemmPipeline>(BlockGemmPipeline t)
     return oss.str();
 }
 
-template <size_t ThreadSliceDim>
-inline std::string to_string(BlockTransfer<ThreadSliceDim> t)
+template <size_t ThreadClusterRank>
+inline std::string to_string(BlockTransfer<ThreadClusterRank> t)
 {
-    if constexpr(ThreadSliceDim == 4)
+    if constexpr(ThreadClusterRank == 4)
     {
         return array_to_seq(std::array<size_t, 4>{t.k_batch_size, t.k0, t.m_n, t.k1});
     }
-    else if constexpr(ThreadSliceDim == 3)
+    else if constexpr(ThreadClusterRank == 3)
     {
         return array_to_seq(std::array<size_t, 3>{t.k0, t.m_n, t.k1});
     }
     else
     {
-        static_assert(ThreadSliceDim == 3 || ThreadSliceDim == 4, "Unsupported ThreadSliceDim");
+        static_assert(ThreadClusterRank == 3 || ThreadClusterRank == 4, "Unsupported ThreadClusterRank");
     }
 }
 
@@ -288,8 +288,8 @@ inline std::string to_string<WmmaGemm_>(WmmaGemm_ t)
     return to_string(t.gridwise_gemm);
 }
 
-template <size_t ThreadSliceDim = 3>
-inline std::string to_string(Transfer_<ThreadSliceDim> t)
+template <size_t ThreadClusterRank = 3>
+inline std::string to_string(Transfer_<ThreadClusterRank> t)
 {
     return to_string(t.transfer);
 }
