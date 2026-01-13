@@ -126,7 +126,6 @@ template <typename ALayout,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
           GemmSpecialization GemmSpec,
-          ck::index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -158,9 +157,7 @@ template <typename ALayout,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
           typename ComputeTypeA                       = EDataType,
-          typename ComputeTypeB                       = ComputeTypeA,
-          bool PermuteA                               = false,
-          bool PermuteB                               = false>
+          typename ComputeTypeB                       = ComputeTypeA>
 struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayout,
                                                                           BLayout,
                                                                           DsLayout,
@@ -231,8 +228,8 @@ struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayou
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
-        false,  // PermuteA not supported by DeviceBatchedGemm base class.
-        false>; // PermuteB not supported by DeviceBatchedGemm base class.
+        false,  // PermuteA not supported by GridwiseOp
+        false>; // PermuteB not supported by DeviceGroupedGemm base class
 
     using CGridDesc_M_N =
         remove_cvref_t<decltype(GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
@@ -779,7 +776,7 @@ struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayou
             {BlockGemmPipelineVersion::v5, "v5"}};
 
         // clang-format off
-        str << "DeviceGroupedGemm_WmmaSplitK"
+        str << "DeviceGroupedGemm_Wmma_CShuffleV3"
             << "<"
             << std::string(ALayout::name)[0] << ","
             << std::string(BLayout::name)[0] << ","

@@ -84,11 +84,13 @@ add_ck_builder_test(test_ckb_conv_builder
     unit_error.cpp
     unit_validation.cpp
     unit_debug.cpp
+    unit_conv_fwd_testing.cpp
     unit_conv_elementwise_op.cpp
     unit_conv_tensor_layout.cpp
     unit_conv_tensor_type.cpp
     unit_conv_thread_block.cpp
     unit_conv_tuning_params.cpp)
+target_link_libraries(test_ckb_conv_builder PRIVATE utility)
 
 # Tests the inline diff utility used for comparing strings in tests assertions
 add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
