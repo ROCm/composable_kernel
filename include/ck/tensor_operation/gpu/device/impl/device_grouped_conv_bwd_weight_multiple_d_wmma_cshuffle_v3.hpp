@@ -50,7 +50,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3(
+    kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3_multiple_d(
         typename GridwiseGemm::Argument karg,
         const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
         const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
@@ -858,30 +858,32 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
                 {
                     if(gemm_arg.KBatch > 1)
                     {
-                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                            remove_reference_t<
-                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
-                            true,
-                            InMemoryDataOperationEnum::AtomicAdd,
-                            minimum_occupancy>;
+                        const auto kernel =
+                            kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3_multiple_d<
+                                GridwiseGemm,
+                                remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                                remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                                remove_reference_t<
+                                    DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                                ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
+                                true,
+                                InMemoryDataOperationEnum::AtomicAdd,
+                                minimum_occupancy>;
                         Run(kernel);
                     }
                     else
                     {
-                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                            remove_reference_t<
-                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
-                            true,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy>;
+                        const auto kernel =
+                            kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3_multiple_d<
+                                GridwiseGemm,
+                                remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                                remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                                remove_reference_t<
+                                    DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                                ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
+                                true,
+                                InMemoryDataOperationEnum::Set,
+                                minimum_occupancy>;
                         Run(kernel);
                     }
                 }
@@ -897,30 +899,32 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
                 {
                     if(gemm_arg.KBatch > 1)
                     {
-                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                            remove_reference_t<
-                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
-                            false,
-                            InMemoryDataOperationEnum::AtomicAdd,
-                            minimum_occupancy>;
+                        const auto kernel =
+                            kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3_multiple_d<
+                                GridwiseGemm,
+                                remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                                remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                                remove_reference_t<
+                                    DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                                ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
+                                false,
+                                InMemoryDataOperationEnum::AtomicAdd,
+                                minimum_occupancy>;
                         Run(kernel);
                     }
                     else
                     {
-                        const auto kernel = kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                            remove_reference_t<
-                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                            ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
-                            false,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy>;
+                        const auto kernel =
+                            kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3_multiple_d<
+                                GridwiseGemm,
+                                remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                                remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                                remove_reference_t<
+                                    DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                                ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
+                                false,
+                                InMemoryDataOperationEnum::Set,
+                                minimum_occupancy>;
                         Run(kernel);
                     }
                 }

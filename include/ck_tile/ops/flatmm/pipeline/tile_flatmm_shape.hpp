@@ -19,7 +19,8 @@ struct TileFlatmmShape
     static constexpr auto idxN = number<1>{};
     static constexpr auto idxK = number<2>{};
 
-    static constexpr index_t NumWarps = reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
+    static constexpr index_t NumWarps =
+        reduce_on_sequence(BlockWarps{}, multiplies<>{}, number<1>{});
 
     static constexpr index_t kM = BlockTile::at(idxM);
     static constexpr index_t kN = BlockTile::at(idxN);

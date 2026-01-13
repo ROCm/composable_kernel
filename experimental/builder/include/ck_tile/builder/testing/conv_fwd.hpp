@@ -7,6 +7,7 @@
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
 #include "ck_tile/builder/testing/testing.hpp"
+#include "ck_tile/builder/testing/testing_reflect.hpp"
 #include "ck_tile/builder/testing/filter_extent.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
 #include "ck_tile/builder/testing/tensor_initialization.hpp"
@@ -71,11 +72,10 @@ struct Args<SIGNATURE>
     using OutputDescriptor = TensorDescriptor<OUTPUT_TYPE, OUTPUT_RANK>;
 
     // TODO: We shouldn't need to call into an internal namespace here.
-    using Ops = factory::internal::ElementwiseOps<SIGNATURE>;
+    using Ops = factory::internal::ConvElementwiseOps<SIGNATURE>;
 
     // TODO: We shouldn't need to call into an internal namespace here.
-    using Layouts =
-        factory::internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>;
+    using Layouts = factory::internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
 
     ConvTensorLengths<SPATIAL_DIM> lengths;
 
@@ -89,9 +89,9 @@ struct Args<SIGNATURE>
     FilterExtent<SPATIAL_DIM> input_left_pad;
     FilterExtent<SPATIAL_DIM> input_right_pad;
 
-    Ops::AElementwiseOp a_elementwise_op;
-    Ops::BElementwiseOp b_elementwise_op;
-    Ops::CDEElementwiseOp cde_elementwise_op;
+    Ops::InElementwiseOp a_elementwise_op;
+    Ops::WeiElementwiseOp b_elementwise_op;
+    Ops::OutElementwiseOp cde_elementwise_op;
 
     /// This function returns the `TensorDescriptor` corresponding to
     /// the input-tensor of the convolution problem. This can then
@@ -106,7 +106,7 @@ struct Args<SIGNATURE>
         // function.
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
-             typename Layouts::ALayout>(param);
+             typename Layouts::InLayout>(param);
         using Extent = typename InputDescriptor::Extent;
         return InputDescriptor(Extent::from_vector(desc.GetLengths()),
                                Extent::from_vector(desc.GetStrides()));
@@ -120,7 +120,7 @@ struct Args<SIGNATURE>
         // See note in implementation of `make_input_descriptor`.
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<
-             typename Layouts::BLayout>(param);
+             typename Layouts::WeiLayout>(param);
         using Extent = typename WeightDescriptor::Extent;
         return WeightDescriptor(Extent::from_vector(desc.GetLengths()),
                                 Extent::from_vector(desc.GetStrides()));
@@ -134,7 +134,7 @@ struct Args<SIGNATURE>
         // See note in implementation of `make_input_descriptor`.
         const auto param = to_ck_conv_param();
         const auto desc  = ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<
-             typename Layouts::ELayout>(param);
+             typename Layouts::OutLayout>(param);
         using Extent = typename OutputDescriptor::Extent;
         return OutputDescriptor(Extent::from_vector(desc.GetLengths()),
                                 Extent::from_vector(desc.GetStrides()));
@@ -182,6 +182,12 @@ struct Inputs<SIGNATURE>
 {
     void* input;
     void* weight;
+
+    static void reflect(const Args<SIGNATURE>& args, const auto& inspect)
+    {
+        inspect("input", args.make_input_descriptor(), &Inputs<SIGNATURE>::input);
+        inspect("weight", args.make_weight_descriptor(), &Inputs<SIGNATURE>::weight);
+    }
 };
 
 /// @brief `Outputs` specialization for forward convolution.
@@ -194,67 +200,12 @@ template <auto SIGNATURE>
 struct Outputs<SIGNATURE>
 {
     void* output;
-};
 
-/// @brief `UniqueInputs` specialization for forward convolution.
-///
-/// @tparam SIGNATURE Forward convolution signature.
-///
-/// @see UniqueInputs
-/// @see ValidUniqueInputs
-template <auto SIGNATURE>
-    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
-struct UniqueInputs<SIGNATURE>
-{
-    DeviceBuffer input_buf;
-    DeviceBuffer weight_buf;
-
-    /// @see ValidUniqueInputs
-    Inputs<SIGNATURE> get()
+    static void reflect(const Args<SIGNATURE>& args, const auto& inspect)
     {
-        return {
-            .input  = input_buf.get(),
-            .weight = weight_buf.get(),
-        };
+        inspect("output", args.make_output_descriptor(), &Outputs<SIGNATURE>::output);
     }
 };
-
-/// @brief `UniqueOutputs` specialization for forward convolution.
-///
-/// @tparam SIGNATURE Forward convolution signature.
-///
-/// @see UniqueOutputs
-/// @see ValidUniqueOutputs
-template <auto SIGNATURE>
-    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
-struct UniqueOutputs<SIGNATURE>
-{
-    DeviceBuffer output_buf;
-
-    /// @see ValidUniqueOutputs
-    Outputs<SIGNATURE> get()
-    {
-        return {
-            .output = output_buf.get(),
-        };
-    }
-};
-
-/// @brief `alloc_inputs()` specialization for forward convolution.
-///
-/// @tparam SIGNATURE Forward convolution signature.
-///
-/// @see alloc_inputs()
-template <auto SIGNATURE>
-    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE> &&
-             ValidUniqueInputs<SIGNATURE>
-UniqueInputs<SIGNATURE> alloc_inputs(const Args<SIGNATURE>& args)
-{
-    return {
-        .input_buf  = alloc_tensor_buffer(args.make_input_descriptor()),
-        .weight_buf = alloc_tensor_buffer(args.make_weight_descriptor()),
-    };
-}
 
 /// @brief `init_inputs()` specialization for forward convolution.
 ///
@@ -267,36 +218,6 @@ void init_inputs(const Args<SIGNATURE>& args, Inputs<SIGNATURE> inputs)
 {
     init_tensor_buffer_uniform_fp(inputs.input, args.make_input_descriptor(), -2.0f, 2.0f);
     init_tensor_buffer_uniform_fp(inputs.weight, args.make_weight_descriptor(), -2.0f, 2.0f);
-}
-
-/// @brief `alloc_outputs()` specialization for forward convolution.
-///
-/// @tparam SIGNATURE Forward convolution signature.
-///
-/// @see alloc_outputs()
-template <auto SIGNATURE>
-    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE> &&
-             ValidUniqueOutputs<SIGNATURE>
-UniqueOutputs<SIGNATURE> alloc_outputs(const Args<SIGNATURE>& args)
-{
-    return {
-        .output_buf = alloc_tensor_buffer(args.make_output_descriptor()),
-    };
-}
-
-/// @brief `validate()` specialization for forward convolution.
-///
-/// @tparam SIGNATURE Forward convolution signature.
-///
-/// @see validate()
-template <auto SIGNATURE>
-    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
-ValidationReport
-validate(const Args<SIGNATURE>& args, Outputs<SIGNATURE> actual, Outputs<SIGNATURE> expected)
-{
-    ValidationReport report;
-    report.check("output", args.make_output_descriptor(), actual.output, expected.output);
-    return report;
 }
 
 } // namespace ck_tile::builder::test

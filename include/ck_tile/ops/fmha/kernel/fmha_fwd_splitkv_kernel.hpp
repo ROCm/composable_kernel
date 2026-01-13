@@ -1069,10 +1069,11 @@ struct FmhaFwdSplitKVKernel
                                       bias_dram_window,
                                       identity{}, // bias_element_func
                                       lse_acc_dram_window,
-                                      identity{},            // lse_element_func
-                                      identity{},            // s_acc_element_func
-                                      scales{kargs.scale_p}, // p_compute_element_func
-                                      identity{},            // o_acc_element_func
+                                      identity{}, // lse_element_func
+                                      identity{}, // s_acc_element_func
+                                      scales<remove_cvref_t<decltype(kargs.scale_p)>>{
+                                          kargs.scale_p}, // p_compute_element_func
+                                      identity{},         // o_acc_element_func
                                       kargs.num_splits,
                                       i_split_,
                                       mask,
