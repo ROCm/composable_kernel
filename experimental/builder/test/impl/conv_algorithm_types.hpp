@@ -101,7 +101,7 @@ struct AccessOrder
 {
     std::array<size_t, 3> order;
 };
-static_assert(AccessOrderDescriptor<AccessOrder>);
+static_assert(ThreadClusterOrderDescriptor<AccessOrder>);
 
 struct TransferAB
 {
