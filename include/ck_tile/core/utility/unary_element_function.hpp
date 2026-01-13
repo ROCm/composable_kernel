@@ -47,8 +47,11 @@ struct composes<F>
     F f_;
 };
 
-template <typename... Ts>
-CK_TILE_HOST_DEVICE_EXTERN composes(Ts&&...) -> composes<remove_cvref_t<Ts>...>;
+template <class... Ts>
+CK_TILE_HOST_DEVICE constexpr auto make_composes(Ts&&... ts)
+{
+    return composes<remove_cvref_t<Ts>...>{std::forward<Ts>(ts)...};
+}
 
 template <typename SaturateType>
 struct saturates
