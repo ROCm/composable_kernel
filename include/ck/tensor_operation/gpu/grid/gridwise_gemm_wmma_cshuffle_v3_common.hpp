@@ -351,64 +351,65 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     // Calculate grid size taking into account splitk (KBatch)
     // 2D grid (x,z)
-    __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
+    __host__ __device__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
     {
         return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, KBatch);
     }
 
     // Calculate grid size taking into account splitk (KBatch) and multiple groups (Batch)
     // 3D grid (x,y,z)
-    __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch, index_t Batch)
+    __host__ __device__ static auto
+    CalculateGridSize(index_t M, index_t N, index_t KBatch, index_t Batch)
     {
         return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), KBatch, Batch);
     }
 
-    __host__ static auto CalculateMPadded(index_t M)
+    __host__ __device__ static auto CalculateMPadded(index_t M)
     {
         return math::integer_least_multiple(M, MPerBlock);
     }
 
-    __host__ static auto CalculateNPadded(index_t N)
+    __host__ __device__ static auto CalculateNPadded(index_t N)
     {
         return math::integer_least_multiple(N, NPerBlock);
     }
 
-    __host__ static auto CalculateKPadded(index_t K)
+    __host__ __device__ static auto CalculateKPadded(index_t K)
     {
         return math::integer_divide_ceil(K, KPerBlock) * KPerBlock;
     }
 
-    __host__ static auto CalculateAK0Padded(index_t K, index_t K_Batch = 1)
+    __host__ __device__ static auto CalculateAK0Padded(index_t K, index_t K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
         return (K + K_t - 1) / K_t * (KPerBlock / AK1Value);
     }
 
-    __host__ static auto CalculateBK0Padded(index_t K, index_t K_Batch = 1)
+    __host__ __device__ static auto CalculateBK0Padded(index_t K, index_t K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
         return (K + K_t - 1) / K_t * (KPerBlock / BK1Value);
     }
 
-    __host__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
+    __host__ __device__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
         return (K + K_t - 1) / K_t * KPerBlock;
     }
 
-    __host__ static auto CalculateKRead(index_t K, index_t K_Batch = 1)
+    __host__ __device__ static auto CalculateKRead(index_t K, index_t K_Batch = 1)
     {
         constexpr auto KReadVec = math::lcm(AK1Number, BK1Number);
         auto K_t                = K_Batch * KReadVec;
         return (K + K_t - 1) / K_t * KReadVec;
     }
 
-    __host__ static auto CalculateMBlock(index_t M)
+    __host__ __device__ static auto CalculateMBlock(index_t M)
     {
         return math::integer_divide_ceil(M, MPerBlock);
     }
 
-    __host__ static auto CalculateNBlock(index_t N)
+    __host__ __device__ static auto CalculateNBlock(index_t N)
     {
         return math::integer_divide_ceil(N, NPerBlock);
     }
@@ -963,14 +964,14 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         return true;
     }
 
-    __host__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
+    __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
         const index_t num_loop = K / KPerBlock;
 
         return BlockwiseGemmPipe::BlockHasHotloop(num_loop);
     }
 
-    __host__ static constexpr TailNumber CalculateKBlockLoopTailNum(index_t K)
+    __host__ __device__ static constexpr TailNumber CalculateKBlockLoopTailNum(index_t K)
     {
         const index_t num_loop = K / KPerBlock;
 

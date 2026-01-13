@@ -7,11 +7,14 @@
 #include <string>
 #include <sstream>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 #include <gtest/gtest.h>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "profiler/profile_grouped_gemm_impl.hpp"
 
 extern ck::index_t param_mask;
@@ -20,28 +23,21 @@ extern ck::index_t instance_index;
 namespace ck {
 namespace test {
 
-template <typename Range>
-std::string serialize_range(const Range& range)
-{
-    std::stringstream ss;
-    for(auto& r : range)
-    {
-        ss << r << ", ";
-    }
-    std::string str = ss.str();
-    return std::string(str.begin(), str.end() - 2);
-}
-
 template <typename Tuple, bool FailIfNoSupportedInstances = false>
 class TestGroupedGemm : public testing::Test
 {
     protected:
-    using ALayout   = std::tuple_element_t<0, Tuple>;
-    using BLayout   = std::tuple_element_t<1, Tuple>;
-    using ELayout   = std::tuple_element_t<2, Tuple>;
-    using ADataType = std::tuple_element_t<3, Tuple>;
-    using BDataType = std::tuple_element_t<4, Tuple>;
-    using EDataType = std::tuple_element_t<5, Tuple>;
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+    using ALayout      = tuple_element_t<0, Tuple>;
+    using BLayout      = tuple_element_t<1, Tuple>;
+    using ELayout      = tuple_element_t<2, Tuple>;
+    using ADataType    = tuple_element_t<3, Tuple>;
+    using BDataType    = tuple_element_t<4, Tuple>;
+    using EDataType    = tuple_element_t<5, Tuple>;
+    using AElementOp   = tuple_element_or_t<6, Tuple, PassThrough>;
+    using BElementOp   = tuple_element_or_t<7, Tuple, PassThrough>;
+    using CDEElementOp = tuple_element_or_t<8, Tuple, PassThrough>;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -57,15 +53,25 @@ class TestGroupedGemm : public testing::Test
     bool fail_if_no_supported_instances_ = FailIfNoSupportedInstances;
     std::vector<int> k_batches_;
 
-    void SetUp() override
+    bool IsSplitKSupported()
     {
+        // gfx11 does not support split-K due to missing atomic add for fp16/bf16
+        // Technically, we could still use split-K for fp32, but we currently don't have
+        // instances for it so we disable it entirely
         constexpr bool require_16bit_atomic_add =
             std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t>;
-        if(require_16bit_atomic_add && ck::is_gfx11_supported())
+        bool missing_atomic_add = require_16bit_atomic_add && ck::is_gfx11_supported();
+
+        // CDE element operators are not supported in combination with split K
+        constexpr bool has_cde_element_operator = !std::is_same_v<CDEElementOp, PassThrough>;
+
+        return !missing_atomic_add && !has_cde_element_operator;
+    }
+
+    void SetUp() override
+    {
+        if(!IsSplitKSupported())
         {
-            // gfx11 does not support split-K due to missing atomic add for fp16/bf16
-            // Technically, we could still use split-K for fp32, but we currently don't have
-            // instances for it so we disable it entirely
             k_batches_ = {1};
         }
         else
@@ -147,21 +153,24 @@ class TestGroupedGemm : public testing::Test
                                                     float,
                                                     ALayout,
                                                     BLayout,
-                                                    ELayout>(verify_,
-                                                             init_method_,
-                                                             log_,
-                                                             bench_,
-                                                             Ms,
-                                                             Ns,
-                                                             Ks,
-                                                             StrideAs,
-                                                             StrideBs,
-                                                             StrideCs,
-                                                             kbatches,
-                                                             n_warmup_,
-                                                             n_iter_,
-                                                             instance_index,
-                                                             fail_if_no_supported_instances_);
+                                                    ELayout,
+                                                    AElementOp,
+                                                    BElementOp,
+                                                    CDEElementOp>(verify_,
+                                                                  init_method_,
+                                                                  log_,
+                                                                  bench_,
+                                                                  Ms,
+                                                                  Ns,
+                                                                  Ks,
+                                                                  StrideAs,
+                                                                  StrideBs,
+                                                                  StrideCs,
+                                                                  kbatches,
+                                                                  n_warmup_,
+                                                                  n_iter_,
+                                                                  instance_index,
+                                                                  fail_if_no_supported_instances_);
         EXPECT_TRUE(pass);
     }
 };
