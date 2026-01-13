@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_limits.hpp"
@@ -17,13 +17,13 @@
 
 namespace ck_tile::builder::factory {
 
-// Factory for DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle instance
-// of a grouped forward convolution kernel.
+// Factory for DeviceGroupedConvBwdWeight_Xdl_CShuffle instance
+// of a grouped bwd weight convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE>
-struct ConvFwdWmmaFactory
+    requires ConvDirectionIsBackwardWeight<SIGNATURE>
+struct ConvBwdWeightXdlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
@@ -31,20 +31,16 @@ struct ConvFwdWmmaFactory
     using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
-    static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();
-    static constexpr internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
-                                                       .gemm_spec = GEMM_SPECIALIZATION};
+    static constexpr auto BWD_CONV_SPECIALIZATION =
+        internal::SetBwdWeightConvSpecialization<ALGORITHM>();
 
-    static constexpr auto LOOP_SCHEDULER = internal::SetLoopScheduler<ALGORITHM>();
-    static constexpr auto BLOCK          = internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
-    static constexpr auto GRIDWISE_GEMM_PIPELINE_VERSION =
-        internal::SetGridwiseGemmPipelineVersion<ALGORITHM>();
+    static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto GRIDWISE_GEMM = ALGORITHM.gridwise_gemm;
+    static constexpr auto XDL_PARAMS    = GRIDWISE_GEMM.xdl_params;
     static constexpr auto A_BLOCK_TRANSFER =
-        internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
+        internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
-        internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.b>();
+        internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.b>();
     static constexpr auto C_BLOCK_TRANSFER = internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
 
     // Check limits for the algorithm parameters.
@@ -52,59 +48,56 @@ struct ConvFwdWmmaFactory
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
     static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
     static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.src_access_order>);
 
     // The forward convolution kernel class instance.
-    using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Wmma_CShuffle<
+    using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
         SPATIAL_DIM,
         typename Layouts::InLayout,
         typename Layouts::WeiLayout,
-        typename Layouts::DsLayout,
         typename Layouts::OutLayout,
         typename Types::InDataType,
         typename Types::WeiDataType,
-        typename Types::AccDataType,
-        typename Types::OutComputeType,
-        typename Types::DsDataType,
         typename Types::OutDataType,
+        typename Types::AccDataType,
         typename Ops::InElementwiseOp,
         typename Ops::WeiElementwiseOp,
         typename Ops::OutElementwiseOp,
-        SPECIALIZATION.conv_spec,
-        SPECIALIZATION.gemm_spec,
-        ALGORITHM.num_gemm_k_prefetch_stages,
+        BWD_CONV_SPECIALIZATION,
         BLOCK.block_size,
         BLOCK.per_block.m,
         BLOCK.per_block.n,
         BLOCK.per_block.k,
         GRIDWISE_GEMM.k1,
-        GRIDWISE_GEMM.m_per_wmma,
-        GRIDWISE_GEMM.n_per_wmma,
-        GRIDWISE_GEMM.m_wmma_per_wave,
-        GRIDWISE_GEMM.n_wmma_per_wave,
+        XDL_PARAMS.m_per_xdl,
+        XDL_PARAMS.n_per_xdl,
+        XDL_PARAMS.m_xdl_per_wave,
+        XDL_PARAMS.n_xdl_per_wave,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
         to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,
         A_BLOCK_TRANSFER.src_vector_dim,
         A_BLOCK_TRANSFER.src_scalar_per_vector,
         A_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-        static_cast<ck::index_t>(A_BLOCK_TRANSFER.lds_padding),
+        A_BLOCK_TRANSFER.lds_padding,
         to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_dims>,
         to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_order>,
         to_sequence_v<B_BLOCK_TRANSFER.src_access_order>,
         B_BLOCK_TRANSFER.src_vector_dim,
         B_BLOCK_TRANSFER.src_scalar_per_vector,
         B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-        static_cast<ck::index_t>(B_BLOCK_TRANSFER.lds_padding),
+        B_BLOCK_TRANSFER.lds_padding,
         C_BLOCK_TRANSFER.m_xdl_per_wave_per_shuffle,
         C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
         C_BLOCK_TRANSFER.scalar_per_vector,
-        LOOP_SCHEDULER,
-        GRIDWISE_GEMM_PIPELINE_VERSION>;
+        typename Types::OutComputeType,
+        typename Types::InComputeType,
+        ALGORITHM.max_transpose_transfer_src_scalar_per_vector,
+        ALGORITHM.max_transpose_transfer_dst_scalar_per_vector>;
 };
 
 } // namespace ck_tile::builder::factory
