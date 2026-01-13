@@ -6,7 +6,6 @@
 #include <tuple>
 
 #include "../../experimental/builder/test/utils/ckb_conv_tile_test_configs.hpp"
-#include "../../experimental/builder/test/utils/ckb_conv_test_utils.hpp"
 #include "../../experimental/builder/test/utils/conv_algorithm_type_utils.hpp"
 #include "grouped_convolution_signatures.hpp"
 
