@@ -158,10 +158,12 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmC
     int k_ = t.get_lengths()[0];
     printf("KxN: %dx%d\n", k_, n_);
     int NRepeat = gemmConfig.N_Tile / gemmConfig.N_Warp_Tile / gemmConfig.N_Warp;
-    printf("gemmConfig.N_tile: %d, gemmConfig.N_warp_tile: %d, gemmConfig.N_Warp: %d \n",
+    printf("gemmConfig.N_tile: %d, gemmConfig.N_warp_tile: %d, gemmConfig.N_Warp: %d, "
+           "gemmConfig.K_warp_tile: %d\n",
            gemmConfig.N_Tile,
            gemmConfig.N_Warp_Tile,
-           gemmConfig.N_Warp);
+           gemmConfig.N_Warp,
+           gemmConfig.K_Warp_Tile);
     if(ck_tile::is_gfx12_supported())
     {
         constexpr int divisor      = 2;
