@@ -56,7 +56,7 @@ concept GridwiseWmmaGemmDescriptor = requires(T t) {
 
 // Concept for vectorized data transfer for convolution input tensors.
 template <typename T>
-concept BlockTransferDescriptor = requires(T t) {
+concept BlockTransferDescriptor3D = requires(T t) {
     { t.k0 } -> SizeType;
     { t.m_n } -> SizeType;
     { t.k1 } -> SizeType;
@@ -69,6 +69,10 @@ concept BlockTransferDescriptor4D = requires(T t) {
     { t.k1 } -> SizeType;
     { t.k_batch_size } -> SizeType;
 };
+
+template <typename T, size_t ThreadClusterRank>
+concept BlockTransferDescriptor = (ThreadClusterRank == 3 && BlockTransferDescriptor3D<T>) ||
+                                  (ThreadClusterRank == 4 && BlockTransferDescriptor4D<T>);
 
 // Concept for thread cluster dimensions for GEMM output tensor.
 template <typename T>
@@ -202,19 +206,10 @@ concept SpecifiesGridwiseWmmaGemm = requires(T t) {
 };
 
 // Concept to check if a struct specifies convolution input and output block transfer info.
-template <typename T>
+template <typename T, size_t ThreadClusterRank = 3>
 concept SpecifiesBlockTransfer = requires(T t) {
-    { T::transfer.a.block_transfer } -> BlockTransferDescriptor;
-    { T::transfer.b.block_transfer } -> BlockTransferDescriptor;
-    { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
-};
-
-// Concept to check if a struct specifies convolution input and output block transfer info
-// for 4D thread slices.
-template <typename T>
-concept SpecifiesBlockTransfer4D = requires(T t) {
-    { T::transfer.a.block_transfer } -> BlockTransferDescriptor4D;
-    { T::transfer.b.block_transfer } -> BlockTransferDescriptor4D;
+    { T::transfer.a.block_transfer } -> BlockTransferDescriptor<ThreadClusterRank>;
+    { T::transfer.b.block_transfer } -> BlockTransferDescriptor<ThreadClusterRank>;
     { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
 };
 

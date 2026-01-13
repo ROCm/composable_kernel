@@ -90,8 +90,8 @@ struct BlockTransfer<3>
     size_t m_n;
     size_t k1;
 };
-static_assert(ckb::BlockTransferDescriptor<BlockTransfer<>>);
-static_assert(ckb::BlockTransferDescriptor<BlockTransfer<4>>);
+static_assert(ckb::BlockTransferDescriptor<BlockTransfer<3>, 3>);
+static_assert(ckb::BlockTransferDescriptor<BlockTransfer<4>, 4>);
 
 // Describe C block transfer thread cluster lengths.
 struct ThreadCluster
