@@ -19,7 +19,8 @@ struct TileGemmShape
     using BlockWarps = remove_cvref_t<BlockWarps_>;
     using WarpTile   = remove_cvref_t<WarpTile_>;
 
-    static constexpr index_t NumWarps = reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
+    static constexpr index_t NumWarps =
+        reduce_on_sequence(BlockWarps{}, multiplies<>{}, number<1>{});
 
     static constexpr index_t kM = BlockTile::at(number<0>{});
     static constexpr index_t kN = BlockTile::at(number<1>{});
