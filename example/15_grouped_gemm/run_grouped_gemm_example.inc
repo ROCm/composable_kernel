@@ -323,8 +323,8 @@ bool run_grouped_gemm_example(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=n0, 1=yes)\n");
-        printf("arg4: async hargs (0=n0, 1=yes)\n");
+        printf("arg3: time kernel (0=no, 1=yes)\n");
+        printf("arg4: async hargs (0=no, 1=yes)\n");
         printf("arg5: group count (default=16)\n");
 #if defined(EXAMPLE_USE_SPLITK)
         printf("arg6: k-batch count (default=1)\n");

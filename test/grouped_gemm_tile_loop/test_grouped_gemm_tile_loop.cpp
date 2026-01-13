@@ -1,16 +1,12 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include <vector>
-
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/data_type.hpp"
 
 #include "gtest/gtest.h"
-#include "test_grouped_gemm_util.hpp"
+#include "test_grouped_gemm_tile_loop_util.hpp"
 
 ck::index_t param_mask     = 0xffffff;
 ck::index_t instance_index = -1;
@@ -20,30 +16,24 @@ using BF16 = ck::bhalf_t;
 using F8   = ck::f8_t;
 using I8   = int8_t;
 
-using AElementOp   = ck::tensor_operation::element_wise::PassThrough;
-using BElementOp   = ck::tensor_operation::element_wise::PassThrough;
-using CDEElementOp = ck::tensor_operation::element_wise::FastGelu;
-
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 template <typename Tuple>
-class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple, true>
+class TestGroupedGemmTileLoop : public ck::test::TestGroupedGemmTileLoop<Tuple>
 {
 };
 
 // clang-format off
 using KernelTypes = ::testing::Types<
-    ck::Tuple<     Row, Row, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
-    ck::Tuple<     Row, Col, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
-    ck::Tuple<     Col, Row, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
-    ck::Tuple<     Col, Col, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>
->;
+    ck::Tuple<Row, Row, ck::Tuple<>, Row, F16, F16, ck::Tuple<>, F16>,
+    ck::Tuple<Row, Col, ck::Tuple<>, Row, F16, F16, ck::Tuple<>, F16>
+    >;
 // clang-format on
 
-TYPED_TEST_SUITE(TestGroupedGemm, KernelTypes);
+TYPED_TEST_SUITE(TestGroupedGemmTileLoop, KernelTypes);
 
-#include "test_grouped_gemm_ut_cases.inc"
+#include "test_grouped_gemm_tile_loop_ut_cases.inc"
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
