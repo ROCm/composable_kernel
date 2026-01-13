@@ -5,29 +5,24 @@
 
 #include "ck_tile/host.hpp"
 #include "mx_gemm.hpp"
-#include "ck_tile/ops/gemm_mx/pipeline/mx_pipeline_ag_bg_cr_v1.hpp"
+#include "ck_tile/ops/gemm_mx/pipeline/gemm_pipeline_ag_bg_cr_comp_async.hpp"
 #include "ck_tile/ops/gemm_mx/kernel/gemm_mx_kernel.hpp"
 
 template <typename Layout>
 using is_row_major_t = ck_tile::bool_constant<
     std::is_same_v<ck_tile::remove_cvref_t<Layout>, ck_tile::tensor_layout::gemm::RowMajor>>;
 
+// Problem definition for MX GEMM with comp_async pipeline
+// The comp_async pipeline handles MX scaling with OpSel parameters
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
           typename BlockGemmShape,
           typename Traits,
-          ck_tile::GemmPipelineScheduler Scheduler_ = ck_tile::GemmPipelineScheduler::Intrawave,
-          bool HasHotLoop_ = true,
-          ck_tile::TailNumber TailNum_ = ck_tile::TailNumber::Full>
+          ck_tile::GemmPipelineScheduler Scheduler_ = ck_tile::GemmPipelineScheduler::Intrawave>
 struct MXGemmPipelineProblem : ck_tile::GemmPipelineProblem<ADataType, BDataType, CDataType, BlockGemmShape, Traits>
 {
-    static constexpr int MXdlPack = 1;  // No M packing
-    static constexpr int NXdlPack = 1;  // No N packing
-    static constexpr int KXdlPack = 4;  // Pack 4 consecutive e8m0 scales in K = 4 bytes = 1 int32
     static constexpr auto Scheduler = Scheduler_;
-    static constexpr auto HasHotLoop = HasHotLoop_;
-    static constexpr auto TailNum = TailNum_;
 };
 
 template <typename GemmConfig,
@@ -41,9 +36,7 @@ template <typename GemmConfig,
           typename ScaleM,
           typename ScaleN,
           bool persistent,
-          bool Splitk,
-          bool HasHotLoop,
-          ck_tile::TailNumber TailNum>
+          bool Splitk>
 float mx_gemm_calc(const MXGemmHostArgs<ScaleM, ScaleN>& args,
                    const ck_tile::stream_config& s)
 {
@@ -80,11 +73,10 @@ float mx_gemm_calc(const MXGemmHostArgs<ScaleM, ScaleN>& args,
                                                     AccDataType,
                                                     GemmShape,
                                                     MXGemmTraits,
-                                                    scheduler,
-                                                    HasHotLoop,
-                                                    TailNum>;
+                                                    scheduler>;
 
-    using MXGemmPipeline = ck_tile::MXGemmPipelineAgBgCrV1<MXPipelineProblem>;
+    // Use the new comp_async pipeline with MX scaling support
+    using MXGemmPipeline = ck_tile::GemmPipelineAgBgCrCompAsync<MXPipelineProblem>;
 
     using TilePartitioner =
         ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,

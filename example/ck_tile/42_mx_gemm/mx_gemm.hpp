@@ -64,9 +64,9 @@ struct MxGemmConfig
     static constexpr int kBlockPerCu                = 1;
     static constexpr int TileParitionerGroupNum     = 8;
     static constexpr int TileParitionerM01          = 4;
-    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr bool DoubleSmemBuffer          = true;  // comp_async uses double buffer
 
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = false;
