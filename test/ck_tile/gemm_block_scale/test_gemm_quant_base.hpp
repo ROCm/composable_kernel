@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -21,6 +21,24 @@
 template <ck_tile::QuantType QT>
 struct QuantTypeTraits;
 
+template <typename TTuple, size_t Index, typename DefaultType, typename Enable = void>
+struct SafeTupleElement
+{
+    using type = DefaultType;
+};
+
+template <typename TTuple, size_t Index, typename DefaultType>
+struct SafeTupleElement<TTuple,
+                        Index,
+                        DefaultType,
+                        std::enable_if_t<(Index < std::tuple_size_v<TTuple>)>>
+{
+    using type = std::tuple_element_t<Index, TTuple>;
+};
+
+template <typename TTuple, size_t Index, typename DefaultType>
+using SafeTupleElement_t = typename SafeTupleElement<TTuple, Index, DefaultType>::type;
+
 // Base class for common quant gemm functionality
 template <typename Tuple, typename Derived>
 class TestCkTileGemmQuantBase : public ::testing::Test
@@ -29,13 +47,17 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     using ALayout                   = std::tuple_element_t<0, Tuple>;
     using BLayout                   = std::tuple_element_t<1, Tuple>;
     using CLayout                   = std::tuple_element_t<2, Tuple>;
-    using ADataType                 = std::tuple_element_t<3, Tuple>;
-    using BDataType                 = std::tuple_element_t<4, Tuple>;
-    using QDataType                 = std::tuple_element_t<5, Tuple>;
-    using CDataType                 = std::tuple_element_t<6, Tuple>;
-    static constexpr auto QuantType = std::tuple_element_t<7, Tuple>::value;
-    using GemmConfig                = std::tuple_element_t<8, Tuple>;
-    using QuantGroupSize            = std::tuple_element_t<9, Tuple>;
+    using AQLayout                  = std::tuple_element_t<3, Tuple>;
+    using ADataType                 = std::tuple_element_t<4, Tuple>;
+    using BDataType                 = std::tuple_element_t<5, Tuple>;
+    using QDataType                 = std::tuple_element_t<6, Tuple>;
+    using CDataType                 = std::tuple_element_t<7, Tuple>;
+    static constexpr auto QuantType = std::tuple_element_t<8, Tuple>::value;
+    using GemmConfig                = std::tuple_element_t<9, Tuple>;
+    using QuantGroupSize            = std::tuple_element_t<10, Tuple>;
+    using AQuantGroupSize           = QuantGroupSize;
+    using BQuantGroupSize           = SafeTupleElement_t<Tuple, 11, QuantGroupSize>;
+    using BQLayout                  = SafeTupleElement_t<Tuple, 12, AQLayout>;
     using AccDataType               = float; // accumulate always in float
 
     // Get the quant-type specific data types from traits
@@ -58,6 +80,10 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     static constexpr bool TiledMMAPermuteN        = GemmConfig::TiledMMAPermuteN;
     static constexpr bool DoubleSmemBuffer        = GemmConfig::DoubleSmemBuffer;
 
+    static constexpr bool kPadM = GemmConfig::kPadM;
+    static constexpr bool kPadN = GemmConfig::kPadN;
+    static constexpr bool kPadK = GemmConfig::kPadK;
+
     public:
     void SetUp() override { static_cast<Derived*>(this)->SetUpQuantTypeSpecific(); }
 
@@ -66,9 +92,6 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     // Common test execution logic
     void invoke_quant_gemm(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        constexpr bool kPadM = false;
-        constexpr bool kPadN = false;
-        constexpr bool kPadK = false;
         // WP pipeline requires per-thread tile size aligned to Problem::VectorLoadSize.
         // static_assert((WG::kM * WG::kK * sizeof(ADataType) * MIterPerWarp / WaveSize) %
         // VectorLoadSize == 0). gfx9 cards match the requirements but it fails on gfx12. so we only
@@ -94,8 +117,8 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                                                BLayout,
                                                                CLayout,
                                                                QuantType,
-                                                               ALayout,
-                                                               BLayout,
+                                                               AQLayout,
+                                                               BQLayout,
                                                                GemmConfig::TransposeC,
                                                                DoubleSmemBuffer,
                                                                false,
@@ -127,8 +150,10 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                              const ck_tile::index_t kbatch,
                              const float max_accumulated_value)
     {
-        using ComputeType =
-            std::conditional_t<sizeof(ADataType_) < sizeof(BDataType_), ADataType_, BDataType_>;
+        using ComputeType = std::conditional_t<
+            std::is_same_v<BDataType_, ck_tile::pk_fp4_raw_t>,
+            ADataType_,
+            std::conditional_t<sizeof(ADataType_) < sizeof(BDataType_), ADataType_, BDataType_>>;
         // Calculate thresholds
         const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType_, AccDataType_>(
             ck_tile::integer_divide_ceil(K, kbatch));
@@ -149,7 +174,8 @@ class TestCkTileGemmQuantBase : public ::testing::Test
 template <ck_tile::QuantType QT>
 struct QuantTypeTraits
 {
-    static_assert(QT == ck_tile::QuantType::AQuantGrouped ||
+    static_assert(QT == ck_tile::QuantType::ABQuantGrouped ||
+                      QT == ck_tile::QuantType::AQuantGrouped ||
                       QT == ck_tile::QuantType::BQuantGrouped ||
                       QT == ck_tile::QuantType::RowColQuant ||
                       QT == ck_tile::QuantType::TensorQuant,
@@ -174,6 +200,16 @@ struct QuantTypeTraits<ck_tile::QuantType::BQuantGrouped>
     using ComputeDataType = ADataType; // For BQuant, compute type is ADataType
 
     static constexpr const char* name = "bquant";
+};
+
+// Specialization for ABQuantGrouped
+template <>
+struct QuantTypeTraits<ck_tile::QuantType::ABQuantGrouped>
+{
+    template <typename ADataType, typename BDataType>
+    using ComputeDataType = BDataType; // For AQuant, compute type is BDataType
+
+    static constexpr const char* name = "abquant";
 };
 
 // Specialization for RowColQuant

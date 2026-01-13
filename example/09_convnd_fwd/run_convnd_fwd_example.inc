@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,9 +12,9 @@ bool run_convnd_fwd_example(int argc, char* argv[])
 {
     print_helper_msg();
 
-    bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
+    int do_verification = 2; // 0=no, 1=CPU, 2=GPU
+    int init_method     = 1;
+    bool time_kernel    = false;
 
     ck::utils::conv::ConvParam conv_param{
         2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
@@ -71,6 +71,9 @@ bool run_convnd_fwd_example(int argc, char* argv[])
             WeiElementOp,
             OutElementOp,
             DeviceGroupedConvNDFwdInstance<ndim_spatial_value, InLayout, WeiLayout, OutLayout>,
+            InLayout,
+            WeiLayout,
+            OutLayout,
             ComputeDataType>(do_verification,
                              init_method,
                              time_kernel,

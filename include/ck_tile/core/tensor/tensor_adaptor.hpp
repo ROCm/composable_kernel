@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -76,7 +76,7 @@ struct tensor_adaptor
             number<ndim_top_>{});
 
         // TODO: make container_reduce support tuple of number and index_t
-        return container_reduce(lengths, multiplies{}, number<1>{});
+        return container_reduce(lengths, multiplies<>{}, number<1>{});
     }
 
     template <index_t IDimHidden>

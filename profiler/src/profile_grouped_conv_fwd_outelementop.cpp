@@ -1,3 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "profiler/profile_grouped_conv_fwd_outelementop_impl.hpp"
 
@@ -15,15 +18,19 @@ enum struct ConvLayout
 enum struct OutElementOp
 {
     ConvScale    = 0,
-    ConvInvScale = 1
+    ConvInvScale = 1,
+    Scale        = 2
 };
 
 enum struct ConvDataType
 {
-    F8_F8_F8   = 0,
-    BF8_BF8_F8 = 1,
-    F8_BF8_F8  = 2,
-    BF8_F8_F8  = 3
+    F8_F8_F8       = 0,
+    BF8_BF8_F8     = 1,
+    F8_BF8_F8      = 2,
+    BF8_F8_F8      = 3,
+    F16_F16_F16    = 4,
+    BF16_BF16_BF16 = 5,
+    I8_I8_I8       = 6
 };
 
 #define OP_NAME "grouped_conv_fwd_outelementop"
@@ -38,8 +45,12 @@ static void print_helper_msg()
         << "                 1: Input bf8, Weight bf8, Output fp8\n"
         << "                 2: Input fp8, Weight bf8, Output fp8\n"
         << "                 3: Input bf8, Weight fp8, Output fp8)\n"
+        << "                 4: Input f16, Weight f16, Output f16)\n"
+        << "                 5: Input bf16, Weight bf16, Output bf16)\n"
+        << "                 6: Input i8, Weight i8, Output i8)\n"
         << "arg3: element-wise operation (0: ConvScale\n"
-        << "                              1: ConvInvScale)\n"
+        << "                              1: ConvInvScale\n"
+        << "                              2: Scale\n"
         << "arg4: tensor layout (0: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, N, Ho, Wo, K]\n"
         << "                     1: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, Ho, Wo, G, K])\n"
         << "arg5: verification (0: no, 1: yes)\n"
@@ -78,8 +89,11 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
 
     const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 10, argv);
 
-    using F8  = ck::f8_t;
-    using BF8 = ck::bf8_t;
+    using F8   = ck::f8_t;
+    using F16  = ck::half_t;
+    using BF8  = ck::bf8_t;
+    using BF16 = ck::bhalf_t;
+    using I8   = int8_t;
 
     using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
     using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
@@ -87,6 +101,7 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
 
     using ConvScale    = ck::tensor_operation::element_wise::ConvScale;
     using ConvInvScale = ck::tensor_operation::element_wise::ConvInvscale;
+    using Scale        = ck::tensor_operation::element_wise::Scale;
 
     constexpr auto I3 = ck::Number<3>{};
 
@@ -208,6 +223,32 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
                                ConvInvScale{},
                                BF8{},
                                F8{});
+            }
+        }
+        else if(op == OutElementOp::Scale)
+        {
+            if(data_type == ConvDataType::F16_F16_F16)
+            {
+                return profile(
+                    I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{}, Scale{}, F16{}, F16{});
+            }
+            else if(data_type == ConvDataType::BF16_BF16_BF16)
+            {
+                return profile(I3,
+                               NDHWGC{},
+                               GKZYXC{},
+                               NDHWGK{},
+                               BF16{},
+                               BF16{},
+                               BF16{},
+                               Scale{},
+                               BF16{},
+                               BF16{});
+            }
+            else if(data_type == ConvDataType::I8_I8_I8)
+            {
+                return profile(
+                    I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, I8{}, I8{}, I8{}, Scale{}, I8{}, I8{});
             }
         }
     }

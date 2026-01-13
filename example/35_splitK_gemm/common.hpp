@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -23,6 +23,10 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm_multiple_d.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 struct ProblemSizeSplitK final
 {
     ck::index_t M = 256;
@@ -40,7 +44,7 @@ struct ExecutionConfig final
 {
     bool do_verification = true;
     int init_method      = 2;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 };
 
 template <ck::index_t... Is>

@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 // InstanceTraits specialization for DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
@@ -14,6 +14,7 @@
 #pragma once
 
 #include "instance_traits.hpp"
+#include "instance_traits_util.hpp"
 
 // Forward declaration to avoid circular dependency.
 // This file will be included by the device implementation header, so we cannot include

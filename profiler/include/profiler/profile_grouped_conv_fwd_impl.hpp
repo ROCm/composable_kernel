@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,6 +22,8 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
+#include "profiler/gpu_verification.hpp"
 
 namespace ck {
 namespace profiler {
@@ -112,9 +114,37 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     in_device_buf.ToDevice(input.mData.data());
     wei_device_buf.ToDevice(weight.mData.data());
 
+    // Allocate GPU reference buffer (used only if do_verification == 2)
+    DeviceMem gpu_ref_out_buf(
+        do_verification == 2 ? sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize() : 0);
+
     // run reference op
-    if(do_verification)
+    if(do_verification == 2)
     {
+        // Use GPU reference with GPU verification
+        std::cout << "Using GPU reference with GPU verification" << std::endl;
+
+        // Call GPU reference with ConvParam directly
+        ref::naive_conv_fwd<InLayout,
+                            WeiLayout,
+                            OutLayout,
+                            InDataType,
+                            WeiDataType,
+                            OutDataType,
+                            InElementOp,
+                            WeiElementOp,
+                            OutElementOp>(
+            reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<OutDataType*>(gpu_ref_out_buf.GetDeviceBuffer()),
+            conv_param,
+            in_element_op,
+            wei_element_op,
+            out_element_op);
+    }
+    else if(do_verification == 1)
+    {
+        // Use CPU reference for verification (default)
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InDataType,
                                                                      WeiDataType,
@@ -146,6 +176,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
     index_t num_kernel    = 0;
+    int valids            = 0;
+
     // profile device op instances
     bool pass = true;
 
@@ -165,6 +197,9 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             }
 
             std::string op_name = op_ptr->GetTypeString();
+            valids++;
+
+            out_device_buf.SetZero();
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -189,8 +224,63 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                 best_gb_per_sec = gb_per_sec;
             }
 
-            if(do_verification)
+            // Synchronize before verification to ensure kernel has completed
+            if(do_verification > 0 && !time_kernel)
             {
+                hip_check_error(hipStreamSynchronize(nullptr));
+            }
+
+            if(do_verification == 2)
+            {
+                // GPU verification path
+                // Calculate number of accumulations (C * filter spatial dimensions)
+                std::size_t filter_spatial_size = 1;
+                for(auto len : conv_param.filter_spatial_lengths_)
+                {
+                    filter_spatial_size *= len;
+                }
+                const int num_accums = static_cast<int>(conv_param.C_ * filter_spatial_size);
+
+                // Perform GPU verification (max value computed internally on GPU)
+                const std::size_t tensor_size = device_output.mDesc.GetElementSpaceSize();
+                bool gpu_passed = ck::profiler::gpu_verify<OutDataType, AComputeType, OutDataType>(
+                    out_device_buf.GetDeviceBuffer(),
+                    gpu_ref_out_buf.GetDeviceBuffer(),
+                    num_accums,
+                    tensor_size);
+
+                if(!gpu_passed)
+                {
+                    // GPU verification failed - fall back to CPU for detailed diagnostics
+                    std::cout << "GPU verification failed, running CPU verification for details..."
+                              << std::endl;
+
+                    // Copy both buffers to host
+                    out_device_buf.FromDevice(device_output.mData.data());
+                    gpu_ref_out_buf.FromDevice(host_output.mData.data());
+
+                    // Run CPU verification for detailed error messages
+                    ck::utils::check_err(device_output, host_output);
+                    pass = false;
+
+                    if(do_log)
+                    {
+                        LogRangeAsType<float>(std::cout << "input : ", input.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "host_output  : ", host_output.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "device_output: ", device_output.mData, ",")
+                            << std::endl;
+                    }
+                }
+            }
+            else if(do_verification == 1)
+            {
+                // CPU verification path (original behavior)
                 out_device_buf.FromDevice(device_output.mData.data());
 
                 pass = pass & ck::utils::check_err(device_output, host_output);
@@ -257,6 +347,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
         run_impl(op_ptr, argument_ptr);
     }
+
+    printf("\033[36mvalids: %d\033[0m\n", valids);
 
     std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops

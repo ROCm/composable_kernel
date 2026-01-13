@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 template <typename Layout>
@@ -79,8 +79,7 @@ float invoke_gemm(int n_warmup,
         // earlier stage.
 
         std::vector<ck_tile::GemmTransKernelArg<>> kargs;
-        void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
-        const bool splitk = args[0].k_batch > 1;
+        void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
         for(const auto& arg : args)
         {
             kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<>{{arg.a_ptr},
@@ -109,7 +108,7 @@ float invoke_gemm(int n_warmup,
                                          ADataType,
                                          BDataType,
                                          AccDataType,
-                                         CDataType>(stream, group_count, kargs_ptr, splitk);
+                                         CDataType>(stream, group_count, kargs_ptr);
     }
 
     return ave_time;
@@ -233,7 +232,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
         // Perform preshuffle for B tensor
         if constexpr(GemmConfig::Preshuffle)
         {
-            ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n_tensors[i]);
+            ck_tile::HostTensor<BDataType> b_shuffle_host =
+                ck_tile::shuffle_b<GemmConfig>(b_k_n_tensors[i]);
             b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_shuffle_host));
         }
         else

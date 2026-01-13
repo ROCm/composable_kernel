@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/host_utility/io.hpp"
 
@@ -215,6 +215,7 @@ ck::utils::conv::ConvParam parse_conv_param(int num_dim_spatial, int arg_idx, ch
 
 std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParam& p)
 {
+    using ck::operator<<;
     os << "ConvParam {" << "\nnum_dim_spatial: " << p.num_dim_spatial_ << "\nG: " << p.G_
        << "\nN: " << p.N_ << "\nK: " << p.K_ << "\nC: " << p.C_
        << "\nfilter_spatial_lengths: " << p.filter_spatial_lengths_

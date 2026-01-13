@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -18,10 +18,16 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
+#include "ck_tile/host/hip_check_error.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 void print_helper_msg()
 {
-    std::cout << "arg1: verification (0=no, 1=yes)\n"
+    std::cout << "arg1: verification (0=no, 1=CPU, 2=GPU)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
               << "arg3: time kernel (0=no, 1=yes)\n"
               << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
@@ -77,7 +83,7 @@ inline __host__ __device__ constexpr double get_atol()
 {
     if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
     {
-        return 1e-2;
+        return 1e-3;
     }
     else if constexpr(std::is_same_v<DataType, float>)
     {
@@ -125,8 +131,11 @@ template <ck::index_t NDimSpatial,
           typename WeiElementOp,
           typename OutElementOp,
           typename DeviceConvNDFwdInstance,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
           typename ComputeDataType = OutDataType>
-bool run_grouped_conv_fwd(bool do_verification,
+bool run_grouped_conv_fwd(int do_verification,
                           int init_method,
                           bool time_kernel,
                           const ck::utils::conv::ConvParam& conv_param,
@@ -229,8 +238,11 @@ bool run_grouped_conv_fwd(bool do_verification,
     std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << conv.GetTypeString() << std::endl;
 
-    if(do_verification)
+    std::cout << "do_verification = " << do_verification << std::endl;
+
+    if(do_verification == 1)
     {
+        // CPU verification
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InDataType,
                                                                      WeiDataType,
@@ -264,6 +276,54 @@ bool run_grouped_conv_fwd(bool do_verification,
                                     "Error: incorrect results!",
                                     get_rtol<OutDataType, ComputeDataType>(),
                                     get_atol<OutDataType, ComputeDataType>());
+    }
+    else if(do_verification == 2)
+    {
+        // GPU verification using naive GPU reference
+        std::cout << "Running GPU verification..." << std::endl;
+
+        // Allocate and ZERO GPU memory for reference output
+        DeviceMem out_device_ref_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
+        out_device_ref_buf.SetZero();
+
+        // Call GPU reference with ConvParam directly, using the correct layout types
+        ck::ref::naive_conv_fwd<InLayout,
+                                WeiLayout,
+                                OutLayout,
+                                InDataType,
+                                WeiDataType,
+                                OutDataType,
+                                InElementOp,
+                                WeiElementOp,
+                                OutElementOp>(
+            reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<OutDataType*>(out_device_ref_buf.GetDeviceBuffer()),
+            conv_param);
+
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+        std::cout << "GPU reference function completed successfully, copying results..."
+                  << std::endl;
+
+        // Copy GPU reference result to host
+        out_device_ref_buf.FromDevice(out_host.mData.data());
+
+        // Copy GPU kernel result to host
+        out_device_buf.FromDevice(out_device.mData.data());
+
+        std::cout << "Comparing GPU kernel output vs GPU reference..." << std::endl;
+
+        // Compare GPU kernel vs GPU reference
+        bool pass = ck::utils::check_err(out_device,
+                                         out_host,
+                                         "Error: incorrect results!",
+                                         get_rtol<OutDataType, ComputeDataType>(),
+                                         get_atol<OutDataType, ComputeDataType>());
+
+        std::cout << "GPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+
+        return pass;
     }
 
     return true;

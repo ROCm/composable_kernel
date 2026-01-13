@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -29,6 +29,7 @@
 #include "ck/host_utility/flush_cache.hpp"
 #include "ck/host_utility/io.hpp"
 #ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/conv_describe.hpp"
 #include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp"
 #endif
 
@@ -399,9 +400,23 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                              BComputeDataType>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
-    GET_NXDL_PER_WAVE_IMPL
-    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
-    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+    GET_MXDL_PER_WAVE_IMPL
+    // Force usage of 16x16 instruction for WMMA
+    static constexpr bool Wave32Force16MNPerXDL =
+        is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() &&
+        sizeof(AComputeDataType) == 2 && sizeof(BComputeDataType) == 2 &&
+        is_same_v<CDEElementwiseOperation, tensor_operation::element_wise::PassThrough> &&
+        (ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter1x1Stride1Pad0 ||
+         ConvForwardSpecialization == ConvolutionForwardSpecialization::Default);
+    static constexpr index_t Wave32MaxMNPerXDL =
+        Wave32Force16MNPerXDL ? 16 : math::max(MPerXDL, NPerXDL);
+
+    static constexpr auto MXdlPerWave64 = GetMXdlPerWave<true>();
+    static constexpr auto MXdlPerWave32 =
+        GetMXdlPerWave<false,
+                       Wave32MaxMNPerXDL,
+                       Wave32MaxMNPerXDL,
+                       NXdlPerWave*(NPerXDL / Wave32MaxMNPerXDL)>();
 
     static constexpr bool isMultiA   = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB   = is_detected<is_tuple, BDataType>::value;
@@ -562,7 +577,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             : BBlockTransferSrcScalarPerVector;
 
     // Use appropriate gridwise gemm
-    template <index_t NXdlPerWave_>
+    template <index_t MXdlPerWave_, index_t MPerXDL_, index_t NPerXDL_>
     using GridwiseGemmBase = GridwiseGemmMultiD_xdl_cshuffle_v3<
         tensor_layout::gemm::RowMajor,
         tensor_layout::gemm::ColumnMajor,
@@ -584,10 +599,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         KPerBlock,
         AK1,
         BK1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave,
-        NXdlPerWave_,
+        MPerXDL_,
+        NPerXDL_,
+        MXdlPerWave_,
+        NXdlPerWave*(NPerXDL / NPerXDL_),
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -605,7 +620,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         false,
         BBlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle*(NPerXDL / NPerXDL_),
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEBlockTransferScalarPerVectors,
         BlkGemmPipeSched,
@@ -616,8 +631,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         BDataType,
         DoElementwiseBeforeCShuffle,
         DirectLoad>;
-    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
-    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(MXdlPerWave64, 1), MPerXDL, NPerXDL>;
+    using GridwiseGemm32 = GridwiseGemmBase<MXdlPerWave32, Wave32MaxMNPerXDL, Wave32MaxMNPerXDL>;
 
     // #undef GridwiseGemmV3TemplateParams
 
@@ -1429,7 +1444,24 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             return avg_time;
         }
 
-        INVOKER_RUN_IMPL
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        {
+            if(get_warp_size() == 64)
+            {
+                if constexpr(MXdlPerWave64 > 0)
+                {
+                    return RunImp<GridwiseGemm64>(arg, stream_config);
+                }
+            }
+            else
+            {
+                if constexpr(MXdlPerWave32 > 0)
+                {
+                    return RunImp<GridwiseGemm32>(arg, stream_config);
+                }
+            }
+            return 0;
+        }
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -1482,7 +1514,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             }
         }
 
-        if(!ck::is_xdl_wmma_supported<AComputeDataType, BComputeDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<AComputeDataType,
+                                      BComputeDataType,
+                                      Wave32MaxMNPerXDL,
+                                      Wave32MaxMNPerXDL>())
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -1757,7 +1792,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
         if(get_warp_size() == 64)
         {
-            if constexpr(NXdlPerWave64 > 0)
+            if constexpr(MXdlPerWave64 > 0)
             {
                 typename GridwiseGemm64::Argument gemm_arg{nullptr,
                                                            nullptr,
@@ -1779,7 +1814,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         }
         else
         {
-            if constexpr(NXdlPerWave32 > 0)
+            if constexpr(MXdlPerWave32 > 0)
             {
                 typename GridwiseGemm32::Argument gemm_arg{nullptr,
                                                            nullptr,
@@ -2063,6 +2098,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         // clang-format off
         str << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3";
 
+        if(get_warp_size() != 64) {
+            str << "_WmmaPorted";
+        }
+
         if constexpr(DirectLoad) {
             str << "_DirectLoad";
         }
@@ -2102,6 +2141,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                       "instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp "
                       "for the given template parameters.");
         return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::conv::ConvDescription>(
+            ck_tile::reflect::describe<DeviceOp>());
     }
 #endif
 

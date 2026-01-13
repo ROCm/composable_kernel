@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <tuple>
 
@@ -20,17 +20,19 @@ using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 using KernelTypes = ::testing::Types<
     // Has cshuffle epilogue disabled
     //          A0Layout, A1Layout, B0Layout, B1Layout CLayout, D0Layout, D1Layout, A0DataType, A01DataType B0DataType, B0DataType, D0DataType,  D1DataType, AccDataType, EDataType, AElementWiseFn, BElementWiseFn, CDElementWiseFn, UseCshuffleEpilog
+#if !CK_TILE_USE_WMMA || CK_TILE_USE_OCP_FP8
+    std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F8,           F8,         F8,         F8,           BF16,       BF16,       F32,      BF16,        AddScale,       AddScale,    ElementWiseAddAdd,  std::false_type>,
+    std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F8,           F8,         F8,         F8,           BF16,       BF16,       F32,      BF16,        AddScale,       AddScale,    MultiplyMultiply,   std::false_type>,
+#endif
     std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F16,          F16,        F16,        F16,          F16,        F16,        F32,      F16,         AddScale,       AddScale,    ElementWiseAddAdd,  std::false_type>,
     std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F16,          F16,        F16,        F16,          F32,        F32,        F32,      F16,         AddScale,       AddScale,    ElementWiseAddAdd,  std::false_type>,
     std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F16,          F16,        F16,        F16,          F32,        F32,        F32,      F32,         AddScale,       AddScale,    ElementWiseAddAdd,  std::false_type>,
     std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F16,          F16,        F16,        F16,          BF16,       BF16,       F32,      BF16,        AddScale,       AddScale,    ElementWiseAddAdd,  std::false_type>,
-    std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F8,           F8,         F8,         F8,           BF16,       BF16,       F32,      BF16,        AddScale,       AddScale,    ElementWiseAddAdd,  std::false_type>,
 
     std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F16,          F16,        F16,        F16,          F16,        F16,        F32,      F16,         AddScale,       AddScale,    MultiplyMultiply,  std::false_type>,
     std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F16,          F16,        F16,        F16,          F32,        F32,        F32,      F16,         AddScale,       AddScale,    MultiplyMultiply,  std::false_type>,
     std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F16,          F16,        F16,        F16,          F32,        F32,        F32,      F32,         AddScale,       AddScale,    MultiplyMultiply,  std::false_type>,
-    std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F16,          F16,        F16,        F16,          BF16,       BF16,       F32,      BF16,        AddScale,       AddScale,    MultiplyMultiply,  std::false_type>,
-    std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F8,           F8,         F8,         F8,           BF16,       BF16,       F32,      BF16,        AddScale,       AddScale,    MultiplyMultiply,  std::false_type>
+    std::tuple<    Row,     Row,     Col,     Col,      Row,     Row,      Row,      F16,          F16,        F16,        F16,          BF16,       BF16,       F32,      BF16,        AddScale,       AddScale,    MultiplyMultiply,  std::false_type>
     >;
 // clang-format on
 

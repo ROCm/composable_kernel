@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -29,7 +29,8 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC = false>
+          bool TransposeC = false,
+          bool BSkipLDS   = false>
 constexpr auto BlockGemmPipeline_Selector()
 {
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
@@ -54,7 +55,8 @@ constexpr auto BlockGemmPipeline_Selector()
                                                 NRepeat,
                                                 KPack,
                                                 KInner,
-                                                TransposeC>{};
+                                                TransposeC,
+                                                BSkipLDS>{};
     }
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
     {
@@ -78,7 +80,8 @@ constexpr auto BlockGemmPipeline_Selector()
                                                 NRepeat,
                                                 KPack,
                                                 KInner,
-                                                TransposeC>{};
+                                                TransposeC,
+                                                BSkipLDS>{};
     }
     else
     {

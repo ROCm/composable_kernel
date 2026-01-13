@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -18,6 +18,10 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_sparse_embedding3_forward_layernorm.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 // clang-format off
 using EmbType       = ck::half_t;
@@ -52,7 +56,7 @@ template<> struct emb_kernel<ck::half_t, 8192> { using kernel_type = DeviceInsta
 
 int main(int argc, char* argv[])
 {
-    bool time_kernel = true;
+    bool time_kernel = false;
 
     ck::index_t num_rows          = 65536;
     constexpr auto dims           = ck::Sequence<256, 512, 768, 1024, 1536, 2048, 4096, 8192>{};

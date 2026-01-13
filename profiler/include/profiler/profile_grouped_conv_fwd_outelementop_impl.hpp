@@ -1,11 +1,27 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convinvscale.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_scale.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "profiler/common.hpp"
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
+
+#include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
+#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
 namespace ck {
 namespace profiler {
@@ -107,8 +123,27 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
     auto scale_out = type_convert<float>(
         type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
 
-    // initialize out_element_op for each iteration
-    const auto out_element_op = OutElementOp{scale_in, scale_wei, scale_out};
+    OutElementOp out_element_op;
+    if constexpr(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::ScaleScalePass>)
+    {
+        using Scale    = ck::tensor_operation::element_wise::Scale;
+        out_element_op = OutElementOp{Scale{scale_in}, Scale{scale_wei}, PassThrough{}};
+    }
+    else if constexpr(std::is_same_v<OutElementOp,
+                                     ck::tensor_operation::element_wise::ScaleScaleRelu>)
+    {
+        using Scale    = ck::tensor_operation::element_wise::Scale;
+        using Relu     = ck::tensor_operation::element_wise::Relu;
+        out_element_op = OutElementOp{Scale{scale_in}, Scale{scale_wei}, Relu{}};
+    }
+    else if constexpr(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::Scale>)
+    {
+        out_element_op = OutElementOp{scale_out};
+    }
+    else
+    {
+        out_element_op = OutElementOp{scale_in, scale_wei, scale_out};
+    }
 
     std::cout << "scale_in: " << scale_in << std::endl;
     std::cout << "scale_wei: " << scale_wei << std::endl;
@@ -145,13 +180,32 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
         c.SetZero();
         ref_invoker.Run(ref_argument);
 
-        host_output.ForEach([&](auto&, auto idx) { out_element_op(host_output(idx), c(idx)); });
+        host_output.ForEach([&](auto&, auto idx) {
+            if constexpr(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::Scale>)
+            {
+                const auto conv_shuffle = ck::type_convert<CShuffleDataType>(c(idx));
+                if constexpr(std::is_same_v<OutDataType, int8_t>)
+                {
+                    const auto conv_val = ck::type_convert<OutDataType>(conv_shuffle);
+                    out_element_op(host_output(idx), conv_val);
+                }
+                else
+                {
+                    out_element_op(host_output(idx), conv_shuffle);
+                }
+            }
+            else
+            {
+                out_element_op(host_output(idx), c(idx));
+            }
+        });
     }
 
     std::string best_op_name;
     float best_avg_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    int valids            = 0;
 
     auto run_impl = [&](auto& op_ptr, auto& argument_ptr) {
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
@@ -160,6 +214,7 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
             out_device_buf.SetZero();
 
             std::string op_name = op_ptr->GetTypeString();
+            valids++;
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -196,15 +251,11 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
 
                 if(do_log)
                 {
-                    LogRangeAsType<InDataType>(std::cout << "input : ", input.mData, ",")
+                    LogRangeAsType<float>(std::cout << "input : ", input.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "host_output  : ", host_output.mData, ",")
                         << std::endl;
-                    LogRangeAsType<WeiDataType>(std::cout << "weight: ", weight.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<OutDataType>(
-                        std::cout << "host_output  : ", host_output.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<OutDataType>(
-                        std::cout << "device_output: ", device_output.mData, ",")
+                    LogRangeAsType<float>(std::cout << "device_output: ", device_output.mData, ",")
                         << std::endl;
                 }
             }
@@ -261,9 +312,12 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
         run_impl(op_ptr, argument_ptr);
     }
 
+    printf("\033[36mvalids: %d\033[0m\n", valids);
+
     std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
               << "\nGB/s: " << best_gb_per_sec << std::endl;
+
     return pass;
 }
 

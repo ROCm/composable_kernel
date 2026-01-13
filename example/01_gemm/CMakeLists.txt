@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_custom_target(example_gemm_dl)
 
 add_example_executable(example_gemm_dl_fp32 gemm_dl_fp32.cpp)
@@ -105,7 +108,7 @@ foreach(gpu IN LISTS GPU_TARGETS)
     endif()
 endforeach()
 
-list(APPEND gpu_list_tf32 gfx942)
+list(APPEND gpu_list_tf32 gfx942 gfx950)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
     if(gpu IN_LIST gpu_list_tf32 AND target EQUAL 0)

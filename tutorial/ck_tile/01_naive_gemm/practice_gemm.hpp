@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -24,6 +24,10 @@ struct PracticeGemmShape
     static constexpr index_t WaveTile_N = WaveTile::at(number<1>{});
     static constexpr index_t WaveTile_K = WaveTile::at(number<2>{});
 
+    // Thread block configuration
+    static constexpr index_t kWarpSize  = 64;  // AMD GPU warp size (also called wavefront)
+    static constexpr index_t kBlockSize = 256; // Total threads per block (4 warps × 64 threads)
+
     CK_TILE_HOST static std::string GetName()
     {
         // clang-format off
@@ -40,7 +44,8 @@ struct PracticeGemmKernel
     using Problem = remove_cvref_t<Problem_>;
     using Policy  = remove_cvref_t<Policy_>;
 
-    static constexpr index_t kBlockSize = 256;
+    // Derive block size from the shape configuration
+    static constexpr index_t kBlockSize = Problem::Shape::kBlockSize;
 
     CK_TILE_DEVICE void operator()(const typename Problem::ADataType* p_a,
                                    const typename Problem::BDataType* p_b,

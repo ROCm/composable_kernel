@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -21,16 +21,86 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_offset_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
 #ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
 #include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
 #endif
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
+
+// Dispatch helper function for split-K hack - handles 2-way dispatch based on runtime flag
+template <typename GridwiseGemm,
+          typename FloatA,
+          typename FloatB,
+          typename FloatC,
+          typename AGridDesc_B_K0_M_K1,
+          typename BGridDesc_B_K0_N_K1,
+          typename CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          typename Block2CTileMap,
+          bool HasMainKBlockLoop>
+__device__ void DispatchBatchedGemmSplitKHack(const FloatA* p_a_grid,
+                                              const FloatB* p_b_grid,
+                                              FloatC* p_c_grid,
+                                              void* p_shared,
+                                              const AGridDesc_B_K0_M_K1& a_b_k0_m_k1_grid_desc,
+                                              const BGridDesc_B_K0_N_K1& b_b_k0_n_k1_grid_desc,
+                                              const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
+                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              const AElementwiseOperation& a_element_op,
+                                              const BElementwiseOperation& b_element_op,
+                                              const CElementwiseOperation& c_element_op,
+                                              const Block2CTileMap& block_2_ctile_map,
+                                              const long_index_t split_k_stride_a,
+                                              const long_index_t split_k_stride_b,
+                                              bool split_k_offset_hack,
+                                              index_t k_batch)
+{
+    if(split_k_offset_hack)
+    {
+        GridwiseGemm::template Run<HasMainKBlockLoop, true>(
+            p_a_grid,
+            p_b_grid,
+            p_c_grid,
+            p_shared,
+            a_b_k0_m_k1_grid_desc,
+            b_b_k0_n_k1_grid_desc,
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+            a_element_op,
+            b_element_op,
+            c_element_op,
+            block_2_ctile_map,
+            split_k_stride_a,
+            split_k_stride_b,
+            k_batch);
+    }
+    else
+    {
+        GridwiseGemm::template Run<HasMainKBlockLoop, false>(
+            p_a_grid,
+            p_b_grid,
+            p_c_grid,
+            p_shared,
+            a_b_k0_m_k1_grid_desc,
+            b_b_k0_n_k1_grid_desc,
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+            a_element_op,
+            b_element_op,
+            c_element_op,
+            block_2_ctile_map,
+            split_k_stride_a,
+            split_k_stride_b,
+            k_batch);
+    }
+}
 
 template <typename GridwiseGemm,
           typename FloatA,
@@ -61,7 +131,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                           const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
                                           const Block2CTileMap block_2_ctile_map,
-                                          const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+                                          const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+                                          const long_index_t split_k_stride_a,
+                                          const long_index_t split_k_stride_b,
+                                          bool split_k_offset_hack,
+                                          index_t k_batch)
 {
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
     defined(__gfx12__)
@@ -78,17 +152,33 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 
         __shared__ FloatA p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatA)];
 
-        GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                      p_b_grid + b_batch_offset,
-                                                      p_c_grid + c_batch_offset,
-                                                      p_shared,
-                                                      a_b_k0_m_k1_grid_desc,
-                                                      b_b_k0_n_k1_grid_desc,
-                                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                      a_element_op,
-                                                      b_element_op,
-                                                      c_element_op,
-                                                      block_2_ctile_map);
+        DispatchBatchedGemmSplitKHack<GridwiseGemm,
+                                      FloatA,
+                                      FloatB,
+                                      FloatC,
+                                      AGridDesc_B_K0_M_K1,
+                                      BGridDesc_B_K0_N_K1,
+                                      CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                      AElementwiseOperation,
+                                      BElementwiseOperation,
+                                      CElementwiseOperation,
+                                      Block2CTileMap,
+                                      HasMainKBlockLoop>(
+            p_a_grid + a_batch_offset,
+            p_b_grid + b_batch_offset,
+            p_c_grid + c_batch_offset,
+            p_shared,
+            a_b_k0_m_k1_grid_desc,
+            b_b_k0_n_k1_grid_desc,
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+            a_element_op,
+            b_element_op,
+            c_element_op,
+            block_2_ctile_map,
+            split_k_stride_a,
+            split_k_stride_b,
+            split_k_offset_hack,
+            k_batch);
     }
 #else
     ignore = p_a_grid;
@@ -103,6 +193,10 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     ignore = batch_count;
     ignore = block_2_ctile_map;
     ignore = compute_ptr_offset_of_batch;
+    ignore = split_k_stride_a;
+    ignore = split_k_stride_b;
+    ignore = split_k_offset_hack;
+    ignore = k_batch;
 
     compute_ptr_offset_of_batch.GetAPtrOffset(0);
     compute_ptr_offset_of_batch.GetBPtrOffset(0);
@@ -458,7 +552,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                     remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                     remove_reference_t<DeviceOp::Block2CTileMap>,
                     ComputePtrOffsetOfStridedBatch<>,
-                    false>, // Both true/false give the same occupancy.
+                    false>, // HasMainKBlockLoop - both true/false give the same occupancy
                 BlockSize,
                 dynamic_smem_size));
             return std::max(1, max_occupancy);
@@ -575,6 +669,37 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 k_batch_ = split_k;
             }
 
+            // Create descriptors first (with hack flags temporarily set to false)
+            // so we can check if element space sizes are divisible by k_batch
+            const auto descs_initial =
+                conv_to_gemm_transformer
+                    .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
+                        Conv_N_,
+                        Conv_K_,
+                        Conv_C_,
+                        input_spatial_lengths_,
+                        filter_spatial_lengths_,
+                        output_spatial_lengths_,
+                        b_g_n_c_wis_strides_transposed,
+                        e_g_k_c_xs_strides_transposed,
+                        a_g_n_k_wos_strides_transposed,
+                        conv_filter_strides,
+                        conv_filter_dilations,
+                        input_left_pads,
+                        input_right_pads,
+                        k_batch_,
+                        false); // split_k_offset_b_hack (temporary)
+
+            split_k_offset_hack_ =
+                SplitKHackEligibility<NDimSpatial, InLayout, WeiLayout, OutLayout>::Check(
+                    descs_initial[I0],
+                    descs_initial[I1],
+                    k_batch_,
+                    Conv_N_,
+                    output_spatial_lengths_,
+                    K0PerBlock * K1);
+
+            // Now create descriptors with the correct hack flag
             const auto descs =
                 conv_to_gemm_transformer
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -591,11 +716,22 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                         conv_filter_dilations,
                         input_left_pads,
                         input_right_pads,
-                        k_batch_);
+                        k_batch_,
+                        split_k_offset_hack_);
 
             a_grid_desc_kbatch_k0_m_k1_ = descs[I0];
             b_grid_desc_kbatch_k0_n_k1_ = descs[I1];
             c_grid_desc_m_n_            = descs[I2];
+
+            // Calculate stride using CalculateOffset method for accurate stride
+            // This works correctly for any descriptor transform pipeline
+            split_k_stride_a_ = a_grid_desc_kbatch_k0_m_k1_.GetElementSpaceSize();
+            if(split_k_offset_hack_)
+                split_k_stride_a_ /= k_batch_;
+
+            split_k_stride_b_ = b_grid_desc_kbatch_k0_n_k1_.GetElementSpaceSize();
+            if(split_k_offset_hack_)
+                split_k_stride_b_ /= k_batch_;
 
             block_2_ctile_map_ =
                 GridwiseGemm64::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, k_batch_);
@@ -731,6 +867,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         long_index_t c_space_size_bytes;
+
+        bool split_k_offset_hack_;
+        long_index_t split_k_stride_a_, split_k_stride_b_;
     };
 
     // Invoker
@@ -877,7 +1016,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                     arg.b_grid_desc_kbatch_k0_n_k1_,
                     c_grid_desc_mblock_mperblock_nblock_nperblock,
                     arg.block_2_ctile_map_,
-                    arg.compute_ptr_offset_of_batch_);
+                    arg.compute_ptr_offset_of_batch_,
+                    arg.split_k_stride_a_,
+                    arg.split_k_stride_b_,
+                    arg.split_k_offset_hack_,
+                    arg.k_batch_);
             };
 
             if(has_main_k0_block_loop)
@@ -1239,6 +1382,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                       "instance_traits_device_grouped_conv_bwd_weight_xdl_cshuffle.hpp "
                       "for the given template parameters.");
         return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
     }
 #endif
 

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,11 +9,35 @@
 
 namespace ck_tile {
 
+template <typename Problem>
+struct BaseGemmPipelineAGmemBGmemCRegV1
+{
+    static constexpr index_t PrefetchStages   = 1;
+    static constexpr index_t PrefillStages    = 1;
+    static constexpr index_t GlobalBufferNum  = 1;
+    static constexpr bool UsePersistentKernel = false;
+
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
+
+    CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t) { return true; }
+
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t)
+    {
+        return TailNumber::Empty;
+    }
+
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func, bool, TailNumber)
+    {
+        return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Empty>{});
+    }
+};
+
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
 template <typename Problem, typename Policy = UniversalGemmPipelineAgBgCrPolicy>
-struct GemmPipelineAGmemBGmemCRegV1
+struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Problem>
 {
     using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
     using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
@@ -48,14 +72,14 @@ struct GemmPipelineAGmemBGmemCRegV1
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()
     {
-        return Problem::VectorSizeA;
+        return Policy::template GetVectorSizeA<Problem, IsWave32Host>();
     }
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeB()
     {
-        return Problem::VectorSizeB;
+        return Policy::template GetVectorSizeB<Problem, IsWave32Host>();
     }
-    static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
+    static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
 
     static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
     static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }

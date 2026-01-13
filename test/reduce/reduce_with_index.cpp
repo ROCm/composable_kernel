@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <getopt.h>
 
@@ -193,7 +193,7 @@ TYPED_TEST(ReduceWithIndexHalf, ReduceWithIndexTestHalf_MAX)
     this->template Run<ReduceTensorOp::MAX>();
 }
 
-TYPED_TEST(ReduceWithIndexBHalfFloat, ReduceWithIndexTesBtHalfFloat_AMAX)
+TYPED_TEST(ReduceWithIndexBHalfFloat, ReduceWithIndexTesBHalfFloat_AMAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::AMAX>();

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,6 +9,8 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_reduce.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/tensor_operation_instance/gpu/device_gemm_mean_squaremean_instance.hpp"
+
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -16,40 +18,6 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
-
-namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace instance {
-
-using F32                 = float;
-using F16                 = ck::half_t;
-using ReducePtrsGlobal    = ck::Tuple<F32*, F32*>;
-using Div                 = ck::tensor_operation::element_wise::UnaryDivide;
-using Identity            = ck::tensor_operation::element_wise::PassThrough;
-using Square              = ck::tensor_operation::element_wise::UnarySquare;
-using ReduceInElementOps  = ck::Tuple<Identity, Square>;
-using ReduceOutElementOps = ck::Tuple<Div, Div>;
-
-using DeviceGemmBiasAddReduceNoOpPtr =
-    ck::tensor_operation::device::DeviceGemmReducePtr<1, ReducePtrsGlobal::Size()>;
-
-void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
-    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
-
-void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
-    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
-
-void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
-    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
-
-void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
-    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
-
-} // namespace instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
 
 namespace ck {
 namespace profiler {
@@ -63,7 +31,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_gemm_bias_add_reduce_impl(int do_verification,
+bool profile_gemm_bias_add_reduce_impl(int do_verification,
                                        int init_method,
                                        bool do_log,
                                        bool time_kernel,
@@ -75,6 +43,8 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                                        int StrideC,
                                        int StrideD0)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
         return HostTensorDescriptor({len}, {stride});
     };
@@ -231,47 +201,19 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
     bias_device_buf.ToDevice(bias_n.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
 
-    // add device GEMM instances
-    std::vector<ck::tensor_operation::device::instance::DeviceGemmBiasAddReduceNoOpPtr> gemm_ptrs;
+    // get device op instances
+    const auto op_ptrs =
+        ck::tensor_operation::device::instance::get_device_gemm_add_add_mean_squaremean_instances<
+            ADataType,
+            BDataType,
+            CDataType,
+            ALayout,
+            BLayout,
+            CLayout>();
 
-    if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
-                 is_same<CDataType, half_t>::value)
-    {
-        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
-                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
-                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::instance::
-                add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
-                    gemm_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::instance::
-                add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
-                    gemm_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::instance::
-                add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
-                    gemm_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::instance::
-                add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
-                    gemm_ptrs);
-        }
-    }
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
-    if(gemm_ptrs.size() <= 0)
+    if(op_ptrs.size() <= 0)
     {
         throw std::runtime_error("wrong! no device GEMM instance found");
     }
@@ -282,29 +224,29 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device GEMM instances
-    for(auto& gemm_ptr : gemm_ptrs)
+    for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr = gemm_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
-                                                          b_device_buf.GetDeviceBuffer(),
-                                                          bias_device_buf.GetDeviceBuffer(),
-                                                          {d0_device_buf.GetDeviceBuffer()},
-                                                          c_device_buf.GetDeviceBuffer(),
-                                                          p_reduces,
-                                                          M,
-                                                          N,
-                                                          K,
-                                                          StrideA,
-                                                          StrideB,
-                                                          StrideC,
-                                                          {StrideD0},
-                                                          gemm_element_ops,
-                                                          {&d0_element_op},
-                                                          reduce_in_element_ops,
-                                                          reduce_out_element_ops);
+        auto argument_ptr = op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
+                                                        b_device_buf.GetDeviceBuffer(),
+                                                        bias_device_buf.GetDeviceBuffer(),
+                                                        {d0_device_buf.GetDeviceBuffer()},
+                                                        c_device_buf.GetDeviceBuffer(),
+                                                        p_reduces,
+                                                        M,
+                                                        N,
+                                                        K,
+                                                        StrideA,
+                                                        StrideB,
+                                                        StrideC,
+                                                        {StrideD0},
+                                                        gemm_element_ops,
+                                                        {&d0_element_op},
+                                                        reduce_in_element_ops,
+                                                        reduce_out_element_ops);
 
-        auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
+        auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // init DO, D1 to 0
             reduce0_device_buf.SetZero();
@@ -313,12 +255,12 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-            std::string gemm_name = gemm_ptr->GetTypeString();
+            std::string gemm_name = op_ptr->GetTypeString();
 
             std::size_t flop = std::size_t(2) * M * N * K + std::size_t(2) * M * N;
 
             std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
-                                   sizeof(CDataType) * M * N + sizeof(BiasDataType) * M * N +
+                                   sizeof(CDataType) * M * N + sizeof(BiasDataType) * N +
                                    sizeof(D0DataType) * M * N + sizeof(ReduceDataType) * M +
                                    sizeof(ReduceDataType) * M;
 
@@ -343,9 +285,13 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                 reduce0_device_buf.FromDevice(reduce0_m_device_result.mData.data());
                 reduce1_device_buf.FromDevice(reduce1_m_device_result.mData.data());
 
-                ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
-                ck::utils::check_err(reduce0_m_device_result, reduce0_m_host_result);
-                ck::utils::check_err(reduce1_m_device_result, reduce1_m_host_result);
+                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                pass = pass & ck::utils::check_err(reduce0_m_device_result, reduce0_m_host_result);
+                pass = pass & ck::utils::check_err(reduce1_m_device_result, reduce1_m_host_result);
+                if(!pass)
+                {
+                    std::cout << op_ptr->GetTypeString() << " failed" << std::endl;
+                }
 
                 if(do_log)
                 {
@@ -372,12 +318,14 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
         }
         else
         {
-            std::cout << "does not support this GEMM problem" << std::endl;
+            std::cout << op_ptr->GetTypeString() << " does not support this GEMM problem"
+                      << std::endl;
         }
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+    return pass;
 }
 
 } // namespace profiler

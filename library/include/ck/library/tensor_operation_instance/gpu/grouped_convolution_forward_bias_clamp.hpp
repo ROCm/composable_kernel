@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,6 +14,10 @@
 
 #ifdef CK_USE_XDL
 #include "grouped_convolution_forward_bias_clamp_xdl.inc"
+#endif
+
+#ifdef CK_USE_WMMA
+#include "grouped_convolution_forward_bias_clamp_wmma_cshufflev3.inc"
 #endif
 
 namespace ck {
@@ -129,12 +133,12 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
             }
 #endif
-#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
                 static_assert(is_same_v<AComputeType, BComputeType>,
                               "Error: AComputeType and BComputeType should be the same");
+#ifdef CK_ENABLE_TF32
                 if constexpr(is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_instances(
@@ -152,7 +156,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv2d_fwd_bias_clamp_xdl_large_tensor_nhwgc_gkyxc_nhwgk_f32_tf32_instances(
                         op_ptrs);
                 }
-                else
+#endif
+#ifdef CK_ENABLE_FP32
+                if constexpr(is_same_v<AComputeType, float>)
                 {
                     add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
                         op_ptrs);
@@ -169,9 +175,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_mem_inter_instances(
                         op_ptrs);
                 }
-            }
-
 #endif
+            }
         }
         // layout NDHWGC/GKZYXC/NDHWGK
         if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
@@ -221,12 +226,12 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
             }
 #endif
-#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
                 static_assert(is_same_v<AComputeType, BComputeType>,
                               "Error: AComputeType and BComputeType should be the same");
+#ifdef CK_ENABLE_TF32
                 if constexpr(is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv3d_fwd_bias_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
@@ -244,7 +249,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv3d_fwd_bias_clamp_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
                         op_ptrs);
                 }
-                else
+#endif
+#ifdef CK_ENABLE_FP32
+                if constexpr(is_same_v<AComputeType, float>)
                 {
                     add_device_grouped_conv3d_fwd_bias_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                         op_ptrs);
@@ -261,11 +268,95 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv3d_fwd_bias_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_inter_instances(
                         op_ptrs);
                 }
-            }
-
 #endif
+            }
         }
 #endif // CK_USE_XDL
+
+#ifdef CK_USE_WMMA
+        // layout NHWGC/GKYXC/NHWGK
+        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
+                     is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NHWGK>)
+        {
+#ifdef CK_ENABLE_BF16
+            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                         is_same_v<WeiDataType, ck::bhalf_t> &&
+                         is_same_v<OutDataType, ck::bhalf_t> &&
+                         is_same_v<AComputeType, ck::bhalf_t> &&
+                         is_same_v<BComputeType, ck::bhalf_t>)
+            {
+                add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances_part1(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances_part2(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances_part3(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances_part4(
+                    op_ptrs);
+                // add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
+                //     op_ptrs);
+            }
+#endif
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+                         is_same_v<BComputeType, half_t>)
+            {
+                add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances_part1(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances_part2(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances_part3(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances_part4(
+                    op_ptrs);
+                // add_device_grouped_conv2d_fwd_bias_clamp_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_f16_instances(
+                //     op_ptrs);
+            }
+#endif
+        }
+        // layout NDHWGC/GKZYXC/NDHWGK
+        if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
+                     is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK>)
+        {
+#ifdef CK_ENABLE_BF16
+            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                         is_same_v<WeiDataType, ck::bhalf_t> &&
+                         is_same_v<OutDataType, ck::bhalf_t> &&
+                         is_same_v<AComputeType, ck::bhalf_t> &&
+                         is_same_v<BComputeType, ck::bhalf_t>)
+            {
+                add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part1(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part2(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part3(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part4(
+                    op_ptrs);
+                // add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_large_tensor_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+                //     op_ptrs);
+            }
+#endif
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+                         is_same_v<BComputeType, half_t>)
+            {
+                add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances_part1(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances_part2(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances_part3(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances_part4(
+                    op_ptrs);
+                // add_device_grouped_conv3d_fwd_bias_clamp_wmma_cshufflev3_large_tensor_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+                //     op_ptrs);
+            }
+#endif
+        }
+#endif // CK_USE_WMMA
 
         return op_ptrs;
     }

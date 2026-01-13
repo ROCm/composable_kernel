@@ -1,37 +1,22 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/reduce.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 #include <cstring>
 
-template <typename T>
-struct DataTypeTraits;
-
-template <>
-struct DataTypeTraits<ck_tile::half_t>
-{
-    static constexpr const char* name = "fp16";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::bf16_t>
-{
-    static constexpr const char* name = "bf16";
-};
-
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("n", "32", "n dimension")
-        .insert("h", "7", "h dimension")
-        .insert("w", "7", "w dimension")
-        .insert("c", "512", "c dimension")
+    arg_parser.insert("n", "16", "n dimension")
+        .insert("h", "64", "h dimension")
+        .insert("w", "32", "w dimension")
+        .insert("c", "960", "c dimension")
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
-        .insert("warmup", "5", "cold iter")
-        .insert("repeat", "20", "hot iter")
+        .insert("warmup", "20", "cold iter")
+        .insert("repeat", "100", "hot iter")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
         .insert("jsonfile", "reduce.json", "json file name to dump results");
 
@@ -62,12 +47,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     strides[3] = 1;
 
     // Define reduction specification:
-    constexpr auto kept_dim    = ck_tile::sequence<0, 3>{}; // Which dimension to keep
-    constexpr auto reduce_dims = ck_tile::sequence<1, 2>{}; // Which dimensions to reduce
+    constexpr auto kept_dim    = ck_tile::sequence<1, 2, 3>{}; // Which dimension to keep
+    constexpr auto reduce_dims = ck_tile::sequence<0>{};       // Which dimensions to reduce
 
     ck_tile::HostTensor<XDataType> x_host(problem_shape, strides);
-    ck_tile::HostTensor<YDataType> y_host_ref({N, C}, {C, 1});
-    ck_tile::HostTensor<YDataType> y_host_dev({N, C}, {C, 1});
+    ck_tile::HostTensor<YDataType> y_host_ref({H, W, C}, {W * C, C, 1});
+    ck_tile::HostTensor<YDataType> y_host_dev({H, W, C}, {W * C, C, 1});
 
     ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
 
@@ -77,39 +62,39 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf.ToDevice(x_host.data());
 
     using ReduceOp   = ck_tile::ReduceOp::Add;
-    using BlockWarps = ck_tile::sequence<4, 1>;
-    using BlockTile  = ck_tile::sequence<128, 128>;
-    using WarpTile   = ck_tile::sequence<32, 128>;
-    using Vector     = ck_tile::sequence<8, 8>;
+    using BlockWarps = ck_tile::sequence<1, 1>;
+    using BlockTile  = ck_tile::sequence<256, 1>;
+    using WarpTile   = ck_tile::sequence<256, 1>;
+    using ThreadTile = ck_tile::sequence<1, 1>;
 
     // cross warp-reduce
     // using BlockWarps = ck_tile::sequence<2, 2>;
     // using BlockTile  = ck_tile::sequence<2, 1024>;
     // using WarpTile   = ck_tile::sequence<1, 512>;
-    // using Vector = ck_tile::sequence<1, 8>;
+    // using ThreadTile = ck_tile::sequence<1, 8>;
 
     constexpr ck_tile::index_t kBlockPerCu = 1;
-    ck_tile::index_t kept_dim_len_prod     = N * C;
+    ck_tile::index_t kept_dim_len_prod     = H * W * C;
     ck_tile::index_t kGridSize = (kept_dim_len_prod + BlockTile::at(ck_tile::number<0>{}) - 1) /
                                  BlockTile::at(ck_tile::number<0>{});
     std::cout << "grid size " << kGridSize << std::endl;
 
-    using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, Vector>;
-    using Porblem =
-        ck_tile::Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, ReduceOp>;
+    using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
+    using Porblem = ck_tile::Reduce2dProblem<XDataType,
+                                             ComputeDataType,
+                                             YDataType,
+                                             Shape,
+                                             ReduceOp,
+                                             decltype(kept_dim),
+                                             decltype(reduce_dims),
+                                             4>;
 
-    using Kernel                      = ck_tile::Reduce<Porblem>;
+    using Kernel                      = ck_tile::ReduceKernel<Porblem>;
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
     // Create input tensor shape and strides
     auto input_shape =
         ck_tile::make_tuple(problem_shape[0], problem_shape[1], problem_shape[2], problem_shape[3]);
     auto input_strides = ck_tile::make_tuple(strides[0], strides[1], strides[2], strides[3]);
-
-    if(!Kernel::IsSupportedArgument(
-           C, input_strides)) // output tensor's continuous dimension and input strides
-    {
-        throw std::runtime_error("Wrong! Arguments not supported!\n");
-    }
 
     float ave_time = launch_kernel(
         ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
@@ -120,11 +105,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                           static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
                                           static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
                                           input_shape,
-                                          input_strides,
-                                          kept_dim,
-                                          reduce_dims));
+                                          input_strides));
 
-    std::size_t num_btype = sizeof(XDataType) * N * C * H * W + sizeof(YDataType) * N * C;
+    std::size_t num_btype = sizeof(XDataType) * N * H * W * C + sizeof(YDataType) * H * W * C;
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
@@ -145,7 +128,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(arg_parser.get_int("json") == 1)
     {
-        dump_reduce_json_results<DataType, DataTypeTraits>(
+        dump_reduce_json_results<DataType, ck_tile::DataTypeTraits>(
             arg_parser.get_str("jsonfile"), N, C, H, W, pass, ave_time, 0, gb_per_sec);
     }
 
@@ -164,8 +147,8 @@ int main(int argc, char* argv[])
     {
         return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
     }
-    // else if(data_type == "bf16")
-    // {
-    //     return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
-    // }
+    else if(data_type == "bf16")
+    {
+        return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
+    }
 }
