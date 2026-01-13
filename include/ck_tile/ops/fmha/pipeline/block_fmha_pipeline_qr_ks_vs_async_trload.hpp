@@ -231,7 +231,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
                     if(__builtin_isinf_sign(sink_v) >= 0)
                     {
-                        set_tile(lse_acc, SMPLComputeDataType{sink_v});
+                        set_tile(lse_acc, SMPLComputeDataType{sink_v * scale_s});
                     }
                     else
                     {
