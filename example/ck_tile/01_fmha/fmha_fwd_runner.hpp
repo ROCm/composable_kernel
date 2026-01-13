@@ -700,6 +700,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0, random_engine);
     if(init_sink_value != 0)
     {
+        // sink is initialized to a fixed integer value for easy debugging and use 30 to 60 range for close to rowmax values.
         ck_tile::FillUniformDistributionIntegerValue<SMPLComputeDataType>{30.f, 60.f, next_seed()}(
             sink_host);
     }

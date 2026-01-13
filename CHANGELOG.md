@@ -14,7 +14,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added FP8 KV cache support for FMHA batch prefill.
 * Added support for gfx1153 target.
 * Added FMHA batch prefill kernel support for several KV cache layouts, flexible page sizes, and different lookup table configurations.
-* Added gptoss sink support for FMHA FWD, include qr_ks_vs, qr_async, qr_async_trload and splitkv pipelines.
+* Added gpt-oss sink support for FMHA FWD, include qr_ks_vs, qr_async, qr_async_trload and splitkv pipelines.
 
 ### Changed
 

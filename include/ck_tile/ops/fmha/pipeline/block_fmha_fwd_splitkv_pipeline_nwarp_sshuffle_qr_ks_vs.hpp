@@ -257,7 +257,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         clear_tile(o_acc);
         if((__builtin_isinf_sign(sink_v) >= 0) && i_split == 0)
         {
-            set_tile(m, SMPLComputeDataType{sink_v});
+            set_tile(m, SMPLComputeDataType{sink_v * C_LOG2E});
             set_tile(l, SMPLComputeDataType{1.0f});
         }
         else

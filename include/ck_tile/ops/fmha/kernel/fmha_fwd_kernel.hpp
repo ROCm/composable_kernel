@@ -1121,7 +1121,7 @@ struct FmhaFwdKernel
             const float sink_value =
                 kargs.sink_ptr != nullptr
                     ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
-                    : static_cast<float>(-numeric<half_t>::infinity());
+                    : -numeric<float>::infinity();
 
             if constexpr(kIsGroupMode)
             {
@@ -1640,7 +1640,7 @@ struct FmhaFwdKernel
             const float sink_value =
                 kargs.sink_ptr != nullptr
                     ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
-                    : static_cast<float>(-numeric<half_t>::infinity());
+                    : -numeric<float>::infinity();
 
             const index_t i_m0 = i_tile_m * FmhaPipeline::kM0;
             const index_t i_n1 = i_tile_n * FmhaPipeline::kN1;

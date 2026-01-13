@@ -920,7 +920,7 @@ struct FmhaFwdPagedKVKernel
         const float sink_value =
             kargs.sink_ptr != nullptr
                 ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
-                : static_cast<float>(-numeric<half_t>::infinity());
+                : -numeric<float>::infinity();
 
         if constexpr(kIsGroupMode)
         {
