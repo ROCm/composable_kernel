@@ -71,6 +71,10 @@ concept InputTileThreadDistributionDescriptor4D = requires(T t) {
     { t.k_batch_size } -> SizeType;
 };
 
+template <typename T, size_t ThreadClusterRank>
+concept InputTileThreadDistributionDescriptor = (ThreadClusterRank == 3 && InputTileThreadDistributionDescriptor3D<T>) ||
+                                  (ThreadClusterRank == 4 && InputTileThreadDistributionDescriptor4D<T>);
+
 // Concept for thread cluster dimensions for GEMM output tensor.
 template <typename T>
 concept OutputTileThreadDistributionDescriptor = requires(T t) {
@@ -177,19 +181,10 @@ concept SpecifiesWarpGemm = requires {
 };
 
 // Concept to check if a struct specifies convolution input and output block transfer info.
-template <typename T>
-concept SpecifiesThreadDistribution3D = requires(T t) {
-    { T::transfer.a.thread_distribution } -> InputTileThreadDistributionDescriptor3D;
-    { T::transfer.b.thread_distribution } -> InputTileThreadDistributionDescriptor3D;
-    { T::transfer.c.thread_distribution } -> OutputTileThreadDistributionDescriptor;
-};
-
-// Concept to check if a struct specifies convolution input and output block transfer info
-// for 4D thread slices.
-template <typename T>
-concept SpecifiesThreadDistribution4D = requires(T t) {
-    { T::transfer.a.thread_distribution } -> InputTileThreadDistributionDescriptor4D;
-    { T::transfer.b.thread_distribution } -> InputTileThreadDistributionDescriptor4D;
+template <typename T, size_t ThreadClusterRank = 3>
+concept SpecifiesThreadDistribution = requires(T t) {
+    { T::transfer.a.thread_distribution } -> InputTileThreadDistributionDescriptor<ThreadClusterRank>;
+    { T::transfer.b.thread_distribution } -> InputTileThreadDistributionDescriptor<ThreadClusterRank>;
     { T::transfer.c.thread_distribution } -> OutputTileThreadDistributionDescriptor;
 };
 

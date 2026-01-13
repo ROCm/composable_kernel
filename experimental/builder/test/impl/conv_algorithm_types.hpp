@@ -65,8 +65,8 @@ struct InputDataThreadDistribution<3>
     size_t m_n;
     size_t k1;
 };
-static_assert(ckb::InputTileThreadDistributionDescriptor3D<InputDataThreadDistribution<>>);
-static_assert(ckb::InputTileThreadDistributionDescriptor4D<InputDataThreadDistribution<4>>);
+static_assert(ckb::InputTileThreadDistributionDescriptor<InputDataThreadDistribution<3>, 3>);
+static_assert(ckb::InputTileThreadDistributionDescriptor<InputDataThreadDistribution<4>, 4>);
 
 // Describe C block transfer thread cluster lengths.
 struct OutputDataThreadDistribution

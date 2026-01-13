@@ -27,8 +27,8 @@ struct ConvFwdXdlV3Factory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
-    using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using Types                         = internal::ConvTensorDataTypes<SIGNATURE>;
+    using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
     static_assert(ALGORITHM.transfer.a.lds_transfer_params.is_direct_load ==
@@ -63,19 +63,19 @@ struct ConvFwdXdlV3Factory
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
         SPATIAL_DIM,
-        typename Layouts::ALayout,
-        typename Layouts::BLayout,
+        typename Layouts::InLayout,
+        typename Layouts::WeiLayout,
         typename Layouts::DsLayout,
-        typename Layouts::ELayout,
-        typename Types::ADataType,
-        typename Types::BDataType,
+        typename Layouts::OutLayout,
+        typename Types::InDataType,
+        typename Types::WeiDataType,
         typename Types::AccDataType,
-        typename Types::CShuffleDataType,
-        typename Types::DsDataTypes,
-        typename Types::EDataType,
-        typename Ops::AElementwiseOp,
-        typename Ops::BElementwiseOp,
-        typename Ops::CDEElementwiseOp,
+        typename Types::OutComputeType,
+        typename Types::DsDataType,
+        typename Types::OutDataType,
+        typename Ops::InElementwiseOp,
+        typename Ops::WeiElementwiseOp,
+        typename Ops::OutElementwiseOp,
         SPECIALIZATION.conv_spec,
         SPECIALIZATION.gemm_spec,
         BLOCK.block_size,
@@ -108,8 +108,8 @@ struct ConvFwdXdlV3Factory
         C_BLOCK_TRANSFER.scalar_per_vector,
         BLOCK_GEMM.scheduler,
         BLOCK_GEMM.pipeline_version,
-        typename Types::AComputeType,
-        typename Types::BComputeType,
+        typename Types::InComputeType,
+        typename Types::WeiComputeType,
         IS_DIRECT_LOAD>;
 };
 

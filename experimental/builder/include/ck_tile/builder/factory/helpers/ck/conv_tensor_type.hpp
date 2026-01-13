@@ -156,33 +156,7 @@ consteval auto GetAuxiliaryTensorDataTypes()
 }
 
 template <auto Signature>
-struct FwdConvTensorDataTypes
-{
-    static constexpr auto input_types =
-        GetTensorDataAndComputeTypes<Signature.input.config, Signature.data_type>();
-    static constexpr auto weight_types =
-        GetTensorDataAndComputeTypes<Signature.weight.config, Signature.data_type>();
-    static constexpr auto output_types =
-        GetTensorDataAndComputeTypes<Signature.output.config, Signature.data_type>();
-
-    using ADataType    = typename decltype(input_types.first)::type;
-    using AComputeType = typename decltype(input_types.second)::type;
-    using BDataType    = typename decltype(weight_types.first)::type;
-    using BComputeType = typename decltype(weight_types.second)::type;
-    using AccDataType =
-        typename decltype(GetTensorAccumulationType<Signature.accumulation_data_type,
-                                                    Signature.data_type>())::type;
-    using EDataType = typename decltype(output_types.first)::type;
-
-    // This is the "compute" type for output.
-    using CShuffleDataType = typename decltype(output_types.second)::type;
-
-    // Data types for the auxiliary tensors (e.g., bias).
-    using DsDataTypes = typename decltype(GetAuxiliaryTensorDataTypes<Signature>())::type;
-};
-
-template <auto Signature>
-struct BwdWeightConvTensorDataTypes
+struct ConvTensorDataTypes
 {
     static constexpr auto input_types =
         GetTensorDataAndComputeTypes<Signature.input.config, Signature.data_type>();

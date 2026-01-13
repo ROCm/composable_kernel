@@ -331,10 +331,15 @@ struct CShuffleEpilogue
             }
             else
             {
+#if defined(__gfx950__)
+                constexpr auto is_950 = true;
+#else
+                constexpr auto is_950 = false;
+#endif
                 constexpr int RakedXDLN_PerWarp = NumNXdlPerWavePerShuffle / BlockedXDLN_PerWarp;
                 // BlockedLayout
                 // this branch is for original a16w4
-                if constexpr(is_any_of<ADataType, pk_int4_t, pk_fp4_t>::value ||
+                if constexpr(is_950 || is_any_of<ADataType, pk_int4_t, pk_fp4_t>::value ||
                              is_any_of<BDataType, pk_int4_t, pk_fp4_t>::value)
                 {
                     return tile_distribution_encoding<
