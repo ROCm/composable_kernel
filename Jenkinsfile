@@ -1201,8 +1201,8 @@ pipeline {
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_TILE_ENGINE_BASIC_TESTS",
-            defaultValue: false,
-            description: "Run the tile_engine_basic tests (default: OFF)")
+            defaultValue: true,
+            description: "Run the tile_engine_basic tests (default: ON)")
         booleanParam(
             name: "RUN_TILE_ENGINE_GEMM_TESTS",
             defaultValue: false,
