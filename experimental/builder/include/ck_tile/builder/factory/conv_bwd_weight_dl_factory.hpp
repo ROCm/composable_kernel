@@ -3,25 +3,24 @@
 
 #pragma once
 
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_dl.hpp"
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/builder_utils.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
-#include "ck_tile/builder/factory/helpers/ck/conv_tuning_params.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_thread_block.hpp"
 
 namespace ck_tile::builder::factory {
 
-// Factory for DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK instance
-// of a grouped forward convolution kernel.
+// Factory for DeviceGroupedConvBwdWeight_Dl instance
+// of a grouped bwd weight convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE>
-struct ConvFwdDlFactory
+    requires ConvDirectionIsBackwardWeight<SIGNATURE>
+struct ConvBwdWeightDlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
@@ -29,8 +28,8 @@ struct ConvFwdDlFactory
     using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
-    static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();
+    static constexpr auto BWD_CONV_SPECIALIZATION =
+        internal::SetBwdWeightConvSpecialization<ALGORITHM>();
 
     static constexpr auto BLOCK = internal::SetThreadBlockInfo<ALGORITHM>();
 
@@ -87,22 +86,19 @@ struct ConvFwdDlFactory
         DL_C_TRANSFER.dst_scalar_per_vector;
 
     // The DL forward convolution kernel class instance
-    using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<
+    using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Dl<
         SPATIAL_DIM,
-        typename Types::InDataType,
-        typename Types::WeiDataType,
-        typename Types::DsDataType,
-        typename Types::OutDataType,
-        typename Types::AccDataType,
         typename Layouts::InLayout,
         typename Layouts::WeiLayout,
-        typename Layouts::DsLayout,
         typename Layouts::OutLayout,
+        typename Types::InDataType,
+        typename Types::WeiDataType,
+        typename Types::OutDataType,
+        typename Types::AccDataType,
         typename Ops::InElementwiseOp,
         typename Ops::WeiElementwiseOp,
         typename Ops::OutElementwiseOp,
-        FWD_CONV_SPECIALIZATION,
-        GEMM_SPECIALIZATION,
+        BWD_CONV_SPECIALIZATION,
         BLOCK.block_size,
         BLOCK.per_block.m,
         BLOCK.per_block.n,

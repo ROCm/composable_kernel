@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
@@ -37,7 +38,7 @@ struct BlockGemmSpec
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval BlockGemmSpec SetBlockGemm()
 {
-    constexpr auto& BG = ALGORITHM.block_gemm;
+    constexpr auto& BG = ALGORITHM.block_gemm_pipeline;
 
     ck::BlockGemmPipelineScheduler scheduler;
     ck::BlockGemmPipelineVersion version;
@@ -82,7 +83,7 @@ consteval ck::LoopScheduler SetLoopScheduler()
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::PipelineVersion SetGridwiseGemmPipelineVersion()
 {
-    constexpr auto pipeline_version = ALGORITHM.gridwise_gemm.pipeline_version;
+    constexpr auto pipeline_version = ALGORITHM.pipeline_version;
     using ck_pipeline               = ck::PipelineVersion;
     switch(pipeline_version)
     {
@@ -149,12 +150,30 @@ consteval ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdC
     using ck_conv_spec            = ck::tensor_operation::device::ConvolutionForwardSpecialization;
     switch(specialization)
     {
-    case ConvFwdSpecialization::DEFAULT: return ck_conv_spec::Default;
-    case ConvFwdSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
-    case ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
-    case ConvFwdSpecialization::FILTER_3x3: return ck_conv_spec::Filter3x3;
-    case ConvFwdSpecialization::ODD_C: return ck_conv_spec::OddC;
-    default: throw "Unknown ConvFwdSpecialization";
+    case ConvSpecialization::DEFAULT: return ck_conv_spec::Default;
+    case ConvSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
+    case ConvSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
+    case ConvSpecialization::FILTER_3x3: return ck_conv_spec::Filter3x3;
+    case ConvSpecialization::ODD_C: return ck_conv_spec::OddC;
+    default: throw "Unsupported ConvSpecialization";
+    }
+}
+
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+consteval ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization
+SetBwdWeightConvSpecialization()
+{
+    constexpr auto specialization = ALGORITHM.bwd_weight_specialization;
+    using ck_conv_spec = ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
+    switch(specialization)
+    {
+    case ConvSpecialization::DEFAULT: return ck_conv_spec::Default;
+    case ConvSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
+    case ConvSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
+    case ConvSpecialization::ODD_C: return ck_conv_spec::OddC;
+    case ConvSpecialization::FILTER_3x3:
+        throw "FILTER_3x3 is not supported for backward weight convolution.";
+    default: throw "Unsupported ConvSpecialization";
     }
 }
 

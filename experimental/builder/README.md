@@ -45,6 +45,11 @@ cmake                                                                           
   ..
 ```
 
+Note: The tests for WMMA builders are only built when `CK_USE_WMMA` is enabled. Add e.g. 
+`gfx1121` or any of the other `gfx11`/`gfx12` architectures to the GPU targets. Alternatively, 
+one can add flag `-D CK_USE_WMMA=ON` to build the tests. For the end-to-end tests that use 
+the instances from builder, one needs an actual Navi card.
+
 ## Building and Testing
 
 The builder test suite is organized into two main categories:

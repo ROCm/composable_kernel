@@ -27,7 +27,7 @@ template <typename Conv,
           auto SIGNATURE,
           size_t SPATIAL_DIM = SIGNATURE.spatial_dim,
           // TODO: We shouldn't need to call into an internal namespace here.
-          typename Ops = factory::internal::ElementwiseOps<SIGNATURE>>
+          typename Ops = factory::internal::ConvElementwiseOps<SIGNATURE>>
 concept CkConvInstance = requires(Conv& conv,
                                   // TODO: This should be changed depending on IsMultiA etc.
                                   // Currently that is not yet supported elsewhere anyway.
@@ -37,9 +37,9 @@ concept CkConvInstance = requires(Conv& conv,
                                   std::array<index_t, SPATIAL_DIM + 3> lengths,
                                   std::array<index_t, SPATIAL_DIM + 3> strides,
                                   std::array<index_t, SPATIAL_DIM> filter,
-                                  Ops::AElementwiseOp elementwise_a,
-                                  Ops::BElementwiseOp elementwise_b,
-                                  Ops::CDEElementwiseOp elementwise_cde) {
+                                  Ops::InElementwiseOp elementwise_a,
+                                  Ops::WeiElementwiseOp elementwise_b,
+                                  Ops::OutElementwiseOp elementwise_cde) {
     {
         conv.MakeArgument(p_a,
                           p_b,
