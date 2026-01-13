@@ -28,7 +28,7 @@ struct ConvFwdXdlV3Factory
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
     using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
     static_assert(ALGORITHM.transfer.a.lds_transfer.is_direct_load ==
@@ -64,19 +64,19 @@ struct ConvFwdXdlV3Factory
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
         SPATIAL_DIM,
-        typename Layouts::ALayout,
-        typename Layouts::BLayout,
+        typename Layouts::InLayout,
+        typename Layouts::WeiLayout,
         typename Layouts::DsLayout,
-        typename Layouts::ELayout,
+        typename Layouts::OutLayout,
         typename Types::ADataType,
         typename Types::BDataType,
         typename Types::AccDataType,
         typename Types::CShuffleDataType,
         typename Types::DsDataTypes,
         typename Types::EDataType,
-        typename Ops::AElementwiseOp,
-        typename Ops::BElementwiseOp,
-        typename Ops::CDEElementwiseOp,
+        typename Ops::InElementwiseOp,
+        typename Ops::WeiElementwiseOp,
+        typename Ops::OutElementwiseOp,
         SPECIALIZATION.conv_spec,
         SPECIALIZATION.gemm_spec,
         BLOCK.block_size,

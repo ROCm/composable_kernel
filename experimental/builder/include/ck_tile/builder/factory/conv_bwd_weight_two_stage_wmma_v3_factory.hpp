@@ -28,7 +28,7 @@ struct ConvBwdWeightTwoStageWmmaV3Factory
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
     using Types                         = internal::BwdWeightConvTensorDataTypes<SIGNATURE>;
-    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
     static constexpr auto BWD_CONV_SPECIALIZATION =

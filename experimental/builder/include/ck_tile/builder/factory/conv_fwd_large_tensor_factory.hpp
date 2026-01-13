@@ -28,7 +28,7 @@ struct ConvFwdLargeTensorFactory
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
     using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
@@ -59,19 +59,19 @@ struct ConvFwdLargeTensorFactory
     using Instance =
         ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor<
             SPATIAL_DIM,
-            typename Layouts::ALayout,
-            typename Layouts::BLayout,
+            typename Layouts::InLayout,
+            typename Layouts::WeiLayout,
             typename Layouts::DsLayout,
-            typename Layouts::ELayout,
+            typename Layouts::OutLayout,
             typename Types::ADataType,
             typename Types::BDataType,
             typename Types::AccDataType,
             typename Types::CShuffleDataType,
             typename Types::DsDataTypes,
             typename Types::EDataType,
-            typename Ops::AElementwiseOp,
-            typename Ops::BElementwiseOp,
-            typename Ops::CDEElementwiseOp,
+            typename Ops::InElementwiseOp,
+            typename Ops::WeiElementwiseOp,
+            typename Ops::OutElementwiseOp,
             SPECIALIZATION.conv_spec,
             SPECIALIZATION.gemm_spec,
             ALGORITHM.num_gemm_k_prefetch_stages,

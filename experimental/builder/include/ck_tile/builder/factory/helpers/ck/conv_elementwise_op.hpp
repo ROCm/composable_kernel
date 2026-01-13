@@ -62,30 +62,20 @@ consteval auto GetElementwiseOp()
 }
 
 template <auto Sig>
-struct ElementwiseOps
+struct ConvElementwiseOps
 {
-    private:
     static constexpr auto input_op  = GetElementwiseOp<Sig.input>();
     static constexpr auto weight_op = GetElementwiseOp<Sig.weight>();
     static constexpr auto output_op = GetElementwiseOp<Sig.output>();
 
-    static constexpr bool is_forward    = ConvDirectionIsForward<Sig>;
-    static constexpr bool is_bwd_weight = ConvDirectionIsBackwardWeight<Sig>;
-
-    using InputOp  = typename decltype(input_op)::Op;
-    using WeightOp = typename decltype(weight_op)::Op;
-    using OutputOp = typename decltype(output_op)::Op;
-
-    public:
-    // Forward convolution elementwise ops
-    using AElementwiseOp   = std::conditional_t<is_forward, InputOp, void>;
-    using BElementwiseOp   = std::conditional_t<is_forward, WeightOp, void>;
-    using CDEElementwiseOp = std::conditional_t<is_forward, OutputOp, void>;
-
-    // Backward weight convolution elementwise ops
-    using InElementwiseOp  = std::conditional_t<is_bwd_weight, InputOp, void>;
-    using WeiElementwiseOp = std::conditional_t<is_bwd_weight, WeightOp, void>;
-    using OutElementwiseOp = std::conditional_t<is_bwd_weight, OutputOp, void>;
+    using InElementwiseOp  = typename decltype(input_op)::Op;
+    using WeiElementwiseOp = typename decltype(weight_op)::Op;
+    using OutElementwiseOp = typename decltype(output_op)::Op;
+   
+    // TODO: Remove, now left for compatibility. Factories do not need it anymore.
+    // using AElementwiseOp   = InElementwiseOp;
+    // using BElementwiseOp   = WeiElementwiseOp;
+    // using CDEElementwiseOp = OutElementwiseOp;
 };
 
 } // namespace ck_tile::builder::factory::internal

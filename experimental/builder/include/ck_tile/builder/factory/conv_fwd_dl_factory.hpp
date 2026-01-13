@@ -26,7 +26,7 @@ struct ConvFwdDlFactory
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
     using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops                           = internal::ElementwiseOps<SIGNATURE>;
+    using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
@@ -94,13 +94,13 @@ struct ConvFwdDlFactory
         typename Types::DsDataTypes,
         typename Types::EDataType,
         typename Types::AccDataType,
-        typename Layouts::ALayout,
-        typename Layouts::BLayout,
+        typename Layouts::InLayout,
+        typename Layouts::WeiLayout,
         typename Layouts::DsLayout,
-        typename Layouts::ELayout,
-        typename Ops::AElementwiseOp,
-        typename Ops::BElementwiseOp,
-        typename Ops::CDEElementwiseOp,
+        typename Layouts::OutLayout,
+        typename Ops::InElementwiseOp,
+        typename Ops::WeiElementwiseOp,
+        typename Ops::OutElementwiseOp,
         FWD_CONV_SPECIALIZATION,
         GEMM_SPECIALIZATION,
         BLOCK.block_size,
