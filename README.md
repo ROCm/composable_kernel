@@ -137,6 +137,22 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     ```
     **[See Note on -j](#notes)**
 
+### Building for Windows
+
+Install TheRock and run CMake configure as
+
+```bash
+    cmake                                                                                      \
+    -D CMAKE_PREFIX_PATH="C:/dist/TheRock"                                                     \
+    -D CMAKE_CXX_COMPILER="C:/dist/TheRock/bin/hipcc.exe"                                      \
+    -D CMAKE_BUILD_TYPE=Release                                                                \
+    -D GPU_TARGETS="gfx1151"                                                                   \
+    -G Ninja                                                                                   \
+    ..
+```
+
+Use Ninja to build either the whole library or individual targets.
+
 ## Optional post-install steps
 
 * Build examples and tests:
