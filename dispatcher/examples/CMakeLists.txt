@@ -443,15 +443,12 @@ endfunction()
 
 # GEMM C++ examples with declarative kernel support
 # Each example's C++ code contains DECL_KERNEL_SET which declares needed kernels
-add_declarative_gpu_example(gemm_01_basic           gemm/cpp/01_basic_gemm.cpp)
-add_declarative_gpu_example(gemm_02_multi_size      gemm/cpp/02_multi_size.cpp)
-add_declarative_gpu_example(gemm_03_benchmark       gemm/cpp/03_benchmark.cpp)
-add_declarative_gpu_example(gemm_04_validation      gemm/cpp/04_validation.cpp)
-add_declarative_gpu_example(gemm_05_heuristics      gemm/cpp/05_heuristics.cpp)
-add_declarative_gpu_example(gemm_06_json_export     gemm/cpp/06_json_export.cpp)
-add_declarative_gpu_example(gemm_07_preshuffle      gemm/cpp/07_preshuffle.cpp)
-add_declarative_gpu_example(gemm_08_multi_d         gemm/cpp/08_multi_d.cpp)
-add_declarative_gpu_example(gemm_09_multi_registry  gemm/cpp/09_multi_registry.cpp)
+add_declarative_gpu_example(gemm_01_basic                gemm/cpp/01_basic_gemm.cpp)
+add_declarative_gpu_example(gemm_02_multi_size           gemm/cpp/02_multi_size.cpp)
+add_declarative_gpu_example(gemm_03_benchmark_validation gemm/cpp/03_benchmark_validation.cpp)
+add_declarative_gpu_example(gemm_04_heuristics           gemm/cpp/04_heuristics.cpp)
+add_declarative_gpu_example(gemm_05_json_export          gemm/cpp/05_json_export.cpp)
+add_declarative_gpu_example(gemm_06_multi_registry       gemm/cpp/06_multi_registry.cpp)
 
 # =============================================================================
 # GEMM Python Library - Single Fallback Kernel

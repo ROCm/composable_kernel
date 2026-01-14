@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * Example 05: Custom Heuristics
+ * Example 04: Custom Heuristics
  *
  * Demonstrates custom kernel selection heuristics for different workloads.
  *
- * Build: cd dispatcher/build && cmake .. && make gemm_05_heuristics
+ * Build: cd dispatcher/build && cmake .. && make gemm_04_heuristics
  */
 
 #include <hip/hip_runtime.h>
@@ -76,14 +76,14 @@ std::vector<std::string> size_based_heuristic(const Problem& problem)
 
 int main(int argc, char* argv[])
 {
-    ExampleArgs args("Example 05: Custom Heuristics",
+    ExampleArgs args("Example 04: Custom Heuristics",
                      "Demonstrates custom kernel selection heuristics");
     args.add_option("--arch", "gfx942", "GPU architecture");
 
     if(!args.parse(argc, argv))
         return 0;
 
-    print_header("Example 05: Custom Heuristics");
+    print_header("Example 04: Custom Heuristics");
 
     std::string gfx_arch = args.get("--arch", "gfx942");
 
@@ -91,7 +91,7 @@ int main(int argc, char* argv[])
     // Setup Registry and Dispatcher
     // =========================================================================
     Registry registry;
-    generated::register_05_heuristics_kernels(registry, gfx_arch);
+    REGISTER_GENERATED_KERNELS(registry, gfx_arch);
 
     Dispatcher dispatcher(&registry);
     dispatcher.set_strategy(Dispatcher::SelectionStrategy::Heuristic);

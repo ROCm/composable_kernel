@@ -2,15 +2,20 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * Example 09: Multiple Registries and Multiple Kernel Sets
+ * Example 06: Multiple Registries and Multiple Kernel Sets
  *
  * Demonstrates:
  * - Multiple DECL_KERNEL_SET declarations (each with multiple kernels)
  * - Separate Registry instances for different workload types
  * - Independent Dispatchers that select from their respective registries
  *
- * Build: cd dispatcher/build && cmake .. && make gemm_09_multi_registry
- * Usage: ./gemm_09_multi_registry [--list] [--help]
+ * Registration patterns:
+ * - REGISTER_GENERATED_KERNELS(registry, arch)         -> all kernels to one registry
+ * - REGISTER_KERNEL_SET("set_name", registry, arch)    -> specific set by name
+ * - generated::get_kernel_set_names()                  -> list available set names
+ *
+ * Build: cd dispatcher/build && cmake .. && make gemm_06_multi_registry
+ * Usage: ./gemm_06_multi_registry [--list] [--help]
  */
 
 #include <hip/hip_runtime.h>
@@ -92,7 +97,7 @@ DECL_KERNEL_SET(latency_set,
 
 int main(int argc, char* argv[])
 {
-    ExampleArgs args("Example 09: Multiple Registries",
+    ExampleArgs args("Example 06: Multiple Registries",
                      "Separate registries for different workload types");
     args.add_flag("--list", "List all declared kernel sets");
     args.add_option("--arch", "gfx942", "GPU architecture");
@@ -100,7 +105,7 @@ int main(int argc, char* argv[])
     if(!args.parse(argc, argv))
         return 0;
 
-    print_header("Example 09: Multiple Registries & Kernel Sets");
+    print_header("Example 06: Multiple Registries & Kernel Sets");
 
     std::string gfx_arch = args.get("--arch", "gfx942");
 
@@ -142,10 +147,10 @@ int main(int argc, char* argv[])
     latency_registry.set_name("latency_optimized");
     memory_registry.set_name("memory_bound");
 
-    // Register kernels to individual registries
-    generated::register_compute_bound_set(compute_registry, gfx_arch);
-    generated::register_latency_set(latency_registry, gfx_arch);
-    generated::register_memory_bound_set(memory_registry, gfx_arch);
+    // Register kernels to individual registries using set names (no hardcoding)
+    REGISTER_KERNEL_SET("compute_bound_set", compute_registry, gfx_arch);
+    REGISTER_KERNEL_SET("latency_set", latency_registry, gfx_arch);
+    REGISTER_KERNEL_SET("memory_bound_set", memory_registry, gfx_arch);
 
     std::cout << "  Individual registries:\n";
     std::cout << "    compute_bound: " << compute_registry.size() << " kernel(s)\n";
@@ -157,8 +162,8 @@ int main(int argc, char* argv[])
     combined_registry.set_name("compute_latency_combined");
 
     // Register both sets into combined registry
-    generated::register_compute_bound_set(combined_registry, gfx_arch);
-    generated::register_latency_set(combined_registry, gfx_arch);
+    REGISTER_KERNEL_SET("compute_bound_set", combined_registry, gfx_arch);
+    REGISTER_KERNEL_SET("latency_set", combined_registry, gfx_arch);
 
     std::cout << "\n  After merging compute + latency:\n";
     std::cout << "    combined: " << combined_registry.size() << " kernel(s)\n";
@@ -266,11 +271,11 @@ DECL_KERNEL_SET(compute_bound_set, .add(...));
 DECL_KERNEL_SET(memory_bound_set, .add(...));
 DECL_KERNEL_SET(latency_set, .add(...));
 
-// 2. Create registries and MERGE as needed
+// 2. Create registries and register by set NAME (no hardcoding!)
 Registry combined_reg, memory_reg;
-generated::register_compute_bound_set(combined_reg, arch);  // Add compute kernels
-generated::register_latency_set(combined_reg, arch);        // Merge latency kernels
-generated::register_memory_bound_set(memory_reg, arch);     // Separate memory registry
+REGISTER_KERNEL_SET("compute_bound_set", combined_reg, arch);  // Add compute
+REGISTER_KERNEL_SET("latency_set", combined_reg, arch);        // Merge latency
+REGISTER_KERNEL_SET("memory_bound_set", memory_reg, arch);     // Separate
 
 // 3. Create dispatchers from merged/separate registries
 Dispatcher combined_disp(&combined_reg);  // Has both compute + latency

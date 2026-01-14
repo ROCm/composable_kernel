@@ -4,11 +4,14 @@
 #pragma once
 
 #include "ck_tile/dispatcher/kernel_instance.hpp"
+#include "ck_tile/dispatcher/validation/reference_kernels.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
 #include <hip/hip_runtime.h>
 #include <sstream>
+#include <vector>
+#include <cmath>
 
 namespace ck_tile {
 namespace dispatcher {

@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * Example 06: JSON Export
+ * Example 05: JSON Export
  *
  * Demonstrates exporting registry information to JSON format.
  *
- * Build: cd dispatcher/build && cmake .. && make gemm_06_json_export
+ * Build: cd dispatcher/build && cmake .. && make gemm_05_json_export
  */
 
 #include <hip/hip_runtime.h>
@@ -52,7 +52,7 @@ DECL_KERNEL_SET(json_export_kernels,
 
 int main(int argc, char* argv[])
 {
-    ExampleArgs args("Example 06: JSON Export", "Export registry information to JSON format");
+    ExampleArgs args("Example 05: JSON Export", "Export registry information to JSON format");
     args.add_option("--output", "registry.json", "Output JSON file path");
     args.add_option("--arch", "gfx942", "GPU architecture");
     args.add_flag("--list", "List all kernel sets");
@@ -60,7 +60,7 @@ int main(int argc, char* argv[])
     if(!args.parse(argc, argv))
         return 0;
 
-    print_header("Example 06: JSON Export");
+    print_header("Example 05: JSON Export");
 
     std::string gfx_arch = args.get("--arch", "gfx942");
 
@@ -80,7 +80,7 @@ int main(int argc, char* argv[])
     Registry registry;
     registry.set_name("json_export_registry");
 
-    generated::register_06_json_export_kernels(registry, gfx_arch);
+    REGISTER_GENERATED_KERNELS(registry, gfx_arch);
 
     std::cout << "  Registry: " << registry.get_name() << "\n";
     std::cout << "  Kernels:  " << registry.size() << "\n";

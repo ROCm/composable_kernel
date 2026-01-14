@@ -507,6 +507,82 @@ inline std::string format_number(int64_t n)
     return s;
 }
 
+/**
+ * @brief Print all registered kernels in a registry
+ *
+ * @param registry The registry to list kernels from
+ * @param os Output stream (default: std::cout)
+ * @param verbose If true, show full kernel config details
+ */
+inline void print_registered_kernels(const Registry& registry,
+                                     std::ostream& os = std::cout,
+                                     bool verbose     = false)
+{
+    const auto& kernels = registry.get_all();
+    os << "Registered Kernels (" << kernels.size() << "):\n";
+    os << std::string(70, '-') << "\n";
+
+    int idx = 1;
+    for(const auto& kernel : kernels)
+    {
+        const auto& key = kernel->get_key();
+
+        os << "  " << idx++ << ". " << kernel->get_name() << "\n";
+
+        if(verbose)
+        {
+            os << "     Tile:      " << key.algorithm.tile_shape.m << "x"
+               << key.algorithm.tile_shape.n << "x" << key.algorithm.tile_shape.k << "\n";
+            os << "     Wave:      " << static_cast<int>(key.algorithm.wave_shape.m) << "x"
+               << static_cast<int>(key.algorithm.wave_shape.n) << "x"
+               << static_cast<int>(key.algorithm.wave_shape.k) << "\n";
+            os << "     WarpTile:  " << static_cast<int>(key.algorithm.warp_tile_shape.m) << "x"
+               << static_cast<int>(key.algorithm.warp_tile_shape.n) << "x"
+               << static_cast<int>(key.algorithm.warp_tile_shape.k) << "\n";
+            os << "     Pipeline:  " << to_string(key.algorithm.pipeline) << "\n";
+            os << "     Scheduler: " << to_string(key.algorithm.scheduler) << "\n";
+            os << "     Arch:      " << key.gfx_arch << "\n";
+            os << "\n";
+        }
+    }
+
+    if(!verbose && !kernels.empty())
+    {
+        os << "\n  Use --list-verbose for full details\n";
+    }
+    os << std::string(70, '-') << "\n";
+}
+
+/**
+ * @brief Print a single kernel's configuration
+ */
+inline void print_kernel_info(const KernelInstance& kernel, std::ostream& os = std::cout)
+{
+    const auto& key = kernel.get_key();
+
+    os << "Kernel: " << kernel.get_name() << "\n";
+    os << "  Signature:\n";
+    os << "    dtype:  " << to_string(key.signature.dtype_a) << "/"
+       << to_string(key.signature.dtype_b) << "/" << to_string(key.signature.dtype_c) << "\n";
+    os << "    layout: " << to_string(key.signature.layout_a) << to_string(key.signature.layout_b)
+       << to_string(key.signature.layout_c) << "\n";
+
+    os << "  Algorithm:\n";
+    os << "    tile:      " << key.algorithm.tile_shape.m << "x" << key.algorithm.tile_shape.n
+       << "x" << key.algorithm.tile_shape.k << "\n";
+    os << "    wave:      " << static_cast<int>(key.algorithm.wave_shape.m) << "x"
+       << static_cast<int>(key.algorithm.wave_shape.n) << "x"
+       << static_cast<int>(key.algorithm.wave_shape.k) << "\n";
+    os << "    warp_tile: " << static_cast<int>(key.algorithm.warp_tile_shape.m) << "x"
+       << static_cast<int>(key.algorithm.warp_tile_shape.n) << "x"
+       << static_cast<int>(key.algorithm.warp_tile_shape.k) << "\n";
+    os << "    pipeline:  " << to_string(key.algorithm.pipeline) << "\n";
+    os << "    scheduler: " << to_string(key.algorithm.scheduler) << "\n";
+    os << "    epilogue:  " << to_string(key.algorithm.epilogue) << "\n";
+
+    os << "  Target: " << key.gfx_arch << "\n";
+}
+
 // =============================================================================
 // Kernel Key Builders
 // =============================================================================

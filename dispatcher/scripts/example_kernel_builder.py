@@ -157,11 +157,11 @@ def parse_conv_declarations(content: str) -> List[Dict]:
 
 
 def auto_fill_conv_defaults(kernel: Dict) -> Dict:
-    """Auto-fill missing conv parameters with sensible defaults (autocorrect).
+    """Auto-fill missing conv parameters with sensible defaults (autofill + autocorrect).
 
-    This implements the 'autocorrect' functionality where:
-    1. Missing parameters are filled with valid defaults (ConvConfigComputeV3)
-    2. Invalid values are corrected to valid ones
+    This implements:
+    1. AUTOFILL: Missing parameters are filled with valid defaults (ConvConfigComputeV3)
+    2. AUTOCORRECT: Invalid values are corrected to valid ones
     """
     # Default tile configuration matching ConvConfigComputeV3
     defaults = {
@@ -189,10 +189,15 @@ def auto_fill_conv_defaults(kernel: Dict) -> Dict:
         "arch": "gfx942",
     }
 
-    # Auto-fill missing parameters
+    # AUTOFILL: Fill missing parameters with defaults
+    autofilled = []
     for key, value in defaults.items():
         if key not in kernel or kernel[key] is None or kernel[key] == -1:
             kernel[key] = value
+            autofilled.append(f"{key}={value}")
+
+    if autofilled:
+        print(f"    [AUTOFILL] {', '.join(autofilled)}")
 
     # AUTOCORRECT: Fix invalid wave configurations for gfx942
     valid_wave_configs = [(1, 4, 1), (2, 2, 1), (4, 1, 1)]
@@ -281,9 +286,15 @@ def expand_conv_wildcards(kernel: Dict, arch: str = "gfx942") -> List[Dict]:
 
 
 def parse_int_or_wildcard(val: str) -> int:
-    """Parse integer or return -1 for wildcards (ANY_INT)."""
+    """Parse integer or return -1 for wildcards.
+
+    Supported wildcard formats:
+    - ANY_INT: Macro defined as -1
+    - -1: Direct numeric wildcard
+    - "*": String wildcard (also maps to -1 for integer params)
+    """
     val = val.strip()
-    if val == "ANY_INT" or val == "-1":
+    if val == "ANY_INT" or val == "-1" or val == "*":
         return -1
     return int(val)
 
@@ -329,17 +340,19 @@ def parse_gemm_declarations(content: str) -> List[Dict]:
                 kernel["tile_n"] = int(m.group(2))
                 kernel["tile_k"] = int(m.group(3))
 
-            # Wave: support ANY_INT
+            # Wave: support ANY_INT, -1, and "*" as wildcards
             if m := re.search(
-                r"\.wave\s*\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*\)", add_body
+                r"\.wave\s*\(\s*([\w*-]+)\s*,\s*([\w*-]+)\s*,\s*([\w*-]+)\s*\)",
+                add_body,
             ):
                 kernel["warp_m"] = parse_int_or_wildcard(m.group(1))
                 kernel["warp_n"] = parse_int_or_wildcard(m.group(2))
                 kernel["warp_k"] = parse_int_or_wildcard(m.group(3))
 
-            # Warp: support ANY_INT
+            # Warp: support ANY_INT, -1, and "*" as wildcards
             if m := re.search(
-                r"\.warp\s*\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*\)", add_body
+                r"\.warp\s*\(\s*([\w*-]+)\s*,\s*([\w*-]+)\s*,\s*([\w*-]+)\s*\)",
+                add_body,
             ):
                 kernel["warp_tile_m"] = parse_int_or_wildcard(m.group(1))
                 kernel["warp_tile_n"] = parse_int_or_wildcard(m.group(2))
@@ -391,6 +404,11 @@ def expand_gemm_wildcards(kernel: Dict, arch: str = "gfx942") -> List[Dict]:
 
     When users specify ANY_INT (-1) or "*", this expands them to all
     valid configurations for the target architecture.
+
+    Note: Block size constraint filters invalid combos:
+    - (tile_m/warp_tile_m) * (tile_n/warp_tile_n) * 64 <= 1024
+    - For 128x128 tile: only (32,32,k) works (16 warps * 64 = 1024)
+    - For 64x64 tile: both (16,16,k) and (32,32,k) work
     """
     # Valid wave configurations for gfx942
     valid_wave_configs = [(1, 4, 1), (2, 2, 1), (4, 1, 1)]
@@ -467,11 +485,11 @@ def expand_gemm_wildcards(kernel: Dict, arch: str = "gfx942") -> List[Dict]:
 
 
 def auto_fill_gemm_defaults(kernel: Dict) -> Dict:
-    """Auto-fill missing GEMM parameters with sensible defaults (autocorrect).
+    """Auto-fill missing GEMM parameters with sensible defaults (autofill + autocorrect).
 
-    This implements the 'autocorrect' functionality where:
-    1. Missing parameters are filled with valid defaults
-    2. Invalid values are corrected to valid ones (e.g., wave(1,1,1) -> wave(2,2,1))
+    This implements:
+    1. AUTOFILL: Missing parameters are filled with valid defaults
+    2. AUTOCORRECT: Invalid values are corrected to valid ones (e.g., wave(1,1,1) -> wave(2,2,1))
     """
     defaults = {
         "tile_m": 128,
@@ -492,10 +510,15 @@ def auto_fill_gemm_defaults(kernel: Dict) -> Dict:
         "layout": "rcr",
     }
 
-    # Auto-fill missing parameters
+    # AUTOFILL: Fill missing parameters with defaults
+    autofilled = []
     for key, value in defaults.items():
         if key not in kernel or kernel[key] is None or kernel[key] == -1:
             kernel[key] = value
+            autofilled.append(f"{key}={value}")
+
+    if autofilled:
+        print(f"    [AUTOFILL] {', '.join(autofilled)}")
 
     # AUTOCORRECT: Fix invalid wave configurations for gfx942
     # Valid wave configs: (1,4,1), (2,2,1), (4,1,1)
@@ -581,11 +604,98 @@ def auto_fill_gemm_defaults(kernel: Dict) -> Dict:
     return kernel
 
 
+def strip_cpp_strings_and_comments(content: str) -> str:
+    """Strip C++ string literals and comments that could cause false positives.
+
+    Only strips:
+    - Comments (// and /* */) - always stripped
+    - Raw string literals (R"...") - always stripped (can contain anything)
+    - Regular strings ONLY if they contain problematic patterns like DECL_KERNEL_SET
+
+    Preserves normal string literals like "fp16", "rcr" which are needed for parsing.
+    """
+    result = []
+    i = 0
+    n = len(content)
+
+    # Patterns that indicate a string is problematic and should be stripped
+    problematic_patterns = ["DECL_KERNEL_SET", "DECL_CONV_KERNEL_SET", ".add("]
+
+    while i < n:
+        # Check for raw string literal: R"delimiter(...)delimiter"
+        # Always strip these as they can contain arbitrary content
+        if i < n - 1 and content[i] == "R" and content[i + 1] == '"':
+            # Find the delimiter (between R" and ()
+            j = i + 2
+            delimiter_start = j
+            while j < n and content[j] != "(":
+                j += 1
+            delimiter = content[delimiter_start:j]
+            # Find the closing )delimiter"
+            end_marker = ")" + delimiter + '"'
+            end_pos = content.find(end_marker, j + 1)
+            if end_pos != -1:
+                # Replace with spaces to preserve line numbers
+                span = content[i : end_pos + len(end_marker)]
+                result.append("".join("\n" if c == "\n" else " " for c in span))
+                i = end_pos + len(end_marker)
+                continue
+
+        # Check for regular string literal - only strip if it contains problematic patterns
+        if content[i] == '"':
+            j = i + 1
+            while j < n:
+                if content[j] == "\\" and j + 1 < n:
+                    j += 2  # Skip escaped character
+                elif content[j] == '"':
+                    j += 1
+                    break
+                else:
+                    j += 1
+            string_content = content[i:j]
+
+            # Only strip if this string contains problematic patterns
+            should_strip = any(pat in string_content for pat in problematic_patterns)
+            if should_strip:
+                result.append(" " * len(string_content))
+            else:
+                result.append(string_content)
+            i = j
+            continue
+
+        # Check for single-line comment - always strip
+        if i < n - 1 and content[i : i + 2] == "//":
+            j = i
+            while j < n and content[j] != "\n":
+                j += 1
+            result.append(" " * (j - i))
+            i = j
+            continue
+
+        # Check for multi-line comment - always strip
+        if i < n - 1 and content[i : i + 2] == "/*":
+            end_pos = content.find("*/", i + 2)
+            if end_pos != -1:
+                span = content[i : end_pos + 2]
+                # Preserve newlines in multi-line comments
+                result.append("".join("\n" if c == "\n" else " " for c in span))
+                i = end_pos + 2
+                continue
+
+        result.append(content[i])
+        i += 1
+
+    return "".join(result)
+
+
 def detect_and_parse(source_path: Path) -> Tuple[str, List[Dict]]:
-    """Detect example type and parse kernel declarations."""
+    """Detect example type and parse kernel declarations.
+
+    Properly strips string literals and comments before parsing to avoid
+    picking up declarations inside strings or commented-out code.
+    """
     content = source_path.read_text()
-    content = re.sub(r"//.*$", "", content, flags=re.MULTILINE)
-    content = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
+    content = strip_cpp_strings_and_comments(content)
 
     if "DECL_CONV_KERNEL_SET" in content:
         return "conv", parse_conv_declarations(content)
@@ -633,6 +743,39 @@ def generate_gemm_registration(
         """Generate registration code for a single kernel."""
         kernel_name = h.stem
         ns = f"ns_{kernel_name}"
+
+        # Parse pipeline and scheduler from kernel name
+        # Format: gemm_fp16_rcr_compv3_cshuffle_intrawave_...
+        parts = kernel_name.split("_")
+        pipeline = "CompV3"
+        scheduler = "Intrawave"
+        epilogue = "CShuffle"
+
+        # Find pipeline, epilogue, scheduler in the name parts
+        pipeline_map = {
+            "mem": "Mem",
+            "compv1": "CompV1",
+            "compv2": "CompV2",
+            "compv3": "CompV3",
+            "compv4": "CompV4",
+            "compv5": "CompV5",
+            "preshufflev1": "PreShuffleV1",
+            "preshufflev2": "PreShuffleV2",
+        }
+        scheduler_map = {
+            "intrawave": "Intrawave",
+            "interwave": "Interwave",
+            "auto": "Auto",
+        }
+        epilogue_map = {"default": "Default", "cshuffle": "CShuffle", "none": "None"}
+
+        for part in parts:
+            if part in pipeline_map:
+                pipeline = pipeline_map[part]
+            if part in scheduler_map:
+                scheduler = scheduler_map[part]
+            if part in epilogue_map:
+                epilogue = epilogue_map[part]
 
         block = []
         block.append(f"        // Register kernel: {kernel_name}")
@@ -684,6 +827,15 @@ def generate_gemm_registration(
         block.append(
             "            key.algorithm.block_size = SelectedKernel::BlockSize;"
         )
+        block.append(
+            f"            key.algorithm.pipeline = ck_tile::dispatcher::Pipeline::{pipeline};"
+        )
+        block.append(
+            f"            key.algorithm.scheduler = ck_tile::dispatcher::Scheduler::{scheduler};"
+        )
+        block.append(
+            f"            key.algorithm.epilogue = ck_tile::dispatcher::Epilogue::{epilogue};"
+        )
         block.append("            key.gfx_arch = arch;")
         block.append(
             f'            auto instance = std::make_shared<ck_tile::dispatcher::backends::GeneratedKernelInstance<SelectedKernel>>(key, "{kernel_name}");'
@@ -732,7 +884,13 @@ _kernels_by_set_cache = None
 
 
 def generate_per_set_functions(source_stem: str) -> str:
-    """Generate separate registration functions for each kernel set."""
+    """Generate separate registration functions for each kernel set.
+
+    Generates:
+    1. Per-set functions: register_<set_name>(registry, arch)
+    2. String-based dispatcher: register_kernel_set("set_name", registry, arch)
+    3. get_kernel_set_names() to list available sets
+    """
     global _kernels_by_set_cache
     if not _kernels_by_set_cache:
         return ""
@@ -741,14 +899,40 @@ def generate_per_set_functions(source_stem: str) -> str:
     _kernels_by_set_cache = None  # Clear cache
 
     lines = []
+    set_names = []
+
+    # Generate per-set functions
     for set_name, headers in kernels_by_set.items():
         safe_name = set_name.replace("-", "_")
+        set_names.append((set_name, safe_name))
         lines.append(
             f"inline void register_{safe_name}(ck_tile::dispatcher::Registry& registry, const std::string& arch) {{"
         )
         lines.append("    (void)arch;")
         for h in headers:
             lines.append(gen_block(h))
+        lines.append("}")
+        lines.append("")
+
+    # Generate string-based dispatcher (only if multiple sets)
+    if len(set_names) > 0:
+        lines.append("// Dynamic registration by kernel set name")
+        lines.append(
+            "inline bool register_kernel_set(const std::string& set_name, ck_tile::dispatcher::Registry& registry, const std::string& arch) {"
+        )
+        for set_name, safe_name in set_names:
+            lines.append(
+                f'    if (set_name == "{set_name}") {{ register_{safe_name}(registry, arch); return true; }}'
+            )
+        lines.append("    return false; // Unknown set name")
+        lines.append("}")
+        lines.append("")
+
+        # Generate helper to list available set names
+        lines.append("// Get list of available kernel set names")
+        lines.append("inline std::vector<std::string> get_kernel_set_names() {")
+        names_str = ", ".join(f'"{name}"' for name, _ in set_names)
+        lines.append(f"    return {{{names_str}}};")
         lines.append("}")
         lines.append("")
 
@@ -1180,11 +1364,18 @@ namespace generated {{
 // Kernel launchers for direct use
 {launcher_section}
 
+// Registration function
 inline void {func_name}(ck_tile::dispatcher::Registry& registry, const std::string& arch) {{
 {register_body}
 }}
 
 }} // namespace generated
+
+// Generic registration - avoids hardcoding the example name in user code
+// Safe for single-example executables (typical use case)
+#ifndef REGISTER_GENERATED_KERNELS
+#define REGISTER_GENERATED_KERNELS(registry, arch) generated::{func_name}(registry, arch)
+#endif
 """
     else:
         # GEMM: Generate per-set functions if multiple kernel sets declared
@@ -1209,6 +1400,18 @@ inline void {func_name}(ck_tile::dispatcher::Registry& registry, const std::stri
 
 {per_set_funcs}
 }} // namespace generated
+
+// Generic registration - avoids hardcoding the example name in user code
+// Safe for single-example executables (typical use case)
+#ifndef REGISTER_GENERATED_KERNELS
+#define REGISTER_GENERATED_KERNELS(registry, arch) generated::{func_name}(registry, arch)
+#endif
+
+// Register a specific kernel set by name (for multi-registry patterns)
+// Usage: REGISTER_KERNEL_SET("compute_bound_set", registry, arch)
+#ifndef REGISTER_KERNEL_SET
+#define REGISTER_KERNEL_SET(set_name, registry, arch) generated::register_kernel_set(set_name, registry, arch)
+#endif
 """
     header_path.write_text(header_content)
 

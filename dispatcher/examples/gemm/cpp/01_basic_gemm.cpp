@@ -92,7 +92,8 @@ int main(int argc, char* argv[])
 {
     ExampleArgs args("Example 01: GEMM Autofill/Autocorrect/Full",
                      "Three kernel declaration patterns");
-    args.add_flag("--list", "List declared kernel sets");
+    args.add_flag("--list", "List registered kernels");
+    args.add_flag("--list-verbose", "List registered kernels with full details");
     args.add_option("--size", "1024", "Problem size MxNxK");
     args.add_option("--arch", "gfx942", "GPU architecture");
 
@@ -123,8 +124,10 @@ int main(int argc, char* argv[])
                  "Algorithm().tile().wave().warp().pipeline().scheduler().epilogue().pad()...)\n";
     std::cout << "   -> No changes needed\n\n";
 
+    std::string gfx_arch = args.get("--arch", "gfx942");
+
     // =========================================================================
-    // Step 1: Show Declared Kernels
+    // Step 1: Show Declared Kernel Sets
     // =========================================================================
     std::cout << "Step 1: Declared Kernel Sets\n";
     KernelSetRegistry::instance().print();
@@ -132,32 +135,24 @@ int main(int argc, char* argv[])
     const auto& decl_set = KernelSetRegistry::instance().get("basic_gemm_kernels");
     std::cout << "  'basic_gemm_kernels': " << decl_set.size() << " declaration(s)\n";
 
-    if(args.has("--list"))
-    {
-        std::cout << "\nDeclared kernels:\n";
-        int i = 1;
-        for(const auto& decl : decl_set.declarations())
-        {
-            std::cout << "  " << i++ << ". " << decl.name() << "\n";
-            std::cout << "     Tile: " << decl.algorithm.tile_m_ << "x" << decl.algorithm.tile_n_
-                      << "x" << decl.algorithm.tile_k_ << "\n";
-            std::cout << "     Wave: " << decl.algorithm.wave_m_ << "x" << decl.algorithm.wave_n_
-                      << "x" << decl.algorithm.wave_k_ << "\n";
-        }
-        return 0;
-    }
-
-    std::string gfx_arch = args.get("--arch", "gfx942");
-
     // =========================================================================
     // Step 2: Create Registry and Register Kernels
     // =========================================================================
     std::cout << "\nStep 2: Register Kernels\n";
 
     Registry registry;
-    generated::register_01_basic_gemm_kernels(registry, gfx_arch);
+    // Use generic macro
+    REGISTER_GENERATED_KERNELS(registry, gfx_arch);
 
     std::cout << "  Registered " << registry.size() << " kernel(s)\n";
+
+    // List kernels if requested
+    if(args.has("--list") || args.has("--list-verbose"))
+    {
+        std::cout << "\n";
+        print_registered_kernels(registry, std::cout, args.has("--list-verbose"));
+        return 0;
+    }
 
     // =========================================================================
     // Step 3: Create Dispatcher

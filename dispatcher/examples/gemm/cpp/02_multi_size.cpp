@@ -4,18 +4,28 @@
 /**
  * Example 02: Multi-Size GEMM with Wildcard Expansion
  *
- * Demonstrates the WILDCARD feature where specifying ANY_INT or "*" causes
+ * Demonstrates the WILDCARD feature where specifying wildcards causes
  * the build system to expand to ALL valid configurations for the architecture.
  *
+ * WILDCARD SYNTAX:
+ *   - Integer params: ANY_INT or -1 (both are equivalent, ANY_INT is just a #define for -1)
+ *   - String params:  "*" (for pipeline, scheduler)
+ *
  * The kernel declaration:
- *   .add(..., Algorithm().tile(128,128,64).wave(ANY_INT,ANY_INT,1).warp(ANY_INT,ANY_INT,16)
+ *   .add(..., Algorithm().tile(64,64,64).wave(ANY_INT,ANY_INT,1).warp(-1,-1,-1)
  *                        .pipeline("*").scheduler("*"), ...)
  *
  * Expands to multiple kernels:
  *   - wave: (1,4,1), (2,2,1), (4,1,1)  -> 3 options
- *   - warp: (32,32,16), (16,16,32)     -> 2 options
+ *   - warp: (16,16,32), (32,32,16)     -> 2 options
  *   - pipeline: "compv3"               -> 1 option (compv4 requires special handling)
  *   - scheduler: "intrawave"           -> 1 option
+ *
+ * Raw expansion: 3 × 2 = 6 configs, but arch filter validates each:
+ *   - tile_m must be divisible by (warp_m × warp_tile_m)
+ *   - tile_n must be divisible by (warp_n × warp_tile_n)
+ *   - Some wave/warp combos invalid: (4,1,1)+(32,32,16), (1,4,1)+(32,32,16)
+ * Result: 4 valid wildcard kernels + 1 explicit = 5 total
  *
  * Build: cd dispatcher/build && cmake .. && make gemm_02_multi_size
  * Usage: ./gemm_02_multi_size [--max-size N] [--help]
@@ -55,17 +65,18 @@ DECL_KERNEL_SET(multi_size_kernels,
 
                     // -------------------------------------------------------------------------
                     // Kernel 2: WILDCARD - expands to multiple valid configurations
-                    // ANY_INT and "*" are expanded by build system to all arch-valid combos
+                    // Wildcards: ANY_INT == -1 (for integers), "*" (for strings)
                     // -------------------------------------------------------------------------
                     .add(Signature().dtype("fp16").layout("rcr"),
                          Algorithm()
-                             .tile(128, 128, 64)
-                             .wave(ANY_INT, ANY_INT, 1)  // Expands to: (1,4,1), (2,2,1), (4,1,1)
-                             .warp(ANY_INT, ANY_INT, 16) // Expands to: (32,32,16), (16,16,32)
-                             .pipeline("*")              // Expands to valid pipelines
-                             .scheduler("*")             // Expands to valid schedulers
+                             .tile(64, 64, 64)
+                             .wave(ANY_INT, ANY_INT, 1) // ANY_INT → (1,4,1), (2,2,1), (4,1,1)
+                             .warp(-1, -1, -1) // -1 same as ANY_INT → (16,16,32), (32,32,16)
+                             .pipeline("*")    // "*" → valid pipelines
+                             .scheduler("*")   // "*" → valid schedulers
                              .epilogue("cshuffle"),
                          "gfx942"));
+// Raw: 3×2=6, arch filter removes 2 invalid → 4 valid kernels
 
 // =============================================================================
 // MAIN
@@ -78,6 +89,7 @@ int main(int argc, char* argv[])
     args.add_option("--max-size", "4096", "Maximum problem size to test");
     args.add_option("--arch", "gfx942", "GPU architecture");
     args.add_flag("--list", "List all registered kernels");
+    args.add_flag("--list-verbose", "List kernels with full configuration details");
 
     if(!args.parse(argc, argv))
         return 0;
@@ -93,14 +105,20 @@ int main(int argc, char* argv[])
     std::cout << "\nWILDCARD EXPANSION:\n";
     std::cout << "===================\n";
     std::cout << R"(
-  Declaration with wildcards:
-    .tile(128, 128, 64)
-    .wave(ANY_INT, ANY_INT, 1)  -> expands to (1,4,1), (2,2,1), (4,1,1)
-    .warp(ANY_INT, ANY_INT, 16) -> expands to (32,32,16), (16,16,32)
-    .pipeline("*")              -> expands to valid pipelines
-    .scheduler("*")             -> expands to valid schedulers
+  Wildcard syntax:
+    ANY_INT or -1  -> expands integer params to all valid values
+    "*"            -> expands string params (pipeline/scheduler) to valid values
 
-  This generates multiple kernels from ONE declaration!
+  Declaration with wildcards:
+    .tile(64, 64, 64)           -> fixed tile size (no wildcard)
+    .wave(ANY_INT, ANY_INT, 1)  -> expands to (1,4,1), (2,2,1), (4,1,1) = 3
+    .warp(-1, -1, -1)           -> expands to (16,16,32), (32,32,16) = 2
+    .pipeline("*")              -> expands to valid pipelines = 1
+    .scheduler("*")             -> expands to valid schedulers = 1
+
+  Expanded: 3 × 2 = 6 configs, but arch filter validates each:
+    - wave×warp must divide tile: (4,1,1)×(32,32,16) invalid for 64x64
+    - Result: 4 valid kernels from wildcard + 1 explicit = 5 total
 )";
 
     // =========================================================================
@@ -113,16 +131,14 @@ int main(int argc, char* argv[])
     registry.set_name("multi_size_registry");
 
     // Register kernels from generated header (includes expanded wildcards)
-    generated::register_02_multi_size_kernels(registry, gfx_arch);
+    // Use generic macro - no need to hardcode example name
+    REGISTER_GENERATED_KERNELS(registry, gfx_arch);
     std::cout << "  Registered " << registry.size() << " kernel(s) from wildcard expansion\n";
 
-    if(args.has("--list"))
+    if(args.has("--list") || args.has("--list-verbose"))
     {
-        std::cout << "\n  Available kernels:\n";
-        for(const auto& k : registry.get_all())
-        {
-            std::cout << "    - " << k->get_name() << "\n";
-        }
+        std::cout << "\n";
+        print_registered_kernels(registry, std::cout, args.has("--list-verbose"));
         return 0;
     }
 
