@@ -4,26 +4,16 @@
 set -e
 set -o pipefail
 
-# Find project root
+# Find script directory and load common utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+source "${SCRIPT_DIR}/common.sh"
 
-# Detect git branch and sanitize for docker naming
-GIT_BRANCH=$(cd "${PROJECT_ROOT}" && git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '_' | tr -cd 'a-zA-Z0-9_-' || echo "")
-GIT_BRANCH=${GIT_BRANCH:-unknown}
-if [ "${GIT_BRANCH}" = "HEAD" ]; then
-    GIT_BRANCH="detached"
-fi
-
-# Ensure USER is set
-USER_NAME=${USER:-$(whoami 2>/dev/null || echo "user")}
-
-# Default container name
-DEFAULT_NAME="ck_${USER_NAME}_${GIT_BRANCH}"
-CONTAINER_NAME="${CK_CONTAINER_NAME:-${DEFAULT_NAME}}"
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
 
 # Default settings
-GRANULARITY="${CK_BUILD_ANALYSIS_GRANULARITY:-500}"
+GRANULARITY="${CK_BUILD_ANALYSIS_GRANULARITY:-100}"
 OUTPUT_FILE="build_time_analysis_report.md"
 RECONFIGURE=true
 
@@ -38,7 +28,7 @@ Arguments:
   target                      Build target to analyze (e.g., example_convnd_fwd_xdl_fp8)
 
 Options:
-  --granularity=N            Time trace granularity in microseconds (default: 500)
+  --granularity=N            Time trace granularity in microseconds (default: 100)
   --output=FILE              Output report filename (default: build_time_analysis_report.md)
   --name=NAME                Docker container name (default: ${CONTAINER_NAME})
   --no-reconfigure           Skip CMake reconfiguration if build exists
@@ -50,8 +40,8 @@ Examples:
   ck-build-analysis test_amdgcn_mma --granularity=100 --output=mma_test_analysis.md
 
 Granularity Guide:
-  500 (default)  - Quick overview, filters 86% of events (~5k instantiations, 3-5 MB)
-  100            - Balanced detail (~15k instantiations, 15-20 MB)
+  100 (default)  - Balanced detail (~15k instantiations, 15-20 MB)
+  500            - Quick overview, filters 86% of events (~5k instantiations, 3-5 MB)
   1              - Complete analysis (~36k instantiations, 80-100 MB)
 EOF
 }
@@ -116,17 +106,14 @@ echo "════════════════════════�
 echo ""
 
 # Ensure container is running
-if ! docker ps --filter "name=^${CONTAINER_NAME}$" --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    echo "Container not running. Starting with ck-docker..."
-    "${SCRIPT_DIR}/ck-docker" start "${CONTAINER_NAME}"
-fi
+ensure_container_running "${CONTAINER_NAME}" "${SCRIPT_DIR}"
 
 # Configure CMake with -ftime-trace if needed
 if [ "$RECONFIGURE" = true ] || ! docker exec "${CONTAINER_NAME}" test -f /workspace/build/build.ninja 2>/dev/null; then
     echo ""
     echo "Configuring CMake with -ftime-trace (granularity=${GRANULARITY}µs)..."
 
-    GPU_TARGET=$(docker exec "${CONTAINER_NAME}" bash -c "rocminfo 2>/dev/null | grep -oP 'gfx[0-9a-z]+' | head -1 || echo 'gfx950'" | tr -d '\r\n')
+    GPU_TARGET=$(detect_gpu_target "${CONTAINER_NAME}")
 
     docker exec "${CONTAINER_NAME}" bash -c "
         cd /workspace || exit 1

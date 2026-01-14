@@ -30,7 +30,7 @@ Just ask in natural language:
 ck-build-analysis <target> [options]
 
 Options:
-  --granularity=N      Time trace granularity in microseconds (default: 500)
+  --granularity=N      Time trace granularity in microseconds (default: 100)
   --output=FILE        Output report filename (default: build_time_analysis_report.md)
   --name=NAME          Docker container name (default: from CK_CONTAINER_NAME or auto-generated)
   --no-reconfigure     Skip CMake reconfiguration if build exists
@@ -58,27 +58,27 @@ Options:
 ## Environment
 
 ```bash
-export CK_CONTAINER_NAME=my_build     # Override container name
-export CK_BUILD_ANALYSIS_GRANULARITY=1  # Default granularity in µs
+export CK_CONTAINER_NAME=my_build       # Override container name
+export CK_BUILD_ANALYSIS_GRANULARITY=100  # Default granularity in µs
 ```
 
 ## Examples
 
 ```bash
-# Basic analysis with default granularity (500µs)
+# Basic analysis with default granularity (100µs)
 ck-build-analysis example_convnd_fwd_xdl_fp8
 
-# High-resolution analysis (1µs granularity, 22x larger trace)
-ck-build-analysis example_convnd_fwd_xdl_fp8 --granularity=1
+# Quick overview (500µs granularity, filters minor events)
+ck-build-analysis example_convnd_fwd_xdl_fp8 --granularity=500
 
-# Medium-resolution analysis (100µs granularity, good balance)
-ck-build-analysis example_convnd_fwd_xdl_fp8 --granularity=100
+# High-resolution analysis (1µs granularity, complete picture)
+ck-build-analysis example_convnd_fwd_xdl_fp8 --granularity=1
 
 # Custom output filename
 ck-build-analysis example_convnd_fwd_xdl_fp8 --output=fp8_conv_analysis.md
 
 # Analyze test target
-ck-build-analysis test_amdgcn_mma --granularity=1
+ck-build-analysis test_amdgcn_mma
 
 # Use existing build (skip reconfigure)
 ck-build-analysis example_convnd_fwd_xdl_fp8 --no-reconfigure
@@ -99,17 +99,17 @@ The report includes:
 
 | Granularity | Events | Trace Size | Use Case |
 |-------------|--------|------------|----------|
-| 500µs (default) | ~50k | 3-5 MB | Quick overview, major bottlenecks |
-| 100µs | ~150k | 15-20 MB | Balanced detail and performance |
+| 500µs | ~50k | 3-5 MB | Quick overview, major bottlenecks only |
+| 100µs (default) | ~150k | 15-20 MB | Balanced detail and performance |
 | 50µs | ~200k | 30-40 MB | Detailed analysis |
 | 1µs (high-res) | ~300k | 80-100 MB | Complete picture, all instantiations |
 
 ## Notes
 
 - Lower granularity = more events = larger files = longer analysis
-- Default 500µs captures major bottlenecks (filters out 86% of instantiations)
+- Default 100µs provides balanced detail for most use cases
+- 500µs captures only major bottlenecks (filters out 86% of instantiations)
 - 1µs granularity reveals all 36,000+ instantiations but takes longer to analyze
-- 100µs is a good middle ground for most use cases
 
 ## Implementation Details
 
