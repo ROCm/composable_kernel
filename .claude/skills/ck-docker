@@ -2,16 +2,26 @@
 # CK Docker Skill - Build and test composable_kernel in Docker with ROCm support
 
 set -e
+set -o pipefail
 
 # Find project root (where .git directory is)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # Detect git branch and sanitize for docker naming (replace / and special chars with _)
-GIT_BRANCH=$(cd "${PROJECT_ROOT}" && git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '_' | tr -cd 'a-zA-Z0-9_-')
+GIT_BRANCH=$(cd "${PROJECT_ROOT}" && git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '_' | tr -cd 'a-zA-Z0-9_-' || echo "")
+# Handle edge cases: detached HEAD, empty branch name
+GIT_BRANCH=${GIT_BRANCH:-unknown}
+# If branch is just "HEAD" (detached state), make it more descriptive
+if [ "${GIT_BRANCH}" = "HEAD" ]; then
+    GIT_BRANCH="detached"
+fi
+
+# Ensure USER is set
+USER_NAME=${USER:-$(whoami 2>/dev/null || echo "user")}
 
 # Default container name: ck_<username>_<branch>
-DEFAULT_NAME="ck_${USER}_${GIT_BRANCH}"
+DEFAULT_NAME="ck_${USER_NAME}_${GIT_BRANCH}"
 CONTAINER_NAME="${CK_CONTAINER_NAME:-${DEFAULT_NAME}}"
 
 # Help message
@@ -38,13 +48,20 @@ Examples:
 
 Environment:
   CK_CONTAINER_NAME - Override default container name (default: ck_<username>_<branch>)
+  CK_DOCKER_IMAGE   - Override Docker image (default: rocm/composable_kernel:ck_ub24.04_rocm7.0.1)
+  GPU_TARGET        - Override GPU target detection (e.g., gfx950, gfx942)
 EOF
 }
 
 # Detect GPU target
 detect_gpu() {
     local container=$1
-    docker exec ${container} bash -c "
+    # Allow override via GPU_TARGET environment variable
+    if [ -n "${GPU_TARGET:-}" ]; then
+        echo "${GPU_TARGET}"
+        return 0
+    fi
+    docker exec "${container}" bash -c "
       rocminfo 2>/dev/null | grep -oP 'gfx[0-9a-z]+' | head -1 || echo 'gfx950'
     " | tr -d '\r\n'
 }
@@ -52,14 +69,17 @@ detect_gpu() {
 # Start container
 cmd_start() {
     local name="${1:-${CONTAINER_NAME}}"
+    local docker_image="${CK_DOCKER_IMAGE:-rocm/composable_kernel:ck_ub24.04_rocm7.0.1}"
 
-    if docker ps -a -f name=${name} | grep -q ${name}; then
-        if docker ps -f name=${name} | grep -q ${name}; then
+    # Check if container exists (exact match to avoid substring collisions)
+    if docker ps -a --filter "name=^${name}$" --format '{{.Names}}' | grep -q "^${name}$"; then
+        # Check if container is running
+        if docker ps --filter "name=^${name}$" --format '{{.Names}}' | grep -q "^${name}$"; then
             echo "Container '${name}' is already running"
             return 0
         else
             echo "Starting existing container '${name}'..."
-            docker start ${name}
+            docker start "${name}"
             echo "Container started"
             return 0
         fi
@@ -67,17 +87,17 @@ cmd_start() {
 
     echo "Creating new Docker container '${name}'..."
     docker run -d \
-        --name ${name} \
+        --name "${name}" \
         --device=/dev/kfd --device=/dev/dri \
         --security-opt seccomp=unconfined \
         --group-add video \
         -v "${PROJECT_ROOT}":/workspace \
         -w /workspace \
-        rocm/composable_kernel:ck_ub24.04_rocm7.0.1 \
+        "${docker_image}" \
         tail -f /dev/null
 
     echo "Container '${name}' started successfully"
-    docker exec ${name} bash -c "echo 'Working directory:' && pwd"
+    docker exec "${name}" bash -c "echo 'Working directory:' && pwd"
 }
 
 # Build target
@@ -98,21 +118,22 @@ cmd_build() {
         esac
     done
 
-    if ! docker ps -f name=${name} | grep -q ${name}; then
+    # Check if container is running (exact match)
+    if ! docker ps --filter "name=^${name}$" --format '{{.Names}}' | grep -q "^${name}$"; then
         echo "Container '${name}' not running. Starting..."
-        cmd_start ${name}
+        cmd_start "${name}"
     fi
 
-    if ! docker exec ${name} test -f /workspace/build/build.ninja 2>/dev/null; then
+    if ! docker exec "${name}" test -f /workspace/build/build.ninja 2>/dev/null; then
         echo "Detecting GPU target..."
-        local gpu_target=$(detect_gpu ${name})
+        local gpu_target=$(detect_gpu "${name}")
 
         echo "Configuring build with CMake for GPU target: ${gpu_target}"
-        docker exec ${name} bash -c "
-            cd /workspace &&
-            rm -rf build &&
-            mkdir build &&
-            cd build &&
+        docker exec "${name}" bash -c "
+            cd /workspace || exit 1
+            rm -rf /workspace/build
+            mkdir /workspace/build
+            cd /workspace/build || exit 1
             cmake .. -GNinja \
                 -DGPU_TARGETS=${gpu_target} \
                 -DCMAKE_BUILD_TYPE=Release \
@@ -127,8 +148,8 @@ cmd_build() {
         echo "Building target: ${target}"
     fi
 
-    docker exec ${name} bash -c "
-        cd /workspace/build &&
+    docker exec "${name}" bash -c "
+        cd /workspace/build || exit 1
         ninja ${target} 2>&1
     "
 
@@ -139,7 +160,7 @@ cmd_build() {
 cmd_test() {
     local test_name=""
     local name="${CONTAINER_NAME}"
-    local test_options=""
+    local -a test_options=()
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -148,14 +169,14 @@ cmd_test() {
                 shift 2
                 ;;
             --gtest_*|--help)
-                test_options="${test_options} $1"
+                test_options+=("$1")
                 shift
                 ;;
             *)
                 if [ -z "$test_name" ]; then
                     test_name="$1"
                 else
-                    test_options="${test_options} $1"
+                    test_options+=("$1")
                 fi
                 shift
                 ;;
@@ -168,55 +189,61 @@ cmd_test() {
         return 1
     fi
 
-    if ! docker ps -f name=${name} | grep -q ${name}; then
+    # Check if container is running (exact match)
+    if ! docker ps --filter "name=^${name}$" --format '{{.Names}}' | grep -q "^${name}$"; then
         echo "Error: Container '${name}' not running"
         echo "Start it with: ck-docker start --name ${name}"
         return 1
     fi
 
-    if ! docker exec ${name} test -f "/workspace/build/bin/${test_name}" 2>/dev/null; then
+    if ! docker exec "${name}" test -f "/workspace/build/bin/${test_name}" 2>/dev/null; then
         echo "Test executable not found. Building ${test_name}..."
-        cmd_build ${test_name} --name ${name}
+        cmd_build "${test_name}" --name "${name}"
     fi
 
-    echo "Running: ${test_name} ${test_options}"
+    echo "Running: ${test_name} ${test_options[*]}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    docker exec ${name} bash -c "
-        cd /workspace/build &&
-        ./bin/${test_name} ${test_options}
-    "
+    # Build the command with proper quoting
+    local cmd="cd /workspace/build && ./bin/${test_name}"
+    for opt in "${test_options[@]}"; do
+        cmd="${cmd} $(printf '%q' "$opt")"
+    done
+    docker exec "${name}" bash -c "${cmd}"
 }
 
 # Shell
 cmd_shell() {
     local name="${1:-${CONTAINER_NAME}}"
 
-    if ! docker ps -f name=${name} | grep -q ${name}; then
+    # Check if container is running (exact match)
+    if ! docker ps --filter "name=^${name}$" --format '{{.Names}}' | grep -q "^${name}$"; then
         echo "Container '${name}' not running. Starting..."
-        cmd_start ${name}
+        cmd_start "${name}"
     fi
 
     echo "Opening shell in '${name}' (type 'exit' to leave)..."
-    docker exec -it ${name} bash
+    docker exec -it "${name}" bash
 }
 
 # Status
 cmd_status() {
     local name="${1:-}"
+    local docker_image="${CK_DOCKER_IMAGE:-rocm/composable_kernel:ck_ub24.04_rocm7.0.1}"
 
     if [ -z "$name" ]; then
         echo "Composable Kernel Docker Containers:"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        docker ps -a --filter "ancestor=rocm/composable_kernel:ck_ub24.04_rocm7.0.1" \
+        docker ps -a --filter "ancestor=${docker_image}" \
             --format "table {{.Names}}\t{{.Status}}\t{{.CreatedAt}}" || echo "No containers found"
     else
-        if docker ps -f name=${name} | grep -q ${name}; then
+        # Check if container is running (exact match)
+        if docker ps --filter "name=^${name}$" --format '{{.Names}}' | grep -q "^${name}$"; then
             echo "Container '${name}' is RUNNING"
-            docker ps -f name=${name} --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+            docker ps --filter "name=^${name}$" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
             echo ""
             echo "GPU Information:"
-            docker exec ${name} bash -c "rocm-smi --showproductname 2>/dev/null | head -10 || echo 'No GPU detected'"
-        elif docker ps -a -f name=${name} | grep -q ${name}; then
+            docker exec "${name}" bash -c "rocm-smi --showproductname 2>/dev/null | head -10 || echo 'No GPU detected'"
+        elif docker ps -a --filter "name=^${name}$" --format '{{.Names}}' | grep -q "^${name}$"; then
             echo "Container '${name}' exists but is STOPPED"
             echo "Start with: ck-docker start ${name}"
         else
@@ -230,10 +257,11 @@ cmd_status() {
 cmd_stop() {
     local name="${1:-${CONTAINER_NAME}}"
 
-    if docker ps -a -f name=${name} | grep -q ${name}; then
+    # Check if container exists (exact match)
+    if docker ps -a --filter "name=^${name}$" --format '{{.Names}}' | grep -q "^${name}$"; then
         echo "Stopping and removing container '${name}'..."
-        docker stop ${name} 2>/dev/null || true
-        docker rm ${name} 2>/dev/null || true
+        docker stop "${name}" 2>/dev/null || true
+        docker rm "${name}" 2>/dev/null || true
         echo "Container stopped and removed"
     else
         echo "Container '${name}' does not exist"
@@ -244,20 +272,21 @@ cmd_stop() {
 cmd_rebuild_cmake() {
     local name="${1:-${CONTAINER_NAME}}"
 
-    if ! docker ps -f name=${name} | grep -q ${name}; then
+    # Check if container is running (exact match)
+    if ! docker ps --filter "name=^${name}$" --format '{{.Names}}' | grep -q "^${name}$"; then
         echo "Container '${name}' not running. Starting..."
-        cmd_start ${name}
+        cmd_start "${name}"
     fi
 
     echo "Detecting GPU target..."
-    local gpu_target=$(detect_gpu ${name})
+    local gpu_target=$(detect_gpu "${name}")
 
     echo "Reconfiguring CMake from scratch in '${name}' for GPU target: ${gpu_target}"
-    docker exec ${name} bash -c "
-        cd /workspace &&
-        rm -rf build &&
-        mkdir build &&
-        cd build &&
+    docker exec "${name}" bash -c "
+        cd /workspace || exit 1
+        rm -rf /workspace/build
+        mkdir /workspace/build
+        cd /workspace/build || exit 1
         cmake .. -GNinja \
             -DGPU_TARGETS=${gpu_target} \
             -DCMAKE_BUILD_TYPE=Release \

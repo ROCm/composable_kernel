@@ -52,7 +52,9 @@ ck-docker rebuild-cmake [name]      Reconfigure CMake
 ## Environment
 
 ```bash
-export CK_CONTAINER_NAME=my_build  # Override default container name
+export CK_CONTAINER_NAME=my_build                                   # Override default container name
+export CK_DOCKER_IMAGE=rocm/composable_kernel:ck_ub24.04_rocm7.0.1  # Override Docker image
+export GPU_TARGET=gfx942                                             # Override GPU target detection
 ```
 
 ## Examples
