@@ -63,20 +63,31 @@
 
 ## Optimization Recommendations
 
-### Short Term
-1. **Focus on High-Impact Templates**: Address top 10 families first
-2. **Explicit Template Instantiation**: Pre-instantiate common configurations
-3. **Extern Templates**: Mark frequently-used templates as extern in headers
+### High-Impact Targets (by total time)
+{% for name, stats in templates_by_time[:5] -%}
+**{{ loop.index }}. {{ name }}** - {{ (stats.total_dur|us_to_s)|round(1) }}s total ({{ stats.pct|round(1) }}%)
+   - {{ stats.count|format_number }} instantiations, {{ (stats.avg|us_to_ms)|round(2) }}ms average
+   {% if stats.count > 100 -%}
+   - Strategy: Extern templates - High instantiation count suggests repeated compilation
+   {% elif stats.avg|us_to_ms > 50 -%}
+   - Strategy: Template specialization - High individual cost suggests complexity
+   {% else -%}
+   - Strategy: Explicit instantiation - Pre-instantiate common configurations
+   {% endif %}
 
-### Medium Term
-1. **Precompiled Headers**: Include heavy templates in PCH
-2. **Template Specialization**: Replace general templates with specialized versions
-3. **Template Depth Reduction**: Simplify template hierarchies
+{% endfor %}
+### Frequently Instantiated (optimization candidates)
+{% for name, stats in templates_by_count[:5] if stats.count > 100 -%}
+**{{ name }}** - {{ stats.count|format_number }} times ({{ (stats.total_dur|us_to_s)|round(2) }}s total)
+   - Consider: Precompiled headers or extern templates to avoid recompilation
 
-### Long Term
-1. **Architectural Review**: Evaluate necessity of deep template metaprogramming
-2. **C++20 Concepts**: Earlier constraint checking, fewer instantiations
-3. **Build Caching**: Distributed build cache for template instantiations
+{% endfor %}
+### Most Expensive Individual Instantiations
+{% for inst in top_individual[:3] -%}
+**{{ loop.index }}. {{ inst.detail|truncate(60) }}** - {{ (inst.dur|us_to_ms)|round(1) }}ms
+   - Strategy: Profile and simplify this specific instantiation
+
+{% endfor %}
 
 ## Detailed Statistics
 
