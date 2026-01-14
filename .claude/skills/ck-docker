@@ -1,0 +1,309 @@
+#!/bin/bash
+# CK Docker Skill - Build and test composable_kernel in Docker with ROCm support
+
+set -e
+
+# Find project root (where .git directory is)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+# Detect git branch and sanitize for docker naming (replace / and special chars with _)
+GIT_BRANCH=$(cd "${PROJECT_ROOT}" && git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '_' | tr -cd 'a-zA-Z0-9_-')
+
+# Default container name: ck_<username>_<branch>
+DEFAULT_NAME="ck_${USER}_${GIT_BRANCH}"
+CONTAINER_NAME="${CK_CONTAINER_NAME:-${DEFAULT_NAME}}"
+
+# Help message
+show_help() {
+    cat << EOF
+CK Docker Skill - Build and test composable_kernel in Docker
+
+Usage: ck-docker <command> [options]
+
+Commands:
+  start [name]              Start Docker container
+  build [target] [--name]   Build target
+  test <test> [options]     Run test
+  shell [name]              Open shell in container
+  status [name]             Check container status
+  stop [name]               Stop and remove container
+  rebuild-cmake [name]      Reconfigure CMake from scratch
+
+Examples:
+  ck-docker start
+  ck-docker build test_amdgcn_mma
+  ck-docker test test_amdgcn_mma --gtest_filter=*Fp16*
+  ck-docker shell
+
+Environment:
+  CK_CONTAINER_NAME - Override default container name (default: ck_<username>_<branch>)
+EOF
+}
+
+# Detect GPU target
+detect_gpu() {
+    local container=$1
+    docker exec ${container} bash -c "
+      rocminfo 2>/dev/null | grep -oP 'gfx[0-9a-z]+' | head -1 || echo 'gfx950'
+    " | tr -d '\r\n'
+}
+
+# Start container
+cmd_start() {
+    local name="${1:-${CONTAINER_NAME}}"
+
+    if docker ps -a -f name=${name} | grep -q ${name}; then
+        if docker ps -f name=${name} | grep -q ${name}; then
+            echo "Container '${name}' is already running"
+            return 0
+        else
+            echo "Starting existing container '${name}'..."
+            docker start ${name}
+            echo "Container started"
+            return 0
+        fi
+    fi
+
+    echo "Creating new Docker container '${name}'..."
+    docker run -d \
+        --name ${name} \
+        --device=/dev/kfd --device=/dev/dri \
+        --security-opt seccomp=unconfined \
+        --group-add video \
+        -v "${PROJECT_ROOT}":/workspace \
+        -w /workspace \
+        rocm/composable_kernel:ck_ub24.04_rocm7.0.1 \
+        tail -f /dev/null
+
+    echo "Container '${name}' started successfully"
+    docker exec ${name} bash -c "echo 'Working directory:' && pwd"
+}
+
+# Build target
+cmd_build() {
+    local target=""
+    local name="${CONTAINER_NAME}"
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --name)
+                name="$2"
+                shift 2
+                ;;
+            *)
+                target="$1"
+                shift
+                ;;
+        esac
+    done
+
+    if ! docker ps -f name=${name} | grep -q ${name}; then
+        echo "Container '${name}' not running. Starting..."
+        cmd_start ${name}
+    fi
+
+    if ! docker exec ${name} test -f /workspace/build/build.ninja 2>/dev/null; then
+        echo "Detecting GPU target..."
+        local gpu_target=$(detect_gpu ${name})
+
+        echo "Configuring build with CMake for GPU target: ${gpu_target}"
+        docker exec ${name} bash -c "
+            cd /workspace &&
+            rm -rf build &&
+            mkdir build &&
+            cd build &&
+            cmake .. -GNinja \
+                -DGPU_TARGETS=${gpu_target} \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+                -DBUILD_TESTING=ON 2>&1 | tail -30
+        "
+    fi
+
+    if [ -z "$target" ]; then
+        echo "Building all configured targets..."
+    else
+        echo "Building target: ${target}"
+    fi
+
+    docker exec ${name} bash -c "
+        cd /workspace/build &&
+        ninja ${target} 2>&1
+    "
+
+    echo "Build complete"
+}
+
+# Run test
+cmd_test() {
+    local test_name=""
+    local name="${CONTAINER_NAME}"
+    local test_options=""
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --name)
+                name="$2"
+                shift 2
+                ;;
+            --gtest_*|--help)
+                test_options="${test_options} $1"
+                shift
+                ;;
+            *)
+                if [ -z "$test_name" ]; then
+                    test_name="$1"
+                else
+                    test_options="${test_options} $1"
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [ -z "$test_name" ]; then
+        echo "Error: test_name required"
+        echo "Usage: ck-docker test <test_name> [--name container_name] [gtest_options]"
+        return 1
+    fi
+
+    if ! docker ps -f name=${name} | grep -q ${name}; then
+        echo "Error: Container '${name}' not running"
+        echo "Start it with: ck-docker start --name ${name}"
+        return 1
+    fi
+
+    if ! docker exec ${name} test -f "/workspace/build/bin/${test_name}" 2>/dev/null; then
+        echo "Test executable not found. Building ${test_name}..."
+        cmd_build ${test_name} --name ${name}
+    fi
+
+    echo "Running: ${test_name} ${test_options}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    docker exec ${name} bash -c "
+        cd /workspace/build &&
+        ./bin/${test_name} ${test_options}
+    "
+}
+
+# Shell
+cmd_shell() {
+    local name="${1:-${CONTAINER_NAME}}"
+
+    if ! docker ps -f name=${name} | grep -q ${name}; then
+        echo "Container '${name}' not running. Starting..."
+        cmd_start ${name}
+    fi
+
+    echo "Opening shell in '${name}' (type 'exit' to leave)..."
+    docker exec -it ${name} bash
+}
+
+# Status
+cmd_status() {
+    local name="${1:-}"
+
+    if [ -z "$name" ]; then
+        echo "Composable Kernel Docker Containers:"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        docker ps -a --filter "ancestor=rocm/composable_kernel:ck_ub24.04_rocm7.0.1" \
+            --format "table {{.Names}}\t{{.Status}}\t{{.CreatedAt}}" || echo "No containers found"
+    else
+        if docker ps -f name=${name} | grep -q ${name}; then
+            echo "Container '${name}' is RUNNING"
+            docker ps -f name=${name} --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+            echo ""
+            echo "GPU Information:"
+            docker exec ${name} bash -c "rocm-smi --showproductname 2>/dev/null | head -10 || echo 'No GPU detected'"
+        elif docker ps -a -f name=${name} | grep -q ${name}; then
+            echo "Container '${name}' exists but is STOPPED"
+            echo "Start with: ck-docker start ${name}"
+        else
+            echo "Container '${name}' does NOT exist"
+            echo "Create with: ck-docker start ${name}"
+        fi
+    fi
+}
+
+# Stop
+cmd_stop() {
+    local name="${1:-${CONTAINER_NAME}}"
+
+    if docker ps -a -f name=${name} | grep -q ${name}; then
+        echo "Stopping and removing container '${name}'..."
+        docker stop ${name} 2>/dev/null || true
+        docker rm ${name} 2>/dev/null || true
+        echo "Container stopped and removed"
+    else
+        echo "Container '${name}' does not exist"
+    fi
+}
+
+# Rebuild CMake
+cmd_rebuild_cmake() {
+    local name="${1:-${CONTAINER_NAME}}"
+
+    if ! docker ps -f name=${name} | grep -q ${name}; then
+        echo "Container '${name}' not running. Starting..."
+        cmd_start ${name}
+    fi
+
+    echo "Detecting GPU target..."
+    local gpu_target=$(detect_gpu ${name})
+
+    echo "Reconfiguring CMake from scratch in '${name}' for GPU target: ${gpu_target}"
+    docker exec ${name} bash -c "
+        cd /workspace &&
+        rm -rf build &&
+        mkdir build &&
+        cd build &&
+        cmake .. -GNinja \
+            -DGPU_TARGETS=${gpu_target} \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+            -DBUILD_TESTING=ON 2>&1 | tail -30
+    "
+    echo "CMake configuration complete for ${gpu_target}"
+}
+
+# Main command dispatcher
+case "${1:-}" in
+    start)
+        shift
+        cmd_start "$@"
+        ;;
+    build)
+        shift
+        cmd_build "$@"
+        ;;
+    test)
+        shift
+        cmd_test "$@"
+        ;;
+    shell)
+        shift
+        cmd_shell "$@"
+        ;;
+    status)
+        shift
+        cmd_status "$@"
+        ;;
+    stop)
+        shift
+        cmd_stop "$@"
+        ;;
+    rebuild-cmake)
+        shift
+        cmd_rebuild_cmake "$@"
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        echo "Unknown command: ${1:-}"
+        echo ""
+        show_help
+        exit 1
+        ;;
+esac
