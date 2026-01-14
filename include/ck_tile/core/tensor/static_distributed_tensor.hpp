@@ -229,7 +229,7 @@ set_tile_if(static_distributed_tensor<DataType, StaticTileDistribution>& out_ten
 template <typename YLengths, index_t XUnpacks>
 CK_TILE_HOST_DEVICE constexpr auto get_y_unpacks_from_x_unpacks(YLengths, number<XUnpacks>)
 {
-    constexpr auto y_size  = reduce_on_sequence(YLengths{}, multiplies{}, number<1>{});
+    constexpr auto y_size  = reduce_on_sequence(YLengths{}, multiplies<>{}, number<1>{});
     constexpr auto y_packs = number<XUnpacks>{};
     static_assert(y_size % y_packs == 0);
     constexpr auto y_slice_size = y_size / y_packs;

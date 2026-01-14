@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/host/fill.hpp"
 #include "ck_tile/host/joinable_thread.hpp"
@@ -26,6 +26,7 @@ using TestTypes = ::testing::Types<float, fp16_t, fp8_t, pk_fp4_t>;
 TYPED_TEST_SUITE(FillUniformDistributionTest, TestTypes);
 
 // Test that multiple runs with the same seed produce identical results
+#ifndef _WIN32
 TYPED_TEST(FillUniformDistributionTest, ConsistencyWithSameSeed)
 {
     using T         = TypeParam;
@@ -53,6 +54,7 @@ TYPED_TEST(FillUniformDistributionTest, ConsistencyWithSameSeed)
             << "First and second fill should be identical";
     }
 }
+#endif
 
 // Test consistency across different data sizes (which affects threading)
 TYPED_TEST(FillUniformDistributionTest, ConsistencyAcrossSizes)

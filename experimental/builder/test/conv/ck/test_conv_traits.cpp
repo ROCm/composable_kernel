@@ -5,6 +5,7 @@
 #include <gmock/gmock.h>
 #include <concepts>
 
+#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
 #include <ck_tile/builder/reflect/conv_traits.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp>
@@ -100,7 +101,7 @@ TEST_F(ConvTraitsTest, ConvFwdTraitsExtraction)
 
     // Verify specializations
     EXPECT_EQ(Traits::gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
-    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvFwdSpecialization::DEFAULT);
+    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
 
     // Verify algorithm information
     EXPECT_EQ(Traits::thread_block_size, 256);
@@ -228,7 +229,7 @@ TEST_F(ConvTraitsTest, ConvFwdBaseTraitsExtraction)
 
     // Verify specializations
     EXPECT_EQ(Traits::gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
-    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvFwdSpecialization::DEFAULT);
+    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
 
     // Verify algorithm information
     EXPECT_EQ(Traits::thread_block_size, 256);
@@ -312,7 +313,7 @@ TEST_F(ConvTraitsTest, ConvFwdLargeTensorTraitsExtraction)
 
     // Verify specializations
     EXPECT_EQ(Traits::gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
-    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvFwdSpecialization::DEFAULT);
+    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
 
     // Verify algorithm information
     EXPECT_EQ(Traits::thread_block_size, 256);

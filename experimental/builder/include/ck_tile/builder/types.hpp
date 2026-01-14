@@ -11,15 +11,22 @@
 
 namespace ck_tile::builder {
 
+// TODO: Handle tuple types and FP8/BF8 properly
 enum class DataType
 {
     UNDEFINED_DATA_TYPE = 0,
     FP32,
+    FP32_FP32,
     FP16,
+    FP16_FP16,
     BF16,
+    BF16_BF16,
     FP8,
-    INT32,
+    BF8,
+    FP64,
+    I32,
     I8,
+    I8_I8,
     U8
 };
 
@@ -102,13 +109,44 @@ enum class ConvDirection
 };
 
 // Fused element-wise operations.
+// TODO: Generalize design rather than enumerating all possible ops.
 enum class ElementwiseOperation
 {
+    ADD_CLAMP,
+    ADD_RELU_ADD,
+    ACTIVATION_MUL2_CLAMP,
+    ACTIVATION_MUL_CLAMP,
+    ADD_ACTIVATION_MUL_CLAMP,
+    ADD_ACTIVATION_MUL2_CLAMP,
+    ADD_MUL_ACTIVATION_MUL_CLAMP,
+    ADD_MUL2_ACTIVATION_MUL_CLAMP,
     BIAS_BNORM_CLAMP,
+    BILINEAR,
     SCALE,
+    SCALE_ADD,
     CLAMP,
+    CONV_INVSCALE,
+    CONV_SCALE,
+    CONV_SCALE_ADD,
+    CONV_SCALE_RELU,
     PASS_THROUGH,
-    SCALEADD_SCALEADD_RELU
+    SCALEADD_SCALEADD_RELU,
+    DYNAMIC_UNARY_OP,
+    UNARY_COMBINED_OP,
+    UNARY_CONVERT,
+    LOGISTIC,
+    CLIPPED_RELU,
+    SWISH,
+    ELU,
+    POWER,
+    LEAKY_RELU,
+    UNARY_ABS,
+    RELU,
+    SOFT_RELU,
+    SIGMOID,
+    TANH,
+    GELU,
+    SILU
 };
 
 // Enums for pipeline versions & schedulers
@@ -154,29 +192,14 @@ enum class TileConvSpecialization
     FILTER_3x3
 };
 
-// Enums for the forward convolution specialization.
-enum class ConvFwdSpecialization
+// Enums for the convolution specializations.
+enum class ConvSpecialization
 {
     DEFAULT,
     FILTER_1X1_PAD0,
     FILTER_1X1_STRIDE1_PAD0,
-    FILTER_3x3
-};
-
-// Enums for the backward data convolution specialization.
-enum class ConvBwdDataSpecialization
-{
-    DEFAULT,
-    FILTER_1X1_STRIDE1_PAD0,
-};
-
-// Enums for the backward weight convolution specialization.
-enum class ConvBwdWeightSpecialization
-{
-    DEFAULT,
-    FILTER_1X1_STRIDE1_PAD0,
-    FILTER_1X1_PAD0,
-    ODD_C,
+    FILTER_3x3,
+    ODD_C
 };
 
 // Enums for the Gemm padding.
@@ -209,28 +232,37 @@ enum class PipelineScheduler
 
 enum class ConvAlgorithmSpecialization
 {
-    LARGE_TENSOR
+    LARGE_TENSOR,
+    REFERENCE, // GPU reference implementation for validation,
+    TWO_STAGE,
+    MULTIPLE_D
 };
 
-// toString methods for enum classes
-inline std::string_view toString(DataType dt)
+// to_string methods for enum classes
+inline std::string_view to_string(DataType dt)
 {
     using enum DataType;
     switch(dt)
     {
     case FP16: return "FP16";
+    case FP16_FP16: return "FP16_FP16";
     case FP32: return "FP32";
+    case FP32_FP32: return "FP32_FP32";
     case BF16: return "BF16";
+    case BF16_BF16: return "BF16_BF16";
     case FP8: return "FP8";
-    case INT32: return "INT32";
+    case BF8: return "BF8";
+    case FP64: return "FP64";
+    case I32: return "I32";
     case I8: return "I8";
+    case I8_I8: return "I8_I8";
     case U8: return "U8";
     case UNDEFINED_DATA_TYPE: return "UNDEFINED_DATA_TYPE";
     default: return "Unknown";
     }
 }
 
-inline std::string_view toString(ConvDirection dir)
+inline std::string_view to_string(ConvDirection dir)
 {
     using enum ConvDirection;
     switch(dir)
@@ -242,21 +274,51 @@ inline std::string_view toString(ConvDirection dir)
     }
 }
 
-inline std::string_view toString(ElementwiseOperation op)
+inline std::string_view to_string(ElementwiseOperation op)
 {
     using enum ElementwiseOperation;
     switch(op)
     {
+    case ADD_CLAMP: return "ADD_CLAMP";
+    case ADD_RELU_ADD: return "ADD_RELU_ADD";
+    case ACTIVATION_MUL2_CLAMP: return "ACTIVATION_MUL2_CLAMP";
+    case ACTIVATION_MUL_CLAMP: return "ACTIVATION_MUL_CLAMP";
+    case ADD_ACTIVATION_MUL_CLAMP: return "ADD_ACTIVATION_MUL_CLAMP";
+    case ADD_ACTIVATION_MUL2_CLAMP: return "ADD_ACTIVATION_MUL2_CLAMP";
+    case ADD_MUL_ACTIVATION_MUL_CLAMP: return "ADD_MUL_ACTIVATION_MUL_CLAMP";
+    case ADD_MUL2_ACTIVATION_MUL_CLAMP: return "ADD_MUL2_ACTIVATION_MUL_CLAMP";
+    case BIAS_BNORM_CLAMP: return "BIAS_BNORM_CLAMP";
+    case BILINEAR: return "BILINEAR";
     case CLAMP: return "CLAMP";
     case SCALE: return "SCALE";
+    case SCALE_ADD: return "SCALE_ADD";
+    case CONV_INVSCALE: return "CONV_INVSCALE";
+    case CONV_SCALE: return "CONV_SCALE";
+    case CONV_SCALE_ADD: return "CONV_SCALE_ADD";
+    case CONV_SCALE_RELU: return "CONV_SCALE_RELU";
     case PASS_THROUGH: return "PASS_THROUGH";
-    case BIAS_BNORM_CLAMP: return "BIAS_BNORM_CLAMP";
     case SCALEADD_SCALEADD_RELU: return "SCALEADD_SCALEADD_RELU";
+    case DYNAMIC_UNARY_OP: return "DYNAMIC_UNARY_OP";
+    case UNARY_COMBINED_OP: return "UNARY_COMBINED_OP";
+    case UNARY_CONVERT: return "UNARY_CONVERT";
+    case LOGISTIC: return "LOGISTIC";
+    case CLIPPED_RELU: return "CLIPPED_RELU";
+    case SWISH: return "SWISH";
+    case ELU: return "ELU";
+    case POWER: return "POWER";
+    case LEAKY_RELU: return "LEAKY_RELU";
+    case UNARY_ABS: return "UNARY_ABS";
+    case RELU: return "RELU";
+    case SOFT_RELU: return "SOFT_RELU";
+    case SIGMOID: return "SIGMOID";
+    case TANH: return "TANH";
+    case GELU: return "GELU";
+    case SILU: return "SILU";
     default: return "Unknown";
     }
 }
 
-inline std::string_view toString(PipelineVersion ver)
+inline std::string_view to_string(PipelineVersion ver)
 {
     using enum PipelineVersion;
     switch(ver)
@@ -271,7 +333,7 @@ inline std::string_view toString(PipelineVersion ver)
     }
 }
 
-inline std::string_view toString(GemmSpecialization spec)
+inline std::string_view to_string(GemmSpecialization spec)
 {
     using enum GemmSpecialization;
     switch(spec)
@@ -296,44 +358,21 @@ inline std::string_view toString(GemmSpecialization spec)
     }
 }
 
-inline std::string_view toString(ConvFwdSpecialization spec)
+inline std::string_view to_string(ConvSpecialization spec)
 {
-    using enum ConvFwdSpecialization;
+    using enum ConvSpecialization;
     switch(spec)
     {
     case DEFAULT: return "DEFAULT";
     case FILTER_1X1_PAD0: return "FILTER_1X1_PAD0";
     case FILTER_1X1_STRIDE1_PAD0: return "FILTER_1X1_STRIDE1_PAD0";
     case FILTER_3x3: return "FILTER_3x3";
-    default: return "Unknown";
-    }
-}
-
-inline std::string_view toString(ConvBwdDataSpecialization spec)
-{
-    using enum ConvBwdDataSpecialization;
-    switch(spec)
-    {
-    case DEFAULT: return "DEFAULT";
-    case FILTER_1X1_STRIDE1_PAD0: return "FILTER_1X1_STRIDE1_PAD0";
-    default: return "Unknown";
-    }
-}
-
-inline std::string_view toString(ConvBwdWeightSpecialization spec)
-{
-    using enum ConvBwdWeightSpecialization;
-    switch(spec)
-    {
-    case DEFAULT: return "DEFAULT";
-    case FILTER_1X1_STRIDE1_PAD0: return "FILTER_1X1_STRIDE1_PAD0";
-    case FILTER_1X1_PAD0: return "FILTER_1X1_PAD0";
     case ODD_C: return "ODD_C";
     default: return "Unknown";
     }
 }
 
-inline std::string_view toString(GemmPadding padding)
+inline std::string_view to_string(GemmPadding padding)
 {
     using enum GemmPadding;
     switch(padding)
@@ -358,7 +397,7 @@ inline std::string_view toString(GemmPadding padding)
     }
 }
 
-inline std::string_view toString(PipelineScheduler sched)
+inline std::string_view to_string(PipelineScheduler sched)
 {
     using enum PipelineScheduler;
     switch(sched)
@@ -370,7 +409,7 @@ inline std::string_view toString(PipelineScheduler sched)
     }
 }
 
-inline std::string_view toString(TensorLayout layout)
+inline std::string_view to_string(TensorLayout layout)
 {
     using enum TensorLayout;
     switch(layout)
@@ -426,63 +465,46 @@ inline std::string_view toString(TensorLayout layout)
 }
 
 // ostream operator overloads for enum classes
-inline std::ostream& operator<<(std::ostream& os, DataType dt) { return os << toString(dt); }
+inline std::ostream& operator<<(std::ostream& os, DataType dt) { return os << to_string(dt); }
 
-inline std::ostream& operator<<(std::ostream& os, ConvDirection dir) { return os << toString(dir); }
+inline std::ostream& operator<<(std::ostream& os, ConvDirection dir)
+{
+    return os << to_string(dir);
+}
 
 inline std::ostream& operator<<(std::ostream& os, ElementwiseOperation op)
 {
-    return os << toString(op);
+    return os << to_string(op);
 }
 
 inline std::ostream& operator<<(std::ostream& os, PipelineVersion ver)
 {
-    return os << toString(ver);
+    return os << to_string(ver);
 }
 
 inline std::ostream& operator<<(std::ostream& os, GemmSpecialization spec)
 {
-    return os << toString(spec);
+    return os << to_string(spec);
 }
 
-inline std::ostream& operator<<(std::ostream& os, ConvFwdSpecialization spec)
+inline std::ostream& operator<<(std::ostream& os, ConvSpecialization spec)
 {
-    return os << toString(spec);
-}
-
-inline std::ostream& operator<<(std::ostream& os, ConvBwdDataSpecialization spec)
-{
-    return os << toString(spec);
-}
-
-inline std::ostream& operator<<(std::ostream& os, ConvBwdWeightSpecialization spec)
-{
-    return os << toString(spec);
+    return os << to_string(spec);
 }
 
 inline std::ostream& operator<<(std::ostream& os, GemmPadding padding)
 {
-    return os << toString(padding);
+    return os << to_string(padding);
 }
 
 inline std::ostream& operator<<(std::ostream& os, PipelineScheduler sched)
 {
-    return os << toString(sched);
+    return os << to_string(sched);
 }
 
 inline std::ostream& operator<<(std::ostream& os, TensorLayout layout)
 {
-    return os << toString(layout);
-}
-
-// ostream operator overload for std::variant of convolution specializations
-inline std::ostream& operator<<(std::ostream& os,
-                                const std::variant<ConvFwdSpecialization,
-                                                   ConvBwdDataSpecialization,
-                                                   ConvBwdWeightSpecialization>& spec)
-{
-    std::visit([&os](const auto& s) { os << s; }, spec);
-    return os;
+    return os << to_string(layout);
 }
 
 } // namespace ck_tile::builder

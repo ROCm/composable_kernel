@@ -10,6 +10,8 @@ struct WmmaTraitsBase;
 template <typename ADType, typename BDType, typename CDType>
 struct WmmaTraitsBase<gfx11_t, ADType, BDType, CDType>
 {
+    using ArchType = gfx11_t;
+
     using ADataType = ADType;
     using BDataType = BDType;
     using CDataType = CDType;
@@ -57,6 +59,8 @@ struct WmmaTraitsBase<gfx11_t, ADType, BDType, CDType>
 template <typename ADType, typename BDType, typename CDType>
 struct WmmaTraitsBase<gfx12_t, ADType, BDType, CDType>
 {
+    using ArchType = gfx12_t;
+
     using ADataType = ADType;
     using BDataType = BDType;
     using CDataType = CDType;

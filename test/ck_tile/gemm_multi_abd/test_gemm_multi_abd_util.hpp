@@ -23,6 +23,28 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
+template <typename PrecType, ck_tile::index_t M_Warp_Tile>
+constexpr ck_tile::index_t get_k_warp_tile()
+{
+#if CK_TILE_USE_WMMA
+    return 16;
+#else
+#if defined(CK_GFX950_SUPPORT)
+    constexpr bool is_8bit_float =
+        std::is_same_v<PrecType, ck_tile::fp8_t> || std::is_same_v<PrecType, ck_tile::bf8_t>;
+    if constexpr(M_Warp_Tile == 32)
+        return is_8bit_float ? 64 : 16;
+    else
+        return is_8bit_float ? 128 : 32;
+#else
+    if constexpr(M_Warp_Tile == 32)
+        return 16;
+    else
+        return 32;
+#endif
+#endif
+}
+
 template <typename A0DataType,
           typename B0DataType,
           typename AccDataType,
@@ -103,17 +125,25 @@ class TestCkTileGemmMultiABD : public ::testing::Test
                                                                    DsDataType::size()>& args,
                                const ck_tile::stream_config& s)
     {
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = 32;
+        constexpr ck_tile::index_t M_Tile = 128;
+        constexpr ck_tile::index_t N_Tile = 128;
+        constexpr ck_tile::index_t K_Tile = 64;
 
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
 
+#if CK_TILE_USE_WMMA
+        using ADataType =
+            ck_tile::remove_cvref_t<std::tuple_element_t<ck_tile::number<0>{}, AsDataType>>;
+        constexpr ck_tile::index_t M_Warp_Tile = 16;
+        constexpr ck_tile::index_t N_Warp_Tile = 16;
+        constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<ADataType, N_Warp_Tile>();
+#else
         constexpr ck_tile::index_t M_Warp_Tile = 32;
         constexpr ck_tile::index_t N_Warp_Tile = 32;
         constexpr ck_tile::index_t K_Warp_Tile = 16;
+#endif
 
         constexpr bool DoubleSmemBuffer = false;
 
@@ -156,88 +186,69 @@ class TestCkTileGemmMultiABD : public ::testing::Test
 
         using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
-        const auto Run = [&](const auto memory_operation_) {
-            constexpr auto memory_operation = memory_operation_.value;
+        using DefaultGemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+            ck_tile::DefaultGemm2DEpilogueProblem<AsDataType,
+                                                  BsDataType,
+                                                  DsDataType,
+                                                  AccDataType,
+                                                  EDataType,
+                                                  DsLayout,
+                                                  ELayout,
+                                                  CDElementWiseFn,
+                                                  TilePartitioner::MPerBlock,
+                                                  TilePartitioner::NPerBlock,
+                                                  kPadM,
+                                                  kPadN,
+                                                  M_Warp_Tile,
+                                                  N_Warp_Tile,
+                                                  K_Warp_Tile,
+                                                  UniversalGemmProblem::TransposeC,
+                                                  true>>;
 
-            using DefaultGemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
-                ck_tile::DefaultGemm2DEpilogueProblem<AsDataType,
-                                                      BsDataType,
-                                                      DsDataType,
-                                                      AccDataType,
-                                                      EDataType,
-                                                      DsLayout,
-                                                      ELayout,
-                                                      CDElementWiseFn,
-                                                      TilePartitioner::MPerBlock,
-                                                      TilePartitioner::NPerBlock,
-                                                      kPadM,
-                                                      kPadN,
-                                                      M_Warp_Tile,
-                                                      N_Warp_Tile,
-                                                      K_Warp_Tile,
-                                                      UniversalGemmProblem::TransposeC,
-                                                      true,
-                                                      memory_operation>>;
+        using CShuffleGemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<AsDataType,
+                                             BsDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             EDataType,
+                                             DsLayout,
+                                             ELayout,
+                                             CDElementWiseFn,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC>>;
 
-            using CShuffleGemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<AsDataType,
-                                                 BsDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 EDataType,
-                                                 DsLayout,
-                                                 ELayout,
-                                                 CDElementWiseFn,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 M_Warp,
-                                                 N_Warp,
-                                                 M_Warp_Tile,
-                                                 N_Warp_Tile,
-                                                 K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+        using GemmEpilogue =
+            std::conditional_t<UseCshuffleEpilog::value, CShuffleGemmEpilogue, DefaultGemmEpilogue>;
 
-            using GemmEpilogue = std::
-                conditional_t<UseCshuffleEpilog::value, CShuffleGemmEpilogue, DefaultGemmEpilogue>;
+        using Kernel = ck_tile::GemmKernelMultiABD<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs   = Kernel::MakeKernelArgs(args);
 
-            using Kernel = ck_tile::GemmKernelMultiABD<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = Kernel::BlockSize();
 
-            const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
-            const dim3 blocks = Kernel::BlockSize();
-
-            if(!Kernel::IsSupportedArgument(kargs))
-            {
-                throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
-            }
-
-            if(s.log_level_ > 0)
-            {
-                std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                          << "shape: " << GemmShape::GetName() << '\n'
-                          << "pipeline: " << GemmPipeline::GetName() << '\n'
-                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
-            }
-
-            return ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        };
-
-        if(args.k_batch == 1)
+        if(!Kernel::IsSupportedArgument(kargs))
         {
-            std::cout << "Run without SplitK" << std::endl;
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
         }
-        else
+
+        if(s.log_level_ > 0)
         {
-            std::cout << "Run using SplitK" << std::endl;
-            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
+            std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
+                      << "shape: " << GemmShape::GetName() << '\n'
+                      << "pipeline: " << GemmPipeline::GetName() << '\n'
+                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << std::endl;
         }
+
+        ck_tile::ignore = ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
     }
 
     public:

@@ -112,7 +112,7 @@ struct UniversalGemmBasePolicy
         using ADataType             = OverrideADataType;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t KPack     = GetSmemPackA<Problem>();
+        constexpr index_t KPack     = Derived::template GetSmemPackA<Problem>();
 
         if constexpr(is_a_load_tr<Problem>)
         {
@@ -246,9 +246,11 @@ struct UniversalGemmBasePolicy
             }
             else // A is in RowMajor
             {
-                constexpr auto DataTypeSize = sizeof(ADataType);
+                constexpr auto DataTypeSize    = sizeof(ADataType);
+                constexpr uint64_t MinLdsLayer = 1ULL;
                 constexpr auto MLdsLayer =
-                    max(1UL, get_n_lds_banks() * get_n_words_per_128b() / KPerBlock / DataTypeSize);
+                    max(MinLdsLayer,
+                        get_n_lds_banks() * get_n_words_per_128b() / KPerBlock / DataTypeSize);
 
                 constexpr index_t NBanks = get_n_lds_banks();
                 static_assert(NBanks == 32 || NBanks == 64, "Unexpected LDS bank count");
@@ -303,8 +305,11 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        using BLayout   = remove_cvref_t<typename Problem::BLayout>;
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using BLayout = remove_cvref_t<typename Problem::BLayout>;
+        using BDataType =
+            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
+                               typename Problem::ADataType,
+                               typename Problem::BDataType>;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -439,11 +444,13 @@ struct UniversalGemmBasePolicy
             }
             else // B is Column Major
             {
-                constexpr index_t KPack     = GetSmemPackB<Problem>();
-                constexpr auto BK0          = number<KPerBlock / KPack>{};
-                constexpr auto DataTypeSize = sizeof(BDataType);
+                constexpr index_t KPack        = GetSmemPackB<Problem>();
+                constexpr auto BK0             = number<KPerBlock / KPack>{};
+                constexpr auto DataTypeSize    = sizeof(BDataType);
+                constexpr uint64_t MinLdsLayer = 1ULL;
                 constexpr auto NLdsLayer =
-                    max(1UL, get_n_lds_banks() * get_n_words_per_128b() / KPerBlock / DataTypeSize);
+                    max(MinLdsLayer,
+                        get_n_lds_banks() * get_n_words_per_128b() / KPerBlock / DataTypeSize);
 
                 constexpr index_t NBanks = get_n_lds_banks();
                 static_assert(NBanks == 32 || NBanks == 64, "Unexpected LDS bank count");
@@ -585,9 +592,12 @@ struct UniversalGemmBasePolicy
         using BsDataType            = remove_cvref_t<typename Problem::BsDataTypeTuple>;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        using BLayout               = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
+        using BInDataType           = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
 
-        using BLayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
-        using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+        using BDataType = std::conditional_t<std::is_same_v<BInDataType, pk_fp4_raw_t>,
+                                             typename Problem::ADataType,
+                                             typename Problem::BDataType>;
 
         if constexpr(Problem::FixedVectorSize)
         {
@@ -729,13 +739,17 @@ struct UniversalGemmBasePolicy
     {
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
+        constexpr index_t KPerBlock = std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>
+                                          ? Problem::BlockGemmShape::kK / 2
+                                          : Problem::BlockGemmShape::kK;
         constexpr index_t VecLoadSize =
-            Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>();
+            std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>
+                ? 4
+                : (Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>());
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
-
-        using BLayout = remove_cvref_t<
-            std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;
+        using BLayout                   = remove_cvref_t<
+                              std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -831,20 +845,23 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr index_t GetSmemSizeA()
     {
-        constexpr index_t smem_size_a =
-            integer_least_multiple(sizeof(typename Problem::ADataType) *
-                                       Problem::BlockGemmShape::kM * Problem::BlockGemmShape::kK,
-                                   16);
+        using ADataType                 = remove_cvref_t<typename Problem::ADataType>;
+        constexpr auto a_lds_block_desc = Derived::template MakeALdsBlockDescriptor<Problem>();
+        constexpr index_t smem_size_a   = integer_least_multiple(
+            a_lds_block_desc.get_element_space_size() * sizeof(ADataType), 16);
         return smem_size_a;
     }
 
     template <typename Problem>
     CK_TILE_DEVICE static constexpr index_t GetSmemSizeB()
     {
-        constexpr index_t smem_size_b =
-            integer_least_multiple(sizeof(typename Problem::BDataType) *
-                                       Problem::BlockGemmShape::kN * Problem::BlockGemmShape::kK,
-                                   16);
+        using BDataType =
+            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
+                               typename Problem::ADataType,
+                               typename Problem::BDataType>;
+        constexpr auto b_lds_block_desc = Derived::template MakeBLdsBlockDescriptor<Problem>();
+        constexpr index_t smem_size_b   = integer_least_multiple(
+            b_lds_block_desc.get_element_space_size() * sizeof(BDataType), 16);
         return smem_size_b;
     }
 
@@ -882,8 +899,10 @@ struct UniversalGemmPipelineAgBgCrPolicy
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
         using ATypeToUse =
             std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
-        using BTypeToUse =
-            std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
+        using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
+                                                  std::is_same_v<BDataType, pk_fp4_raw_t>,
+                                              ADataType,
+                                              BDataType>;
 
         using WarpGemm = WarpGemmDispatcher<ATypeToUse,
                                             BTypeToUse,

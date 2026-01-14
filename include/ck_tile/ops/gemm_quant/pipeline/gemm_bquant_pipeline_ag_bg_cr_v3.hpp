@@ -31,11 +31,19 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
-    using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
+    using QuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
+
+    using ALayout  = remove_cvref_t<typename Problem::ALayout>;
+    using BQLayout = remove_cvref_t<typename Problem::BQLayout>;
+    using BLayout  = remove_cvref_t<typename Problem::BLayout>;
+    using CLayout  = remove_cvref_t<typename Problem::CLayout>;
 
     // BDataType gets converted from PkInt4 during loading
     using OverrideBDataType =
-        std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
+        std::conditional_t<std::is_same_v<BDataType, pk_int4_t> &&
+                               std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>,
+                           ADataType,
+                           BDataType>;
 
     static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
     using I0 = number<0>;
@@ -50,11 +58,6 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     static constexpr index_t BQPackedSize =
         ck_tile::numeric_traits<remove_cvref_t<BQDataType>>::PackedSize;
 
-    using ALayout  = remove_cvref_t<typename Problem::ALayout>;
-    using BQLayout = remove_cvref_t<typename Problem::BQLayout>;
-    using BLayout  = remove_cvref_t<typename Problem::BLayout>;
-    using CLayout  = remove_cvref_t<typename Problem::CLayout>;
-
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
@@ -62,8 +65,10 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t NPerBlockBQ = BlockGemmShape::kN / QuantGroupSize::kN;
-    static constexpr index_t KPerBlockBQ = BlockGemmShape::kK / QuantGroupSize::kK;
+    static constexpr index_t NPerBlockBQ =
+        integer_divide_ceil(BlockGemmShape::kN, QuantGroupSize::kN);
+    static constexpr index_t KPerBlockBQ =
+        integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK);
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
@@ -184,6 +189,23 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             load_int4_tile<SrcDataType, DestDataType, UnaryOpSize>(b_block_tile, b_dram_window);
         }
 
+        template <typename BBlockTile_, typename BDramWindow, typename BDramTileWindowStep>
+        CK_TILE_DEVICE void
+        BGlobalPrefetch(BBlockTile_& b_block_tile,
+                        BDramWindow& b_copy_dram_window,
+                        const BDramTileWindowStep& b_dram_tile_window_step) const
+        {
+            if constexpr(!std::is_same_v<BDataType, OverrideBDataType>)
+            {
+                LoadAndConvertBTile(b_block_tile, b_copy_dram_window);
+                move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+            }
+            else
+            {
+                Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            }
+        }
+
         template <bool HasHotLoop,
                   TailNumber TailNum,
                   typename ADramBlockWindowTmp,
@@ -262,7 +284,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             using ABlockTile =
                 decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
             using BBlockTile =
-                decltype(make_static_distributed_tensor<ADataType>(BBlockTileDistr{}));
+                decltype(make_static_distributed_tensor<OverrideBDataType>(BBlockTileDistr{}));
             using BQBlockTile =
                 decltype(make_static_distributed_tensor<BQDataType>(BQBlockTileDistr{}));
 
@@ -280,17 +302,19 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             const BQDramTileWindowStep bq_dram_tile_window_step =
-                (PreshuffleQuant) ? make_array(ck_tile::integer_least_multiple(n, NPerBlock) /
-                                                   BlockGemmShape::WarpTile::at(number<1>{}),
-                                               0)
+                (PreshuffleQuant)
+                    ? make_array(((NPerBlockBQ <= BlockGemmShape::BlockWarps::at(number<1>{}))
+                                      ? ck_tile::integer_divide_ceil(n, QuantGroupSize::kN)
+                                      : ck_tile::integer_least_multiple(n, NPerBlock) /
+                                            BlockGemmShape::WarpTile::at(number<1>{})),
+                                 0)
                 : is_bq_row_major ? make_array(KPerBlockBQ, 0)
                                   : make_array(0, KPerBlockBQ);
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
             // B tile gets converted to A datatype during loading
-            LoadAndConvertBTile(b_block_tile, b_copy_dram_window);
-            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+            BGlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
             Base::GlobalPrefetch(
                 bq_block_tile[currIdx], bq_copy_dram_window, bq_dram_tile_window_step);
 
@@ -311,7 +335,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             if constexpr(is_b_row_major && !is_b_load_tr_v())
             {
                 // B datatype is converted to A datatype during loading
-                auto b_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                auto b_shuffle_tmp = make_static_distributed_tensor<OverrideBDataType>(
                     Policy::template MakeShuffledBRegTileDistribution<Problem>());
                 transpose_tile2d(b_shuffle_tmp, b_block_tile);
                 Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
@@ -322,8 +346,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             }
 
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            LoadAndConvertBTile(b_block_tile, b_copy_dram_window);
-            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+            // B tile gets converted to A datatype during loading
+            BGlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
             block_sync_lds();
 
@@ -366,8 +390,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                     }
 
                     Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-                    LoadAndConvertBTile(b_block_tile, b_copy_dram_window);
-                    move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+                    // B tile gets converted to A datatype during loading
+                    BGlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
                     Base::GlobalPrefetch(bq_block_tile[(currIdx + 1) % 2],
                                          bq_copy_dram_window,
                                          bq_dram_tile_window_step);
@@ -403,7 +427,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
                 currIdx = (currIdx + 1) % 2;
 
-                if constexpr(is_a_col_major)
+                if constexpr(is_a_col_major && !is_a_load_tr_v())
                 {
                     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                         Policy::template MakeShuffledARegTileDistribution<Problem>());
@@ -414,7 +438,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                 {
                     Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
                 }
-                if constexpr(is_b_row_major)
+                if constexpr(is_b_row_major && !is_b_load_tr_v())
                 {
                     // Note: BDataType gets converted during loading from PkInt4
                     auto b_shuffle_tmp = make_static_distributed_tensor<OverrideBDataType>(
