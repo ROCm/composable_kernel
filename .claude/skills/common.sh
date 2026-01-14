@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # Common utilities for CK Docker skills
 # Shared configuration and helper functions
 
