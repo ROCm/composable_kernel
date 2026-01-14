@@ -21,7 +21,6 @@ import re
 import sys
 from collections import defaultdict
 from datetime import datetime
-from pathlib import Path
 
 try:
     from jinja2 import Environment, FileSystemLoader
@@ -38,7 +37,9 @@ def parse_arguments():
         print(
             "Usage: analyze_build_trace.py <trace_files_or_dir> <output_file> <target> <granularity> <build_time> <template_dir>"
         )
-        print("  trace_files_or_dir: Comma-separated list of trace files OR directory containing .json files")
+        print(
+            "  trace_files_or_dir: Comma-separated list of trace files OR directory containing .json files"
+        )
         sys.exit(1)
 
     return {
@@ -61,12 +62,12 @@ def find_trace_files(trace_input):
         for root, dirs, files in os.walk(trace_input):
             for file in files:
                 # Include .cpp.json and .hip.json, exclude compile_commands.json and CMake files
-                if file.endswith(('.cpp.json', '.hip.json')) and 'CMakeFiles' in root:
+                if file.endswith((".cpp.json", ".hip.json")) and "CMakeFiles" in root:
                     trace_files.append(os.path.join(root, file))
         trace_files.sort()
     # Check if it's a comma-separated list
-    elif ',' in trace_input:
-        trace_files = [f.strip() for f in trace_input.split(',')]
+    elif "," in trace_input:
+        trace_files = [f.strip() for f in trace_input.split(",")]
     # Single file
     else:
         trace_files = [trace_input]
@@ -93,11 +94,7 @@ def load_trace_data(trace_files):
                 data = json.load(f)
                 # Get file basename for tracking
                 file_name = os.path.basename(trace_file)
-                all_data.append({
-                    'file': file_name,
-                    'path': trace_file,
-                    'data': data
-                })
+                all_data.append({"file": file_name, "path": trace_file, "data": data})
         except Exception as e:
             print(f"  Warning: Failed to load {trace_file}: {e}", file=sys.stderr)
 
@@ -115,8 +112,8 @@ def process_events(all_trace_data):
     total_events = 0
 
     for trace_info in all_trace_data:
-        file_name = trace_info['file']
-        data = trace_info['data']
+        file_name = trace_info["file"]
+        data = trace_info["data"]
         events = data.get("traceEvents", [])
 
         file_template_time = 0
@@ -134,12 +131,9 @@ def process_events(all_trace_data):
 
             if name in ["InstantiateFunction", "InstantiateClass"]:
                 detail = event.get("args", {}).get("detail", "")
-                top_individual.append({
-                    "detail": detail,
-                    "dur": dur,
-                    "type": name,
-                    "file": file_name
-                })
+                top_individual.append(
+                    {"detail": detail, "dur": dur, "type": name, "file": file_name}
+                )
 
                 file_template_time += dur
 
@@ -154,11 +148,13 @@ def process_events(all_trace_data):
                     template_stats[template_name]["count"] += 1
                     template_stats[template_name]["total_dur"] += dur
 
-        file_stats.append({
-            'name': file_name,
-            'events': file_event_count,
-            'template_time': file_template_time
-        })
+        file_stats.append(
+            {
+                "name": file_name,
+                "events": file_event_count,
+                "template_time": file_template_time,
+            }
+        )
 
     return template_stats, phase_stats, top_individual, file_stats, total_events
 
@@ -323,10 +319,14 @@ def main():
     all_trace_data = load_trace_data(trace_files)
 
     # Process events from all files
-    template_stats, phase_stats, top_individual, file_stats, total_events = process_events(all_trace_data)
+    template_stats, phase_stats, top_individual, file_stats, total_events = (
+        process_events(all_trace_data)
+    )
 
     # Prepare template data
-    data = prepare_template_data(template_stats, phase_stats, top_individual, file_stats)
+    data = prepare_template_data(
+        template_stats, phase_stats, top_individual, file_stats
+    )
 
     # Setup Jinja2 environment
     env = setup_jinja_environment(args["template_dir"])
