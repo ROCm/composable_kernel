@@ -66,8 +66,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                         const CDEElementwiseOperation cde_element_op)
 {
 #if(defined(__gfx11__) || defined(__gfx12__))
-    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-        typename GridwiseGemm::EpilogueCShuffle>();
+    using EpilogueType = typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
+                                                       GridwiseGemm::UseDirectStore,
+                                                   typename GridwiseGemm::EpilogueDirectStore,
+                                                   typename GridwiseGemm::EpilogueCShuffle>::type;
+
+    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
     __shared__ uint8_t p_shared[LDS_size];
 
     const auto gemm_desc_ptr =
@@ -150,7 +154,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                gemm_desc_ptr[group_id].StrideE,
                                1);
 
-        auto epilogue_args           = typename GridwiseGemm::EpilogueCShuffle{};
+        auto epilogue_args           = EpilogueType{};
         constexpr TailNumber TailNum = TailNumber::Full;
 
         if(has_main_k_block_loop)

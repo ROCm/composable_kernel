@@ -177,7 +177,8 @@ template <typename ALayout,
           bool PermuteA,
           bool PermuteB,
           bool IsBPreShuffled          = false,
-          bool ForceThreadTileTransfer = false>
+          bool ForceThreadTileTransfer = false,
+          bool IsFusedKernel           = false>
 struct GridwiseGemm_wmma_cshuffle_v3
     : GridwiseGemm_wmma_cshuffle_v3_base<
           ALayout,
@@ -231,7 +232,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
           PermuteA,
           PermuteB,
           IsBPreShuffled,
-          ForceThreadTileTransfer>
+          ForceThreadTileTransfer,
+          IsFusedKernel>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
         ALayout,
@@ -285,7 +287,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
         PermuteA,
         PermuteB,
         IsBPreShuffled,
-        ForceThreadTileTransfer>;
+        ForceThreadTileTransfer,
+        IsFusedKernel>;
 
     using Base::I0;
     using Base::I1;
