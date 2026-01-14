@@ -23,6 +23,7 @@ template <typename OffsetVecType,
           index_t kLoopStride,
           BlockAttentionKVCacheMemoryLayoutEnum kKVMemoryLayout,
           bool kIsKcache,
+          bool kIsVTileFitsInPage,
           index_t kVectorSize>
 CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_idx,
                                                    const index_t& stride_token,
@@ -64,7 +65,7 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_idx,
                 kv_offset_vec[k0] = page_base_offset;
             });
         }
-        else
+        else if constexpr(kIsVTileFitsInPage)
         {
             // This path handles page_size > 1 and/or non-linear KV layout, where page_idx is
             // indexed by page_id (token_idx >> log2_page_size) with an in-page offset.
@@ -78,7 +79,7 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_idx,
 
             static_for<0, kLoopCount, 1>{}([&](auto k0) {
                 const index_t token_idx_in_page =
-                    (global_seq_offset + thread_coord_start + kLoopStart + k0.value) &
+                    (global_seq_offset + thread_coord_start + kLoopStart + kLoopStride * k0.value) &
                     kInPageOffsetMask;
 
                 if constexpr(kKVMemoryLayout ==
@@ -89,6 +90,39 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const index_t* page_idx,
                     // Offset = (token_idx_in_page / kVectorSize) * (HeadDim * kVectorSize) +
                     // (token_idx_in_page % kVectorSize)
 
+                    const long_index_t token_offset =
+                        static_cast<long_index_t>((token_idx_in_page / kVectorSize) *
+                                                  (stride_token * kVectorSize)) +
+                        (token_idx_in_page % kVectorSize);
+
+                    kv_offset_vec[k0] = page_base_offset + token_offset;
+                }
+                else // BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT
+                {
+                    kv_offset_vec[k0] = page_base_offset +
+                                        static_cast<long_index_t>(token_idx_in_page) * stride_token;
+                }
+            });
+        }
+        else
+        {
+            // page size > 1 and V tile spans multiple pages (e.g., page_size < kN0).
+            // Must compute page_id per token to avoid cross-page aliasing.
+            static_for<0, kLoopCount, 1>{}([&](auto k0) {
+                const index_t global_token_idx =
+                    global_seq_offset + thread_coord_start + kLoopStart + kLoopStride * k0.value;
+                const index_t page_id           = global_token_idx >> kLog2PageSize;
+                const index_t token_idx_in_page = global_token_idx & kInPageOffsetMask;
+                // page_idx is indexed by page_id for page_size > 1.
+
+                const long_index_t page_base_offset =
+                    static_cast<long_index_t>(page_idx[page_id]) * stride_page_block;
+
+                if constexpr(kKVMemoryLayout ==
+                             BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+                {
+                    // Vectorized layout uses a packed [token/kVectorSize, head_dim, kVectorSize]
+                    // address pattern.
                     const long_index_t token_offset =
                         static_cast<long_index_t>((token_idx_in_page / kVectorSize) *
                                                   (stride_token * kVectorSize)) +
@@ -144,15 +178,14 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr index_t kPageBlockSize = Problem::kPageBlockSize;
     static constexpr index_t kLog2PageSize  = Problem::kLog2PageSize;
     static constexpr index_t kVectorSize    = Problem::kVectorSize;
-    static constexpr auto I0                = number<0>{};
-    static constexpr auto I1                = number<1>{};
-    static constexpr auto I2                = number<2>{};
-    static constexpr auto I3                = number<3>{};
+    // For page_size < kN0 we must use per-token page lookup instead.
+    static constexpr bool kIsVTileFitsInPage = (kLog2PageSize > 0) && (kPageBlockSize % kN0 == 0);
+    static constexpr auto I0                 = number<0>{};
+    static constexpr auto I1                 = number<1>{};
+    static constexpr auto I2                 = number<2>{};
+    static constexpr auto I3                 = number<3>{};
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
-    static_assert(kPageBlockSize % kN0 == 0 || kLog2PageSize == 0,
-                  "Page size must be 1, or a multiple of the tile size (kN0).");
-
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     // TODO: seq_q always support padding, hdim_q/v support multiple of vector(like 8x)
     //       only need special care about seq_k padding (oob need set -INF of p instead of zero)
@@ -462,6 +495,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                   kN0 / NRepeat,
                                   kKVMemoryLayout,
                                   true,
+                                  kIsVTileFitsInPage,
                                   kVectorSize>(
             page_idx, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
 
@@ -507,6 +541,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                   1,
                                   kKVMemoryLayout,
                                   false,
+                                  kIsVTileFitsInPage,
                                   kVectorSize>(
             page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
 
@@ -593,6 +628,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                       1,
                                       kKVMemoryLayout,
                                       false,
+                                      kIsVTileFitsInPage,
                                       kVectorSize>(
                 page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
             v_dram_window.update_page_idx(v_offsets);
@@ -767,6 +803,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                               1,
                                               kKVMemoryLayout,
                                               false,
+                                              kIsVTileFitsInPage,
                                               kVectorSize>(
                         page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
                     v_dram_window.update_page_idx(v_offsets);
@@ -906,6 +943,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                                   1,
                                                   kKVMemoryLayout,
                                                   false,
+                                                  kIsVTileFitsInPage,
                                                   kVectorSize>(
                             page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
                         v_dram_window.update_page_idx(v_offsets);
@@ -963,6 +1001,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                           kN0 / NRepeat,
                                           kKVMemoryLayout,
                                           true,
+                                          kIsVTileFitsInPage,
                                           kVectorSize>(
                     page_idx, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
                 k_dram_window.update_page_idx(k_offsets);
