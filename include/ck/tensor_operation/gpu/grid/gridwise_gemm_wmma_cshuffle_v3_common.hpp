@@ -15,6 +15,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_wave_tiles.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_wave_tiles_interleave.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_thread_tiles.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_thread_tiles_preshuffle.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_wmma_selector.hpp"
@@ -24,6 +25,7 @@
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_global.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_direct_store.hpp"
 #include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_wmma.hpp"
 #include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_welford_wmma.hpp"
 #include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_reduce_wmma.hpp"
@@ -50,13 +52,19 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<e_data_type, ck::bhalf_t>)))
     {
 #endif
-        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-            typename GridwiseGemm::EpilogueCShuffle>();
+        using EpilogueType =
+            typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
+                                          GridwiseGemm::UseDirectStore,
+                                      typename GridwiseGemm::EpilogueDirectStore,
+                                      typename GridwiseGemm::EpilogueCShuffle>::type;
+
+        constexpr index_t LDS_size =
+            GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
         __shared__ char p_shared[LDS_size];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+        auto epilogue_args = EpilogueType{};
 
         GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
             p_shared, splitk_batch_offset, karg, epilogue_args);
@@ -167,7 +175,8 @@ template <typename ALayout,
           bool PermuteA,
           bool PermuteB,
           bool IsBPreShuffled          = false,
-          bool ForceThreadTileTransfer = false> // only needed for convolution (limitation)
+          bool ForceThreadTileTransfer = false, // only needed for convolution (limitation)
+          bool IsFusedKernel           = false>
 struct GridwiseGemm_wmma_cshuffle_v3_base
 {
 
@@ -182,6 +191,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     static constexpr index_t NumATensor = AsDataType::Size();
     static constexpr index_t NumBTensor = BsDataType::Size();
+    static constexpr index_t NumDTensor = DsDataType::Size();
 
     using LDSTypeA =
         typename std::conditional<(NumATensor > 1),
@@ -232,30 +242,44 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             return 1;
     }();
 
+    static constexpr index_t WaveSize =
+        WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::selected_wmma
+            .wave_size;
+
     // Limitations of the current implementation:
     //  - no multiAB
-    //  - GemmSpecialization Default
-    //  - pipeline v1 because v3 is buggy (fixed in batched gemm gemm implementation)
-    // AK1Value == 8 is not really a limitation but a requirement for the method so
-    // it will stay
+    //  - GemmSpecialization Default with transpose
 #ifdef __gfx12__
     static constexpr bool IsAWaveTransferApplicable =
         !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
-        GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
+        ((GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
+          !is_same_v<ALayout, tensor_layout::gemm::RowMajor>) ||
+         is_same_v<ALayout, tensor_layout::gemm::RowMajor>) &&
         BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8 && !IsBPreShuffled;
 
     static constexpr bool IsBWaveTransferApplicable =
         !ForceThreadTileTransfer && NumBTensor == 1 && BPackedSize == 1 &&
-        GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
+        ((GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
+          !is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>) ||
+         is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>) &&
         BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
+
+    static constexpr bool IsWaveTileInterleavedFitting =
+        (NPerBlock / NPerWmma / NRepeat) * (KPerBlock / KPack) >= (BlockSize / WaveSize);
+
+    // We need to investigate if it makes sense to remove cshuffle for smaller types
+    // Currently we use direct store for NRepeat equal to 4 or 8. For 16 bit type we use at
+    // least buffer store 64 bit for 16 contiguous threads -> 128 bytes in total (full cache line)
+    static constexpr bool UseDirectStore = is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
+                                           sizeof(ComputeTypeB) == 2 && sizeof(EDataType) == 2 &&
+                                           NumDTensor == 0 && (NRepeat == 4 || NRepeat == 8) &&
+                                           !IsFusedKernel && IsWaveTileInterleavedFitting;
 #else
     static constexpr bool IsAWaveTransferApplicable = false;
     static constexpr bool IsBWaveTransferApplicable = false;
+    static constexpr bool UseDirectStore            = false;
 #endif
 
-    static constexpr index_t WaveSize =
-        WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::selected_wmma
-            .wave_size;
     static constexpr bool UseBlockPaddingA =
         ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4;
     using ATransfer = typename std::conditional<
@@ -293,7 +317,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     static constexpr bool UseBlockPaddingB =
         BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4;
-
     using BTransfer = typename std::conditional<
         IsBPreShuffled,
         ABTransferThreadTilesPreShuffle<BLayout,
@@ -309,16 +332,29 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                         BThreadTransferSrcResetCoordinateAfterRun>,
         typename std::conditional<
             IsBWaveTransferApplicable,
-            ABTransferWaveTiles<BLayout,
-                                tensor_layout::gemm::ColumnMajor,
-                                LDSTypeB,
-                                BlockSize,
-                                NPerBlock,
-                                KPerBlock,
-                                NPerWmma,
-                                KPack,
-                                BK1Value,
-                                WaveSize>,
+            typename std::conditional<
+                UseDirectStore,
+                ABTransferWaveTilesInterleave<BLayout,
+                                              tensor_layout::gemm::ColumnMajor,
+                                              LDSTypeB,
+                                              BlockSize,
+                                              NPerBlock,
+                                              KPerBlock,
+                                              NPerWmma,
+                                              KPack,
+                                              BK1Value,
+                                              WaveSize,
+                                              NPerBlock / NPerWmma / NRepeat>,
+                ABTransferWaveTiles<BLayout,
+                                    tensor_layout::gemm::ColumnMajor,
+                                    LDSTypeB,
+                                    BlockSize,
+                                    NPerBlock,
+                                    KPerBlock,
+                                    NPerWmma,
+                                    KPack,
+                                    BK1Value,
+                                    WaveSize>>::type,
             ABTransferThreadTiles<BLayout,
                                   tensor_layout::gemm::ColumnMajor,
                                   LDSTypeB,
@@ -490,6 +526,19 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             Number<NumATensor>{});
     }
 
+    template <typename GridDescBase>
+    __device__ static auto MakeAGridDescriptor_AK0_M_AK1(const GridDescBase& base_desc)
+    {
+        const auto M = base_desc.GetLength(I0);
+        const auto K = base_desc.GetLength(I1);
+
+        const auto AK0 = K / AK1Value;
+
+        constexpr bool padM = false;
+        constexpr bool padK = false;
+        return ATransfer::template MakeGridDescriptor<padM, padK>(base_desc, M, M, K, K, 0, AK0);
+    }
+
     __host__ __device__ static auto
     MakeBsGridDescriptor_BK0_N_BK1(const index_t K,
                                    const index_t KPad,
@@ -514,6 +563,19 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                     base_desc, N, NPad, K, KPad, StrideBs[i], BK0);
             },
             Number<NumBTensor>{});
+    }
+
+    template <typename GridDescBase>
+    __device__ static auto MakeBGridDescriptor_BK0_N_BK1(const GridDescBase& base_desc)
+    {
+        const auto N = base_desc.GetLength(I0);
+        const auto K = base_desc.GetLength(I1);
+
+        const auto BK0 = K / BK1Value;
+
+        constexpr bool padN = false;
+        constexpr bool padK = false;
+        return BTransfer::template MakeGridDescriptor<padN, padK>(base_desc, N, N, K, K, 0, BK0);
     }
 
     __host__ __device__ static constexpr auto MakeAWmmaTileDescriptor()
@@ -593,8 +655,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         }
 #endif
     }
-
-    static constexpr index_t NumDTensor = DsDataType::Size();
 
     static constexpr auto MakeDsGridPointer()
     {
@@ -678,6 +738,14 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                          CDEElementwiseOperation,
                          ThisThreadBlock,
                          BlockwiseGemmPipe>;
+
+    using EpilogueDirectStore = EpilogueDirectStore<DsDataType,
+                                                    EDataType,
+                                                    AccDataType,
+                                                    MRepeat,
+                                                    NRepeat,
+                                                    CDEElementwiseOperation,
+                                                    BlockwiseGemmPipe>;
 
     using EpilogueWelfordCShuffle = EpilogueWelfordCShuffle<
         DsDataType,
@@ -1000,18 +1068,26 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                max_lds_align)
                 : 0;
 
-        // LDS allocation for C shuffle in LDS
-        constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
-            EpilogueType::
-                GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
+        if constexpr(EpilogueType::IsLDSNeeded())
+        {
+            // LDS allocation for C shuffle in LDS
+            constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
+                EpilogueType::
+                    GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
 
-        constexpr auto c_block_size =
-            c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat
-                .GetElementSpaceSize();
+            constexpr auto c_block_size =
+                c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat
+                    .GetElementSpaceSize();
 
-        return math::max((a_block_space_size_aligned * sizeof(LDSTypeA) / APackedSize +
-                          b_block_space_size_aligned * sizeof(LDSTypeB) / BPackedSize),
-                         c_block_size * sizeof(CShuffleDataType));
+            return math::max((a_block_space_size_aligned * sizeof(LDSTypeA) / APackedSize +
+                              b_block_space_size_aligned * sizeof(LDSTypeB) / BPackedSize),
+                             c_block_size * sizeof(CShuffleDataType));
+        }
+        else
+        {
+            return a_block_space_size_aligned * sizeof(LDSTypeA) / APackedSize +
+                   b_block_space_size_aligned * sizeof(LDSTypeB) / BPackedSize;
+        }
     }
 
     template <index_t numElements, typename Type>
@@ -1148,7 +1224,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             num_k_block_main_loop,
             num_k_block_per_scale);
 
-        // shuffle C and write out
+        // Epilogue:
+        //  - CShuffle / direct store
+        //  - Multiple Ds
+        //  - Fused operations
         epilogue_args.template Run<EGlobalMemoryDataOperation>(
             c_thread_buf,
             p_ds_grid,

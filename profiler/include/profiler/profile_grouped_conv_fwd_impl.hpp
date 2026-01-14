@@ -23,7 +23,7 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
-#include "profiler/gpu_verification.hpp"
+#include "ck/library/utility/gpu_verification.hpp"
 
 namespace ck {
 namespace profiler {
@@ -86,33 +86,51 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
 
+    // Get element space sizes for GPU allocation
+    const auto input_size  = in_g_n_c_wis_desc.GetElementSpaceSize();
+    const auto weight_size = wei_g_k_c_xs_desc.GetElementSpaceSize();
+    const auto output_size = out_g_n_k_wos_desc.GetElementSpaceSize();
+
+    std::cout << "input: " << in_g_n_c_wis_desc << std::endl;
+    std::cout << "weight: " << wei_g_k_c_xs_desc << std::endl;
+    std::cout << "output: " << out_g_n_k_wos_desc << std::endl;
+
+    // Allocate GPU memory first (GPU-first workflow)
+    DeviceMem in_device_buf(sizeof(InDataType) * input_size);
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight_size);
+    DeviceMem out_device_buf(sizeof(OutDataType) * output_size);
+
+    // Generate data directly on GPU using DeviceMem methods
+    switch(init_method)
+    {
+    case 0:
+        // Zero initialization
+        in_device_buf.SetZero();
+        wei_device_buf.SetZero();
+        break;
+    case 1:
+        // Discrete integer generation: {-5, -4, -3, ..., 3, 4}
+        in_device_buf.FillUniformRandInteger<InDataType>(-5, 5);
+        wei_device_buf.FillUniformRandInteger<WeiDataType>(-5, 5);
+        break;
+    default:
+        // Continuous float generation
+        in_device_buf.FillUniformRandFp<InDataType>(0.0f, 1.0f);
+        wei_device_buf.FillUniformRandFp<WeiDataType>(-0.5f, 0.5f);
+    }
+
+    // Create host tensors (for verification if needed)
     Tensor<InDataType> input(in_g_n_c_wis_desc);
     Tensor<WeiDataType> weight(wei_g_k_c_xs_desc);
     Tensor<OutDataType> host_output(out_g_n_k_wos_desc);
     Tensor<OutDataType> device_output(out_g_n_k_wos_desc);
 
-    std::cout << "input: " << input.mDesc << std::endl;
-    std::cout << "weight: " << weight.mDesc << std::endl;
-    std::cout << "output: " << host_output.mDesc << std::endl;
-
-    switch(init_method)
+    // Copy to host only if CPU verification is needed
+    if(do_verification == 1)
     {
-    case 0: break;
-    case 1:
-        input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        weight.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
-        break;
-    default:
-        input.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+        in_device_buf.FromDevice(input.mData.data());
+        wei_device_buf.FromDevice(weight.mData.data());
     }
-
-    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
-
-    in_device_buf.ToDevice(input.mData.data());
-    wei_device_buf.ToDevice(weight.mData.data());
 
     // Allocate GPU reference buffer (used only if do_verification == 2)
     DeviceMem gpu_ref_out_buf(
@@ -243,28 +261,24 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
                 // Perform GPU verification (max value computed internally on GPU)
                 const std::size_t tensor_size = device_output.mDesc.GetElementSpaceSize();
-                bool gpu_passed = ck::profiler::gpu_verify<OutDataType, AComputeType, OutDataType>(
+                auto gpu_result = ck::profiler::gpu_verify<OutDataType, AComputeType, OutDataType>(
                     out_device_buf.GetDeviceBuffer(),
                     gpu_ref_out_buf.GetDeviceBuffer(),
                     num_accums,
                     tensor_size);
 
-                if(!gpu_passed)
+                if(!gpu_result)
                 {
-                    // GPU verification failed - fall back to CPU for detailed diagnostics
-                    std::cout << "GPU verification failed, running CPU verification for details..."
-                              << std::endl;
-
-                    // Copy both buffers to host
-                    out_device_buf.FromDevice(device_output.mData.data());
-                    gpu_ref_out_buf.FromDevice(host_output.mData.data());
-
-                    // Run CPU verification for detailed error messages
-                    ck::utils::check_err(device_output, host_output);
+                    // GPU verification failed - print detailed error summary
+                    gpu_result.print_error_summary();
                     pass = false;
 
                     if(do_log)
                     {
+                        // Copy buffers to host for logging
+                        out_device_buf.FromDevice(device_output.mData.data());
+                        gpu_ref_out_buf.FromDevice(host_output.mData.data());
+
                         LogRangeAsType<float>(std::cout << "input : ", input.mData, ",")
                             << std::endl;
                         LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",")
