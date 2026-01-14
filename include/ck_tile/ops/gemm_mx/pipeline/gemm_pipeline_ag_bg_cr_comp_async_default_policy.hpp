@@ -9,11 +9,12 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 
 namespace ck_tile {
-// Default policy for GemmPipelineAgBgCrCompAsync
-// Customized methods: MakeALdsBlockDescriptor, MakeBLdsBlockDescriptor
+// Default policy for MXGemmPipelineAgBgCrCompAsync
+// Customized methods: MakeALdsBlockDescriptor, MakeBLdsBlockDescriptor  
 // GetBlockGemm implementation is copied from GemmPipelineAgBgCrCompV4DefaultPolicy
-struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
-    : public UniversalGemmBasePolicy<GemmPipelineAgBgCrCompAsyncDefaultPolicy>
+// Adds MX scale tile distributions
+struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
+    : public UniversalGemmBasePolicy<MXGemmPipelineAgBgCrCompAsyncDefaultPolicy>
 {
     static constexpr auto ATileAccessPattern = tile_distribution_pattern::warp_raked;
     static constexpr auto BTileAccessPattern = tile_distribution_pattern::warp_raked;
@@ -134,7 +135,8 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
     }
 
-    // MX Scale tile distributions for loading from global memory
+    // MX Scale tile distributions for loading from global memory  
+    // Using the proven "Flat" patterns from v1 policy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_DramTileDistribution()
     {
@@ -147,16 +149,17 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t MPerXdl = WarpTile::at(number<0>{});
         constexpr index_t K_Lane = get_warp_size() / MPerXdl;  // 4 for 16x16 mfma
         
-        // Scale A: [MWarp * MPerXdl, K/32/KXdlPack] for warp-level tile
+        // Scale A: [MWarp * MPerXdl, K/32/KXdlPack] for warp-level tile  
         // Distribution: simple 2D for loading int32 packed scales
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<NWarp>,                      // repeat over NWarp
+            tile_distribution_encoding<sequence<NWarp>,                      // repeat over NWarps
                                        tuple<sequence<MWarp, MPerXdl>,       // M dimension
-                                             sequence<K_Lane, 1>>,           // K dimension (int32 vec load)
+                                             sequence<K_Lane, 1>>,            // K dimension (int32 vec load)
                                        tuple<sequence<1, 0>, sequence<2, 1>>, // which direction
                                        tuple<sequence<0, 0>, sequence<0, 1>>, // which index
-                                       sequence<2>,   // repeat
-                                       sequence<1>>{});  // vec_load
+                                       // <repeat, vec_load>
+                                       sequence<2>,
+                                       sequence<1>>{});
     }
 
     template <typename Problem>
@@ -170,17 +173,22 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t NWarp = BlockWarps::at(number<1>{});
         constexpr index_t NPerXdl = WarpTile::at(number<1>{});
         constexpr index_t K_Lane = get_warp_size() / NPerXdl;  // 4 for 16x16 mfma
+
+        static_assert(K_Lane == 4, "K_Lane must be 4 for 16x16 mfma");
+        static_assert(NPerXdl == 16, "NPerXdl must be 16 for 16x16 mfma");
+        static_assert(MWarp == 1, "MWarp must be 1 for 16x16 mfma");
         
         // Scale B: [K/32/KXdlPack, NWarp * NPerXdl] for warp-level tile
         // Layout is [K, N] where K is packed int32
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<MWarp>,                      // repeat over MWarp
-                                       tuple<sequence<K_Lane, 1>,            // K dimension (int32 vec load)
+            tile_distribution_encoding<sequence<MWarp>,                      // repeat over MWarps
+                                       tuple<sequence<K_Lane, 1>,             // K dimension (int32 vec load)
                                              sequence<NWarp, NPerXdl>>,      // N dimension
                                        tuple<sequence<2, 1>, sequence<0, 1>>, // which direction
                                        tuple<sequence<0, 1>, sequence<0, 0>>, // which index
-                                       sequence<1>,   // repeat
-                                       sequence<2>>{});  // vec_load
+                                       // <repeat, vec_load>
+                                       sequence<1>,
+                                       sequence<1>>{});
     }
 };
 } // namespace ck_tile

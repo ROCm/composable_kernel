@@ -5,19 +5,22 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_async_default_policy.hpp"
+#include "ck_tile/ops/gemm_mx/pipeline/gemm_pipeline_ag_bg_cr_comp_async_default_policy.hpp"
 
 namespace ck_tile {
 
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
+//  MX scaling support with OpSel
 template <typename Problem>
-struct BaseGemmPipelineAgBgCrCompAsync
+struct BaseMXGemmPipelineAgBgCrCompAsync
 {
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
+    
+    static constexpr bool UsePersistentKernel = Problem::Traits::UsePersistentKernel;
 
     CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -87,15 +90,16 @@ struct BaseGemmPipelineAgBgCrCompAsync
 };
 
 /**
- * @brief Compute optimized pipeline version async; which is based on V4.
+ * @brief MX GEMM compute optimized pipeline version async; which is based on V4.
  *
  * This pipeline introduces asynchronous load from global memory to LDS,
  * skipping the intermediate loading into pipeline registers.
+ * Supports MX scaling with e8m0 packed values and OpSel.
  */
-template <typename Problem, typename Policy = GemmPipelineAgBgCrCompAsyncDefaultPolicy>
-struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Problem>
+template <typename Problem, typename Policy = MXGemmPipelineAgBgCrCompAsyncDefaultPolicy>
+struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<Problem>
 {
-    using Base             = BaseGemmPipelineAgBgCrCompAsync<Problem>;
+    using Base             = BaseMXGemmPipelineAgBgCrCompAsync<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using AsDataType     = remove_cvref_t<typename Problem::AsDataTypeTuple>;
@@ -117,6 +121,11 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
     using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
 
     static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
+    
+    // MX scaling packing constants
+    static constexpr int MXdlPack = Policy::MXdlPack;
+    static constexpr int NXdlPack = Policy::NXdlPack;
+    static constexpr int KXdlPack = Policy::KXdlPack;
 
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
@@ -317,7 +326,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             constexpr index_t KPerXdl = WarpTile::at(I2{});
             
             constexpr index_t ScaleBlockSize = 32;
-            constexpr index_t KXdlPack = Policy::KXdlPack;
             
             // Scale A DRAM Window: [MWarp * MPerXdl, kKPerBlock / 32 / KXdlPack]
             auto scale_a_dram_window = make_tile_window(
@@ -520,19 +528,28 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         static_for<0, NIterPerWarp, 1>{}([&](auto n_iter) {
                             constexpr auto OpSelB = kScaleInPack;
 
-                            // Extract A/B values for this iteration
-                            auto a_val = a_block_tile.get_y_sliced_thread_data(
+                            // Extract A/B values for this iteration - create warp tensors
+                            typename WarpGemm::AWarpTensor a_warp_tensor{};
+                            const auto a_thread_data = a_block_tile.get_y_sliced_thread_data(
                                 merge_sequences(sequence<m_iter, k_iter>{}, a_warp_y_index_zeros),
                                 merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
-                            auto b_val = b_block_tile.get_y_sliced_thread_data(
+                            static_for<0, a_warp_tensor.get_thread_buffer_size(), 1>{}([&](auto i) {
+                                a_warp_tensor.get_thread_buffer()(i) = a_thread_data[i];
+                            });
+                            
+                            typename WarpGemm::BWarpTensor b_warp_tensor{};
+                            const auto b_thread_data = b_block_tile.get_y_sliced_thread_data(
                                 merge_sequences(sequence<n_iter, k_iter>{}, b_warp_y_index_zeros),
                                 merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+                            static_for<0, b_warp_tensor.get_thread_buffer_size(), 1>{}([&](auto i) {
+                                b_warp_tensor.get_thread_buffer()(i) = b_thread_data[i];
+                            });
 
                             WarpGemm{}.template operator()<OpSelA, OpSelB>(
                                 c_warp_tensors(m_iter)(n_iter),
-                                bit_cast<typename WarpGemm::AWarpTensor>(a_val),
+                                a_warp_tensor,
+                                b_warp_tensor,
                                 scale_a(m_iter)(number<kScalePacked>{}).get_thread_buffer()[0],
-                                bit_cast<typename WarpGemm::BWarpTensor>(b_val),
                                 scale_b(n_iter)(number<kScalePacked>{}).get_thread_buffer()[0]);
                         });
                     });
@@ -742,9 +759,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
         const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
             return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
                 a_dram_block_window_tmp,
-                [](const ADataType& a) { return a; },
+                element_wise::PassThrough{},
                 b_dram_block_window_tmp,
-                [](const BDataType& b) { return b; },
+                element_wise::PassThrough{},
                 scale_a_window,
                 scale_b_window,
                 num_loop,

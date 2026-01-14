@@ -180,92 +180,115 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
 
     using SplitKBatchOffset = typename Underlying::SplitKBatchOffset;
 
+    // Create C block window following UniversalGemmKernel pattern
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set, typename ScaleM, typename ScaleN>
-    CK_TILE_DEVICE static auto
-    MakeGemmTensorViews(const std::array<const ADataType*, NumATensor>& as_ptr,
-                        const std::array<const BDataType*, NumBTensor>& bs_ptr,
-                        const std::array<const void*, NumDTensor>& ds_ptr,
-                        EDataType* e_ptr,
-                        const KernelArgs<ScaleM, ScaleN>& kargs,
-                        const SplitKBatchOffset& splitk_batch_offset)
+    CK_TILE_DEVICE static auto MakeCBlockWindows(EDataType* e_ptr,
+                                                 const KernelArgs<ScaleM, ScaleN>& kargs,
+                                                 const index_t i_m,
+                                                 const index_t i_n)
     {
-        // Get tensor views from the UniversalGemmKernel
-        const auto& gemm_tensor_views_tuple =
-            Underlying::template MakeGemmTensorViews<DstInMemOp>(
-                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset.splitted_k);
+        // Create tensor view for E/C tensor
+        constexpr index_t vector_size = EpiloguePipeline::GetVectorSizeC();
+        const auto& e_tensor_view = [&]() -> auto {
+            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
+                    e_ptr,
+                    make_tuple(kargs.M, kargs.N),
+                    make_tuple(kargs.stride_E, 1),
+                    number<vector_size>{},
+                    number<1>{});
+            }
+            else
+            {
+                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
+                    e_ptr,
+                    make_tuple(kargs.M, kargs.N),
+                    make_tuple(1, kargs.stride_E),
+                    number<1>{},
+                    number<vector_size>{});
+            }
+        }();
 
+        // Create padded view
+        const auto& e_pad_view = [&]() {
+            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+            {
+                return pad_tensor_view(e_tensor_view,
+                                       make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                  number<TilePartitioner::NPerBlock>{}),
+                                       sequence<false, false>{});
+            }
+            else
+            {
+                return pad_tensor_view(e_tensor_view,
+                                       make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                  number<TilePartitioner::NPerBlock>{}),
+                                       sequence<false, false>{});
+            }
+        }();
+
+        // Create block window
+        auto c_block_window = make_tile_window(
+            e_pad_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            {i_m, i_n});
+
+        return c_block_window;
+    }
+
+    // Create scale A block windows following the pattern of MakeABlockWindows
+    template <typename ScaleM, typename ScaleN>
+    CK_TILE_DEVICE static auto
+    MakeScaleABlockWindows(const KernelArgs<ScaleM, ScaleN>& kargs, const index_t block_idx_m)
+    {
         auto scale_a = kargs.scale_m_ptr;
-        auto scale_b = kargs.scale_n_ptr;
-
-        static_assert(ScaleM::GranularityK == ScaleN::GranularityK, "M and N scales must have same K granularity!");
-        static constexpr int BlockScaleSize = ScaleM::GranularityK;
         
-        // With 1D K-only packing: each int32 contains KXdlPack consecutive e8m0 values
-        // Scale A layout: [M, K/BlockScaleSize/KXdlPack] where each element is int32
-        // Scale B layout: [N, K/BlockScaleSize/KXdlPack] where each element is int32
-        const auto&& scale_k_packed = kargs.K / BlockScaleSize / KXdlPack;
+        static constexpr int BlockScaleSize = ScaleM::GranularityK;
+        const auto scale_k_packed = kargs.K / BlockScaleSize / KXdlPack;
 
-        // A scale tensor view - simple 2D layout [M, K/32/4]
-        const auto& scale_a_tensor_view = [&]() {
-            const auto scale_a_desc = make_naive_tensor_descriptor_packed(
-                make_tuple(kargs.M, scale_k_packed));
+        // A scale tensor view - simple 2D layout [M, K/BlockScaleSize/KXdlPack]
+        const auto scale_a_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(kargs.M, scale_k_packed));
 
-            return make_tensor_view<address_space_enum::global>(
-                reinterpret_cast<const int32_t*>(scale_a.ptr), scale_a_desc);
-        }();
+        const auto scale_a_tensor_view = make_tensor_view<address_space_enum::global>(
+            reinterpret_cast<const int32_t*>(scale_a.ptr), scale_a_desc);
 
-        // B scale tensor view - layout [K/32/4, N] to match reference
-        // Reference provides scale_b(k/32, n), so it's [K/32, N] in e8m0
-        // With KXdlPack=4, we pack 4 e8m0 into 1 int32, so it's [K/32/4, N]
-        const auto& scale_b_tensor_view = [&]() {
-            const auto scale_b_desc = make_naive_tensor_descriptor_packed(
-                make_tuple(scale_k_packed, kargs.N));
-
-            return make_tensor_view<address_space_enum::global>(
-                reinterpret_cast<const int32_t*>(scale_b.ptr), scale_b_desc);
-        }();
-
-        return concat_tuple(gemm_tensor_views_tuple, make_tuple(scale_a_tensor_view, scale_b_tensor_view));
-    }
-
-    template <typename TensorView>
-    CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views)
-    {
-        const auto& padded_views = Underlying::template MakeGemmPadViews<TensorView>(views);
-
-        return make_tuple(
-            padded_views.at(I0), padded_views.at(I1), padded_views.at(I2), padded_views.at(I3), views.at(I4), views.at(I5));
-    }
-
-    template <typename PadView>
-    CK_TILE_DEVICE static auto
-    MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
-    {
-        const auto& tile_windows = Underlying::template MakeGemmTileWindows<PadView>(views, i_m, i_n);
-
-        static constexpr int BlockScaleSize = 32;
-
-        // With 1D K-only packing: MXdlPack=1, NXdlPack=1, KXdlPack=4
-        // Each int32 contains KXdlPack consecutive e8m0 scales
+        // Create block window for scale A
         auto scale_a_block_window = make_tile_window(
-            views.at(I4),
+            scale_a_tensor_view,
             make_tuple(number<TilePartitioner::MPerBlock>{},
                        number<TilePartitioner::KPerBlock / BlockScaleSize / KXdlPack>{}),
-            {i_m, 0});
+            {block_idx_m, 0});
 
-        // Scale B window matches [K/32/4, N] layout from reference
+        return scale_a_block_window;
+    }
+
+    // Create scale B block windows following the pattern of MakeBBlockWindows
+    template <typename ScaleM, typename ScaleN>
+    CK_TILE_DEVICE static auto
+    MakeScaleBBlockWindows(const KernelArgs<ScaleM, ScaleN>& kargs, const index_t block_idx_n)
+    {
+        auto scale_b = kargs.scale_n_ptr;
+        
+        static constexpr int BlockScaleSize = ScaleN::GranularityK;
+        const auto scale_k_packed = kargs.K / BlockScaleSize / KXdlPack;
+
+        // B scale tensor view - layout [K/BlockScaleSize/KXdlPack, N]
+        const auto scale_b_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(scale_k_packed, kargs.N));
+
+        const auto scale_b_tensor_view = make_tensor_view<address_space_enum::global>(
+            reinterpret_cast<const int32_t*>(scale_b.ptr), scale_b_desc);
+
+        // Create block window for scale B
         auto scale_b_block_window = make_tile_window(
-            views.at(I5),
+            scale_b_tensor_view,
             make_tuple(number<TilePartitioner::KPerBlock / BlockScaleSize / KXdlPack>{},
                        number<TilePartitioner::NPerBlock>{}),
-            {0, i_n});
+            {0, block_idx_n});
 
-        return make_tuple(tile_windows.at(I0),
-                          tile_windows.at(I1),
-                          tile_windows.at(I2),
-                          tile_windows.at(I3),
-                          scale_a_block_window,
-                          scale_b_block_window);
+        return scale_b_block_window;
     }
 
     template <class ScaleM, class ScaleN, bool UseDefaultScheduler = true>
@@ -281,21 +304,18 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
               const index_t block_idx_m,
               const index_t block_idx_n)
     {
-        // Create Gemm tensor views, pad views and tile windows
-        const auto& gemm_tensor_views_tuple =
-            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
-        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+        // Create block windows directly, following the new pattern from UniversalGemmKernel
+        const auto& a_block_window =
+            Underlying::MakeABlockWindows(as_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& b_block_window =
+            Underlying::MakeBBlockWindows(bs_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
+        const auto& d_block_window = Underlying::MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
+        
+        // Create scale block windows using our new functions
+        const auto& scale_a_block_window = MakeScaleABlockWindows(kargs, block_idx_m);
+        const auto& scale_b_block_window = MakeScaleBBlockWindows(kargs, block_idx_n);
 
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
-
-        // Run GEMM cooperatively by whole workgroup.
-        const auto& a_block_window       = gemm_tile_windows.at(I0);
-        const auto& b_block_window       = gemm_tile_windows.at(I1);
-        const auto& d_block_window       = gemm_tile_windows.at(I2);
-        const auto& scale_a_block_window = gemm_tile_windows.at(I4);
-        const auto& scale_b_block_window = gemm_tile_windows.at(I5);
 
         static_assert(ScaleM::GranularityK == ScaleN::GranularityK // have the same granK
                           || ScaleM::GranularityMN == -1           // or ScaleA is disable
@@ -310,8 +330,9 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
                                                       smem_ptr_ping,
                                                       smem_ptr_pong);
 
-        // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(I3);
+        // Run Epilogue Pipeline - create C block window directly
+        auto c_block_window =
+            MakeCBlockWindows<EpiloguePipeline::MemoryOperation>(e_ptr, kargs, block_idx_m, block_idx_n);
         EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_ping);
     }
 
@@ -338,7 +359,8 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
             const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
             const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
-            const SplitKBatchOffset splitk_batch_offset(kargs);
+            // Cast to base class for SplitKBatchOffset construction
+            const SplitKBatchOffset splitk_batch_offset(static_cast<const typename Underlying::KernelArgs&>(kargs));
             // options
             EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
 

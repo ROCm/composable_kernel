@@ -92,8 +92,8 @@ float invoke_mx_gemm(ck_tile::DeviceMem& a_dev_buf,
                                                     MXGemmTraits,
                                                     GemmConfig::Scheduler>;
 
-    // Use the new comp_async pipeline with MX scaling support
-    using MXGemmPipeline = ck_tile::GemmPipelineAgBgCrCompAsync<MXPipelineProblem>;
+    // Use the new MX comp_async pipeline with MX scaling support
+    using MXGemmPipeline = ck_tile::MXGemmPipelineAgBgCrCompAsync<MXPipelineProblem>;
 
     // Simplified invocation - comp_async handles hot loop and tail internally
     auto invoke_splitk_path = [&](auto split_k_) {
