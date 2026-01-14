@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # /// script
 # requires-python = ">=3.8"
 # dependencies = [
@@ -17,7 +20,6 @@ import re
 import sys
 from collections import defaultdict
 from datetime import datetime
-from pathlib import Path
 
 try:
     from jinja2 import Environment, FileSystemLoader
@@ -31,119 +33,143 @@ except ImportError:
 def parse_arguments():
     """Parse command-line arguments."""
     if len(sys.argv) < 7:
-        print("Usage: analyze_build_trace.py <trace_file> <output_file> <target> <granularity> <build_time> <template_dir>")
+        print(
+            "Usage: analyze_build_trace.py <trace_file> <output_file> <target> <granularity> <build_time> <template_dir>"
+        )
         sys.exit(1)
 
     return {
-        'trace_file': sys.argv[1],
-        'output_file': sys.argv[2],
-        'target': sys.argv[3],
-        'granularity': sys.argv[4],
-        'build_time': sys.argv[5],
-        'template_dir': sys.argv[6],
+        "trace_file": sys.argv[1],
+        "output_file": sys.argv[2],
+        "target": sys.argv[3],
+        "granularity": sys.argv[4],
+        "build_time": sys.argv[5],
+        "template_dir": sys.argv[6],
     }
 
 
 def load_trace_data(trace_file):
     """Load and parse the trace JSON file."""
-    print(f'Loading trace file: {trace_file}')
-    with open(trace_file, 'r') as f:
+    print(f"Loading trace file: {trace_file}")
+    with open(trace_file, "r") as f:
         return json.load(f)
 
 
 def process_events(data):
     """Process trace events and extract template instantiation statistics."""
-    print('Processing events...')
+    print("Processing events...")
 
-    template_stats = defaultdict(lambda: {'count': 0, 'total_dur': 0})
+    template_stats = defaultdict(lambda: {"count": 0, "total_dur": 0})
     phase_stats = defaultdict(int)
     top_individual = []
 
-    for event in data.get('traceEvents', []):
-        name = event.get('name', '')
-        dur = int(event.get('dur', 0))  # Keep as integer microseconds
+    for event in data.get("traceEvents", []):
+        name = event.get("name", "")
+        dur = int(event.get("dur", 0))  # Keep as integer microseconds
 
         if name and dur > 0:
             phase_stats[name] += dur
 
-        if name in ['InstantiateFunction', 'InstantiateClass']:
-            detail = event.get('args', {}).get('detail', '')
-            top_individual.append({
-                'detail': detail,
-                'dur': dur,
-                'type': name
-            })
+        if name in ["InstantiateFunction", "InstantiateClass"]:
+            detail = event.get("args", {}).get("detail", "")
+            top_individual.append({"detail": detail, "dur": dur, "type": name})
 
             # Extract template name (everything before '<' or '(')
-            match = re.match(r'^([^<(]+)', detail)
+            match = re.match(r"^([^<(]+)", detail)
             if match:
                 template_name = match.group(1).strip()
                 # Normalize template names
-                template_name = re.sub(r'^ck::', '', template_name)
-                template_name = re.sub(r'^std::', 'std::', template_name)
+                template_name = re.sub(r"^ck::", "", template_name)
+                template_name = re.sub(r"^std::", "std::", template_name)
 
-                template_stats[template_name]['count'] += 1
-                template_stats[template_name]['total_dur'] += dur
+                template_stats[template_name]["count"] += 1
+                template_stats[template_name]["total_dur"] += dur
 
     return template_stats, phase_stats, top_individual
 
 
 def prepare_template_data(template_stats, phase_stats, top_individual):
     """Prepare and calculate derived statistics for template rendering."""
-    print('Sorting data...')
+    print("Sorting data...")
 
     # Sort data
     sorted_phases = sorted(phase_stats.items(), key=lambda x: x[1], reverse=True)
-    top_individual.sort(key=lambda x: x['dur'], reverse=True)
+    top_individual.sort(key=lambda x: x["dur"], reverse=True)
 
     # Calculate totals
-    total_template_time = sum(s['total_dur'] for s in template_stats.values())
+    total_template_time = sum(s["total_dur"] for s in template_stats.values())
     total_trace_time = sum(phase_stats.values())
-    total_inst = sum(s['count'] for s in template_stats.values())
+    total_inst = sum(s["count"] for s in template_stats.values())
 
     # Prepare templates by time with calculated fields
     templates_by_time = []
-    for name, stats in sorted(template_stats.items(), key=lambda x: x[1]['total_dur'], reverse=True):
-        templates_by_time.append((name, {
-            'count': stats['count'],
-            'total_dur': stats['total_dur'],
-            'avg': stats['total_dur'] // stats['count'] if stats['count'] > 0 else 0,
-            'pct': 100 * stats['total_dur'] / total_template_time if total_template_time > 0 else 0
-        }))
+    for name, stats in sorted(
+        template_stats.items(), key=lambda x: x[1]["total_dur"], reverse=True
+    ):
+        templates_by_time.append(
+            (
+                name,
+                {
+                    "count": stats["count"],
+                    "total_dur": stats["total_dur"],
+                    "avg": stats["total_dur"] // stats["count"]
+                    if stats["count"] > 0
+                    else 0,
+                    "pct": 100 * stats["total_dur"] / total_template_time
+                    if total_template_time > 0
+                    else 0,
+                },
+            )
+        )
 
     # Prepare templates by count
     templates_by_count = []
-    for name, stats in sorted(template_stats.items(), key=lambda x: x[1]['count'], reverse=True):
-        templates_by_count.append((name, {
-            'count': stats['count'],
-            'total_dur': stats['total_dur'],
-            'avg': stats['total_dur'] // stats['count'] if stats['count'] > 0 else 0
-        }))
+    for name, stats in sorted(
+        template_stats.items(), key=lambda x: x[1]["count"], reverse=True
+    ):
+        templates_by_count.append(
+            (
+                name,
+                {
+                    "count": stats["count"],
+                    "total_dur": stats["total_dur"],
+                    "avg": stats["total_dur"] // stats["count"]
+                    if stats["count"] > 0
+                    else 0,
+                },
+            )
+        )
 
     # Add friendly type names to individual instantiations
     for inst in top_individual:
-        inst['inst_type'] = 'Func' if inst['type'] == 'InstantiateFunction' else 'Class'
+        inst["inst_type"] = "Func" if inst["type"] == "InstantiateFunction" else "Class"
 
     # Calculate additional metrics
     median_count = 0
     if len(template_stats) > 0:
-        median_count = sorted([s["count"] for s in template_stats.values()])[len(template_stats) // 2]
+        median_count = sorted([s["count"] for s in template_stats.values()])[
+            len(template_stats) // 2
+        ]
 
     top10_pct = 0
     if len(templates_by_time) >= 10:
-        top10_pct = 100 * sum(s[1]["total_dur"] for s in templates_by_time[:10]) / total_template_time
+        top10_pct = (
+            100
+            * sum(s[1]["total_dur"] for s in templates_by_time[:10])
+            / total_template_time
+        )
 
     return {
-        'sorted_phases': sorted_phases,
-        'top_individual': top_individual,
-        'templates_by_time': templates_by_time,
-        'templates_by_count': templates_by_count,
-        'total_template_time': total_template_time,
-        'total_trace_time': total_trace_time,
-        'total_inst': total_inst,
-        'median_count': median_count,
-        'top10_pct': top10_pct,
-        'unique_families': len(template_stats),
+        "sorted_phases": sorted_phases,
+        "top_individual": top_individual,
+        "templates_by_time": templates_by_time,
+        "templates_by_count": templates_by_count,
+        "total_template_time": total_template_time,
+        "total_trace_time": total_trace_time,
+        "total_inst": total_inst,
+        "median_count": median_count,
+        "top10_pct": top10_pct,
+        "unique_families": len(template_stats),
     }
 
 
@@ -153,17 +179,17 @@ def setup_jinja_environment(template_dir):
 
     def format_number(value):
         """Format number with thousand separators."""
-        return f'{value:,}'
+        return f"{value:,}"
 
     def truncate(value, length):
         """Truncate string to length with ellipsis."""
         if len(value) > length:
-            return value[:length - 3] + '...'
+            return value[: length - 3] + "..."
         return value
 
     def pad(value, length):
         """Pad string to specified length."""
-        return f'{value:<{length}}'
+        return f"{value:<{length}}"
 
     def us_to_ms(value):
         """Convert microseconds to milliseconds."""
@@ -173,37 +199,37 @@ def setup_jinja_environment(template_dir):
         """Convert microseconds to seconds."""
         return value / 1000000.0
 
-    env.filters['format_number'] = format_number
-    env.filters['truncate'] = truncate
-    env.filters['pad'] = pad
-    env.filters['us_to_ms'] = us_to_ms
-    env.filters['us_to_s'] = us_to_s
+    env.filters["format_number"] = format_number
+    env.filters["truncate"] = truncate
+    env.filters["pad"] = pad
+    env.filters["us_to_ms"] = us_to_ms
+    env.filters["us_to_s"] = us_to_s
 
     return env
 
 
 def generate_report(env, data, args, total_events):
     """Generate the final report using Jinja2 template."""
-    print('Rendering report with Jinja2...')
+    print("Rendering report with Jinja2...")
 
-    template = env.get_template('build_analysis_report.md.jinja')
+    template = env.get_template("build_analysis_report.md.jinja")
 
     report_content = template.render(
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        target=args['target'],
-        granularity=args['granularity'],
-        build_time=args['build_time'],
+        target=args["target"],
+        granularity=args["granularity"],
+        build_time=args["build_time"],
         total_events=total_events,
-        total_instantiations=data['total_inst'],
-        unique_families=data['unique_families'],
-        total_trace_time=data['total_trace_time'],
-        total_template_time=data['total_template_time'],
-        phases=data['sorted_phases'],
-        top_individual=data['top_individual'],
-        templates_by_time=data['templates_by_time'],
-        templates_by_count=data['templates_by_count'],
-        median_count=data['median_count'],
-        top10_pct=data['top10_pct']
+        total_instantiations=data["total_inst"],
+        unique_families=data["unique_families"],
+        total_trace_time=data["total_trace_time"],
+        total_template_time=data["total_template_time"],
+        phases=data["sorted_phases"],
+        top_individual=data["top_individual"],
+        templates_by_time=data["templates_by_time"],
+        templates_by_count=data["templates_by_count"],
+        median_count=data["median_count"],
+        top10_pct=data["top10_pct"],
     )
 
     return report_content
@@ -214,8 +240,8 @@ def main():
     args = parse_arguments()
 
     # Load trace data
-    trace_data = load_trace_data(args['trace_file'])
-    total_events = len(trace_data.get('traceEvents', []))
+    trace_data = load_trace_data(args["trace_file"])
+    total_events = len(trace_data.get("traceEvents", []))
 
     # Process events
     template_stats, phase_stats, top_individual = process_events(trace_data)
@@ -224,18 +250,18 @@ def main():
     data = prepare_template_data(template_stats, phase_stats, top_individual)
 
     # Setup Jinja2 environment
-    env = setup_jinja_environment(args['template_dir'])
+    env = setup_jinja_environment(args["template_dir"])
 
     # Generate report
     report_content = generate_report(env, data, args, total_events)
 
     # Write output
-    with open(args['output_file'], 'w') as f:
+    with open(args["output_file"], "w") as f:
         f.write(report_content)
 
-    print(f'Report generated: {args["output_file"]}')
-    print(f'Report size: {len(report_content)} bytes')
+    print(f"Report generated: {args['output_file']}")
+    print(f"Report size: {len(report_content)} bytes")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
