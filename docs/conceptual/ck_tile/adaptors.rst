@@ -59,8 +59,8 @@ A TensorAdaptor encapsulates a sequence of :ref:`coordinate transformations <ck_
 .. image:: diagrams/adaptors_1.svg
    :alt: Diagram
    :align: center
-Core Components
 
+Core Components
 ~~~~~~~~~~~~~~~
 
 Each TensorAdaptor contains:

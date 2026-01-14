@@ -63,10 +63,6 @@ The key insight is that convolution can be transformed from a complex nested loo
    :alt: Diagram
    :align: center
 
-.. image:: diagrams/convolution_example.svg
-   :alt: Diagram
-   :align: center
-
 Understanding Sliding Windows
 =============================
 
@@ -312,7 +308,7 @@ Combining all components into an optimized convolution implementation:
         >;
         
         // Tile distribution for matrix multiplication
-        // See :ref:`ck_tile_tile_distribution` for details
+        // See :ref:`ck_tile_distribution` for details
         using ATileDist = TileDistribution<
             Sequence<TileM, TileK>,
             Sequence<BlockM, 1>
@@ -339,7 +335,7 @@ Combining all components into an optimized convolution implementation:
         // Main GEMM loop over K dimension
         for (index_t k_tile = 0; k_tile < PatchSize; k_tile += TileK) {
             // Create tile windows for im2col matrix and kernel
-            // See :ref:`ck_tile_tile_window` for window operations
+            // See :ref:`ck_tile_window` for window operations
             auto a_window = make_tile_window<ATileDist>(
                 input, Im2colDesc{H, W, K},
                 {blockIdx.y * TileM, k_tile}
@@ -560,7 +556,7 @@ This example demonstrates how CK Tile transforms convolution from a memory-bound
 
 - **Sliding windows** can be efficiently represented using tensor descriptors with appropriate strides
 - **Im2col transformation** converts convolution to matrix multiplication without data copies  
-- **Tile distribution** enables optimal work distribution across GPU threads (see :ref:`ck_tile_tile_distribution`)
+- **Tile distribution** enables optimal work distribution across GPU threads (see :ref:`ck_tile_distribution`)
 - **Multi-channel support** extends naturally through higher-dimensional descriptors
 - **Performance optimizations** like vectorization and shared memory are seamlessly integrated (see :ref:`ck_tile_gemm_optimization` for similar techniques)
 

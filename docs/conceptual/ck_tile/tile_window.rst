@@ -620,6 +620,8 @@ Performance Characteristics
 .. image:: diagrams/tile_window_5.svg
    :alt: Diagram
    :align: center
+
+
 Best Practices
 --------------
 
