@@ -14,8 +14,8 @@ void abquant_quantgrouped_fp4_instance_factory(
         [](const ck_tile::ArgParser& arg_parser) {
             using AQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
             using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
-            using TypeConfig      = decltype(GemmQuantTypeConfig<ck_tile::pk_fp4_raw_t,
-                                                                 ck_tile::pk_fp4_raw_t,
+            using TypeConfig      = decltype(GemmQuantTypeConfig<ck_tile::pk_fp4_t,
+                                                                 ck_tile::pk_fp4_t,
                                                                  ck_tile::half_t,
                                                                  float>{});
             return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_fp4_raw_t>,

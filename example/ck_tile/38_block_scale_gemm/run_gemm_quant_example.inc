@@ -20,18 +20,6 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "gemm_utils.hpp"
 
-template <typename DataType, typename FallbackDataType>
-struct fallback_data_type
-{
-    using type = std::conditional_t<std::is_same_v<DataType, ck_tile::pk_fp4_raw_t> ||
-                                        std::is_same_v<DataType, ck_tile::pk_fp4_t>,
-                                    FallbackDataType,
-                                    DataType>;
-};
-
-template <typename DataType, typename FallbackDataType>
-using fallback_data_type_t = fallback_data_type<DataType, FallbackDataType>::type;
-
 template <typename GemmConfig,
           typename TypeConfig,
           typename ALayout,
@@ -53,7 +41,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                            typename TypeConfig::BDataType,
                            typename TypeConfig::ADataType>;
 
-    using ComputeDataType = fallback_data_type_t<CandidateComputeDataType, ck_tile::fp8_t>;
+    using ComputeDataType = ck_tile::detail::compute_type_t<CandidateComputeDataType>;
 
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,

@@ -12,6 +12,36 @@
 
 namespace ck_tile {
 
+// Utility functions for dealing with packed data types
+namespace detail {
+template <typename DataType>
+struct is_packed_type
+{
+    static constexpr bool value = numeric_traits<DataType>::PackedSize > 1;
+};
+
+template <typename DataType>
+constexpr bool is_packed_type_v = is_packed_type<DataType>::value;
+
+template <typename DataType, typename FallbackType = fp8_t>
+struct compute_type
+{
+    using type = std::conditional_t<is_packed_type_v<DataType>, FallbackType, DataType>;
+};
+
+template <typename DataType, typename FallbackType = fp8_t>
+using compute_type_t = typename compute_type<DataType, FallbackType>::type;
+
+template <typename ThisType, typename OtherType, typename FallbackType = fp8_t>
+struct gemm_type
+{
+    using type = compute_type_t<ThisType, compute_type_t<OtherType, FallbackType>>;
+};
+
+template <typename ThisType, typename OtherType, typename FallbackType = fp8_t>
+using gemm_type_t = typename gemm_type<ThisType, OtherType, FallbackType>::type;
+} // namespace detail
+
 // A is block window on shared memory
 // AQ (scale tensor) is block distributed tensor.
 // BQ (scale tensor) is block distributed tensor.
@@ -107,12 +137,10 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
         static_assert(
             (std::is_same_v<ADataType, fp8_t> || std::is_same_v<ADataType, bf8_t> ||
              std::is_same_v<ADataType, ck_tile::pk_int4_t> ||
-             std::is_same_v<ADataType, ck_tile::pk_fp4_t> ||
-             std::is_same_v<ADataType, ck_tile::pk_fp4_raw_t>) &&
+             std::is_same_v<ADataType, ck_tile::pk_fp4_t>) &&
             (std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t> ||
              std::is_same_v<BDataType, ck_tile::pk_int4_t> ||
-             std::is_same_v<BDataType, ck_tile::pk_fp4_t> ||
-             std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>) &&
+             std::is_same_v<BDataType, ck_tile::pk_fp4_t>) &&
             (std::is_same_v<AQDataType, float> || std::is_same_v<AQDataType, ck_tile::fp8_t> ||
              std::is_same_v<AQDataType, ck_tile::bf8_t>) &&
             (std::is_same_v<BQDataType, float> || std::is_same_v<BQDataType, ck_tile::fp8_t> ||
@@ -137,9 +165,12 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
     using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
     using CDataType       = remove_cvref_t<typename Traits::CDataType>;
 
-    // BDataType gets converted from PkInt4 during loading
+    // A/B DataType get converted from PkInt4/PkFp8 during loading
+    using OverrideADataType =
+        detail::gemm_type_t<typename Problem_::ADataType, typename Problem_::BDataType>;
     using OverrideBDataType =
-        std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
+        detail::gemm_type_t<typename Problem_::BDataType, typename Problem_::ADataType>;
+
     using Base     = BlockGemmQuantBase;
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
@@ -265,9 +296,9 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                                           bool_constant<ALoadTranspose> = {},
                                           bool_constant<BLoadTranspose> = {})
         {
-            load_int4_tile<ADataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
+            // If A/B datatype were pkint4/pkfp4 it would be converted prior to storing in LDS
+            load_int4_tile<OverrideADataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
                 a_warp_tile_, a_block_window);
-            // If B datatype were pkint4 it would be converted prior to storing in LDS
             load_int4_tile<OverrideBDataType, ComputeDataType, UnaryOpSize_, BLoadTranspose>(
                 b_warp_tile_, b_block_window);
         }

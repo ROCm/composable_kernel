@@ -8,7 +8,7 @@
 
 namespace ck_tile {
 
-template <typename DstDataType, index_t UnaryOpSize>
+template <typename SrcDataType, typename DstDataType, index_t UnaryOpSize>
 struct InterleavedPKTypeLoader
 {
     template <typename WarpWindow, typename WarpTile>
@@ -21,10 +21,15 @@ struct InterleavedPKTypeLoader
         constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
         const auto in_dstr_tensors           = load_tile(warp_window);
 
+        // NOTE: we rely on types packing neatly here
+        using RawSrcType          = typename SrcDataType::type;
+        constexpr auto PackedSize = numeric_traits<SrcDataType>::PackedSize;
+
+        using SrcVectorType = RawSrcType __attribute__((ext_vector_type(UnaryOpSize / PackedSize)));
         using DstVectorType = DstDataType __attribute__((ext_vector_type(UnaryOpSize)));
         static_for<0, thread_buffer_size, 1>{}([&](auto i) {
             elementwise_op(warp_tile.get_thread_buffer().template get_as<DstVectorType>()(i),
-                           in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
+                           in_dstr_tensors.get_thread_buffer().template get_as<SrcVectorType>()[i]);
         });
     }
 };
@@ -37,10 +42,11 @@ template <typename SrcDataType,
           typename WarpWindow>
 CK_TILE_DEVICE void load_int4_tile(WarpTile& dst, const WarpWindow& src)
 {
-    if constexpr(std::is_same_v<SrcDataType, pk_int4_t>)
+    if constexpr(std::is_same_v<SrcDataType, pk_int4_t> || std::is_same_v<SrcDataType, pk_fp4_t>)
     {
-        static_assert(!LoadTranspose, "LoadTranspose not supported with pk_int4_t");
-        InterleavedPKTypeLoader<DstDataType, UnaryOpSize>::load_interleaved_pk_type(dst, src);
+        static_assert(!LoadTranspose, "LoadTranspose not supported with pk_int4_t or pk_fp4_t");
+        InterleavedPKTypeLoader<SrcDataType, DstDataType, UnaryOpSize>::load_interleaved_pk_type(
+            dst, src);
     }
     else if constexpr(LoadTranspose)
     {

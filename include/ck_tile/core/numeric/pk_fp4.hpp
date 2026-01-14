@@ -6,6 +6,7 @@
 #include <cmath>
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/mxfp_convert.hpp"
 
 #if defined(__gfx950__)
@@ -22,6 +23,12 @@ using fp32_t   = float;
 using fp32x2_t = float __attribute__((ext_vector_type(2)));
 using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
 using bf16x2_t = bfloat16_t __attribute__((ext_vector_type(2)));
+
+#if CK_TILE_USE_CUSTOM_DATA_TYPE
+using fp8x2_t = fp8_raw_t __attribute__((ext_vector_type(2)));
+#else
+using fp8x2_t = fp8_t __attribute__((ext_vector_type(2)));
+#endif
 
 // Helpers: constexpr-safe access to elements of ext_vector_type(2)
 // Some compilers don't allow operator[] in constant expressions for vector types.
@@ -98,6 +105,8 @@ struct pk_float4_e2m1_t
     CK_TILE_HOST_DEVICE constexpr fp16x2_t to_fp16x2(float scale = 1.f) const;
     CK_TILE_HOST_DEVICE constexpr bf16_t to_bf16(float scale = 1.f) const;
     CK_TILE_HOST_DEVICE constexpr bf16x2_t to_bf16x2(float scale = 1.f) const;
+    CK_TILE_HOST_DEVICE constexpr fp8_t to_fp8(float scale = 1.f) const;
+    CK_TILE_HOST_DEVICE constexpr fp8x2_t to_fp8x2(float scale = 1.f) const;
 
     CK_TILE_HOST_DEVICE constexpr operator float() const { return to_float(); }
     CK_TILE_HOST_DEVICE constexpr operator fp32x2_t() const { return to_fp32x2(); }
@@ -105,6 +114,8 @@ struct pk_float4_e2m1_t
     CK_TILE_HOST_DEVICE constexpr operator fp16x2_t() const { return to_fp16x2(); }
     CK_TILE_HOST_DEVICE constexpr operator bf16_t() const { return to_bf16(); }
     CK_TILE_HOST_DEVICE constexpr operator bf16x2_t() const { return to_bf16x2(); }
+    CK_TILE_HOST_DEVICE constexpr operator fp8_t() const { return to_fp8(); }
+    CK_TILE_HOST_DEVICE constexpr operator fp8x2_t() const { return to_fp8x2(); }
 
     template <index_t I>
     CK_TILE_HOST_DEVICE constexpr pk_float4_e2m1_t unpack(number<I>) const
@@ -406,6 +417,24 @@ CK_TILE_HOST_DEVICE constexpr fp16x2_t pk_fp4_t::to_fp16x2(float scale) const
 #else
     return fp16x2_t{type_convert<fp16_t>(convert_to_float<pk_fp4_t>(_unpack(number<0>{}), scale)),
                     type_convert<fp16_t>(convert_to_float<pk_fp4_t>(_unpack(number<1>{}), scale))};
+#endif
+}
+
+CK_TILE_HOST_DEVICE constexpr fp8_t pk_fp4_t::to_fp8(float scale) const
+{
+#if CK_TILE_FP4_CVT_DEVICE
+    return impl::_from_f4<fp8_t>(data, scale);
+#else
+    return fp8_t{type_convert<fp8_t>(convert_to_float<pk_fp4_t>(_unpack(number<0>{}), scale))};
+#endif
+}
+CK_TILE_HOST_DEVICE constexpr fp8x2_t pk_fp4_t::to_fp8x2(float scale) const
+{
+#if CK_TILE_FP4_CVT_DEVICE
+    return impl::_from_f4<fp8x2_t>(data, scale);
+#else
+    return fp8x2_t{type_convert<fp8_t>(convert_to_float<pk_fp4_t>(_unpack(number<0>{}), scale)),
+                   type_convert<fp8_t>(convert_to_float<pk_fp4_t>(_unpack(number<1>{}), scale))};
 #endif
 }
 #else
