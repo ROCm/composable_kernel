@@ -277,7 +277,7 @@ struct tile_window_linear
     {
         constexpr auto linear_coord = get_bottom_linear_coordinate(number<i_access>{});
         constexpr auto is_pure_linear_tensor =
-            reduce_on_sequence(LinearBottomDims{}, multiplies{}, number<1>{});
+            reduce_on_sequence(LinearBottomDims{}, multiplies<>{}, number<1>{});
         if constexpr(is_pure_linear_tensor)
         {
             // this case usually is a LDS window, everything is known at compile tile.
