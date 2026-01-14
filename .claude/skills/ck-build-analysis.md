@@ -134,10 +134,12 @@ The analysis script (`analyze_build_trace.py`) is PEP 723 compliant with inline 
 
 **No manual setup required!** The first time you run the skill, it will:
 1. Detect if `uv` is installed in the container
-2. If not, automatically install it (takes ~5 seconds)
+2. If not, automatically install it via Ubuntu packages (pipx install uv)
 3. Use `uv run` to execute the analysis with auto-managed dependencies
 
 On subsequent runs, `uv` will already be available and dependencies will be cached.
+
+Installation is done through Ubuntu's package manager for security and reliability.
 
 ### Components
 
