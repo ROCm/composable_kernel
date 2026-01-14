@@ -120,14 +120,12 @@ struct DefaultAlgorithm
     ckb::test::ThreadBlock thread_block{.block_size = 256,
                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    ckb::test::GridwiseXdlGemm gridwise_gemm{.ak1            = 8,
-                                             .bk1            = 8,
-                                             .m_per_xdl      = 16,
-                                             .n_per_xdl      = 16,
-                                             .m_xdl_per_wave = 8,
-                                             .n_xdl_per_wave = 8};
+    ckb::test::GridwiseFwdXdlGemm gridwise_gemm{
+        .ak1        = 8,
+        .bk1        = 8,
+        .xdl_params = {.m_per_xdl = 16, .n_per_xdl = 16, .m_xdl_per_wave = 8, .n_xdl_per_wave = 8}};
 
-    ckb::test::TransferABC transfer{
+    ckb::test::Transfer<> transfer{
         .a =
             {
                 .block_transfer              = {.k0 = 1, .m_n = 128, .k1 = 2},
@@ -161,10 +159,11 @@ struct DefaultAlgorithm
             },
     };
 
-    ckb::ConvFwdSpecialization fwd_specialization = ckb::ConvFwdSpecialization::DEFAULT;
-    ckb::GemmSpecialization gemm_specialization   = ckb::GemmSpecialization::Default;
-    ckb::test::BlockGemm block_gemm{.pipeline_version = ckb::PipelineVersion::V4,
-                                    .scheduler        = ckb::PipelineScheduler::INTRAWAVE};
+    ckb::ConvSpecialization fwd_specialization  = ckb::ConvSpecialization::DEFAULT;
+    ckb::GemmSpecialization gemm_specialization = ckb::GemmSpecialization::Default;
+    ckb::test::BlockGemmPipeline block_gemm_pipeline{.pipeline_version = ckb::PipelineVersion::V4,
+                                                     .scheduler =
+                                                         ckb::PipelineScheduler::INTRAWAVE};
 };
 static_assert(ckb::ConvAlgorithmDescriptor<DefaultAlgorithm>);
 

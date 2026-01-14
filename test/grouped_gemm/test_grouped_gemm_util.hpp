@@ -23,55 +23,18 @@ extern ck::index_t instance_index;
 namespace ck {
 namespace test {
 
-template <typename Range>
-std::string serialize_range(const Range& range)
-{
-    std::stringstream ss;
-    for(auto& r : range)
-    {
-        ss << r << ", ";
-    }
-    std::string str = ss.str();
-    return std::string(str.begin(), str.end() - 2);
-}
-
-// Helper primary template (will be specialized on the boolean)
-template <std::size_t N,
-          typename Tuple,
-          typename Default,
-          bool InRange = (N < std::tuple_size_v<std::remove_reference_t<Tuple>>)>
-struct tuple_element_or_impl;
-
-// Specialization for the in-range case: use std::tuple_element_t
-template <std::size_t N, typename Tuple, typename Default>
-struct tuple_element_or_impl<N, Tuple, Default, true>
-{
-    using type = std::tuple_element_t<N, std::remove_reference_t<Tuple>>;
-};
-
-// Specialization for the out-of-range case: use Default
-template <std::size_t N, typename Tuple, typename Default>
-struct tuple_element_or_impl<N, Tuple, Default, false>
-{
-    using type = Default;
-};
-
-// User-facing alias
-template <std::size_t N, typename Tuple, typename Default>
-using tuple_element_or_t = typename tuple_element_or_impl<N, Tuple, Default>::type;
-
 template <typename Tuple, bool FailIfNoSupportedInstances = false>
 class TestGroupedGemm : public testing::Test
 {
     protected:
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-    using ALayout      = std::tuple_element_t<0, Tuple>;
-    using BLayout      = std::tuple_element_t<1, Tuple>;
-    using ELayout      = std::tuple_element_t<2, Tuple>;
-    using ADataType    = std::tuple_element_t<3, Tuple>;
-    using BDataType    = std::tuple_element_t<4, Tuple>;
-    using EDataType    = std::tuple_element_t<5, Tuple>;
+    using ALayout      = tuple_element_t<0, Tuple>;
+    using BLayout      = tuple_element_t<1, Tuple>;
+    using ELayout      = tuple_element_t<2, Tuple>;
+    using ADataType    = tuple_element_t<3, Tuple>;
+    using BDataType    = tuple_element_t<4, Tuple>;
+    using EDataType    = tuple_element_t<5, Tuple>;
     using AElementOp   = tuple_element_or_t<6, Tuple, PassThrough>;
     using BElementOp   = tuple_element_or_t<7, Tuple, PassThrough>;
     using CDEElementOp = tuple_element_or_t<8, Tuple, PassThrough>;
