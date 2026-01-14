@@ -89,6 +89,7 @@ struct FmhaFwdKernel
         const void* k_ptr;
         const void* v_ptr;
         void* o_ptr;
+        const void* sink_ptr;
 
         ck_tile::index_t seqlen_q;
         ck_tile::index_t seqlen_k;
@@ -343,12 +344,14 @@ struct FmhaFwdKernel
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                       drop_seed_offset,
                   const void* cu_seqlen_q_ptr = nullptr,
-                  const void* cu_seqlen_k_ptr = nullptr)
+                  const void* cu_seqlen_k_ptr = nullptr,
+                  const void* sink_ptr        = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
                      o_ptr,
+                     sink_ptr,
                      seqlen_q,
                      seqlen_k,
                      hdim_q,
@@ -490,7 +493,8 @@ struct FmhaFwdKernel
               bool s_randval,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset,
               const void* cu_seqlen_q_ptr = nullptr,
-              const void* cu_seqlen_k_ptr = nullptr)
+              const void* cu_seqlen_k_ptr = nullptr,
+              const void* sink_ptr        = nullptr)
     {
         return MakeKargsImpl(
             q_ptr,
@@ -539,7 +543,8 @@ struct FmhaFwdKernel
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
             cu_seqlen_q_ptr,
-            cu_seqlen_k_ptr);
+            cu_seqlen_k_ptr,
+            sink_ptr);
     }
 
     // std::variant<> can't take in a list initializer, overload for backward compatibility
@@ -591,7 +596,8 @@ struct FmhaFwdKernel
               bool s_randval,
               const std::tuple<const void*, const void*>& drop_seed_offset,
               const void* cu_seqlen_q_ptr = nullptr,
-              const void* cu_seqlen_k_ptr = nullptr)
+              const void* cu_seqlen_k_ptr = nullptr,
+              const void* sink_ptr        = nullptr)
     {
         return MakeKargsImpl(
             q_ptr,
@@ -640,7 +646,8 @@ struct FmhaFwdKernel
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
             cu_seqlen_q_ptr,
-            cu_seqlen_k_ptr);
+            cu_seqlen_k_ptr,
+            sink_ptr);
     }
 
     template <bool Cond = kIsGroupMode>
@@ -688,12 +695,14 @@ struct FmhaFwdKernel
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                       drop_seed_offset,
                   const void* cu_seqlen_q_ptr = nullptr,
-                  const void* cu_seqlen_k_ptr = nullptr)
+                  const void* cu_seqlen_k_ptr = nullptr,
+                  const void* sink_ptr        = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
                      o_ptr,
+                     sink_ptr,
                      -1, // seqlen will be updated by another pointer
                      -1, //
                      hdim_q,
@@ -833,7 +842,8 @@ struct FmhaFwdKernel
               bool s_randval,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset,
               const void* cu_seqlen_q_ptr = nullptr,
-              const void* cu_seqlen_k_ptr = nullptr)
+              const void* cu_seqlen_k_ptr = nullptr,
+              const void* sink_ptr        = nullptr)
     {
         return MakeKargsImpl(
             q_ptr,
@@ -878,7 +888,8 @@ struct FmhaFwdKernel
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
             cu_seqlen_q_ptr,
-            cu_seqlen_k_ptr);
+            cu_seqlen_k_ptr,
+            sink_ptr);
     }
 
     // std::variant<> can't take in a list initializer, overload for backward compatibility
@@ -926,7 +937,8 @@ struct FmhaFwdKernel
               bool s_randval,
               const std::tuple<const void*, const void*>& drop_seed_offset,
               const void* cu_seqlen_q_ptr = nullptr,
-              const void* cu_seqlen_k_ptr = nullptr)
+              const void* cu_seqlen_k_ptr = nullptr,
+              const void* sink_ptr        = nullptr)
     {
         return MakeKargsImpl(
             q_ptr,
@@ -971,7 +983,8 @@ struct FmhaFwdKernel
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
             cu_seqlen_q_ptr,
-            cu_seqlen_k_ptr);
+            cu_seqlen_k_ptr,
+            sink_ptr);
     }
 
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
@@ -1093,10 +1106,8 @@ struct FmhaFwdKernel
         {
             // allocate LDS
             __shared__ char smem_ptr[GetSmemSize()];
-
             // divide problem
             const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
-
             const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * FmhaPipeline::kM0);
             const index_t i_n1 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN1);
 
@@ -1107,6 +1118,10 @@ struct FmhaFwdKernel
             long_index_t batch_offset_randval = 0;
             long_index_t batch_offset_lse     = 0;
             long_index_t batch_offset_o       = 0;
+            const float sink_value =
+                kargs.sink_ptr != nullptr
+                    ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                    : -numeric<float>::infinity();
 
             if constexpr(kIsGroupMode)
             {
@@ -1499,38 +1514,49 @@ struct FmhaFwdKernel
 
             AttentionVariant variant;
             const auto variant_params = [&] {
+                const float scale_s = [&] {
+                    if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
+                    {
+                        float q_descale = *(reinterpret_cast<const float*>(kargs.q_descale_ptr));
+                        float k_descale = *(reinterpret_cast<const float*>(kargs.k_descale_ptr));
+
+                        return kargs.scale_s * q_descale * k_descale;
+                    }
+                    else
+                    {
+                        return kargs.scale_s;
+                    }
+                }();
+
                 if constexpr(kHasLogitsSoftCap)
                 {
                     return ck_tile::LogitsSoftCapParams<FmhaMask, CK_TILE_FMHA_FWD_FAST_EXP2>{
-                        mask, kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
+                        mask, scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
                 }
                 else
                 {
-                    return ck_tile::StandardAttentionParams<FmhaMask>{mask, kargs.scale_s};
+                    return ck_tile::StandardAttentionParams<FmhaMask>{mask, scale_s};
                 }
             }();
 
             BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
-
             auto o_acc_tile = [&]() {
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
                 {
                     // TODO - move global load of descale to pipeline
-                    float q_descale = *(reinterpret_cast<const float*>(kargs.q_descale_ptr));
-                    float k_descale = *(reinterpret_cast<const float*>(kargs.k_descale_ptr));
                     float v_descale = *(reinterpret_cast<const float*>(kargs.v_descale_ptr));
 
-                    float scale_s = kargs.scale_s * q_descale * k_descale;
                     float scale_p =
                         ck_tile::type_convert<float>(ck_tile::numeric<PDataType>::max());
                     float scale_o = v_descale / scale_p;
 
                     auto o_acc_element_func = [&]() {
                         if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
-                            return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
-                                                     ck_tile::scales{scale_o});
+                            return make_composes(
+                                ck_tile::saturates<ck_tile::fp8_t>{},
+                                ck_tile::scales<remove_cvref_t<decltype(scale_o)>>{scale_o});
                         else
-                            return ck_tile::scales{scale_o};
+                            return ck_tile::scales<remove_cvref_t<decltype(scale_o)>>{scale_o};
                     }();
                     return FmhaPipeline{}(q_dram_window,
                                           identity{}, // q_element_func
@@ -1542,18 +1568,20 @@ struct FmhaFwdKernel
                                           identity{}, // bias_element_func
                                           randval_dram_window,
                                           lse_dram_window,
-                                          identity{},         // lse_element_func
-                                          identity{},         // s_acc_element_func
-                                          scales{scale_p},    // p_compute_element_func
+                                          identity{}, // lse_element_func
+                                          identity{}, // s_acc_element_func
+                                          scales<remove_cvref_t<decltype(scale_p)>>{
+                                              scale_p},       // p_compute_element_func
                                           o_acc_element_func, // o_acc_element_func
                                           mask,
                                           position_encoding,
-                                          scale_s,
+                                          variant_params.sm_scale,
                                           variant,
                                           variant_params,
                                           block_indices,
                                           smem_ptr,
-                                          dropout);
+                                          dropout,
+                                          sink_value);
                 }
                 else
                 {
@@ -1565,12 +1593,13 @@ struct FmhaFwdKernel
                                           lse_dram_window,
                                           mask,
                                           position_encoding,
-                                          kargs.scale_s,
+                                          variant_params.sm_scale,
                                           variant,
                                           variant_params,
                                           block_indices,
                                           smem_ptr,
-                                          dropout);
+                                          dropout,
+                                          sink_value);
                 }
             }();
 
@@ -1610,6 +1639,10 @@ struct FmhaFwdKernel
             constexpr bool PrefillCase = FmhaPipeline::kM0 > 64;
             // divide problem
             const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
+            const float sink_value =
+                kargs.sink_ptr != nullptr
+                    ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                    : -numeric<float>::infinity();
 
             const index_t i_m0 = i_tile_m * FmhaPipeline::kM0;
             const index_t i_n1 = i_tile_n * FmhaPipeline::kN1;
@@ -2262,6 +2295,7 @@ struct FmhaFwdKernel
                                           mask,
                                           position_encoding,
                                           kargs.scale_s,
+                                          sink_value,
                                           smem_ptrk0,
                                           smem_ptrk1,
                                           smem_ptrv0,
@@ -2278,7 +2312,8 @@ struct FmhaFwdKernel
                                           mask,
                                           position_encoding,
                                           kargs.scale_s,
-                                          smem_ptr);
+                                          smem_ptr,
+                                          sink_value);
                 }
             }();
 

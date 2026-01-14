@@ -165,7 +165,7 @@ constexpr auto convert_pipeline_scheduler()
 
 /// @brief Helper function to report unsupported convolution direction with a clear error message.
 template <typename Instance>
-consteval void report_unsupported_conv_direction_error()
+[[noreturn]] consteval void report_unsupported_conv_direction_error()
 {
     throw "Unsupported convolution direction detected!\n"
           "The kernel instance does not have a recognized convolution specialization.\n"
@@ -197,18 +197,16 @@ constexpr builder::ConvDirection conv_direction()
 
 /// @brief Derives the convolution-specific specialization from a device kernel `Instance` type.
 /// @tparam Instance The device kernel instance type.
-/// @return A `builder::ConvFwdSpecialization`, `builder::ConvBwdDataSpecialization`, or
-/// `builder::ConvBwdWeightSpecialization` enum value.
+/// @return A `builder::ConvSpecialization` enum value.
 template <typename Instance>
 constexpr auto conv_spec()
 {
     using InstTraits = InstanceTraits<Instance>;
+    using enum builder::ConvSpecialization;
 
     if constexpr(requires { InstTraits::kConvForwardSpecialization; })
     {
         using enum ck::tensor_operation::device::ConvolutionForwardSpecialization;
-        using enum builder::ConvFwdSpecialization;
-
         switch(InstTraits::kConvForwardSpecialization)
         {
         case Default: return DEFAULT;
@@ -221,8 +219,6 @@ constexpr auto conv_spec()
     else if constexpr(requires { InstTraits::kConvBwdDataSpecialization; })
     {
         using enum ck::tensor_operation::device::ConvolutionBackwardDataSpecialization;
-        using enum builder::ConvBwdDataSpecialization;
-
         switch(InstTraits::kConvBwdDataSpecialization)
         {
         case Default: return DEFAULT;
@@ -232,8 +228,6 @@ constexpr auto conv_spec()
     else if constexpr(requires { InstTraits::kConvBwdWeightSpecialization; })
     {
         using enum ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
-        using enum builder::ConvBwdWeightSpecialization;
-
         switch(InstTraits::kConvBwdWeightSpecialization)
         {
         case Default: return DEFAULT;
@@ -258,7 +252,7 @@ inline constexpr bool layouts_are =
 /// @details This consteval function is designed to fail at compile time with a descriptive
 /// error message when an unsupported layout combination is encountered.
 template <typename A, typename B, typename E, int SpatialDim>
-consteval void report_unsupported_layout_error()
+[[noreturn]] consteval void report_unsupported_layout_error()
 {
     // This will produce a compile-time error with the exception message
     throw "Unsupported convolution layout combination detected!\n"
@@ -339,7 +333,7 @@ constexpr auto conv_layout()
 
 /// @brief Helper function to report unsupported data type with a clear error message.
 template <typename ADataType>
-consteval void report_unsupported_data_type_error()
+[[noreturn]] consteval void report_unsupported_data_type_error()
 {
     throw "Unsupported data type detected!\n"
           "The ADataType is not recognized.\n"
@@ -396,7 +390,7 @@ constexpr builder::DataType conv_data_type()
 
 /// @brief Helper function to report unsupported elementwise operation with a clear error message.
 template <typename ElementwiseOp>
-consteval void report_unsupported_elementwise_op_error()
+[[noreturn]] consteval void report_unsupported_elementwise_op_error()
 {
     throw "Unsupported elementwise operation detected!\n"
           "The elementwise operation type is not recognized.\n"

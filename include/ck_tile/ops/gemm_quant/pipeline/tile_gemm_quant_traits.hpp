@@ -10,10 +10,11 @@ namespace ck_tile {
 
 enum struct QuantType : std::uint16_t
 {
-    AQuantGrouped = 0,
-    BQuantGrouped = 1,
-    RowColQuant   = 2,
-    TensorQuant   = 3
+    AQuantGrouped  = 0,
+    BQuantGrouped  = 1,
+    RowColQuant    = 2,
+    TensorQuant    = 3,
+    ABQuantGrouped = 4
 };
 
 inline std::string quant_type_to_string(QuantType quant_type)
@@ -24,6 +25,7 @@ inline std::string quant_type_to_string(QuantType quant_type)
     case QuantType::BQuantGrouped: return "BQuantGrouped";
     case QuantType::RowColQuant: return "RowColQuant";
     case QuantType::TensorQuant: return "TensorQuant";
+    case QuantType::ABQuantGrouped: return "ABQuantGrouped";
     default: return "Unknown";
     }
 }

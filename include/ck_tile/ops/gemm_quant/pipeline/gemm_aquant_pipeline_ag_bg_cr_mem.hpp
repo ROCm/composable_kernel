@@ -28,7 +28,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
-    using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
+    using QuantGroupSize = remove_cvref_t<typename Problem::AQuantGroupSize>;
 
     static_assert(QuantGroupSize::kM == 1, "no block for M supported yet!");
     static_assert(QuantGroupSize::kN == 1, "only M/K blocks for AQuant kernel!");
@@ -164,7 +164,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     };
 
     template <>
-    struct PipelineImpl<GemmPipelineScheduler::Interwave> : public PipelineImplBase
+    struct PipelineImpl<GemmPipelineScheduler::Intrawave> : public PipelineImplBase
     {
         using Base = PipelineImplBase;
 
@@ -491,7 +491,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                    void* p_smem,
                                    index_t m = 0) const
     {
-        return PipelineImpl<GemmPipelineScheduler::Interwave>{}
+        return PipelineImpl<GemmPipelineScheduler::Intrawave>{}
             .template operator()<HasHotLoop, TailNum>(
                 a_dram_block_window_tmp,
                 [](const BDataType& a) { return a; },

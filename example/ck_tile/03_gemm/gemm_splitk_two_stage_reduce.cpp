@@ -160,110 +160,101 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                                     args.stride_E);
     constexpr auto scheduler = GemmConfig::Scheduler;
 
-    const auto Run = [&]() {
-        // use SET operation since each K-split writes to separate memory
-        constexpr auto memory_operation = ck_tile::memory_operation_enum::set;
+    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                       BDataType,
+                                                                       AccDataType,
+                                                                       GemmShape,
+                                                                       GemmUniversalTraits,
+                                                                       scheduler>;
 
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler>;
+    using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
+        UniversalGemmProblem>;
 
-        using GemmPipeline = typename PipelineTypeTraits<
-            GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+    using GemmEpilogue =
+        ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                                   BDataType,
+                                                                   DsDataType,
+                                                                   AccDataType,
+                                                                   CDataType,
+                                                                   DsLayout,
+                                                                   ELayout,
+                                                                   CDEElementWise,
+                                                                   TilePartitioner::MPerBlock,
+                                                                   TilePartitioner::NPerBlock,
+                                                                   GemmConfig::M_Warp,
+                                                                   GemmConfig::N_Warp,
+                                                                   GemmConfig::M_Warp_Tile,
+                                                                   GemmConfig::N_Warp_Tile,
+                                                                   GemmConfig::K_Warp_Tile,
+                                                                   UniversalGemmProblem::TransposeC,
+                                                                   GemmConfig::NumWaveGroups>>;
 
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             CDataType,
-                                             DsLayout,
-                                             ELayout,
-                                             CDEElementWise,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             memory_operation,
-                                             GemmConfig::NumWaveGroups>>;
+    using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+    auto kargs   = Kernel::MakeKernelArgs(base_args);
 
-        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs   = Kernel::MakeKernelArgs(base_args);
+    dim3 grids;
+    if constexpr(Persistent)
+    {
+        grids = Kernel::MaxOccupancyGridSize(s);
+    }
+    else
+    {
+        grids = Kernel::GridSize(args.M, args.N, args.k_batch);
+    }
+    const dim3 blocks = Kernel::BlockSize();
 
-        dim3 grids;
-        if constexpr(Persistent)
-        {
-            grids = Kernel::MaxOccupancyGridSize(s);
-        }
-        else
-        {
-            grids = Kernel::GridSize(args.M, args.N, args.k_batch);
-        }
-        const dim3 blocks = Kernel::BlockSize();
+    if(!Kernel::IsSupportedArgument(kargs))
+    {
+        throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+    }
 
-        if(!Kernel::IsSupportedArgument(kargs))
-        {
-            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
-        }
+    if(s.log_level_ > 0)
+    {
+        std::cout << "Stage 1 - Launching GEMM kernel: " << Kernel::GetName() << '\n'
+                  << "shape: " << GemmShape::GetName() << '\n'
+                  << "problem: " << UniversalGemmProblem::GetName() << '\n'
+                  << "pipeline: " << GemmPipeline::GetName() << '\n'
+                  << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                  << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                  << std::endl;
+    }
 
-        if(s.log_level_ > 0)
-        {
-            std::cout << "Stage 1 - Launching GEMM kernel: " << Kernel::GetName() << '\n'
-                      << "shape: " << GemmShape::GetName() << '\n'
-                      << "problem: " << UniversalGemmProblem::GetName() << '\n'
-                      << "pipeline: " << GemmPipeline::GetName() << '\n'
-                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                      << std::endl;
-        }
+    if(s.flush_cache_)
+    {
+        std::cout << "Flushing cache..." << std::endl;
 
-        if(s.flush_cache_)
-        {
-            std::cout << "Flushing cache..." << std::endl;
+        ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+            args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+        ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+            args.K, args.N, args.stride_B, is_row_major(BLayout{})));
 
-            ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
-                args.M, args.K, args.stride_A, is_row_major(ALayout{})));
-            ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
-                args.K, args.N, args.stride_B, is_row_major(BLayout{})));
+        auto size_a_buffer = a_m.get_element_space_size_in_bytes();
+        auto size_b_buffer = b_n.get_element_space_size_in_bytes();
 
-            auto size_a_buffer = a_m.get_element_space_size_in_bytes();
-            auto size_b_buffer = b_n.get_element_space_size_in_bytes();
+        ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+            kargs.as_ptr[0], kargs.bs_ptr[0], s.rotating_count_, size_a_buffer, size_b_buffer);
+        rotating_mem.Print();
 
-            ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                kargs.as_ptr[0], kargs.bs_ptr[0], s.rotating_count_, size_a_buffer, size_b_buffer);
-            rotating_mem.Print();
-
-            auto run_flush_cache = [&]() {
-                // flush icache
-                ck_tile::flush_icache();
-                // rotating mem
-                rotating_mem.Next();
-                // clear c mem
-                if(args.k_batch > 1)
-                    hipGetErrorString(hipMemsetAsync(
-                        args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
-            };
-            return ck_tile::launch_kernel_time_mask(
-                s,
-                run_flush_cache,
-                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        }
-        else
-        {
-            return ck_tile::launch_kernel(
-                s,
-                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        }
-    };
-
-    return Run();
+        auto run_flush_cache = [&]() {
+            // flush icache
+            ck_tile::flush_icache();
+            // rotating mem
+            rotating_mem.Next();
+            // clear c mem
+            if(args.k_batch > 1)
+                hipGetErrorString(hipMemsetAsync(
+                    args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+        };
+        return ck_tile::launch_kernel_time_mask(
+            s,
+            run_flush_cache,
+            ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+    }
+    else
+    {
+        return ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+    }
 }
 
 /**
@@ -286,7 +277,6 @@ template <typename CDataType,
           typename ELayout         = ck_tile::tensor_layout::gemm::RowMajor>
 float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config& s)
 {
-    const ck_tile::index_t reduce_dim_size = args.k_batch; // Number of partial results to reduce
     // Calculate output size based on the final output tensor dimensions
     const ck_tile::index_t output_size = args.M * args.N;
 
@@ -303,26 +293,27 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
     constexpr auto reduce_dims = ck_tile::sequence<0>{};    // Reduce k_batch dimension
 
     using ReduceOp   = ck_tile::ReduceOp::Add;
-    using BlockWarps = ck_tile::sequence<4, 1>;
-    using BlockTile  = ck_tile::sequence<128, 128>;
-    using WarpTile   = ck_tile::sequence<32, 128>;
-    using ThreadTile = ck_tile::sequence<8, 8>;
+    using BlockWarps = ck_tile::sequence<1, 1>;
+    using BlockTile  = ck_tile::sequence<256, 1>;
+    using WarpTile   = ck_tile::sequence<256, 1>;
+    using ThreadTile = ck_tile::sequence<1, 1>;
 
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
     ck_tile::index_t kGridSize = (output_size + BlockTile::at(ck_tile::number<0>{}) - 1) /
                                  BlockTile::at(ck_tile::number<0>{});
 
-    using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
-    using Problem =
-        ck_tile::Reduce2dProblem<CDataType, ComputeDataType, CDataType, Shape, ReduceOp>;
-    using Kernel                      = ck_tile::Reduce<Problem>;
+    using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
+    using Problem = ck_tile::Reduce2dProblem<CDataType,
+                                             ComputeDataType,
+                                             CDataType,
+                                             Shape,
+                                             ReduceOp,
+                                             decltype(kept_dim),
+                                             decltype(reduce_dims),
+                                             3>;
+    using Kernel  = ck_tile::ReduceKernel<Problem>;
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
-
-    if(!Kernel::IsSupportedArgument(reduce_dim_size, workspace_strides))
-    {
-        throw std::runtime_error("Wrong! Reduction arguments not supported!\n");
-    }
 
     if(s.log_level_ > 0)
     {
@@ -343,9 +334,7 @@ float reduce_stage2(const GemmSplitKHostArgs& args, const ck_tile::stream_config
                                    static_cast<const CDataType*>(args.e_ptr), // workspace input
                                    static_cast<CDataType*>(args.final_output_ptr), // final output
                                    workspace_shape,
-                                   workspace_strides,
-                                   kept_dim,
-                                   reduce_dims));
+                                   workspace_strides));
 
     return ave_time;
 }
