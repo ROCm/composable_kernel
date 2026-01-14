@@ -418,6 +418,12 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
         auto c_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAcc>(
             c_thread_desc_m10_m11_n10_n11.GetElementSpaceSize());
 
+        // FIX: Separate buffer for element op output with proper type (FloatC)
+        // This is needed when FloatAcc (e.g., int32) differs from FloatC (e.g., float)
+        // The element op e = static_cast<E>(c) * d expects to write to FloatC, not FloatAcc
+        auto e_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatC>(
+            c_thread_desc_m10_m11_n10_n11.GetElementSpaceSize());
+
         // Initialize C
         c_thread_buf.Clear();
 
@@ -621,13 +627,22 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
                                     Number<NumDTensor>{});
 
                                 // get reference to dst data
+                                // FIX: Use e_thread_buf (FloatC) for output, c_thread_buf
+                                // (FloatAcc) for input This fixes type mismatch when FloatAcc
+                                // (int32) != FloatC (float)
                                 constexpr index_t c_offset =
                                     c_thread_desc_m0_m10_m11_n0_n10_n11.CalculateOffset(
                                         make_tuple(0, m10, m11, 0, n10, i));
-                                auto dst_data_refs = generate_tie(
-                                    // return type should be lvalue
-                                    [&](auto) -> auto& { return c_thread_buf(Number<c_offset>{}); },
-                                    Number<2>{});
+                                // Element op signature: (E& e, const C& c, const D& d)
+                                // - e (output): goes to e_thread_buf (FloatC type)
+                                // - c (input): comes from c_thread_buf (FloatAcc type)
+                                // Use tie() to create a tuple of references to different buffers
+                                auto dst_data_refs =
+                                    tie(e_thread_buf(
+                                            Number<c_offset>{}), // E& e (output to FloatC buffer)
+                                        c_thread_buf(
+                                            Number<c_offset>{}) // C& c (input from FloatAcc buffer)
+                                    );
 
                                 unpack2(cde_element_op, dst_data_refs, src_data_refs);
                             });
@@ -653,8 +668,10 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
                 });
             });
 
+            // FIX: Transfer from e_thread_buf (FloatC) instead of c_thread_buf (FloatAcc)
+            // since element op output is now stored in e_thread_buf with proper type
             ThreadwiseTensorSliceTransfer_v1r3<
-                FloatAcc,
+                FloatC, // FIX: Source is now FloatC (e_thread_buf)
                 FloatC,
                 decltype(c_thread_desc_m0_m10_m11_n0_n10_n11),
                 decltype(c_grid_desc_m0_m10_m11_n0_n10_n11),
@@ -680,7 +697,7 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
                       ck::tensor_operation::element_wise::PassThrough{}}
                 .Run(c_thread_desc_m0_m10_m11_n0_n10_n11,
                      make_tuple(I0, I0, I0, I0, I0, I0),
-                     c_thread_buf,
+                     e_thread_buf, // FIX: Use e_thread_buf instead of c_thread_buf
                      c_grid_desc_m0_m10_m11_n0_n10_n11,
                      c_grid_buf);
         }
