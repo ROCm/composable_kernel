@@ -188,7 +188,10 @@ struct DeviceGemmBiasAddReduce_Wmma_CShuffleV3
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        false, // IsBPreShuffled
+        false, // ForceThreadTileTransfer
+        true>; // IsFusedKernel
 
     using ReduceTrait = ReduceTrait_<ReduceAccDataType,
                                      ReducePtrsGlobal,
