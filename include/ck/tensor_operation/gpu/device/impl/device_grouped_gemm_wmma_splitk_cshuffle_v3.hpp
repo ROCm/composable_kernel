@@ -41,8 +41,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                     const index_t group_count)
 {
 #if(defined(__gfx11__) || defined(__gfx12__))
-    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-        typename GridwiseGemm::EpilogueCShuffle>();
+    using EpilogueType = typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
+                                                       GridwiseGemm::UseDirectStore,
+                                                   typename GridwiseGemm::EpilogueDirectStore,
+                                                   typename GridwiseGemm::EpilogueCShuffle>::type;
+
+    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
     __shared__ char p_shared[LDS_size];
 
     const index_t block_id = get_block_1d_id();
@@ -89,13 +93,13 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         auto splitk_batch_offset =
             typename GridwiseGemm::SplitKBatchOffset(karg, tile_index[Number<0>{}]);
-        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+        auto epilogue_args = EpilogueType{};
 
         GridwiseGemm::template Run<HasMainKBlockLoop,
                                    CGlobalMemoryDataOperation,
                                    TailNum,
                                    Block2CTileMap,
-                                   typename GridwiseGemm::EpilogueCShuffle,
+                                   EpilogueType,
                                    1, // Block2CTileMap MBlock index
                                    2  // Block2CTileMap NBlock index
                                    >(static_cast<void*>(p_shared),
@@ -126,7 +130,6 @@ template <typename ALayout,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
           GemmSpecialization GemmSpec,
-          ck::index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -158,9 +161,7 @@ template <typename ALayout,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
           typename ComputeTypeA                       = EDataType,
-          typename ComputeTypeB                       = ComputeTypeA,
-          bool PermuteA                               = false,
-          bool PermuteB                               = false>
+          typename ComputeTypeB                       = ComputeTypeA>
 struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayout,
                                                                           BLayout,
                                                                           DsLayout,
@@ -231,8 +232,8 @@ struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayou
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
-        false,  // PermuteA not supported by DeviceBatchedGemm base class.
-        false>; // PermuteB not supported by DeviceBatchedGemm base class.
+        false,  // PermuteA not supported by GridwiseOp
+        false>; // PermuteB not supported by DeviceGroupedGemm base class
 
     using CGridDesc_M_N =
         remove_cvref_t<decltype(GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
@@ -779,7 +780,7 @@ struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayou
             {BlockGemmPipelineVersion::v5, "v5"}};
 
         // clang-format off
-        str << "DeviceGroupedGemm_WmmaSplitK"
+        str << "DeviceGroupedGemm_Wmma_CShuffleV3"
             << "<"
             << std::string(ALayout::name)[0] << ","
             << std::string(BLayout::name)[0] << ","

@@ -46,8 +46,14 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<c_data_type, ck::bhalf_t>)))
     {
 #endif
-        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-            typename GridwiseGemm::EpilogueCShuffle>();
+        using EpilogueType =
+            typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
+                                          GridwiseGemm::UseDirectStore,
+                                      typename GridwiseGemm::EpilogueDirectStore,
+                                      typename GridwiseGemm::EpilogueCShuffle>::type;
+
+        constexpr index_t LDS_size =
+            GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
         // The normal approach to batching would be to increase the grid size by just stretching out
         // the grid Z dimension (which is the outermost dimension), but this depends on lower level
         // functions not directly using the Z dimension for other calculations. As it turns out, k
@@ -86,7 +92,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                  splitk_batch_offset.b_k_split_offset[i] + b_batch_offset;
         });
 
-        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+        auto epilogue_args = EpilogueType{};
 
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             p_as_grid_shift,
