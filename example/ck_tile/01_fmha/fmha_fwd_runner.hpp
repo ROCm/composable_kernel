@@ -149,6 +149,28 @@ int override_num_splits_if_necessary(
     return num_splits;
 }
 
+template <typename SMPLComputeDataType, typename SaccDataType, typename PDataType>
+void copy_attention_scores_with_sink(const ck_tile::HostTensor<SaccDataType>& s_host_ref,
+                                     const ck_tile::HostTensor<SMPLComputeDataType>& sink_host,
+                                     ck_tile::HostTensor<SMPLComputeDataType>& s_with_sinks_ref,
+                                     ck_tile::index_t nhead,
+                                     ck_tile::index_t real_seqlen_q,
+                                     ck_tile::index_t real_seqlen_k)
+{
+    for(auto i_h = 0; i_h < nhead; i_h++)
+    {
+        for(auto i_r = 0; i_r < real_seqlen_q; i_r++)
+        {
+            for(auto i_c = 0; i_c < real_seqlen_k; i_c++)
+            {
+                s_with_sinks_ref(i_h, i_r, i_c) = s_host_ref(i_h, i_r, i_c);
+            }
+            // Append sink token at the end of each row
+            s_with_sinks_ref(i_h, i_r, real_seqlen_k) = sink_host(i_h);
+        }
+    }
+}
+
 template <typename DataTypeConfig>
 fwd_result fmha_fwd_run(mode_enum mode,
                         ck_tile::index_t batch,
@@ -700,7 +722,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
     iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0, random_engine);
     if(init_sink_value != 0)
     {
-        // sink is initialized to a fixed integer value for easy debugging and use 30 to 60 range for close to rowmax values.
+        // sink is initialized to a fixed integer value for easy debugging and use 30 to 60 range
+        // for close to rowmax values.
         ck_tile::FillUniformDistributionIntegerValue<SMPLComputeDataType>{30.f, 60.f, next_seed()}(
             sink_host);
     }
@@ -1695,18 +1718,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                     {nhead, real_seqlen_q, real_seqlen_k + 1});
 
                 // Copy original attention scores and append sink values
-                for(auto i_h = 0; i_h < nhead; i_h++)
-                {
-                    for(auto i_r = 0; i_r < real_seqlen_q; i_r++)
-                    {
-                        for(auto i_c = 0; i_c < real_seqlen_k; i_c++)
-                        {
-                            s_with_sinks_ref(i_h, i_r, i_c) = s_host_ref(i_h, i_r, i_c);
-                        }
-                        // Append sink token at the end of each row
-                        s_with_sinks_ref(i_h, i_r, real_seqlen_k) = sink_host(i_h);
-                    }
-                }
+                copy_attention_scores_with_sink(
+                    s_host_ref, sink_host, s_with_sinks_ref, nhead, real_seqlen_q, real_seqlen_k);
 
                 // Compute softmax on extended tensor
                 ck_tile::HostTensor<PDataType> p_extended(
