@@ -319,7 +319,23 @@ struct BQuantBlockUniversalGemmAsBsCr
 
                         if constexpr(PreshuffleQuant)
                         {
-                            constexpr index_t reg_offset = nIter;
+                            // constexpr index_t reg_offset = nIter;
+                            constexpr index_t reg_offset = [&]() {
+                                if constexpr(GemmTraits::QuantGroupSize::kN >
+                                             (NWarp * WarpGemm::kN))
+                                {
+                                    if constexpr(Traits::NPerBlock ==
+                                                 GemmTraits::QuantGroupSize::kN)
+                                        return kQScale;
+                                    else
+                                        return nIter; // for prefill needs kQscale, for decode needs
+                                                      // nIter
+                                }
+                                else
+                                {
+                                    return nIter;
+                                }
+                            }();
                             auto pull_from_lane =
                                 (__lane_id() & (WarpGemm::kN - 1)) * Traits::KQPerBlock + kQScale;
 

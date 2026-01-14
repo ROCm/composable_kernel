@@ -19,7 +19,7 @@ TEST(ConvTuningParams, AssignsBlockGemmParams)
         {
             ckb::PipelineVersion pipeline_version = ckb::PipelineVersion::V3;
             ckb::PipelineScheduler scheduler      = ckb::PipelineScheduler::INTRAWAVE;
-        } block_gemm;
+        } block_gemm_pipeline;
     } kAlgorithm;
     constexpr auto block_gemm = SetBlockGemm<kAlgorithm>();
 
@@ -42,10 +42,7 @@ TEST(ConvTuningParams, AssignsGridwiseGemmPipelineVersion)
 {
     constexpr struct Algorithm
     {
-        struct GridwiseGemm
-        {
-            ckb::PipelineVersion pipeline_version = ckb::PipelineVersion::V4;
-        } gridwise_gemm;
+        ckb::PipelineVersion pipeline_version = ckb::PipelineVersion::V4;
     } kAlgorithm;
     constexpr auto pipeline_version = SetGridwiseGemmPipelineVersion<kAlgorithm>();
 
@@ -78,8 +75,8 @@ TEST(ConvTuningParams, AssignsFwdConvSpecialization)
 {
     constexpr struct Algorithm
     {
-        ckb::ConvFwdSpecialization fwd_specialization =
-            ckb::ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0;
+        ckb::ConvSpecialization fwd_specialization =
+            ckb::ConvSpecialization::FILTER_1X1_STRIDE1_PAD0;
     } kAlgorithm;
     constexpr auto conv_spec = SetFwdConvSpecialization<kAlgorithm>();
 

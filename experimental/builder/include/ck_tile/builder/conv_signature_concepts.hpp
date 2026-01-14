@@ -228,4 +228,13 @@ concept ValidConvWeightLayoutForSpatialDim =
     (SpatialDim == 1 && ConvWeightLayout1D<L>) || (SpatialDim == 2 && ConvWeightLayout2D<L>) ||
     (SpatialDim == 3 && ConvWeightLayout3D<L>);
 
+// Constraint for 3D conv signature.
+template <auto Sig>
+concept Is3D = requires {
+    requires Sig.spatial_dim == 3;
+    requires ConvInputLayout3D<Sig.input.config.layout>;
+    requires ConvOutputLayout3D<Sig.output.config.layout>;
+    requires ConvWeightLayout3D<Sig.weight.config.layout>;
+};
+
 } // namespace ck_tile::builder
