@@ -95,6 +95,13 @@ if [ -z "$TARGET" ]; then
     exit 1
 fi
 
+# Validate OUTPUT_FILE to prevent path traversal
+if [[ "$OUTPUT_FILE" =~ / ]] || [[ "$OUTPUT_FILE" =~ \.\. ]]; then
+    echo "Error: OUTPUT_FILE must be a simple filename (no path separators or .. allowed)"
+    echo "Invalid: $OUTPUT_FILE"
+    exit 1
+fi
+
 echo "═══════════════════════════════════════════════════════════════"
 echo "  CK Build Time Analysis"
 echo "═══════════════════════════════════════════════════════════════"
@@ -115,19 +122,19 @@ if [ "$RECONFIGURE" = true ] || ! docker exec "${CONTAINER_NAME}" test -f /works
 
     GPU_TARGET=$(detect_gpu_target "${CONTAINER_NAME}")
 
-    docker exec "${CONTAINER_NAME}" bash -c "
+    docker exec -e GPU_TARGET="${GPU_TARGET}" -e GRANULARITY="${GRANULARITY}" "${CONTAINER_NAME}" bash -c '
         cd /workspace || exit 1
         rm -rf /workspace/build
         mkdir /workspace/build
         cd /workspace/build || exit 1
         cmake .. -GNinja \
-            -DGPU_TARGETS=${GPU_TARGET} \
+            -DGPU_TARGETS="${GPU_TARGET}" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
-            -DCMAKE_CXX_FLAGS='-ftime-trace -ftime-trace-granularity=${GRANULARITY}' \
-            -DCMAKE_HIP_FLAGS='-ftime-trace -ftime-trace-granularity=${GRANULARITY}' \
+            -DCMAKE_CXX_FLAGS="-ftime-trace -ftime-trace-granularity=${GRANULARITY}" \
+            -DCMAKE_HIP_FLAGS="-ftime-trace -ftime-trace-granularity=${GRANULARITY}" \
             -DBUILD_TESTING=ON 2>&1 | tail -20
-    "
+    '
     echo "CMake configuration complete"
 fi
 
@@ -137,7 +144,7 @@ echo "Building target: $TARGET"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 BUILD_START=$(date +%s)
-docker exec "${CONTAINER_NAME}" bash -c "cd /workspace/build && time ninja ${TARGET} 2>&1"
+docker exec -e TARGET="${TARGET}" "${CONTAINER_NAME}" bash -c 'cd /workspace/build && time ninja "${TARGET}" 2>&1'
 BUILD_END=$(date +%s)
 BUILD_TIME=$((BUILD_END - BUILD_START))
 
@@ -147,7 +154,7 @@ echo "Build completed in ${BUILD_TIME} seconds"
 # Find the trace JSON file
 echo ""
 echo "Locating trace file..."
-TRACE_FILE=$(docker exec "${CONTAINER_NAME}" bash -c "find /workspace/build -name '*.cpp.json' -o -name '*.hip.json' 2>/dev/null | grep -i '${TARGET}' | head -1")
+TRACE_FILE=$(docker exec -e TARGET="${TARGET}" "${CONTAINER_NAME}" bash -c 'find /workspace/build -name "*.cpp.json" -o -name "*.hip.json" 2>/dev/null | grep -iF "${TARGET}" | head -1')
 
 if [ -z "$TRACE_FILE" ]; then
     echo "Error: Could not find trace file for target ${TARGET}"
@@ -182,13 +189,7 @@ fi
 
 echo "Using uv run for automatic dependency management..."
 # Ensure uv is in PATH (handles ~/.local/bin installation)
-docker exec "${CONTAINER_NAME}" bash -c "export PATH=\"\$HOME/.local/bin:\$PATH\" && uv run --no-project /tmp/analyze_build_trace.py \
-    ${TRACE_FILE} \
-    /workspace/${OUTPUT_FILE} \
-    ${TARGET} \
-    ${GRANULARITY} \
-    ${BUILD_TIME} \
-    /tmp/ck_build_analysis_templates"
+docker exec -e TRACE_FILE="${TRACE_FILE}" -e OUTPUT_FILE="${OUTPUT_FILE}" -e TARGET="${TARGET}" -e GRANULARITY="${GRANULARITY}" -e BUILD_TIME="${BUILD_TIME}" "${CONTAINER_NAME}" bash -c 'export PATH="$HOME/.local/bin:$PATH" && uv run --no-project /tmp/analyze_build_trace.py "${TRACE_FILE}" "/workspace/${OUTPUT_FILE}" "${TARGET}" "${GRANULARITY}" "${BUILD_TIME}" /tmp/ck_build_analysis_templates'
 
 # Copy report back to host
 docker cp "${CONTAINER_NAME}:/workspace/${OUTPUT_FILE}" "${PROJECT_ROOT}/${OUTPUT_FILE}"
