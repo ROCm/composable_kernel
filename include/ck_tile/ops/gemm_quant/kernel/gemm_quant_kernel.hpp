@@ -408,19 +408,23 @@ struct QuantGemmKernel
                                                 const index_t k_size,
                                                 const index_t i_m)
     {
+        constexpr auto packing_factor = std::is_same_v<ADataType, pk_fp4_raw_t> ? 2 : 1;
+
         // Step 1: Create tensor view for A
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     a_ptr,
-                    make_tuple(kargs.M, k_size),
+                    make_tuple(kargs.M / packing_factor, k_size),
                     make_tuple(kargs.stride_A, 1),
                     number<GemmPipeline::GetVectorSizeA()>{},
                     number<1>{});
             }
             else
             {
+                static_assert(packing_factor == 1);
+
                 return make_naive_tensor_view<address_space_enum::global>(
                     a_ptr,
                     make_tuple(k_size, kargs.M),
@@ -434,13 +438,15 @@ struct QuantGemmKernel
         const auto& a_pad_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
-                return pad_tensor_view(a_tensor_view,
-                                       make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                  number<TilePartitioner::KPerBlock>{}),
-                                       sequence<false, GemmPipeline::kPadK>{});
+                return pad_tensor_view(
+                    a_tensor_view,
+                    make_tuple(number<TilePartitioner::MPerBlock / packing_factor>{},
+                               number<TilePartitioner::KPerBlock>{}),
+                    sequence<false, GemmPipeline::kPadK>{});
             }
             else
             {
+                static_assert(packing_factor == 1);
                 return pad_tensor_view(a_tensor_view,
                                        make_tuple(number<TilePartitioner::KPerBlock>{},
                                                   number<TilePartitioner::MPerBlock>{}),
@@ -452,13 +458,15 @@ struct QuantGemmKernel
         const auto& a_block_window = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
-                return make_tile_window(a_pad_view,
-                                        make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                   number<TilePartitioner::KPerBlock>{}),
-                                        {i_m, 0});
+                return make_tile_window(
+                    a_pad_view,
+                    make_tuple(number<TilePartitioner::MPerBlock / packing_factor>{},
+                               number<TilePartitioner::KPerBlock>{}),
+                    {i_m, 0});
             }
             else
             {
+                static_assert(packing_factor == 1);
                 return make_tile_window(a_pad_view,
                                         make_tuple(number<TilePartitioner::KPerBlock>{},
                                                    number<TilePartitioner::MPerBlock>{}),

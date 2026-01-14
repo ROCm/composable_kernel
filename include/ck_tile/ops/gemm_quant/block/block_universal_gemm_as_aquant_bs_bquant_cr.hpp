@@ -106,9 +106,13 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
         // 4. i4,  bf8, (fp8/fp32) -> f32
         static_assert(
             (std::is_same_v<ADataType, fp8_t> || std::is_same_v<ADataType, bf8_t> ||
-             std::is_same_v<ADataType, ck_tile::pk_int4_t>) &&
+             std::is_same_v<ADataType, ck_tile::pk_int4_t> ||
+             std::is_same_v<ADataType, ck_tile::pk_fp4_t> ||
+             std::is_same_v<ADataType, ck_tile::pk_fp4_raw_t>) &&
             (std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t> ||
-             std::is_same_v<BDataType, ck_tile::pk_int4_t>) &&
+             std::is_same_v<BDataType, ck_tile::pk_int4_t> ||
+             std::is_same_v<BDataType, ck_tile::pk_fp4_t> ||
+             std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>) &&
             (std::is_same_v<AQDataType, float> || std::is_same_v<AQDataType, ck_tile::fp8_t> ||
              std::is_same_v<AQDataType, ck_tile::bf8_t>) &&
             (std::is_same_v<BQDataType, float> || std::is_same_v<BQDataType, ck_tile::fp8_t> ||

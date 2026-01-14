@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <type_traits>
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/ops/common/utils.hpp"
@@ -18,6 +19,18 @@
 #include "ck_tile/ops/gemm_quant.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "gemm_utils.hpp"
+
+template <typename DataType, typename FallbackDataType>
+struct fallback_data_type
+{
+    using type = std::conditional_t<std::is_same_v<DataType, ck_tile::pk_fp4_raw_t> ||
+                                        std::is_same_v<DataType, ck_tile::pk_fp4_t>,
+                                    FallbackDataType,
+                                    DataType>;
+};
+
+template <typename DataType, typename FallbackDataType>
+using fallback_data_type_t = fallback_data_type<DataType, FallbackDataType>::type;
 
 template <typename GemmConfig,
           typename TypeConfig,
@@ -33,10 +46,14 @@ template <typename GemmConfig,
 float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-    using ComputeDataType = std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped ||
-                                                   QuantMode == ck_tile::QuantType::RowColQuant,
-                                               typename TypeConfig::BDataType,
-                                               typename TypeConfig::ADataType>;
+
+    using CandidateComputeDataType =
+        std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped ||
+                               QuantMode == ck_tile::QuantType::RowColQuant,
+                           typename TypeConfig::BDataType,
+                           typename TypeConfig::ADataType>;
+
+    using ComputeDataType = fallback_data_type_t<CandidateComputeDataType, ck_tile::fp8_t>;
 
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
@@ -77,7 +94,10 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
                 ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
-                ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>>>;
+                std::conditional_t<
+                    QuantMode == ck_tile::QuantType::ABQuantGrouped,
+                    ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
+                    ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>>>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -181,30 +201,28 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             printf(
                 "TiledPermuteN: %d (QuantGroupSize::kN=%d)\n", TiledPermuteN, BQuantGroupSize::kN);
         }
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
-            typename TypeConfig::ADataType,
-            std::conditional_t<
-                std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>,
-                typename TypeConfig::ADataType,
-                typename TypeConfig::BDataType>,
-            ck_tile::tuple<>,
-            typename TypeConfig::AccDataType,
-            typename TypeConfig::CDataType,
-            ck_tile::tuple<>,
-            CLayout,
-            CDEElementWise,
-            TilePartitioner::MPerBlock,
-            TilePartitioner::NPerBlock,
-            GemmConfig::M_Warp,
-            GemmConfig::N_Warp,
-            GemmConfig::M_Warp_Tile,
-            GemmConfig::N_Warp_Tile,
-            GemmConfig::K_Warp_Tile,
-            transpose_c,
-            1,
-            false,
-            1,
-            TiledPermuteN>>;
+
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ComputeDataType,
+                                             ComputeDataType,
+                                             ck_tile::tuple<>,
+                                             typename TypeConfig::AccDataType,
+                                             typename TypeConfig::CDataType,
+                                             ck_tile::tuple<>,
+                                             CLayout,
+                                             CDEElementWise,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             GemmConfig::M_Warp,
+                                             GemmConfig::N_Warp,
+                                             GemmConfig::M_Warp_Tile,
+                                             GemmConfig::N_Warp_Tile,
+                                             GemmConfig::K_Warp_Tile,
+                                             transpose_c,
+                                             1,
+                                             false,
+                                             1,
+                                             TiledPermuteN>>;
         using Kernel =
             ck_tile::QuantGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, QuantMode>;
 
@@ -926,6 +944,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
     }
 
     if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
+                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_fp4_t> ||
                  std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
                  std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t> ||
                  std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf16_t>)
