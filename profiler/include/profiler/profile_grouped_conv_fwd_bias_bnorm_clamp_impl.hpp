@@ -22,8 +22,6 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_infer.hpp"
-#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
-#include "example/48_pool3d_fwd/pool3d_fwd_common.hpp"
 
 namespace ck {
 namespace profiler {
@@ -257,9 +255,9 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
     }
 
     // run reference op
-    if(do_verification == 1)
+    if(do_verification)
     {
-        // CPU reference: Run Conv and Bnorm separately
+        // Run Conv and Bnorm seperatly
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InDataType,
                                                                      WeiDataType,
@@ -292,86 +290,6 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
         ref_conv_invoker.Run(ref_conv_argument);
         ref_bnorm_clamp_infer<NDimSpatial>(
             host_output, host_output, mean, variance, scale, shift, floor, ceil, epsilon);
-    }
-    else if(do_verification == 2)
-    {
-        // GPU reference: Two-step approach (Conv+Bias, then BatchNorm+Clamp)
-
-        // Prepare bias tensor info for Conv step
-        std::vector<ck::index_t> bias_lengths_vec(NDimSpatial + 3);
-        std::vector<ck::index_t> bias_strides_vec(NDimSpatial + 3);
-
-        for(size_t i = 0; i < bias_lengths_vec.size(); ++i)
-        {
-            bias_lengths_vec[i] = e_g_n_k_wos_lengths[i];
-            bias_strides_vec[i] = d_g_n_k_wos_strides[i];
-        }
-
-        std::array<const OutDataType*, 1> bias_ptrs = {
-            reinterpret_cast<const OutDataType*>(bias_device_buf.GetDeviceBuffer())};
-        std::array<std::vector<ck::index_t>, 1> bias_lengths = {bias_lengths_vec};
-        std::array<std::vector<ck::index_t>, 1> bias_strides = {bias_strides_vec};
-
-        std::array<const InDataType*, 1> in_ptrs = {
-            reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer())};
-        std::array<const WeiDataType*, 1> wei_ptrs = {
-            reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer())};
-
-        // Step 1: Conv + Bias
-        ck::ref::naive_conv_fwd_multi_abd<0,
-                                          0,
-                                          1,
-                                          InLayout,
-                                          WeiLayout,
-                                          OutLayout,
-                                          InDataType,
-                                          WeiDataType,
-                                          OutDataType,
-                                          InElementOp,
-                                          WeiElementOp,
-                                          Add,
-                                          OutDataType>(
-            in_ptrs,
-            wei_ptrs,
-            bias_ptrs,
-            reinterpret_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            conv_param,
-            bias_lengths,
-            bias_strides,
-            in_element_op,
-            wei_element_op,
-            Add{});
-
-        HIP_CHECK_ERROR(hipDeviceSynchronize());
-
-        // Step 2: Batch Norm + Clamp (in-place on output buffer)
-        long_index_t total_out = device_output.mDesc.GetElementSpaceSize();
-
-        // Prepare tensor strides (actual output layout)
-        std::vector<ck::index_t> tensor_strides_vec(NDimSpatial + 3);
-        for(size_t i = 0; i < tensor_strides_vec.size(); ++i)
-        {
-            tensor_strides_vec[i] = e_g_n_k_wos_strides[i];
-        }
-
-        ck::ref::naive_batchnorm_clamp_infer_gpu(
-            reinterpret_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            reinterpret_cast<const OutDataType*>(mean_device_buf.GetDeviceBuffer()),
-            reinterpret_cast<const OutDataType*>(variance_device_buf.GetDeviceBuffer()),
-            reinterpret_cast<const OutDataType*>(scale_device_buf.GetDeviceBuffer()),
-            reinterpret_cast<const OutDataType*>(shift_device_buf.GetDeviceBuffer()),
-            bias_lengths_vec,
-            bias_strides_vec,
-            tensor_strides_vec,
-            total_out,
-            epsilon,
-            floor,
-            ceil);
-
-        HIP_CHECK_ERROR(hipDeviceSynchronize());
-
-        out_device_buf.FromDevice(host_output.mData.data());
     }
 
     std::string best_op_name;

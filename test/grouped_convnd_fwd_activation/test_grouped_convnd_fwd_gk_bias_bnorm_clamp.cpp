@@ -50,7 +50,7 @@ class TestGroupedConvndFwd : public ::testing::Test
                                                                           DataType,
                                                                           IndexType,
                                                                           true /*ElementwiseGK*/>(
-                       2,     // do_verification: GPU reference
+                       true,  // do_verification
                        1,     // init_method: integer value
                        false, // do_log
                        false, // time_kernel
