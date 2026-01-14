@@ -574,6 +574,8 @@ def cmake_build(Map conf=[:]){
     def setup_cmd
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
+    //check the node gpu architecture
+    def arch_name = check_arch_name()
     if(!setup_args.contains("NO_CK_BUILD")){
         if (params.NINJA_BUILD_TRACE) {
             echo "running ninja build trace"
@@ -646,15 +648,15 @@ def cmake_build(Map conf=[:]){
 
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
-            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${check_arch_name()}.json"
-            archiveArtifacts "ck_build_trace_${check_arch_name()}.json"
-            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${check_arch_name()}.json"
+            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${arch_name}.json"
+            archiveArtifacts "ck_build_trace_${arch_name}.json"
+            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${arch_name}.json"
             if (params.NINJA_BUILD_TRACE || params.BUILD_INSTANCES_ONLY){
                 if (params.NINJA_FTIME_TRACE) {
                     echo "running ClangBuildAnalyzer"
                     sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
-                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${check_arch_name()}.log"
-                    archiveArtifacts "clang_build_analysis_${check_arch_name()}.log"
+                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${arch_name}.log"
+                    archiveArtifacts "clang_build_analysis_${arch_name}.log"
                 }
 
 
@@ -672,8 +674,8 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
@@ -699,16 +701,14 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
             }
         }
     }
 
-    //check the node gpu architecture
-    def arch_name = check_arch_name()
     if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
             archiveArtifacts "perf_fmha_*.log"
@@ -1201,8 +1201,8 @@ pipeline {
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_TILE_ENGINE_BASIC_TESTS",
-            defaultValue: false,
-            description: "Run the tile_engine_basic tests (default: OFF)")
+            defaultValue: true,
+            description: "Run the tile_engine_basic tests (default: ON)")
         booleanParam(
             name: "RUN_TILE_ENGINE_GEMM_TESTS",
             defaultValue: false,
@@ -1650,7 +1650,10 @@ pipeline {
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -D GEMM_PRESHUFFLE_CONFIG_FILE="default_ci_config.json" .. && \
-                                           ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all """
+                                           ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
+                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
@@ -1667,37 +1670,6 @@ pipeline {
             }
             parallel
             {
-                stage("Run TILE_ENGINE_GEMM Tests on gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx90a") }
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                            -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
-                                            -D CMAKE_BUILD_TYPE=Release \
-                                            -D GPU_TARGETS="gfx90a" \
-                                            -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16" \
-                                            -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" \
-                                            -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
-                                            -D GEMM_STREAMK_LAYOUT="rcr" \
-                                            -D GEMM_MULTI_D_DATATYPE="fp16" \
-                                            -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
-                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
-                                           ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all && \
-                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
                 stage("Run TILE_ENGINE_GEMM Tests on gfx942")
                 {
                     when {
