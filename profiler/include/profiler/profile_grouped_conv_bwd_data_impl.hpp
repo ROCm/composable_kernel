@@ -20,7 +20,7 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data_gpu.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_backward_data.hpp"
-#include "profiler/gpu_verification.hpp"
+#include "ck/library/utility/gpu_verification.hpp"
 
 namespace ck {
 namespace profiler {
@@ -263,52 +263,24 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
 
                 // Perform GPU verification (max value computed internally on GPU)
                 const std::size_t tensor_size = in_device.mDesc.GetElementSpaceSize();
-                bool gpu_passed = ck::profiler::gpu_verify<InDataType, ComputeType, AccDataType>(
+                auto gpu_result = ck::profiler::gpu_verify<InDataType, ComputeType, AccDataType>(
                     in_device_buf.GetDeviceBuffer(),
                     gpu_ref_in_buf.GetDeviceBuffer(),
                     total_accums,
                     tensor_size);
 
-                if(!gpu_passed)
+                if(!gpu_result)
                 {
-                    // GPU verification failed - fall back to CPU for detailed diagnostics
-                    std::cout << "GPU verification failed, running CPU verification for details..."
-                              << std::endl;
-
-                    // Copy both buffers to host
-                    in_device_buf.FromDevice(in_device.mData.data());
-                    gpu_ref_in_buf.FromDevice(in_host.mData.data());
-
-                    // Recalculate tolerances for CPU verification with original logic
-                    auto rtol =
-                        ck::utils::get_relative_threshold<ComputeType, InDataType, AccDataType>(
-                            num_accums);
-                    auto atol =
-                        ck::utils::get_absolute_threshold<ComputeType, InDataType, AccDataType>(
-                            max_accumulated_value / split_k_for_run, num_accums);
-
-                    if(split_k_for_run > 1)
-                    {
-                        auto rtol_split_k =
-                            ck::utils::get_relative_threshold<InDataType, InDataType, InDataType>(
-                                split_k_for_run);
-                        auto atol_split_k =
-                            ck::utils::get_absolute_threshold<InDataType, InDataType, InDataType>(
-                                max_accumulated_value, split_k_for_run);
-                        rtol = std::max(rtol, rtol_split_k);
-                        atol = std::max(atol, atol_split_k);
-                    }
-
-                    // Run CPU verification for detailed error messages
-                    ck::utils::check_err(
-                        in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                    // GPU verification failed - print detailed error summary
+                    gpu_result.print_error_summary();
                     pass = false;
-
-                    std::cout << "Relative error threshold: " << rtol
-                              << " Absolute error threshold: " << atol << std::endl;
 
                     if(do_log)
                     {
+                        // Copy buffers to host for logging
+                        in_device_buf.FromDevice(in_device.mData.data());
+                        gpu_ref_in_buf.FromDevice(in_host.mData.data());
+
                         LogRangeAsType<float>(std::cout << "output : ", out.mData, ",")
                             << std::endl;
                         LogRangeAsType<float>(std::cout << "weight: ", wei.mData, ",") << std::endl;

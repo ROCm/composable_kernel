@@ -23,7 +23,7 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
-#include "profiler/gpu_verification.hpp"
+#include "ck/library/utility/gpu_verification.hpp"
 
 namespace ck {
 namespace profiler {
@@ -261,28 +261,24 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
                 // Perform GPU verification (max value computed internally on GPU)
                 const std::size_t tensor_size = device_output.mDesc.GetElementSpaceSize();
-                bool gpu_passed = ck::profiler::gpu_verify<OutDataType, AComputeType, OutDataType>(
+                auto gpu_result = ck::profiler::gpu_verify<OutDataType, AComputeType, OutDataType>(
                     out_device_buf.GetDeviceBuffer(),
                     gpu_ref_out_buf.GetDeviceBuffer(),
                     num_accums,
                     tensor_size);
 
-                if(!gpu_passed)
+                if(!gpu_result)
                 {
-                    // GPU verification failed - fall back to CPU for detailed diagnostics
-                    std::cout << "GPU verification failed, running CPU verification for details..."
-                              << std::endl;
-
-                    // Copy both buffers to host
-                    out_device_buf.FromDevice(device_output.mData.data());
-                    gpu_ref_out_buf.FromDevice(host_output.mData.data());
-
-                    // Run CPU verification for detailed error messages
-                    ck::utils::check_err(device_output, host_output);
+                    // GPU verification failed - print detailed error summary
+                    gpu_result.print_error_summary();
                     pass = false;
 
                     if(do_log)
                     {
+                        // Copy buffers to host for logging
+                        out_device_buf.FromDevice(device_output.mData.data());
+                        gpu_ref_out_buf.FromDevice(host_output.mData.data());
+
                         LogRangeAsType<float>(std::cout << "input : ", input.mData, ",")
                             << std::endl;
                         LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",")
