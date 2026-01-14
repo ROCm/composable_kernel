@@ -10,7 +10,7 @@ namespace ck_tile::builder::factory {
 // Base algorithm concepts
 template <typename T, size_t ThreadClusterRank = 3>
 concept TileTransferParameters =
-    SpecifiesThreadDistribution<T, ThreadClusterRank> && SpecifiesLdsTransfer<T> &&
+    SpecifiesThreadClusters<T, ThreadClusterRank> && SpecifiesLdsTransfer<T> &&
     SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T>;
 
 template <typename T>

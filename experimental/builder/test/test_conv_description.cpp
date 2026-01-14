@@ -131,32 +131,32 @@ struct DefaultAlgorithm
     ckb::test::InputOutputTileTransfer<> transfer{
         .a =
             {
-                .thread_distribution         = {.k0 = 1, .m_n = 128, .k1 = 2},
+                .thread_cluster         = {.k0 = 1, .m_n = 128, .k1 = 2},
                 .lds_transfer_params         = {.global_memory_vector_load_size = 8,
                                                 .src_vector_dim            = 2,
                                                 .src_scalar_per_vector     = 2,
                                                 .lds_dst_scalar_per_vector = 2,
                                                 .is_direct_load            = false,
                                                 .lds_padding               = false},
-                .thread_distribution_access_order = {.order = {0, 1, 2}},
+                .thread_cluster_access_order = {.order = {0, 1, 2}},
                 .src_access_order            = {.order = {0, 1, 2}},
 
             },
         .b =
             {
-                .thread_distribution         = {.k0 = 1, .m_n = 128, .k1 = 2},
+                .thread_cluster         = {.k0 = 1, .m_n = 128, .k1 = 2},
                 .lds_transfer_params         = {.global_memory_vector_load_size = 8,
                                                 .src_vector_dim            = 2,
                                                 .src_scalar_per_vector     = 2,
                                                 .lds_dst_scalar_per_vector = 2,
                                                 .is_direct_load            = false,
                                                 .lds_padding               = false},
-                .thread_distribution_access_order = {.order = {0, 1, 2}},
+                .thread_cluster_access_order = {.order = {0, 1, 2}},
                 .src_access_order            = {.order = {0, 1, 2}},
             },
         .c =
             {
-                .thread_distribution =
+                .thread_cluster =
                     {.gemm_m_block_size = 1, .gemm_m_per_block = 32, .gemm_n_block_size = 1, .gemm_n_per_block = 8},
                 .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                              .n_per_wave_per_shuffle     = 1,

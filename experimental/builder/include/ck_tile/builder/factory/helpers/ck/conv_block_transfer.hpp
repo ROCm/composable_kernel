@@ -27,8 +27,8 @@ struct BlockTransfer
 template <auto TRANSFER>
 constexpr BlockTransfer<> SetFwdConvBlockTransfer()
 {
-    auto& block_xfer  = TRANSFER.thread_distribution;
-    auto& block_order = TRANSFER.thread_distribution_access_order;
+    auto& block_xfer  = TRANSFER.thread_cluster;
+    auto& block_order = TRANSFER.thread_cluster_access_order;
     auto& src_order   = TRANSFER.src_access_order;
     auto& lds_cfg     = TRANSFER.lds_transfer_params;
 
@@ -48,8 +48,8 @@ constexpr BlockTransfer<> SetFwdConvBlockTransfer()
 template <auto TRANSFER>
 constexpr auto SetBwdConvBlockTransfer()
 {
-    auto& block_xfer  = TRANSFER.thread_distribution;
-    auto& block_order = TRANSFER.thread_distribution_access_order;
+    auto& block_xfer  = TRANSFER.thread_cluster;
+    auto& block_order = TRANSFER.thread_cluster_access_order;
     auto& src_order   = TRANSFER.src_access_order;
     auto& lds_cfg     = TRANSFER.lds_transfer_params;
 
@@ -112,7 +112,7 @@ struct CBlockTransfer
 template <ConvSignatureDescriptor auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr CBlockTransfer SetCBlockTransfer()
 {
-    auto& thread_cluster_dims = ALGORITHM.transfer.c.thread_distribution;
+    auto& thread_cluster_dims = ALGORITHM.transfer.c.thread_cluster;
     auto& epilogue_config     = ALGORITHM.transfer.c.epilogue;
     return CBlockTransfer{
         .m_xdl_per_wave_per_shuffle = epilogue_config.m_xdl_per_wave_per_shuffle,

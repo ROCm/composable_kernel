@@ -57,14 +57,14 @@ concept GridwiseWmmaGemmDescriptor = requires(T t) {
 
 // Concept for vectorized data transfer for convolution input tensors.
 template <typename T>
-concept InputTileThreadDistributionDescriptor3D = requires(T t) {
+concept InputTileThreadClusterDescriptor3D = requires(T t) {
     { t.k0 } -> SizeType;
     { t.m_n } -> SizeType;
     { t.k1 } -> SizeType;
 };
 
 template <typename T>
-concept InputTileThreadDistributionDescriptor4D = requires(T t) {
+concept InputTileThreadClusterDescriptor4D = requires(T t) {
     { t.k0 } -> SizeType;
     { t.m_n } -> SizeType;
     { t.k1 } -> SizeType;
@@ -72,12 +72,12 @@ concept InputTileThreadDistributionDescriptor4D = requires(T t) {
 };
 
 template <typename T, size_t ThreadClusterRank>
-concept InputTileThreadDistributionDescriptor = (ThreadClusterRank == 3 && InputTileThreadDistributionDescriptor3D<T>) ||
-                                  (ThreadClusterRank == 4 && InputTileThreadDistributionDescriptor4D<T>);
+concept InputTileThreadClusterDescriptor = (ThreadClusterRank == 3 && InputTileThreadClusterDescriptor3D<T>) ||
+                                  (ThreadClusterRank == 4 && InputTileThreadClusterDescriptor4D<T>);
 
 // Concept for thread cluster dimensions for GEMM output tensor.
 template <typename T>
-concept OutputTileThreadDistributionDescriptor = requires(T t) {
+concept OutputTileThreadClusterDescriptor = requires(T t) {
     { t.gemm_m_block_size } -> SizeType;
     { t.gemm_m_per_block } -> SizeType;
     { t.gemm_n_block_size } -> SizeType;
@@ -182,10 +182,10 @@ concept SpecifiesWarpGemm = requires {
 
 // Concept to check if a struct specifies convolution input and output block transfer info.
 template <typename T, size_t ThreadClusterRank = 3>
-concept SpecifiesThreadDistribution = requires(T t) {
-    { T::transfer.a.thread_distribution } -> InputTileThreadDistributionDescriptor<ThreadClusterRank>;
-    { T::transfer.b.thread_distribution } -> InputTileThreadDistributionDescriptor<ThreadClusterRank>;
-    { T::transfer.c.thread_distribution } -> OutputTileThreadDistributionDescriptor;
+concept SpecifiesThreadClusters = requires(T t) {
+    { T::transfer.a.thread_cluster } -> InputTileThreadClusterDescriptor<ThreadClusterRank>;
+    { T::transfer.b.thread_cluster } -> InputTileThreadClusterDescriptor<ThreadClusterRank>;
+    { T::transfer.c.thread_cluster } -> OutputTileThreadClusterDescriptor;
 };
 
 // Concept to check if a struct specifies convolution scalar per vector infor for A, B and C.
@@ -207,8 +207,8 @@ concept SpecifiesLdsTransfer = requires(T t) {
 // Concept to check if a struct specifies thread cluster access order info.
 template <typename T>
 concept SpecifiesThreadClusterAccessOrder = requires(T t) {
-    { T::transfer.a.thread_distribution_access_order } -> AccessOrderDescriptor;
-    { T::transfer.b.thread_distribution_access_order } -> AccessOrderDescriptor;
+    { T::transfer.a.thread_cluster_access_order } -> AccessOrderDescriptor;
+    { T::transfer.b.thread_cluster_access_order } -> AccessOrderDescriptor;
 };
 
 // Concept to check if a struct specifies source access order info.

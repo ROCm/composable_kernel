@@ -103,7 +103,7 @@ inline std::string to_string<GemmPipeline>(GemmPipeline t)
 }
 
 template <size_t ThreadClusterRank>
-inline std::string to_string(InputDataThreadDistribution<ThreadClusterRank> t)
+inline std::string to_string(InputThreadCluster<ThreadClusterRank> t)
 {
     if constexpr(ThreadClusterRank == 4)
     {
@@ -121,7 +121,7 @@ inline std::string to_string(InputDataThreadDistribution<ThreadClusterRank> t)
 }
 
 template <>
-inline std::string to_string<OutputDataThreadDistribution>(OutputDataThreadDistribution t)
+inline std::string to_string<OutputThreadCluster>(OutputThreadCluster t)
 {
     return array_to_seq(
         std::array<size_t, 4>{t.gemm_m_block_size, t.gemm_m_per_block, t.gemm_n_block_size, t.gemm_n_per_block});
@@ -147,7 +147,7 @@ template <size_t N = 3>
 inline std::string to_string(InputTileTransfer<N> t)
 {
     std::ostringstream oss;
-    oss << to_string(t.thread_distribution) << "," << to_string(t.thread_distribution_access_order) << ","
+    oss << to_string(t.thread_cluster) << "," << to_string(t.thread_cluster_access_order) << ","
         << to_string(t.src_access_order) << "," << t.lds_transfer_params.src_vector_dim << ","
         << t.lds_transfer_params.src_scalar_per_vector << "," << t.lds_transfer_params.lds_dst_scalar_per_vector
         << "," << (t.lds_transfer_params.lds_padding ? "true" : "false");
@@ -159,7 +159,7 @@ inline std::string to_string<OutputTileTransfer>(OutputTileTransfer t)
 {
     std::ostringstream oss;
     oss << t.epilogue.m_xdl_per_wave_per_shuffle << "," << t.epilogue.n_per_wave_per_shuffle << ","
-        << to_string(t.thread_distribution) << "," << t.epilogue.scalar_per_vector;
+        << to_string(t.thread_cluster) << "," << t.epilogue.scalar_per_vector;
     return oss.str();
 }
 

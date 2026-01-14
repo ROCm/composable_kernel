@@ -55,31 +55,31 @@ constexpr DlTransfer<5> DlTransfer5D{.a = DlBlockTransfer_1x8x1x1x1,
 constexpr InputOutputTileTransfer<> Transfer_4x64x1{
     .a =
         {
-            .thread_distribution         = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .thread_cluster         = {.k0 = 4, .m_n = 64, .k1 = 1},
             .lds_transfer_params                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = false},
-            .thread_distribution_access_order = {1, 0, 2},
+            .thread_cluster_access_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .b =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 64, .k1 = 1},
             .lds_transfer_params                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = false},
-            .thread_distribution_access_order = {1, 0, 2},
+            .thread_cluster_access_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .c =
         {
-            .thread_distribution =
+            .thread_cluster =
                 {.gemm_m_block_size = 1, .gemm_m_per_block = 32, .gemm_n_block_size = 1, .gemm_n_per_block = 8},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                          .n_per_wave_per_shuffle     = 1,
@@ -90,31 +90,31 @@ constexpr InputOutputTileTransfer<> Transfer_4x64x1{
 constexpr InputOutputTileTransfer<4> BwdTransfer_4x64x1{
     .a =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 64, .k1 = 1, .k_batch_size = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 64, .k1 = 1, .k_batch_size = 1},
             .lds_transfer_params                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 4,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .thread_distribution_access_order = {0, 3, 1, 2},
+            .thread_cluster_access_order = {0, 3, 1, 2},
             .src_access_order            = {0, 2, 1, 3},
         },
     .b =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 64, .k1 = 1, .k_batch_size = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 64, .k1 = 1, .k_batch_size = 1},
             .lds_transfer_params                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 4,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .thread_distribution_access_order = {0, 3, 1, 2},
+            .thread_cluster_access_order = {0, 3, 1, 2},
             .src_access_order            = {0, 2, 1, 3},
         },
     .c =
         {
-            .thread_distribution =
+            .thread_cluster =
                 {.gemm_m_block_size = 1, .gemm_m_per_block = 32, .gemm_n_block_size = 1, .gemm_n_per_block = 8},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                          .n_per_wave_per_shuffle     = 1,
@@ -125,31 +125,31 @@ constexpr InputOutputTileTransfer<4> BwdTransfer_4x64x1{
 constexpr InputOutputTileTransfer<> BwdTransfer_4x8x1_4x16x1_v3{
     .a =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 8, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 8, .k1 = 1},
             .lds_transfer_params                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 1,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 2,
                                             .is_direct_load            = false,
                                             .lds_padding               = false},
-            .thread_distribution_access_order = {2, 0, 1},
+            .thread_cluster_access_order = {2, 0, 1},
             .src_access_order            = {1, 0, 2},
         },
     .b =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 16, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 16, .k1 = 1},
             .lds_transfer_params                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 1,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 2,
                                             .is_direct_load            = false,
                                             .lds_padding               = false},
-            .thread_distribution_access_order = {2, 0, 1},
+            .thread_cluster_access_order = {2, 0, 1},
             .src_access_order            = {1, 0, 2},
         },
     .c =
         {
-            .thread_distribution =
+            .thread_cluster =
                 {.gemm_m_block_size = 1, .gemm_m_per_block = 8, .gemm_n_block_size = 1, .gemm_n_per_block = 8},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                          .n_per_wave_per_shuffle     = 1,
@@ -160,31 +160,31 @@ constexpr InputOutputTileTransfer<> BwdTransfer_4x8x1_4x16x1_v3{
 constexpr InputOutputTileTransfer<> Transfer_4x64x1_fp8{
     .a =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 64, .k1 = 1},
             .lds_transfer_params                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .thread_distribution_access_order = {1, 0, 2},
+            .thread_cluster_access_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .b =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 64, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 64, .k1 = 1},
             .lds_transfer_params                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .thread_distribution_access_order = {1, 0, 2},
+            .thread_cluster_access_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .c =
         {
-            .thread_distribution =
+            .thread_cluster =
                 {.gemm_m_block_size = 1, .gemm_m_per_block = 32, .gemm_n_block_size = 1, .gemm_n_per_block = 8},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                          .n_per_wave_per_shuffle     = 1,
@@ -195,31 +195,31 @@ constexpr InputOutputTileTransfer<> Transfer_4x64x1_fp8{
 constexpr InputOutputTileTransfer<> Transfer_4x16x1{
     .a =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 16, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 16, .k1 = 1},
             .lds_transfer_params              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .thread_distribution_access_order = {1, 0, 2},
+            .thread_cluster_access_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .b =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 16, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 16, .k1 = 1},
             .lds_transfer_params              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .thread_distribution_access_order = {1, 0, 2},
+            .thread_cluster_access_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .c =
         {
-            .thread_distribution =
+            .thread_cluster =
                 {.gemm_m_block_size = 1, .gemm_m_per_block = 16, .gemm_n_block_size = 1, .gemm_n_per_block = 4},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                          .n_per_wave_per_shuffle     = 1,
@@ -231,31 +231,31 @@ constexpr InputOutputTileTransfer<> Transfer_4x16x1{
 constexpr InputOutputTileTransfer<> Transfer_4x32x1{
     .a =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 32, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 32, .k1 = 1},
             .lds_transfer_params              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 16,
                                             .lds_dst_scalar_per_vector = 16,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .thread_distribution_access_order = {1, 0, 2},
+            .thread_cluster_access_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .b =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 32, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 32, .k1 = 1},
             .lds_transfer_params              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 16,
                                             .lds_dst_scalar_per_vector = 16,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .thread_distribution_access_order = {1, 0, 2},
+            .thread_cluster_access_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .c =
         {
-            .thread_distribution =
+            .thread_cluster =
                 {.gemm_m_block_size = 1, .gemm_m_per_block = 32, .gemm_n_block_size = 1, .gemm_n_per_block = 4},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                          .n_per_wave_per_shuffle     = 1,
@@ -266,31 +266,31 @@ constexpr InputOutputTileTransfer<> Transfer_4x32x1{
 constexpr InputOutputTileTransfer<> Transfer_4x32x1_vector_load_16_generic{
     .a =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 32, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 32, .k1 = 1},
             .lds_transfer_params              = {.global_memory_vector_load_size = 16,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 1,
                                             .lds_dst_scalar_per_vector = 16,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .thread_distribution_access_order = {1, 0, 2},
+            .thread_cluster_access_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .b =
         {
-            .thread_distribution              = {.k0 = 4, .m_n = 32, .k1 = 1},
+            .thread_cluster              = {.k0 = 4, .m_n = 32, .k1 = 1},
             .lds_transfer_params              = {.global_memory_vector_load_size = 16,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 1,
                                             .lds_dst_scalar_per_vector = 16,
                                             .is_direct_load            = false,
                                             .lds_padding               = true},
-            .thread_distribution_access_order = {1, 0, 2},
+            .thread_cluster_access_order = {1, 0, 2},
             .src_access_order            = {1, 0, 2},
         },
     .c =
         {
-            .thread_distribution =
+            .thread_cluster =
                 {.gemm_m_block_size = 1, .gemm_m_per_block = 32, .gemm_n_block_size = 1, .gemm_n_per_block = 4},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
                          .n_per_wave_per_shuffle     = 1,

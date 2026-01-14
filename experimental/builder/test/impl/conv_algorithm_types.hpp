@@ -48,8 +48,8 @@ struct GemmPipeline
 static_assert(ckb::GemmPipelineDescriptor<GemmPipeline>);
 
 // Describe input tensor thread cluster lengths.
-template <size_t ThreadSliceLength = 3>
-struct InputDataThreadDistribution
+template <size_t ThreadClusterRank = 3>
+struct InputThreadCluster
 {
     size_t k0;
     size_t m_n;
@@ -57,26 +57,26 @@ struct InputDataThreadDistribution
     size_t k_batch_size;
 };
 
-// Specialization for ThreadSliceLength == 3
+// Specialization for ThreadClusterRank == 3
 template <>
-struct InputDataThreadDistribution<3>
+struct InputThreadCluster<3>
 {
     size_t k0;
     size_t m_n;
     size_t k1;
 };
-static_assert(ckb::InputTileThreadDistributionDescriptor<InputDataThreadDistribution<3>, 3>);
-static_assert(ckb::InputTileThreadDistributionDescriptor<InputDataThreadDistribution<4>, 4>);
+static_assert(ckb::InputTileThreadClusterDescriptor<InputThreadCluster<3>, 3>);
+static_assert(ckb::InputTileThreadClusterDescriptor<InputThreadCluster<4>, 4>);
 
 // Describe C block transfer thread cluster lengths.
-struct OutputDataThreadDistribution
+struct OutputThreadCluster
 {
     size_t gemm_m_block_size;
     size_t gemm_m_per_block;
     size_t gemm_n_block_size;
     size_t gemm_n_per_block;
 };
-static_assert(OutputTileThreadDistributionDescriptor<OutputDataThreadDistribution>);
+static_assert(OutputTileThreadClusterDescriptor<OutputThreadCluster>);
 
 struct LdsInputTransferParams
 {
@@ -97,34 +97,34 @@ struct Epilogue
 };
 static_assert(EpilogueDescriptor<Epilogue>);
 
-template <size_t ThreadSliceLength = 3>
+template <size_t ThreadClusterRank = 3>
 struct AccessOrder
 {
-    std::array<size_t, ThreadSliceLength> order;
+    std::array<size_t, ThreadClusterRank> order;
 };
 static_assert(AccessOrderDescriptor<AccessOrder<>>);
 static_assert(AccessOrderDescriptor<AccessOrder<4>>);
 
-template <size_t ThreadSliceLength = 3>
+template <size_t ThreadClusterRank = 3>
 struct InputTileTransfer
 {
-    InputDataThreadDistribution<ThreadSliceLength> thread_distribution;
+    InputThreadCluster<ThreadClusterRank> thread_cluster;
     LdsInputTransferParams lds_transfer_params;
-    AccessOrder<ThreadSliceLength> thread_distribution_access_order;
-    AccessOrder<ThreadSliceLength> src_access_order;
+    AccessOrder<ThreadClusterRank> thread_cluster_access_order;
+    AccessOrder<ThreadClusterRank> src_access_order;
 };
 
 struct OutputTileTransfer
 {
-    OutputDataThreadDistribution thread_distribution;
+    OutputThreadCluster thread_cluster;
     Epilogue epilogue;
 };
 
-template <size_t ThreadSliceLength = 3>
+template <size_t ThreadClusterRank = 3>
 struct InputOutputTileTransfer
 {
-    InputTileTransfer<ThreadSliceLength> a;
-    InputTileTransfer<ThreadSliceLength> b;
+    InputTileTransfer<ThreadClusterRank> a;
+    InputTileTransfer<ThreadClusterRank> b;
     OutputTileTransfer c;
 };
 
@@ -180,10 +180,10 @@ struct WarpGemm_
     WarpGemmParams warp_gemm;
 };
 
-template <size_t ThreadSliceLength = 3>
+template <size_t ThreadClusterRank = 3>
 struct InputOutputTileTransfer_
 {
-    InputOutputTileTransfer<ThreadSliceLength> transfer;
+    InputOutputTileTransfer<ThreadClusterRank> transfer;
 };
 
 struct ConvSpecializationFwd_
