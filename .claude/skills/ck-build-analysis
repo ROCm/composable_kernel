@@ -1,0 +1,376 @@
+#!/bin/bash
+# CK Build Analysis Skill - Analyze build times using -ftime-trace
+
+set -e
+set -o pipefail
+
+# Find project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+# Detect git branch and sanitize for docker naming
+GIT_BRANCH=$(cd "${PROJECT_ROOT}" && git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '_' | tr -cd 'a-zA-Z0-9_-' || echo "")
+GIT_BRANCH=${GIT_BRANCH:-unknown}
+if [ "${GIT_BRANCH}" = "HEAD" ]; then
+    GIT_BRANCH="detached"
+fi
+
+# Ensure USER is set
+USER_NAME=${USER:-$(whoami 2>/dev/null || echo "user")}
+
+# Default container name
+DEFAULT_NAME="ck_${USER_NAME}_${GIT_BRANCH}"
+CONTAINER_NAME="${CK_CONTAINER_NAME:-${DEFAULT_NAME}}"
+
+# Default settings
+GRANULARITY="${CK_BUILD_ANALYSIS_GRANULARITY:-500}"
+OUTPUT_FILE="build_time_analysis_report.md"
+RECONFIGURE=true
+
+# Help message
+show_help() {
+    cat << EOF
+CK Build Analysis - Analyze build times using Clang -ftime-trace
+
+Usage: ck-build-analysis <target> [options]
+
+Arguments:
+  target                      Build target to analyze (e.g., example_convnd_fwd_xdl_fp8)
+
+Options:
+  --granularity=N            Time trace granularity in microseconds (default: 500)
+  --output=FILE              Output report filename (default: build_time_analysis_report.md)
+  --name=NAME                Docker container name (default: ${CONTAINER_NAME})
+  --no-reconfigure           Skip CMake reconfiguration if build exists
+  --help                     Show this help message
+
+Examples:
+  ck-build-analysis example_convnd_fwd_xdl_fp8
+  ck-build-analysis example_convnd_fwd_xdl_fp8 --granularity=1
+  ck-build-analysis test_amdgcn_mma --granularity=100 --output=mma_test_analysis.md
+
+Granularity Guide:
+  500 (default)  - Quick overview, filters 86% of events (~5k instantiations, 3-5 MB)
+  100            - Balanced detail (~15k instantiations, 15-20 MB)
+  1              - Complete analysis (~36k instantiations, 80-100 MB)
+EOF
+}
+
+# Parse arguments
+TARGET=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --granularity=*)
+            GRANULARITY="${1#*=}"
+            shift
+            ;;
+        --output=*)
+            OUTPUT_FILE="${1#*=}"
+            shift
+            ;;
+        --name=*)
+            CONTAINER_NAME="${1#*=}"
+            shift
+            ;;
+        --no-reconfigure)
+            RECONFIGURE=false
+            shift
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+        *)
+            if [ -z "$TARGET" ]; then
+                TARGET="$1"
+            else
+                echo "Error: Multiple targets specified"
+                show_help
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [ -z "$TARGET" ]; then
+    echo "Error: No target specified"
+    echo ""
+    show_help
+    exit 1
+fi
+
+echo "═══════════════════════════════════════════════════════════════"
+echo "  CK Build Time Analysis"
+echo "═══════════════════════════════════════════════════════════════"
+echo "Target:       $TARGET"
+echo "Granularity:  ${GRANULARITY}µs"
+echo "Container:    $CONTAINER_NAME"
+echo "Output:       $OUTPUT_FILE"
+echo "═══════════════════════════════════════════════════════════════"
+echo ""
+
+# Ensure container is running
+if ! docker ps --filter "name=^${CONTAINER_NAME}$" --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo "Container not running. Starting with ck-docker..."
+    "${SCRIPT_DIR}/ck-docker" start "${CONTAINER_NAME}"
+fi
+
+# Configure CMake with -ftime-trace if needed
+if [ "$RECONFIGURE" = true ] || ! docker exec "${CONTAINER_NAME}" test -f /workspace/build/build.ninja 2>/dev/null; then
+    echo ""
+    echo "Configuring CMake with -ftime-trace (granularity=${GRANULARITY}µs)..."
+
+    GPU_TARGET=$(docker exec "${CONTAINER_NAME}" bash -c "rocminfo 2>/dev/null | grep -oP 'gfx[0-9a-z]+' | head -1 || echo 'gfx950'" | tr -d '\r\n')
+
+    docker exec "${CONTAINER_NAME}" bash -c "
+        cd /workspace || exit 1
+        rm -rf /workspace/build
+        mkdir /workspace/build
+        cd /workspace/build || exit 1
+        cmake .. -GNinja \
+            -DGPU_TARGETS=${GPU_TARGET} \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+            -DCMAKE_CXX_FLAGS='-ftime-trace -ftime-trace-granularity=${GRANULARITY}' \
+            -DCMAKE_HIP_FLAGS='-ftime-trace -ftime-trace-granularity=${GRANULARITY}' \
+            -DBUILD_TESTING=ON 2>&1 | tail -20
+    "
+    echo "CMake configuration complete"
+fi
+
+# Build the target
+echo ""
+echo "Building target: $TARGET"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+BUILD_START=$(date +%s)
+docker exec "${CONTAINER_NAME}" bash -c "cd /workspace/build && time ninja ${TARGET} 2>&1"
+BUILD_END=$(date +%s)
+BUILD_TIME=$((BUILD_END - BUILD_START))
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Build completed in ${BUILD_TIME} seconds"
+
+# Find the trace JSON file
+echo ""
+echo "Locating trace file..."
+TRACE_FILE=$(docker exec "${CONTAINER_NAME}" bash -c "find /workspace/build -name '*.cpp.json' -o -name '*.hip.json' 2>/dev/null | grep -i '${TARGET}' | head -1")
+
+if [ -z "$TRACE_FILE" ]; then
+    echo "Error: Could not find trace file for target ${TARGET}"
+    echo "Expected pattern: build/**/${TARGET}*.json"
+    exit 1
+fi
+
+TRACE_SIZE=$(docker exec "${CONTAINER_NAME}" bash -c "ls -lh ${TRACE_FILE} | awk '{print \$5}'")
+echo "Found trace file: ${TRACE_FILE} (${TRACE_SIZE})"
+
+# Generate analysis script
+echo ""
+echo "Generating analysis report..."
+
+ANALYSIS_SCRIPT="/tmp/analyze_${TARGET}_$$.py"
+cat > "${ANALYSIS_SCRIPT}" << 'PYSCRIPT'
+#!/usr/bin/env python3
+import json
+import re
+import sys
+from collections import defaultdict
+from datetime import datetime
+
+if len(sys.argv) < 4:
+    print("Usage: analyze.py <trace_file> <output_file> <target> <granularity> <build_time>")
+    sys.exit(1)
+
+trace_file = sys.argv[1]
+output_file = sys.argv[2]
+target = sys.argv[3]
+granularity = sys.argv[4]
+build_time = sys.argv[5]
+
+print(f'Loading trace file: {trace_file}')
+with open(trace_file, 'r') as f:
+    data = json.load(f)
+
+print('Processing events...')
+template_stats = defaultdict(lambda: {'count': 0, 'total_dur': 0.0})
+phase_stats = defaultdict(float)
+top_individual = []
+
+for event in data.get('traceEvents', []):
+    name = event.get('name', '')
+    dur = event.get('dur', 0) / 1000.0
+
+    if name and dur > 0:
+        phase_stats[name] += dur
+
+    if name in ['InstantiateFunction', 'InstantiateClass']:
+        detail = event.get('args', {}).get('detail', '')
+        top_individual.append({'detail': detail, 'dur': dur, 'type': name})
+
+        match = re.match(r'^([^<(]+)', detail)
+        if match:
+            template_name = match.group(1).strip()
+            template_name = re.sub(r'^ck::', '', template_name)
+            template_name = re.sub(r'^std::', 'std::', template_name)
+
+            template_stats[template_name]['count'] += 1
+            template_stats[template_name]['total_dur'] += dur
+
+print('Sorting and generating report...')
+sorted_templates = sorted(template_stats.items(), key=lambda x: x[1]['total_dur'], reverse=True)
+sorted_phases = sorted(phase_stats.items(), key=lambda x: x[1], reverse=True)
+top_individual.sort(key=lambda x: x['dur'], reverse=True)
+
+total_template_time = sum(s['total_dur'] for s in template_stats.values())
+total_trace_time = sum(phase_stats.values())
+total_events = len(data.get('traceEvents', []))
+total_inst = sum(s['count'] for s in template_stats.values())
+
+report = []
+report.append('# Composable Kernel Build Time Analysis Report')
+report.append('')
+report.append(f'**Generated:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+report.append(f'**Target:** {target}')
+report.append(f'**Granularity:** {granularity}µs')
+report.append('')
+report.append('## Executive Summary')
+report.append('')
+report.append(f'- **Wall Clock Time:** {build_time} seconds')
+report.append(f'- **Trace Time:** {total_trace_time/1000:.1f} seconds')
+report.append(f'- **Template Instantiation Time:** {total_template_time/1000:.1f} seconds ({100*total_template_time/total_trace_time:.1f}% of trace)')
+report.append(f'- **Total Events Captured:** {total_events:,}')
+report.append(f'- **Total Template Instantiations:** {total_inst:,}')
+report.append(f'- **Unique Template Families:** {len(sorted_templates)}')
+report.append('')
+report.append('## Compilation Phase Breakdown')
+report.append('')
+report.append('| Phase | Time (ms) | Time (s) | % of Total |')
+report.append('|-------|-----------|----------|------------|')
+for phase, dur in sorted_phases[:20]:
+    pct = 100 * dur / total_trace_time
+    report.append(f'| {phase:<40} | {dur:>9.2f} | {dur/1000:>8.2f} | {pct:>9.1f}% |')
+report.append('')
+report.append('## Top 30 Most Expensive Individual Instantiations')
+report.append('')
+report.append('| Rank | Template | Type | Time (ms) |')
+report.append('|------|----------|------|-----------|')
+for i, inst in enumerate(top_individual[:30], 1):
+    detail = inst['detail'][:70] + '...' if len(inst['detail']) > 70 else inst['detail']
+    inst_type = 'Func' if inst['type'] == 'InstantiateFunction' else 'Class'
+    report.append(f'| {i:>4} | {detail:<70} | {inst_type:<5} | {inst["dur"]:>9.2f} |')
+report.append('')
+report.append('## Template Families by Total Time (Top 50)')
+report.append('')
+report.append('| Rank | Template Family | Count | Total (ms) | Avg (ms) | % of Total |')
+report.append('|------|-----------------|-------|------------|----------|------------|')
+for i, (name, stats) in enumerate(sorted_templates[:50], 1):
+    count = stats['count']
+    total = stats['total_dur']
+    avg = total / count if count > 0 else 0
+    pct = 100 * total / total_template_time if total_template_time > 0 else 0
+    display_name = name[:40] + '...' if len(name) > 40 else name
+    report.append(f'| {i:>4} | {display_name:<43} | {count:>5} | {total:>10.2f} | {avg:>8.2f} | {pct:>9.1f}% |')
+report.append('')
+report.append('## Template Families by Instantiation Count (Top 50)')
+report.append('')
+sorted_by_count = sorted(template_stats.items(), key=lambda x: x[1]['count'], reverse=True)
+report.append('| Rank | Template Family | Count | Total (ms) | Avg (ms) |')
+report.append('|------|-----------------|-------|------------|----------|')
+for i, (name, stats) in enumerate(sorted_by_count[:50], 1):
+    count = stats['count']
+    total = stats['total_dur']
+    avg = total / count if count > 0 else 0
+    display_name = name[:40] + '...' if len(name) > 40 else name
+    report.append(f'| {i:>4} | {display_name:<43} | {count:>5} | {total:>10.2f} | {avg:>8.2f} |')
+report.append('')
+report.append('## Key Insights')
+report.append('')
+report.append('### 1. Template Instantiation Impact')
+report.append(f'- Template instantiation accounts for {100*total_template_time/total_trace_time:.1f}% of total trace time')
+if len(sorted_templates) >= 10:
+    top10_pct = 100*sum(s[1]["total_dur"] for s in sorted_templates[:10])/total_template_time
+    report.append(f'- Top 10 template families account for {top10_pct:.1f}% of instantiation time')
+report.append('')
+report.append('### 2. Most Expensive Templates')
+if len(sorted_templates) > 0:
+    report.append(f'- **{sorted_templates[0][0]}**: {sorted_templates[0][1]["count"]:,} instantiations, {sorted_templates[0][1]["total_dur"]/1000:.2f}s total')
+if len(sorted_templates) > 1:
+    avg = sorted_templates[1][1]["total_dur"] / sorted_templates[1][1]["count"]
+    report.append(f'- **{sorted_templates[1][0]}**: {sorted_templates[1][1]["count"]:,} instantiations, {avg:.2f}ms average')
+report.append('')
+report.append('## Optimization Recommendations')
+report.append('')
+report.append('### Short Term')
+report.append('1. **Focus on High-Impact Templates**: Address top 10 families first')
+report.append('2. **Explicit Template Instantiation**: Pre-instantiate common configurations')
+report.append('3. **Extern Templates**: Mark frequently-used templates as extern in headers')
+report.append('')
+report.append('### Medium Term')
+report.append('1. **Precompiled Headers**: Include heavy templates in PCH')
+report.append('2. **Template Specialization**: Replace general templates with specialized versions')
+report.append('3. **Template Depth Reduction**: Simplify template hierarchies')
+report.append('')
+report.append('### Long Term')
+report.append('1. **Architectural Review**: Evaluate necessity of deep template metaprogramming')
+report.append('2. **C++20 Concepts**: Earlier constraint checking, fewer instantiations')
+report.append('3. **Build Caching**: Distributed build cache for template instantiations')
+report.append('')
+report.append('## Detailed Statistics')
+report.append('')
+report.append(f'- **Total Unique Templates:** {len(sorted_templates)}')
+report.append(f'- **Total Instantiations:** {total_inst:,}')
+if total_inst > 0:
+    report.append(f'- **Average Instantiation Time:** {total_template_time/total_inst:.3f}ms')
+if len(template_stats) > 0:
+    median_count = sorted([s["count"] for s in template_stats.values()])[len(template_stats)//2]
+    report.append(f'- **Median Template Family Count:** {median_count}')
+report.append('')
+report.append('---')
+report.append('')
+report.append(f'*Report generated using Clang -ftime-trace with {granularity}µs granularity*')
+report.append(f'*Analysis tool: ck-build-analysis*')
+
+with open(output_file, 'w') as f:
+    f.write('\n'.join(report))
+
+print(f'Report generated: {output_file}')
+print(f'Total lines: {len(report)}')
+PYSCRIPT
+
+# Copy analysis script to container and run it
+docker cp "${ANALYSIS_SCRIPT}" "${CONTAINER_NAME}:/tmp/analyze.py"
+
+docker exec "${CONTAINER_NAME}" python3 /tmp/analyze.py \
+    "${TRACE_FILE}" \
+    "/workspace/${OUTPUT_FILE}" \
+    "${TARGET}" \
+    "${GRANULARITY}" \
+    "${BUILD_TIME}"
+
+# Copy report back to host
+docker cp "${CONTAINER_NAME}:/workspace/${OUTPUT_FILE}" "${PROJECT_ROOT}/${OUTPUT_FILE}"
+
+# Cleanup
+rm -f "${ANALYSIS_SCRIPT}"
+docker exec "${CONTAINER_NAME}" rm -f /tmp/analyze.py
+
+echo ""
+echo "═══════════════════════════════════════════════════════════════"
+echo "  Analysis Complete!"
+echo "═══════════════════════════════════════════════════════════════"
+echo "Report: ${PROJECT_ROOT}/${OUTPUT_FILE}"
+echo ""
+echo "Summary:"
+docker exec "${CONTAINER_NAME}" bash -c "head -20 /workspace/${OUTPUT_FILE} | tail -10"
+echo ""
+echo "View the full report:"
+echo "  cat ${OUTPUT_FILE}"
+echo "  or open it in your editor"
+echo "═══════════════════════════════════════════════════════════════"
