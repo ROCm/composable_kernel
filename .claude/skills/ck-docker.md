@@ -31,13 +31,12 @@ Just ask in natural language:
 ## Commands
 
 ```
-ck-docker start [name]              Start Docker container
-ck-docker build [target]            Build target
-ck-docker test <name> [options]     Run test
-ck-docker shell [name]              Interactive shell
-ck-docker status [name]             Check status
-ck-docker stop [name]               Stop container
-ck-docker rebuild-cmake [name]      Reconfigure CMake
+ck-docker start [name]                    Start Docker container
+ck-docker build [target] [--reconfigure]  Build target (optionally reconfigure CMake)
+ck-docker test <name> [options]           Run test
+ck-docker shell [name]                    Interactive shell
+ck-docker status [name]                   Check status
+ck-docker stop [name]                     Stop container
 ```
 
 ## Configuration
@@ -66,6 +65,9 @@ ck-docker start
 # Build and run test
 ck-docker build test_amdgcn_mma
 ck-docker test test_amdgcn_mma
+
+# Force clean CMake reconfiguration and build
+ck-docker build --reconfigure test_amdgcn_mma
 
 # Custom container
 ck-docker start my_build

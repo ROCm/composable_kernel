@@ -32,17 +32,17 @@ CK Docker Skill - Build and test composable_kernel in Docker
 Usage: ck-docker <command> [options]
 
 Commands:
-  start [name]              Start Docker container
-  build [target] [--name]   Build target
-  test <test> [options]     Run test
-  shell [name]              Open shell in container
-  status [name]             Check container status
-  stop [name]               Stop and remove container
-  rebuild-cmake [name]      Reconfigure CMake from scratch
+  start [name]                    Start Docker container
+  build [target] [--reconfigure]  Build target (optionally reconfigure CMake)
+  test <test> [options]           Run test
+  shell [name]                    Open shell in container
+  status [name]                   Check container status
+  stop [name]                     Stop and remove container
 
 Examples:
   ck-docker start
   ck-docker build test_amdgcn_mma
+  ck-docker build --reconfigure test_amdgcn_mma
   ck-docker test test_amdgcn_mma --gtest_filter=*Fp16*
   ck-docker shell
 
@@ -104,12 +104,17 @@ cmd_start() {
 cmd_build() {
     local target=""
     local name="${CONTAINER_NAME}"
+    local reconfigure=false
 
     while [[ $# -gt 0 ]]; do
         case $1 in
             --name)
                 name="$2"
                 shift 2
+                ;;
+            --reconfigure)
+                reconfigure=true
+                shift
                 ;;
             *)
                 target="$1"
@@ -124,11 +129,17 @@ cmd_build() {
         cmd_start "${name}"
     fi
 
-    if ! docker exec "${name}" test -f /workspace/build/build.ninja 2>/dev/null; then
+    # Reconfigure CMake if requested or if build.ninja doesn't exist
+    if [ "$reconfigure" = true ] || ! docker exec "${name}" test -f /workspace/build/build.ninja 2>/dev/null; then
         echo "Detecting GPU target..."
         local gpu_target=$(detect_gpu "${name}")
 
-        echo "Configuring build with CMake for GPU target: ${gpu_target}"
+        if [ "$reconfigure" = true ]; then
+            echo "Reconfiguring CMake from scratch for GPU target: ${gpu_target}"
+        else
+            echo "Configuring build with CMake for GPU target: ${gpu_target}"
+        fi
+
         docker exec "${name}" bash -c "
             cd /workspace || exit 1
             rm -rf /workspace/build
@@ -268,34 +279,6 @@ cmd_stop() {
     fi
 }
 
-# Rebuild CMake
-cmd_rebuild_cmake() {
-    local name="${1:-${CONTAINER_NAME}}"
-
-    # Check if container is running (exact match)
-    if ! docker ps --filter "name=^${name}$" --format '{{.Names}}' | grep -q "^${name}$"; then
-        echo "Container '${name}' not running. Starting..."
-        cmd_start "${name}"
-    fi
-
-    echo "Detecting GPU target..."
-    local gpu_target=$(detect_gpu "${name}")
-
-    echo "Reconfiguring CMake from scratch in '${name}' for GPU target: ${gpu_target}"
-    docker exec "${name}" bash -c "
-        cd /workspace || exit 1
-        rm -rf /workspace/build
-        mkdir /workspace/build
-        cd /workspace/build || exit 1
-        cmake .. -GNinja \
-            -DGPU_TARGETS=${gpu_target} \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
-            -DBUILD_TESTING=ON 2>&1 | tail -30
-    "
-    echo "CMake configuration complete for ${gpu_target}"
-}
-
 # Main command dispatcher
 case "${1:-}" in
     start)
@@ -321,10 +304,6 @@ case "${1:-}" in
     stop)
         shift
         cmd_stop "$@"
-        ;;
-    rebuild-cmake)
-        shift
-        cmd_rebuild_cmake "$@"
         ;;
     help|--help|-h)
         show_help
