@@ -110,3 +110,42 @@ The report includes:
 - Default 500µs captures major bottlenecks (filters out 86% of instantiations)
 - 1µs granularity reveals all 36,000+ instantiations but takes longer to analyze
 - 100µs is a good middle ground for most use cases
+
+## Implementation Details
+
+### PEP 723 Compliance
+
+The analysis script (`analyze_build_trace.py`) is PEP 723 compliant with inline dependency metadata:
+
+```python
+# /// script
+# requires-python = ">=3.8"
+# dependencies = [
+#   "jinja2>=3.0.0",
+# ]
+# ///
+```
+
+This allows tools like `pipx run` or `uv run` to automatically manage dependencies:
+
+```bash
+# Run standalone with pipx (auto-installs dependencies)
+pipx run .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 templates/
+
+# Or with uv
+uv run .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 templates/
+```
+
+### Components
+
+- **ck-build-analysis** - Main bash script that orchestrates Docker, CMake, and analysis
+- **analyze_build_trace.py** - PEP 723 compliant Python script for trace analysis
+- **templates/build_analysis_report.md.jinja** - Jinja2 template for report generation
+
+### Requirements
+
+In Docker container:
+- `python3-jinja2` (installed via `apt-get install python3-jinja2`)
+
+For standalone use:
+- Python 3.8+ with `jinja2>=3.0.0` (auto-managed if using `pipx` or `uv`)

@@ -171,158 +171,16 @@ fi
 TRACE_SIZE=$(docker exec "${CONTAINER_NAME}" bash -c "ls -lh ${TRACE_FILE} | awk '{print \$5}'")
 echo "Found trace file: ${TRACE_FILE} (${TRACE_SIZE})"
 
-# Generate analysis script
+# Generate analysis report
 echo ""
 echo "Generating analysis report..."
 
-ANALYSIS_SCRIPT="/tmp/analyze_${TARGET}_$$.py"
-cat > "${ANALYSIS_SCRIPT}" << 'PYSCRIPT'
-#!/usr/bin/env python3
-import json
-import re
-import sys
-from collections import defaultdict
-from datetime import datetime
-from jinja2 import Environment, FileSystemLoader
-
-if len(sys.argv) < 4:
-    print("Usage: analyze.py <trace_file> <output_file> <target> <granularity> <build_time> <template_dir>")
-    sys.exit(1)
-
-trace_file = sys.argv[1]
-output_file = sys.argv[2]
-target = sys.argv[3]
-granularity = sys.argv[4]
-build_time = sys.argv[5]
-template_dir = sys.argv[6]
-
-print(f'Loading trace file: {trace_file}')
-with open(trace_file, 'r') as f:
-    data = json.load(f)
-
-print('Processing events...')
-template_stats = defaultdict(lambda: {'count': 0, 'total_dur': 0.0})
-phase_stats = defaultdict(float)
-top_individual = []
-
-for event in data.get('traceEvents', []):
-    name = event.get('name', '')
-    dur = event.get('dur', 0) / 1000.0
-
-    if name and dur > 0:
-        phase_stats[name] += dur
-
-    if name in ['InstantiateFunction', 'InstantiateClass']:
-        detail = event.get('args', {}).get('detail', '')
-        top_individual.append({'detail': detail, 'dur': dur, 'type': name})
-
-        match = re.match(r'^([^<(]+)', detail)
-        if match:
-            template_name = match.group(1).strip()
-            template_name = re.sub(r'^ck::', '', template_name)
-            template_name = re.sub(r'^std::', 'std::', template_name)
-
-            template_stats[template_name]['count'] += 1
-            template_stats[template_name]['total_dur'] += dur
-
-print('Sorting data...')
-sorted_phases = sorted(phase_stats.items(), key=lambda x: x[1], reverse=True)
-top_individual.sort(key=lambda x: x['dur'], reverse=True)
-
-total_template_time = sum(s['total_dur'] for s in template_stats.values())
-total_trace_time = sum(phase_stats.values())
-total_events = len(data.get('traceEvents', []))
-total_inst = sum(s['count'] for s in template_stats.values())
-
-# Prepare templates by time with calculated fields
-templates_by_time = []
-for name, stats in sorted(template_stats.items(), key=lambda x: x[1]['total_dur'], reverse=True):
-    templates_by_time.append((name, {
-        'count': stats['count'],
-        'total_dur': stats['total_dur'],
-        'avg': stats['total_dur'] / stats['count'] if stats['count'] > 0 else 0,
-        'pct': 100 * stats['total_dur'] / total_template_time if total_template_time > 0 else 0
-    }))
-
-# Prepare templates by count
-templates_by_count = []
-for name, stats in sorted(template_stats.items(), key=lambda x: x[1]['count'], reverse=True):
-    templates_by_count.append((name, {
-        'count': stats['count'],
-        'total_dur': stats['total_dur'],
-        'avg': stats['total_dur'] / stats['count'] if stats['count'] > 0 else 0
-    }))
-
-# Prepare top individual instantiations with friendly type names
-for inst in top_individual:
-    inst['inst_type'] = 'Func' if inst['type'] == 'InstantiateFunction' else 'Class'
-
-# Calculate additional metrics
-median_count = 0
-if len(template_stats) > 0:
-    median_count = sorted([s["count"] for s in template_stats.values()])[len(template_stats)//2]
-
-top10_pct = 0
-if len(templates_by_time) >= 10:
-    top10_pct = 100 * sum(s[1]["total_dur"] for s in templates_by_time[:10]) / total_template_time
-
-print('Rendering report with Jinja2...')
-# Set up Jinja2 environment with custom filters
-env = Environment(loader=FileSystemLoader(template_dir))
-
-def format_number(value):
-    """Format number with thousand separators"""
-    return f'{value:,}'
-
-def truncate(value, length):
-    """Truncate string to length with ellipsis"""
-    if len(value) > length:
-        return value[:length-3] + '...'
-    return value
-
-def pad(value, length):
-    """Pad string to specified length"""
-    return f'{value:<{length}}'
-
-env.filters['format_number'] = format_number
-env.filters['truncate'] = truncate
-env.filters['pad'] = pad
-
-# Load and render template
-template = env.get_template('build_analysis_report.md.jinja')
-report_content = template.render(
-    timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    target=target,
-    granularity=granularity,
-    build_time=build_time,
-    trace_time_sec=f'{total_trace_time/1000:.1f}',
-    template_time_sec=f'{total_template_time/1000:.1f}',
-    template_pct=f'{100*total_template_time/total_trace_time:.1f}',
-    total_events=total_events,
-    total_instantiations=total_inst,
-    unique_families=len(template_stats),
-    total_trace_time=total_trace_time,
-    total_template_time=total_template_time,
-    phases=sorted_phases,
-    top_individual=top_individual,
-    templates_by_time=templates_by_time,
-    templates_by_count=templates_by_count,
-    median_count=median_count,
-    top10_pct=f'{top10_pct:.1f}'
-)
-
-with open(output_file, 'w') as f:
-    f.write(report_content)
-
-print(f'Report generated: {output_file}')
-print(f'Report size: {len(report_content)} bytes')
-PYSCRIPT
-
 # Copy analysis script and templates to container
-docker cp "${ANALYSIS_SCRIPT}" "${CONTAINER_NAME}:/tmp/analyze.py"
+docker cp "${SCRIPT_DIR}/analyze_build_trace.py" "${CONTAINER_NAME}:/tmp/analyze_build_trace.py"
 docker cp "${SCRIPT_DIR}/templates" "${CONTAINER_NAME}:/tmp/ck_build_analysis_templates"
 
-docker exec "${CONTAINER_NAME}" python3 /tmp/analyze.py \
+# Run analysis
+docker exec "${CONTAINER_NAME}" python3 /tmp/analyze_build_trace.py \
     "${TRACE_FILE}" \
     "/workspace/${OUTPUT_FILE}" \
     "${TARGET}" \
@@ -334,8 +192,7 @@ docker exec "${CONTAINER_NAME}" python3 /tmp/analyze.py \
 docker cp "${CONTAINER_NAME}:/workspace/${OUTPUT_FILE}" "${PROJECT_ROOT}/${OUTPUT_FILE}"
 
 # Cleanup
-rm -f "${ANALYSIS_SCRIPT}"
-docker exec "${CONTAINER_NAME}" rm -f /tmp/analyze.py
+docker exec "${CONTAINER_NAME}" rm -f /tmp/analyze_build_trace.py
 docker exec "${CONTAINER_NAME}" rm -rf /tmp/ck_build_analysis_templates
 
 echo ""
