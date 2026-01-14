@@ -1325,30 +1325,32 @@ struct FmhaFwdPagedKVKernel
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
             {
-                return FmhaPipeline{}(
-                    q_dram_window,
-                    identity{}, // q_element_func
-                    k_dram_window_lengths,
-                    k_page_block_navigator,
-                    identity{}, // k_element_func
-                    v_dram_window_lengths,
-                    v_page_block_navigator,
-                    identity{}, // v_element_func
-                    bias_dram_window,
-                    identity{}, // bias_element_func
-                    lse_dram_window,
-                    identity{},                                          // lse_element_func
-                    identity{},                                          // s_acc_element_func
-                    scales{kargs.scale_p},                               // p_compute_element_func
-                    composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
-                    mask,
-                    position_encoding,
-                    kargs.scale_s,
-                    variant,
-                    variant_params,
-                    block_indices,
-                    kv_l2p_offset,
-                    smem_ptr);
+                return FmhaPipeline{}(q_dram_window,
+                                      identity{}, // q_element_func
+                                      k_dram_window_lengths,
+                                      k_page_block_navigator,
+                                      identity{}, // k_element_func
+                                      v_dram_window_lengths,
+                                      v_page_block_navigator,
+                                      identity{}, // v_element_func
+                                      bias_dram_window,
+                                      identity{}, // bias_element_func
+                                      lse_dram_window,
+                                      identity{}, // lse_element_func
+                                      identity{}, // s_acc_element_func
+                                      scales<remove_cvref_t<decltype(kargs.scale_p)>>{
+                                          kargs.scale_p}, // p_compute_element_func
+                                      make_composes(saturates<fp8_t>{},
+                                                    scales<remove_cvref_t<decltype(kargs.scale_o)>>{
+                                                        kargs.scale_o}), // o_acc_element_func
+                                      mask,
+                                      position_encoding,
+                                      kargs.scale_s,
+                                      variant,
+                                      variant_params,
+                                      block_indices,
+                                      kv_l2p_offset,
+                                      smem_ptr);
             }
             else
             {

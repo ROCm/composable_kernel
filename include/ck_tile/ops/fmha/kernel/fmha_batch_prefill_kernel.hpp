@@ -1193,39 +1193,40 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
                 auto o_acc_element_func = [&]() {
                     if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
-                        return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
-                                                 ck_tile::scales{scale_o});
+                        return make_composes(saturates<ck_tile::fp8_t>{},
+                                             scales<remove_cvref_t<decltype(scale_o)>>{scale_o});
                     else
-                        return ck_tile::scales{scale_o};
+                        return scales<remove_cvref_t<decltype(scale_o)>>{scale_o};
                 }();
 
-                return FmhaPipeline{}(q_dram_window,
-                                      identity{}, // q_element_func
-                                      k_dram_window,
-                                      identity{}, // k_element_func
-                                      v_dram_window,
-                                      identity{}, // v_element_func
-                                      bias_dram_window,
-                                      identity{}, // bias_element_func
-                                      randval_dram_window,
-                                      lse_dram_window,
-                                      identity{},         // lse_element_func
-                                      identity{},         // s_acc_element_func
-                                      scales{scale_p},    // p_compute_element_func
-                                      o_acc_element_func, // o_acc_element_func
-                                      mask,
-                                      position_encoding,
-                                      variant_params.sm_scale,
-                                      variant,
-                                      variant_params,
-                                      block_indices,
-                                      smem_ptr,
-                                      page_idx,
-                                      stride_k_for_pipeline,
-                                      stride_v_for_pipeline,
-                                      kargs.batch_stride_k,
-                                      kargs.batch_stride_v,
-                                      dropout);
+                return FmhaPipeline{}(
+                    q_dram_window,
+                    identity{}, // q_element_func
+                    k_dram_window,
+                    identity{}, // k_element_func
+                    v_dram_window,
+                    identity{}, // v_element_func
+                    bias_dram_window,
+                    identity{}, // bias_element_func
+                    randval_dram_window,
+                    lse_dram_window,
+                    identity{},                                         // lse_element_func
+                    identity{},                                         // s_acc_element_func
+                    scales<remove_cvref_t<decltype(scale_p)>>{scale_p}, // p_compute_element_func
+                    o_acc_element_func,                                 // o_acc_element_func
+                    mask,
+                    position_encoding,
+                    variant_params.sm_scale,
+                    variant,
+                    variant_params,
+                    block_indices,
+                    smem_ptr,
+                    page_idx,
+                    stride_k_for_pipeline,
+                    stride_v_for_pipeline,
+                    kargs.batch_stride_k,
+                    kargs.batch_stride_v,
+                    dropout);
             }
             else
             {
