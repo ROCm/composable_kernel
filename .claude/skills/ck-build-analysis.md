@@ -126,29 +126,18 @@ The analysis script (`analyze_build_trace.py`) is PEP 723 compliant with inline 
 # ///
 ```
 
-**The skill automatically uses `uv run` if available**, which provides:
+**The skill automatically installs and uses `uv`**, which provides:
 - ✅ Zero-configuration dependency management
 - ✅ Automatic installation of jinja2 from PEP 723 metadata
 - ✅ Isolated dependency environment (no system pollution)
 - ✅ Fast caching for subsequent runs
 
-### Installation Options
+**No manual setup required!** The first time you run the skill, it will:
+1. Detect if `uv` is installed in the container
+2. If not, automatically install it (takes ~5 seconds)
+3. Use `uv run` to execute the analysis with auto-managed dependencies
 
-**Option 1: Install uv (Recommended)**
-```bash
-# Install uv in the Docker container (one-time setup)
-docker exec ck_<container_name> bash -c "curl -LsSf https://astral.sh/uv/install.sh | sh"
-```
-
-After installing `uv`, the skill will automatically use it for dependency management.
-
-**Option 2: Use system python3 + jinja2**
-```bash
-# If uv is not available, install jinja2 manually
-docker exec ck_<container_name> apt-get install -y python3-jinja2
-```
-
-The skill automatically detects which method is available and uses the appropriate one.
+On subsequent runs, `uv` will already be available and dependencies will be cached.
 
 ### Components
 
@@ -161,12 +150,9 @@ The skill automatically detects which method is available and uses the appropria
 The Python script can also be run independently:
 
 ```bash
-# With uv (recommended - auto-installs dependencies)
+# With uv (recommended - auto-installs dependencies from PEP 723 metadata)
 uv run .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 templates/
 
-# With pipx (alternative - auto-installs dependencies)
+# With pipx (alternative - also auto-installs dependencies)
 pipx run .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 templates/
-
-# With python3 (requires jinja2 pre-installed)
-python3 .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 templates/
 ```

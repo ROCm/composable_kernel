@@ -166,28 +166,22 @@ echo "Generating analysis report..."
 docker cp "${SCRIPT_DIR}/analyze_build_trace.py" "${CONTAINER_NAME}:/tmp/analyze_build_trace.py"
 docker cp "${SCRIPT_DIR}/templates" "${CONTAINER_NAME}:/tmp/ck_build_analysis_templates"
 
-# Check if uv is available and use it for PEP 723 dependency management
-# Check both PATH and common install locations
-if docker exec "${CONTAINER_NAME}" bash -c "command -v uv >/dev/null 2>&1 || test -x \$HOME/.local/bin/uv"; then
-    echo "Using uv run for automatic dependency management..."
-    # Ensure uv is in PATH (handles ~/.local/bin installation)
-    docker exec "${CONTAINER_NAME}" bash -c "export PATH=\"\$HOME/.local/bin:\$PATH\" && uv run --no-project /tmp/analyze_build_trace.py \
-        ${TRACE_FILE} \
-        /workspace/${OUTPUT_FILE} \
-        ${TARGET} \
-        ${GRANULARITY} \
-        ${BUILD_TIME} \
-        /tmp/ck_build_analysis_templates"
-else
-    echo "uv not found, using python3 (requires python3-jinja2 pre-installed)..."
-    docker exec "${CONTAINER_NAME}" python3 /tmp/analyze_build_trace.py \
-        "${TRACE_FILE}" \
-        "/workspace/${OUTPUT_FILE}" \
-        "${TARGET}" \
-        "${GRANULARITY}" \
-        "${BUILD_TIME}" \
-        "/tmp/ck_build_analysis_templates"
+# Check if uv is available, install if needed, and use for PEP 723 dependency management
+if ! docker exec "${CONTAINER_NAME}" bash -c "command -v uv >/dev/null 2>&1 || test -x \$HOME/.local/bin/uv"; then
+    echo "uv not found, installing..."
+    docker exec "${CONTAINER_NAME}" bash -c "curl -LsSf https://astral.sh/uv/install.sh | sh" >/dev/null 2>&1
+    echo "uv installed successfully"
 fi
+
+echo "Using uv run for automatic dependency management..."
+# Ensure uv is in PATH (handles ~/.local/bin installation)
+docker exec "${CONTAINER_NAME}" bash -c "export PATH=\"\$HOME/.local/bin:\$PATH\" && uv run --no-project /tmp/analyze_build_trace.py \
+    ${TRACE_FILE} \
+    /workspace/${OUTPUT_FILE} \
+    ${TARGET} \
+    ${GRANULARITY} \
+    ${BUILD_TIME} \
+    /tmp/ck_build_analysis_templates"
 
 # Copy report back to host
 docker cp "${CONTAINER_NAME}:/workspace/${OUTPUT_FILE}" "${PROJECT_ROOT}/${OUTPUT_FILE}"
