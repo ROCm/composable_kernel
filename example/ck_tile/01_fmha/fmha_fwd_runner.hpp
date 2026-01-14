@@ -149,8 +149,8 @@ int override_num_splits_if_necessary(
     return num_splits;
 }
 
-template <typename SMPLComputeDataType, typename SaccDataType, typename PDataType>
-void copy_attention_scores_with_sink(const ck_tile::HostTensor<SaccDataType>& s_host_ref,
+template <typename SMPLComputeDataType>
+void copy_attention_scores_with_sink(const ck_tile::HostTensor<SMPLComputeDataType>& s_host_ref,
                                      const ck_tile::HostTensor<SMPLComputeDataType>& sink_host,
                                      ck_tile::HostTensor<SMPLComputeDataType>& s_with_sinks_ref,
                                      ck_tile::index_t nhead,
