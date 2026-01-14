@@ -7,8 +7,8 @@
 ## Executive Summary
 
 - **Wall Clock Time:** {{ build_time }} seconds
-- **Trace Time:** {{ trace_time_sec }} seconds
-- **Template Instantiation Time:** {{ template_time_sec }} seconds ({{ template_pct }}% of trace)
+- **Trace Time:** {{ total_trace_time|us_to_s|round(1) }} seconds
+- **Template Instantiation Time:** {{ total_template_time|us_to_s|round(1) }} seconds ({{ (100 * total_template_time / total_trace_time)|round(1) }}% of trace)
 - **Total Events Captured:** {{ total_events|format_number }}
 - **Total Template Instantiations:** {{ total_instantiations|format_number }}
 - **Unique Template Families:** {{ unique_families }}
@@ -18,7 +18,7 @@
 | Phase | Time (ms) | Time (s) | % of Total |
 |-------|-----------|----------|------------|
 {% for phase, dur in phases[:20] -%}
-| {{ phase|pad(40) }} | {{ "%9.2f"|format(dur) }} | {{ "%8.2f"|format(dur/1000) }} | {{ "%9.1f"|format(100 * dur / total_trace_time) }}% |
+| {{ phase|pad(40) }} | {{ "%9.2f"|format(dur|us_to_ms) }} | {{ "%8.2f"|format(dur|us_to_s) }} | {{ "%9.1f"|format(100 * dur / total_trace_time) }}% |
 {% endfor %}
 
 ## Top 30 Most Expensive Individual Instantiations
@@ -26,7 +26,7 @@
 | Rank | Template | Type | Time (ms) |
 |------|----------|------|-----------|
 {% for inst in top_individual[:30] -%}
-| {{ "%4d"|format(loop.index) }} | {{ inst.detail|truncate(70) }} | {{ inst.inst_type|pad(5) }} | {{ "%9.2f"|format(inst.dur) }} |
+| {{ "%4d"|format(loop.index) }} | {{ inst.detail|truncate(70) }} | {{ inst.inst_type|pad(5) }} | {{ "%9.2f"|format(inst.dur|us_to_ms) }} |
 {% endfor %}
 
 ## Template Families by Total Time (Top 50)
@@ -34,7 +34,7 @@
 | Rank | Template Family | Count | Total (ms) | Avg (ms) | % of Total |
 |------|-----------------|-------|------------|----------|------------|
 {% for name, stats in templates_by_time[:50] -%}
-| {{ "%4d"|format(loop.index) }} | {{ name|truncate(43)|pad(43) }} | {{ "%5d"|format(stats.count) }} | {{ "%10.2f"|format(stats.total_dur) }} | {{ "%8.2f"|format(stats.avg) }} | {{ "%9.1f"|format(stats.pct) }}% |
+| {{ "%4d"|format(loop.index) }} | {{ name|truncate(43)|pad(43) }} | {{ "%5d"|format(stats.count) }} | {{ "%10.2f"|format(stats.total_dur|us_to_ms) }} | {{ "%8.2f"|format(stats.avg|us_to_ms) }} | {{ "%9.1f"|format(stats.pct) }}% |
 {% endfor %}
 
 ## Template Families by Instantiation Count (Top 50)
@@ -42,23 +42,23 @@
 | Rank | Template Family | Count | Total (ms) | Avg (ms) |
 |------|-----------------|-------|------------|----------|
 {% for name, stats in templates_by_count[:50] -%}
-| {{ "%4d"|format(loop.index) }} | {{ name|truncate(43)|pad(43) }} | {{ "%5d"|format(stats.count) }} | {{ "%10.2f"|format(stats.total_dur) }} | {{ "%8.2f"|format(stats.avg) }} |
+| {{ "%4d"|format(loop.index) }} | {{ name|truncate(43)|pad(43) }} | {{ "%5d"|format(stats.count) }} | {{ "%10.2f"|format(stats.total_dur|us_to_ms) }} | {{ "%8.2f"|format(stats.avg|us_to_ms) }} |
 {% endfor %}
 
 ## Key Insights
 
 ### 1. Template Instantiation Impact
-- Template instantiation accounts for {{ template_pct }}% of total trace time
+- Template instantiation accounts for {{ (100 * total_template_time / total_trace_time)|round(1) }}% of total trace time
 {% if unique_families >= 10 -%}
-- Top 10 template families account for {{ top10_pct }}% of instantiation time
+- Top 10 template families account for {{ top10_pct|round(1) }}% of instantiation time
 {% endif %}
 
 ### 2. Most Expensive Templates
 {% if templates_by_time|length > 0 -%}
-- **{{ templates_by_time[0][0] }}**: {{ templates_by_time[0][1].count|format_number }} instantiations, {{ "%.2f"|format(templates_by_time[0][1].total_dur/1000) }}s total
+- **{{ templates_by_time[0][0] }}**: {{ templates_by_time[0][1].count|format_number }} instantiations, {{ (templates_by_time[0][1].total_dur|us_to_s)|round(2) }}s total
 {% endif -%}
 {% if templates_by_time|length > 1 -%}
-- **{{ templates_by_time[1][0] }}**: {{ templates_by_time[1][1].count|format_number }} instantiations, {{ "%.2f"|format(templates_by_time[1][1].avg) }}ms average
+- **{{ templates_by_time[1][0] }}**: {{ templates_by_time[1][1].count|format_number }} instantiations, {{ (templates_by_time[1][1].avg|us_to_ms)|round(2) }}ms average
 {% endif %}
 
 ## Optimization Recommendations
@@ -83,7 +83,7 @@
 - **Total Unique Templates:** {{ unique_families }}
 - **Total Instantiations:** {{ total_instantiations|format_number }}
 {% if total_instantiations > 0 -%}
-- **Average Instantiation Time:** {{ "%.3f"|format(total_template_time/total_instantiations) }}ms
+- **Average Instantiation Time:** {{ ((total_template_time // total_instantiations)|us_to_ms)|round(3) }}ms
 {% endif -%}
 {% if unique_families > 0 -%}
 - **Median Template Family Count:** {{ median_count }}

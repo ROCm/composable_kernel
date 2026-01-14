@@ -55,13 +55,13 @@ def process_events(data):
     """Process trace events and extract template instantiation statistics."""
     print('Processing events...')
 
-    template_stats = defaultdict(lambda: {'count': 0, 'total_dur': 0.0})
-    phase_stats = defaultdict(float)
+    template_stats = defaultdict(lambda: {'count': 0, 'total_dur': 0})
+    phase_stats = defaultdict(int)
     top_individual = []
 
     for event in data.get('traceEvents', []):
         name = event.get('name', '')
-        dur = event.get('dur', 0) / 1000.0  # Convert to milliseconds
+        dur = int(event.get('dur', 0))  # Keep as integer microseconds
 
         if name and dur > 0:
             phase_stats[name] += dur
@@ -107,7 +107,7 @@ def prepare_template_data(template_stats, phase_stats, top_individual):
         templates_by_time.append((name, {
             'count': stats['count'],
             'total_dur': stats['total_dur'],
-            'avg': stats['total_dur'] / stats['count'] if stats['count'] > 0 else 0,
+            'avg': stats['total_dur'] // stats['count'] if stats['count'] > 0 else 0,
             'pct': 100 * stats['total_dur'] / total_template_time if total_template_time > 0 else 0
         }))
 
@@ -117,7 +117,7 @@ def prepare_template_data(template_stats, phase_stats, top_individual):
         templates_by_count.append((name, {
             'count': stats['count'],
             'total_dur': stats['total_dur'],
-            'avg': stats['total_dur'] / stats['count'] if stats['count'] > 0 else 0
+            'avg': stats['total_dur'] // stats['count'] if stats['count'] > 0 else 0
         }))
 
     # Add friendly type names to individual instantiations
@@ -165,9 +165,19 @@ def setup_jinja_environment(template_dir):
         """Pad string to specified length."""
         return f'{value:<{length}}'
 
+    def us_to_ms(value):
+        """Convert microseconds to milliseconds."""
+        return value / 1000.0
+
+    def us_to_s(value):
+        """Convert microseconds to seconds."""
+        return value / 1000000.0
+
     env.filters['format_number'] = format_number
     env.filters['truncate'] = truncate
     env.filters['pad'] = pad
+    env.filters['us_to_ms'] = us_to_ms
+    env.filters['us_to_s'] = us_to_s
 
     return env
 
@@ -183,9 +193,6 @@ def generate_report(env, data, args, total_events):
         target=args['target'],
         granularity=args['granularity'],
         build_time=args['build_time'],
-        trace_time_sec=f'{data["total_trace_time"] / 1000:.1f}',
-        template_time_sec=f'{data["total_template_time"] / 1000:.1f}',
-        template_pct=f'{100 * data["total_template_time"] / data["total_trace_time"]:.1f}',
         total_events=total_events,
         total_instantiations=data['total_inst'],
         unique_families=data['unique_families'],
@@ -196,7 +203,7 @@ def generate_report(env, data, args, total_events):
         templates_by_time=data['templates_by_time'],
         templates_by_count=data['templates_by_count'],
         median_count=data['median_count'],
-        top10_pct=f'{data["top10_pct"]:.1f}'
+        top10_pct=data['top10_pct']
     )
 
     return report_content
