@@ -27,10 +27,11 @@ using ::ck::Tensor;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using I8  = int8_t;
-using I32 = int32_t;
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using I8     = int8_t;
+using I32    = int32_t;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
 using ActivationOp = PassThrough;
@@ -125,11 +126,11 @@ int main(int /* argc */, char* /* argv */[])
 
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, Bypass{});
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, Bypass{});
             }
         };
 
