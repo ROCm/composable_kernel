@@ -154,19 +154,26 @@ BUILD_TIME=$((BUILD_END - BUILD_START))
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Build completed in ${BUILD_TIME} seconds"
 
-# Find the trace JSON file
+# Find all trace JSON files for the target
 echo ""
-echo "Locating trace file..."
-TRACE_FILE=$(docker exec -e TARGET="${TARGET}" "${CONTAINER_NAME}" bash -c 'find /workspace/build -name "*.cpp.json" -o -name "*.hip.json" 2>/dev/null | grep -iF "${TARGET}" | head -1')
+echo "Locating trace files..."
 
-if [ -z "$TRACE_FILE" ]; then
-    echo "Error: Could not find trace file for target ${TARGET}"
-    echo "Expected pattern: build/**/${TARGET}*.json"
+# Count trace files
+TRACE_COUNT=$(docker exec -e TARGET="${TARGET}" "${CONTAINER_NAME}" bash -c '
+    find /workspace/build -type f \( -name "*.cpp.json" -o -name "*.hip.json" \) 2>/dev/null | \
+    grep -vF "compile_commands.json" | wc -l
+')
+
+if [ "$TRACE_COUNT" -eq 0 ]; then
+    echo "Error: Could not find any trace files in /workspace/build"
+    echo "Expected .cpp.json or .hip.json files from -ftime-trace compilation"
     exit 1
 fi
 
-TRACE_SIZE=$(docker exec "${CONTAINER_NAME}" bash -c "ls -lh ${TRACE_FILE} | awk '{print \$5}'")
-echo "Found trace file: ${TRACE_FILE} (${TRACE_SIZE})"
+echo "Found ${TRACE_COUNT} trace file(s) in build directory"
+
+# We'll pass the build directory to the Python script
+BUILD_DIR="/workspace/build"
 
 # Generate analysis report
 echo ""
@@ -192,7 +199,8 @@ fi
 
 echo "Using uv run for automatic dependency management..."
 # Ensure uv is in PATH (handles ~/.local/bin installation)
-docker exec -e TRACE_FILE="${TRACE_FILE}" -e OUTPUT_FILE="${OUTPUT_FILE}" -e TARGET="${TARGET}" -e GRANULARITY="${GRANULARITY}" -e BUILD_TIME="${BUILD_TIME}" "${CONTAINER_NAME}" bash -c 'export PATH="$HOME/.local/bin:$PATH" && uv run --no-project /tmp/analyze_build_trace.py "${TRACE_FILE}" "/workspace/${OUTPUT_FILE}" "${TARGET}" "${GRANULARITY}" "${BUILD_TIME}" /tmp/ck_build_analysis_templates'
+# Pass build directory instead of single file
+docker exec -e BUILD_DIR="${BUILD_DIR}" -e OUTPUT_FILE="${OUTPUT_FILE}" -e TARGET="${TARGET}" -e GRANULARITY="${GRANULARITY}" -e BUILD_TIME="${BUILD_TIME}" "${CONTAINER_NAME}" bash -c 'export PATH="$HOME/.local/bin:$PATH" && uv run --no-project /tmp/analyze_build_trace.py "${BUILD_DIR}" "/workspace/${OUTPUT_FILE}" "${TARGET}" "${GRANULARITY}" "${BUILD_TIME}" /tmp/ck_build_analysis_templates'
 
 # Copy report back to host
 docker cp "${CONTAINER_NAME}:/workspace/${OUTPUT_FILE}" "${PROJECT_ROOT}/${OUTPUT_FILE}"

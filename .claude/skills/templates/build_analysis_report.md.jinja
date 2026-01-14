@@ -3,16 +3,27 @@
 **Generated:** {{ timestamp }}
 **Target:** {{ target }}
 **Granularity:** {{ granularity }}µs
+**Files Analyzed:** {{ num_files }}
 
 ## Executive Summary
 
 - **Wall Clock Time:** {{ build_time }} seconds
 - **Trace Time:** {{ total_trace_time|us_to_s|round(1) }} seconds
 - **Template Instantiation Time:** {{ total_template_time|us_to_s|round(1) }} seconds ({{ (100 * total_template_time / total_trace_time)|round(1) }}% of trace)
-- **Total Events Captured:** {{ total_events|format_number }}
+- **Total Events Captured:** {{ total_events|format_number }} (across {{ num_files }} file{{ 's' if num_files != 1 else '' }})
 - **Total Template Instantiations:** {{ total_instantiations|format_number }}
 - **Unique Template Families:** {{ unique_families }}
 
+{% if num_files > 1 -%}
+## Per-File Analysis
+
+| File | Events | Template Time (ms) | % of Total |
+|------|--------|-------------------|------------|
+{% for file in file_stats[:20] -%}
+| {{ file.name|truncate(50)|pad(50) }} | {{ "%7d"|format(file.events) }} | {{ "%17.2f"|format(file.template_time|us_to_ms) }} | {{ "%9.1f"|format(100 * file.template_time / total_template_time if total_template_time > 0 else 0) }}% |
+{% endfor %}
+
+{% endif -%}
 ## Compilation Phase Breakdown
 
 | Phase | Time (ms) | Time (s) | % of Total |
@@ -23,11 +34,19 @@
 
 ## Top 30 Most Expensive Individual Instantiations
 
+{% if num_files > 1 -%}
+| Rank | Template | Type | Time (ms) | File |
+|------|----------|------|-----------|------|
+{% for inst in top_individual[:30] -%}
+| {{ "%4d"|format(loop.index) }} | {{ inst.detail|truncate(50) }} | {{ inst.inst_type|pad(5) }} | {{ "%9.2f"|format(inst.dur|us_to_ms) }} | {{ inst.file|truncate(20) }} |
+{% endfor -%}
+{% else -%}
 | Rank | Template | Type | Time (ms) |
 |------|----------|------|-----------|
 {% for inst in top_individual[:30] -%}
 | {{ "%4d"|format(loop.index) }} | {{ inst.detail|truncate(70) }} | {{ inst.inst_type|pad(5) }} | {{ "%9.2f"|format(inst.dur|us_to_ms) }} |
-{% endfor %}
+{% endfor -%}
+{% endif %}
 
 ## Template Families by Total Time (Top 50)
 

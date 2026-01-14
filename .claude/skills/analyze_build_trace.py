@@ -16,10 +16,12 @@ bottlenecks and generate comprehensive build time reports.
 """
 
 import json
+import os
 import re
 import sys
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
 try:
     from jinja2 import Environment, FileSystemLoader
@@ -34,12 +36,13 @@ def parse_arguments():
     """Parse command-line arguments."""
     if len(sys.argv) < 7:
         print(
-            "Usage: analyze_build_trace.py <trace_file> <output_file> <target> <granularity> <build_time> <template_dir>"
+            "Usage: analyze_build_trace.py <trace_files_or_dir> <output_file> <target> <granularity> <build_time> <template_dir>"
         )
+        print("  trace_files_or_dir: Comma-separated list of trace files OR directory containing .json files")
         sys.exit(1)
 
     return {
-        "trace_file": sys.argv[1],
+        "trace_input": sys.argv[1],
         "output_file": sys.argv[2],
         "target": sys.argv[3],
         "granularity": sys.argv[4],
@@ -48,53 +51,126 @@ def parse_arguments():
     }
 
 
-def load_trace_data(trace_file):
-    """Load and parse the trace JSON file."""
-    print(f"Loading trace file: {trace_file}")
-    with open(trace_file, "r") as f:
-        return json.load(f)
+def find_trace_files(trace_input):
+    """Find all trace files from input (file list, single file, or directory)."""
+    trace_files = []
+
+    # Check if it's a directory
+    if os.path.isdir(trace_input):
+        print(f"Scanning directory: {trace_input}")
+        for root, dirs, files in os.walk(trace_input):
+            for file in files:
+                # Include .cpp.json and .hip.json, exclude compile_commands.json and CMake files
+                if file.endswith(('.cpp.json', '.hip.json')) and 'CMakeFiles' in root:
+                    trace_files.append(os.path.join(root, file))
+        trace_files.sort()
+    # Check if it's a comma-separated list
+    elif ',' in trace_input:
+        trace_files = [f.strip() for f in trace_input.split(',')]
+    # Single file
+    else:
+        trace_files = [trace_input]
+
+    # Filter out non-existent files
+    valid_files = [f for f in trace_files if os.path.isfile(f)]
+
+    if not valid_files:
+        print(f"Error: No valid trace files found in: {trace_input}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Found {len(valid_files)} trace file(s)")
+    return valid_files
 
 
-def process_events(data):
-    """Process trace events and extract template instantiation statistics."""
-    print("Processing events...")
+def load_trace_data(trace_files):
+    """Load and parse multiple trace JSON files."""
+    all_data = []
+
+    for trace_file in trace_files:
+        print(f"  Loading: {trace_file}")
+        try:
+            with open(trace_file, "r") as f:
+                data = json.load(f)
+                # Get file basename for tracking
+                file_name = os.path.basename(trace_file)
+                all_data.append({
+                    'file': file_name,
+                    'path': trace_file,
+                    'data': data
+                })
+        except Exception as e:
+            print(f"  Warning: Failed to load {trace_file}: {e}", file=sys.stderr)
+
+    return all_data
+
+
+def process_events(all_trace_data):
+    """Process trace events from multiple files and extract statistics."""
+    print("Processing events from all files...")
 
     template_stats = defaultdict(lambda: {"count": 0, "total_dur": 0})
     phase_stats = defaultdict(int)
     top_individual = []
+    file_stats = []
+    total_events = 0
 
-    for event in data.get("traceEvents", []):
-        name = event.get("name", "")
-        dur = int(event.get("dur", 0))  # Keep as integer microseconds
+    for trace_info in all_trace_data:
+        file_name = trace_info['file']
+        data = trace_info['data']
+        events = data.get("traceEvents", [])
 
-        if name and dur > 0:
-            phase_stats[name] += dur
+        file_template_time = 0
+        file_event_count = len(events)
+        total_events += file_event_count
 
-        if name in ["InstantiateFunction", "InstantiateClass"]:
-            detail = event.get("args", {}).get("detail", "")
-            top_individual.append({"detail": detail, "dur": dur, "type": name})
+        print(f"  Processing {file_name}: {file_event_count:,} events")
 
-            # Extract template name (everything before '<' or '(')
-            match = re.match(r"^([^<(]+)", detail)
-            if match:
-                template_name = match.group(1).strip()
-                # Normalize template names
-                template_name = re.sub(r"^ck::", "", template_name)
-                template_name = re.sub(r"^std::", "std::", template_name)
+        for event in events:
+            name = event.get("name", "")
+            dur = int(event.get("dur", 0))  # Keep as integer microseconds
 
-                template_stats[template_name]["count"] += 1
-                template_stats[template_name]["total_dur"] += dur
+            if name and dur > 0:
+                phase_stats[name] += dur
 
-    return template_stats, phase_stats, top_individual
+            if name in ["InstantiateFunction", "InstantiateClass"]:
+                detail = event.get("args", {}).get("detail", "")
+                top_individual.append({
+                    "detail": detail,
+                    "dur": dur,
+                    "type": name,
+                    "file": file_name
+                })
+
+                file_template_time += dur
+
+                # Extract template name (everything before '<' or '(')
+                match = re.match(r"^([^<(]+)", detail)
+                if match:
+                    template_name = match.group(1).strip()
+                    # Normalize template names
+                    template_name = re.sub(r"^ck::", "", template_name)
+                    template_name = re.sub(r"^std::", "std::", template_name)
+
+                    template_stats[template_name]["count"] += 1
+                    template_stats[template_name]["total_dur"] += dur
+
+        file_stats.append({
+            'name': file_name,
+            'events': file_event_count,
+            'template_time': file_template_time
+        })
+
+    return template_stats, phase_stats, top_individual, file_stats, total_events
 
 
-def prepare_template_data(template_stats, phase_stats, top_individual):
+def prepare_template_data(template_stats, phase_stats, top_individual, file_stats):
     """Prepare and calculate derived statistics for template rendering."""
     print("Sorting data...")
 
     # Sort data
     sorted_phases = sorted(phase_stats.items(), key=lambda x: x[1], reverse=True)
     top_individual.sort(key=lambda x: x["dur"], reverse=True)
+    file_stats.sort(key=lambda x: x["template_time"], reverse=True)
 
     # Calculate totals
     total_template_time = sum(s["total_dur"] for s in template_stats.values())
@@ -170,6 +246,7 @@ def prepare_template_data(template_stats, phase_stats, top_individual):
         "median_count": median_count,
         "top10_pct": top10_pct,
         "unique_families": len(template_stats),
+        "file_stats": file_stats,
     }
 
 
@@ -208,7 +285,7 @@ def setup_jinja_environment(template_dir):
     return env
 
 
-def generate_report(env, data, args, total_events):
+def generate_report(env, data, args, total_events, num_files):
     """Generate the final report using Jinja2 template."""
     print("Rendering report with Jinja2...")
 
@@ -220,6 +297,7 @@ def generate_report(env, data, args, total_events):
         granularity=args["granularity"],
         build_time=args["build_time"],
         total_events=total_events,
+        num_files=num_files,
         total_instantiations=data["total_inst"],
         unique_families=data["unique_families"],
         total_trace_time=data["total_trace_time"],
@@ -230,6 +308,7 @@ def generate_report(env, data, args, total_events):
         templates_by_count=data["templates_by_count"],
         median_count=data["median_count"],
         top10_pct=data["top10_pct"],
+        file_stats=data["file_stats"],
     )
 
     return report_content
@@ -239,28 +318,29 @@ def main():
     """Main entry point for the analysis tool."""
     args = parse_arguments()
 
-    # Load trace data
-    trace_data = load_trace_data(args["trace_file"])
-    total_events = len(trace_data.get("traceEvents", []))
+    # Find and load trace files
+    trace_files = find_trace_files(args["trace_input"])
+    all_trace_data = load_trace_data(trace_files)
 
-    # Process events
-    template_stats, phase_stats, top_individual = process_events(trace_data)
+    # Process events from all files
+    template_stats, phase_stats, top_individual, file_stats, total_events = process_events(all_trace_data)
 
     # Prepare template data
-    data = prepare_template_data(template_stats, phase_stats, top_individual)
+    data = prepare_template_data(template_stats, phase_stats, top_individual, file_stats)
 
     # Setup Jinja2 environment
     env = setup_jinja_environment(args["template_dir"])
 
     # Generate report
-    report_content = generate_report(env, data, args, total_events)
+    report_content = generate_report(env, data, args, total_events, len(all_trace_data))
 
     # Write output
     with open(args["output_file"], "w") as f:
         f.write(report_content)
 
     print(f"Report generated: {args['output_file']}")
-    print(f"Report size: {len(report_content)} bytes")
+    print(f"Report size: {len(report_content):,} bytes")
+    print(f"Analyzed {len(all_trace_data)} file(s) with {total_events:,} total events")
 
 
 if __name__ == "__main__":
