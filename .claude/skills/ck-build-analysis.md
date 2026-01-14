@@ -113,7 +113,7 @@ The report includes:
 
 ## Implementation Details
 
-### PEP 723 Compliance
+### PEP 723 Compliance with Automatic Dependency Management
 
 The analysis script (`analyze_build_trace.py`) is PEP 723 compliant with inline dependency metadata:
 
@@ -126,15 +126,29 @@ The analysis script (`analyze_build_trace.py`) is PEP 723 compliant with inline 
 # ///
 ```
 
-This allows tools like `pipx run` or `uv run` to automatically manage dependencies:
+**The skill automatically uses `uv run` if available**, which provides:
+- ✅ Zero-configuration dependency management
+- ✅ Automatic installation of jinja2 from PEP 723 metadata
+- ✅ Isolated dependency environment (no system pollution)
+- ✅ Fast caching for subsequent runs
 
+### Installation Options
+
+**Option 1: Install uv (Recommended)**
 ```bash
-# Run standalone with pipx (auto-installs dependencies)
-pipx run .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 templates/
-
-# Or with uv
-uv run .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 templates/
+# Install uv in the Docker container (one-time setup)
+docker exec ck_<container_name> bash -c "curl -LsSf https://astral.sh/uv/install.sh | sh"
 ```
+
+After installing `uv`, the skill will automatically use it for dependency management.
+
+**Option 2: Use system python3 + jinja2**
+```bash
+# If uv is not available, install jinja2 manually
+docker exec ck_<container_name> apt-get install -y python3-jinja2
+```
+
+The skill automatically detects which method is available and uses the appropriate one.
 
 ### Components
 
@@ -142,10 +156,17 @@ uv run .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 
 - **analyze_build_trace.py** - PEP 723 compliant Python script for trace analysis
 - **templates/build_analysis_report.md.jinja** - Jinja2 template for report generation
 
-### Requirements
+### Standalone Usage
 
-In Docker container:
-- `python3-jinja2` (installed via `apt-get install python3-jinja2`)
+The Python script can also be run independently:
 
-For standalone use:
-- Python 3.8+ with `jinja2>=3.0.0` (auto-managed if using `pipx` or `uv`)
+```bash
+# With uv (recommended - auto-installs dependencies)
+uv run .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 templates/
+
+# With pipx (alternative - auto-installs dependencies)
+pipx run .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 templates/
+
+# With python3 (requires jinja2 pre-installed)
+python3 .claude/skills/analyze_build_trace.py trace.json report.md target 100 22 templates/
+```
