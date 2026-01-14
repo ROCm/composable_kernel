@@ -113,7 +113,7 @@ struct tile_distribution
         return generate_tuple(
             [&](auto i) {
                 constexpr index_t x_length =
-                    container_reduce(typename DstrEncode::HsLengthss{}[i], multiplies{}, 1);
+                    container_reduce(typename DstrEncode::HsLengthss{}[i], multiplies<>{}, 1);
 
                 return number<x_length>{};
             },
@@ -583,8 +583,8 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
             if constexpr(x_slice_ends[i] == -1)
             {
                 // -1 means till the end
-                constexpr auto x_length_ =
-                    container_reduce(typename Encoding::HsLengthss{}[i], multiplies{}, number<1>{});
+                constexpr auto x_length_ = container_reduce(
+                    typename Encoding::HsLengthss{}[i], multiplies<>{}, number<1>{});
                 return x_length_;
             }
             else

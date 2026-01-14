@@ -80,6 +80,7 @@ concept ConvOutputLayout3D =
     (L == TensorLayout::GNKDHW) || (L == TensorLayout::GNDHWK) || (L == TensorLayout::NDHWGK) ||
     (L == TensorLayout::NGKDHW) || (L == TensorLayout::G_NDHW_K_strided);
 
+namespace detail {
 template <typename T>
 concept HasDataType = requires(T t) {
     { t.data_type };
@@ -94,10 +95,11 @@ concept DataTypeWellDefinedIfProvided = requires(T t) {
     };
 };
 
+} // namespace detail
 template <typename T>
 concept TensorConfigDescriptor = requires(T t) {
     { t.layout } -> std::convertible_to<TensorLayout>;
-    requires DataTypeWellDefinedIfProvided<T>;
+    requires detail::DataTypeWellDefinedIfProvided<T>;
 };
 
 template <typename T>
@@ -116,7 +118,6 @@ template <typename T, std::size_t N>
 struct IsArrayOfTensorConfigDescriptors<std::array<T, N>> : std::true_type
 {
 };
-} // namespace detail
 
 template <typename T>
 concept ConvertibleToArrayOfTensorConfigs =
@@ -128,17 +129,20 @@ concept AuxiliaryOperandConfigsWellDefinedIfProvided = requires(T t) {
         { t.auxiliary_operand_configs } -> ConvertibleToArrayOfTensorConfigs;
     };
 };
+} // namespace detail
 
 template <typename T>
 concept TensorOperatorDescriptor = requires(T t) {
     { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
-    requires AuxiliaryOperandConfigsWellDefinedIfProvided<T>;
+    requires detail::AuxiliaryOperandConfigsWellDefinedIfProvided<T>;
 };
 
 template <typename T>
 concept HasTensorOp = requires(T t) {
     { t.operation };
 };
+
+namespace detail {
 
 template <typename T>
 concept HasConvolutionDirection = requires(T t) {
@@ -159,11 +163,13 @@ concept ConvolutionDirectionWellDefinedIfProvided = requires(T t) {
     };
 };
 
+} // namespace detail
+
 // Concept for the convolution tensor
 template <typename T>
 concept ConvTensorDescriptor = requires(T t) {
     { t.config } -> TensorConfigDescriptor;
-    requires ElementwiseOpWellDefinedIfProvided<T>;
+    requires detail::ElementwiseOpWellDefinedIfProvided<T>;
 };
 
 template <typename T>
@@ -179,8 +185,9 @@ concept ConvSignatureDescriptor = requires(T t) {
     { t.input } -> ConvTensorDescriptor;
     { t.weight } -> ConvTensorDescriptor;
     { t.output } -> ConvTensorDescriptor;
-    requires ConvolutionDirectionWellDefinedIfProvided<T>;
-    requires DataTypeWellDefinedIfProvided<T>;
+    requires detail::ConvolutionDirectionWellDefinedIfProvided<T>;
+    requires detail::DataTypeWellDefinedIfProvided<T>;
+    requires detail::ElementwiseOpWellDefinedIfProvided<T>;
 };
 
 // Concept to validate a convolution signature's values.
@@ -220,5 +227,14 @@ template <TensorLayout L, size_t SpatialDim>
 concept ValidConvWeightLayoutForSpatialDim =
     (SpatialDim == 1 && ConvWeightLayout1D<L>) || (SpatialDim == 2 && ConvWeightLayout2D<L>) ||
     (SpatialDim == 3 && ConvWeightLayout3D<L>);
+
+// Constraint for 3D conv signature.
+template <auto Sig>
+concept Is3D = requires {
+    requires Sig.spatial_dim == 3;
+    requires ConvInputLayout3D<Sig.input.config.layout>;
+    requires ConvOutputLayout3D<Sig.output.config.layout>;
+    requires ConvWeightLayout3D<Sig.weight.config.layout>;
+};
 
 } // namespace ck_tile::builder

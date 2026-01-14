@@ -165,8 +165,6 @@ struct BlockReduce2d
     template <typename XDistributedTensor_>
     CK_TILE_DEVICE static auto MakeYBlockTile()
     {
-        static_assert(std::is_same_v<XDataType, typename XDistributedTensor_::DataType>, "wrong!");
-
         // FIXME: hard coded to reduce 2nd axis
         constexpr auto reduce_dims = sequence<1>{};
 

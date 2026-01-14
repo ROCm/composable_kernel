@@ -334,14 +334,14 @@ struct GridwiseGemm_wmma_cshuffle_v3
     struct Problem
     {
         __host__ Problem() = default;
-        __host__ Problem(index_t M_,
-                         index_t N_,
-                         index_t K_,
-                         std::array<index_t, NumATensor> StrideAs_,
-                         std::array<index_t, NumBTensor> StrideBs_,
-                         std::array<index_t, NumDTensor> StrideDs_,
-                         index_t StrideE_,
-                         index_t KBatch_)
+        __host__ __device__ Problem(index_t M_,
+                                    index_t N_,
+                                    index_t K_,
+                                    std::array<index_t, NumATensor> StrideAs_,
+                                    std::array<index_t, NumBTensor> StrideBs_,
+                                    std::array<index_t, NumDTensor> StrideDs_,
+                                    index_t StrideE_,
+                                    index_t KBatch_)
             : M{M_},
               N{N_},
               K{K_},
