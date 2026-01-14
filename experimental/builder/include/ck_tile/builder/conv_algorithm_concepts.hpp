@@ -38,21 +38,13 @@ concept WarpGemmDescriptor = requires(T t) {
     { t.gemm_n_iters_per_wave } -> SizeType;
 };
 
-// Concept for parameter that describe block GEMM problem.
+// Concept for parameters that describe the GEMM pipeline.
 template <typename T>
 concept GemmPipelineDescriptor = requires(T t) {
+    { t.num_conv_groups_to_merge } -> SizeType;
+    { t.num_gemm_k_prefetch_stages } -> SizeType;
     { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
     { t.scheduler } -> std::convertible_to<PipelineScheduler>;
-};
-
-// Concept for parameters that describe a gridwise WMMA GEMM problem.
-template <typename T>
-concept GridwiseWmmaGemmDescriptor = requires(T t) {
-    { t.k1 } -> SizeType;
-    { t.m_per_wmma } -> SizeType;
-    { t.n_per_wmma } -> SizeType;
-    { t.m_wmma_per_wave } -> SizeType;
-    { t.n_wmma_per_wave } -> SizeType;
 };
 
 // Concept for vectorized data transfer for convolution input tensors.
