@@ -101,6 +101,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         const void* k_ptr;
         const void* v_ptr;
         void* o_ptr;
+        const void* sink_ptr;
 
         ck_tile::index_t seqlen_q;
         ck_tile::index_t seqlen_k;
@@ -346,12 +347,14 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               float p_drop,
               bool s_randval,
               std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
-                  drop_seed_offset)
+                  drop_seed_offset,
+              const void* sink_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
                      o_ptr,
+                     sink_ptr,
                      seqlen_q,
                      -1,
                      hdim_q,
@@ -491,12 +494,14 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               float p_drop,
               bool s_randval,
               std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
-                  drop_seed_offset)
+                  drop_seed_offset,
+              const void* sink_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
                      o_ptr,
+                     sink_ptr,
                      -1, // seqlen will be updated by another pointer
                      -1, //
                      hdim_q,
@@ -701,7 +706,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         long_index_t batch_offset_randval = 0;
         long_index_t batch_offset_lse     = 0;
         long_index_t batch_offset_o       = 0;
-
+        const float sink_value =
+            kargs.sink_ptr != nullptr
+                ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                : -numeric<float>::infinity();
         const index_t seqlen_k = [&]() {
             if constexpr(kKVLookupTable ==
                          BlockAttentionKVCacheLookupTableEnum::SGLANG_PAGE_TABLE_1D)
@@ -1226,7 +1234,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     stride_v_for_pipeline,
                     kargs.batch_stride_k,
                     kargs.batch_stride_v,
-                    dropout);
+                    dropout,
+                    sink_value);
             }
             else
             {
@@ -1248,7 +1257,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       stride_v_for_pipeline,
                                       kargs.batch_stride_k,
                                       kargs.batch_stride_v,
-                                      dropout);
+                                      dropout,
+                                      sink_value);
             }
         }();
 
