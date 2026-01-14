@@ -3,8 +3,11 @@
 
 #include "run_gemm_quant_example.inc"
 
+// template <typename T>
+// using GemmConfig = GemmConfigQuantDecode<T>;
+
 template <typename T>
-using GemmConfig = GemmConfigQuantDecode<T>;
+using GemmConfig = GemmConfigQuantIntrawave<T>;
 
 // GemmConfigQuantPrefill is also supported for aquant grouped quantization
 // template <typename T>
