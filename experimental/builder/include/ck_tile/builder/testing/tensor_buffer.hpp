@@ -81,4 +81,15 @@ inline DeviceBuffer alloc_buffer(size_t size)
     return DeviceBuffer(d_buf);
 }
 
+/// @brief "Align" an offset to a multiple of a particular alignment.
+///
+/// Returns `addr` aligned to the next multiple of `alignment`.
+///
+/// @param addr The address to align.
+/// @param alignment The alignment.
+inline size_t align_fwd(size_t addr, size_t alignment)
+{
+    return addr % alignment == 0 ? addr : addr - addr % alignment + alignment;
+}
+
 } // namespace ck_tile::builder::test

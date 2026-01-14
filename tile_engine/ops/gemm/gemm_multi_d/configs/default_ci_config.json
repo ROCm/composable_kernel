@@ -49,7 +49,9 @@
     "trait_config": {
         "pipeline": {
             "values": [
-                "compv4"
+                "compv3",
+                "compv4",
+                "mem"
             ]
         },
         "scheduler": {
@@ -60,7 +62,8 @@
         },
         "epilogue": {
             "values": [
-                "cshuffle"
+                "cshuffle",
+                "default"
             ]
         },
         "pad_m": {
