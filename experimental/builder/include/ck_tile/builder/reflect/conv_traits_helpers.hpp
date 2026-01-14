@@ -240,10 +240,23 @@ constexpr builder::ConvDirection conv_direction()
 // Convolution Specialization
 // ----------------------------------------------------------------------------
 
+/// @brief Helper function to report unsupported convolution specialization with a clear error
+/// message.
+/// @details This consteval function uses throw (not static_assert) to ensure the error is not
+/// silently ignored during SFINAE. The thrown string becomes part of the compiler error message.
+template <typename Instance>
+[[noreturn]] consteval void report_unsupported_conv_spec_error()
+{
+    throw "Unsupported convolution specialization detected!\n"
+          "The kernel instance does not have a recognized convolution specialization field.\n"
+          "Expected one of: kConvForwardSpecialization, kConvBwdDataSpecialization, or "
+          "kConvBwdWeightSpecialization.\n"
+          "Please verify that your kernel instance is properly configured.";
+}
+
 /// @brief Derives the convolution-specific specialization from a device kernel Instance type.
 /// @tparam Instance The device kernel instance type.
-/// @return A builder::ConvFwdSpecialization, builder::ConvBwdDataSpecialization, or
-/// builder::ConvBwdWeightSpecialization enum value, depending on the convolution direction.
+/// @return A builder::ConvSpecialization enum value.
 /// @details This function extracts the specialization enum from the Instance's InstanceTraits
 /// and converts it to the corresponding builder framework enum.
 ///
@@ -256,14 +269,14 @@ constexpr builder::ConvDirection conv_direction()
 /// For backward weight convolutions:
 /// - Default, Filter1x1Stride1Pad0, Filter1x1Pad0, OddC
 template <typename Instance>
-constexpr auto conv_spec()
+constexpr builder::ConvSpecialization conv_spec()
 {
     using InstTraits = InstanceTraits<Instance>;
 
     if constexpr(requires { InstTraits::kConvForwardSpecialization; })
     {
         using enum ck::tensor_operation::device::ConvolutionForwardSpecialization;
-        using enum builder::ConvFwdSpecialization;
+        using enum builder::ConvSpecialization;
 
         switch(InstTraits::kConvForwardSpecialization)
         {
@@ -277,7 +290,7 @@ constexpr auto conv_spec()
     else if constexpr(requires { InstTraits::kConvBwdDataSpecialization; })
     {
         using enum ck::tensor_operation::device::ConvolutionBackwardDataSpecialization;
-        using enum builder::ConvBwdDataSpecialization;
+        using enum builder::ConvSpecialization;
 
         switch(InstTraits::kConvBwdDataSpecialization)
         {
@@ -288,7 +301,7 @@ constexpr auto conv_spec()
     else if constexpr(requires { InstTraits::kConvBwdWeightSpecialization; })
     {
         using enum ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
-        using enum builder::ConvBwdWeightSpecialization;
+        using enum builder::ConvSpecialization;
 
         switch(InstTraits::kConvBwdWeightSpecialization)
         {
@@ -297,6 +310,11 @@ constexpr auto conv_spec()
         case Filter1x1Pad0: return FILTER_1X1_PAD0;
         case OddC: return ODD_C;
         }
+    }
+    else
+    {
+        report_unsupported_conv_spec_error<Instance>();
+        return builder::ConvSpecialization::DEFAULT; // Unreachable
     }
 }
 
@@ -331,6 +349,8 @@ template <typename A, typename B, typename E, int SpatialDim>
 ///
 /// @note Compilation will fail with a clear error message if the layout combination
 /// is not supported for the given spatial dimension.
+///
+/// TODO: If we don't check for supported layouts, this function can be simplified.
 template <typename Instance>
 constexpr std::array<builder::TensorLayout, 3> conv_layout()
 {
@@ -535,6 +555,8 @@ template <typename ElementwiseOp>
 /// - Clamping operations: Clamp, AddClamp, etc.
 /// - Combined operations: Add_Activation_Mul_Clamp, etc.
 /// - Utility operations: PassThrough, UnaryConvert, etc.
+///
+/// TODO: Consider changing this to direct checks on the types, not strings.
 template <typename ElementwiseOp>
 constexpr builder::ElementwiseOperation elementwise_op()
 {

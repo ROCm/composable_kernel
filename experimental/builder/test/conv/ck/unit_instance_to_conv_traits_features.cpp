@@ -444,8 +444,7 @@ TEST(InstanceToConvTraits, ExtractsDefaultSpecialization)
     using DeviceInstance = SpecializationTestInstance<
         ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>;
     const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
-    EXPECT_EQ(std::get<ck_tile::builder::ConvFwdSpecialization>(traits.conv_specialization),
-              ck_tile::builder::ConvFwdSpecialization::DEFAULT);
+    EXPECT_EQ(traits.conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
 }
 
 TEST(InstanceToConvTraits, ExtractsFilter1x1Pad0Specialization)
@@ -453,8 +452,7 @@ TEST(InstanceToConvTraits, ExtractsFilter1x1Pad0Specialization)
     using DeviceInstance = SpecializationTestInstance<
         ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0>;
     const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
-    EXPECT_EQ(std::get<ck_tile::builder::ConvFwdSpecialization>(traits.conv_specialization),
-              ck_tile::builder::ConvFwdSpecialization::FILTER_1X1_PAD0);
+    EXPECT_EQ(traits.conv_specialization, ck_tile::builder::ConvSpecialization::FILTER_1X1_PAD0);
 }
 
 TEST(InstanceToConvTraits, ExtractsFilter1x1Stride1Pad0Specialization)
@@ -462,8 +460,8 @@ TEST(InstanceToConvTraits, ExtractsFilter1x1Stride1Pad0Specialization)
     using DeviceInstance = SpecializationTestInstance<
         ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0>;
     const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
-    EXPECT_EQ(std::get<ck_tile::builder::ConvFwdSpecialization>(traits.conv_specialization),
-              ck_tile::builder::ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0);
+    EXPECT_EQ(traits.conv_specialization,
+              ck_tile::builder::ConvSpecialization::FILTER_1X1_STRIDE1_PAD0);
 }
 
 TEST(InstanceToConvTraits, ExtractsFilter3x3Specialization)
@@ -471,8 +469,7 @@ TEST(InstanceToConvTraits, ExtractsFilter3x3Specialization)
     using DeviceInstance = SpecializationTestInstance<
         ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter3x3>;
     const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
-    EXPECT_EQ(std::get<ck_tile::builder::ConvFwdSpecialization>(traits.conv_specialization),
-              ck_tile::builder::ConvFwdSpecialization::FILTER_3x3);
+    EXPECT_EQ(traits.conv_specialization, ck_tile::builder::ConvSpecialization::FILTER_3x3);
 }
 
 TEST(InstanceToConvTraits, ExtractsOddCSpecialization)
@@ -480,8 +477,7 @@ TEST(InstanceToConvTraits, ExtractsOddCSpecialization)
     using DeviceInstance = SpecializationTestInstance<
         ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC>;
     const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
-    EXPECT_EQ(std::get<ck_tile::builder::ConvFwdSpecialization>(traits.conv_specialization),
-              ck_tile::builder::ConvFwdSpecialization::ODD_C);
+    EXPECT_EQ(traits.conv_specialization, ck_tile::builder::ConvSpecialization::ODD_C);
 }
 
 // ============================================================================

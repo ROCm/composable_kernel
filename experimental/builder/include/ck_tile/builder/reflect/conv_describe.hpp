@@ -17,9 +17,11 @@ concept HasConvTraits = requires {
     { conv::instance_to_conv_traits<Instance>() };
 };
 
-/// @brief Factory function to create ConvDescription from a convolution instance type
-/// @tparam Instance The convolution instance type
-/// @return A ConvDescription object populated with the instance's configuration details
+/// Factory function to create ConvDescription from a convolution instance type
+/// Instance The convolution instance type
+/// A ConvDescription object populated with the instance's configuration details
+///
+/// TODO: Fix ConvDescription to just use the ConvTraits directly.
 template <typename Instance>
     requires HasConvTraits<Instance>
 conv::ConvDescription describe()
