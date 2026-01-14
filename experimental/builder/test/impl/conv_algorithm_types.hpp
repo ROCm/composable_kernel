@@ -78,7 +78,7 @@ struct OutputThreadCluster
 };
 static_assert(OutputTileThreadClusterDescriptor<OutputThreadCluster>);
 
-struct LdsInputTransferParams
+struct LdsTransfer
 {
     size_t global_memory_vector_load_size;
     size_t src_vector_dim;
@@ -87,7 +87,7 @@ struct LdsInputTransferParams
     bool is_direct_load;
     bool lds_padding;
 };
-static_assert(LdsInputTransferDescriptor<LdsInputTransferParams>);
+static_assert(LdsTransferDescriptor<LdsTransfer>);
 
 struct Epilogue
 {
@@ -109,7 +109,7 @@ template <size_t ThreadClusterRank = 3>
 struct InputTileTransfer
 {
     InputThreadCluster<ThreadClusterRank> thread_cluster;
-    LdsInputTransferParams lds_transfer_params;
+    LdsTransfer lds_transfer;
     AccessOrder<ThreadClusterRank> thread_cluster_access_order;
     AccessOrder<ThreadClusterRank> src_access_order;
 };

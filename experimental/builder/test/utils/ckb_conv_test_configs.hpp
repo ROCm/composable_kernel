@@ -56,7 +56,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x64x1{
     .a =
         {
             .thread_cluster         = {.k0 = 4, .m_n = 64, .k1 = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 8,
@@ -68,7 +68,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x64x1{
     .b =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 64, .k1 = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
@@ -91,7 +91,7 @@ constexpr InputOutputTileTransfer<4> BwdTransfer_4x64x1{
     .a =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 64, .k1 = 1, .k_batch_size = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 4,
@@ -103,7 +103,7 @@ constexpr InputOutputTileTransfer<4> BwdTransfer_4x64x1{
     .b =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 64, .k1 = 1, .k_batch_size = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 4,
@@ -126,7 +126,7 @@ constexpr InputOutputTileTransfer<> BwdTransfer_4x8x1_4x16x1_v3{
     .a =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 8, .k1 = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 1,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 2,
@@ -138,7 +138,7 @@ constexpr InputOutputTileTransfer<> BwdTransfer_4x8x1_4x16x1_v3{
     .b =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 16, .k1 = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 1,
                                             .src_scalar_per_vector     = 2,
                                             .lds_dst_scalar_per_vector = 2,
@@ -161,7 +161,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x64x1_fp8{
     .a =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 64, .k1 = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
@@ -173,7 +173,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x64x1_fp8{
     .b =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 64, .k1 = 1},
-            .lds_transfer_params                = {.global_memory_vector_load_size = 8,
+            .lds_transfer                = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
@@ -196,7 +196,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x16x1{
     .a =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 16, .k1 = 1},
-            .lds_transfer_params              = {.global_memory_vector_load_size = 8,
+            .lds_transfer              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
@@ -208,7 +208,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x16x1{
     .b =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 16, .k1 = 1},
-            .lds_transfer_params              = {.global_memory_vector_load_size = 8,
+            .lds_transfer              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 8,
                                             .lds_dst_scalar_per_vector = 8,
@@ -232,7 +232,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x32x1{
     .a =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 32, .k1 = 1},
-            .lds_transfer_params              = {.global_memory_vector_load_size = 8,
+            .lds_transfer              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 16,
                                             .lds_dst_scalar_per_vector = 16,
@@ -244,7 +244,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x32x1{
     .b =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 32, .k1 = 1},
-            .lds_transfer_params              = {.global_memory_vector_load_size = 8,
+            .lds_transfer              = {.global_memory_vector_load_size = 8,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 16,
                                             .lds_dst_scalar_per_vector = 16,
@@ -267,7 +267,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x32x1_vector_load_16_generic{
     .a =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 32, .k1 = 1},
-            .lds_transfer_params              = {.global_memory_vector_load_size = 16,
+            .lds_transfer              = {.global_memory_vector_load_size = 16,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 1,
                                             .lds_dst_scalar_per_vector = 16,
@@ -279,7 +279,7 @@ constexpr InputOutputTileTransfer<> Transfer_4x32x1_vector_load_16_generic{
     .b =
         {
             .thread_cluster              = {.k0 = 4, .m_n = 32, .k1 = 1},
-            .lds_transfer_params              = {.global_memory_vector_load_size = 16,
+            .lds_transfer              = {.global_memory_vector_load_size = 16,
                                             .src_vector_dim            = 2,
                                             .src_scalar_per_vector     = 1,
                                             .lds_dst_scalar_per_vector = 16,

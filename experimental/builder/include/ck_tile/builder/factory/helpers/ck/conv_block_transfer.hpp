@@ -30,7 +30,7 @@ constexpr BlockTransfer<> SetFwdConvBlockTransfer()
     auto& block_xfer  = TRANSFER.thread_cluster;
     auto& block_order = TRANSFER.thread_cluster_access_order;
     auto& src_order   = TRANSFER.src_access_order;
-    auto& lds_cfg     = TRANSFER.lds_transfer_params;
+    auto& lds_cfg     = TRANSFER.lds_transfer;
 
     return BlockTransfer<>{
         .thread_cluster_dims   = {block_xfer.k0, block_xfer.m_n, block_xfer.k1},
@@ -51,7 +51,7 @@ constexpr auto SetBwdConvBlockTransfer()
     auto& block_xfer  = TRANSFER.thread_cluster;
     auto& block_order = TRANSFER.thread_cluster_access_order;
     auto& src_order   = TRANSFER.src_access_order;
-    auto& lds_cfg     = TRANSFER.lds_transfer_params;
+    auto& lds_cfg     = TRANSFER.lds_transfer;
 
     constexpr auto array_length = block_order.order.size();
     static_assert(block_order.order.size() == src_order.order.size(),

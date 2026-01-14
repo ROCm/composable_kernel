@@ -31,11 +31,11 @@ struct ConvFwdXdlV3Factory
     using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
 
-    static_assert(ALGORITHM.transfer.a.lds_transfer_params.is_direct_load ==
-                      ALGORITHM.transfer.b.lds_transfer_params.is_direct_load,
+    static_assert(ALGORITHM.transfer.a.lds_transfer.is_direct_load ==
+                      ALGORITHM.transfer.b.lds_transfer.is_direct_load,
                   "A and B block transfers must both be direct load or not.");
 
-    static constexpr bool IS_DIRECT_LOAD = ALGORITHM.transfer.a.lds_transfer_params.is_direct_load;
+    static constexpr bool IS_DIRECT_LOAD = ALGORITHM.transfer.a.lds_transfer.is_direct_load;
     static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
     static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();
     static constexpr internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,

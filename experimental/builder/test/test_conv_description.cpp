@@ -132,7 +132,7 @@ struct DefaultAlgorithm
         .a =
             {
                 .thread_cluster         = {.k0 = 1, .m_n = 128, .k1 = 2},
-                .lds_transfer_params         = {.global_memory_vector_load_size = 8,
+                .lds_transfer         = {.global_memory_vector_load_size = 8,
                                                 .src_vector_dim            = 2,
                                                 .src_scalar_per_vector     = 2,
                                                 .lds_dst_scalar_per_vector = 2,
@@ -145,7 +145,7 @@ struct DefaultAlgorithm
         .b =
             {
                 .thread_cluster         = {.k0 = 1, .m_n = 128, .k1 = 2},
-                .lds_transfer_params         = {.global_memory_vector_load_size = 8,
+                .lds_transfer         = {.global_memory_vector_load_size = 8,
                                                 .src_vector_dim            = 2,
                                                 .src_scalar_per_vector     = 2,
                                                 .lds_dst_scalar_per_vector = 2,

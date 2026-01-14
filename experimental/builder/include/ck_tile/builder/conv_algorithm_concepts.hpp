@@ -86,7 +86,7 @@ concept OutputTileThreadClusterDescriptor = requires(T t) {
 
 // Concept for the LDS transfer for the convolution input tensors.
 template <typename T>
-concept LdsInputTransferDescriptor = requires(T t) {
+concept LdsTransferDescriptor = requires(T t) {
     { t.global_memory_vector_load_size } -> SizeType;
     { t.src_vector_dim } -> SizeType;
     { t.src_scalar_per_vector } -> SizeType;
@@ -199,8 +199,8 @@ concept SpecifiesTileTransfer = requires(T t) {
 // Concept to check if a struct specifies LDS transfer info for tensors A, B, and C.
 template <typename T>
 concept SpecifiesLdsTransfer = requires(T t) {
-    { T::transfer.a.lds_transfer_params } -> LdsInputTransferDescriptor;
-    { T::transfer.b.lds_transfer_params } -> LdsInputTransferDescriptor;
+    { T::transfer.a.lds_transfer } -> LdsTransferDescriptor;
+    { T::transfer.b.lds_transfer } -> LdsTransferDescriptor;
     { T::transfer.c.epilogue } -> EpilogueDescriptor;
 };
 
