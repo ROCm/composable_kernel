@@ -34,8 +34,8 @@ struct ConvBwdWeightTwoStageXdlFactory
     static constexpr auto BWD_CONV_SPECIALIZATION =
         internal::SetBwdWeightConvSpecialization<ALGORITHM>();
 
-    static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto XDL_PARAMS    = ALGORITHM.warp_gemm;
+    static constexpr auto BLOCK      = internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto XDL_PARAMS = ALGORITHM.warp_gemm;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =

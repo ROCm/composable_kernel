@@ -34,7 +34,7 @@ struct ConvBwdWeightTwoStageWmmaV3Factory
     static constexpr auto BWD_CONV_SPECIALIZATION =
         internal::SetBwdWeightConvSpecialization<ALGORITHM>();
 
-    static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto BLOCK     = internal::SetThreadBlockInfo<ALGORITHM>();
     static constexpr auto WARP_GEMM = ALGORITHM.warp_gemm;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();

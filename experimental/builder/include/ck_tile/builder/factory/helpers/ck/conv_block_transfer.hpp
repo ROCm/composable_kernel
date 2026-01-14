@@ -17,11 +17,11 @@ struct BlockTransfer
     ck::Array<size_t, ThreadClusterRank> thread_cluster_order{};
     ck::Array<size_t, ThreadClusterRank> src_access_order{};
     size_t global_memory_vector_load_size = 0;
-    size_t src_vector_dim            = 0;
-    size_t src_scalar_per_vector     = 0;
-    size_t lds_dst_scalar_per_vector = 0;
-    bool is_direct_load              = false;
-    bool lds_padding                 = false;
+    size_t src_vector_dim                 = 0;
+    size_t src_scalar_per_vector          = 0;
+    size_t lds_dst_scalar_per_vector      = 0;
+    bool is_direct_load                   = false;
+    bool lds_padding                      = false;
 };
 
 template <auto TRANSFER>
@@ -33,15 +33,15 @@ constexpr BlockTransfer<> SetFwdConvBlockTransfer()
     auto& lds_cfg     = TRANSFER.lds_transfer;
 
     return BlockTransfer<>{
-        .thread_cluster_dims   = {block_xfer.k0, block_xfer.m_n, block_xfer.k1},
-        .thread_cluster_order  = {block_order.order[0], block_order.order[1], block_order.order[2]},
-        .src_access_order      = {src_order.order[0], src_order.order[1], src_order.order[2]},
+        .thread_cluster_dims  = {block_xfer.k0, block_xfer.m_n, block_xfer.k1},
+        .thread_cluster_order = {block_order.order[0], block_order.order[1], block_order.order[2]},
+        .src_access_order     = {src_order.order[0], src_order.order[1], src_order.order[2]},
         .global_memory_vector_load_size = lds_cfg.global_memory_vector_load_size,
-        .src_vector_dim        = lds_cfg.src_vector_dim,
-        .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
-        .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
-        .is_direct_load            = lds_cfg.is_direct_load,
-        .lds_padding               = lds_cfg.lds_padding,
+        .src_vector_dim                 = lds_cfg.src_vector_dim,
+        .src_scalar_per_vector          = lds_cfg.src_scalar_per_vector,
+        .lds_dst_scalar_per_vector      = lds_cfg.lds_dst_scalar_per_vector,
+        .is_direct_load                 = lds_cfg.is_direct_load,
+        .lds_padding                    = lds_cfg.lds_padding,
     };
 }
 
@@ -60,38 +60,38 @@ constexpr auto SetBwdConvBlockTransfer()
     if constexpr(array_length == 3)
     {
         return BlockTransfer<3>{
-            .thread_cluster_dims   = {block_xfer.k0, block_xfer.m_n, block_xfer.k1},
-            .thread_cluster_order  = {block_order.order[0],
-                                      block_order.order[1],
-                                      block_order.order[2]},
-            .src_access_order      = {src_order.order[0], src_order.order[1], src_order.order[2]},
+            .thread_cluster_dims  = {block_xfer.k0, block_xfer.m_n, block_xfer.k1},
+            .thread_cluster_order = {block_order.order[0],
+                                     block_order.order[1],
+                                     block_order.order[2]},
+            .src_access_order     = {src_order.order[0], src_order.order[1], src_order.order[2]},
             .global_memory_vector_load_size = lds_cfg.global_memory_vector_load_size,
-            .src_vector_dim        = lds_cfg.src_vector_dim,
-            .src_scalar_per_vector = lds_cfg.src_scalar_per_vector,
-            .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
-            .lds_padding               = lds_cfg.lds_padding,
+            .src_vector_dim                 = lds_cfg.src_vector_dim,
+            .src_scalar_per_vector          = lds_cfg.src_scalar_per_vector,
+            .lds_dst_scalar_per_vector      = lds_cfg.lds_dst_scalar_per_vector,
+            .lds_padding                    = lds_cfg.lds_padding,
         };
     }
     else if constexpr(array_length == 4)
     {
         return BlockTransfer<4>{
-            .thread_cluster_dims       = {block_xfer.k_batch_size,
-                                          block_xfer.k0,
-                                          block_xfer.m_n,
-                                          block_xfer.k1},
-            .thread_cluster_order      = {block_order.order[0],
-                                          block_order.order[1],
-                                          block_order.order[2],
-                                          block_order.order[3]},
-            .src_access_order          = {src_order.order[0],
-                                          src_order.order[1],
-                                          src_order.order[2],
-                                          src_order.order[3]},
+            .thread_cluster_dims            = {block_xfer.k_batch_size,
+                                               block_xfer.k0,
+                                               block_xfer.m_n,
+                                               block_xfer.k1},
+            .thread_cluster_order           = {block_order.order[0],
+                                               block_order.order[1],
+                                               block_order.order[2],
+                                               block_order.order[3]},
+            .src_access_order               = {src_order.order[0],
+                                               src_order.order[1],
+                                               src_order.order[2],
+                                               src_order.order[3]},
             .global_memory_vector_load_size = lds_cfg.global_memory_vector_load_size,
-            .src_vector_dim            = lds_cfg.src_vector_dim,
-            .src_scalar_per_vector     = lds_cfg.src_scalar_per_vector,
-            .lds_dst_scalar_per_vector = lds_cfg.lds_dst_scalar_per_vector,
-            .lds_padding               = lds_cfg.lds_padding,
+            .src_vector_dim                 = lds_cfg.src_vector_dim,
+            .src_scalar_per_vector          = lds_cfg.src_scalar_per_vector,
+            .lds_dst_scalar_per_vector      = lds_cfg.lds_dst_scalar_per_vector,
+            .lds_padding                    = lds_cfg.lds_padding,
         };
     }
     else

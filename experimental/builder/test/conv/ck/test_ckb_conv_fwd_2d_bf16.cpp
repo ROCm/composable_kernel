@@ -62,14 +62,13 @@ TEST(FwdConvInstances,
                                              .weight = {.config = {.layout = GKYXC}},
                                              .output = {.config = {.layout = NHWGK}}};
 
-    constexpr auto FwdConvAlgorithm =
-        ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle_V3{}
-            .with_thread_block(ThreadBlock_256_256x256x32)
-            .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
-            .with_transfer(Transfer_4x64x1)
-            .with_fwd_specializations(ConvSpecialization::FILTER_3x3,
-                                      GemmSpecialization::MNKPadding)
-            .with_gemm_pipeline(BlockGemmDesc_v5_intrawave);
+    constexpr auto FwdConvAlgorithm = ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle_V3{}
+                                          .with_thread_block(ThreadBlock_256_256x256x32)
+                                          .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
+                                          .with_transfer(Transfer_4x64x1)
+                                          .with_fwd_specializations(ConvSpecialization::FILTER_3x3,
+                                                                    GemmSpecialization::MNKPadding)
+                                          .with_gemm_pipeline(BlockGemmDesc_v5_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 

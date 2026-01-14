@@ -41,8 +41,8 @@ struct ConvFwdXdlV3Factory
     static constexpr internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
                                                        .gemm_spec = GEMM_SPECIALIZATION};
 
-    static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto XDL_PARAMS    = ALGORITHM.warp_gemm;
+    static constexpr auto BLOCK      = internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto XDL_PARAMS = ALGORITHM.warp_gemm;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =

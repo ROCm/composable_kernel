@@ -34,8 +34,8 @@ struct ConvBwdWeightXdlFactory
     static constexpr auto BWD_CONV_SPECIALIZATION =
         internal::SetBwdWeightConvSpecialization<ALGORITHM>();
 
-    static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto XDL_PARAMS    = ALGORITHM.warp_gemm;
+    static constexpr auto BLOCK      = internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto XDL_PARAMS = ALGORITHM.warp_gemm;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetBwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
@@ -56,7 +56,6 @@ struct ConvBwdWeightXdlFactory
                       B_BLOCK_TRANSFER.global_memory_vector_load_size,
                   "A nd B block transfer vector load size need to be the same");
     static constexpr size_t GMEM_VECTOR_LOAD_SIZE = A_BLOCK_TRANSFER.global_memory_vector_load_size;
-
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<

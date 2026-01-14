@@ -232,12 +232,12 @@ enum class PipelineScheduler
 
 enum class ConvAlgorithmSpecialization
 {
-    NONE = 0,
+    NONE         = 0,
     LARGE_TENSOR = 1 << 0,
-    REFERENCE = 1 << 1, // GPU reference implementation for validation,
-    TWO_STAGE = 1 << 2,
-    MULTIPLE_D = 1 << 3,
-    PIPELINE_V3 = 1 << 4
+    REFERENCE    = 1 << 1, // GPU reference implementation for validation,
+    TWO_STAGE    = 1 << 2,
+    MULTIPLE_D   = 1 << 3,
+    PIPELINE_V3  = 1 << 4
 };
 
 constexpr ConvAlgorithmSpecialization operator|(ConvAlgorithmSpecialization lhs,

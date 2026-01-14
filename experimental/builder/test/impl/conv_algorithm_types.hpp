@@ -31,10 +31,10 @@ static_assert(ckb::ThreadBlockDescriptor<ThreadBlock>);
 struct WarpGemmParams
 {
     MatrixInstructionType matrix_instruction;
-    size_t gemm_m_per_instruction      = 0;
-    size_t gemm_n_per_instruction      = 0;
-    size_t gemm_m_iters_per_wave       = 0;
-    size_t gemm_n_iters_per_wave       = 0;
+    size_t gemm_m_per_instruction = 0;
+    size_t gemm_n_per_instruction = 0;
+    size_t gemm_m_iters_per_wave  = 0;
+    size_t gemm_n_iters_per_wave  = 0;
 };
 static_assert(ckb::WarpGemmDescriptor<WarpGemmParams>);
 
@@ -370,7 +370,7 @@ struct ConvAlgorithmTemplate : Components...
     constexpr auto with_num_conv_groups_to_merge(size_t num_groups_to_merge) const
     {
         static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
-        auto result                     = *this;
+        auto result                                   = *this;
         result.gemm_pipeline.num_conv_groups_to_merge = num_groups_to_merge;
         return result;
     }
@@ -378,7 +378,7 @@ struct ConvAlgorithmTemplate : Components...
     constexpr auto with_num_gemm_k_prefetch_stages(size_t num_prefetch_stages) const
     {
         static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
-        auto result                     = *this;
+        auto result                                     = *this;
         result.gemm_pipeline.num_gemm_k_prefetch_stages = num_prefetch_stages;
         return result;
     }
@@ -387,7 +387,7 @@ struct ConvAlgorithmTemplate : Components...
     constexpr auto with_gemm_pipeline(const PL& pl) const
     {
         static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
-        auto result                = *this;
+        auto result          = *this;
         result.gemm_pipeline = pl;
         return result;
     }
@@ -395,7 +395,7 @@ struct ConvAlgorithmTemplate : Components...
     constexpr auto with_gemm_pipeline(const PipelineVersion plv) const
     {
         static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
-        auto result             = *this;
+        auto result                           = *this;
         result.gemm_pipeline.pipeline_version = plv;
         return result;
     }
@@ -403,7 +403,7 @@ struct ConvAlgorithmTemplate : Components...
     constexpr auto with_gemm_pipeline(const PipelineScheduler sch) const
     {
         static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
-        auto result             = *this;
+        auto result                    = *this;
         result.gemm_pipeline.scheduler = sch;
         return result;
     }
@@ -411,7 +411,7 @@ struct ConvAlgorithmTemplate : Components...
     constexpr auto with_gemm_pipeline(const PipelineVersion plv, const PipelineScheduler sch) const
     {
         static_assert(std::is_base_of_v<GemmPipeline_, ConvAlgorithmTemplate>);
-        auto result             = *this;
+        auto result                           = *this;
         result.gemm_pipeline.pipeline_version = plv;
         result.gemm_pipeline.scheduler        = sch;
         return result;
@@ -535,7 +535,7 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileTh
                                                                           TileOptimizations_>;
 
 // Reference algorithm descriptor - for GPU reference validation
-using  ConvAlgorithm_Reference = ConvAlgorithmTemplate<AlgorithmSpecialization_<REFERENCE>>;
+using ConvAlgorithm_Reference = ConvAlgorithmTemplate<AlgorithmSpecialization_<REFERENCE>>;
 
 // Bwd weight algorithm types
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle =
@@ -543,7 +543,8 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle =
                           WarpGemm_,
                           InputOutputTileTransfer_<4>,
                           ConvSpecializationBwdWeight_,
-                          GemmPipeline_, // Not needed, but we need this to meet the ConvAlgorithm concept.
+                          GemmPipeline_, // Not needed, but we need this to meet the ConvAlgorithm
+                                         // concept.
                           TransposeParams_,
                           AlgorithmSpecialization_<>>;
 
@@ -593,7 +594,8 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WarpGemm_,
                           InputOutputTileTransfer_<4>,
-                          GemmPipeline_, // Not needed, but we need this to meet the ConvAlgorithm concept.
+                          GemmPipeline_, // Not needed, but we need this to meet the ConvAlgorithm
+                                         // concept.
                           ConvSpecializationBwdWeight_,
                           AlgorithmSpecialization_<MULTIPLE_D>>;
 

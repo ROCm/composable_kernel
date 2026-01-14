@@ -117,57 +117,60 @@ static_assert(!ckb::ConvSignatureDescriptor<ConvSignatureWithInvalidOptionalPara
 
 struct DefaultAlgorithm
 {
-    static constexpr ckb::ConvAlgorithmSpecialization specialization = 
+    static constexpr ckb::ConvAlgorithmSpecialization specialization =
         ckb::ConvAlgorithmSpecialization::PIPELINE_V3;
 
     ckb::test::ThreadBlock thread_block{.block_size = 256,
                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    ckb::test::WarpGemmParams warp_gemm{
-        .matrix_instruction = ckb::MatrixInstructionType::XDL,
-        .gemm_m_per_instruction = 16, .gemm_n_per_instruction = 16, .gemm_m_iters_per_wave = 8, .gemm_n_iters_per_wave = 8};
-
+    ckb::test::WarpGemmParams warp_gemm{.matrix_instruction     = ckb::MatrixInstructionType::XDL,
+                                        .gemm_m_per_instruction = 16,
+                                        .gemm_n_per_instruction = 16,
+                                        .gemm_m_iters_per_wave  = 8,
+                                        .gemm_n_iters_per_wave  = 8};
 
     ckb::test::InputOutputTileTransfer<> transfer{
         .a =
             {
-                .thread_cluster         = {.k0 = 1, .m_n = 128, .k1 = 2},
-                .lds_transfer         = {.global_memory_vector_load_size = 8,
-                                                .src_vector_dim            = 2,
-                                                .src_scalar_per_vector     = 2,
-                                                .lds_dst_scalar_per_vector = 2,
-                                                .is_direct_load            = false,
-                                                .lds_padding               = false},
+                .thread_cluster              = {.k0 = 1, .m_n = 128, .k1 = 2},
+                .lds_transfer                = {.global_memory_vector_load_size = 8,
+                                                .src_vector_dim                 = 2,
+                                                .src_scalar_per_vector          = 2,
+                                                .lds_dst_scalar_per_vector      = 2,
+                                                .is_direct_load                 = false,
+                                                .lds_padding                    = false},
                 .thread_cluster_access_order = {.order = {0, 1, 2}},
                 .src_access_order            = {.order = {0, 1, 2}},
 
             },
         .b =
             {
-                .thread_cluster         = {.k0 = 1, .m_n = 128, .k1 = 2},
-                .lds_transfer         = {.global_memory_vector_load_size = 8,
-                                                .src_vector_dim            = 2,
-                                                .src_scalar_per_vector     = 2,
-                                                .lds_dst_scalar_per_vector = 2,
-                                                .is_direct_load            = false,
-                                                .lds_padding               = false},
+                .thread_cluster              = {.k0 = 1, .m_n = 128, .k1 = 2},
+                .lds_transfer                = {.global_memory_vector_load_size = 8,
+                                                .src_vector_dim                 = 2,
+                                                .src_scalar_per_vector          = 2,
+                                                .lds_dst_scalar_per_vector      = 2,
+                                                .is_direct_load                 = false,
+                                                .lds_padding                    = false},
                 .thread_cluster_access_order = {.order = {0, 1, 2}},
                 .src_access_order            = {.order = {0, 1, 2}},
             },
         .c =
             {
-                .thread_cluster =
-                    {.gemm_m_block_size = 1, .gemm_m_per_block = 32, .gemm_n_block_size = 1, .gemm_n_per_block = 8},
-                .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
-                             .n_per_wave_per_shuffle     = 1,
-                             .scalar_per_vector          = 2},
+                .thread_cluster = {.gemm_m_block_size = 1,
+                                   .gemm_m_per_block  = 32,
+                                   .gemm_n_block_size = 1,
+                                   .gemm_n_per_block  = 8},
+                .epilogue       = {.m_xdl_per_wave_per_shuffle = 1,
+                                   .n_per_wave_per_shuffle     = 1,
+                                   .scalar_per_vector          = 2},
             },
     };
 
     ckb::ConvSpecialization fwd_specialization  = ckb::ConvSpecialization::DEFAULT;
     ckb::GemmSpecialization gemm_specialization = ckb::GemmSpecialization::Default;
     ckb::test::GemmPipeline gemm_pipeline{.pipeline_version = ckb::PipelineVersion::V4,
-                                          .scheduler =ckb::PipelineScheduler::INTRAWAVE};
+                                          .scheduler        = ckb::PipelineScheduler::INTRAWAVE};
 };
 static_assert(ckb::ConvAlgorithmDescriptor<DefaultAlgorithm>);
 

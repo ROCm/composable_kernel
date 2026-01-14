@@ -19,12 +19,13 @@ constexpr auto SIGNATURE = ckt::ConvSignature{.spatial_dim = 3,
                                               .weight = {.config = {.layout = GKZYXC}},
                                               .output = {.config = {.layout = NGKDHW}}};
 
-constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle{}
-                               .with_thread_block(cku::ThreadBlock_64_32x32x32)
-                               .with_gemm_config(cku::GemmParams_Wmma_16x16_2x1_per_wave)
-                               .with_transfer(cku::BwdTransfer_4x8x1_4x16x1_v3)
-                               .with_bwd_specialization(ckb::ConvSpecialization::DEFAULT)
-                               .with_gemm_pipeline(ckb::PipelineVersion::V1, ckb::PipelineScheduler::DEFAULT);
+constexpr auto ALGORITHM =
+    cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle{}
+        .with_thread_block(cku::ThreadBlock_64_32x32x32)
+        .with_gemm_config(cku::GemmParams_Wmma_16x16_2x1_per_wave)
+        .with_transfer(cku::BwdTransfer_4x8x1_4x16x1_v3)
+        .with_bwd_specialization(ckb::ConvSpecialization::DEFAULT)
+        .with_gemm_pipeline(ckb::PipelineVersion::V1, ckb::PipelineScheduler::DEFAULT);
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;

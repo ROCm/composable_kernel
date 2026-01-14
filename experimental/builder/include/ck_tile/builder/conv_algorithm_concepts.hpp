@@ -64,8 +64,9 @@ concept InputTileThreadClusterDescriptor4D = requires(T t) {
 };
 
 template <typename T, size_t ThreadClusterRank>
-concept InputTileThreadClusterDescriptor = (ThreadClusterRank == 3 && InputTileThreadClusterDescriptor3D<T>) ||
-                                  (ThreadClusterRank == 4 && InputTileThreadClusterDescriptor4D<T>);
+concept InputTileThreadClusterDescriptor =
+    (ThreadClusterRank == 3 && InputTileThreadClusterDescriptor3D<T>) ||
+    (ThreadClusterRank == 4 && InputTileThreadClusterDescriptor4D<T>);
 
 // Concept for thread cluster dimensions for GEMM output tensor.
 template <typename T>
@@ -285,7 +286,6 @@ template <typename T>
 concept TransposeTransferWellDefinedIfProvided =
     !HasTransposeTransfer<T> || SpecifiesTransposeTransfer<T>;
 
-
 /******************************************** */
 /* Algorithm specialization concepts          */
 /******************************************** */
@@ -328,14 +328,12 @@ concept SpecifiesGenericInstance = !requires {
 };
 
 template <auto Algorithm>
-concept SpecifiesXdl = requires {
-    requires Algorithm.warp_gemm.matrix_instruction == MatrixInstructionType::XDL;
-};
+concept SpecifiesXdl =
+    requires { requires Algorithm.warp_gemm.matrix_instruction == MatrixInstructionType::XDL; };
 
 template <auto Algorithm>
-concept SpecifiesWmma = requires {
-    requires Algorithm.warp_gemm.matrix_instruction == MatrixInstructionType::WMMA;
-};
+concept SpecifiesWmma =
+    requires { requires Algorithm.warp_gemm.matrix_instruction == MatrixInstructionType::WMMA; };
 
 template <auto Algorithm>
 concept SpecifiesValidWarpGemm = SpecifiesXdl<Algorithm> || SpecifiesWmma<Algorithm>;

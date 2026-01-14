@@ -65,11 +65,10 @@ consteval BlockGemmSpec SetBlockGemm()
     default: throw "Unknown PipelineVersion";
     }
 
-    return BlockGemmSpec{
-        .num_conv_groups_to_merge   = BG.num_conv_groups_to_merge,
-        .num_gemm_k_prefetch_stages = BG.num_gemm_k_prefetch_stages,
-        .pipeline_version = version, 
-        .scheduler = scheduler};
+    return BlockGemmSpec{.num_conv_groups_to_merge   = BG.num_conv_groups_to_merge,
+                         .num_gemm_k_prefetch_stages = BG.num_gemm_k_prefetch_stages,
+                         .pipeline_version           = version,
+                         .scheduler                  = scheduler};
 }
 
 template <ConvAlgorithmDescriptor auto ALGORITHM>

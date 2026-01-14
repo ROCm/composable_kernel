@@ -98,7 +98,8 @@ template <>
 inline std::string to_string<GemmPipeline>(GemmPipeline t)
 {
     std::ostringstream oss;
-    oss << t.num_gemm_k_prefetch_stages << "," << t.num_conv_groups_to_merge << "," << to_string(t.scheduler) << "," << to_string(t.pipeline_version);
+    oss << t.num_gemm_k_prefetch_stages << "," << t.num_conv_groups_to_merge << ","
+        << to_string(t.scheduler) << "," << to_string(t.pipeline_version);
     return oss.str();
 }
 
@@ -123,17 +124,17 @@ inline std::string to_string(InputThreadCluster<ThreadClusterRank> t)
 template <>
 inline std::string to_string<OutputThreadCluster>(OutputThreadCluster t)
 {
-    return array_to_seq(
-        std::array<size_t, 4>{t.gemm_m_block_size, t.gemm_m_per_block, t.gemm_n_block_size, t.gemm_n_per_block});
+    return array_to_seq(std::array<size_t, 4>{
+        t.gemm_m_block_size, t.gemm_m_per_block, t.gemm_n_block_size, t.gemm_n_per_block});
 }
 
 template <>
 inline std::string to_string<LdsTransfer>(LdsTransfer t)
 {
     std::ostringstream oss;
-    oss << t.global_memory_vector_load_size << "," << t.src_vector_dim << "," << t.src_scalar_per_vector << "," << t.lds_dst_scalar_per_vector
-        << "," << (t.lds_padding ? "true" : "false") << ","
-        << (t.is_direct_load ? "true" : "false");
+    oss << t.global_memory_vector_load_size << "," << t.src_vector_dim << ","
+        << t.src_scalar_per_vector << "," << t.lds_dst_scalar_per_vector << ","
+        << (t.lds_padding ? "true" : "false") << "," << (t.is_direct_load ? "true" : "false");
     return oss.str();
 }
 
@@ -259,7 +260,6 @@ inline std::string to_string<WarpGemm_>(WarpGemm_ t)
     return to_string(t.warp_gemm);
 }
 
-
 template <size_t ThreadClusterRank = 3>
 inline std::string to_string(InputOutputTileTransfer_<ThreadClusterRank> t)
 {
@@ -319,21 +319,21 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuf
     ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle t)
 {
     std::ostringstream oss;
-    if (t.warp_gemm.matrix_instruction == MatrixInstructionType::WMMA)
+    if(t.warp_gemm.matrix_instruction == MatrixInstructionType::WMMA)
     {
         oss << to_string(static_cast<ThreadBlock_>(t)) << ","
             << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
-            << to_string(static_cast<WarpGemm_>(t))
-            << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+            << to_string(static_cast<WarpGemm_>(t)) << ","
+            << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     }
-    else 
+    else
     {
         oss << to_string(static_cast<ThreadBlock_>(t)) << ","
             << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
             << t.transfer.b.lds_transfer.global_memory_vector_load_size << ","
-            << to_string(static_cast<WarpGemm_>(t))
-            << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
-        }
+            << to_string(static_cast<WarpGemm_>(t)) << ","
+            << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+    }
     return oss.str();
 }
 
@@ -342,11 +342,11 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuf
     ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
         << t.transfer.b.lds_transfer.global_memory_vector_load_size << ","
-        << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+        << to_string(static_cast<WarpGemm_>(t)) << ","
+        << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -367,11 +367,11 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CSh
     ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
         << t.transfer.b.lds_transfer.global_memory_vector_load_size << ","
-        << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+        << to_string(static_cast<WarpGemm_>(t)) << ","
+        << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -380,10 +380,10 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuff
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
-        << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<4>>(t));
+        << to_string(static_cast<WarpGemm_>(t)) << ","
+        << to_string(static_cast<InputOutputTileTransfer_<4>>(t));
     return oss.str();
 }
 
@@ -392,10 +392,10 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuff
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
-        << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+        << to_string(static_cast<WarpGemm_>(t)) << ","
+        << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -404,10 +404,10 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuf
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
-        << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+        << to_string(static_cast<WarpGemm_>(t)) << ","
+        << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -416,10 +416,10 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuf
     ConvAlgorithm_DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
-        << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+        << to_string(static_cast<WarpGemm_>(t)) << ","
+        << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -430,8 +430,8 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_W
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
-        << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+        << to_string(static_cast<WarpGemm_>(t)) << ","
+        << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
 
@@ -441,13 +441,12 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_C
     ConvAlgorithm_DeviceGroupedConvBwdWeight_TwoStage_CShuffle_V3 t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) 
-        << "," << t.transfer.a.lds_transfer.global_memory_vector_load_size
-        << "," << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<>>(t));
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+        << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
+        << to_string(static_cast<WarpGemm_>(t)) << ","
+        << to_string(static_cast<InputOutputTileTransfer_<>>(t));
     return oss.str();
 }
-
 
 template <>
 inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl>(
@@ -466,10 +465,10 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_X
     ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle t)
 {
     std::ostringstream oss;
-    oss << to_string(static_cast<ThreadBlock_>(t)) << "," 
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << t.transfer.a.lds_transfer.global_memory_vector_load_size << ","
-        << to_string(static_cast<WarpGemm_>(t))
-        << "," << to_string(static_cast<InputOutputTileTransfer_<4>>(t));
+        << to_string(static_cast<WarpGemm_>(t)) << ","
+        << to_string(static_cast<InputOutputTileTransfer_<4>>(t));
     return oss.str();
 }
 
