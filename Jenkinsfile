@@ -811,41 +811,12 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts "perf_*.log"
                             stash includes: "perf_**.log", name: "perf_log_${arch}"
                         }
-                        // disable performance tests on gfx1030 for now.
-                        //else if ( arch == "gfx10"){
-                            // run basic tests on gfx1030
-                        //    echo "Run gemm performance tests"
-                        //    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx10"
-                        //    archiveArtifacts "perf_onnx_gemm_gfx10.log"
-                        //    stash includes: "perf_onnx_gemm_gfx10.log", name: "perf_log_gfx10"
-                        //}
-                        else if ( arch == "gfx11"){
-                            // run basic tests on gfx11
+				        else if ( arch != "gfx10"){
+                            // run basic tests on gfx11/gfx12/gfx908/gfx950, but not on gfx10, it takes too long
                             echo "Run gemm performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx11"
-                            archiveArtifacts "perf_onnx_gemm_gfx11.log"
-                            stash includes: "perf_onnx_gemm_gfx11.log", name: "perf_log_gfx11"
-                        }
-                        else if ( arch == "gfx120" ){
-                            // run basic tests on gfx12
-                            echo "Run gemm performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx12"
-                            archiveArtifacts "perf_onnx_gemm_gfx12.log"
-                            stash includes: "perf_onnx_gemm_gfx12.log", name: "perf_log_gfx12"
-                        }
-                        else if ( arch == "gfx908" ){
-                            // run basic tests on gfx908
-                            echo "Run performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx908"
-                            archiveArtifacts "perf_onnx_gemm_gfx908.log"
-                            stash includes: "perf_onnx_gemm_gfx908.log", name: "perf_log_gfx908"
-                        }
-                        else if ( arch == "gfx950" ){
-                            // run basic tests on gfx950
-                            echo "Run performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx950"
-                            archiveArtifacts "perf_onnx_gemm_gfx950.log"
-                            stash includes: "perf_onnx_gemm_gfx950.log", name: "perf_log_gfx950"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} ${arch}"
+                            archiveArtifacts "perf_onnx_gemm_*.log"
+                            stash includes: "perf_onnx_gemm_**.log", name: "perf_log_${arch}"
                         }
                         }
                     }
@@ -1049,6 +1020,7 @@ def run_aiter_tests(Map conf=[:]){
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_batch_prefill.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_2stage.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_blockscale.py"
