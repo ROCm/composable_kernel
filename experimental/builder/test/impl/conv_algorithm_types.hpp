@@ -42,7 +42,7 @@ struct GemmPipeline
 {
     size_t num_gemm_k_prefetch_stages{1};
     size_t num_conv_groups_to_merge{1};
-    PipelineVersion pipeline_version;
+    PipelineVersion pipeline_version{PipelineVersion::V1};
     PipelineScheduler scheduler{PipelineScheduler::DEFAULT};
 };
 static_assert(ckb::GemmPipelineDescriptor<GemmPipeline>);
@@ -543,6 +543,7 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle =
                           WarpGemm_,
                           InputOutputTileTransfer_<4>,
                           ConvSpecializationBwdWeight_,
+                          GemmPipeline_, // Not needed, but we need this to meet the ConvAlgorithm concept.
                           TransposeParams_,
                           AlgorithmSpecialization_<>>;
 
@@ -592,6 +593,7 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WarpGemm_,
                           InputOutputTileTransfer_<4>,
+                          GemmPipeline_, // Not needed, but we need this to meet the ConvAlgorithm concept.
                           ConvSpecializationBwdWeight_,
                           AlgorithmSpecialization_<MULTIPLE_D>>;
 
