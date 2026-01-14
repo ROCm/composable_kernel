@@ -13,8 +13,8 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/gpu_verification.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_utils.hpp"
-#include "profiler/gpu_verification.hpp"
 
 using namespace ck::profiler;
 using ck::ref::SimpleDeviceMem;
