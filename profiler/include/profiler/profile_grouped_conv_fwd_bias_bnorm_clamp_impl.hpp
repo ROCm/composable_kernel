@@ -430,17 +430,7 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
             {
                 out_device_buf.FromDevice(device_output.mData.data());
 
-                if constexpr(std::is_same_v<OutDataType, ck::half_t>)
-                {
-                    // The batchnorm involves operations which can cause small numerical
-                    // differences between host and device implementations
-                    static double rtol = 1e-2;
-                    pass = pass & ck::utils::check_err(device_output, host_output, rtol);
-                }
-                else
-                {
-                    pass = pass & ck::utils::check_err(device_output, host_output);
-                }
+                pass = pass & ck::utils::check_err(device_output, host_output);
 
                 if(do_log)
                 {
