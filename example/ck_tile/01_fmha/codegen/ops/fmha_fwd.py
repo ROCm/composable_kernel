@@ -210,10 +210,12 @@ float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream
                         ((0 < args.window_size_left) or (0 < args.window_size_right));
     const bool can_dispatch_v3 =
         (device_name.compare(0, 6, "gfx950") == 0) and
-        (traits.data_type.compare("fp16") == 0 or traits.data_type.compare("bf16") == 0) and
+        (((traits.data_type.compare("fp16") == 0 or traits.data_type.compare("bf16") == 0) and
+          (traits.qscale_type == quant_scale_enum::no_scale)) or
+         ((traits.data_type.compare("fp8bf16") == 0) and
+          (traits.qscale_type == quant_scale_enum::pertensor))) and
         traits.is_v_rowmajor and (traits.bias_type == bias_enum::no_bias) and
-        (not traits.has_lse) and (not traits.has_dropout) and
-        (traits.qscale_type == quant_scale_enum::no_scale) and (not is_swa) and
+        (not traits.has_lse) and (not traits.has_dropout) and (not is_swa) and
         (args.nhead_q % args.nhead_k == 0) and (args.hdim_q == 128) and (args.hdim_v == 128);
     if ({F_is_v3_enabled} and can_dispatch_v3) {{
         return fmha_fwd_v3(traits, args, config);
