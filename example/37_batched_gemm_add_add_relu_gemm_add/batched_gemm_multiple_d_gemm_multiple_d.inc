@@ -332,6 +332,13 @@ int run_example(int argc, char* argv[])
             cde1_element_op(e1_g_m_o_host_result(idx), c1_g_m_o(idx), d1_g_m_o(idx));
         });
 
+        // NOTE: For float initialization (mode 2) verification currently fails due to inaccuracy.
+        // This seems to just be accumulating errors due to double gemm. It only seems to happen
+        // when using B1 tensor containing negative values, as this can get large values from gemm0
+        // back to zero again but reduce the tolerance allowed by the relative tolerance.
+        //
+        // There doesn't seem to be any bug with the implementation, just a difference in order of
+        // operations between CPU and GPU causing an accumulating error.
         bool validation_result = ck::utils::check_err(e1_g_m_o_device_result, e1_g_m_o_host_result);
         std::cout << "Validation result: " << (validation_result ? "SUCCESS" : "FAIL") << "."
                   << std::endl;
