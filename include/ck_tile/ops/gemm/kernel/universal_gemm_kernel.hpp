@@ -797,19 +797,24 @@ struct UniversalGemmKernel
                       const index_t k_size,
                       const index_t i_m)
     {
-        // Step 1: Create tensor views for A tensors (from MakeGemmTensorViews)
-        const auto& as_tensor_view = generate_tuple(
+        // Step 1: Create tensor descriptors for A tensors
+        const auto& as_tensor_desc = generate_tuple(
             [&](auto i) {
-                using AiLayout   = remove_cvref_t<std::tuple_element_t<i.value, AsLayout>>;
-                using AiDataType = remove_cvref_t<std::tuple_element_t<i.value, AsDataType>>;
-
-                return make_tensor_view<address_space_enum::global>(
-                    static_cast<const AiDataType*>(as_ptr[i]),
-                    MakeDefaultATensorDescriptor<AiLayout>(kargs.M, kargs.stride_As[i], k_size));
+                using AiLayout = remove_cvref_t<std::tuple_element_t<i.value, AsLayout>>;
+                return MakeDefaultATensorDescriptor<AiLayout>(kargs.M, kargs.stride_As[i], k_size);
             },
             number<NumATensor>{});
 
-        // Step 2: Create padded views (from MakeGemmPadViews)
+        // Step 1: Create tensor views
+        const auto& as_tensor_view = generate_tuple(
+            [&](auto i) {
+                using AiDataType = remove_cvref_t<std::tuple_element_t<i.value, AsDataType>>;
+                return make_tensor_view<address_space_enum::global>(
+                    static_cast<const AiDataType*>(as_ptr[i]), as_tensor_desc[i]);
+            },
+            number<NumATensor>{});
+
+        // Step 2: Create padded views
         const auto& as_pad_view = generate_tuple(
             [&](auto i) {
                 using AiLayout = remove_cvref_t<std::tuple_element_t<i.value, AsLayout>>;
@@ -830,7 +835,7 @@ struct UniversalGemmKernel
             },
             number<NumATensor>{});
 
-        // Step 3: Create tile windows (from MakeGemmTileWindows)
+        // Step 3: Create tile windows
         const auto& as_block_window = generate_tuple(
             [&](auto i) {
                 using AiLayout = remove_cvref_t<std::tuple_element_t<i.value, AsLayout>>;
@@ -860,19 +865,25 @@ struct UniversalGemmKernel
                       const index_t k_size,
                       const index_t i_n)
     {
-        // Step 1: Create tensor views for B tensors (from MakeGemmTensorViews)
-        const auto& bs_tensor_view = generate_tuple(
+        // Step 1: Create tensor descriptors for B tensors
+        const auto& bs_tensor_desc = generate_tuple(
             [&](auto i) {
-                using BiLayout   = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
-                using BiDataType = remove_cvref_t<std::tuple_element_t<i.value, BsDataType>>;
-                return make_tensor_view<address_space_enum::global>(
-                    static_cast<const BiDataType*>(bs_ptr[i]),
-                    MakeDefaultBTensorDescriptor<BiLayout>(
-                        kargs.N, kargs.K, kargs.stride_Bs[i], k_size));
+                using BiLayout = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
+                return MakeDefaultBTensorDescriptor<BiLayout>(
+                    kargs.N, kargs.K, kargs.stride_Bs[i], k_size);
             },
             number<NumBTensor>{});
 
-        // Step 2: Create padded views (from MakeGemmPadViews)
+        // Step 2: Create tensor views
+        const auto& bs_tensor_view = generate_tuple(
+            [&](auto i) {
+                using BiDataType = remove_cvref_t<std::tuple_element_t<i.value, BsDataType>>;
+                return make_tensor_view<address_space_enum::global>(
+                    static_cast<const BiDataType*>(bs_ptr[i]), bs_tensor_desc[i])
+            },
+            number<NumBTensor>{});
+
+        // Step 3: Create padded views
         const auto& bs_pad_view = generate_tuple(
             [&](auto i) {
                 using BiLayout = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
@@ -893,7 +904,7 @@ struct UniversalGemmKernel
             },
             number<NumBTensor>{});
 
-        // Step 3: Create tile windows (from MakeGemmTileWindows)
+        // Step 4: Create tile windows
         const auto& bs_block_window = generate_tuple(
             [&](auto i) {
                 using BiLayout = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
@@ -934,19 +945,25 @@ struct UniversalGemmKernel
                                                  const index_t i_m,
                                                  const index_t i_n)
     {
-        // Step 1: Create tensor views for D tensors (from MakeGemmTensorViews)
-        const auto& ds_tensor_view = generate_tuple(
+        // Step 1: Create tensor descriptors for D tensors
+        const auto& ds_tensor_desc = generate_tuple(
             [&](auto i) {
-                using DiLayout   = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
-                using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
-                return make_tensor_view<address_space_enum::global>(
-                    static_cast<const DDataType_*>(ds_ptr[i]),
-                    MakeDefaultDTensorDescriptor<DiLayout, EpiloguePipeline::GetVectorSizeD(i)>(
-                        kargs.M, kargs.N, kargs.stride_Ds[i]));
+                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                return MakeDefaultDTensorDescriptor<DiLayout, EpiloguePipeline::GetVectorSizeD(i)>(
+                    kargs.M, kargs.N, kargs.stride_Ds[i]);
             },
             number<NumDTensor>{});
 
-        // Step 2: Create padded views (from MakeGemmPadViews)
+        // Step 2: Create tensor views
+        const auto& ds_tensor_view = generate_tuple(
+            [&](auto i) {
+                using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
+                return make_tensor_view<address_space_enum::global>(
+                    static_cast<const DDataType_*>(ds_ptr[i]), ds_tensor_desc[i]);
+            },
+            number<NumDTensor>{});
+
+        // Step 3: Create padded views
         const auto& ds_pad_view = generate_tuple(
             [&](auto i) {
                 using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
@@ -967,7 +984,7 @@ struct UniversalGemmKernel
             },
             number<NumDTensor>{});
 
-        // Step 3: Create tile windows (from MakeGemmTileWindows)
+        // Step 4: Create tile windows
         const auto& ds_block_window = generate_tuple(
             [&](auto i) {
                 using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
@@ -997,11 +1014,14 @@ struct UniversalGemmKernel
                                                  const index_t i_m,
                                                  const index_t i_n)
     {
-        // Step 1: Create tensor view for E/C tensor (from MakeGemmTensorViews)
-        const auto& e_tensor_view = make_tensor_view<address_space_enum::global, DstInMemOp>(
-            e_ptr, MakeDefaultETensorDescriptor(kargs.M, kargs.N, kargs.stride_E));
+        // Step 1: Create tensor descriptor for E/C tensor
+        const auto& e_tensor_desc = MakeDefaultETensorDescriptor(kargs.M, kargs.N, kargs.stride_E);
 
-        // Step 2: Create padded view (from MakeGemmPadViews)
+        // Step 1: Create tensor view
+        const auto& e_tensor_view =
+            make_tensor_view<address_space_enum::global, DstInMemOp>(e_ptr, e_tensor_desc);
+
+        // Step 2: Create padded view
         const auto& e_pad_view = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
@@ -1019,7 +1039,7 @@ struct UniversalGemmKernel
             }
         }();
 
-        // Step 3: Create tile window (from MakeGemmTileWindows)
+        // Step 3: Create tile window
         auto e_block_window = make_tile_window(
             e_pad_view,
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
