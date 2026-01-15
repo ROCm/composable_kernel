@@ -775,14 +775,12 @@ struct UniversalGemmKernel
     CK_TILE_DEVICE static auto
     MakeDefaultETensorDescriptor(const index_t M, const index_t N, const index_t stride)
     {
-        // TODO: enable vector write for C in ColMajor
         if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {
-            return make_naive_tensor_descriptor(
-                make_tuple(M, N), // arguments not matching with flatmm.
-                make_tuple(stride, 1),
-                number<EpiloguePipeline::GetVectorSizeC()>{},
-                number<1>{});
+            return make_naive_tensor_descriptor(make_tuple(M, N),
+                                                make_tuple(stride, 1),
+                                                number<EpiloguePipeline::GetVectorSizeC()>{},
+                                                number<1>{});
         }
         else
         {
@@ -791,26 +789,18 @@ struct UniversalGemmKernel
         }
     }
 
+    template <typename AsTensorDesc>
     CK_TILE_DEVICE static auto
     MakeABlockWindows(const std::array<const ADataType*, NumATensor>& as_ptr,
-                      const KernelArgs& kargs,
-                      const index_t k_size,
+                      const AsTensorDesc& as_desc,
                       const index_t i_m)
     {
-        // Step 1: Create tensor descriptors for A tensors
-        const auto& as_tensor_desc = generate_tuple(
-            [&](auto i) {
-                using AiLayout = remove_cvref_t<std::tuple_element_t<i.value, AsLayout>>;
-                return MakeDefaultATensorDescriptor<AiLayout>(kargs.M, kargs.stride_As[i], k_size);
-            },
-            number<NumATensor>{});
-
         // Step 1: Create tensor views
         const auto& as_tensor_view = generate_tuple(
             [&](auto i) {
                 using AiDataType = remove_cvref_t<std::tuple_element_t<i.value, AsDataType>>;
                 return make_tensor_view<address_space_enum::global>(
-                    static_cast<const AiDataType*>(as_ptr[i]), as_tensor_desc[i]);
+                    static_cast<const AiDataType*>(as_ptr[i]), as_desc[i]);
             },
             number<NumATensor>{});
 
@@ -860,30 +850,38 @@ struct UniversalGemmKernel
     }
 
     CK_TILE_DEVICE static auto
-    MakeBBlockWindows(const std::array<const BDataType*, NumBTensor>& bs_ptr,
+    MakeABlockWindows(const std::array<const ADataType*, NumATensor>& as_ptr,
                       const KernelArgs& kargs,
                       const index_t k_size,
+                      const index_t i_m)
+    {
+        // Step 1: Create tensor descriptors for A tensors
+        const auto& as_tensor_desc = generate_tuple(
+            [&](auto i) {
+                using AiLayout = remove_cvref_t<std::tuple_element_t<i.value, AsLayout>>;
+                return MakeDefaultATensorDescriptor<AiLayout>(kargs.M, kargs.stride_As[i], k_size);
+            },
+            number<NumATensor>{});
+
+        return MakeABlockWindows(as_ptr, as_tensor_desc, i_m);
+    }
+
+    template <typename BsTensorDesc>
+    CK_TILE_DEVICE static auto
+    MakeBBlockWindows(const std::array<const BDataType*, NumBTensor>& bs_ptr,
+                      const BsTensorDesc& bs_desc,
                       const index_t i_n)
     {
-        // Step 1: Create tensor descriptors for B tensors
-        const auto& bs_tensor_desc = generate_tuple(
-            [&](auto i) {
-                using BiLayout = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
-                return MakeDefaultBTensorDescriptor<BiLayout>(
-                    kargs.N, kargs.K, kargs.stride_Bs[i], k_size);
-            },
-            number<NumBTensor>{});
-
-        // Step 2: Create tensor views
+        // Step 1: Create tensor views
         const auto& bs_tensor_view = generate_tuple(
             [&](auto i) {
                 using BiDataType = remove_cvref_t<std::tuple_element_t<i.value, BsDataType>>;
                 return make_tensor_view<address_space_enum::global>(
-                    static_cast<const BiDataType*>(bs_ptr[i]), bs_tensor_desc[i])
+                    static_cast<const BiDataType*>(bs_ptr[i]), bs_desc[i]);
             },
             number<NumBTensor>{});
 
-        // Step 3: Create padded views
+        // Step 2: Create padded views
         const auto& bs_pad_view = generate_tuple(
             [&](auto i) {
                 using BiLayout = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
@@ -904,7 +902,7 @@ struct UniversalGemmKernel
             },
             number<NumBTensor>{});
 
-        // Step 4: Create tile windows
+        // Step 3: Create tile windows
         const auto& bs_block_window = generate_tuple(
             [&](auto i) {
                 using BiLayout = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
@@ -940,30 +938,39 @@ struct UniversalGemmKernel
         return bs_block_window;
     }
 
+    CK_TILE_DEVICE static auto
+    MakeBBlockWindows(const std::array<const BDataType*, NumBTensor>& bs_ptr,
+                      const KernelArgs& kargs,
+                      const index_t k_size,
+                      const index_t i_n)
+    {
+        const auto& bs_tensor_desc = generate_tuple(
+            [&](auto i) {
+                using BiLayout = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
+                return MakeDefaultBTensorDescriptor<BiLayout>(
+                    kargs.N, kargs.K, kargs.stride_Bs[i], k_size);
+            },
+            number<NumBTensor>{});
+
+        return MakeBBlockWindows(bs_ptr, bs_tensor_desc, i_n);
+    }
+
+    template <typename DsTensorDesc>
     CK_TILE_DEVICE static auto MakeDBlockWindows(const std::array<const void*, NumDTensor>& ds_ptr,
-                                                 const KernelArgs& kargs,
+                                                 const DsTensorDesc& ds_desc,
                                                  const index_t i_m,
                                                  const index_t i_n)
     {
-        // Step 1: Create tensor descriptors for D tensors
-        const auto& ds_tensor_desc = generate_tuple(
-            [&](auto i) {
-                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
-                return MakeDefaultDTensorDescriptor<DiLayout, EpiloguePipeline::GetVectorSizeD(i)>(
-                    kargs.M, kargs.N, kargs.stride_Ds[i]);
-            },
-            number<NumDTensor>{});
-
-        // Step 2: Create tensor views
+        // Step 1: Create tensor views
         const auto& ds_tensor_view = generate_tuple(
             [&](auto i) {
                 using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
                 return make_tensor_view<address_space_enum::global>(
-                    static_cast<const DDataType_*>(ds_ptr[i]), ds_tensor_desc[i]);
+                    static_cast<const DDataType_*>(ds_ptr[i]), ds_desc[i]);
             },
             number<NumDTensor>{});
 
-        // Step 3: Create padded views
+        // Step 2: Create padded views
         const auto& ds_pad_view = generate_tuple(
             [&](auto i) {
                 using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
@@ -984,7 +991,7 @@ struct UniversalGemmKernel
             },
             number<NumDTensor>{});
 
-        // Step 4: Create tile windows
+        // Step 3: Create tile windows
         const auto& ds_block_window = generate_tuple(
             [&](auto i) {
                 using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
@@ -1008,18 +1015,32 @@ struct UniversalGemmKernel
         return ds_block_window;
     }
 
-    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
-    CK_TILE_DEVICE static auto MakeCBlockWindows(EDataType* e_ptr,
+    CK_TILE_DEVICE static auto MakeDBlockWindows(const std::array<const void*, NumDTensor>& ds_ptr,
                                                  const KernelArgs& kargs,
                                                  const index_t i_m,
                                                  const index_t i_n)
     {
-        // Step 1: Create tensor descriptor for E/C tensor
-        const auto& e_tensor_desc = MakeDefaultETensorDescriptor(kargs.M, kargs.N, kargs.stride_E);
+        const auto& ds_tensor_desc = generate_tuple(
+            [&](auto i) {
+                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                return MakeDefaultDTensorDescriptor<DiLayout, EpiloguePipeline::GetVectorSizeD(i)>(
+                    kargs.M, kargs.N, kargs.stride_Ds[i]);
+            },
+            number<NumDTensor>{});
 
-        // Step 1: Create tensor view
+        return MakeDBlockWindows(ds_ptr, ds_tensor_desc, i_m, i_n);
+    }
+
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set, typename ETensorDesc>
+    CK_TILE_DEVICE static auto MakeCBlockWindows(
+        EDataType* e_ptr,
+        const index_t i_m,
+        const index_t i_n,
+        const ETensorDesc& e_desc) // Argument order differs from A,B,D to disambiguate overloads
+    {
+        // Step 1: Create tensor view for E/C tensor
         const auto& e_tensor_view =
-            make_tensor_view<address_space_enum::global, DstInMemOp>(e_ptr, e_tensor_desc);
+            make_tensor_view<address_space_enum::global, DstInMemOp>(e_ptr, e_desc);
 
         // Step 2: Create padded view
         const auto& e_pad_view = [&]() {
@@ -1046,6 +1067,17 @@ struct UniversalGemmKernel
             {i_m, i_n});
 
         return e_block_window;
+    }
+
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
+    CK_TILE_DEVICE static auto MakeCBlockWindows(EDataType* e_ptr,
+                                                 const KernelArgs& kargs,
+                                                 const index_t i_m,
+                                                 const index_t i_n)
+    {
+
+        const auto& e_tensor_desc = MakeDefaultETensorDescriptor(kargs.M, kargs.N, kargs.stride_E);
+        return MakeCBlockWindows<DstInMemOp>(e_ptr, i_m, i_n, e_tensor_desc);
     }
 
     /**
