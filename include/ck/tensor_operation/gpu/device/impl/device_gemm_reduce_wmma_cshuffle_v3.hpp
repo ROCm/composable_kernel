@@ -187,7 +187,10 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        false,
+        false,
+        true>;
 
     using ReduceTrait = ReduceTrait_<ReduceAccDataType,
                                      ReducePtrsGlobal,

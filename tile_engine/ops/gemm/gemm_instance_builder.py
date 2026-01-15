@@ -643,40 +643,31 @@ struct SelectedKernel {{
             
         using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
 
-        # Runfunction body
-        instance_code += """
-
-        const auto Run = [&](const auto memory_operation_) {"""
-
         # Scheduler initialization
         if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += f"""
-            constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
-
-        # Memory operation
-        instance_code += """
-            [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;"""
+        constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
 
         # UniversalGemmProblem
         if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += """
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
-                ADataType,
-                BDataType,
-                AccDataType,
-                TileShape,
-                ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                                ALayout, BLayout, CLayout, TransposeC,
-                                                UseStructuredSparsity, UsePersistentKernel,
-                                                NumWaveGroups, Preshuffle>,
-                scheduler>;"""
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+            ADataType,
+            BDataType,
+            AccDataType,
+            TileShape,
+            ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                            ALayout, BLayout, CLayout, TransposeC,
+                                            UseStructuredSparsity, UsePersistentKernel,
+                                            NumWaveGroups, Preshuffle>,
+            scheduler>;"""
 
         # GemmPipeline
         if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += f"""
 
-            using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
+        using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
 
         # Epilogue
         instance_code += self.populate_epilogue(epilogue)
@@ -748,23 +739,8 @@ struct SelectedKernel {{
                     ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
                 
                 return ave_time;
-            }};"""
-
-        # Run SplitK handler
-
-        instance_code += """
-
-        float ave_time = 0.f;
-        if(args.k_batch == 1) {
-            ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                        ck_tile::memory_operation_enum::set>{});
-        } else {
-            ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                        ck_tile::memory_operation_enum::atomic_add>{});
-        }
-        return ave_time;
-    }
-};
+    }}
+}};
 """
         return instance_code
 

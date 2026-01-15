@@ -123,6 +123,7 @@ struct FmhaFwdPagedKVKernel
         const void* k_ptr;
         const void* v_ptr;
         void* o_ptr;
+        const void* sink_ptr;
 
         ck_tile::index_t seqlen_q;
         ck_tile::index_t seqlen_k;
@@ -328,12 +329,14 @@ struct FmhaFwdPagedKVKernel
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
                   ck_tile::index_t sink_size,
-                  ck_tile::index_t mask_type)
+                  ck_tile::index_t mask_type,
+                  const void* sink_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
                      o_ptr,
+                     sink_ptr,
                      seqlen_q,
                      seqlen_k,
                      hdim_q,
@@ -457,7 +460,8 @@ struct FmhaFwdPagedKVKernel
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t sink_size,
-              ck_tile::index_t mask_type)
+              ck_tile::index_t mask_type,
+              const void* sink_ptr = nullptr)
     {
         return MakeKargsImpl(q_ptr,
                              k_ptr,
@@ -500,7 +504,8 @@ struct FmhaFwdPagedKVKernel
                              window_size_left,
                              window_size_right,
                              sink_size,
-                             mask_type);
+                             mask_type,
+                             sink_ptr);
     }
 
     template <bool Cond = kIsGroupMode>
@@ -543,12 +548,14 @@ struct FmhaFwdPagedKVKernel
                   ck_tile::index_t window_size_right,
                   ck_tile::index_t sink_size,
                   ck_tile::index_t mask_type,
-                  ck_tile::index_t min_seqlen_q)
+                  ck_tile::index_t min_seqlen_q,
+                  const void* sink_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
                      o_ptr,
+                     sink_ptr,
                      -1, // seqlen will be updated by another pointer
                      -1, //
                      hdim_q,
@@ -669,7 +676,8 @@ struct FmhaFwdPagedKVKernel
               ck_tile::index_t window_size_right,
               ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
-              ck_tile::index_t min_seqlen_q)
+              ck_tile::index_t min_seqlen_q,
+              const void* sink_ptr = nullptr)
     {
         return MakeKargsImpl(q_ptr,
                              k_ptr,
@@ -709,7 +717,8 @@ struct FmhaFwdPagedKVKernel
                              window_size_right,
                              sink_size,
                              mask_type,
-                             min_seqlen_q);
+                             min_seqlen_q,
+                             sink_ptr);
     }
 
     CK_TILE_HOST static void PrintParameters(const Kargs& kargs, int num_batches)
@@ -898,7 +907,6 @@ struct FmhaFwdPagedKVKernel
 
         // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
-
         const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * FmhaPipeline::kM0);
         const index_t i_n1 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN1);
 
@@ -909,6 +917,10 @@ struct FmhaFwdPagedKVKernel
         long_index_t batch_offset_lse  = 0;
         long_index_t batch_offset_o    = 0;
         index_t kv_l2p_offset          = 0;
+        const float sink_value =
+            kargs.sink_ptr != nullptr
+                ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                : -numeric<float>::infinity();
 
         if constexpr(kIsGroupMode)
         {
@@ -1325,30 +1337,33 @@ struct FmhaFwdPagedKVKernel
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
             {
-                return FmhaPipeline{}(
-                    q_dram_window,
-                    identity{}, // q_element_func
-                    k_dram_window_lengths,
-                    k_page_block_navigator,
-                    identity{}, // k_element_func
-                    v_dram_window_lengths,
-                    v_page_block_navigator,
-                    identity{}, // v_element_func
-                    bias_dram_window,
-                    identity{}, // bias_element_func
-                    lse_dram_window,
-                    identity{},                                          // lse_element_func
-                    identity{},                                          // s_acc_element_func
-                    scales{kargs.scale_p},                               // p_compute_element_func
-                    composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
-                    mask,
-                    position_encoding,
-                    kargs.scale_s,
-                    variant,
-                    variant_params,
-                    block_indices,
-                    kv_l2p_offset,
-                    smem_ptr);
+                return FmhaPipeline{}(q_dram_window,
+                                      identity{}, // q_element_func
+                                      k_dram_window_lengths,
+                                      k_page_block_navigator,
+                                      identity{}, // k_element_func
+                                      v_dram_window_lengths,
+                                      v_page_block_navigator,
+                                      identity{}, // v_element_func
+                                      bias_dram_window,
+                                      identity{}, // bias_element_func
+                                      lse_dram_window,
+                                      identity{}, // lse_element_func
+                                      identity{}, // s_acc_element_func
+                                      scales<remove_cvref_t<decltype(kargs.scale_p)>>{
+                                          kargs.scale_p}, // p_compute_element_func
+                                      make_composes(saturates<fp8_t>{},
+                                                    scales<remove_cvref_t<decltype(kargs.scale_o)>>{
+                                                        kargs.scale_o}), // o_acc_element_func
+                                      mask,
+                                      position_encoding,
+                                      kargs.scale_s,
+                                      variant,
+                                      variant_params,
+                                      block_indices,
+                                      kv_l2p_offset,
+                                      smem_ptr,
+                                      sink_value);
             }
             else
             {
@@ -1366,7 +1381,8 @@ struct FmhaFwdPagedKVKernel
                                       variant_params,
                                       block_indices,
                                       kv_l2p_offset,
-                                      smem_ptr);
+                                      smem_ptr,
+                                      sink_value);
             }
         }();
 
