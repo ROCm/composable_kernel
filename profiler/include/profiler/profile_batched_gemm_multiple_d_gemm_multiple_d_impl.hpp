@@ -145,7 +145,7 @@ bool profile_batched_gemm_multiple_d_gemm_multiple_d_impl(
 
     // Host verification: Output of Gemm0 is input A of Gemm1
     Tensor<RefAcc0DataType> c0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
-    Tensor<RefAcc0DataType> e0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
+    Tensor<A0DataType> e0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
     Tensor<RefAcc1DataType> c1_g_m_o(f_host_tensor_descriptor(BatchCount, M, O, O, M * O, Row{}));
 
     std::cout << "a0_g_m_k: " << a0_g_m_k.mDesc << std::endl;
@@ -230,7 +230,7 @@ bool profile_batched_gemm_multiple_d_gemm_multiple_d_impl(
                                                                                     PassThrough>;
 
         // Ref Gemm1
-        using ReferenceGemm1Instance = tensor_operation::host::ReferenceBatchedGemm<RefAcc0DataType,
+        using ReferenceGemm1Instance = tensor_operation::host::ReferenceBatchedGemm<A0DataType,
                                                                                     B1DataType,
                                                                                     RefAcc1DataType,
                                                                                     RefAcc1DataType,
@@ -246,8 +246,14 @@ bool profile_batched_gemm_multiple_d_gemm_multiple_d_impl(
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         // cde0_elementwise
-        e0_g_m_n.ForEach(
-            [&](auto&, auto idx) { cde0_element_op(e0_g_m_n(idx), c0_g_m_n(idx), d0_g_m_n(idx)); });
+        // Note that we also convert from Acc0DataType to A0DataType to match what the device
+        // operation does
+        e0_g_m_n.ForEach([&](auto&, auto idx) {
+            RefAcc0DataType out;
+            cde0_element_op(out, c0_g_m_n(idx), d0_g_m_n(idx));
+
+            e0_g_m_n(idx) = ck::type_convert<A0DataType>(out);
+        });
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
