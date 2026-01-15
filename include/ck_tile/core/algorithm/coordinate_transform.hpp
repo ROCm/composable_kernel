@@ -564,7 +564,7 @@ struct merge_v2_magic_division : public base_transform<LowLengths::size(), 1>
     using UpperIndex = multi_index<1>;
 
     using UpLengths =
-        decltype(make_tuple(container_reduce(LowLengths{}, multiplies{}, number<1>{})));
+        decltype(make_tuple(container_reduce(LowLengths{}, multiplies<>{}, number<1>{})));
 
     using LowLengthsMagicDivisor = decltype(generate_tuple(
         lambda_merge_generate_MagicDivision_calculate_magic_divisor<LowLengths>{},
@@ -584,7 +584,7 @@ struct merge_v2_magic_division : public base_transform<LowLengths::size(), 1>
           low_lengths_magic_divisor_{generate_tuple(
               [&](auto i) { return magic_division::calculate_magic_numbers(low_lengths[i]); },
               number<NDimLow>{})},
-          up_lengths_{make_tuple(container_reduce(low_lengths, multiplies{}, I1))}
+          up_lengths_{make_tuple(container_reduce(low_lengths, multiplies<>{}, I1))}
     {
         static_assert(LowerIndex::size() == NDimLow, "wrong!");
     }
@@ -707,10 +707,10 @@ struct merge_v3_division_mod : public base_transform<LowLengths::size(), 1>
     using UpperIndex = multi_index<1>;
 
     using LowLengthsScan =
-        decltype(container_reverse_exclusive_scan(LowLengths{}, multiplies{}, number<1>{}));
+        decltype(container_reverse_exclusive_scan(LowLengths{}, multiplies<>{}, number<1>{}));
 
     using UpLengths =
-        decltype(make_tuple(container_reduce(LowLengths{}, multiplies{}, number<1>{})));
+        decltype(make_tuple(container_reduce(LowLengths{}, multiplies<>{}, number<1>{})));
 
     LowLengths low_lengths_;
     LowLengthsScan low_lengths_scan_;
@@ -721,8 +721,8 @@ struct merge_v3_division_mod : public base_transform<LowLengths::size(), 1>
     CK_TILE_HOST_DEVICE constexpr merge_v3_division_mod(const LowLengths& low_lengths)
         : low_lengths_{low_lengths},
           low_lengths_scan_{
-              container_reverse_exclusive_scan(low_lengths, multiplies{}, number<1>{})},
-          up_lengths_{make_tuple(container_reduce(low_lengths, multiplies{}, number<1>{}))}
+              container_reverse_exclusive_scan(low_lengths, multiplies<>{}, number<1>{})},
+          up_lengths_{make_tuple(container_reduce(low_lengths, multiplies<>{}, number<1>{}))}
     {
         static_assert(LowerIndex::size() == NDimLow, "wrong!");
     }
@@ -832,7 +832,7 @@ struct unmerge : public base_transform<1, UpLengths::size()>
     using UpperIndex = multi_index<NDimUp>;
 
     using UpLengthsScan =
-        decltype(container_reverse_exclusive_scan(UpLengths{}, multiplies{}, number<1>{}));
+        decltype(container_reverse_exclusive_scan(UpLengths{}, multiplies<>{}, number<1>{}));
 
     UpLengths up_lengths_;
     UpLengthsScan up_lengths_scan_;
@@ -841,7 +841,8 @@ struct unmerge : public base_transform<1, UpLengths::size()>
 
     CK_TILE_HOST_DEVICE constexpr unmerge(const UpLengths& up_lengths)
         : up_lengths_{up_lengths},
-          up_lengths_scan_{container_reverse_exclusive_scan(up_lengths, multiplies{}, number<1>{})}
+          up_lengths_scan_{
+              container_reverse_exclusive_scan(up_lengths, multiplies<>{}, number<1>{})}
     {
     }
 
