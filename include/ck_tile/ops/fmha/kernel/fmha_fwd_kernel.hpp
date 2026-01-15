@@ -1778,9 +1778,9 @@ struct FmhaFwdKernel
                         identity{}, // bias_element_func
                         randval_dram_window,
                         lse_dram_window,
-                        identity{},        // lse_element_func
-                        scales{q_descale}, // s_acc_element_func
-                        identity{},        // p_compute_element_func - No scaling (done in exp2)
+                        identity{},               // lse_element_func
+                        scales<float>(q_descale), // s_acc_element_func
+                        identity{}, // p_compute_element_func - No scaling (done in exp2)
                         identity{}, // o_acc_element_func - No dequant needed (canceled by rowsum)
                         mask,
                         position_encoding,
