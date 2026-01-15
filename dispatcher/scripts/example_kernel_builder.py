@@ -744,12 +744,29 @@ def generate_gemm_registration(
         kernel_name = h.stem
         ns = f"ns_{kernel_name}"
 
-        # Parse pipeline and scheduler from kernel name
+        # Parse pipeline, scheduler, and layout from kernel name
         # Format: gemm_fp16_rcr_compv3_cshuffle_intrawave_...
         parts = kernel_name.split("_")
         pipeline = "CompV3"
         scheduler = "Intrawave"
         epilogue = "CShuffle"
+        datatype = "FP16"
+        layout_a = "RowMajor"
+        layout_b = "ColMajor"
+        layout_c = "RowMajor"
+
+        # Parse datatype (e.g., fp16, bf16, fp32)
+        dtype_map = {
+            "fp16": "FP16",
+            "bf16": "BF16",
+            "fp32": "FP32",
+            "fp64": "FP64",
+            "int8": "INT8",
+        }
+
+        # Parse layout from 3-char codes (e.g., rcr, rrr, rrc, ccc)
+        # r = RowMajor, c = ColMajor
+        layout_map = {"r": "RowMajor", "c": "ColMajor"}
 
         # Find pipeline, epilogue, scheduler in the name parts
         pipeline_map = {
@@ -776,6 +793,13 @@ def generate_gemm_registration(
                 scheduler = scheduler_map[part]
             if part in epilogue_map:
                 epilogue = epilogue_map[part]
+            if part in dtype_map:
+                datatype = dtype_map[part]
+            # Parse 3-char layout codes (e.g., rcr, rrr)
+            if len(part) == 3 and all(c in "rc" for c in part):
+                layout_a = layout_map[part[0]]
+                layout_b = layout_map[part[1]]
+                layout_c = layout_map[part[2]]
 
         block = []
         block.append(f"        // Register kernel: {kernel_name}")
@@ -783,25 +807,25 @@ def generate_gemm_registration(
         block.append(f"            using SelectedKernel = {ns}::SelectedKernel;")
         block.append("            ck_tile::dispatcher::KernelKey key;")
         block.append(
-            "            key.signature.dtype_a = ck_tile::dispatcher::DataType::FP16;"
+            f"            key.signature.dtype_a = ck_tile::dispatcher::DataType::{datatype};"
         )
         block.append(
-            "            key.signature.dtype_b = ck_tile::dispatcher::DataType::FP16;"
+            f"            key.signature.dtype_b = ck_tile::dispatcher::DataType::{datatype};"
         )
         block.append(
-            "            key.signature.dtype_c = ck_tile::dispatcher::DataType::FP16;"
+            f"            key.signature.dtype_c = ck_tile::dispatcher::DataType::{datatype};"
         )
         block.append(
             "            key.signature.dtype_acc = ck_tile::dispatcher::DataType::FP32;"
         )
         block.append(
-            "            key.signature.layout_a = ck_tile::dispatcher::LayoutTag::RowMajor;"
+            f"            key.signature.layout_a = ck_tile::dispatcher::LayoutTag::{layout_a};"
         )
         block.append(
-            "            key.signature.layout_b = ck_tile::dispatcher::LayoutTag::ColMajor;"
+            f"            key.signature.layout_b = ck_tile::dispatcher::LayoutTag::{layout_b};"
         )
         block.append(
-            "            key.signature.layout_c = ck_tile::dispatcher::LayoutTag::RowMajor;"
+            f"            key.signature.layout_c = ck_tile::dispatcher::LayoutTag::{layout_c};"
         )
         block.append("            key.algorithm.tile_shape.m = SelectedKernel::TileM;")
         block.append("            key.algorithm.tile_shape.n = SelectedKernel::TileN;")

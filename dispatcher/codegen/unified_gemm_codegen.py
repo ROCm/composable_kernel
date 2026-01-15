@@ -522,29 +522,31 @@ class CKTileKernelGenerator:
         return includes
 
     def _types(self, config: KernelConfig, kernel_name: str) -> str:
-        """Generate type definitions"""
-        output_dtype = self.tm.get_output_dtype(self.datatype)
-
-        types = f"""
+        """Generate type definitions - just the namespace import, types are in kernel namespace"""
+        # Note: Data types and layouts are now defined inside each kernel's unique namespace
+        # to avoid type alias redefinition conflicts when mixing layouts (e.g., RCR + RRR)
+        types = """
 // Use ck_tile namespace for generated code
 using namespace ck_tile;
-
-// Data types
-using ADataType = {self.tm.DTYPE_TO_CK[self.datatype]};
-using BDataType = {self.tm.DTYPE_TO_CK[self.datatype]};
-using AccDataType = float;
-using CDataType = {self.tm.DTYPE_TO_CK[output_dtype]};
-
-// Layouts
-using ALayout = {self.tm.LAYOUT_TO_CK[self.layout[0]]};
-using BLayout = {self.tm.LAYOUT_TO_CK[self.layout[1]]};
-using CLayout = {self.tm.LAYOUT_TO_CK[self.layout[2]]};
 """
-
-        # Multi-D types are now defined inside the namespace to avoid redefinition
-        # when multiple multi-d kernels are included
-
         return types
+
+    def _kernel_local_types(self, config: KernelConfig) -> str:
+        """Generate data type and layout definitions inside kernel namespace"""
+        output_dtype = self.tm.get_output_dtype(self.datatype)
+
+        return f"""
+    // Data types (inside namespace to avoid conflicts across layouts)
+    using ADataType = {self.tm.DTYPE_TO_CK[self.datatype]};
+    using BDataType = {self.tm.DTYPE_TO_CK[self.datatype]};
+    using AccDataType = float;
+    using CDataType = {self.tm.DTYPE_TO_CK[output_dtype]};
+
+    // Layouts (inside namespace to avoid conflicts when mixing layouts)
+    using ALayout = {self.tm.LAYOUT_TO_CK[self.layout[0]]};
+    using BLayout = {self.tm.LAYOUT_TO_CK[self.layout[1]]};
+    using CLayout = {self.tm.LAYOUT_TO_CK[self.layout[2]]};
+"""
 
     def _multi_d_types(self, config: KernelConfig) -> str:
         """Generate multi-d type definitions (inside namespace to avoid conflicts)"""
@@ -569,6 +571,7 @@ using GemmMultiDArgs = GemmMultiDHostArgs<NumDTensor>;
         """Generate SelectedKernel struct with unique name in unique namespace"""
         t = config.tile
         tr = config.trait
+        output_dtype = self.tm.get_output_dtype(self.datatype)
 
         # Generate unique struct name and namespace from kernel name
         struct_name = f"Kernel_{kernel_name}"
@@ -580,13 +583,24 @@ using GemmMultiDArgs = GemmMultiDHostArgs<NumDTensor>;
         return f"""
 namespace {ns_name} {{
 constexpr const char* KERNEL_NAME = "{kernel_name}";
+
+// Data types (inside namespace to avoid conflicts across different kernels)
+using ADataType = {self.tm.DTYPE_TO_CK[self.datatype]};
+using BDataType = {self.tm.DTYPE_TO_CK[self.datatype]};
+using AccDataType = float;
+using CDataType = {self.tm.DTYPE_TO_CK[output_dtype]};
+
+// Layouts (inside namespace to avoid conflicts when mixing layouts like RCR + RRR)
+using ALayout = {self.tm.LAYOUT_TO_CK[self.layout[0]]};
+using BLayout = {self.tm.LAYOUT_TO_CK[self.layout[1]]};
+using CLayout = {self.tm.LAYOUT_TO_CK[self.layout[2]]};
 {multi_d_types}
 struct {struct_name} {{
     // Data types (required by backend as member types)
-    using ADataType = ::ADataType;
-    using BDataType = ::BDataType;
-    using CDataType = ::CDataType;
-    using AccDataType = ::AccDataType;
+    using ADataType = {ns_name}::ADataType;
+    using BDataType = {ns_name}::BDataType;
+    using CDataType = {ns_name}::CDataType;
+    using AccDataType = {ns_name}::AccDataType;
     
     // Configuration
     static constexpr index_t BlockSize = {config.block_size};
@@ -611,7 +625,7 @@ struct {struct_name} {{
     static constexpr bool Preshuffle = {str(config.preshuffle).lower()};
     static constexpr index_t NumWaveGroups = {config.num_wave_groups};
     
-    {self._tile_types(config)}
+    {self._tile_types(config, ns_name)}
     {self._launch_function(config)}
 }};
 
@@ -633,10 +647,10 @@ using AccDataType = float;
 #endif // CK_TILE_SINGLE_KERNEL_INCLUDE
 """
 
-    def _tile_types(self, config: KernelConfig) -> str:
-        """Generate tile type definitions"""
+    def _tile_types(self, config: KernelConfig, ns_name: str) -> str:
+        """Generate tile type definitions - uses namespace-qualified types"""
         return (
-            """// Tile shape
+            f"""// Tile shape
     using TileShape = TileGemmShape<
         sequence<TileM, TileN, TileK>,
         sequence<WarpPerBlock_M, WarpPerBlock_N, WarpPerBlock_K>,
@@ -644,7 +658,7 @@ using AccDataType = float;
         false, false>;
     
     using TilePartitioner = GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
-    using Traits = TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;
+    using Traits = TileGemmTraits<kPadM, kPadN, kPadK, {ns_name}::ALayout, {ns_name}::BLayout, {ns_name}::CLayout, NumWaveGroups>;
     using GemmPipelineProblem = GemmPipelineProblem<ADataType, BDataType, AccDataType, TileShape, Traits>;
     using BaseGemmPipeline = """
             + self.tm.PIPELINE_TO_BASE[config.trait.pipeline]

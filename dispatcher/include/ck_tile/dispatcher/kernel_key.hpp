@@ -146,34 +146,8 @@ struct KernelKey
 
     /// Generate a unique string identifier for this kernel configuration
     /// Format matches tile_engine naming convention for registry lookup
-    [[nodiscard]] std::string encode_identifier() const
-    {
-        std::ostringstream oss;
-
-        // Match tile_engine naming: tile_m x tile_n x tile_k _ warp_m x warp_n x warp_k _
-        // warp_tile_m x warp_tile_n x warp_tile_k
-        oss << algorithm.tile_shape.m << "x" << algorithm.tile_shape.n << "x"
-            << algorithm.tile_shape.k << "_" << unsigned(algorithm.wave_shape.m) << "x"
-            << unsigned(algorithm.wave_shape.n) << "x" << unsigned(algorithm.wave_shape.k) << "_"
-            << unsigned(algorithm.warp_tile_shape.m) << "x" << unsigned(algorithm.warp_tile_shape.n)
-            << "x" << unsigned(algorithm.warp_tile_shape.k);
-
-        // Add trait flags
-        oss << "_" << (algorithm.persistent ? "persist" : "nopers");
-
-        if(signature.split_k > 1)
-            oss << "_splitk" << unsigned(signature.split_k);
-        if(!signature.elementwise_op.empty() && signature.elementwise_op != "PassThrough")
-            oss << "_" << signature.elementwise_op;
-        if(signature.num_d_tensors > 0)
-            oss << "_d" << unsigned(signature.num_d_tensors);
-        if(signature.structured_sparsity)
-            oss << "_sparse";
-        if(algorithm.preshuffle)
-            oss << "_preshuffle";
-
-        return oss.str();
-    }
+    /// Note: Defined after to_string() functions to use them
+    [[nodiscard]] std::string encode_identifier() const;
 
     /// Create a tuple of all fields for comparison operators
     auto tie() const
@@ -406,6 +380,49 @@ constexpr const char* Tanh           = "Tanh";
 constexpr const char* Swish          = "Swish";
 constexpr const char* HardSwish      = "HardSwish";
 } // namespace ElementwiseOps
+
+// =============================================================================
+// KernelKey::encode_identifier() implementation
+// Defined after to_string() functions to use them
+// =============================================================================
+
+inline std::string KernelKey::encode_identifier() const
+{
+    std::ostringstream oss;
+
+    // Include data types and layout for uniqueness across different signatures
+    oss << to_string(signature.dtype_a) << "_";
+    oss << to_string(signature.layout_a) << to_string(signature.layout_b)
+        << to_string(signature.layout_c) << "_";
+
+    // Include pipeline, scheduler, epilogue for uniqueness
+    oss << to_string(algorithm.pipeline) << "_";
+    oss << to_string(algorithm.scheduler) << "_";
+    oss << to_string(algorithm.epilogue) << "_";
+
+    // Match tile_engine naming: tile_m x tile_n x tile_k _ warp_m x warp_n x warp_k _
+    // warp_tile_m x warp_tile_n x warp_tile_k
+    oss << algorithm.tile_shape.m << "x" << algorithm.tile_shape.n << "x" << algorithm.tile_shape.k
+        << "_" << unsigned(algorithm.wave_shape.m) << "x" << unsigned(algorithm.wave_shape.n) << "x"
+        << unsigned(algorithm.wave_shape.k) << "_" << unsigned(algorithm.warp_tile_shape.m) << "x"
+        << unsigned(algorithm.warp_tile_shape.n) << "x" << unsigned(algorithm.warp_tile_shape.k);
+
+    // Add trait flags
+    oss << "_" << (algorithm.persistent ? "persist" : "nopers");
+
+    if(signature.split_k > 1)
+        oss << "_splitk" << unsigned(signature.split_k);
+    if(!signature.elementwise_op.empty() && signature.elementwise_op != "PassThrough")
+        oss << "_" << signature.elementwise_op;
+    if(signature.num_d_tensors > 0)
+        oss << "_d" << unsigned(signature.num_d_tensors);
+    if(signature.structured_sparsity)
+        oss << "_sparse";
+    if(algorithm.preshuffle)
+        oss << "_preshuffle";
+
+    return oss.str();
+}
 
 } // namespace dispatcher
 } // namespace ck_tile
