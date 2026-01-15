@@ -49,18 +49,20 @@ struct MultiReduce2d
     {
         using S                              = typename Problem::BlockShape;
         constexpr index_t memory_vector_size = 16 / sizeof(XDataType); // Vectorization
-        constexpr index_t thread_tile_vector_size =
-            S::ThreadTile_N; // In the continuous dimension, within the tile
 
         constexpr auto innermost_reduce_dim    = ReduceDims{}.at(number<ReduceDims{}.size() - 1>{});
         constexpr bool is_innermost_contiguous = (innermost_reduce_dim == InputShape{}.size() - 1);
 
-        constexpr index_t stride_based_vector_size =
-            is_innermost_contiguous
-                ? ck_tile::min(memory_vector_size, thread_tile_vector_size)
-                : 1; // Move at "vectorization" steps if continuous otherwise 1 step
-
-        return stride_based_vector_size;
+        if constexpr(is_innermost_contiguous)
+        {
+            constexpr index_t thread_tile_vector_size = S::ThreadTile_N;
+            return ck_tile::min(memory_vector_size, thread_tile_vector_size);
+        }
+        else
+        {
+            constexpr index_t thread_tile_vector_size = S::ThreadTile_M;
+            return ck_tile::min(memory_vector_size, thread_tile_vector_size);
+        }
     }
 
     static constexpr index_t CalculateOutputVectorSize()
