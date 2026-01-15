@@ -322,10 +322,10 @@ ValidationReport validate(const Args<SIGNATURE>& args,
 /// @note This function is explicitly deleted to generate compile errors
 /// for missing implementations.
 template <auto SIGNATURE, typename Operation, typename StreamConf>
-void run(Operation& operation,
-         const Args<SIGNATURE>& args,
-         const Inputs<SIGNATURE>& inputs,
-         const Outputs<SIGNATURE>& outputs,
-         const StreamConf s_conf = {}) = delete;
+float run(Operation& operation,
+          const Args<SIGNATURE>& args,
+          const Inputs<SIGNATURE>& inputs,
+          const Outputs<SIGNATURE>& outputs,
+          const StreamConf s_conf = {}) = delete;
 
 } // namespace ck_tile::builder::test

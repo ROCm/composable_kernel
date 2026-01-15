@@ -17,11 +17,7 @@ struct TensorConfig
     DataType data_type{DataType::UNDEFINED_DATA_TYPE};
     DataType compute_type{DataType::UNDEFINED_DATA_TYPE};
 
-    constexpr bool operator==(const TensorConfig& other) const
-    {
-        return layout == other.layout && data_type == other.data_type &&
-               compute_type == other.compute_type;
-    }
+    constexpr bool operator==(const TensorConfig& other) const = default;
 };
 
 template <TensorConfig... Configs>
@@ -38,11 +34,7 @@ struct TensorOperation
             .elementwise_operation = this->elementwise_operation};
     }
 
-    constexpr bool operator==(const TensorOperation& other) const
-    {
-        return elementwise_operation == other.elementwise_operation &&
-               auxiliary_operand_configs == other.auxiliary_operand_configs;
-    }
+    constexpr bool operator==(const TensorOperation& other) const = default;
 };
 
 template <typename Op = TensorOperation<>>
@@ -51,10 +43,7 @@ struct ConvolutionTensor
     TensorConfig config;
     Op operation{};
 
-    constexpr bool operator==(const ConvolutionTensor& other) const
-    {
-        return config == other.config && operation == other.operation;
-    }
+    constexpr bool operator==(const ConvolutionTensor& other) const = default;
 };
 
 template <typename InputTensor  = ConvolutionTensor<>,
@@ -70,13 +59,7 @@ struct ConvSignature
     WeightTensor weight;
     OutputTensor output;
 
-    constexpr bool operator==(const ConvSignature& other) const
-    {
-        return spatial_dim == other.spatial_dim && direction == other.direction &&
-               data_type == other.data_type &&
-               accumulation_data_type == other.accumulation_data_type && input == other.input &&
-               weight == other.weight && output == other.output;
-    }
+    constexpr bool operator==(const ConvSignature& other) const = default;
 };
 
 } // namespace ck_tile::builder::test

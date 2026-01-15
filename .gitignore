@@ -93,5 +93,6 @@ test_data/*
 !experimental/builder
 !experimental/builder/**
 experimental/builder/src/instances/*
+!experimental/builder/src/instances/*.in
 !experimental/builder/src/instances/*.inc
 experimental/builder/src/*.inc

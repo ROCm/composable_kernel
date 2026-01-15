@@ -114,7 +114,9 @@ def generate_defs_inc(instances, problem_name, signature, direction, filter_patt
             )
 
 
-def generate_fwd_cpp(instances, problem_name, config, direction, filter_pattern):
+def generate_fwd_cpp(
+    instances, problem_name, config, direction, signature_name, filter_pattern
+):
     for instance in instances:
         if problem_name.find(filter_pattern) == -1:
             break
@@ -123,37 +125,24 @@ def generate_fwd_cpp(instances, problem_name, config, direction, filter_pattern)
         directory_path = Path(f"{generate_dir}/instances/{config}")
         directory_path.mkdir(parents=True, exist_ok=True)
         with open(
+            f"{generate_dir}/instances/grouped_convolution_forward_tile.cpp.in",
+            "r",
+        ) as f:
+            content = f.read()
+
+        content = content.replace("gen_signature", signature_name)
+        content = content.replace("gen_instance_name", instance_name)
+        content = content.replace("gen_specialization", instance.get_specialization())
+        content = content.replace("gen_thread_block", instance.get_thread_block())
+        content = content.replace("gen_block_gemm_desc", instance.get_block_gemm_desc())
+        content = content.replace("gen_block_transfer", instance.get_block_transfer())
+        content = content.replace("gen_optimizations", instance.get_optimizations())
+
+        with open(
             f"{generate_dir}/instances/{config}/{instance_name}.cpp",
             "w",
         ) as f:
-            f.write(
-                f"// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.\n"
-                f"// SPDX-License-Identifier: MIT\n"
-                f'#include "../instance_includes.inc"\n'
-                f'#include "../{problem_name}_signature.inc"\n'
-                f"namespace ck_tile::builder::profiling {{\n"
-                f"std::tuple<float, std::string> run_{instance_name}(\n"
-                f"   const ckt::Args<SIGNATURE>& args,\n"
-                f"   const ckt::Inputs<SIGNATURE>& inputs,\n"
-                f"   const ckt::Outputs<SIGNATURE>& outputs,\n"
-                f"   const ck_tile::stream_config& s_conf) {{\n"
-            )
-
-            f.write(
-                f"constexpr auto ALGORITHM = cku::ConvAlgorithm_Tile_GroupedConvolutionKernel{{}}\n"
-                f"   .with_tile_specializations({instance.get_specialization()})\n"
-                f"   .with_tile_thread_block({instance.get_thread_block()})\n"
-                f"   .with_tile_block_gemm({instance.get_block_gemm_desc()})\n"
-                f"   .with_tile_transfer({instance.get_block_transfer()})\n"
-                f"   .with_tile_optimizations(\n"
-                f"      {instance.get_optimizations()});\n"
-            )
-
-            f.write(
-                '#include "../instance_run.inc"\n'
-                "}\n"
-                "} // namespace ck_tile::builder::profiling\n"
-            )
+            f.write(content)
 
 
 def parse_fwd_instances(instances, problem_name):
@@ -222,16 +211,19 @@ def parse_fwd_instances(instances, problem_name):
 
 def generate_instances_fwd(instances, problem_name, config, filter_pattern):
     direction = "forward"
+    signature_name = f"SIGNATURE_{config.upper()}_FWD"
     instances = parse_fwd_instances(instances, problem_name)
     generate_calls_inc(instances, problem_name, direction, filter_pattern)
     generate_defs_inc(
         instances,
         problem_name,
-        f"SIGNATURE_{config.upper()}_FWD",
+        signature_name,
         direction,
         filter_pattern,
     )
-    generate_fwd_cpp(instances, problem_name, config, direction, filter_pattern)
+    generate_fwd_cpp(
+        instances, problem_name, config, direction, signature_name, filter_pattern
+    )
 
 
 if __name__ == "__main__":

@@ -7,9 +7,9 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-#include "../../experimental/builder/test/utils/ckb_conv_tile_test_configs.hpp"
-#include "../../experimental/builder/test/utils/conv_algorithm_type_utils.hpp"
-#include "../../experimental/builder/include/ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
+#include "experimental/builder/test/utils/ckb_conv_tile_test_configs.hpp"
+#include "experimental/builder/test/utils/conv_algorithm_type_utils.hpp"
+#include "experimental/builder/include/ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
 #include "ck_tile/host/device_prop.hpp"
 #include "profiler/grouped_convolution_forward_tile_algs.hpp"
 
