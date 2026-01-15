@@ -17,9 +17,9 @@ auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("h", "false", "Print help message")
-        .insert("m", "3840", "m dimension")
-        .insert("n", "4096", "n dimension")
-        .insert("k", "2048", "k dimension")
+        .insert("m", "128", "m dimension")
+        .insert("n", "128", "n dimension")
+        .insert("k", "128", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row or Column")
         .insert("b_layout", "C", "B tensor data layout - Row or Column")
         .insert("bq_layout", "C", "Bq tensor data layout - Row or Column")

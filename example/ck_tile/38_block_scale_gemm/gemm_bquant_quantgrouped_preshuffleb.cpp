@@ -26,19 +26,18 @@ void bquant_quantgrouped_preshuffleb_instance_factory(
                                               QuantGroupSize,
                                               ck_tile::QuantType::BQuantGrouped>(arg_parser);
         };
-    // lut[hash_multiple_strings({"fp8", "bquant", "preshuffleb", "non-preshufflequant",
-    // "1x8x128"})] =
-    //     [](const ck_tile::ArgParser& arg_parser) {
-    //         using TypeConfig     = decltype(GemmQuantTypeConfig<ck_tile::fp8_t,
-    //                                                             ck_tile::fp8_t,
-    //                                                             ck_tile::half_t,
-    //                                                             float>{});
-    //         using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 8, 128>>;
-    //         return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-    //                                           TypeConfig,
-    //                                           QuantGroupSize,
-    //                                           ck_tile::QuantType::BQuantGrouped>(arg_parser);
-    //     };
+    lut[hash_multiple_strings({"fp8", "bquant", "preshuffleb", "non-preshufflequant", "1x8x128"})] =
+        [](const ck_tile::ArgParser& arg_parser) {
+            using TypeConfig     = decltype(GemmQuantTypeConfig<ck_tile::fp8_t,
+                                                                ck_tile::fp8_t,
+                                                                ck_tile::half_t,
+                                                                float>{});
+            using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 8, 128>>;
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                              TypeConfig,
+                                              QuantGroupSize,
+                                              ck_tile::QuantType::BQuantGrouped>(arg_parser);
+        };
     // lut[hash_multiple_strings({"fp8",
     //                            "bquant",
     //                            "preshuffleb",

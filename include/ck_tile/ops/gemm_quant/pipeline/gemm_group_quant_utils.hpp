@@ -204,7 +204,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     static constexpr index_t NWarps = BlockGemmShape::BlockWarps::at(number<1>{});
     static constexpr index_t KWarps = BlockGemmShape::BlockWarps::at(number<2>{});
 
-    static constexpr index_t NIterPerWarp = BlockGemmShape::kN / (NWarps * WarpGemm::kN);
+    static constexpr index_t NIterPerWarp = BlockGemmShape::kN / (NWarps * WarpGemm::kN); // 2
 
     static_assert(num_warps == MWarps * NWarps * KWarps);
     static_assert(KWarps == 1);
@@ -341,13 +341,28 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>)
                 {
                     // ColumnMajor: [(N0, N1, N2), K] - N on Y-axis, partition Y
+                    if(get_block_id() == 0 && get_thread_id() == 0)
+                    {
+                        // Debug print to verify values
+                        printf("PreshuffleQuant Medium-grained: MWarps: %d, NR=%d, NPerQ=%d, "
+                               "N0: %d, N1=%d, N2=%d, KPerTile: %d\n",
+                               MWarps,
+                               NR,
+                               NPerQ,
+                               N0,
+                               N1,
+                               N2,
+                               KPerTile);
+                    }
                     return make_static_tile_distribution(
-                        tile_distribution_encoding<sequence<MWarps, NR, NPerQ>,
-                                                   tuple<sequence<N0, N1, N2>, sequence<KPerTile>>,
-                                                   tuple<sequence<0, 1>, sequence<0, 1, 0>>,
-                                                   tuple<sequence<0, 1>, sequence<1, 2, 2>>,
-                                                   sequence<1, 2>,
-                                                   sequence<0, 0>>{});
+                        tile_distribution_encoding<
+                            sequence<MWarps, NR, NPerQ>,                     // 1, 1, 8
+                            tuple<sequence<N0, N1, N2>, sequence<KPerTile>>, //(2, 4, 16/8 = 2), (1)
+                            tuple<sequence<0, 1>, sequence<0, 1, 0>>, //(MWarps, Nwarps), (NR, N2,
+                                                                      // NPerQ)
+                            tuple<sequence<0, 1>, sequence<1, 2, 2>>, //(1, 4), (1, 2, 8)
+                            sequence<1, 2>,                           //(N0), (KPerTile)
+                            sequence<0, 0>>{});                       // 2, 1
                 }
                 else
                 {

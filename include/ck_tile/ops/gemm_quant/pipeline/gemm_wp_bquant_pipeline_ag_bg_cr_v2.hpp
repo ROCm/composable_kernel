@@ -390,7 +390,10 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
 
         // MAIN LOOP
         index_t iCounter = (num_loop - 1) / loop_count;
-
+        if(get_block_id() == 0 && get_thread_id() == 0)
+        {
+            printf("iCounter:%d \n\n ", iCounter);
+        }
         while(iCounter > 0)
         {
             __builtin_amdgcn_sched_barrier(0);
@@ -409,6 +412,10 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                     b_warp_tensor_ping,
                                     bq_block_tile,
                                     a_warp_windows_ping);
+            if(get_block_id() == 0 && get_thread_id() == 0)
+            {
+                printf("While 1 iteration done \n\n ");
+            }
             // prefetch B(2i+1)
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -485,6 +492,10 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                     b_warp_tensor_pong,
                                     bq_block_tile_2,
                                     a_warp_windows_pong);
+            if(get_block_id() == 0 && get_thread_id() == 0)
+            {
+                printf("while 2 iteration done \n\n ");
+            }
 
             static_for<0, m_preload, 1>{}([&](auto loadIter) {
                 constexpr auto mIter = loadIter % MIterPerWarp;
@@ -523,6 +534,10 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                     b_warp_tensor_ping,
                                     bq_block_tile,
                                     a_warp_windows_ping);
+            if(get_block_id() == 0 && get_thread_id() == 0)
+            {
+                printf("Even tail 1 iteration done \n\n ");
+            }
 
             static_for<0, m_preload, 1>{}([&](auto loadIter) {
                 constexpr auto mIter = loadIter % MIterPerWarp;
@@ -537,6 +552,10 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                     b_warp_tensor_pong,
                                     bq_block_tile_2,
                                     a_warp_windows_pong);
+            if(get_block_id() == 0 && get_thread_id() == 0)
+            {
+                printf("Even tail 2nd iteration done \n\n ");
+            }
             HotLoopScheduler<loop_count>();
         }
         else if constexpr(TailNum == TailNumber::Odd)
@@ -547,6 +566,10 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                     b_warp_tensor_ping,
                                     bq_block_tile,
                                     a_warp_windows_ping);
+            if(get_block_id() == 0 && get_thread_id() == 0)
+            {
+                printf("odd tail 1 iteration done \n\n ");
+            }
             Base::LastHotLoopScheduler();
         }
 

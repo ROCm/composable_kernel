@@ -577,14 +577,14 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                     }
                 }
             }
-            // for(int i = 0; i < BQK; i++)
-            // {
-            //     for(int j = 0; j < BQN; j++)
-            //     {
-            //         printf("bq_tensor_ptr[%d][%d]: %.0f\n ", i, j, (*bq_tensor_ptr)(i, j));
-            //     }
-            //     printf("\n");
-            // }
+            for(int i = 0; i < BQK; i++)
+            {
+                for(int j = 0; j < BQN; j++)
+                {
+                    printf("bq_tensor_ptr[%d][%d]: %.0f\n ", i, j, (*bq_tensor_ptr)(i, j));
+                }
+                printf("\n");
+            }
         }
         else
         {
@@ -657,7 +657,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
     if constexpr(GemmConfig::PreshuffleB)
     {
-        if constexpr(GemmConfig::TiledMMAPermuteN && QuantGroupSize::kN == 1)
+        if constexpr(GemmConfig::TiledMMAPermuteN &&
+                     (QuantGroupSize::kN == 1 || QuantGroupSize::kN == 8))
         {
             printf("PreshuffleB with TiledMMAPermuteN\n");
             b_k_n_dev = ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
@@ -683,10 +684,35 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                  QuantMode == ck_tile::QuantType::TensorQuant)
     {
         if constexpr(GemmConfig::PreshuffleB && GemmConfig::TiledMMAPermuteN &&
-                     QuantGroupSize::kN == 1)
+                     (QuantGroupSize::kN == 1 || QuantGroupSize::kN == 8))
         {
             ck_tile::HostTensor<BQDataType> bq_permuted_host =
                 ck_tile::bq_permuteN<GemmConfig>(*bq_tensor_ptr, QuantGroupSize::kN);
+
+            printf("Preshuffle BQ tensor\n");
+            for(int i = 0; i < static_cast<int>(bq_permuted_host.get_lengths()[0]); i++)
+            {
+                for(int j = 0; j < static_cast<int>(bq_permuted_host.get_lengths()[1]); j++)
+                {
+                    for(int k = 0; k < static_cast<int>(bq_permuted_host.get_lengths()[2]); k++)
+                    {
+                        for(int l = 0; l < static_cast<int>(bq_permuted_host.get_lengths()[3]); l++)
+                        {
+                            for(int m = 0; m < static_cast<int>(bq_permuted_host.get_lengths()[4]);
+                                m++)
+                            {
+                                printf("bq_shuffle_host[%d][%d][%d][%d][%d]: %f\n",
+                                       i,
+                                       j,
+                                       k,
+                                       l,
+                                       m,
+                                       bq_permuted_host(i, j, k, l, m));
+                            }
+                        }
+                    }
+                }
+            }
 
             if constexpr(GemmConfig::PreshuffleQuant)
             {

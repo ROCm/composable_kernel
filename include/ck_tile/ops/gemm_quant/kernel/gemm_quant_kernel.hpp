@@ -869,6 +869,13 @@ struct QuantGemmKernel
                         // For ColumnMajor BQ: memory layout is [N/QuantGroupN][K/QuantGroupK]
                         // Dimensions: [N/QuantGroupN, K/QuantGroupK]
                         // Strides: [K/QuantGroupK, 1]
+                        if(get_block_id() == 0 && get_thread_id() == 0)
+                        {
+                            printf("tensor view size is: %d, %d, vector size: %d\n",
+                                   integer_divide_ceil(kargs.N, QuantGroupSize::kN),
+                                   integer_divide_ceil(kargs.K, QuantGroupSize::kK),
+                                   GemmPipeline::GetVectorSizeBQ());
+                        }
                         return make_naive_tensor_view<address_space_enum::global>(
                             bq_ptr,
                             make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN),
@@ -1190,6 +1197,17 @@ struct QuantGemmKernel
                     else
                     {
                         static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
+                        if(get_block_id() == 0 && get_thread_id() == 0)
+                        {
+                            printf(
+                                "TilePartitioner::NPerBlock: %d, TilePartitioner::KPerBlock: %d\n",
+                                TilePartitioner::NPerBlock,
+                                TilePartitioner::KPerBlock);
+                            printf("window size is: %d, %d, origin is: %d, 0\n",
+                                   TilePartitioner::NPerBlock / QuantGroupSize::kN,
+                                   TilePartitioner::KPerBlock / QuantGroupSize::kK,
+                                   i_n / QuantGroupSize::kN);
+                        }
                         return make_tile_window(
                             bq_pad_view,
                             make_tuple(number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{},
@@ -1373,7 +1391,16 @@ struct QuantGemmKernel
             if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
                 const auto& bq_block_window = gemm_tile_windows.at(I3);
-                index_t n                   = 0;
+                if(get_block_id() == 0 && get_thread_id() == 0)
+                {
+                    printf("In RunGemm, before GemmPipeline call for BQuantGrouped\n");
+                    // To print Tile window after bq_pad0_desc
+                    //  bq_block_window.template print_tile_window_range<BQDataType>(
+                    //      0, 128, 0, 2, "bq block window");
+                    bq_block_window.template print_tile_window_range<BQDataType>(
+                        0, 1, 0, 16, "bq block window");
+                }
+                index_t n = 0;
                 if constexpr(PreshuffleQuant)
                 {
                     n = kargs.N;

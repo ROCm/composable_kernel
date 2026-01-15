@@ -165,6 +165,16 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                     }
                 });
             });
+
+            // auto c_thread_buffer      = c_acc.get_thread_buffer();
+            // printf("C_acc Data:\n");
+            // for(index_t i = 0; i < c_thread_buffer.size(); ++i)
+            // {
+            //     auto value = c_thread_buffer.get(i);
+            //     auto float_value = type_convert<float>(value);
+            //     printf("  [%d] = %f\n", i, float_value*16);
+            // }
+
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     constexpr auto tbuf_offset =
@@ -230,15 +240,37 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                         auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
                         float scale_reg_f = cvt_scale_to_fp32(scale_reg);
 
+                        printf("get_block_id(): %d, get_warp_id(): %d, get_thread_id(): %d, nIter: "
+                               "%d, KPerBlockBQ: %d, "
+                               "kQScale: %d, scale_reg: %f, "
+                               "scale_reg_f: %f\n",
+                               get_block_id(),
+                               get_warp_id(),
+                               get_thread_id(),
+                               static_cast<int>(nIter),
+                               KPerBlockBQ,
+                               static_cast<int>(kQScale),
+                               scale_reg,
+                               scale_reg_f);
+
                         static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
                             auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
                             const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
-                            c_ref              = c_ref + acc_val * scale_reg_f;
+                            // printf("acc_val is: %f\n", type_convert<float>(acc_val));
+                            c_ref = c_ref + acc_val * scale_reg_f;
                         });
                     }
                 });
             });
         });
+        // auto c_thread_buffer      = c_block_tensor.get_thread_buffer();
+        // printf("C Data:\n");
+        // for(index_t i = 0; i < c_thread_buffer.size(); ++i)
+        // {
+        //     auto value = c_thread_buffer.get(i);
+        //     auto float_value = type_convert<float>(value);
+        //     printf("  [%d] = %f\n", i, float_value);
+        // }
     }
 };
 
