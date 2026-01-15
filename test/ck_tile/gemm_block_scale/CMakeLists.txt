@@ -39,6 +39,12 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_abquant_padding PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    add_gtest_executable(test_tile_gemm_quant_abquant_preshuffle
+        test_gemm_quant_abquant_preshuffle_2d.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_preshuffle PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    # AQuant tests
     add_gtest_executable(test_tile_gemm_quant_aquant_prefill 
         test_gemm_quant_aquant_prefill.cpp
     )
@@ -111,6 +117,27 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_bquant_preshuffle_prefill_2d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    # BQuant tests (with PreshuffleQuant) - split into 4 files
+    add_gtest_executable(test_tile_gemm_quant_bquant_preshuffleQuant_decode_1d 
+        test_gemm_quant_bquant_preshuffleQuant_decode_1d.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_preshuffleQuant_decode_1d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_preshuffleQuant_prefill_1d 
+        test_gemm_quant_bquant_preshuffleQuant_prefill_1d.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_preshuffleQuant_prefill_1d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_preshuffleQuant_decode_2d 
+        test_gemm_quant_bquant_preshuffleQuant_decode_2d.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_preshuffleQuant_decode_2d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_preshuffleQuant_prefill_2d 
+        test_gemm_quant_bquant_preshuffleQuant_prefill_2d.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_preshuffleQuant_prefill_2d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
     # RowColQuant tests
     add_gtest_executable(test_tile_gemm_quant_rowcol 
         test_gemm_quant_rowcol.cpp
@@ -146,6 +173,11 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_tile_gemm_quant_bquant_preshuffle_tiled_permute
         test_tile_gemm_quant_bquant_preshuffle_decode_2d
         test_tile_gemm_quant_bquant_preshuffle_prefill_2d
+        # BQuant preshuffleQuant tests
+        test_tile_gemm_quant_bquant_preshuffleQuant_decode_1d
+        test_tile_gemm_quant_bquant_preshuffleQuant_prefill_1d
+        test_tile_gemm_quant_bquant_preshuffleQuant_decode_2d
+        test_tile_gemm_quant_bquant_preshuffleQuant_prefill_2d
         # Other quant tests
         test_tile_gemm_quant_rowcol
         test_tile_gemm_quant_tensor

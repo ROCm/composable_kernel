@@ -53,11 +53,20 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<false>();
 };
 
+struct GemmConfigDecode : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile      = 16;
+    static constexpr ck_tile::index_t N_Tile      = 64;
+    static constexpr ck_tile::index_t K_Tile      = 256;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
+};
+
 struct GemmConfigPrefill : public GemmConfigBase
 {
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128;
+    static constexpr ck_tile::index_t M_Tile      = 128;
+    static constexpr ck_tile::index_t N_Tile      = 128;
+    static constexpr ck_tile::index_t K_Tile      = 128;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
 };
 
 struct GemmConfigMxFp4 : public GemmConfigBase
@@ -89,42 +98,26 @@ struct GemmConfigPadding : public GemmConfigBase
     static constexpr bool kPadK = true;
 };
 
-struct GemmConfigPreshuffleBDecode : public GemmConfigBase
+struct GemmConfigPreshuffleBDecode : public GemmConfigDecode
 {
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;
-
-    // Default GEMM tile sizes for tests
-    static constexpr ck_tile::index_t M_Tile = 16;
-    static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 256;
-
-    static constexpr ck_tile::index_t M_Warp = 1;
-    static constexpr ck_tile::index_t N_Warp = 4;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
 };
 
-struct GemmConfigPreshuffleBPrefill : public GemmConfigBase
+struct GemmConfigPreshuffleQuantDecode : public GemmConfigDecode
+{
+    static constexpr bool PreshuffleQuant = true;
+};
+
+struct GemmConfigPreshuffleBPrefill : public GemmConfigPrefill
 {
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;
+};
 
-    // Default GEMM tile sizes for tests
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128;
-
-    static constexpr ck_tile::index_t M_Warp = 1;
-    static constexpr ck_tile::index_t N_Warp = 4;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
+struct GemmConfigPreshuffleQuantPrefill : public GemmConfigPrefill
+{
+    static constexpr bool PreshuffleQuant = true;
 };
 
 struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBPrefill
@@ -894,10 +887,10 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                                                      CodegenGemmTraits,
                                                                      ComputeDataType>;
 
-        using BaseGemmPipeline =
-            std::conditional_t<PreshuffleB == false,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+        using BaseGemmPipeline = std::conditional_t<
+            PreshuffleB == true,
+            ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
+            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
 
         const ck_tile::index_t K_split  = (args.K + Base::K_Tile - 1) / Base::K_Tile * Base::K_Tile;
         const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
@@ -926,8 +919,8 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                                     tail_number_v>;
 
             using GemmPipeline =
-                std::conditional_t<PreshuffleB == false,
-                                   ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                std::conditional_t<PreshuffleB == true,
+                                   ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<

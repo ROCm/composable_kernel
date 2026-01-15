@@ -5,14 +5,16 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## (Unreleased) Composable Kernel 1.3.0
 
 ### Added
+* Added preshuffleB support for abquant mode in blockscale GEMM.
 * Added support for explicit GEMM in CK_TILE grouped convolution forward and backward weight.
 * Added TF32 convolution support on gfx942 and gfx950 in CK. It could be enabled/disabled via `DTYPES` of "tf32".
-* Added attention sink support for FMHA FWD, include qr_ks_vs, qr_async and splitkv pipelines.
+* Added streamingllm sink support for FMHA FWD, include qr_ks_vs, qr_async and splitkv pipelines.
 * Added support for microscaling (MX) FP8/FP4 mixed data types to Flatmm pipeline.
 * Added support for fp8 dynamic tensor-wise quantization of fp8 fmha fwd kernel.
 * Added FP8 KV cache support for FMHA batch prefill.
 * Added support for gfx1153 target.
 * Added FMHA batch prefill kernel support for several KV cache layouts, flexible page sizes, and different lookup table configurations.
+* Added gpt-oss sink support for FMHA FWD, include qr_ks_vs, qr_async, qr_async_trload and splitkv pipelines.
 
 ### Changed
 
@@ -42,6 +44,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added top-k sigmoid kernel in CK_TILE
 * Added the blockscale 2D support for CK_TILE GEMM.
 * Added Flatmm pipeline for microscaling (MX) FP8/FP4 data types
+* Added reduce and multi reduction kernels
 
 ### Changed
 

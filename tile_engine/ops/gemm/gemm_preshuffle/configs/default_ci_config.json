@@ -59,6 +59,7 @@
     },
     "epilogue": {
       "values": [
+        "default",
         "cshuffle"
       ]
     },

@@ -88,6 +88,7 @@ struct BlockFmhaPipelineQRKSVSAsync
 
 #if CK_TILE_FMHA_FWD_FAST_EXP2
     static constexpr auto R_LOG2E = 1.0 / log2e_v<SaccDataType>;
+    static constexpr auto LOG2E   = log2e_v<SaccDataType>;
 #endif
 
     static constexpr index_t kBlockPerCu = []() {
@@ -192,7 +193,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                DropoutType& dropout,
                const float* k_descale_ptr,
                const float* v_descale_ptr,
-               index_t block_scale_size_kv) const
+               const index_t block_scale_size_kv,
+               const float sink_v) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -278,9 +280,24 @@ struct BlockFmhaPipelineQRKSVSAsync
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
-        clear_tile(l);
-
+        if(__builtin_isinf_sign(sink_v) >= 0)
+        {
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI ||
+                         BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
+                set_tile(m, sink_v * scale_s * LOG2E);
+            else
+                set_tile(m, sink_v * LOG2E);
+#else
+            set_tile(m, sink_v);
+#endif
+            set_tile(l, SMPLComputeDataType{1.0f});
+        }
+        else
+        {
+            set_tile(m, -numeric<SMPLComputeDataType>::infinity());
+            clear_tile(l);
+        }
         __builtin_amdgcn_sched_barrier(0);
         const auto q_origin          = q_dram_window.get_window_origin();
         const auto tile_range_result = [&mask, &q_origin]() {
@@ -313,7 +330,14 @@ struct BlockFmhaPipelineQRKSVSAsync
                     auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
+                    if(__builtin_isinf_sign(sink_v) >= 0)
+                    {
+                        set_tile(lse, SMPLComputeDataType{sink_v * scale_s});
+                    }
+                    else
+                    {
+                        set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
+                    }
 
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
@@ -496,17 +520,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                                                         block_indices.qo_head_idx,
                                                         block_indices.kv_head_idx);
                         };
-#if !CK_TILE_FMHA_FWD_FAST_EXP2
                     for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
                     {
                         apply_logits_transform(s_acc.thread_buf_[i]);
                     }
-#else
-                    for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
-                    {
-                        apply_logits_transform(s_acc.thread_buf_[i]);
-                    }
-#endif
                 }
                 else
                 {
@@ -943,7 +960,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float sink_v) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -969,7 +987,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                           dropout,
                           nullptr,
                           nullptr,
-                          1);
+                          1,
+                          sink_v);
     }
 };
 

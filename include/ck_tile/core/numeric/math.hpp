@@ -49,7 +49,7 @@ struct scales
 };
 
 template <typename Scale>
-CK_TILE_HOST_DEVICE_EXTERN scales(Scale) -> scales<Scale>;
+scales(Scale) -> scales<Scale>;
 
 template <typename Left = void, typename Right = Left>
 struct plus
@@ -72,8 +72,6 @@ struct plus<void, void>
     }
 };
 
-CK_TILE_HOST_DEVICE_EXTERN plus() -> plus<void, void>;
-
 template <typename Left = void, typename Right = Left>
 struct minus
 {
@@ -95,8 +93,6 @@ struct minus<void, void>
     }
 };
 
-CK_TILE_HOST_DEVICE_EXTERN minus() -> minus<void, void>;
-
 template <typename Left = void, typename Right = Left>
 struct multiplies
 {
@@ -117,8 +113,6 @@ struct multiplies<void, void>
         return lhs * rhs;
     }
 };
-
-CK_TILE_HOST_DEVICE_EXTERN multiplies() -> multiplies<void, void>;
 
 template <typename T>
 struct maximize
@@ -348,8 +342,6 @@ struct equal<void, void>
     }
 };
 
-CK_TILE_HOST_DEVICE_EXTERN equal() -> equal<void, void>;
-
 template <>
 struct equal<float, float>
 {
@@ -389,8 +381,6 @@ struct less<void, void>
     }
 };
 
-CK_TILE_HOST_DEVICE_EXTERN less() -> less<void, void>;
-
 template <typename Left = void, typename Right = Left>
 struct less_equal
 {
@@ -411,8 +401,6 @@ struct less_equal<void, void>
         return lhs <= rhs;
     }
 };
-
-CK_TILE_HOST_DEVICE_EXTERN less_equal() -> less_equal<void, void>;
 
 template <>
 struct less_equal<float, float>
