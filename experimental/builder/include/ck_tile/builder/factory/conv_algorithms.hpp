@@ -107,9 +107,8 @@ concept BwdTwoStageXdlAlgorithm =
 
 // BWD weight WMMA algorithm concepts
 template <auto Value>
-concept BwdWmmaAlgorithm =
-    BwdWmmaAlgorithmBase<Value> && SpecifiesGemmPipeline<decltype(Value)> && 
-    SpecifiesGenericInstance<decltype(Value)>;
+concept BwdWmmaAlgorithm = BwdWmmaAlgorithmBase<Value> && SpecifiesGemmPipeline<decltype(Value)> &&
+                           SpecifiesGenericInstance<decltype(Value)>;
 
 template <auto Value>
 concept BwdMultiDWmmaV3Algorithm =
