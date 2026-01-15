@@ -93,15 +93,18 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
             const index_t k = remaining % K;
             const index_t g = remaining / K;
 
-            float acc                    = 0.0f;
-            const InDataType* in_g0      = p_ins[0] + g * in_stride_g;
-            const OutDataType* out_grad0 = p_out_grads[0] + g * out_stride_g;
+            float acc = 0.0f;
+            // Base pointers for current group
+            const InDataType* input_g        = p_ins[0] + g * in_stride_g;
+            const OutDataType* output_grad_g = p_out_grads[0] + g * out_stride_g;
 
             // Loop over batch and output positions
             for(index_t n = 0; n < N; ++n)
             {
-                const InDataType* in_gnc0    = in_g0 + n * in_stride_n + c * in_stride_c;
-                const OutDataType* out_gn_k0 = out_grad0 + n * out_stride_n + k * out_stride_k;
+                // Pointers at current batch and input channel
+                const InDataType* input_at_n_c = input_g + n * in_stride_n + c * in_stride_c;
+                const OutDataType* output_grad_at_n_k =
+                    output_grad_g + n * out_stride_n + k * out_stride_k;
 
                 for(index_t wo = 0; wo < Wo; ++wo)
                 {
@@ -111,13 +114,13 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                         // Handle input element-wise operation with extra A tensors
                         if constexpr(NumAExtra == 0)
                         {
-                            in_op(in_val, in_gnc0[wi]);
+                            in_op(in_val, input_at_n_c[wi]);
                         }
                         else if constexpr(NumAExtra == 1)
                         {
                             const InDataType* in_extra =
                                 p_ins[1] + g * in_stride_g + n * in_stride_n + c * in_stride_c;
-                            in_op(in_val, in_gnc0[wi], in_extra[wi]);
+                            in_op(in_val, input_at_n_c[wi], in_extra[wi]);
                         }
                         else if constexpr(NumAExtra == 2)
                         {
@@ -125,19 +128,19 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                 p_ins[1] + g * in_stride_g + n * in_stride_n + c * in_stride_c;
                             const InDataType* in_extra1 =
                                 p_ins[2] + g * in_stride_g + n * in_stride_n + c * in_stride_c;
-                            in_op(in_val, in_gnc0[wi], in_extra0[wi], in_extra1[wi]);
+                            in_op(in_val, input_at_n_c[wi], in_extra0[wi], in_extra1[wi]);
                         }
 
                         // Handle output gradient element-wise operation with extra B tensors
                         if constexpr(NumBExtra == 0)
                         {
-                            out_op(out_val, out_gn_k0[wo]);
+                            out_op(out_val, output_grad_at_n_k[wo]);
                         }
                         else if constexpr(NumBExtra == 1)
                         {
                             const OutDataType* out_extra = p_out_grads[1] + g * out_stride_g +
                                                            n * out_stride_n + k * out_stride_k;
-                            out_op(out_val, out_gn_k0[wo], out_extra[wo]);
+                            out_op(out_val, output_grad_at_n_k[wo], out_extra[wo]);
                         }
                         else if constexpr(NumBExtra == 2)
                         {
@@ -145,7 +148,7 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                                             n * out_stride_n + k * out_stride_k;
                             const OutDataType* out_extra1 = p_out_grads[2] + g * out_stride_g +
                                                             n * out_stride_n + k * out_stride_k;
-                            out_op(out_val, out_gn_k0[wo], out_extra0[wo], out_extra1[wo]);
+                            out_op(out_val, output_grad_at_n_k[wo], out_extra0[wo], out_extra1[wo]);
                         }
 
                         acc += type_convert<float>(out_val) * type_convert<float>(in_val);
@@ -206,23 +209,28 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
             const index_t k = remaining % K;
             const index_t g = remaining / K;
 
-            float acc                    = 0.0f;
-            const InDataType* in_g0      = p_ins[0] + g * in_stride_g;
-            const OutDataType* out_grad0 = p_out_grads[0] + g * out_stride_g;
+            float acc = 0.0f;
+            // Base pointers for current group
+            const InDataType* input_g        = p_ins[0] + g * in_stride_g;
+            const OutDataType* output_grad_g = p_out_grads[0] + g * out_stride_g;
 
             // Loop over batch and output positions
             for(index_t n = 0; n < N; ++n)
             {
-                const InDataType* in_gnc0    = in_g0 + n * in_stride_n + c * in_stride_c;
-                const OutDataType* out_gn_k0 = out_grad0 + n * out_stride_n + k * out_stride_k;
+                // Pointers at current batch and input channel
+                const InDataType* input_at_n_c = input_g + n * in_stride_n + c * in_stride_c;
+                const OutDataType* output_grad_at_n_k =
+                    output_grad_g + n * out_stride_n + k * out_stride_k;
 
                 for(index_t ho = 0; ho < Ho; ++ho)
                 {
                     long_index_t hi = ho * stride_y + y * dilation_y - pad_y;
                     if(hi >= 0 && hi < Hi)
                     {
-                        const InDataType* in_gnch0    = in_gnc0 + hi * in_stride_h;
-                        const OutDataType* out_gn_kh0 = out_gn_k0 + ho * out_stride_h;
+                        // Pointers at current spatial height
+                        const InDataType* input_at_h = input_at_n_c + hi * in_stride_h;
+                        const OutDataType* output_grad_at_h =
+                            output_grad_at_n_k + ho * out_stride_h;
 
                         for(index_t wo = 0; wo < Wo; ++wo)
                         {
@@ -232,14 +240,14 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                 // Handle input element-wise operation with extra A tensors
                                 if constexpr(NumAExtra == 0)
                                 {
-                                    in_op(in_val, in_gnch0[wi]);
+                                    in_op(in_val, input_at_h[wi]);
                                 }
                                 else if constexpr(NumAExtra == 1)
                                 {
                                     const InDataType* in_extra = p_ins[1] + g * in_stride_g +
                                                                  n * in_stride_n + c * in_stride_c +
                                                                  hi * in_stride_h;
-                                    in_op(in_val, in_gnch0[wi], in_extra[wi]);
+                                    in_op(in_val, input_at_h[wi], in_extra[wi]);
                                 }
                                 else if constexpr(NumAExtra == 2)
                                 {
@@ -249,21 +257,21 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                     const InDataType* in_extra1 =
                                         p_ins[2] + g * in_stride_g + n * in_stride_n +
                                         c * in_stride_c + hi * in_stride_h;
-                                    in_op(in_val, in_gnch0[wi], in_extra0[wi], in_extra1[wi]);
+                                    in_op(in_val, input_at_h[wi], in_extra0[wi], in_extra1[wi]);
                                 }
 
                                 // Handle output gradient element-wise operation with extra B
                                 // tensors
                                 if constexpr(NumBExtra == 0)
                                 {
-                                    out_op(out_val, out_gn_kh0[wo]);
+                                    out_op(out_val, output_grad_at_h[wo]);
                                 }
                                 else if constexpr(NumBExtra == 1)
                                 {
                                     const OutDataType* out_extra =
                                         p_out_grads[1] + g * out_stride_g + n * out_stride_n +
                                         k * out_stride_k + ho * out_stride_h;
-                                    out_op(out_val, out_gn_kh0[wo], out_extra[wo]);
+                                    out_op(out_val, output_grad_at_h[wo], out_extra[wo]);
                                 }
                                 else if constexpr(NumBExtra == 2)
                                 {
@@ -273,7 +281,10 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                     const OutDataType* out_extra1 =
                                         p_out_grads[2] + g * out_stride_g + n * out_stride_n +
                                         k * out_stride_k + ho * out_stride_h;
-                                    out_op(out_val, out_gn_kh0[wo], out_extra0[wo], out_extra1[wo]);
+                                    out_op(out_val,
+                                           output_grad_at_h[wo],
+                                           out_extra0[wo],
+                                           out_extra1[wo]);
                                 }
 
                                 acc += type_convert<float>(out_val) * type_convert<float>(in_val);
@@ -345,31 +356,38 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
             const index_t k = remaining % K;
             const index_t g = remaining / K;
 
-            float acc                    = 0.0f;
-            const InDataType* in_g0      = p_ins[0] + g * in_stride_g;
-            const OutDataType* out_grad0 = p_out_grads[0] + g * out_stride_g;
+            float acc = 0.0f;
+            // Base pointers for current group
+            const InDataType* input_g        = p_ins[0] + g * in_stride_g;
+            const OutDataType* output_grad_g = p_out_grads[0] + g * out_stride_g;
 
             // Loop over batch and output positions
             for(index_t n = 0; n < N; ++n)
             {
-                const InDataType* in_gnc0    = in_g0 + n * in_stride_n + c * in_stride_c;
-                const OutDataType* out_gn_k0 = out_grad0 + n * out_stride_n + k * out_stride_k;
+                // Pointers at current batch and input channel
+                const InDataType* input_at_n_c = input_g + n * in_stride_n + c * in_stride_c;
+                const OutDataType* output_grad_at_n_k =
+                    output_grad_g + n * out_stride_n + k * out_stride_k;
 
                 for(index_t do_idx = 0; do_idx < Do; ++do_idx)
                 {
                     long_index_t di = do_idx * stride_z + z * dilation_z - pad_z;
                     if(di >= 0 && di < Di)
                     {
-                        const InDataType* in_gncd0    = in_gnc0 + di * in_stride_d;
-                        const OutDataType* out_gn_kd0 = out_gn_k0 + do_idx * out_stride_d;
+                        // Pointers at current spatial depth
+                        const InDataType* input_at_d = input_at_n_c + di * in_stride_d;
+                        const OutDataType* output_grad_at_d =
+                            output_grad_at_n_k + do_idx * out_stride_d;
 
                         for(index_t ho = 0; ho < Ho; ++ho)
                         {
                             long_index_t hi = ho * stride_y + y * dilation_y - pad_y;
                             if(hi >= 0 && hi < Hi)
                             {
-                                const InDataType* in_gncdh0    = in_gncd0 + hi * in_stride_h;
-                                const OutDataType* out_gn_kdh0 = out_gn_kd0 + ho * out_stride_h;
+                                // Pointers at current spatial depth and height
+                                const InDataType* input_at_d_h = input_at_d + hi * in_stride_h;
+                                const OutDataType* output_grad_at_d_h =
+                                    output_grad_at_d + ho * out_stride_h;
 
                                 for(index_t wo = 0; wo < Wo; ++wo)
                                 {
@@ -379,7 +397,7 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                         // Handle input element-wise operation with extra A tensors
                                         if constexpr(NumAExtra == 0)
                                         {
-                                            in_op(in_val, in_gncdh0[wi]);
+                                            in_op(in_val, input_at_d_h[wi]);
                                         }
                                         else if constexpr(NumAExtra == 1)
                                         {
@@ -387,7 +405,7 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                                 p_ins[1] + g * in_stride_g + n * in_stride_n +
                                                 c * in_stride_c + di * in_stride_d +
                                                 hi * in_stride_h;
-                                            in_op(in_val, in_gncdh0[wi], in_extra[wi]);
+                                            in_op(in_val, input_at_d_h[wi], in_extra[wi]);
                                         }
                                         else if constexpr(NumAExtra == 2)
                                         {
@@ -400,7 +418,7 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                                 c * in_stride_c + di * in_stride_d +
                                                 hi * in_stride_h;
                                             in_op(in_val,
-                                                  in_gncdh0[wi],
+                                                  input_at_d_h[wi],
                                                   in_extra0[wi],
                                                   in_extra1[wi]);
                                         }
@@ -409,7 +427,7 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                         // B tensors
                                         if constexpr(NumBExtra == 0)
                                         {
-                                            out_op(out_val, out_gn_kdh0[wo]);
+                                            out_op(out_val, output_grad_at_d_h[wo]);
                                         }
                                         else if constexpr(NumBExtra == 1)
                                         {
@@ -417,7 +435,7 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                                 p_out_grads[1] + g * out_stride_g +
                                                 n * out_stride_n + k * out_stride_k +
                                                 do_idx * out_stride_d + ho * out_stride_h;
-                                            out_op(out_val, out_gn_kdh0[wo], out_extra[wo]);
+                                            out_op(out_val, output_grad_at_d_h[wo], out_extra[wo]);
                                         }
                                         else if constexpr(NumBExtra == 2)
                                         {
@@ -430,7 +448,7 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                                 n * out_stride_n + k * out_stride_k +
                                                 do_idx * out_stride_d + ho * out_stride_h;
                                             out_op(out_val,
-                                                   out_gn_kdh0[wo],
+                                                   output_grad_at_d_h[wo],
                                                    out_extra0[wo],
                                                    out_extra1[wo]);
                                         }

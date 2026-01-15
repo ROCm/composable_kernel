@@ -90,9 +90,10 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
             const index_t n = remaining % N;
             const index_t g = remaining / N;
 
-            float acc                  = 0.0f;
-            const OutDataType* out_gn0 = p_outs[0] + g * out_stride_g + n * out_stride_n;
-            const WeiDataType* wei_g0  = p_weis[0] + g * wei_stride_g;
+            float acc = 0.0f;
+            // Base pointers for current group and batch
+            const OutDataType* output_grad_g_n = p_outs[0] + g * out_stride_g + n * out_stride_n;
+            const WeiDataType* weight_g        = p_weis[0] + g * wei_stride_g;
 
             for(index_t x = 0; x < X; ++x)
             {
@@ -102,22 +103,23 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                     long_index_t wo = w_tmp / stride_x;
                     if(wo >= 0 && wo < Wo)
                     {
-                        const OutDataType* out_gnk0 = out_gn0;
-                        const WeiDataType* wei_gkc0 = wei_g0 + c * wei_stride_c;
+                        // Pointers at current filter position
+                        const OutDataType* output_grad_g_n_k = output_grad_g_n;
+                        const WeiDataType* weight_g_k_c      = weight_g + c * wei_stride_c;
 
                         for(index_t k = 0; k < K; ++k)
                         {
                             // Handle output gradient element-wise operation with extra A tensors
                             if constexpr(NumAExtra == 0)
                             {
-                                out_op(out_val, out_gnk0[k * out_stride_k + wo]);
+                                out_op(out_val, output_grad_g_n_k[k * out_stride_k + wo]);
                             }
                             else if constexpr(NumAExtra == 1)
                             {
                                 const OutDataType* out_extra =
                                     p_outs[1] + g * out_stride_g + n * out_stride_n;
                                 out_op(out_val,
-                                       out_gnk0[k * out_stride_k + wo],
+                                       output_grad_g_n_k[k * out_stride_k + wo],
                                        out_extra[k * out_stride_k + wo]);
                             }
                             else if constexpr(NumAExtra == 2)
@@ -127,7 +129,7 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                 const OutDataType* out_extra1 =
                                     p_outs[2] + g * out_stride_g + n * out_stride_n;
                                 out_op(out_val,
-                                       out_gnk0[k * out_stride_k + wo],
+                                       output_grad_g_n_k[k * out_stride_k + wo],
                                        out_extra0[k * out_stride_k + wo],
                                        out_extra1[k * out_stride_k + wo]);
                             }
@@ -135,14 +137,14 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                             // Handle weight element-wise operation with extra B tensors
                             if constexpr(NumBExtra == 0)
                             {
-                                wei_op(wei_val, wei_gkc0[k * wei_stride_k + x]);
+                                wei_op(wei_val, weight_g_k_c[k * wei_stride_k + x]);
                             }
                             else if constexpr(NumBExtra == 1)
                             {
                                 const WeiDataType* wei_extra =
                                     p_weis[1] + g * wei_stride_g + c * wei_stride_c;
                                 wei_op(wei_val,
-                                       wei_gkc0[k * wei_stride_k + x],
+                                       weight_g_k_c[k * wei_stride_k + x],
                                        wei_extra[k * wei_stride_k + x]);
                             }
                             else if constexpr(NumBExtra == 2)
@@ -152,7 +154,7 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                 const WeiDataType* wei_extra1 =
                                     p_weis[2] + g * wei_stride_g + c * wei_stride_c;
                                 wei_op(wei_val,
-                                       wei_gkc0[k * wei_stride_k + x],
+                                       weight_g_k_c[k * wei_stride_k + x],
                                        wei_extra0[k * wei_stride_k + x],
                                        wei_extra1[k * wei_stride_k + x]);
                             }
@@ -216,9 +218,10 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
             const index_t n = remaining % N;
             const index_t g = remaining / N;
 
-            float acc                  = 0.0f;
-            const OutDataType* out_gn0 = p_outs[0] + g * out_stride_g + n * out_stride_n;
-            const WeiDataType* wei_g0  = p_weis[0] + g * wei_stride_g;
+            float acc = 0.0f;
+            // Base pointers for current group and batch
+            const OutDataType* output_grad_g_n = p_outs[0] + g * out_stride_g + n * out_stride_n;
+            const WeiDataType* weight_g        = p_weis[0] + g * wei_stride_g;
 
             for(index_t y = 0; y < Y; ++y)
             {
@@ -228,8 +231,10 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                     long_index_t ho = h_tmp / stride_y;
                     if(ho >= 0 && ho < Ho)
                     {
-                        const OutDataType* out_gnkh0 = out_gn0 + ho * out_stride_h;
-                        const WeiDataType* wei_gkcy0 = wei_g0 + c * wei_stride_c + y * wei_stride_y;
+                        // Pointers at current spatial height and filter Y position
+                        const OutDataType* output_grad_at_h = output_grad_g_n + ho * out_stride_h;
+                        const WeiDataType* weight_at_c_y =
+                            weight_g + c * wei_stride_c + y * wei_stride_y;
 
                         for(index_t x = 0; x < X; ++x)
                         {
@@ -245,7 +250,8 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                         // A tensors
                                         if constexpr(NumAExtra == 0)
                                         {
-                                            out_op(out_val, out_gnkh0[k * out_stride_k + wo]);
+                                            out_op(out_val,
+                                                   output_grad_at_h[k * out_stride_k + wo]);
                                         }
                                         else if constexpr(NumAExtra == 1)
                                         {
@@ -253,7 +259,7 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                                 p_outs[1] + g * out_stride_g + n * out_stride_n +
                                                 ho * out_stride_h;
                                             out_op(out_val,
-                                                   out_gnkh0[k * out_stride_k + wo],
+                                                   output_grad_at_h[k * out_stride_k + wo],
                                                    out_extra[k * out_stride_k + wo]);
                                         }
                                         else if constexpr(NumAExtra == 2)
@@ -265,7 +271,7 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                                 p_outs[2] + g * out_stride_g + n * out_stride_n +
                                                 ho * out_stride_h;
                                             out_op(out_val,
-                                                   out_gnkh0[k * out_stride_k + wo],
+                                                   output_grad_at_h[k * out_stride_k + wo],
                                                    out_extra0[k * out_stride_k + wo],
                                                    out_extra1[k * out_stride_k + wo]);
                                         }
@@ -273,7 +279,7 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                         // Handle weight element-wise operation with extra B tensors
                                         if constexpr(NumBExtra == 0)
                                         {
-                                            wei_op(wei_val, wei_gkcy0[k * wei_stride_k + x]);
+                                            wei_op(wei_val, weight_at_c_y[k * wei_stride_k + x]);
                                         }
                                         else if constexpr(NumBExtra == 1)
                                         {
@@ -281,7 +287,7 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                                 p_weis[1] + g * wei_stride_g + c * wei_stride_c +
                                                 y * wei_stride_y;
                                             wei_op(wei_val,
-                                                   wei_gkcy0[k * wei_stride_k + x],
+                                                   weight_at_c_y[k * wei_stride_k + x],
                                                    wei_extra[k * wei_stride_k + x]);
                                         }
                                         else if constexpr(NumBExtra == 2)
@@ -293,7 +299,7 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                                 p_weis[2] + g * wei_stride_g + c * wei_stride_c +
                                                 y * wei_stride_y;
                                             wei_op(wei_val,
-                                                   wei_gkcy0[k * wei_stride_k + x],
+                                                   weight_at_c_y[k * wei_stride_k + x],
                                                    wei_extra0[k * wei_stride_k + x],
                                                    wei_extra1[k * wei_stride_k + x]);
                                         }
@@ -370,9 +376,10 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
             const index_t n = remaining % N;
             const index_t g = remaining / N;
 
-            float acc                  = 0.0f;
-            const OutDataType* out_gn0 = p_outs[0] + g * out_stride_g + n * out_stride_n;
-            const WeiDataType* wei_g0  = p_weis[0] + g * wei_stride_g;
+            float acc = 0.0f;
+            // Base pointers for current group and batch
+            const OutDataType* output_grad_g_n = p_outs[0] + g * out_stride_g + n * out_stride_n;
+            const WeiDataType* weight_g        = p_weis[0] + g * wei_stride_g;
 
             for(index_t z = 0; z < Z; ++z)
             {
@@ -382,8 +389,11 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                     long_index_t do_idx = d_tmp / stride_z;
                     if(do_idx >= 0 && do_idx < Do)
                     {
-                        const OutDataType* out_gnkd0 = out_gn0 + do_idx * out_stride_d;
-                        const WeiDataType* wei_gkcz0 = wei_g0 + c * wei_stride_c + z * wei_stride_z;
+                        // Pointers at current spatial depth
+                        const OutDataType* output_grad_at_d =
+                            output_grad_g_n + do_idx * out_stride_d;
+                        const WeiDataType* weight_at_c_z =
+                            weight_g + c * wei_stride_c + z * wei_stride_z;
 
                         for(index_t y = 0; y < Y; ++y)
                         {
@@ -393,8 +403,11 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                 long_index_t ho = h_tmp / stride_y;
                                 if(ho >= 0 && ho < Ho)
                                 {
-                                    const OutDataType* out_gnkdh0 = out_gnkd0 + ho * out_stride_h;
-                                    const WeiDataType* wei_gkczy0 = wei_gkcz0 + y * wei_stride_y;
+                                    // Pointers at current spatial depth and height
+                                    const OutDataType* output_grad_at_d_h =
+                                        output_grad_at_d + ho * out_stride_h;
+                                    const WeiDataType* weight_at_c_z_y =
+                                        weight_at_c_z + y * wei_stride_y;
 
                                     for(index_t x = 0; x < X; ++x)
                                     {
@@ -411,7 +424,8 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                                     if constexpr(NumAExtra == 0)
                                                     {
                                                         out_op(out_val,
-                                                               out_gnkdh0[k * out_stride_k + wo]);
+                                                               output_grad_at_d_h[k * out_stride_k +
+                                                                                  wo]);
                                                     }
                                                     else if constexpr(NumAExtra == 1)
                                                     {
@@ -421,7 +435,8 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                                             do_idx * out_stride_d +
                                                             ho * out_stride_h;
                                                         out_op(out_val,
-                                                               out_gnkdh0[k * out_stride_k + wo],
+                                                               output_grad_at_d_h[k * out_stride_k +
+                                                                                  wo],
                                                                out_extra[k * out_stride_k + wo]);
                                                     }
                                                     else if constexpr(NumAExtra == 2)
@@ -437,7 +452,8 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                                             do_idx * out_stride_d +
                                                             ho * out_stride_h;
                                                         out_op(out_val,
-                                                               out_gnkdh0[k * out_stride_k + wo],
+                                                               output_grad_at_d_h[k * out_stride_k +
+                                                                                  wo],
                                                                out_extra0[k * out_stride_k + wo],
                                                                out_extra1[k * out_stride_k + wo]);
                                                     }
@@ -446,8 +462,9 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                                     // extra B tensors
                                                     if constexpr(NumBExtra == 0)
                                                     {
-                                                        wei_op(wei_val,
-                                                               wei_gkczy0[k * wei_stride_k + x]);
+                                                        wei_op(
+                                                            wei_val,
+                                                            weight_at_c_z_y[k * wei_stride_k + x]);
                                                     }
                                                     else if constexpr(NumBExtra == 1)
                                                     {
@@ -455,9 +472,10 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                                             p_weis[1] + g * wei_stride_g +
                                                             c * wei_stride_c + z * wei_stride_z +
                                                             y * wei_stride_y;
-                                                        wei_op(wei_val,
-                                                               wei_gkczy0[k * wei_stride_k + x],
-                                                               wei_extra[k * wei_stride_k + x]);
+                                                        wei_op(
+                                                            wei_val,
+                                                            weight_at_c_z_y[k * wei_stride_k + x],
+                                                            wei_extra[k * wei_stride_k + x]);
                                                     }
                                                     else if constexpr(NumBExtra == 2)
                                                     {
@@ -469,10 +487,11 @@ __global__ void naive_conv_bwd_data_packed_multi_abd(InDataType* __restrict__ p_
                                                             p_weis[2] + g * wei_stride_g +
                                                             c * wei_stride_c + z * wei_stride_z +
                                                             y * wei_stride_y;
-                                                        wei_op(wei_val,
-                                                               wei_gkczy0[k * wei_stride_k + x],
-                                                               wei_extra0[k * wei_stride_k + x],
-                                                               wei_extra1[k * wei_stride_k + x]);
+                                                        wei_op(
+                                                            wei_val,
+                                                            weight_at_c_z_y[k * wei_stride_k + x],
+                                                            wei_extra0[k * wei_stride_k + x],
+                                                            wei_extra1[k * wei_stride_k + x]);
                                                     }
 
                                                     acc += type_convert<float>(out_val) *
