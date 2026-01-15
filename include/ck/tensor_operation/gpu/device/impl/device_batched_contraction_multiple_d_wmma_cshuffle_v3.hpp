@@ -806,12 +806,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
             return false;
         }
 
-        if(!GridwiseGemm::CheckValidity(arg))
-        {
-            return false;
-        }
-
-        return true;
+        return GridwiseGemm::CheckValidity(arg);
     }
 
     // polymorphic
