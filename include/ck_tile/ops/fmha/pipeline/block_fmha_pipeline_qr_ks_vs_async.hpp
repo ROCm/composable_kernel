@@ -65,6 +65,9 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr bool kHasDropout       = Problem::kHasDropout;
     static constexpr bool kHasSink          = Problem::kHasSink;
 
+    static constexpr float OCP_FP8_SHIFT  = 8.0f;
+    static constexpr float FNUZ_FP8_SHIFT = 7.0f;
+
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
                     !kHasLogitsSoftCap)) ||
@@ -660,11 +663,11 @@ struct BlockFmhaPipelineQRKSVSAsync
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
                 {
 #if CK_TILE_USE_OCP_FP8
-                    validated_m -= 8.0f; // for Bias/Alibi/SoftCap
-                    row_max -= 8.0f;     // for else branch
+                    validated_m -= OCP_FP8_SHIFT; // for Bias/Alibi/SoftCap
+                    row_max -= OCP_FP8_SHIFT;     // for else branch
 #else
-                    validated_m -= 7.0f;
-                    row_max -= 7.0f;
+                    validated_m -= FNUZ_FP8_SHIFT;
+                    row_max -= FNUZ_FP8_SHIFT;
 #endif
                 }
 #endif

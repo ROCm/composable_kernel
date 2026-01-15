@@ -751,7 +751,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
         ck_tile::FillUniformDistribution<float>{0.012f, 0.015f, next_seed()}(q_descale_host);
         ck_tile::FillUniformDistribution<float>{0.012f, 0.015f, next_seed()}(k_descale_host);
         ck_tile::FillUniformDistribution<float>{0.012f, 0.015f, next_seed()}(v_descale_host);
-        // return fwd_result::no_instance;
     }
 
     iota_shuffle(block_table_host.begin(), block_table_host.end(), 0, random_engine);
