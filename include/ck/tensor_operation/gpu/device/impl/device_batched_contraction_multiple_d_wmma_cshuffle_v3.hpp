@@ -806,6 +806,11 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
             return false;
         }
 
+        // check vector access
+        static_assert((ABlockTransferSrcVectorDim == 1 || ABlockTransferSrcVectorDim == 2) &&
+                          (BBlockTransferSrcVectorDim == 1 || BBlockTransferSrcVectorDim == 2),
+                      "Wrong dimension for A or B vector loads, should be 1 or 2!");
+
         return GridwiseGemm::CheckValidity(arg);
     }
 
