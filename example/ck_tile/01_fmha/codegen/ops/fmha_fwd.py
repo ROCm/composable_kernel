@@ -1323,8 +1323,10 @@ def get_fwd_blobs(
 
             for tile, pipeline in itertools.product(
                 tiles, factory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl)
-            ):  
-                if pipeline.tag == "qr_wholek_prefetch" and (((hdim, hdim_v) == (128, 128) and tile.F_bm0 == 128)):
+            ):
+                if pipeline.tag == "qr_wholek_prefetch" and (
+                    (hdim, hdim_v) == (128, 128) and tile.F_bm0 == 128
+                ):
                     continue
                 problem_ctx = ProblemContext(
                     dtype=dtype, mode=mode, hdim=hdim, hdim_v=hdim_v
