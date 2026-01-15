@@ -112,71 +112,30 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                     if(wi >= 0 && wi < Wi)
                     {
                         // Handle input element-wise operation with extra A tensors
-                        if constexpr(NumAExtra == 0)
-                        {
-                            in_op(in_val, input_at_n_c[wi]);
-                        }
-                        else if constexpr(NumAExtra == 1)
-                        {
-                            const InDataType* in_extra =
-                                p_ins[1] + g * in_stride_g + n * in_stride_n + c * in_stride_c;
-                            in_op(in_val, input_at_n_c[wi], in_extra[wi]);
-                        }
-                        else if constexpr(NumAExtra == 2)
-                        {
-                            const InDataType* in_extra0 =
-                                p_ins[1] + g * in_stride_g + n * in_stride_n + c * in_stride_c;
-                            const InDataType* in_extra1 =
-                                p_ins[2] + g * in_stride_g + n * in_stride_n + c * in_stride_c;
-                            in_op(in_val, input_at_n_c[wi], in_extra0[wi], in_extra1[wi]);
-                        }
+                        detail::apply_multi_tensor_elementwise_op<NumAExtra>(
+                            in_val,
+                            in_op,
+                            input_at_n_c,
+                            p_ins + 1,
+                            g * in_stride_g + n * in_stride_n + c * in_stride_c,
+                            wi);
 
                         // Handle output gradient element-wise operation with extra B tensors
-                        if constexpr(NumBExtra == 0)
-                        {
-                            out_op(out_val, output_grad_at_n_k[wo]);
-                        }
-                        else if constexpr(NumBExtra == 1)
-                        {
-                            const OutDataType* out_extra = p_out_grads[1] + g * out_stride_g +
-                                                           n * out_stride_n + k * out_stride_k;
-                            out_op(out_val, output_grad_at_n_k[wo], out_extra[wo]);
-                        }
-                        else if constexpr(NumBExtra == 2)
-                        {
-                            const OutDataType* out_extra0 = p_out_grads[1] + g * out_stride_g +
-                                                            n * out_stride_n + k * out_stride_k;
-                            const OutDataType* out_extra1 = p_out_grads[2] + g * out_stride_g +
-                                                            n * out_stride_n + k * out_stride_k;
-                            out_op(out_val, output_grad_at_n_k[wo], out_extra0[wo], out_extra1[wo]);
-                        }
+                        detail::apply_multi_tensor_elementwise_op<NumBExtra>(
+                            out_val,
+                            out_op,
+                            output_grad_at_n_k,
+                            p_out_grads + 1,
+                            g * out_stride_g + n * out_stride_n + k * out_stride_k,
+                            wo);
 
                         acc += type_convert<float>(out_val) * type_convert<float>(in_val);
                     }
                 }
             }
 
-            WeiDataType result = type_convert<WeiDataType>(acc);
-
-            // Handle weight gradient element-wise operation with D tensors
-            if constexpr(NumD == 0)
-            {
-                wei_op(wei_val, result);
-            }
-            else if constexpr(NumD == 1)
-            {
-                const long_index_t d_idx = g * p_d_strides[0][0] + k * p_d_strides[0][1] +
-                                           c * p_d_strides[0][2] + x * p_d_strides[0][3];
-                wei_op(wei_val, result, p_ds[0][d_idx]);
-            }
-            else if constexpr(NumD == 2)
-            {
-                const long_index_t d0_idx = g * p_d_strides[0][0] + k * p_d_strides[0][1] +
-                                            c * p_d_strides[0][2] + x * p_d_strides[0][3];
-                const long_index_t d1_idx = g * p_d_strides[1][0] + k * p_d_strides[1][1] +
-                                            c * p_d_strides[1][2] + x * p_d_strides[1][3];
-                wei_op(wei_val, result, p_ds[0][d0_idx], p_ds[1][d1_idx]);
-            }
+            detail::apply_d_tensor_elementwise_op<NumD>(
+                wei_val, wei_op, acc, p_ds, p_d_strides, g, k, c, x);
 
             p_wei_grad[g * wei_stride_g + k * wei_stride_k + c * wei_stride_c + x] = wei_val;
         }
@@ -238,54 +197,25 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                             if(wi >= 0 && wi < Wi)
                             {
                                 // Handle input element-wise operation with extra A tensors
-                                if constexpr(NumAExtra == 0)
-                                {
-                                    in_op(in_val, input_at_h[wi]);
-                                }
-                                else if constexpr(NumAExtra == 1)
-                                {
-                                    const InDataType* in_extra = p_ins[1] + g * in_stride_g +
-                                                                 n * in_stride_n + c * in_stride_c +
-                                                                 hi * in_stride_h;
-                                    in_op(in_val, input_at_h[wi], in_extra[wi]);
-                                }
-                                else if constexpr(NumAExtra == 2)
-                                {
-                                    const InDataType* in_extra0 =
-                                        p_ins[1] + g * in_stride_g + n * in_stride_n +
-                                        c * in_stride_c + hi * in_stride_h;
-                                    const InDataType* in_extra1 =
-                                        p_ins[2] + g * in_stride_g + n * in_stride_n +
-                                        c * in_stride_c + hi * in_stride_h;
-                                    in_op(in_val, input_at_h[wi], in_extra0[wi], in_extra1[wi]);
-                                }
+                                detail::apply_multi_tensor_elementwise_op<NumAExtra>(
+                                    in_val,
+                                    in_op,
+                                    input_at_h,
+                                    p_ins + 1,
+                                    g * in_stride_g + n * in_stride_n + c * in_stride_c +
+                                        hi * in_stride_h,
+                                    wi);
 
                                 // Handle output gradient element-wise operation with extra B
                                 // tensors
-                                if constexpr(NumBExtra == 0)
-                                {
-                                    out_op(out_val, output_grad_at_h[wo]);
-                                }
-                                else if constexpr(NumBExtra == 1)
-                                {
-                                    const OutDataType* out_extra =
-                                        p_out_grads[1] + g * out_stride_g + n * out_stride_n +
-                                        k * out_stride_k + ho * out_stride_h;
-                                    out_op(out_val, output_grad_at_h[wo], out_extra[wo]);
-                                }
-                                else if constexpr(NumBExtra == 2)
-                                {
-                                    const OutDataType* out_extra0 =
-                                        p_out_grads[1] + g * out_stride_g + n * out_stride_n +
-                                        k * out_stride_k + ho * out_stride_h;
-                                    const OutDataType* out_extra1 =
-                                        p_out_grads[2] + g * out_stride_g + n * out_stride_n +
-                                        k * out_stride_k + ho * out_stride_h;
-                                    out_op(out_val,
-                                           output_grad_at_h[wo],
-                                           out_extra0[wo],
-                                           out_extra1[wo]);
-                                }
+                                detail::apply_multi_tensor_elementwise_op<NumBExtra>(
+                                    out_val,
+                                    out_op,
+                                    output_grad_at_h,
+                                    p_out_grads + 1,
+                                    g * out_stride_g + n * out_stride_n + k * out_stride_k +
+                                        ho * out_stride_h,
+                                    wo);
 
                                 acc += type_convert<float>(out_val) * type_convert<float>(in_val);
                             }
@@ -294,30 +224,16 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                 }
             }
 
-            WeiDataType result = type_convert<WeiDataType>(acc);
-
-            // Handle weight gradient element-wise operation with D tensors
-            if constexpr(NumD == 0)
-            {
-                wei_op(wei_val, result);
-            }
-            else if constexpr(NumD == 1)
-            {
-                const long_index_t d_idx = g * p_d_strides[0][0] + k * p_d_strides[0][1] +
-                                           c * p_d_strides[0][2] + y * p_d_strides[0][3] +
-                                           x * p_d_strides[0][4];
-                wei_op(wei_val, result, p_ds[0][d_idx]);
-            }
-            else if constexpr(NumD == 2)
-            {
-                const long_index_t d0_idx = g * p_d_strides[0][0] + k * p_d_strides[0][1] +
-                                            c * p_d_strides[0][2] + y * p_d_strides[0][3] +
-                                            x * p_d_strides[0][4];
-                const long_index_t d1_idx = g * p_d_strides[1][0] + k * p_d_strides[1][1] +
-                                            c * p_d_strides[1][2] + y * p_d_strides[1][3] +
-                                            x * p_d_strides[1][4];
-                wei_op(wei_val, result, p_ds[0][d0_idx], p_ds[1][d1_idx]);
-            }
+            detail::apply_d_tensor_elementwise_op<NumD>(wei_val,
+                                                        wei_op,
+                                                        acc,
+                                                        p_ds,
+                                                        p_d_strides,
+                                                        g,
+                                                        k,
+                                                        c,
+                                                        y * p_d_strides[0][3] +
+                                                            x * p_d_strides[0][4]);
 
             p_wei_grad[g * wei_stride_g + k * wei_stride_k + c * wei_stride_c + y * wei_stride_y +
                        x] = wei_val;
@@ -395,63 +311,25 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                                     if(wi >= 0 && wi < Wi)
                                     {
                                         // Handle input element-wise operation with extra A tensors
-                                        if constexpr(NumAExtra == 0)
-                                        {
-                                            in_op(in_val, input_at_d_h[wi]);
-                                        }
-                                        else if constexpr(NumAExtra == 1)
-                                        {
-                                            const InDataType* in_extra =
-                                                p_ins[1] + g * in_stride_g + n * in_stride_n +
-                                                c * in_stride_c + di * in_stride_d +
-                                                hi * in_stride_h;
-                                            in_op(in_val, input_at_d_h[wi], in_extra[wi]);
-                                        }
-                                        else if constexpr(NumAExtra == 2)
-                                        {
-                                            const InDataType* in_extra0 =
-                                                p_ins[1] + g * in_stride_g + n * in_stride_n +
-                                                c * in_stride_c + di * in_stride_d +
-                                                hi * in_stride_h;
-                                            const InDataType* in_extra1 =
-                                                p_ins[2] + g * in_stride_g + n * in_stride_n +
-                                                c * in_stride_c + di * in_stride_d +
-                                                hi * in_stride_h;
-                                            in_op(in_val,
-                                                  input_at_d_h[wi],
-                                                  in_extra0[wi],
-                                                  in_extra1[wi]);
-                                        }
+                                        detail::apply_multi_tensor_elementwise_op<NumAExtra>(
+                                            in_val,
+                                            in_op,
+                                            input_at_d_h,
+                                            p_ins + 1,
+                                            g * in_stride_g + n * in_stride_n + c * in_stride_c +
+                                                di * in_stride_d + hi * in_stride_h,
+                                            wi);
 
                                         // Handle output gradient element-wise operation with extra
                                         // B tensors
-                                        if constexpr(NumBExtra == 0)
-                                        {
-                                            out_op(out_val, output_grad_at_d_h[wo]);
-                                        }
-                                        else if constexpr(NumBExtra == 1)
-                                        {
-                                            const OutDataType* out_extra =
-                                                p_out_grads[1] + g * out_stride_g +
-                                                n * out_stride_n + k * out_stride_k +
-                                                do_idx * out_stride_d + ho * out_stride_h;
-                                            out_op(out_val, output_grad_at_d_h[wo], out_extra[wo]);
-                                        }
-                                        else if constexpr(NumBExtra == 2)
-                                        {
-                                            const OutDataType* out_extra0 =
-                                                p_out_grads[1] + g * out_stride_g +
-                                                n * out_stride_n + k * out_stride_k +
-                                                do_idx * out_stride_d + ho * out_stride_h;
-                                            const OutDataType* out_extra1 =
-                                                p_out_grads[2] + g * out_stride_g +
-                                                n * out_stride_n + k * out_stride_k +
-                                                do_idx * out_stride_d + ho * out_stride_h;
-                                            out_op(out_val,
-                                                   output_grad_at_d_h[wo],
-                                                   out_extra0[wo],
-                                                   out_extra1[wo]);
-                                        }
+                                        detail::apply_multi_tensor_elementwise_op<NumBExtra>(
+                                            out_val,
+                                            out_op,
+                                            output_grad_at_d_h,
+                                            p_out_grads + 1,
+                                            g * out_stride_g + n * out_stride_n + k * out_stride_k +
+                                                do_idx * out_stride_d + ho * out_stride_h,
+                                            wo);
 
                                         acc += type_convert<float>(out_val) *
                                                type_convert<float>(in_val);
@@ -463,30 +341,16 @@ naive_conv_bwd_weight_packed_multi_abd(const InDataType* const* __restrict__ p_i
                 }
             }
 
-            WeiDataType result = type_convert<WeiDataType>(acc);
-
-            // Handle weight gradient element-wise operation with D tensors
-            if constexpr(NumD == 0)
-            {
-                wei_op(wei_val, result);
-            }
-            else if constexpr(NumD == 1)
-            {
-                const long_index_t d_idx = g * p_d_strides[0][0] + k * p_d_strides[0][1] +
-                                           c * p_d_strides[0][2] + z * p_d_strides[0][3] +
-                                           y * p_d_strides[0][4] + x * p_d_strides[0][5];
-                wei_op(wei_val, result, p_ds[0][d_idx]);
-            }
-            else if constexpr(NumD == 2)
-            {
-                const long_index_t d0_idx = g * p_d_strides[0][0] + k * p_d_strides[0][1] +
-                                            c * p_d_strides[0][2] + z * p_d_strides[0][3] +
-                                            y * p_d_strides[0][4] + x * p_d_strides[0][5];
-                const long_index_t d1_idx = g * p_d_strides[1][0] + k * p_d_strides[1][1] +
-                                            c * p_d_strides[1][2] + z * p_d_strides[1][3] +
-                                            y * p_d_strides[1][4] + x * p_d_strides[1][5];
-                wei_op(wei_val, result, p_ds[0][d0_idx], p_ds[1][d1_idx]);
-            }
+            detail::apply_d_tensor_elementwise_op<NumD>(
+                wei_val,
+                wei_op,
+                acc,
+                p_ds,
+                p_d_strides,
+                g,
+                k,
+                c,
+                z * p_d_strides[0][3] + y * p_d_strides[0][4] + x * p_d_strides[0][5]);
 
             p_wei_grad[g * wei_stride_g + k * wei_stride_k + c * wei_stride_c + z * wei_stride_z +
                        y * wei_stride_y + x] = wei_val;
