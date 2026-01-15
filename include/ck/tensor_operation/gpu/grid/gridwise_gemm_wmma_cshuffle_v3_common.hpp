@@ -539,19 +539,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         return ATransfer::template MakeGridDescriptor<padM, padK>(base_desc, M, M, K, K, 0, AK0);
     }
 
-    template <typename GridDescBase>
-    __device__ static auto MakeAGridDescriptor_AK0_M_AK1(const GridDescBase& base_desc)
-    {
-        const auto M = base_desc.GetLength(I0);
-        const auto K = base_desc.GetLength(I1);
-
-        const auto AK0 = K / AK1Value;
-
-        constexpr bool padM = false;
-        constexpr bool padK = false;
-        return ATransfer::template MakeGridDescriptor<padM, padK>(base_desc, M, M, K, K, 0, AK0);
-    }
-
     template <typename BaseDescriptors_M_K>
     __host__ __device__ static auto
     MakeAsGridDescriptor_AK0_M_AK1(const BaseDescriptors_M_K& base_descs, const index_t KBatch = 1)
