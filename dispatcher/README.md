@@ -345,11 +345,12 @@ After building, executables are in `build/examples/`:
 cd build/examples
 
 # GEMM Examples
-./gemm_01_basic          # Basic GEMM operation
-./gemm_02_multi_size     # Multiple problem sizes
-./gemm_03_benchmark      # Performance benchmarking
-./gemm_04_validation     # CPU validation
-./gemm_05_heuristics     # Custom kernel selection
+./gemm_01_basic              # Basic GEMM with autofill/autocorrect
+./gemm_02_multi_size         # Wildcard expansion
+./gemm_03_benchmark_validation  # Benchmarking + validation
+./gemm_04_heuristics         # Heuristic kernel selection
+./gemm_05_json_export        # Registry JSON export
+./gemm_06_multi_registry     # Multiple registries
 
 # Convolution Examples
 ./conv_01_forward        # Basic 2D convolution
@@ -367,9 +368,9 @@ Run from the `dispatcher` directory:
 cd /path/to/composable_kernel/dispatcher
 
 # GEMM Examples
-python3 examples/gemm/python/01_basic_gemm.py
-python3 examples/gemm/python/03_benchmark.py
-python3 examples/gemm/python/05_numpy_integration.py
+python3 examples/gemm/python/01_basic_gemm.py     # Basic multi-kernel GEMM
+python3 examples/gemm/python/07_stress_test.py    # Stress test (48 kernels)
+python3 examples/gemm/python/08_heuristics.py     # Heuristic selection
 
 # Convolution Examples
 python3 examples/conv/python/01_basic_conv.py
@@ -843,8 +844,8 @@ dispatcher/
 │
 ├── examples/                   # Examples
 │   ├── gemm/
-│   │   ├── cpp/                # C++ GEMM examples (01-09)
-│   │   └── python/             # Python GEMM examples (01-09)
+│   │   ├── cpp/                # C++ GEMM examples (01-06)
+│   │   └── python/             # Python GEMM examples (01-11)
 │   └── conv/
 │       ├── cpp/                # C++ Conv examples (01-11)
 │       └── python/             # Python Conv examples (01-12)

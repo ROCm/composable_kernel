@@ -33,7 +33,7 @@ cd build/examples
 
 # GEMM
 ./gemm_01_basic
-./gemm_04_validation
+./gemm_03_benchmark_validation
 
 # Conv
 ./conv_01_basic
@@ -48,7 +48,8 @@ cd /path/to/composable_kernel/dispatcher
 
 # GEMM
 python3 examples/gemm/python/01_basic_gemm.py
-python3 examples/gemm/python/04_validation.py
+python3 examples/gemm/python/07_stress_test.py
+python3 examples/gemm/python/08_heuristics.py
 
 # Conv
 python3 examples/conv/python/01_basic_conv.py
@@ -62,8 +63,8 @@ python3 examples/conv/python/04_conv2d_bwd_data.py --verify
 ```
 examples/
 ├── gemm/
-│   ├── cpp/           # 9 C++ GEMM examples
-│   └── python/        # 9 Python GEMM examples
+│   ├── cpp/           # 6 C++ GEMM examples
+│   └── python/        # 11 Python GEMM examples
 │
 └── conv/
     ├── cpp/           # 11 C++ Conv examples
@@ -78,15 +79,12 @@ examples/
 
 | # | Example | Description |
 |---|---------|-------------|
-| 01 | `gemm_01_basic` | Basic GEMM with declarative API |
-| 02 | `gemm_02_multi_size` | Multiple problem sizes |
-| 03 | `gemm_03_benchmark` | Performance benchmarking |
-| 04 | `gemm_04_validation` | CPU reference validation |
-| 05 | `gemm_05_heuristics` | Heuristic kernel selection |
-| 06 | `gemm_06_json_export` | Registry JSON export |
-| 07 | `gemm_07_preshuffle` | Layout optimization |
-| 08 | `gemm_08_multi_d` | Multi-D tensor ops |
-| 09 | `gemm_09_multi_registry` | Multiple registries |
+| 01 | `gemm_01_basic` | Basic GEMM with declarative API, autofill, autocorrect |
+| 02 | `gemm_02_multi_size` | Wildcard expansion for multiple configurations |
+| 03 | `gemm_03_benchmark_validation` | Performance benchmarking with CPU/GPU validation |
+| 04 | `gemm_04_heuristics` | Heuristic-based kernel selection |
+| 05 | `gemm_05_json_export` | Registry JSON export for external tools |
+| 06 | `gemm_06_multi_registry` | Multiple registries with named kernel sets |
 
 **Details:** [gemm/cpp/README.md](gemm/cpp/README.md)
 
@@ -96,15 +94,17 @@ examples/
 
 | # | Example | Description |
 |---|---------|-------------|
-| 01 | `01_basic_gemm.py` | Basic GEMM with GPU execution |
+| 01 | `01_basic_gemm.py` | Basic GEMM with multi-kernel support |
 | 02 | `02_batch_gemm.py` | Batched GEMM operations |
 | 03 | `03_benchmark.py` | Performance benchmarking |
 | 04 | `04_validation.py` | CPU reference validation |
 | 05 | `05_numpy_integration.py` | NumPy array integration |
 | 06 | `06_json_export.py` | Registry JSON export |
-| 07 | `07_preshuffle.py` | Preshuffle optimization |
-| 08 | `08_multi_d.py` | Multi-D tensor ops |
+| 07 | `07_stress_test.py` | Multi-kernel stress testing (48 configs) |
+| 08 | `08_heuristics.py` | Heuristic-based kernel selection (24 configs) |
 | 09 | `09_multi_registry.py` | Multiple registries |
+| 10 | `10_advanced_benchmark.py` | Advanced benchmark with full control |
+| 11 | `11_json_import.py` | Import kernels from JSON |
 
 **Details:** [gemm/python/README.md](gemm/python/README.md)
 
@@ -158,19 +158,67 @@ examples/
 ### C++ Validation
 
 ```bash
-./conv_03_validation              # Forward conv validation
-./conv_10_bwd_data --verify       # Backward data with CPU reference
-./conv_11_bwd_weight --verify     # Backward weight with CPU reference
-./gemm_04_validation              # GEMM validation
+./gemm_03_benchmark_validation --verify 1    # GEMM with CPU reference
+./gemm_03_benchmark_validation --verify 2    # GEMM with GPU reference
+./conv_03_validation                         # Forward conv validation
+./conv_10_bwd_data --verify                  # Backward data with CPU reference
+./conv_11_bwd_weight --verify                # Backward weight with CPU reference
 ```
 
 ### Python Validation
 
 ```bash
+python3 examples/gemm/python/04_validation.py
+python3 examples/gemm/python/07_stress_test.py   # Multi-kernel validation
 python3 examples/conv/python/04_conv2d_bwd_data.py --verify
 python3 examples/conv/python/07_validation.py
-python3 examples/gemm/python/04_validation.py
 ```
+
+---
+
+## Key Features
+
+### Declarative Kernel API
+
+Both C++ and Python examples use a declarative approach:
+
+**C++ (DECL_KERNEL_SET macro):**
+```cpp
+DECL_KERNEL_SET(my_kernels,
+    .add(
+        Signature().dtype("fp16").layout("rcr"),
+        Algorithm().tile(256, 256, 32).wave(2, 2, 1).warp(32, 32, 16)
+                   .pipeline("compv4").scheduler("intrawave"),
+        "gfx942"
+    )
+);
+```
+
+**Python (KernelConfig):**
+```python
+config = KernelConfig(
+    tile_m=256, tile_n=256, tile_k=32,
+    wave_m=2, wave_n=2, wave_k=1,
+    warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
+    pipeline="compv4", scheduler="intrawave"
+)
+```
+
+### Autofill and Autocorrect
+
+The build system automatically:
+- **Autofills** missing parameters with sensible defaults
+- **Autocorrects** invalid parameters based on architecture constraints
+- **Expands** wildcards (`*`, `-1`, `ANY_INT`) to all valid configurations
+
+### Architecture Filtering
+
+Kernel configurations are validated against GPU architecture constraints:
+- Tile divisibility requirements
+- Warp tile constraints
+- Pipeline compatibility
+
+Invalid configurations are automatically pruned during code generation.
 
 ---
 

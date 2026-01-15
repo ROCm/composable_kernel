@@ -23,34 +23,39 @@ make -j$(nproc)
 # Run examples
 cd examples
 ./gemm_01_basic
-./gemm_03_benchmark
-./gemm_04_validation
+./gemm_03_benchmark_validation
+./gemm_04_heuristics
 ```
 
 ## Examples
 
 | Example | Description | Complexity |
 |---------|-------------|------------|
-| [01_basic_gemm.cpp](01_basic_gemm.cpp) | Basic GEMM with declarative API | ★☆☆☆☆ |
-| [02_multi_size.cpp](02_multi_size.cpp) | Multiple problem sizes | ★★☆☆☆ |
-| [03_benchmark.cpp](03_benchmark.cpp) | Performance benchmarking | ★★☆☆☆ |
-| [04_validation.cpp](04_validation.cpp) | CPU/GPU reference validation | ★★☆☆☆ |
-| [05_heuristics.cpp](05_heuristics.cpp) | Heuristic kernel selection | ★★★☆☆ |
-| [06_json_export.cpp](06_json_export.cpp) | Registry JSON export | ★★☆☆☆ |
-| [07_preshuffle.cpp](07_preshuffle.cpp) | Layout optimization | ★★★☆☆ |
-| [08_multi_d.cpp](08_multi_d.cpp) | Multi-D tensor ops | ★★★☆☆ |
-| [09_multi_registry.cpp](09_multi_registry.cpp) | Multiple registries | ★★★★☆ |
+| [01_basic_gemm.cpp](01_basic_gemm.cpp) | Basic GEMM with declarative API, autofill, autocorrect | ★☆☆☆☆ |
+| [02_multi_size.cpp](02_multi_size.cpp) | Wildcard expansion for multiple configurations | ★★☆☆☆ |
+| [03_benchmark_validation.cpp](03_benchmark_validation.cpp) | Performance benchmarking with CPU reference validation | ★★☆☆☆ |
+| [04_heuristics.cpp](04_heuristics.cpp) | Heuristic-based kernel selection | ★★★☆☆ |
+| [05_json_export.cpp](05_json_export.cpp) | Registry JSON export for external tools | ★★☆☆☆ |
+| [06_multi_registry.cpp](06_multi_registry.cpp) | Multiple registries with named kernel sets | ★★★☆☆ |
 
 ## Example Details
 
 ### 01_basic_gemm.cpp - Basic GEMM
-The simplest example demonstrating:
-- Declarative kernel specification using `DECL_KERNEL_SET`
-- Signature/Algorithm/Arch pattern
-- Registry creation and kernel dispatch
+Demonstrates the declarative kernel API with three patterns:
+
+1. **Autofill Pattern** - Minimal specification, defaults filled automatically
+2. **Autocorrect Pattern** - Invalid parameters corrected at build time
+3. **Full Specification Pattern** - Complete kernel configuration
 
 ```cpp
 DECL_KERNEL_SET(basic_kernels,
+    // Pattern 1: Autofill - minimal specification
+    .add(
+        Signature().dtype("fp16").layout("rcr"),
+        Algorithm(),  // Defaults filled by autofill
+        "gfx942"
+    )
+    // Pattern 2: Full specification
     .add(
         Signature().dtype("fp16").layout("rcr"),
         Algorithm().tile(256, 256, 32).wave(2, 2, 1).warp(32, 32, 16)
@@ -60,59 +65,111 @@ DECL_KERNEL_SET(basic_kernels,
 );
 ```
 
-### 02_multi_size.cpp - Multiple Sizes
-- Run the same kernel on different matrix sizes
-- Track performance across problem sizes
-- Dynamic workload handling
+**Features:**
+- Uses generic `REGISTER_GENERATED_KERNELS` macro
+- `print_registered_kernels()` utility for debugging
+- Demonstrates autofill messages during build
 
-### 03_benchmark.cpp - Advanced Benchmarking
-Demonstrates benchmark parameters (matching CK Tile `stream_config`):
-- Warmup iterations (discarded)
-- Benchmark iterations (averaged)
-- Statistics: min/max/mean/median
+### 02_multi_size.cpp - Wildcard Expansion
+Demonstrates automatic generation of multiple kernel configurations:
 
-```bash
-./gemm_03_benchmark --warmup 10 --iterations 100
+```cpp
+DECL_KERNEL_SET(multi_kernels,
+    .add(
+        Signature().dtype("fp16").layout("rcr"),
+        Algorithm().tile(*, *, 32)     // Wildcard tile M and N
+                   .wave(2, 2, 1)
+                   .warp(32, 32, 16)
+                   .pipeline("compv4")
+                   .scheduler("intrawave"),
+        "gfx942"
+    )
+);
 ```
 
-### 04_validation.cpp - CPU/GPU Validation
-Uses CK Tile's built-in reference implementations for validation:
+**Wildcard Values:**
+- `*`, `-1`, or `ANY_INT` expand to all valid configurations
+- Architecture filter prunes invalid combinations automatically
+- Example generates 5 valid kernels after arch filtering (from 7 expansions)
+
+### 03_benchmark_validation.cpp - Benchmark + Validation
+Consolidated example combining performance benchmarking with correctness validation:
 
 ```bash
-./gemm_04_validation --verify 0   # No verification (benchmark only)
-./gemm_04_validation --verify 1   # CPU reference (slower, always works)
-./gemm_04_validation --verify 2   # GPU reference (faster for large matrices)
+# Benchmark only
+./gemm_03_benchmark_validation --warmup 10 --iterations 100
+
+# With CPU validation
+./gemm_03_benchmark_validation --verify 1 --rtol 1e-3 --atol 1e-3
+
+# With GPU reference validation (faster for large matrices)
+./gemm_03_benchmark_validation --verify 2
 ```
 
-- **CPU reference** (`--verify 1`): Uses `ck_tile::reference_gemm` - accurate, works on any GPU
-- **GPU reference** (`--verify 2`): Uses `ck_tile::reference_gemm_gpu` - faster for large matrices
-- Configurable tolerances with `--rtol` and `--atol`
-- Uses CK Tile's `HostTensor` with proper layout descriptors
+**Features:**
+- Warmup iterations (discarded from timing)
+- Benchmark iterations with statistics (min/max/mean/median)
+- CPU reference validation using `ck_tile::reference_gemm`
+- GPU reference validation using `ck_tile::reference_gemm_gpu`
+- Configurable tolerances
 
-### 05_heuristics.cpp - Heuristic Selection
-- Problem size analysis
-- Automatic kernel selection
-- Compute-bound vs memory-bound heuristics
+### 04_heuristics.cpp - Heuristic Selection
+Demonstrates custom kernel selection based on problem characteristics:
 
-### 06_json_export.cpp - JSON Export
-- Exporting registry to JSON format
+```cpp
+// Problem size analysis
+auto heuristic = [](const Problem& p) -> std::optional<KernelKey> {
+    if (p.M() * p.N() < 256 * 256) {
+        return small_kernel_key;   // Memory-bound heuristic
+    } else {
+        return large_kernel_key;   // Compute-bound heuristic
+    }
+};
+
+dispatcher.set_heuristic(heuristic);
+```
+
+**Features:**
+- Problem size analysis (small vs large matrices)
+- Compute-bound vs memory-bound selection
+- Custom heuristic function registration
+
+### 05_json_export.cpp - JSON Export
+Exports registry information to JSON for external tool integration:
+
+```cpp
+auto json = registry.to_json();
+std::ofstream file("kernels.json");
+file << json;
+```
+
+**Use Cases:**
 - Kernel metadata serialization
-- External tool integration
+- External analysis tools
+- Configuration management
 
-### 07_preshuffle.cpp - Preshuffle Optimization
-- Preshuffled matrix layouts
-- Memory access optimization
-- Performance tuning techniques
+### 06_multi_registry.cpp - Multiple Registries
+Demonstrates using multiple registries with named kernel sets:
 
-### 08_multi_d.cpp - Multi-D Tensors
-- Tensor operations beyond 2D matrices
-- Bias and element-wise operations
-- Fused kernel patterns
+```cpp
+// Define separate kernel sets
+DECL_KERNEL_SET(compute_optimized, ...);
+DECL_KERNEL_SET(latency_optimized, ...);
 
-### 09_multi_registry.cpp - Multiple Registries
-- Separate registries for different workloads
-- Compute-optimized vs latency-optimized kernels
-- Registry selection strategies
+// Register to specific registries
+Registry compute_registry, latency_registry;
+REGISTER_KERNEL_SET(compute_optimized, compute_registry);
+REGISTER_KERNEL_SET(latency_optimized, latency_registry);
+
+// Use appropriate registry based on workload
+Dispatcher compute_dispatcher(compute_registry);
+Dispatcher latency_dispatcher(latency_registry);
+```
+
+**Features:**
+- Named kernel set registration with `REGISTER_KERNEL_SET` macro
+- Separate registries for different optimization goals
+- Dynamic kernel set selection by name
 
 ## Benchmark Parameters (stream_config)
 
@@ -141,7 +198,7 @@ ck_tile::stream_config cfg{
 
 ## Declarative Kernel Pattern
 
-All examples use the declarative kernel pattern:
+All examples use the declarative `DECL_KERNEL_SET` macro:
 
 ```cpp
 DECL_KERNEL_SET(my_kernels,
@@ -159,6 +216,11 @@ DECL_KERNEL_SET(my_kernels,
     )
 );
 ```
+
+**Key Macros:**
+- `DECL_KERNEL_SET(name, ...)` - Declare a kernel set
+- `REGISTER_GENERATED_KERNELS` - Register all kernels from this example
+- `REGISTER_KERNEL_SET(name, registry)` - Register specific kernel set to a registry
 
 ## Related Documentation
 
