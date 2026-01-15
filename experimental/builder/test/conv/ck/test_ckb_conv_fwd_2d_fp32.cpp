@@ -26,11 +26,11 @@ TEST(FwdConvInstances,
 
     constexpr auto FwdConvAlgorithm =
         ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
-            .with_thread_block(FwdThreadBlock_256_128x128x32)
+            .with_thread_block(ThreadBlock_256_128x128x32)
             .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
-            .with_transfer(FwdTransfer_4x64x1)
-            .with_specializations(ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0,
-                                  GemmSpecialization::MNKPadding)
+            .with_transfer(Transfer_4x64x1)
+            .with_fwd_specializations(ConvSpecialization::FILTER_1X1_STRIDE1_PAD0,
+                                      GemmSpecialization::MNKPadding)
             .with_block_gemm(BlockGemmDesc_v4_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
