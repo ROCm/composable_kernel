@@ -841,6 +841,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         c_m_n_host_ref.SetZero();
 
+        // Track start time for reference operation
+        auto start_reference_tick = std::chrono::high_resolution_clock::now();
         if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
         {
             ck_tile::reference_gemm_quant<ADataType,
@@ -904,6 +906,9 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 a_m_k, *aq_tensor_ptr, b_k_n, *bq_tensor_ptr, c_m_n_host_ref);
         }
 
+        // Track where we stop reference calculation, and start verification
+        auto start_verification_tick = std::chrono::high_resolution_clock::now();
+
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
@@ -914,6 +919,9 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                                   rtol_atol.at(ck_tile::number<0>{}),
                                   rtol_atol.at(ck_tile::number<1>{}));
 
+        // "Stop" our timer
+        auto verification_finished_tick = std::chrono::high_resolution_clock::now();
+
         if(!pass)
         {
             std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
@@ -921,6 +929,21 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                       << std::endl;
         }
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+
+        // Calculate and display reference timing
+        using DurationType   = std::chrono::duration<double>;
+        double reference_sec = std::chrono::duration_cast<DurationType>(verification_finished_tick -
+                                                                        start_reference_tick)
+                                   .count();
+        double verification_sec = std::chrono::duration_cast<DurationType>(
+                                      verification_finished_tick - start_verification_tick)
+                                      .count();
+        float reference_msec    = static_cast<float>(reference_sec * 1e3);
+        float verification_msec = static_cast<float>(verification_sec * 1e3);
+
+        std::cout << std::fixed << std::setprecision(1) << "CPU reference GEMM took "
+                  << reference_msec << "ms, verification took " << verification_msec << "ms."
+                  << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
     {
