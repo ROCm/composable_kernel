@@ -108,8 +108,8 @@ concept BwdTwoStageXdlAlgorithm =
 // BWD weight WMMA algorithm concepts
 template <auto Value>
 concept BwdWmmaAlgorithm =
-    BwdWmmaAlgorithmBase<Value> && SpecifiesNumPrefetchStages<decltype(Value)> &&
-    SpecifiesGemmPipeline<decltype(Value)> && SpecifiesGenericInstance<decltype(Value)>;
+    BwdWmmaAlgorithmBase<Value> && SpecifiesGemmPipeline<decltype(Value)> && 
+    SpecifiesGenericInstance<decltype(Value)>;
 
 template <auto Value>
 concept BwdMultiDWmmaV3Algorithm =
@@ -117,8 +117,7 @@ concept BwdMultiDWmmaV3Algorithm =
 
 template <auto Value>
 concept BwdWmmaV3Algorithm =
-    BwdWmmaV3AlgorithmBase<Value> && SpecifiesTransposeTransfer<decltype(Value)> &&
-    SpecifiesGenericInstance<decltype(Value)>;
+    BwdWmmaV3AlgorithmBase<Value> && SpecifiesTransposeTransfer<decltype(Value)>;
 
 template <auto Value>
 concept BwdTwoStageWmmaV3Algorithm =
