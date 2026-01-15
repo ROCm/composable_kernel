@@ -17,6 +17,7 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/utility/scheduler_enum.hpp"
 
 namespace ck {
 
@@ -734,24 +735,84 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
 
             const index_t grid_size = arg.block_2_etile_map_.CalculateGridSize(arg.M, arg.N);
 
-            auto launch_kernel = [&](auto has_main_k_block_loop) {
+            auto launch_kernel = [&](auto has_main_k_block_loop, auto tail_number) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
+                constexpr auto tail_num      = tail_number.value;
 
-                const auto kernel = kernel_contraction_multiple_d_wmma_cshuffle_v3<DeviceOp,
-                                                                                   GridwiseGemm,
-                                                                                   has_main_loop>;
+                constexpr index_t minimum_occupancy = []() {
+                    if constexpr(BlkGemmPipeSched == BlockGemmPipelineScheduler::Interwave)
+                    {
+                        return 2;
+                    }
+                    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                    {
+                        return (MPerBlock * NPerBlock / BlockSize <= 128) ? 2 : 1;
+                    }
+                    else
+                    {
+                        return 1;
+                    }
+                }();
+
+                const auto kernel =
+                    kernel_contraction_multiple_d_wmma_cshuffle_v3<DeviceOp,
+                                                                   GridwiseGemm,
+                                                                   has_main_loop,
+                                                                   minimum_occupancy,
+                                                                   tail_num>;
 
                 return launch_and_time_kernel(
                     stream_config, kernel, dim3(grid_size, arg.G, 1), dim3(BlockSize), 0, arg);
             };
 
-            if(GridwiseGemm::CalculateHasMainKBlockLoop(arg.K))
+            bool HasMainKBlockLoop = GridwiseGemm::CalculateHasMainKBlockLoop(arg.K);
+            TailNumber TailNum     = GridwiseGemm::CalculateKBlockLoopTailNum(arg.K);
+
+            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
             {
-                return launch_kernel(integral_constant<bool, true>{});
+                if(HasMainKBlockLoop && TailNum == TailNumber::Full)
+                {
+                    return launch_kernel(std::integral_constant<bool, true>{},
+                                         std::integral_constant<TailNumber, TailNumber::Full>{});
+                }
+                else if(!HasMainKBlockLoop && TailNum == TailNumber::Full)
+                {
+                    return launch_kernel(std::integral_constant<bool, false>{},
+                                         std::integral_constant<TailNumber, TailNumber::Full>{});
+                }
+                else
+                {
+                    printf("Invalid HasMainKBlockLoop and TailNum combination for V1!\n");
+                    return 0.0f;
+                }
+            }
+            else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+            {
+                if(HasMainKBlockLoop && TailNum == TailNumber::Full)
+                {
+                    return launch_kernel(std::integral_constant<bool, true>{},
+                                         std::integral_constant<TailNumber, TailNumber::Full>{});
+                }
+                else if(!HasMainKBlockLoop && TailNum == TailNumber::Even)
+                {
+                    return launch_kernel(std::integral_constant<bool, false>{},
+                                         std::integral_constant<TailNumber, TailNumber::Even>{});
+                }
+                else if(!HasMainKBlockLoop && TailNum == TailNumber::Odd)
+                {
+                    return launch_kernel(std::integral_constant<bool, false>{},
+                                         std::integral_constant<TailNumber, TailNumber::Odd>{});
+                }
+                else
+                {
+                    printf("Invalid HasMainKBlockLoop and TailNum combination for V3!\n");
+                    return 0.0f;
+                }
             }
             else
             {
-                return launch_kernel(integral_constant<bool, false>{});
+                printf("Invalid pipeline version!\n");
+                return 0.0f;
             }
         }
 

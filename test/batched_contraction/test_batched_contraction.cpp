@@ -108,6 +108,15 @@ TYPED_TEST(TestBatchedContraction, BaseCase)
     };
     this->Run();
 }
+TYPED_TEST(TestBatchedContraction, TinyCases)
+{
+    this->params = std::vector<typename TestFixture::GemmParams>{
+        // Gs, Ms, Ns, Ks
+        {{1}, {1, 16}, {1, 1, 16}, {16}},
+        {{2}, {4, 8}, {2, 2, 8}, {32}},
+    };
+    this->Run();
+}
 TYPED_TEST(TestBatchedContraction, PadM)
 {
     this->params = std::vector<typename TestFixture::GemmParams>{
