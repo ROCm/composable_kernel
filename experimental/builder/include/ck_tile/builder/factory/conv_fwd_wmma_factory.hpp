@@ -26,10 +26,10 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdWmmaFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>;
-    using Types   = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops     = internal::ElementwiseOps<SIGNATURE>;
-    using AlgorithmType = decltype(ALGORITHM);
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Types                         = internal::ConvTensorDataTypes<SIGNATURE>;
+    using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
+    using AlgorithmType                 = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
     static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();
@@ -52,27 +52,27 @@ struct ConvFwdWmmaFactory
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
     static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
     static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>);
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Wmma_CShuffle<
         SPATIAL_DIM,
-        typename Layouts::ALayout,
-        typename Layouts::BLayout,
+        typename Layouts::InLayout,
+        typename Layouts::WeiLayout,
         typename Layouts::DsLayout,
-        typename Layouts::ELayout,
-        typename Types::ADataType,
-        typename Types::BDataType,
+        typename Layouts::OutLayout,
+        typename Types::InDataType,
+        typename Types::WeiDataType,
         typename Types::AccDataType,
-        typename Types::CShuffleDataType,
-        typename Types::DsDataTypes,
-        typename Types::EDataType,
-        typename Ops::AElementwiseOp,
-        typename Ops::BElementwiseOp,
-        typename Ops::CDEElementwiseOp,
+        typename Types::OutComputeType,
+        typename Types::DsDataType,
+        typename Types::OutDataType,
+        typename Ops::InElementwiseOp,
+        typename Ops::WeiElementwiseOp,
+        typename Ops::OutElementwiseOp,
         SPECIALIZATION.conv_spec,
         SPECIALIZATION.gemm_spec,
         ALGORITHM.num_gemm_k_prefetch_stages,
