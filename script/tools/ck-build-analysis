@@ -1,0 +1,237 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Build Analysis Tool - Analyze build times using -ftime-trace
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
+
+# Default settings
+GRANULARITY="${CK_BUILD_ANALYSIS_GRANULARITY:-1}"
+OUTPUT_FILE="build_time_analysis_report.md"
+RECONFIGURE=true
+
+# Help message
+show_help() {
+    cat << EOF
+CK Build Analysis - Analyze build times using Clang -ftime-trace
+
+Usage: ck-build-analysis <target> [options]
+
+Arguments:
+  target                      Build target to analyze (e.g., example_convnd_fwd_xdl_fp8)
+
+Options:
+  --granularity=N            Time trace granularity in microseconds (default: 1)
+  --output=FILE              Output report filename (default: build_time_analysis_report.md)
+  --name=NAME                Docker container name (default: ${CONTAINER_NAME})
+  --no-reconfigure           Skip CMake reconfiguration if build exists
+  --help                     Show this help message
+
+Examples:
+  ck-build-analysis example_convnd_fwd_xdl_fp8
+  ck-build-analysis example_convnd_fwd_xdl_fp8 --granularity=10
+  ck-build-analysis test_amdgcn_mma --granularity=1 --output=mma_test_analysis.md
+
+Granularity Guide:
+  0              - Everything: All compiler events including sub-microsecond operations
+                   Use for LLVM internals debugging. Large files, higher overhead.
+
+  1   (default)  - Complete template coverage: Captures all template instantiations
+                   Best balance - filters sub-microsecond noise, low overhead
+
+  10             - Daily use: Captures most expensive templates, smaller files
+                   Good for quick checks and routine analysis
+
+  50-100         - Intermediate: Balanced between detail and file size
+                   Suitable for CI/CD tracking
+
+  500            - High-level only: Major compilation phases, minimal detail
+                   Not recommended for template analysis (loses most instantiations)
+
+  Recommendation: Use 1us (default) for template analysis, 10us for quick checks.
+EOF
+}
+
+# Parse arguments
+TARGET=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --granularity=*)
+            GRANULARITY="${1#*=}"
+            shift
+            ;;
+        --output=*)
+            OUTPUT_FILE="${1#*=}"
+            shift
+            ;;
+        --name=*)
+            CONTAINER_NAME="${1#*=}"
+            shift
+            ;;
+        --no-reconfigure)
+            RECONFIGURE=false
+            shift
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+        *)
+            if [ -z "$TARGET" ]; then
+                TARGET="$1"
+            else
+                echo "Error: Multiple targets specified"
+                show_help
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [ -z "$TARGET" ]; then
+    echo "Error: No target specified"
+    echo ""
+    show_help
+    exit 1
+fi
+
+# Validate OUTPUT_FILE to prevent path traversal
+if [[ "$OUTPUT_FILE" =~ / ]] || [[ "$OUTPUT_FILE" =~ \.\. ]]; then
+    echo "Error: OUTPUT_FILE must be a simple filename (no path separators or .. allowed)"
+    echo "Invalid: $OUTPUT_FILE"
+    exit 1
+fi
+
+echo "═══════════════════════════════════════════════════════════════"
+echo "  CK Build Time Analysis"
+echo "═══════════════════════════════════════════════════════════════"
+echo "Target:       $TARGET"
+echo "Granularity:  ${GRANULARITY}us"
+echo "Container:    $CONTAINER_NAME"
+echo "Output:       $OUTPUT_FILE"
+echo "═══════════════════════════════════════════════════════════════"
+echo ""
+
+# Ensure container is running
+ensure_container_running "${CONTAINER_NAME}" "${SCRIPT_DIR}"
+
+# Configure CMake with -ftime-trace if needed
+if [ "$RECONFIGURE" = true ] || ! docker exec "${CONTAINER_NAME}" test -f /workspace/build/build.ninja 2>/dev/null; then
+    echo ""
+    echo "Configuring CMake with -ftime-trace (granularity=${GRANULARITY}us)..."
+
+    GPU_TARGET=$(detect_gpu_target "${CONTAINER_NAME}")
+
+    docker exec -e GPU_TARGET="${GPU_TARGET}" -e GRANULARITY="${GRANULARITY}" "${CONTAINER_NAME}" bash -c '
+        cd /workspace || exit 1
+        rm -rf /workspace/build
+        mkdir /workspace/build
+        cd /workspace/build || exit 1
+        cmake .. -GNinja \
+            -DGPU_TARGETS="${GPU_TARGET}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+            -DCMAKE_CXX_FLAGS="-ftime-trace -ftime-trace-granularity=${GRANULARITY}" \
+            -DCMAKE_HIP_FLAGS="-ftime-trace -ftime-trace-granularity=${GRANULARITY}" \
+            -DBUILD_TESTING=ON 2>&1 | tail -20
+    '
+    echo "CMake configuration complete"
+fi
+
+# Build the target
+echo ""
+echo "Building target: $TARGET"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+BUILD_START=$(date +%s)
+docker exec -e TARGET="${TARGET}" "${CONTAINER_NAME}" bash -c 'cd /workspace/build && time ninja "${TARGET}" 2>&1'
+BUILD_END=$(date +%s)
+BUILD_TIME=$((BUILD_END - BUILD_START))
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Build completed in ${BUILD_TIME} seconds"
+
+# Find all trace JSON files for the target
+echo ""
+echo "Locating trace files..."
+
+# Count trace files
+TRACE_COUNT=$(docker exec -e TARGET="${TARGET}" "${CONTAINER_NAME}" bash -c '
+    find /workspace/build -type f \( -name "*.cpp.json" -o -name "*.hip.json" \) 2>/dev/null | \
+    grep -vF "compile_commands.json" | wc -l
+')
+
+if [ "$TRACE_COUNT" -eq 0 ]; then
+    echo "Error: Could not find any trace files in /workspace/build"
+    echo "Expected .cpp.json or .hip.json files from -ftime-trace compilation"
+    exit 1
+fi
+
+echo "Found ${TRACE_COUNT} trace file(s) in build directory"
+
+# We'll pass the build directory to the Python script
+BUILD_DIR="/workspace/build"
+
+# Generate analysis report
+echo ""
+echo "Generating analysis report..."
+
+# Copy analysis script and templates to container
+docker cp "${SCRIPT_DIR}/analyze_build_trace.py" "${CONTAINER_NAME}:/tmp/analyze_build_trace.py"
+docker cp "${SCRIPT_DIR}/templates" "${CONTAINER_NAME}:/tmp/ck_build_analysis_templates"
+
+# Check if uv is available, install if needed, and use for PEP 723 dependency management
+if ! docker exec "${CONTAINER_NAME}" bash -c "command -v uv >/dev/null 2>&1 || test -x \$HOME/.local/bin/uv"; then
+    echo "uv not found, installing via pipx..."
+    docker exec "${CONTAINER_NAME}" bash -c "
+        # Install pipx if not available
+        if ! command -v pipx >/dev/null 2>&1; then
+            apt-get update -qq && apt-get install -y -qq pipx >/dev/null 2>&1
+        fi
+        # Install uv via pipx
+        pipx install uv >/dev/null 2>&1
+    "
+    echo "uv installed successfully"
+fi
+
+echo "Using uv run for automatic dependency management..."
+# Ensure uv is in PATH (handles ~/.local/bin installation)
+# Pass build directory instead of single file
+docker exec -e BUILD_DIR="${BUILD_DIR}" -e OUTPUT_FILE="${OUTPUT_FILE}" -e TARGET="${TARGET}" -e GRANULARITY="${GRANULARITY}" -e BUILD_TIME="${BUILD_TIME}" "${CONTAINER_NAME}" bash -c 'export PATH="$HOME/.local/bin:$PATH" && uv run --no-project /tmp/analyze_build_trace.py "${BUILD_DIR}" "/workspace/${OUTPUT_FILE}" "${TARGET}" "${GRANULARITY}" "${BUILD_TIME}" /tmp/ck_build_analysis_templates'
+
+# Copy report back to host
+docker cp "${CONTAINER_NAME}:/workspace/${OUTPUT_FILE}" "${PROJECT_ROOT}/${OUTPUT_FILE}"
+
+# Cleanup
+docker exec "${CONTAINER_NAME}" rm -f /tmp/analyze_build_trace.py
+docker exec "${CONTAINER_NAME}" rm -rf /tmp/ck_build_analysis_templates
+
+echo ""
+echo "═══════════════════════════════════════════════════════════════"
+echo "  Analysis Complete!"
+echo "═══════════════════════════════════════════════════════════════"
+echo "Report: ${PROJECT_ROOT}/${OUTPUT_FILE}"
+echo ""
+echo "Summary:"
+docker exec "${CONTAINER_NAME}" bash -c "head -20 /workspace/${OUTPUT_FILE} | tail -10"
+echo ""
+echo "View the full report:"
+echo "  cat ${OUTPUT_FILE}"
+echo "  or open it in your editor"
+echo "═══════════════════════════════════════════════════════════════"
