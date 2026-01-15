@@ -30,56 +30,57 @@ class ConvTraitsTest : public ::testing::Test
 };
 
 // Test ConvTraits with DeviceGroupedConvBwdWeightMultipleDXdlCshuffle
-/*TEST_F(ConvTraitsTest, ConvBwdWeightMultipleDTraitsExtraction)
+TEST_F(ConvTraitsTest, ConvBwdWeightMultipleDTraitsExtraction)
 {
     // Define a concrete instance type with specific template parameters
-    using DeviceInstance =
-        ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
-            2,                                               // NDimSpatial
-            ck::tensor_layout::convolution::GNHWC,           // InLayout
-            ck::tensor_layout::convolution::GKYXC,           // WeiLayout
-            ck::tensor_layout::convolution::GNHWK,           // OutLayout
-            ck::half_t,                                      // InDataType
-            ck::half_t,                                      // WeiDataType
-            ck::half_t,                                      // OutDataType
-            float,                                           // AccDataType
-            ck::tensor_operation::element_wise::PassThrough, // InElementwiseOperation
-            ck::tensor_operation::element_wise::PassThrough, // WeiElementwiseOperation
-            ck::tensor_operation::element_wise::PassThrough, // OutElementwiseOperation
-            ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization::Default, //
-ConvBackwardWeightSpecialization 256,                                                       //
-BlockSize 128,                                                       // MPerBlock 128, // NPerBlock
-            16,                                                        // K0PerBlock
-            8,                                                         // K1
-            32,                                                        // MPerXDL
-            32,                                                        // NPerXDL
-            4,                                                         // MXdlPerWave
-            4,                                                         // NXdlPerWave
-            ck::Sequence<4, 64, 1>, // ABlockTransferThreadClusterLengths_K0_M_K1
-            ck::Sequence<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder_
-            ck::Sequence<1, 0, 2>,  // ABlockTransferSrcAccessOrder
-            2,                      // ABlockTransferSrcVectorDim
-            8,                      // ABlockTransferSrcScalarPerVector
-            8,                      // ABlockTransferDstScalarPerVector_K1
-            1,                      // ABlockLdsAddExtraM
-            ck::Sequence<4, 64, 1>, // BBlockTransferThreadClusterLengths_K0_N_K1
-            ck::Sequence<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder_
-            ck::Sequence<1, 0, 2>,  // BBlockTransferSrcAccessOrder_
-            2,                      // BBlockTransferSrcVectorDim
-            8,                      // BBlockTransferSrcScalarPerVector
-            8,                      // BBlockTransferDstScalarPerVector_K1
-            1,                      // BBlockLdsAddExtraN
-            1,                      // CShuffleMXdlPerWavePerShuffle
-            1,                      // CShuffleNXdlPerWavePerShuffle
-            ck::Sequence<1,
-                         32,
-                         1,
-                         8>, // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_
-            8,               // CDEBlockTransferScalarPerVector_NPerBlock_
-            ck::half_t,                                // AComputeDataType
-            ck::half_t,     // BComputeDataType
-            1,  // MaxTransposeTransferSrcScalarPerVector
-            1>; // MaxTransposeTransferDstScalarPerVector>
+    using DeviceInstance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
+        2,                                               // NDimSpatial
+        ck::tensor_layout::convolution::GNHWC,           // InLayout
+        ck::tensor_layout::convolution::GKYXC,           // WeiLayout
+        ck::tensor_layout::convolution::GNHWK,           // OutLayout
+        ck::half_t,                                      // InDataType
+        ck::half_t,                                      // WeiDataType
+        ck::half_t,                                      // OutDataType
+        float,                                           // AccDataType
+        ck::tensor_operation::element_wise::PassThrough, // InElementwiseOperation
+        ck::tensor_operation::element_wise::PassThrough, // WeiElementwiseOperation
+        ck::tensor_operation::element_wise::PassThrough, // OutElementwiseOperation
+        ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization::
+            Default,            // ConvBackwardWeightSpecialization
+        256,                    // BlockSize
+        128,                    // MPerBlock
+        128,                    // NPerBlock
+        16,                     // K0PerBlock
+        8,                      // K1
+        32,                     // MPerXDL
+        32,                     // NPerXDL
+        4,                      // MXdlPerWave
+        4,                      // NXdlPerWave
+        ck::Sequence<4, 64, 1>, // ABlockTransferThreadClusterLengths_K0_M_K1
+        ck::Sequence<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder_
+        ck::Sequence<1, 0, 2>,  // ABlockTransferSrcAccessOrder
+        2,                      // ABlockTransferSrcVectorDim
+        8,                      // ABlockTransferSrcScalarPerVector
+        8,                      // ABlockTransferDstScalarPerVector_K1
+        1,                      // ABlockLdsAddExtraM
+        ck::Sequence<4, 64, 1>, // BBlockTransferThreadClusterLengths_K0_N_K1
+        ck::Sequence<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder_
+        ck::Sequence<1, 0, 2>,  // BBlockTransferSrcAccessOrder_
+        2,                      // BBlockTransferSrcVectorDim
+        8,                      // BBlockTransferSrcScalarPerVector
+        8,                      // BBlockTransferDstScalarPerVector_K1
+        1,                      // BBlockLdsAddExtraN
+        1,                      // CShuffleMXdlPerWavePerShuffle
+        1,                      // CShuffleNXdlPerWavePerShuffle
+        ck::Sequence<1,
+                     32,
+                     1,
+                     8>, // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_
+        8,               // CDEBlockTransferScalarPerVector_NPerBlock_
+        ck::half_t,      // AComputeDataType
+        ck::half_t,      // BComputeDataType
+        1,               // MaxTransposeTransferSrcScalarPerVector
+        1>;              // MaxTransposeTransferDstScalarPerVector>
 
     // Use ConvTraitsTmpl to extract compile-time information
     const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
@@ -148,7 +149,7 @@ BlockSize 128,                                                       // MPerBloc
     // Verify pipeline configuration
     EXPECT_EQ(traits.pipeline_scheduler, PipelineScheduler::INTRAWAVE);
     EXPECT_EQ(traits.pipeline_version, PipelineVersion::V1);
-}*/
+}
 
 // test conv traits device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp
 TEST_F(ConvTraitsTest, ConvFwdTraitsMultipleDCshuffleWmmaExtraction)
