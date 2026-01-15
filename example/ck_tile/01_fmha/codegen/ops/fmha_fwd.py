@@ -1051,25 +1051,6 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                                     sink,
                                 )
                             )
-                            pipelines.append(
-                                FmhaFwdPipeline(
-                                    "qr_wholek_prefetch",
-                                    "row",
-                                    "f",
-                                    "t",
-                                    "f",
-                                    "f",
-                                    logits,
-                                    bias,
-                                    lse,
-                                    dropout,
-                                    qscale,
-                                    mask,
-                                    skip,
-                                    "f",
-                                    sink,
-                                )
-                            )
                     if receipt == 1 and bias != "bias":
                         pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip # TODO: cover arbitraty hdim# fmt: skip
         elif dtype in cls._DT_FP8BF16 or dtype in cls._DT_FP8FP32:
