@@ -253,12 +253,30 @@ if __name__ == "__main__":
         default="convolution",
         help="Filter pattern for configs.",
     )
+    parser.add_argument(
+        "--mode",
+        choices=["compilation", "tests", "profiler"],
+        type=str,
+        default="profiler",
+        help="Generator modes. compilation - empty instance list, tests - limited instance list, profiler - generate all instances",
+    )
     args = parser.parse_args()
+
+    # apply empty filter
+    if args.mode == "compilation":
+        args.filter_pattern = "empty"
+        configs_prefix = "profiler"
+    elif args.mode == "tests":
+        configs_prefix = "tests"
+    elif args.mode == "profiler":
+        configs_prefix = "profiler"
+    else:
+        raise RuntimeError("wrong mode")
 
     for config in fwd_configs:
         instances = []
         generate_dir = Path(__file__).resolve().parent
-        config_path = f"{generate_dir}/configs/{config}.conf"
+        config_path = f"{generate_dir}/configs/{configs_prefix}/{config}.conf"
         with open(config_path, "r") as file:
             instances = file.readlines()
         problem_name = f"grouped_convolution_forward_tile_{config}"
