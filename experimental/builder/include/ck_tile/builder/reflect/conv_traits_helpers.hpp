@@ -433,11 +433,11 @@ constexpr auto bwd_wei_conv_layout()
 // ----------------------------------------------------------------------------
 
 /// @brief Helper function to report unsupported data type with a clear error message.
-template <typename ADataType>
+template <typename DataTypeFromInstance>
 [[noreturn]] consteval void report_unsupported_data_type_error()
 {
     throw "Unsupported data type detected!\n"
-          "The ADataType is not recognized.\n"
+          "The DataTypeFromInstance is not recognized.\n"
           "Supported types are: ck::half_t (FP16), ck::Tuple<ck::half_t, ck::half_t> (FP16_FP16), "
           "ck::bhalf_t (BF16), ck::Tuple<ck::bhalf_t, ck::bhalf_t> (BF16_BF16), float (FP32), "
           "ck::Tuple<float, float> (FP32_FP32), double (FP64), ck::f8_t (FP8), ck::bf8_fnuz_t "
@@ -448,43 +448,42 @@ template <typename ADataType>
 
 /// @brief Derives the data type from a device kernel `Instance` type.
 /// Returns a `builder::DataType` enum value (e.g., FP16, BF16, FP32, BF8).
-template <typename Instance>
+// Note: maybe move to types.hpp?
+template <typename DataTypeFromInstance>
 constexpr builder::DataType conv_data_type()
-    requires HasFwdConvDataTypes<InstanceTraits<Instance>>
+
 {
-    using InstTraits = InstanceTraits<Instance>;
-    using ADataType  = typename InstTraits::ADataType;
     using enum builder::DataType;
 
-    if constexpr(std::is_same_v<ADataType, ck::half_t>)
+    if constexpr(std::is_same_v<DataTypeFromInstance, ck::half_t>)
         return FP16;
-    else if constexpr(std::is_same_v<ADataType, ck::Tuple<ck::half_t, ck::half_t>>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::Tuple<ck::half_t, ck::half_t>>)
         return FP16_FP16;
-    else if constexpr(std::is_same_v<ADataType, ck::bhalf_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::bhalf_t>)
         return BF16;
-    else if constexpr(std::is_same_v<ADataType, ck::Tuple<ck::bhalf_t, ck::bhalf_t>>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::Tuple<ck::bhalf_t, ck::bhalf_t>>)
         return BF16_BF16;
-    else if constexpr(std::is_same_v<ADataType, float>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, float>)
         return FP32;
-    else if constexpr(std::is_same_v<ADataType, ck::Tuple<float, float>>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::Tuple<float, float>>)
         return FP32_FP32;
-    else if constexpr(std::is_same_v<ADataType, double>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, double>)
         return FP64;
-    else if constexpr(std::is_same_v<ADataType, ck::f8_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::f8_t>)
         return FP8;
-    else if constexpr(std::is_same_v<ADataType, ck::bf8_fnuz_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::bf8_fnuz_t>)
         return BF8;
-    else if constexpr(std::is_same_v<ADataType, ck::bf8_ocp_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::bf8_ocp_t>)
         return BF8;
-    else if constexpr(std::is_same_v<ADataType, int8_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, int8_t>)
         return I8;
-    else if constexpr(std::is_same_v<ADataType, ck::Tuple<int8_t, int8_t>>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::Tuple<int8_t, int8_t>>)
         return I8_I8;
-    else if constexpr(std::is_same_v<ADataType, uint8_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, uint8_t>)
         return U8;
     else
     {
-        report_unsupported_data_type_error<ADataType>();
+        report_unsupported_data_type_error<DataTypeFromInstance>();
         return FP32; // Unreachable
     }
 }
@@ -685,12 +684,11 @@ constexpr auto get_pipeline_scheduler()
 // ============================================================================
 
 template <typename InstTraits>
-constexpr InputTileTransferInfo conv_traits_a_transfer_params(int _k1)
+constexpr InputTileTransferInfo
+conv_traits_a_transfer_params(int _k1, int kPerBlock = InstTraits::kKPerBlock)
 {
     return InputTileTransferInfo{
-        .tile_dimensions = {.k0     = InstTraits::kKPerBlock / _k1,
-                            .m_or_n = InstTraits::kMPerBlock,
-                            .k1     = _k1},
+        .tile_dimensions = {.k0 = kPerBlock / _k1, .m_or_n = InstTraits::kMPerBlock, .k1 = _k1},
         .transfer_params = {.k1                    = _k1,
                             .thread_cluster_dims   = InstTraits::kAThreadClusterLengths,
                             .thread_cluster_order  = InstTraits::kAThreadClusterArrangeOrder,
@@ -703,12 +701,11 @@ constexpr InputTileTransferInfo conv_traits_a_transfer_params(int _k1)
 }
 
 template <typename InstTraits>
-constexpr InputTileTransferInfo conv_traits_b_transfer_params(int _k1)
+constexpr InputTileTransferInfo
+conv_traits_b_transfer_params(int _k1, int kPerBlock = InstTraits::kKPerBlock)
 {
     return InputTileTransferInfo{
-        .tile_dimensions = {.k0     = InstTraits::kKPerBlock / _k1,
-                            .m_or_n = InstTraits::kNPerBlock,
-                            .k1     = _k1},
+        .tile_dimensions = {.k0 = kPerBlock / _k1, .m_or_n = InstTraits::kNPerBlock, .k1 = _k1},
         .transfer_params = {.k1                    = _k1,
                             .thread_cluster_dims   = InstTraits::kBThreadClusterLengths,
                             .thread_cluster_order  = InstTraits::kBThreadClusterArrangeOrder,

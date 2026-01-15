@@ -87,7 +87,7 @@ TEST_F(ConvTraitsTest, ConvBwdWeightMultipleDTraitsExtraction)
 
     // Verify signature information
     EXPECT_EQ(traits.spatial_dim, 2);
-    EXPECT_EQ(traits.direction, ConvDirection::FORWARD);
+    EXPECT_EQ(traits.direction, ConvDirection::BACKWARD_WEIGHT);
     EXPECT_THAT(traits.layout,
                 ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
     EXPECT_EQ(traits.data_type, DataType::FP16);
@@ -97,8 +97,8 @@ TEST_F(ConvTraitsTest, ConvBwdWeightMultipleDTraitsExtraction)
 
     // Verify specializations
     EXPECT_EQ(traits.gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
-    EXPECT_EQ(std::get<ck_tile::builder::ConvFwdSpecialization>(traits.conv_specialization),
-              ck_tile::builder::ConvFwdSpecialization::DEFAULT);
+    EXPECT_EQ(std::get<ck_tile::builder::ConvBwdWeightSpecialization>(traits.conv_specialization),
+              ck_tile::builder::ConvBwdWeightSpecialization::DEFAULT);
 
     // Verify algorithm information
     EXPECT_EQ(traits.thread_block_size, 256);
@@ -147,7 +147,7 @@ TEST_F(ConvTraitsTest, ConvBwdWeightMultipleDTraitsExtraction)
     EXPECT_EQ(traits.c_tile_transfer.scalar_per_vector, 8);
 
     // Verify pipeline configuration
-    EXPECT_EQ(traits.pipeline_scheduler, PipelineScheduler::INTRAWAVE);
+    EXPECT_EQ(traits.pipeline_scheduler, PipelineScheduler::DEFAULT);
     EXPECT_EQ(traits.pipeline_version, PipelineVersion::V1);
 }
 
