@@ -205,7 +205,18 @@ __global__ void strided_copy_kernel(const DataType* __restrict__ src,
 
 namespace detail {
 
-// Generic helper for A and B tensors
+// Helper for parameter pack expansion (D tensors)
+template <typename ResultType, typename Op, typename DataType, std::size_t... Is>
+__device__ __forceinline__ void apply_multi_tensor_impl(ResultType& result,
+                                                        Op&& element_op,
+                                                        const DataType* const* tensor_ptrs,
+                                                        long_index_t element_offset,
+                                                        std::index_sequence<Is...>)
+{
+    element_op(result, tensor_ptrs[Is][element_offset]...);
+}
+
+// Generic helper for A and B tensors (works in all directions)
 template <index_t NumExtraTensors, typename DataType, typename ResultType, typename Op>
 __device__ __forceinline__ void apply_multi_tensor_elementwise_op(ResultType& result,
                                                                   Op&& element_op,
@@ -220,9 +231,24 @@ __device__ __forceinline__ void apply_multi_tensor_elementwise_op(ResultType& re
     static_for<1, NumExtraTensors + 1, 1>{}(
         [&](auto i) { tensor_ptrs[i] = extra_ptrs[i - 1] + extra_base_offset; });
 
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        element_op(result, tensor_ptrs[Is][element_offset]...);
-    }(std::make_index_sequence<NumExtraTensors + 1>{});
+    apply_multi_tensor_impl(result,
+                            element_op,
+                            tensor_ptrs,
+                            element_offset,
+                            std::make_index_sequence<NumExtraTensors + 1>{});
+}
+
+// Helper for parameter pack expansion (D tensors)
+template <typename OutDataType, typename Op, std::size_t... Is>
+__device__ __forceinline__ void apply_d_tensor_impl(OutDataType& result_out,
+                                                    Op&& element_op,
+                                                    float computed_value,
+                                                    const float* d_values,
+                                                    std::index_sequence<Is...>)
+{
+    float temp_out;
+    element_op(temp_out, computed_value, d_values[Is]...);
+    result_out = type_convert<OutDataType>(temp_out);
 }
 
 // Specialized helper for D tensors with stride calculations and float conversion
@@ -252,12 +278,11 @@ __device__ __forceinline__ void apply_d_tensor_elementwise_op(OutDataType& resul
             d_values[i] = type_convert<float>(p_ds[i][d_idx]);
         });
 
-        // Call element_op with parameter pack expansion
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            float temp_out;
-            element_op(temp_out, computed_value, d_values[Is]...);
-            result_out = type_convert<OutDataType>(temp_out);
-        }(std::make_index_sequence<NumDTensors>{});
+        apply_d_tensor_impl(result_out,
+                            element_op,
+                            computed_value,
+                            d_values,
+                            std::make_index_sequence<NumDTensors>{});
     }
 }
 
