@@ -47,26 +47,10 @@ struct ext_vector<T_, N_, std::enable_if_t<!std::is_class_v<typename native_t<T_
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
 
-struct int32x3_t
-{
-    int data[3];
-};
-
-template <>
-struct ext_vector<int8_t, 12>
-{
-    static constexpr index_t N = 12;
-    using value_type           = int32x3_t;
-    using type                 = int32x3_t;
-};
-
-template <index_t N_>
-struct ext_vector<pk_fp6x16_t, N_>
-{
-    static constexpr index_t N = N_;
-    using value_type           = pk_fp6_t<N_ * 16>;
-    using type                 = pk_fp6_t<N_ * 16>; // this is danguous
-};
+// struct int32x3_t
+// {
+//     int data[3];
+// };
 
 template <typename T_, index_t N_>
 struct ext_vector<T_, N_, std::enable_if_t<std::is_class_v<typename native_t<T_>::type>>>
@@ -180,6 +164,40 @@ using int32x8_t  = int32_t __attribute__((ext_vector_type(8)));
 using int32x16_t = int32_t __attribute__((ext_vector_type(16)));
 using int32x32_t = int32_t __attribute__((ext_vector_type(32)));
 using int32x64_t = int32_t __attribute__((ext_vector_type(64)));
+
+struct int32x3_tt
+{
+    int32_t data[3];
+};
+
+struct int32x6_tt
+{
+    int32_t data[6];
+};
+
+template <>
+struct impl::ext_vector<int8_t, 12>
+{
+    static constexpr index_t N = 12;
+    using value_type           = int32x3_tt;
+    using type                 = int32x3_tt;
+};
+
+template <>
+struct impl::ext_vector<pk_fp6x16_t, 1>
+{
+    static constexpr index_t N = 1;
+    using value_type           = int32x3_tt;
+    using type                 = int32x3_tt; // this is danguous
+};
+
+template <>
+struct impl::ext_vector<pk_fp6x16_t, 2>
+{
+    static constexpr index_t N = 2;
+    using value_type           = int32x6_tt;
+    using type                 = int32x6_tt; // this is danguous
+};
 
 // u32
 // using uint32_t = ...

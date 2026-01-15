@@ -303,7 +303,8 @@ struct buffer_view<address_space_enum::global,
 #else
         bool constexpr use_amd_buffer_addressing = false;
 #endif
-
+        // constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+        //         return thread_buffer<remove_cvref_t<T>,t_per_x>{};
         if constexpr(use_amd_buffer_addressing)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
@@ -826,14 +827,22 @@ struct buffer_view<address_space_enum::lds,
             return tmp;
 #else
             constexpr index_t load_elts = scalar_per_t_vector * scalar_per_x_vector;
-            using buf_t                 = typename std::conditional<
-                                load_elts == 12 && sizeof(typename X::value_type) == 1,
-                                thread_buffer<uint8_t, load_elts>,
-                                ext_vector_t<typename vector_traits<remove_cvref_t<T>>::scalar_type,
-                                             scalar_per_t_vector * scalar_per_x_vector>>::type;
-            // using buf_t = ushort __attribute__((ext_vector_type(8)));
-            auto rtn = *c_style_pointer_cast<const buf_t*>(&p_data_[i + linear_offset]);
-            return bit_cast<X>(rtn);
+            if constexpr(load_elts == 12 && sizeof(typename X::value_type) == 1)
+            {
+                auto rtn = reinterpret_cast<const int32_t*>(p_data_) + (i + linear_offset) / 4;
+                struct
+                {
+                    int32_t x, y, z;
+                } tmp = {rtn[0], rtn[1], rtn[2]};
+                return bit_cast<X>(tmp);
+            }
+            else
+            {
+                using buf_t = ext_vector_t<typename vector_traits<remove_cvref_t<T>>::scalar_type,
+                                           scalar_per_t_vector * scalar_per_x_vector>;
+                auto rtn    = *c_style_pointer_cast<const buf_t*>(&p_data_[i + linear_offset]);
+                return bit_cast<X>(rtn);
+            }
 #endif
         }
         else

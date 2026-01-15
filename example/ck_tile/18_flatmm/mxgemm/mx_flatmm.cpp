@@ -296,12 +296,14 @@ int run_mx_flatmm_example(int argc, char* argv[])
         }
         else if(mx_prec == "fp6" || mx_prec == "fp6xfp6")
         {
-            // throw std::runtime_error("fp6xfp6 is not supported.");
-            return run_mx_flatmm_with_layouts<ck_tile::pk_fp6x16_t,
-                                              ck_tile::pk_fp6x16_t,
-                                              ck_tile::fp16_t,
-                                              MXfp6_FlatmmConfig16,
-                                              false>(argc, argv, Row{}, Col{}, Row{});
+            if(persistent_opt == 0)
+                return run_mx_flatmm_with_layouts<ck_tile::pk_fp6x16_t,
+                                                  ck_tile::pk_fp6x16_t,
+                                                  ck_tile::fp16_t,
+                                                  MXfp6_FlatmmConfig16,
+                                                  false>(argc, argv, Row{}, Col{}, Row{});
+            else
+                throw std::runtime_error("Only support non-persistent kernel now!");
         }
         else if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
         {
