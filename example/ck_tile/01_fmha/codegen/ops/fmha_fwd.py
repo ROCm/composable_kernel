@@ -350,7 +350,13 @@ class FmhaFwdApiTrait:
                 return f"a.hdim_q % {vec} == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr", "qs", "qr_async_trload", "qr_async_trload_v3", "qr_wholek_prefetch"]:
+        elif self.pipeline_tag in [
+            "qr",
+            "qs",
+            "qr_async_trload",
+            "qr_async_trload_v3",
+            "qr_wholek_prefetch",
+        ]:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dpad == "t":
                 return f"true /*a.hdim_q % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -367,7 +373,13 @@ class FmhaFwdApiTrait:
                 return f"a.hdim_v % {vec} == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr", "qs", "qr_async_trload", "qr_async_trload_v3", "qr_wholek_prefetch"]:
+        elif self.pipeline_tag in [
+            "qr",
+            "qs",
+            "qr_async_trload",
+            "qr_async_trload_v3",
+            "qr_wholek_prefetch",
+        ]:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dvpad == "t":
                 return f"true /*a.hdim_v % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -1013,9 +1025,51 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                     else:
                         pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
                         pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
-                        if (hdim, hdim_v) == (128, 128) and logits == "f" and bias == "no" and dropout == "f" and sink == "f":
-                            pipelines.append(FmhaFwdPipeline("qr_wholek_prefetch", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, 'f', sink))
-                            pipelines.append(FmhaFwdPipeline("qr_wholek_prefetch", "row", "f", "t", "f", "f", logits, bias, lse, dropout, squant, mask, skip, 'f', sink))
+                        if (
+                            (hdim, hdim_v) == (128, 128)
+                            and logits == "f"
+                            and bias == "no"
+                            and dropout == "f"
+                            and sink == "f"
+                        ):
+                            pipelines.append(
+                                FmhaFwdPipeline(
+                                    "qr_wholek_prefetch",
+                                    "row",
+                                    "f",
+                                    "f",
+                                    "f",
+                                    "f",
+                                    logits,
+                                    bias,
+                                    lse,
+                                    dropout,
+                                    qscale,
+                                    mask,
+                                    skip,
+                                    "f",
+                                    sink,
+                                )
+                            )
+                            pipelines.append(
+                                FmhaFwdPipeline(
+                                    "qr_wholek_prefetch",
+                                    "row",
+                                    "f",
+                                    "t",
+                                    "f",
+                                    "f",
+                                    logits,
+                                    bias,
+                                    lse,
+                                    dropout,
+                                    qscale,
+                                    mask,
+                                    skip,
+                                    "f",
+                                    sink,
+                                )
+                            )
                     if receipt == 1 and bias != "bias":
                         pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip # TODO: cover arbitraty hdim# fmt: skip
         elif dtype in cls._DT_FP8BF16 or dtype in cls._DT_FP8FP32:
