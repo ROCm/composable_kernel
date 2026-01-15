@@ -7,7 +7,7 @@
 // using GemmConfig = GemmConfigQuantDecode<T>;
 
 template <typename T>
-using GemmConfig = GemmConfigQuantIntrawave<T>;
+using GemmConfig = GemmConfigQuantInterwave<T>;
 
 // GemmConfigQuantPrefill is also supported for aquant grouped quantization
 // template <typename T>

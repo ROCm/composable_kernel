@@ -557,7 +557,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     std::mt19937 gen(rd());
     std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
 
-    if(init_method == 0)
+    if(init_method == 0) // uniform distribution
     {
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
@@ -594,7 +594,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             {
                 ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
             }
-            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+            ck_tile::FillUniformDistribution<AQDataType>{1.0f, 1.0f, fill_seed(gen)}(
                 *aq_tensor_ptr);
             ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
         }
@@ -627,12 +627,12 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 *bq_tensor_ptr);
         }
     }
-    else if(init_method == 1)
+    else if(init_method == 1) // monotonic initialization
     {
         std::cout << "Monotonic initialization is not supported." << std::endl;
         return 0;
     }
-    else if(init_method == 2)
+    else if(init_method == 2) // constant initialization
     {
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
@@ -650,7 +650,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         else
         {
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x22)}(a_m_k);
-            ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(*aq_tensor_ptr);
+            ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(1.0f)}(*aq_tensor_ptr);
             ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
 
             if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
