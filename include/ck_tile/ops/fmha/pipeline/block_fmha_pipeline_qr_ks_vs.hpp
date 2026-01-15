@@ -57,6 +57,7 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr bool kHasSink          = Problem::kHasSink;
 
     static constexpr uint32_t DS_READ = 0x100; // Barrier for DS (data share) read
     static constexpr uint32_t MFMA    = 0x008; // Barrier for MFMA (matrix multiply-accumulate)
@@ -165,7 +166,8 @@ struct BlockFmhaPipelineQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float sink_v) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -229,14 +231,45 @@ struct BlockFmhaPipelineQRKSVS
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
-        clear_tile(l);
-
+        if(__builtin_isinf_sign(sink_v) >= 0)
+        {
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI ||
+                         BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
+                set_tile(m, sink_v * scale_s * C_LOG2E);
+            else
+                set_tile(m, sink_v * C_LOG2E);
+#else
+            set_tile(m, sink_v);
+#endif
+            set_tile(l, SMPLComputeDataType{1.0f});
+        }
+        else
+        {
+            set_tile(m, -numeric<SMPLComputeDataType>::infinity());
+            clear_tile(l);
+        }
         const auto q_origin = q_dram_window.get_window_origin();
-        const auto [seqlen_k_start, seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+        const auto tile_range_result = [&mask, &q_origin]() {
+            if constexpr(kHasSink)
+                return mask.GetSinkTileRangeAlongX(
+                    q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+            else
+            {
+                auto [start, end] =
+                    mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+                return ck_tile::make_tuple(0, start, end);
+            }
+        }();
+        const auto sink_seq_end   = tile_range_result.get(ck_tile::number<0>{});
+        const auto seqlen_k_start = tile_range_result.get(ck_tile::number<1>{});
+        const auto seqlen_k_end   = tile_range_result.get(ck_tile::number<2>{});
+
+        const auto kv_load_start = (sink_seq_end == 0 && seqlen_k_start > 0) ? seqlen_k_start : 0;
+        const auto num_sink_loop = integer_divide_ceil(sink_seq_end, kN0);
+        const auto num_total_loop =
+            integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0) + num_sink_loop;
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
@@ -248,7 +281,14 @@ struct BlockFmhaPipelineQRKSVS
                     auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
+                    if(__builtin_isinf_sign(sink_v) >= 0)
+                    {
+                        set_tile(lse, SMPLComputeDataType{sink_v * scale_s});
+                    }
+                    else
+                    {
+                        set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
+                    }
 
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
@@ -262,22 +302,22 @@ struct BlockFmhaPipelineQRKSVS
         auto k_dram_block_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
                              k_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_k_start, 0});
+                             {kv_load_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              bias_dram_block_window_tmp.get_window_lengths(),
-                             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
+                             {bias_origin.at(number<0>{}), kv_load_start}, // M/N
                              Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
-            randval_dram_block_window_tmp, seqlen_k_start);
+            randval_dram_block_window_tmp, kv_load_start);
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
                              v_dram_block_window_tmp.get_window_lengths(),
-                             {0, seqlen_k_start}, // TODO: hdim split?
+                             {0, kv_load_start}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         auto q_tile = tile_elementwise_in(q_element_func, q);
@@ -450,6 +490,11 @@ struct BlockFmhaPipelineQRKSVS
 #endif
                 }
             }
+            if constexpr(kHasSink)
+            {
+                if(i_total_loops == 0)
+                    move_tile_window(bias_dram_window, {0, seqlen_k_start - sink_seq_end});
+            }
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
@@ -460,17 +505,34 @@ struct BlockFmhaPipelineQRKSVS
                                                            number<kN0>{});
                 if(need_perpixel_check)
                 {
-                    set_tile_if(
-                        s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return !variant.LogitsMask(variant_params,
-                                                       block_indices.batch_idx,
-                                                       row,
-                                                       col,
-                                                       block_indices.qo_head_idx,
-                                                       block_indices.kv_head_idx);
+                    auto apply_mask = [&](auto&& mask_func) {
+                        set_tile_if(
+                            s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                                const auto row =
+                                    q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                const auto col =
+                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                return !mask_func(variant_params,
+                                                  block_indices.batch_idx,
+                                                  row,
+                                                  col,
+                                                  block_indices.qo_head_idx,
+                                                  block_indices.kv_head_idx);
+                            });
+                    };
+
+                    if constexpr(kHasSink)
+                    {
+                        apply_mask([&](auto&&... args) {
+                            return variant.LogitsSinkMask(std::forward<decltype(args)>(args)...);
                         });
+                    }
+                    else
+                    {
+                        apply_mask([&](auto&&... args) {
+                            return variant.LogitsMask(std::forward<decltype(args)>(args)...);
+                        });
+                    }
                 }
             }
 
@@ -580,11 +642,23 @@ struct BlockFmhaPipelineQRKSVS
 
             if constexpr(kHasDropout)
             {
-                // K and dropout use the same address in LDS, finish loading from k_lds_window by
-                // gemm_0 to reuse LDS.
                 block_sync_lds();
+                auto randval_ptr = reinterpret_cast<char*>(smem_ptr);
+
+                index_t seq_offset = [&]() {
+                    if constexpr(!kHasSink)
+                        return seqlen_k_start + i_total_loops * kN0;
+
+                    const bool in_sink_phase = (num_sink_loop > i_total_loops);
+                    if(i_total_loops == num_sink_loop)
+                        move_tile_window(randval_dram_window, {0, seqlen_k_start - sink_seq_end});
+
+                    return in_sink_phase ? (kv_load_start + i_total_loops * kN0)
+                                         : (seqlen_k_start + (i_total_loops - num_sink_loop) * kN0);
+                }();
+
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
+                    randval_ptr, seq_offset, p_compute, randval_dram_window);
             }
 
             block_sync_lds();
@@ -636,6 +710,14 @@ struct BlockFmhaPipelineQRKSVS
                 });
             }
             // move K tile windows
+            if constexpr(kHasSink)
+            {
+                if(i_total_loops == 0)
+                {
+                    move_tile_window(k_dram_block_window, {seqlen_k_start - sink_seq_end, 0});
+                    move_tile_window(v_dram_window, {0, seqlen_k_start - sink_seq_end});
+                }
+            }
             move_tile_window(k_dram_block_window, {kN0, 0});
             // tail
             {
@@ -655,26 +737,35 @@ struct BlockFmhaPipelineQRKSVS
             constexpr auto lse_spans = decltype(lse)::get_distributed_spans();
             sweep_tile_span(lse_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                             BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                // In the masked biased case, the entire row can be suppressed and the accumulated
+                // softmax denominator becomes zero; treat it as log(0) = -inf to avoid NaNs.
+                if(l_[i_idx] == 0.0f)
                 {
-                    lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
+                    lse(i_idx) = -numeric<LSEDataType>::infinity();
                 }
                 else
                 {
-                    if constexpr(kHasLogitsSoftCap)
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
                     {
                         lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
                     }
                     else
                     {
-                        lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                        if constexpr(kHasLogitsSoftCap)
+                        {
+                            lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
+                        }
+                        else
+                        {
+                            lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                        }
                     }
-                }
 #else
-                lse(i_idx) = m_[i_idx] + log(l_[i_idx]);
+                    lse(i_idx) = m_[i_idx] + log(l_[i_idx]);
 #endif
+                }
             });
 
             store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
@@ -686,7 +777,10 @@ struct BlockFmhaPipelineQRKSVS
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
             constexpr auto i_idx = make_tuple(idx0);
             const auto tmp       = [&]() {
-                if constexpr(FmhaMask::IsMasking)
+                // When bias carries -inf masks the denominator can be zero; guard the normalization
+                // so we do not divide by zero after a fully masked row.
+                if constexpr(FmhaMask::IsMasking ||
+                             BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 {
                     return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
                 }
@@ -727,7 +821,8 @@ struct BlockFmhaPipelineQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float sink_v) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -750,7 +845,8 @@ struct BlockFmhaPipelineQRKSVS
                           variant_params,
                           block_indices,
                           smem_ptr,
-                          dropout);
+                          dropout,
+                          sink_v);
     }
 };
 

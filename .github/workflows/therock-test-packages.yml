@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: "ROCm/TheRock"
-          ref: f3f77a3161922df3eee006b888b439d75b2b4668 # 2025-10-29 commit
+          ref: e4d4316c3c20819045722f60fc63928944ebc397 # 2026-01-01 commit
 
       - name: "Configuring CI options"
         env:

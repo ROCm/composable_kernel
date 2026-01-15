@@ -137,6 +137,22 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     ```
     **[See Note on -j](#notes)**
 
+### Building for Windows
+
+Install TheRock and run CMake configure as
+
+```bash
+    cmake                                                                                      \
+    -D CMAKE_PREFIX_PATH="C:/dist/TheRock"                                                     \
+    -D CMAKE_CXX_COMPILER="C:/dist/TheRock/bin/hipcc.exe"                                      \
+    -D CMAKE_BUILD_TYPE=Release                                                                \
+    -D GPU_TARGETS="gfx1151"                                                                   \
+    -G Ninja                                                                                   \
+    ..
+```
+
+Use Ninja to build either the whole library or individual targets.
+
 ## Optional post-install steps
 
 * Build examples and tests:
@@ -187,7 +203,7 @@ limit the number of threads. For example, if you have a 128-core CPU and 128 Gb 
 
 Additional cmake flags can be used to significantly speed-up the build:
 
-* `DTYPES` (default is not set) can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build
+* `DTYPES` (default is not set) can be set to any subset of "fp64;fp32;tf32;fp16;fp8;bf16;int8" to build
   instances of select data types only. The main default data types are fp32 and fp16; you can safely skip
   other data types.
 

@@ -1,4 +1,7 @@
-# ONLY XDL_AND_DL_KERNELS
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# XDL_DL_WMMA_KERNELS
 set(GROUPED_CONV1D_BWD_WEIGHT
     xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f16_instance.cpp
     xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f32_instance.cpp

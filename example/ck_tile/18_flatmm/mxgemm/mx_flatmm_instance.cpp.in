@@ -25,14 +25,16 @@ using BF16 = ck_tile::bf16_t;
 using ROW = ck_tile::tensor_layout::gemm::RowMajor;
 using COL = ck_tile::tensor_layout::gemm::ColumnMajor;
 
+using ScaleType = ck_tile::e8m0_t;
+
 inline constexpr auto ODD  = ck_tile::TailNumber::Odd;
 inline constexpr auto EVEN = ck_tile::TailNumber::Even;
 
 inline constexpr int ScaleGranularityM = 1;
 inline constexpr int ScaleGranularityN = 1;
 inline constexpr int ScaleGranularityK = 32;
-using ScaleM = ck_tile::FlatmmScalePointer<ScaleGranularityM, ScaleGranularityK>;
-using ScaleN = ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>;
+using ScaleM = ck_tile::FlatmmScalePointer<ScaleGranularityM, ScaleGranularityK, ScaleType>;
+using ScaleN = ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK, ScaleType>;
 
 template float mx_flatmm_calc<FLATMM_CONFIG,
                               A_DATA_TYPE,
