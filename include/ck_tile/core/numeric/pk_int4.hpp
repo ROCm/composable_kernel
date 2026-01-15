@@ -6,6 +6,7 @@
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
+#include "ck_tile/core/numeric/pk_fp4.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/random.hpp"
 #include <stdint.h>
@@ -23,6 +24,11 @@ struct pk_int4_t
     type data;
     CK_TILE_HOST_DEVICE constexpr pk_int4_t() : data{type{}} {}
     CK_TILE_HOST_DEVICE constexpr pk_int4_t(type init) : data{init} {}
+
+    // NOTE: added for interface compatibility with pk_fp4_t
+    // Other data types could be added for greater similarity
+    CK_TILE_HOST_DEVICE constexpr fp32x2_t to_fp32x2() const;
+    CK_TILE_HOST_DEVICE constexpr operator fp32x2_t() const { return to_fp32x2(); }
 };
 
 // limits
@@ -184,6 +190,11 @@ CK_TILE_HOST_DEVICE int8x2_t pk_int4_t_to_int8x2_t(const pk_int4_t& x)
     int8x2_t res = {x_l, x_h};
 #endif
     return res;
+}
+
+CK_TILE_HOST_DEVICE constexpr fp32x2_t pk_int4_t::to_fp32x2() const
+{
+    return pk_int4_t_to_fp32x2_t(*this);
 }
 
 } // namespace ck_tile

@@ -569,8 +569,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         {
             if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
             {
-                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
-                    b_k_n);
+                ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
                 ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
                     *bq_tensor_ptr);
             }
@@ -610,14 +609,32 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             {
                 ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
                     a_m_k);
-                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
-                    b_k_n);
+            }
+            else if constexpr(std::is_same_v<ADataType, ck_tile::pk_fp4_t>)
+            {
+                ck_tile::FillUniformDistribution<ck_tile::pk_fp4_t>{-6.0f, 6.0f, fill_seed(gen)}(
+                    a_m_k);
             }
             else
             {
                 ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
+            }
+
+            if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+            {
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                    b_k_n);
+            }
+            else if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_t>)
+            {
+                ck_tile::FillUniformDistribution<ck_tile::pk_fp4_t>{-6.0f, 6.0f, fill_seed(gen)}(
+                    b_k_n);
+            }
+            else
+            {
                 ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
             }
+
             ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
                 *aq_tensor_ptr);
             ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
@@ -818,6 +835,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
 
     if(arg_parser.get_int("v") == 1)
     {
+        std::cout << "Performing CPU verification..." << std::endl;
+
         ck_tile::HostTensor<CDataType> c_m_n_host_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         c_m_n_host_ref.SetZero();

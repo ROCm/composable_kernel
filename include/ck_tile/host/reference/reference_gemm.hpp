@@ -148,10 +148,11 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
 
         // ---- A loader: dequant A(m,k) into AccDataType ----
         auto load_a = [&](std::size_t k) -> AccDataType {
-            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            if constexpr(std::is_same_v<ADataType, pk_int4_t> ||
+                         std::is_same_v<ADataType, pk_fp4_t>)
             {
-                const pk_int4_t pk_val  = a_element_op(a_m_k(m, k));
-                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
+                const ADataType pk_val  = a_element_op(a_m_k(m, k));
+                const fp32x2_t fp32_val = pk_val.to_fp32x2();
                 return (k & 1) ? fp32_val.hi : fp32_val.lo;
             }
             else
@@ -162,10 +163,11 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
 
         // ---- B loader: dequant B(k,n) into AccDataType ----
         auto load_b = [&](std::size_t k) -> AccDataType {
-            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            if constexpr(std::is_same_v<BDataType, pk_int4_t> ||
+                         std::is_same_v<BDataType, pk_fp4_t>)
             {
-                const pk_int4_t pk_val  = b_element_op(b_k_n(k, n));
-                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
+                const BDataType pk_val  = b_element_op(b_k_n(k, n));
+                const fp32x2_t fp32_val = pk_val.to_fp32x2();
                 return (k & 1) ? fp32_val.hi : fp32_val.lo;
             }
             else if constexpr(std::is_same_v<BDataType, fp8_t>)
