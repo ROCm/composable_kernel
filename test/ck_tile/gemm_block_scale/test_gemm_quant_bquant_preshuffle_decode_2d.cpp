@@ -19,10 +19,11 @@ using PkInt4        = ck_tile::pk_int4_t;
 using BQuantGrouped = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::BQuantGrouped>;
 
 // 2d block sizes for BQuant
-using GroupSize2D8N  = ck_tile::QuantGroupShape<ck_tile::sequence<1, 8, 128>>;
-using GroupSize2D16N = ck_tile::QuantGroupShape<ck_tile::sequence<1, 16, 128>>;
-using GroupSize2D32N = ck_tile::QuantGroupShape<ck_tile::sequence<1, 32, 128>>;
-using GroupSize2D64N = ck_tile::QuantGroupShape<ck_tile::sequence<1, 64, 128>>;
+using GroupSize2D8N   = ck_tile::QuantGroupShape<ck_tile::sequence<1, 8, 128>>;
+using GroupSize2D16N  = ck_tile::QuantGroupShape<ck_tile::sequence<1, 16, 128>>;
+using GroupSize2D32N  = ck_tile::QuantGroupShape<ck_tile::sequence<1, 32, 128>>;
+using GroupSize2D64N  = ck_tile::QuantGroupShape<ck_tile::sequence<1, 64, 128>>;
+using GroupSize2D128N = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
 
 // Type combinations for BQuant Preshuffle tests - Decode 2D
 // Tuple format: <ALayout, BLayout, CLayout, BQLayout, ADataType, BDataType, QDataType, CDataType,
@@ -37,7 +38,9 @@ using BPreshuffleDecode2DTypes = ::testing::Types<
     std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, FP8,    float, Half, BQuantGrouped, GemmConfigPreshuffleBDecode, GroupSize2D32N>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, PkInt4, FP8,   Half, BQuantGrouped, GemmConfigPreshuffleBDecode, GroupSize2D32N>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, FP8,    float, Half, BQuantGrouped, GemmConfigPreshuffleBDecode, GroupSize2D64N>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, PkInt4, FP8,   Half, BQuantGrouped, GemmConfigPreshuffleBDecode, GroupSize2D64N>
+    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, PkInt4, FP8,   Half, BQuantGrouped, GemmConfigPreshuffleBDecode, GroupSize2D64N>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, FP8,    float, Half, BQuantGrouped, GemmConfigPreshuffleBDecode, GroupSize2D128N>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, PkInt4, FP8,   Half, BQuantGrouped, GemmConfigPreshuffleBDecode, GroupSize2D128N>
 >;
 // clang-format on
 

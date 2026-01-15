@@ -60,8 +60,14 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const long_index_t c_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
 
-        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-            typename GridwiseGemm::EpilogueCShuffle>();
+        using EpilogueType =
+            typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
+                                          GridwiseGemm::UseDirectStore,
+                                      typename GridwiseGemm::EpilogueDirectStore,
+                                      typename GridwiseGemm::EpilogueCShuffle>::type;
+
+        constexpr index_t LDS_size =
+            GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
         __shared__ char p_shared[LDS_size];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
@@ -84,7 +90,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                  splitk_batch_offset.b_k_split_offset[i] + b_batch_offset;
         });
 
-        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+        auto epilogue_args = EpilogueType{};
 
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             p_as_grid_shift,

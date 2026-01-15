@@ -8,26 +8,27 @@ namespace {
 
 using namespace ck_tile::builder::test_utils;
 
-TEST(FwdConvInstances, Create_ConvAlgorithm_Tile_GroupedConvolutionKernel_2D_FP16_NHWGC)
+TEST(BwdWeightConvInstances, Create_ConvAlgorithm_Tile_GroupedConvolutionKernel_2D_FP16_NHWGC)
 {
-    constexpr ConvSignature FwdConvSignature{.spatial_dim = 2,
-                                             .direction   = ConvDirection::BACKWARD_WEIGHT,
-                                             .data_type   = DataType::FP16,
-                                             .accumulation_data_type = DataType::FP32,
-                                             .input  = {.config = {.layout = TensorLayout::NHWGC}},
-                                             .weight = {.config = {.layout = TensorLayout::GKYXC}},
-                                             .output = {.config = {.layout = TensorLayout::NHWGK}}};
+    constexpr ConvSignature BwdWeightConvSignature{
+        .spatial_dim            = 2,
+        .direction              = ConvDirection::BACKWARD_WEIGHT,
+        .data_type              = DataType::FP16,
+        .accumulation_data_type = DataType::FP32,
+        .input                  = {.config = {.layout = TensorLayout::NHWGC}},
+        .weight                 = {.config = {.layout = TensorLayout::GKYXC}},
+        .output                 = {.config = {.layout = TensorLayout::NHWGK}}};
 
-    constexpr auto FwdConvAlgorithm =
+    constexpr auto BwdWeightConvAlgorithm =
         ConvAlgorithm_Tile_GroupedConvolutionKernel{}
             .with_tile_specializations(TileConvSpecialization::DEFAULT)
-            .with_tile_thread_block(FwdTileThreadBlock_64x64x64)
+            .with_tile_thread_block(TileThreadBlock_64x64x64)
             .with_tile_block_gemm(TileBlockGemmDesc_16x16_v3_intrawave)
-            .with_tile_transfer(FwdTileTransfer_4x4x4)
+            .with_tile_transfer(TileTransfer_4x4x4)
             .with_tile_optimizations(TileOptimizations{
                 .num_groups_to_merge = 1, .split_image = false, .explicit_gemm = false});
 
-    using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+    using Builder = ConvBuilder<BwdWeightConvSignature, BwdWeightConvAlgorithm>;
     run_ck_tile_test<Builder>({
         "grouped_convolution_backward_weight",
         "fp16",
