@@ -629,16 +629,10 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op},
-              a_mz_stride_{},
-              a_kz_stride_{},
-              b_nz_stride_{},
-              b_kz_stride_{},
-              ds_nz_stride_{},
-              e_nz_stride_{},
-              a_batch_stride_{a_gs_ms_ks_strides[NumDimG - 1]},
-              b_batch_stride_{b_gs_ns_ks_strides[NumDimG - 1]},
-              compute_ptr_offset_of_batch_{
-                  a_batch_stride_, b_batch_stride_, ds_grid_desc_g_m_n_, e_grid_desc_g_m_n_}
+              compute_ptr_offset_of_batch_{a_gs_ms_ks_strides[NumDimG - 1],
+                                           b_gs_ns_ks_strides[NumDimG - 1],
+                                           ds_grid_desc_g_m_n_,
+                                           e_grid_desc_g_m_n_}
         {
             static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0,
                           "Invalid number of dimensions");
@@ -654,19 +648,6 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
                 ds_grid_desc_m_n_(i) = DeviceOp::MakeEGridDescriptor_M_N(ds_gs_ms_ns_lengths[i],
                                                                          ds_gs_ms_ns_strides[i]);
             });
-
-            // for sanity check of vector memory access
-            a_mz_stride_ = a_gs_ms_ks_strides[NumDimG + NumDimM - 1];
-            a_kz_stride_ = a_gs_ms_ks_strides[NumDimG + NumDimM + NumDimK - 1];
-            b_nz_stride_ = b_gs_ns_ks_strides[NumDimG + NumDimN - 1];
-            b_kz_stride_ = b_gs_ns_ks_strides[NumDimG + NumDimN + NumDimK - 1];
-
-            for(index_t i = 0; i < NumDTensor; ++i)
-            {
-                ds_nz_stride_[i] = ds_gs_ms_ns_strides[i][NumDimG + NumDimM + NumDimN - 1];
-            }
-
-            e_nz_stride_ = e_gs_ms_ns_strides[NumDimG + NumDimM + NumDimN - 1];
 
             // Extract 2D GEMM dimensions
             G   = e_grid_desc_g_m_n_.GetLength(I0);
@@ -733,19 +714,6 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation cde_element_op_;
-
-        // Strides for the last M/N/K dimensions of A/B/Ds/E
-        //   for sanity check of vector load/store
-        index_t a_mz_stride_;
-        index_t a_kz_stride_;
-        index_t b_nz_stride_;
-        index_t b_kz_stride_;
-        std::array<index_t, NumDTensor> ds_nz_stride_;
-        index_t e_mz_stride_;
-        index_t e_nz_stride_;
-
-        index_t a_batch_stride_;
-        index_t b_batch_stride_;
 
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
     };
