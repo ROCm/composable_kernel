@@ -332,14 +332,7 @@ int run_example(int argc, char* argv[])
             cde1_element_op(e1_g_m_o_host_result(idx), c1_g_m_o(idx), d1_g_m_o(idx));
         });
 
-        // Default rtol/atol for fp16 is 1e-3f, but since we do two gemms and multi-d ops we
-        // increase it to allow some error
-        const std::string error_message = "Error: Incorrect results!";
-        const float rtol                = 5e-2f;
-        const float atol                = 1e-1f;
-
-        bool validation_result = ck::utils::check_err(
-            e1_g_m_o_device_result, e1_g_m_o_host_result, error_message, rtol, atol);
+        bool validation_result = ck::utils::check_err(e1_g_m_o_device_result, e1_g_m_o_host_result);
         std::cout << "Validation result: " << (validation_result ? "SUCCESS" : "FAIL") << "."
                   << std::endl;
 
