@@ -239,6 +239,7 @@ struct MultiReduce2d
             },
             number<number_operations>{});
 
+        // Reduction loop
         for(int iN = 0; iN < num_n_tile_iteration; ++iN)
         {
             auto x         = load_tile(x_window);
@@ -262,11 +263,13 @@ struct MultiReduce2d
             block_reduce2d_cross_warp_sync(y_compute, static_cast<void*>(smem), reduce_ops.get(i));
 
             // Determine if this thread should perform the output operation
+            // We want threads that handle the first elements in the N (reduction) dimension
             const auto tile_dist = y_compute.get_tile_distribution();
             const auto ps_idx    = get_partition_index(tile_dist);
             const auto rs_idx    = tile_dist.calculate_rs_index_from_ps_index(ps_idx);
 
             // Check if this thread is responsible for the first N-dimension element
+            // In the tile distribution, dimension 1 corresponds to the N dimension
             const bool is_first_n_thread = (rs_idx[number<1>{}] == 0);
 
             if(is_first_n_thread)
