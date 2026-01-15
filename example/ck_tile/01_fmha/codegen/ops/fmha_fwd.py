@@ -315,7 +315,7 @@ class FmhaFwdApiTrait:
             assert False
 
     def seqtune(self, max_bm0: int) -> str:
-        if self.bm0 == max_bm0 or self.bm0 == 64:
+        if self.bm0 == max_bm0 or self.bm0 == 64:  # 64 is the smallest bm0 tile (used e.g. by wholek_prefetch) and serves as a generic fallback
             return "true/*fall back to largest tile*/"
         else:
             return f"a.seqlen_q <= {self.bm0}"
