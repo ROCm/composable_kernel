@@ -61,6 +61,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3;
 namespace ck_tile {
 namespace reflect {
 
+/// @brief Tag type for DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 device kernel
+struct DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3_Tag
+{
+};
+
 template <ck::index_t NDimSpatial,
           typename InLayout_,
           typename WeiLayout_,
@@ -150,6 +155,9 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
     ComputeTypeA_,
     ComputeTypeB_>>
 {
+
+    /// @brief Tag type identifying this device kernel variant
+    using device_kernel_tag             = DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3_Tag;
     static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3";
 
     static constexpr ck::index_t kNDimSpatial = NDimSpatial;
@@ -204,6 +212,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
 
     using CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_;
+    static constexpr auto kCThreadClusterLengths = detail::SequenceToArray<
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>::value;
     static constexpr ck::index_t kCBlockTransferScalarPerVector_NWaveNPerXdl =
         CBlockTransferScalarPerVector_NWaveNPerXdl;
 

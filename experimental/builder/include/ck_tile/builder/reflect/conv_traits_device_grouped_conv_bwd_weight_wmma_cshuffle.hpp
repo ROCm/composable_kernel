@@ -17,14 +17,16 @@ template <typename Instance>
     requires HasInstanceTraits<Instance> &&
              std::same_as<typename InstanceTraits<Instance>::device_kernel_tag,
                           DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Tag>
-constexpr ConvTraits instance_to_conv_traits()
+std::same_as<typename InstanceTraits<Instance>::device_kernel_tag,
+             DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Tag> constexpr ConvTraits
+instance_to_conv_traits()
 {
     using InstTraits = InstanceTraits<Instance>;
 
     return ConvTraits{
         .spatial_dim             = InstTraits::kSpatialDim,
         .direction               = conv_direction<Instance>(),
-        .layout                  = fwd_conv_layout<Instance>(),
+        .layout                  = conv_layout<Instance>(),
         .data_type               = conv_data_type<Instance>(),
         .input_element_op        = elementwise_op<typename InstTraits::AElementwiseOperation>(),
         .weight_element_op       = elementwise_op<typename InstTraits::BElementwiseOperation>(),

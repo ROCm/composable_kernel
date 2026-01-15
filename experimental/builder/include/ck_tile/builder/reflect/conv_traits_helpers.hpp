@@ -31,10 +31,10 @@
 /// 1. **Concepts**: Type trait concepts for checking if instance types have required members
 ///    - Layout concepts (HasFwdConvLayouts)
 ///    - Specialization concepts (HasGemmSpec)
-///    - Data type concepts (HasDataTypes)
+///    - Data type concepts (HasFwdConvDataTypes)
 ///    - Operation concepts (HasElementwiseOps)
 ///    - Tile parameter concepts (HasTileParams)
-///    - Composite concepts (IsXdlFwdConv, HasConvTraits)
+///    - Composite concepts (IsFwdConv, HasConvTraits)
 ///
 /// 2. **Enum Conversions**: Functions to convert CK enums to builder enums
 ///    - Pipeline version conversions (BlockGemmPipelineVersion, PipelineVersion)
@@ -64,6 +64,14 @@ concept HasFwdConvLayouts = requires {
     typename T::ELayout;
 };
 
+// Backwards weight layout concept - checks for In, wei and out layouts
+template <typename T>
+concept HasBwdWeiLayouts = requires {
+    typename T::InLayout;
+    typename T::WeiLayout;
+    typename T::OutLayout;
+};
+
 // GEMM specialization concept - checks for kGemmSpecialization member
 template <typename T>
 concept HasGemmSpec = requires {
@@ -74,7 +82,10 @@ concept HasGemmSpec = requires {
 
 // Data types concept - checks for ADataType member
 template <typename T>
-concept HasDataTypes = requires { typename T::ADataType; };
+concept HasFwdConvDataTypes = requires { typename T::ADataType; };
+
+template <typename T>
+concept HasBwdDataTypes = requires { typename T::InDataType; };
 
 // Elementwise operations concept - checks for A/B/CDE elementwise operation types
 template <typename T>
@@ -98,14 +109,17 @@ concept HasTileParams = requires {
 // Comprehensive concept that checks if an instance has all XDL forward convolution traits
 // This concept is used to constrain ConvTraits specialization that expect XDL forward convolutions
 template <typename T>
-concept IsXdlFwdConv = HasFwdConvLayouts<T> && HasGemmSpec<T> && HasDataTypes<T> &&
+concept IsFwdConv = HasFwdConvLayouts<T> && HasGemmSpec<T> && HasFwdConvDataTypes<T> &&
+                    HasElementwiseOps<T> && HasTileParams<T>;
+
+template <typename T>
+concept IsBwdWeiConv = HasBwdWeiLayouts<T> && HasGemmSpec<T> && HasBwdDataTypes<T> &&
                        HasElementwiseOps<T> && HasTileParams<T>;
 
 // Primary concept for checking if a type can be described
-// Currently only forward convolutions are supported, but this can be extended
-// in the future to include backward data and backward weight convolutions
+
 template <typename T>
-concept HasConvTraits = IsXdlFwdConv<InstanceTraits<T>>;
+concept HasConvTraits = IsFwdConv<InstanceTraits<T>> || IsBwdWeiConv<InstanceTraits<T>>;
 
 // ============================================================================
 // SECTION 2: ENUM CONVERSIONS
@@ -319,26 +333,17 @@ template <typename A, typename B, typename E, int SpatialDim>
           "Check the conv_layout() function for the list of supported layout combinations.";
 }
 
-/// @brief Derives the grouped convolution layout from a device kernel `Instance` type.
-/// @tparam Instance The device kernel instance type.
-/// @return An std::array corresponding to the tensor layouts:
-///             index 0 -> Input layout
-///             index 1 -> Weight layout
-///             index 2 -> Output layout
-template <typename Instance>
+template <typename A, typename B, typename E, int kSpatialDim>
 constexpr auto conv_layout()
-    requires HasFwdConvLayouts<InstanceTraits<Instance>>
 {
+
     // Helper lambda to construct layout array
     auto layouts = [](auto... Ls) { return std::array<builder::TensorLayout, 3>{Ls...}; };
 
-    using A       = typename InstanceTraits<Instance>::ALayout;
-    using B       = typename InstanceTraits<Instance>::BLayout;
-    using E       = typename InstanceTraits<Instance>::ELayout;
     namespace ctl = ck::tensor_layout::convolution;
     using enum builder::TensorLayout;
 
-    switch(InstanceTraits<Instance>::kSpatialDim)
+    switch(kSpatialDim)
     {
     case 1:
         if constexpr(layouts_are<A, B, E, ctl::GNWC, ctl::GKXC, ctl::GNWK>)
@@ -382,10 +387,45 @@ constexpr auto conv_layout()
 
     // If we reach here, the layout combination is not supported
     // Call consteval function to trigger a compile-time error with a clear message
-    report_unsupported_layout_error<A, B, E, InstanceTraits<Instance>::kSpatialDim>();
+    report_unsupported_layout_error<A, B, E, kSpatialDim>();
 
     // This return is unreachable but needed to satisfy the compiler
     return layouts(GNHWC, GKYXC, GNHWK);
+}
+
+/// @brief Derives the grouped convolution layout from a device kernel `Instance` type.
+/// @tparam Instance The device kernel instance type.
+/// @return An std::array corresponding to the tensor layouts:
+///             index 0 -> Input layout
+///             index 1 -> Weight layout
+///             index 2 -> Output layout
+
+template <typename Instance>
+constexpr auto fwd_conv_layout()
+    requires HasFwdConvLayouts<InstanceTraits<Instance>>
+{
+
+    using A = typename InstanceTraits<Instance>::ALayout;
+    using B = typename InstanceTraits<Instance>::BLayout;
+    using E = typename InstanceTraits<Instance>::ELayout;
+    return conv_layout<A, B, E, InstanceTraits<Instance>::kSpatialDim>();
+}
+
+/// @brief Derives the grouped convolution layout from a device kernel `Instance` type.
+/// @tparam Instance The device kernel instance type.
+/// @return An std::array corresponding to the tensor layouts:
+///             index 0 -> Input layout
+///             index 1 -> Weight layout
+///             index 2 -> Output layout
+template <typename Instance>
+constexpr auto bwd_wei_conv_layout()
+    requires HasBwdWeiLayouts<InstanceTraits<Instance>>
+{
+
+    using A = typename InstanceTraits<Instance>::InLayout;
+    using B = typename InstanceTraits<Instance>::WeiLayout;
+    using E = typename InstanceTraits<Instance>::OutLayout;
+    return conv_layout<A, B, E, InstanceTraits<Instance>::kSpatialDim>();
 }
 
 // ----------------------------------------------------------------------------
@@ -410,7 +450,7 @@ template <typename ADataType>
 /// Returns a `builder::DataType` enum value (e.g., FP16, BF16, FP32, BF8).
 template <typename Instance>
 constexpr builder::DataType conv_data_type()
-    requires HasDataTypes<InstanceTraits<Instance>>
+    requires HasFwdConvDataTypes<InstanceTraits<Instance>>
 {
     using InstTraits = InstanceTraits<Instance>;
     using ADataType  = typename InstTraits::ADataType;
@@ -640,14 +680,18 @@ constexpr auto get_pipeline_scheduler()
     }
 }
 
+// ============================================================================
+// SECTION 4: Helper functions for common structures
+// ============================================================================
+
 template <typename InstTraits>
-constexpr InputTileTransferInfo conv_traits_xdl_a_transfer_params()
+constexpr InputTileTransferInfo conv_traits_a_transfer_params(int _k1)
 {
     return InputTileTransferInfo{
-        .tile_dimensions = {.k0     = InstTraits::kKPerBlock / InstTraits::kAK1,
+        .tile_dimensions = {.k0     = InstTraits::kKPerBlock / _k1,
                             .m_or_n = InstTraits::kMPerBlock,
-                            .k1     = InstTraits::kAK1},
-        .transfer_params = {.k1                    = InstTraits::kAK1,
+                            .k1     = _k1},
+        .transfer_params = {.k1                    = _k1,
                             .thread_cluster_dims   = InstTraits::kAThreadClusterLengths,
                             .thread_cluster_order  = InstTraits::kAThreadClusterArrangeOrder,
                             .src_access_order      = InstTraits::kABlockTransferSrcAccessOrder,
@@ -659,13 +703,13 @@ constexpr InputTileTransferInfo conv_traits_xdl_a_transfer_params()
 }
 
 template <typename InstTraits>
-constexpr InputTileTransferInfo conv_traits_xdl_b_transfer_params()
+constexpr InputTileTransferInfo conv_traits_b_transfer_params(int _k1)
 {
     return InputTileTransferInfo{
-        .tile_dimensions = {.k0     = InstTraits::kKPerBlock / InstTraits::kBK1,
+        .tile_dimensions = {.k0     = InstTraits::kKPerBlock / _k1,
                             .m_or_n = InstTraits::kNPerBlock,
-                            .k1     = InstTraits::kBK1},
-        .transfer_params = {.k1                    = InstTraits::kBK1,
+                            .k1     = _k1},
+        .transfer_params = {.k1                    = _k1,
                             .thread_cluster_dims   = InstTraits::kBThreadClusterLengths,
                             .thread_cluster_order  = InstTraits::kBThreadClusterArrangeOrder,
                             .src_access_order      = InstTraits::kBBlockTransferSrcAccessOrder,
@@ -695,11 +739,11 @@ constexpr OutputTileTransferInfo conv_traits_wmma_c_tile_transfer()
     return OutputTileTransferInfo{
         .shuffle_params      = {.m_gemms_per_shuffle = InstTraits::kCShuffleMRepeatPerShuffle,
                                 .n_gemms_per_shuffle = InstTraits::kCShuffleNRepeatPerShuffle},
-        .thread_cluster_dims = {InstTraits::kCThreadClusterLengths[0],
-                                InstTraits::kCThreadClusterLengths[1],
-                                InstTraits::kCThreadClusterLengths[2],
-                                InstTraits::kCThreadClusterLengths[3]},
-        .scalar_per_vector   = InstTraits::kCBlockTransferScalarPerVector};
+        .thread_cluster_dims = {InstTraits::kCDEThreadClusterLengths[0],
+                                InstTraits::kCDEThreadClusterLengths[1],
+                                InstTraits::kCDEThreadClusterLengths[2],
+                                InstTraits::kCDEThreadClusterLengths[3]},
+        .scalar_per_vector   = InstTraits::kCDEBlockTransferScalarPerVector};
 }
 
 template <typename InstTraits>
@@ -721,10 +765,9 @@ constexpr WarpGemmParams conv_traits_wmma_warp_gemm_params()
 }
 
 template <typename InstTraits>
-constexpr DataTileInfo conv_traits_data_tile()
+constexpr DataTileInfo conv_traits_data_tile(int k_or_k0 = InstTraits::kKPerBlock)
 {
-    return DataTileInfo{
-        .m = InstTraits::kMPerBlock, .n = InstTraits::kNPerBlock, .k = InstTraits::kKPerBlock};
+    return DataTileInfo{.m = InstTraits::kMPerBlock, .n = InstTraits::kNPerBlock, .k = k_or_k0};
 }
 
 } // namespace ck_tile::reflect::conv

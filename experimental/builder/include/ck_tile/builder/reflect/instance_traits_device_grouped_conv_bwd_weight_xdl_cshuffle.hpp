@@ -60,6 +60,10 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle;
 
 namespace ck_tile {
 namespace reflect {
+/// @brief Tag type for DeviceGroupedConvBwdWeight_Xdl_CShuffle device kernel
+struct DeviceGroupedConvBwdWeight_Xdl_CShuffle_Tag
+{
+};
 
 template <ck::index_t NDimSpatial,
           typename InLayout_,
@@ -152,7 +156,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
 {
     static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeight_Xdl_CShuffle";
 
-    static constexpr ck::index_t kNDimSpatial = NDimSpatial;
+    static constexpr ck::index_t kSpatialDim = NDimSpatial;
+    using device_kernel_tag                  = DeviceGroupedConvBwdWeight_Xdl_CShuffle_Tag;
 
     using InLayout  = InLayout_;
     using WeiLayout = WeiLayout_;
@@ -204,6 +209,9 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
 
     using CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_;
+    static constexpr auto kCThreadClusterLengths = detail::SequenceToArray<
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>::value;
+
     static constexpr ck::index_t kCBlockTransferScalarPerVector_NWaveNPerXdl =
         CBlockTransferScalarPerVector_NWaveNPerXdl;
 
@@ -224,7 +232,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
         oss << "DeviceGroupedConvBwdWeight_Xdl_CShuffle";
 
         // Template parameters in exact order
-        oss << "<" << kNDimSpatial;                     // 1. NDimSpatial
+        oss << "<" << kSpatialDim;                      // 1. NDimSpatial
         oss << "," << detail::layout_name<InLayout>();  // 2. InLayout
         oss << "," << detail::layout_name<WeiLayout>(); // 3. WeiLayout
         oss << "," << detail::layout_name<OutLayout>(); // 4. OutLayout
