@@ -92,7 +92,7 @@ test_data/*
 # The experimental/builder directory should be tracked despite matching build*
 !experimental/builder
 !experimental/builder/**
-experimental/builder/src/instances/*
-!experimental/builder/src/instances/*.in
-!experimental/builder/src/instances/*.inc
-experimental/builder/src/*.inc
+experimental/grouped_convolution_tile_instances/instances/*
+!experimental/grouped_convolution_tile_instances/instances/*.in
+!experimental/grouped_convolution_tile_instances/instances/*.inc
+experimental/grouped_convolution_tile_instances/*.inc

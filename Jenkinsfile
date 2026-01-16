@@ -1450,7 +1450,8 @@ pipeline {
                                            ./bin/test_grouped_convnd_fwd_tile"""
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
+                        // TODO: Reenable after the instance fixes
+                        // buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }

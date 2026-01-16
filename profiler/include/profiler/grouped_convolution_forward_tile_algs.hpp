@@ -18,12 +18,12 @@ namespace ck_tile::builder::profiling {
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
 
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp32.inc"
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_bf16.inc"
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp16.inc"
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp32.inc"
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_bf16.inc"
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp16.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_nhwgc_fp32.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_nhwgc_bf16.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_nhwgc_fp16.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_ndhwgc_fp32.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_ndhwgc_bf16.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_ndhwgc_fp16.inc"
 
 template <auto SIGNATURE>
 auto parse_conv_args(int arg_idx, char* const argv[])
@@ -136,27 +136,27 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
 
     if constexpr(SIGNATURE == SIGNATURE_NHWGC_FP16_FWD)
     {
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp16_calls.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_nhwgc_fp16_calls.inc"
     }
     else if constexpr(SIGNATURE == SIGNATURE_NHWGC_BF16_FWD)
     {
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_bf16_calls.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_nhwgc_bf16_calls.inc"
     }
     else if constexpr(SIGNATURE == SIGNATURE_NHWGC_FP32_FWD)
     {
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp32_calls.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_nhwgc_fp32_calls.inc"
     }
     else if constexpr(SIGNATURE == SIGNATURE_NDHWGC_FP16_FWD)
     {
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp16_calls.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_ndhwgc_fp16_calls.inc"
     }
     else if constexpr(SIGNATURE == SIGNATURE_NDHWGC_BF16_FWD)
     {
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_bf16_calls.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_ndhwgc_bf16_calls.inc"
     }
     else if constexpr(SIGNATURE == SIGNATURE_NDHWGC_FP32_FWD)
     {
-#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp32_calls.inc"
+#include "../../experimental/grouped_convolution_tile_instances/grouped_convolution_forward_tile_ndhwgc_fp32_calls.inc"
     }
     else
     {
