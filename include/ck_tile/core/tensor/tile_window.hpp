@@ -552,6 +552,8 @@ struct tile_window_with_static_distribution
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
+        // static_assert(sizeof(vector_t) == 16, "wrong! not implemented vector size");
+
         // Precompute invariant values outside loops
         const auto window_origin       = lds_tile.get_window_origin();
         const auto& bottom_tensor_view = lds_tile.get_bottom_tensor_view();

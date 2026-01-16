@@ -672,6 +672,9 @@ struct UniversalGemmKernel
             [&](auto i) {
                 using AiLayout   = remove_cvref_t<std::tuple_element_t<i.value, AsLayout>>;
                 using AiDataType = remove_cvref_t<std::tuple_element_t<i.value, AsDataType>>;
+                static_assert(GemmPipeline::GetVectorSizeA() == GemmPipeline::GetVectorSizeB(), "Vector size of A and B must be the same!");
+                static_assert(GemmPipeline::GetVectorSizeA() == 16, "Vector size of A must be 16!");
+                static_assert(GemmPipeline::GetVectorSizeB() == 16, "Vector size of B must be 16!");
                 if constexpr(std::is_same_v<AiLayout, tensor_layout::gemm::RowMajor>)
                 {
                     return make_naive_tensor_view<address_space_enum::global>(

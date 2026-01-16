@@ -1713,8 +1713,9 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     ignore = src_immediate_addr_offset;
 
 #if defined(__gfx950__)
-    static_assert(bytes == 4 || bytes == 12 || bytes == 16,
-                  "wrong! only support in dword, dwordx3, dwordx4");
+    static_assert(bytes == 16, "wrong! not implemented vector size");
+    // static_assert(bytes == 4 || bytes == 12 || bytes == 16,
+    //               "wrong! only support in dword, dwordx3, dwordx4");
     src_wave_addr_offset = 0;
 #else
     static_assert(bytes == 4, "wrong! not implemented vector size");

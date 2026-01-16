@@ -168,7 +168,7 @@ if (WIN32)
     find_package(ROCmCMakeBuildTools REQUIRED PATHS C:/dist/TheRock)
     set(HIP_PLATFORM "amd" CACHE STRING "HIP platform")
 else()
-    find_package(ROCM REQUIRED PATHS /opt/rocm)
+    find_package(ROCM REQUIRED PATHS /opt/venv/lib/python3.12/site-packages/_rocm_sdk_devel/)
 endif()
 
 include(ROCMInstallTargets)

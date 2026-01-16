@@ -314,6 +314,18 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                         Policy::template MakeBDramTileDistribution<Problem>());
                 },
                 number<BsLayout::size()>{});
+            
+            /// Check tile window traits for vector size
+            using ATileDstr = remove_cvref_t<decltype(Policy::template MakeADramTileDistribution<Problem>())>;
+            // static_assert(ATileDstr::LargestVec >= 16, "wrong! not implemented vector size");
+            // static_assert(ATileDstr::X1 >= 16, "wrong! not implemented vector size");
+            using BTileDstr = remove_cvref_t<decltype(Policy::template MakeBDramTileDistribution<Problem>())>;
+            // static_assert(BTileDstr::LargestVec >= 16, "wrong! not implemented vector size");
+            // static_assert(BTileDstr::X1 >= 16, "wrong! not implemented vector size");
+            using ATileType = remove_cvref_t<decltype(a_tile_windows[number<0>{}])>;
+            using BTileType = remove_cvref_t<decltype(b_tile_windows[number<0>{}])>;
+            static_assert(sizeof(typename ATileType::Traits::vector_t) == 16, "wrong! not implemented vector size");
+            static_assert(sizeof(typename BTileType::Traits::vector_t) == 16, "wrong! not implemented vector size");
 
             ////////////// MX Scale windows /////////////////
             // Get WarpGemm configuration
