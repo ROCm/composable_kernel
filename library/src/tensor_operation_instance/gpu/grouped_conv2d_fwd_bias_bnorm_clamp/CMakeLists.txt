@@ -326,8 +326,8 @@ generate_sharded_instantiations(
 
 #WMMA_Cshuffle_v3
 add_instance_library(device_grouped_conv2d_fwd_bias_bnorm_clamp_instance
-   wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance_part1.cpp
-   wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instance_part1.cpp
+   wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
+   wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instance.cpp
    ${GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP}
 )
 

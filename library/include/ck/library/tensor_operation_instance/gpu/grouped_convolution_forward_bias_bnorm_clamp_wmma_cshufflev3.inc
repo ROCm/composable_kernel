@@ -9,7 +9,7 @@ namespace device {
 namespace instance {
 
 #ifdef CK_ENABLE_BF16
-void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances_part1(
+void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances(
     std::vector<
         std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                         NHWGC,
@@ -24,7 +24,7 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                                         PassThrough,
                                                         BiasNormalizeInInferClamp>>>& instances);
 
-void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part1(
+void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
     std::vector<std::unique_ptr<
         DeviceGroupedConvFwdMultipleABD<3,
                                         NDHWGC,
@@ -41,7 +41,7 @@ void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_n
 #endif
 
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances_part1(
+void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances(
     std::vector<
         std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                         NHWGC,
@@ -56,7 +56,7 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                                         PassThrough,
                                                         BiasNormalizeInInferClamp>>>& instances);
 
-void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances_part1(
+void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances(
     std::vector<std::unique_ptr<
         DeviceGroupedConvFwdMultipleABD<3,
                                         NDHWGC,

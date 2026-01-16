@@ -8,52 +8,52 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances_part1(
+void add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
     std::vector<std::unique_ptr<
         DeviceGroupedConvFwdMultipleABD<3,
                                         NDHWGC,
                                         GKZYXC,
                                         Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
                                         NDHWGK,
-                                        F16,
-                                        F16,
-                                        Tuple<F16, F16, F16, F16, F16>,
-                                        F16,
+                                        BF16,
+                                        BF16,
+                                        Tuple<BF16, BF16, BF16, BF16, BF16>,
+                                        BF16,
                                         PassThrough,
                                         PassThrough,
                                         BiasNormalizeInInferClamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_f16_instances_generic<
+                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<
                                        3,
                                        NDHWGC,
                                        GKZYXC,
                                        Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
                                        NDHWGK,
                                        ConvFwdDefault,
-                                       Tuple<F16, F16, F16, F16, F16>,
+                                       Tuple<BF16, BF16, BF16, BF16, BF16>,
                                        BiasNormalizeInInferClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_f16_instances_generic<
+                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<
                                        3,
                                        NDHWGC,
                                        GKZYXC,
                                        Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
                                        NDHWGK,
                                        ConvFwdDefault,
-                                       Tuple<F16, F16, F16, F16, F16>,
+                                       Tuple<BF16, BF16, BF16, BF16, BF16>,
                                        BiasNormalizeInInferClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_f16_instances_generic<
+                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<
                                        3,
                                        NDHWGC,
                                        GKZYXC,
                                        Tuple<NDHWGK, NDHWGK, NDHWGK, NDHWGK, NDHWGK>,
                                        NDHWGK,
                                        ConvFwdDefault,
-                                       Tuple<F16, F16, F16, F16, F16>,
+                                       Tuple<BF16, BF16, BF16, BF16, BF16>,
                                        BiasNormalizeInInferClamp>{});
 }
 

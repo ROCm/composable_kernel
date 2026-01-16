@@ -295,7 +295,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<AComputeType, ck::bhalf_t> &&
                          is_same_v<BComputeType, ck::bhalf_t>)
             {
-                add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances_part1(
+                add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances(
                     op_ptrs);
             }
 #endif
@@ -304,7 +304,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
                          is_same_v<BComputeType, half_t>)
             {
-                add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances_part1(
+                add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances(
                     op_ptrs);
             }
 #endif
@@ -320,7 +320,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<AComputeType, ck::bhalf_t> &&
                          is_same_v<BComputeType, ck::bhalf_t>)
             {
-                add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances_part1(
+                add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
                     op_ptrs);
             }
 #endif
@@ -329,7 +329,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
                          is_same_v<BComputeType, half_t>)
             {
-                add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances_part1(
+                add_device_grouped_conv3d_fwd_bias_bn_clamp_wmma_cshufflev3_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                     op_ptrs);
             }
 #endif

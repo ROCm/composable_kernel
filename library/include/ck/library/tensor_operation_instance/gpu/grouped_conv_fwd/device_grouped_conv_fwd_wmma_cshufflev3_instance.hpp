@@ -49,7 +49,7 @@ template <index_t NDimSpatial,
           ConvolutionForwardSpecialization ConvSpec,
           typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
-using device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances_generic = std::tuple<
+using device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances = std::tuple<
     // clang-format off
           //########################################|     NumDim|       A|       B|          Ds|       E| AData| BData| AccData| CShuffle|             Ds| EData|           A|           B|          CDE|    ConvForward|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MWmma| NWmma|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|     CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|                   Pipeline scheduler |            Pipeline version |
           //########################################|    Spatial|  Layout|  Layout|      Layout|  Layout|  Type|  Type|    Type| DataType|       DataType|  Type| Elementwise| Elementwise|  Elementwise| Specialization| Specialization|  Size| Block| Block| Block|    |    | WMMA| WMMA|   Per|   Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MWmmaPerWave| NWmmaPerWave|        _MBlock_MWaveMPerWmma| ScalarPerVector|                                      |                             |
@@ -174,7 +174,7 @@ template <index_t NDimSpatial,
           ConvolutionForwardSpecialization ConvSpec,
           typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
-using device_grouped_conv_fwd_wmma_cshufflev3_f16_instances_generic = std::tuple<
+using device_grouped_conv_fwd_wmma_cshufflev3_f16_generic_instances = std::tuple<
     // clang-format off
           //########################################|     NumDim|       A|       B|          Ds|       E| AData| BData| AccData| CShuffle|             Ds| EData|           A|           B|          CDE|    ConvForward|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MWmma| NWmma|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|     CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|                   Pipeline scheduler |            Pipeline version |
           //########################################|    Spatial|  Layout|  Layout|      Layout|  Layout|  Type|  Type|    Type| DataType|       DataType|  Type| Elementwise| Elementwise|  Elementwise| Specialization| Specialization|  Size| Block| Block| Block|    |    | WMMA| WMMA|   Per|   Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MWmmaPerWave| NWmmaPerWave|        _MBlock_MWaveMPerWmma| ScalarPerVector|                                      |                             |

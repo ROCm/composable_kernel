@@ -8,7 +8,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances_part1(
+void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances(
     std::vector<
         std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                         NHWGC,
@@ -24,7 +24,7 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                                         BiasNormalizeInInferClamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances_generic<
+                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<
                                        2,
                                        NHWGC,
                                        GKYXC,
@@ -35,7 +35,7 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                        BiasNormalizeInInferClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances_generic<
+                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<
                                        2,
                                        NHWGC,
                                        GKYXC,
@@ -46,7 +46,7 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                        BiasNormalizeInInferClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances_generic<
+                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<
                                        2,
                                        NHWGC,
                                        GKYXC,
