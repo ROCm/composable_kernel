@@ -644,8 +644,8 @@ struct QuantGemmKernel
                 {
                     return make_naive_tensor_view<address_space_enum::global>(
                         aq_ptr,
-                        make_tuple(kargs.QK_A, kargs.M), // Swapped dimensions
-                        make_tuple(kargs.stride_AQ, 1),  // Same stride pattern
+                        make_tuple(kargs.M, kargs.QK_A),
+                        make_tuple(1, kargs.stride_AQ), // Same stride pattern
                         number<GemmPipeline::GetVectorSizeAQ()>{},
                         number<1>{});
                 }
@@ -998,7 +998,7 @@ struct QuantGemmKernel
             }
             else if constexpr(kQuantType == QuantType::ABQuantGrouped && !PreshuffleQuant)
             {
-                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
+                // static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 using QuantGroupSize   = remove_cvref_t<typename GemmPipeline::AQuantGroupSize>;
                 constexpr auto block_m = TilePartitioner::MPerBlock;
                 constexpr auto block_k = TilePartitioner::KPerBlock;
@@ -1225,6 +1225,9 @@ struct QuantGemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I4);
 
+#if 0
+        store_tile(c_block_window, c_block_tile);
+#else
         if constexpr(kQuantType == QuantType::ABQuantGrouped ||
                      kQuantType == QuantType::AQuantGrouped ||
                      kQuantType == QuantType::BQuantGrouped)
@@ -1254,6 +1257,7 @@ struct QuantGemmKernel
             EpiloguePipeline{}(
                 c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
         }
+#endif
     }
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.

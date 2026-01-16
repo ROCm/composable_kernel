@@ -59,7 +59,7 @@ struct CShuffleEpilogueProblem
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
     static constexpr bool FixedVectorSize                  = FixedVectorSize_;
     static constexpr index_t VectorSizeC                   = VectorSizeC_;
-    static constexpr index_t BlockedXDLN_PerWarp           = BlockedXDLN_PerWarp_;
+    static constexpr index_t BlockedXDLN_PerWarp           = kNPerBlock / NWave / NPerXdl;
     static constexpr bool DoubleSmemBuffer                 = DoubleSmemBuffer_;
     static constexpr bool TiledMMAPermuteN                 = TiledMMAPermuteN_;
     static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
@@ -272,8 +272,8 @@ struct CShuffleEpilogue
         max(BlockedXDLN_PerWarp, std::get<1>(shuffle_tile_tuple));
 
     static constexpr auto MNPerIterationShuffle = [] {
-        constexpr index_t m_val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
-        constexpr index_t n_val = NPerXdl * NWave * NumNXdlPerWavePerShuffle;
+        constexpr index_t m_val = MPerXdl * MWave * NumMXdlPerWavePerShuffle; // 64
+        constexpr index_t n_val = NPerXdl * NWave * NumNXdlPerWavePerShuffle; // 32
         if constexpr(kMPerBlock % m_val != 0 || kNPerBlock % n_val != 0)
             return std::make_tuple(MPerXdl * MWave, NPerXdl * NWave);
         else
@@ -328,7 +328,7 @@ struct CShuffleEpilogue
                 return tile_distribution_encoding<sequence<>,
                                                   tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
                                                         sequence<NumNXdlPerWavePerShuffle, NWave>>,
-                                                  tuple<sequence<1, 2>>,
+                                                  tuple<sequence<2, 1>>,
                                                   tuple<sequence<1, 1>>,
                                                   sequence<1, 2>,
                                                   sequence<0, 0>>{};
@@ -341,7 +341,7 @@ struct CShuffleEpilogue
                     sequence<>,
                     tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
                           sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
-                    tuple<sequence<1, 2>>,
+                    tuple<sequence<2, 1>>,
                     tuple<sequence<1, 1>>,
                     sequence<1, 2, 2>,
                     sequence<0, 0, 2>>{};

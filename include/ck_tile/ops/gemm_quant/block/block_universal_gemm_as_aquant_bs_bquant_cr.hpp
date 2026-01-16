@@ -58,6 +58,7 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
         // number of warps along M and N for threadblock's GEMM problem size
         static constexpr index_t MWarp = config.template at<1>();
         static constexpr index_t NWarp = config.template at<2>();
+        static constexpr index_t KWarp = Problem::BlockGemmShape::BlockWarps::at(number<2>{});
 
         using I0 = number<0>;
         using I1 = number<1>;
@@ -73,12 +74,12 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
 
         static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
         static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
-        static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
+        static constexpr index_t KIterPerWarp = KPerBlock / (KWarp * WarpGemm::kK);
 
         static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
 
         static constexpr index_t QScalesPerBlockRow =
-            integer_divide_ceil(KPerBlock, BQuantGroupSize::kK);
+            integer_divide_ceil(KPerBlock / KWarp, BQuantGroupSize::kK);
         static constexpr index_t QScalesPerWarpGemmRow =
             integer_divide_ceil(WarpGemm::kK, BQuantGroupSize::kK);
 
@@ -91,7 +92,7 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
         static_assert(KIterPerWarp % QScalesPerBlockRow == 0,
                       "Error! KItersPerWarp should be a multiple of QscalesPerBlockRow");
 
-        static_assert(KPerBlock / BQuantGroupSize::kK > 0,
+        static_assert(KPerBlock / KWarp / BQuantGroupSize::kK > 0,
                       "Error! Each row of blockgemm should have a separate scale");
 
         static_assert(MIterPerWarp * MWarp * WarpGemm::kM == MPerBlock,
@@ -145,6 +146,7 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
 
     static constexpr index_t MWarp = Traits::MWarp;
     static constexpr index_t NWarp = Traits::NWarp;
+    static constexpr index_t KWarp = Traits::KWarp;
 
     static constexpr auto Scheduler = Traits::Scheduler;
 
@@ -190,16 +192,16 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
         constexpr index_t KIterInterwave = KPerInnerLoop / WarpGemm::kKPerThread;
 
         using KIterSeq = std::conditional_t<Scheduler == GemmPipelineScheduler::Interwave,
-                                            sequence<KIterInterwave>,
-                                            sequence<KIterPerWarp>>;
+                                            sequence<KWarp, KIterInterwave>,
+                                            sequence<KWarp, KIterPerWarp>>;
 
         constexpr auto a_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<NWarp>,
+            tile_distribution_encoding<sequence<2, NWarp / 2>,
                                        tuple<sequence<MIterPerWarp, MWarp>, KIterSeq>,
-                                       tuple<sequence<1, 0>>,
-                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<0, 2, 1, 0>>,
+                                       tuple<sequence<0, 0, 1, 1>>,
                                        sequence<1, 2>,
-                                       sequence<0, 0>>{};
+                                       sequence<0, 1>>{};
         constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
 
@@ -215,22 +217,51 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
         constexpr index_t KIterInterwave = KPerInnerLoop / WarpGemm::kKPerThread;
 
         using KIterSeq = std::conditional_t<Scheduler == GemmPipelineScheduler::Interwave,
-                                            sequence<KIterInterwave>,
-                                            sequence<KIterPerWarp>>;
+                                            sequence<KWarp, KIterInterwave>,
+                                            sequence<KWarp, KIterPerWarp>>;
 
         constexpr auto b_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<MWarp>,
-                                       tuple<sequence<NIterPerWarp, NWarp>, KIterSeq>,
-                                       tuple<sequence<0, 1>>,
-                                       tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
+                                       tuple<sequence<2, NIterPerWarp, NWarp / 2>, KIterSeq>,
+                                       tuple<sequence<2, 1, 0, 1>>,
+                                       tuple<sequence<0, 0, 0, 2>>,
+                                       sequence</*1, 2*/>,
+                                       sequence</*0, 1*/>>{};
 
         constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
 
         return b_block_dstr_encode;
     }
+
+    CK_TILE_DEVICE static constexpr auto MakeCBlockDistributionEncode()
+    {
+        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
+            sequence<KWarp>,
+            tuple<sequence<MIterPerWarp, MWarp>, sequence<2, NIterPerWarp, NWarp / 2>>,
+            tuple<sequence<2, 0, 1, 2>>,
+            tuple<sequence<0, 0, 1, 2>>,
+            sequence<1, 2>,
+            sequence<0, 1>>{};
+        constexpr auto c_block_dstr_encoding = detail::make_embed_tile_distribution_encoding(
+            c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
+        return c_block_dstr_encoding;
+    }
+
+    CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
+    {
+        return make_static_distributed_tensor<CDataType>(
+            make_static_tile_distribution(MakeCBlockDistributionEncode()));
+    }
+
+    using ALdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(
+        make_static_tile_distribution(MakeABlockDistributionEncode())));
+    using BLdsTile = statically_indexed_array<
+        statically_indexed_array<decltype(make_static_distributed_tensor<ComputeDataType>(
+                                     make_static_tile_distribution(
+                                         MakeBBlockDistributionEncode()))),
+                                 KIterPerWarp>,
+        NIterPerWarp>;
 
     private:
     template <GemmPipelineScheduler Scheduler, typename GemmTraits>
@@ -241,80 +272,88 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
     template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits>
     {
-        static constexpr auto ALdsTileDistr =
-            decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
-        static constexpr auto BLdsTileDistr =
-            decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
-
-        using ALdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(ALdsTileDistr));
-        using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
-
-        ALdsTile a_warp_tile_;
-        BLdsTile b_warp_tile_;
 
         template <typename ASmemBlockWindow,
                   typename BSmemBlockWindow,
                   bool ALoadTranspose = false,
                   bool BLoadTranspose = false>
-        CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                          const BSmemBlockWindow& b_block_window,
+        CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& /*a_block_window*/,
+                                          const BSmemBlockWindow& /*b_block_window*/,
                                           bool_constant<ALoadTranspose> = {},
                                           bool_constant<BLoadTranspose> = {})
         {
-            load_int4_tile<ADataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
-                a_warp_tile_, a_block_window);
-            // If B datatype were pkint4 it would be converted prior to storing in LDS
-            load_int4_tile<OverrideBDataType, ComputeDataType, UnaryOpSize_, BLoadTranspose>(
-                b_warp_tile_, b_block_window);
+            static_assert(false, "Not implemented yet!");
         }
 
         // C += A * B
-        template <typename CBlockTensor,
-                  typename AQBlockTensor,
-                  typename BQBlockTensor,
-                  typename ASmemBlockWindow,
-                  typename BSmemBlockWindow>
+        template <typename CBlockTensor, typename AQBlockTensor, typename BQBlockTensor>
         CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                       const ALdsTile& a_warp_tile_,
+                                       const BLdsTile& b_warp_tile_,
                                        AQBlockTensor& aq_block_tensor,
-                                       BQBlockTensor& bq_block_tensor,
-                                       [[maybe_unused]] ASmemBlockWindow& a_block_window,
-                                       [[maybe_unused]] BSmemBlockWindow& b_block_window)
+                                       BQBlockTensor& bq_block_tensor)
         {
             static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
                           "The CDataType as defined in traits should be the same as corresponding "
                           "C block tensor data type!");
             constexpr auto warp_size = get_warp_size();
 
+            auto q_block_tensor = aq_block_tensor;
+            if constexpr(Traits::NQPerBlock / NWarp == 1)
+            {
+                constexpr auto aq_spans = AQBlockTensor::get_distributed_spans();
+                sweep_tile_span(aq_spans[I0{}], [&](auto im) {
+                    sweep_tile_span(aq_spans[I1{}], [&](auto ik) {
+                        q_block_tensor(make_tuple(im, ik)) *=
+                            bq_block_tensor(make_tuple(tile_distributed_index<0>{}, ik));
+                    });
+                });
+            }
+
             // hot loop:
-            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+            static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
+                static_for_product<number<NIterPerWarp>, number<MIterPerWarp>>{}([&](auto nIter,
+                                                                                     auto mIter) {
                     CWarpTensor c_warp_tensor;
+                    static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
+                        static_assert(Traits::KIterPerQScale == 1);
+                        constexpr auto kIter =
+                            number<kQScale * Traits::KIterPerQScale + kIterInQScale>{};
 
-                    static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
-                        static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
-                            constexpr auto kIter = kQScale * Traits::KIterPerQScale + kIterInQScale;
+                        AWarpTensor a_warp_tensor;
+                        a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
+                            merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+                        BWarpTensor b_warp_tensor;
+                        b_warp_tensor.get_thread_buffer() =
+                            b_warp_tile_[nIter][kIter].get_thread_buffer();
+                        if constexpr(kIterInQScale == 0)
+                        {
+                            c_warp_tensor = WarpGemm{}(a_warp_tensor, b_warp_tensor);
+                        }
+                        else
+                        {
+                            WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                        }
+                    });
 
-                            AWarpTensor a_warp_tensor;
-                            a_warp_tensor.get_thread_buffer() =
-                                a_warp_tile_.get_y_sliced_thread_data(
-                                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
-
-                            BWarpTensor b_warp_tensor;
-                            b_warp_tensor.get_thread_buffer() =
-                                b_warp_tile_.get_y_sliced_thread_data(
-                                    merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
-                                    merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
-
-                            if constexpr(kIterInQScale == 0)
-                            {
-                                c_warp_tensor = WarpGemm{}(a_warp_tensor, b_warp_tensor);
-                            }
-                            else
-                            {
-                                WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
-                            }
+                    if constexpr(Traits::NQPerBlock / NWarp == 1)
+                    {
+                        constexpr auto cw_spans = CWarpTensor::get_distributed_spans();
+                        static_assert(cw_spans[I0{}].impl_.size() == 0);
+                        sweep_tile_span(cw_spans[I1{}], [&](auto in) {
+                            constexpr auto block_idx_m = tile_distributed_index<mIter>{};
+                            constexpr auto block_idx_n = detail::make_tile_distributed_index(
+                                merge_sequences(sequence<nIter>{}, in.impl_));
+                            constexpr auto block_idx_kq = tile_distributed_index<kQScale>{};
+                            constexpr auto empty_idx    = tile_distributed_index<>{};
+                            c_block_tensor(make_tuple(block_idx_m, block_idx_n)) +=
+                                c_warp_tensor(make_tuple(empty_idx, in)) *
+                                q_block_tensor(make_tuple(block_idx_m, block_idx_kq));
                         });
+                    }
+                    else
+                    {
 
                         constexpr auto tbuf_offset =
                             number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
@@ -387,45 +426,24 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                                          b_scale_reg_f);
                                 });
                         }
-                    });
+                    }
                 });
             });
         }
     };
 
     public:
-    CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
+    template <typename... Args>
+    CK_TILE_DEVICE void LocalPrefetch(Args&&... args)
     {
-        return BlockGemmQuantCommon<CDataType, WarpGemm, MIterPerWarp, MWarp, NIterPerWarp, NWarp>::
-            MakeCBlockTile();
-    }
-
-    template <typename ASmemBlockWindow,
-              typename BSmemBlockWindow,
-              bool ALoadTranspose = false,
-              bool BLoadTranspose = false>
-    CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                      const BSmemBlockWindow& b_block_window,
-                                      bool_constant<ALoadTranspose> a_load_tr = {},
-                                      bool_constant<BLoadTranspose> b_load_tr = {})
-    {
-        block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window, a_load_tr, b_load_tr);
+        block_gemm_impl_.LocalPrefetch(std::forward<Args>(args)...);
     }
 
     // C += A * B
-    template <typename CBlockTensor,
-              typename AQBlockTensor,
-              typename BQBlockTensor,
-              typename ASmemBlockWindow,
-              typename BSmemBlockWindow>
-    CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                   AQBlockTensor& aq_block_tensor,
-                                   BQBlockTensor& bq_block_tensor,
-                                   const ASmemBlockWindow& a_block_window,
-                                   const BSmemBlockWindow& b_block_window)
+    template <typename CBlockTensor, typename... Rest>
+    CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor, Rest&&... rest)
     {
-        block_gemm_impl_(
-            c_block_tensor, aq_block_tensor, bq_block_tensor, a_block_window, b_block_window);
+        block_gemm_impl_(c_block_tensor, std::forward<Rest>(rest)...);
     }
 
     private:

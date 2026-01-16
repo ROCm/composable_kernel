@@ -40,13 +40,15 @@ template <typename BufferView_,
 struct tensor_view
 {
     using buffer_view = remove_reference_t<BufferView_>;
-    using DataType    = typename buffer_view::type;
+    using DataType    = remove_cvref_t<typename buffer_view::type>;
     using TensorDesc  = remove_cvref_t<TensorDesc_>;
     using TensorIndex = array<index_t, TensorDesc::get_num_of_top_dimension()>;
     using TensorCoord = decltype(make_tensor_coordinate(TensorDesc{}, TensorIndex{}));
-    static constexpr auto DstInMemOp = DstInMemOp_;
-    static constexpr index_t PackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
+    static constexpr auto DstInMemOp    = DstInMemOp_;
+    static constexpr index_t PackedSize = ck_tile::numeric_traits<DataType>::PackedSize;
+
+    template <typename T>
+    using vector_scalar_t = typename vector_traits<remove_cvref_t<T>>::scalar_type;
 
     CK_TILE_HOST_DEVICE constexpr tensor_view() = default;
 
@@ -75,7 +77,7 @@ struct tensor_view
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
     get_vectorized_elements(const TensorCoord& coord,
@@ -93,7 +95,7 @@ struct tensor_view
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
     get_vectorized_elements(const TensorCoord& coord,
@@ -114,7 +116,7 @@ struct tensor_view
               bool pre_nop               = false,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE void get_vectorized_elements_raw(remove_cvref_t<X>& dst,
                                                          const TensorCoord& coord,
@@ -135,7 +137,7 @@ struct tensor_view
               bool pre_nop               = false,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE void get_vectorized_elements_raw(remove_cvref_t<X>& dst,
                                                          const TensorCoord& coord,
@@ -154,12 +156,30 @@ struct tensor_view
 
     template <typename X,
               bool oob_conditional_check = true,
-              typename std::enable_if<
-                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
-                  bool>::type = false>
+              index_t IMM                = 0,
+              typename                   = std::enable_if_t<
+                                    std::is_same_v<vector_scalar_t<remove_cvref_t<X>>, vector_scalar_t<DataType>>>>
     CK_TILE_HOST_DEVICE constexpr void
-    async_get_vectorized_elements(CK_TILE_LDS_ADDR remove_cvref_t<DataType>* smem,
+    async_get_vectorized_elements(CK_TILE_LDS_ADDR DataType* smem,
+                                  index_t offset,
+                                  index_t wave_offset,
+                                  number<IMM>                          = {},
+                                  bool_constant<oob_conditional_check> = {}) const
+    {
+        return buf_.template async_get<X>(smem,
+                                          offset / PackedSize,
+                                          wave_offset,
+                                          number<IMM / PackedSize>{},
+                                          true,
+                                          bool_constant<oob_conditional_check>{});
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename                   = std::enable_if_t<
+                                    std::is_same_v<vector_scalar_t<remove_cvref_t<X>>, vector_scalar_t<DataType>>>>
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements(CK_TILE_LDS_ADDR DataType* smem,
                                   const TensorCoord& coord,
                                   index_t linear_offset,
                                   bool_constant<oob_conditional_check> = {}) const
@@ -167,6 +187,7 @@ struct tensor_view
         return buf_.template async_get<X>(
             smem,
             coord.get_offset() / PackedSize + linear_offset / PackedSize,
+            0,
             0, // linear_offset need to be imm and is not supported currently
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
             bool_constant<oob_conditional_check>{});
@@ -174,12 +195,11 @@ struct tensor_view
 
     template <typename X,
               bool oob_conditional_check = true,
-              typename std::enable_if<
-                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
-                  bool>::type = false>
+              typename                   = std::enable_if_t<
+                                    std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                                   typename vector_traits<DataType>::scalar_type>>>
     CK_TILE_HOST_DEVICE constexpr void
-    async_get_vectorized_elements(CK_TILE_LDS_ADDR remove_cvref_t<DataType>* smem,
+    async_get_vectorized_elements(CK_TILE_LDS_ADDR DataType* smem,
                                   const TensorCoord& coord,
                                   index_t linear_offset,
                                   bool is_valid_element,
@@ -187,6 +207,7 @@ struct tensor_view
     {
         return buf_.template async_get<X>(smem,
                                           coord.get_offset() / PackedSize,
+                                          0,
                                           linear_offset / PackedSize,
                                           is_valid_element,
                                           bool_constant<oob_conditional_check>{});
@@ -196,10 +217,10 @@ struct tensor_view
               bool pre_nop = false,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
-    async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
+    async_get_vectorized_elements_raw(DataType* smem,
                                       const TensorCoord& coord,
                                       index_t linear_offset,
                                       bool_constant<pre_nop> = {}) const
@@ -216,10 +237,10 @@ struct tensor_view
               bool pre_nop = false,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
-    async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
+    async_get_vectorized_elements_raw(DataType* smem,
                                       const TensorCoord& coord,
                                       index_t coord_extra_offset,
                                       index_t linear_offset,
@@ -237,10 +258,10 @@ struct tensor_view
               bool pre_nop = false,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
-    async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
+    async_get_vectorized_elements_raw(DataType* smem,
                                       const TensorCoord& coord,
                                       index_t linear_offset,
                                       bool is_valid_element,
@@ -256,7 +277,7 @@ struct tensor_view
     template <typename X,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
     get_transpose_vectorized_elements(const TensorCoord& coord, index_t linear_offset) const
@@ -270,7 +291,7 @@ struct tensor_view
     template <typename X,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
     get_transpose_vectorized_elements(const TensorCoord& coord,
@@ -286,7 +307,7 @@ struct tensor_view
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
     set_vectorized_elements(const TensorCoord& coord,
@@ -305,7 +326,7 @@ struct tensor_view
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
     set_vectorized_elements(const TensorCoord& coord,
@@ -322,7 +343,7 @@ struct tensor_view
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
     set_vectorized_elements_raw(const TensorCoord& coord,
@@ -341,7 +362,7 @@ struct tensor_view
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
     set_vectorized_elements_raw(const TensorCoord& coord,
@@ -360,7 +381,7 @@ struct tensor_view
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
     update_vectorized_elements(const TensorCoord& coord,
@@ -379,7 +400,7 @@ struct tensor_view
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
     update_vectorized_elements(const TensorCoord& coord,
@@ -399,7 +420,7 @@ struct tensor_view
               bool pre_nop               = false,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
     update_vectorized_elements_raw(const TensorCoord& coord,
@@ -420,7 +441,7 @@ struct tensor_view
               bool pre_nop               = false,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                                 typename vector_traits<DataType>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void
     update_vectorized_elements_raw(const TensorCoord& coord,

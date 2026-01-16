@@ -1068,6 +1068,14 @@ CK_TILE_HOST_DEVICE constexpr auto to_sequence(tuple<number<Is>...>)
     return sequence<Is...>{};
 }
 
+template <index_t... Is>
+using number_tuple = tuple<number<Is>...>;
+template <index_t... Is>
+CK_TILE_HOST_DEVICE constexpr auto to_number_tuple(sequence<Is...> = {})
+{
+    return number_tuple<Is...>{};
+}
+
 namespace detail {
 template <index_t h_idx, typename SeqSortedSamples, typename SeqRange>
 struct sorted_sequence_histogram;

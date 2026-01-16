@@ -19,13 +19,13 @@ template <typename TileDistributedSpan_, // tile_distributed_span<...>
           >
 CK_TILE_DEVICE void sweep_tile_span(TileDistributedSpan_, const F& f)
 {
-    using DstrSpan = remove_cvref_t<TileDistributedSpan_>;
+    using DstrSpanImpl = typename remove_cvref_t<TileDistributedSpan_>::Impl;
 
-    static_ford<typename DstrSpan::Impl>{}([&](auto dstr_idx_impl) {
-        constexpr auto dstr_idx = detail::make_tile_distributed_index(dstr_idx_impl);
-
-        f(dstr_idx);
-    });
+    if constexpr(DstrSpanImpl::size() == 0) // handle the 0-dim span case
+        f(detail::make_tile_distributed_index(sequence<>{}));
+    else
+        static_ford<DstrSpanImpl>{}(
+            [&](auto dstr_idx_impl) { f(detail::make_tile_distributed_index(dstr_idx_impl)); });
 }
 
 // unpacked span, this version support span with unpack(multi-arg) functor
