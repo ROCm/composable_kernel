@@ -6,7 +6,7 @@
 #include "utils/conv_algorithm_type_utils.hpp"
 #include "ck_tile/builder/testing/conv/fwd.hpp"
 #include "ck_tile/builder/testing/conv/fwd_ck.hpp"
-#include "ck_tile/builder/testing/conv/fwd_reference.hpp"
+#include "ck_tile/builder/testing/conv/reference.hpp"
 #include "ck_tile/host/device_prop.hpp"
 #include "testing_utils.hpp"
 
@@ -55,6 +55,7 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
 {
     if(!ck_tile::get_device_name().starts_with("gfx9"))
     {
+        // Note: XDL kernel
         GTEST_SKIP() << "unsupported architecture";
     }
 

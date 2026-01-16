@@ -55,7 +55,7 @@ struct ConvTensorLengths
 ///
 /// @see Args
 template <auto SIGNATURE>
-    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+    requires ValidConvSignature<SIGNATURE>
 struct Args<SIGNATURE>
 {
     constexpr static auto SPATIAL_DIM = SIGNATURE.spatial_dim;

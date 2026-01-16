@@ -10,7 +10,7 @@
 #include <array>
 
 /// This file contains the implementation details for invoking/testing
-/// grouped convolution operations in old CK. The main item is the
+/// fwd grouped convolution operations in old CK. The main item is the
 /// `run()` function, which is the main implementation used to invoke
 /// CK grouped forward convolution kernels.
 
@@ -18,10 +18,9 @@ namespace ck_tile::builder::test {
 
 namespace detail {
 
-/// @brief Concept for checking whether this is the reference convolution
-/// implementation.
+/// @brief Concept for checking whether a fwd convolution is invoked like old CK.
 ///
-/// This is the same as `::ck_tile::builder::test::CkConvInstance`, except
+/// This is the same as `::ck_tile::builder::test::CkConvFwdInstance`, except
 /// with some utility aliases. For that reason, its moved to this detail
 /// namespace.
 template <typename Conv,
@@ -29,18 +28,21 @@ template <typename Conv,
           size_t SPATIAL_DIM = SIGNATURE.spatial_dim,
           // TODO: We shouldn't need to call into an internal namespace here.
           typename Ops = factory::internal::ConvElementwiseOps<SIGNATURE>>
-concept CkConvInstance = requires(Conv& conv,
-                                  // TODO: This should be changed depending on IsMultiA etc.
-                                  // Currently that is not yet supported elsewhere anyway.
-                                  const void* p_a,
-                                  const void* p_b,
-                                  void* p_e,
-                                  std::array<index_t, SPATIAL_DIM + 3> lengths,
-                                  std::array<index_t, SPATIAL_DIM + 3> strides,
-                                  std::array<index_t, SPATIAL_DIM> filter,
-                                  Ops::InElementwiseOp elementwise_a,
-                                  Ops::WeiElementwiseOp elementwise_b,
-                                  Ops::OutElementwiseOp elementwise_cde) {
+concept CkConvFwdInstance = requires(Conv& conv,
+                                     // TODO: This should be changed depending on IsMultiA etc.
+                                     // Currently that is not yet supported elsewhere anyway.
+                                     const void* p_a,
+                                     const void* p_b,
+                                     void* p_e,
+                                     std::array<index_t, SPATIAL_DIM + 3> lengths,
+                                     std::array<index_t, SPATIAL_DIM + 3> strides,
+                                     std::array<index_t, SPATIAL_DIM> filter,
+                                     Ops::InElementwiseOp elementwise_a,
+                                     Ops::WeiElementwiseOp elementwise_b,
+                                     Ops::OutElementwiseOp elementwise_cde) {
+    requires ValidConvSignature<SIGNATURE>;
+    requires ConvDirectionIsForward<SIGNATURE>;
+
     {
         conv.MakeArgument(p_a,
                           p_b,
@@ -73,7 +75,7 @@ concept CkConvInstance = requires(Conv& conv,
 
 } // namespace detail
 
-/// @brief Concept for checking whether a convolution is invoked like old CK.
+/// @brief Concept for checking whether a fwd convolution is invoked like old CK.
 ///
 /// This concept is used to tell whether a convolution implementation is
 /// likely to be an "old CK" implementation - that is, whether we should
@@ -83,7 +85,7 @@ concept CkConvInstance = requires(Conv& conv,
 /// - SIGNATURE is the operation signature.
 /// - Conv is a convolution instance created by the CK Builder API.
 template <typename Conv, auto SIGNATURE>
-concept CkConvInstance = detail::CkConvInstance<Conv, SIGNATURE>;
+concept CkConvFwdInstance = detail::CkConvFwdInstance<Conv, SIGNATURE>;
 
 /// @brief `run()` specialization for forward convolution and old CK.
 ///
