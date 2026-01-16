@@ -49,14 +49,13 @@ XDL and WMMA algorithms share a common base, while DL algorithms have their own 
 Both XDL and WMMA algorithms share the following foundational concepts:
 
 ```
-ConvAlgorithm (Base Concept)
+ConvWarpGemmAlgorithm (Base Concept)
 │
 │  Requirements:
 │  • ConvAlgorithmDescriptor
 │  • SpecifiesThreadBlock
 │  • SpecifiesTileTransferParameters (ThreadClusters, LdsTransfer, AccessOrders)
 │  • SpecifiesWarpGemm
-│  • SpecifiesGemmPipeline
 │
 ├─── FwdAlgorithm (Forward Convolution)
 │    │
@@ -64,7 +63,7 @@ ConvAlgorithm (Base Concept)
 │    │
 │    └─── FwdAlgorithmV3
 │         │
-│         │  Additional: SpecifiesPipelineV3
+│         │  Additional: SpecifiesPipelineV3 + SpecifiesGemmPipeline
 │         │
 │
 └─── BwdAlgorithm (Backward Weight Convolution)
@@ -73,7 +72,7 @@ ConvAlgorithm (Base Concept)
      │
      └─── BwdAlgorithmV3
           │
-          │  Additional: SpecifiesPipelineV3
+          │  Additional: SpecifiesPipelineV3 + SpecifiesGemmPipeline
           │
 ```
 

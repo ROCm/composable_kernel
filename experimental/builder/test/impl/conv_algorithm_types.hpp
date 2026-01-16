@@ -543,8 +543,6 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle =
                           WarpGemm_,
                           InputOutputTileTransfer_<4>,
                           ConvSpecializationBwdWeight_,
-                          GemmPipeline_, // Not needed, but we need this to meet the ConvAlgorithm
-                                         // concept.
                           TransposeParams_,
                           AlgorithmSpecialization_<>>;
 
@@ -594,8 +592,6 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WarpGemm_,
                           InputOutputTileTransfer_<4>,
-                          GemmPipeline_, // Not needed, but we need this to meet the ConvAlgorithm
-                                         // concept.
                           ConvSpecializationBwdWeight_,
                           AlgorithmSpecialization_<MULTIPLE_D>>;
 

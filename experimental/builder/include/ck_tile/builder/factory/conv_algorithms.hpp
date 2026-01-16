@@ -14,23 +14,22 @@ concept SpecifiesTileTransferParameters =
 
 // Base algorithm concepts
 template <typename T, size_t ThreadClusterRank = 3>
-concept ConvAlgorithm = ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> &&
+concept ConvWarpGemmAlgorithm = ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> &&
                         SpecifiesTileTransferParameters<T, ThreadClusterRank> &&
-                        SpecifiesWarpGemm<T> && SpecifiesGemmPipeline<T>;
-;
+                        SpecifiesWarpGemm<T>;
 
 template <typename T>
-concept FwdAlgorithm = ConvAlgorithm<T, 3> && SpecifiesFwdConvSpecialization<T>;
+concept FwdAlgorithm = ConvWarpGemmAlgorithm<T, 3> && SpecifiesFwdConvSpecialization<T>;
 
 template <typename T>
-concept FwdAlgorithmV3 = FwdAlgorithm<T> && SpecifiesPipelineV3<T>;
+concept FwdAlgorithmV3 = FwdAlgorithm<T> && SpecifiesPipelineV3<T> && SpecifiesGemmPipeline<T>;
 
 template <typename T, size_t ThreadClusterRank = 3>
 concept BwdAlgorithm =
-    ConvAlgorithm<T, ThreadClusterRank> && SpecifiesBwdWeightConvSpecialization<T>;
+    ConvWarpGemmAlgorithm<T, ThreadClusterRank> && SpecifiesBwdWeightConvSpecialization<T>;
 
 template <typename T>
-concept BwdAlgorithmV3 = BwdAlgorithm<T, 3> && SpecifiesPipelineV3<T>;
+concept BwdAlgorithmV3 = BwdAlgorithm<T, 3> && SpecifiesPipelineV3<T> && SpecifiesGemmPipeline<T>;
 
 template <typename T>
 concept DlAlgorithm =
