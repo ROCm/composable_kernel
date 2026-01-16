@@ -12,6 +12,7 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/functional.hpp"
 #include "ck/utility/functional2.hpp"
+#include "ck/utility/static_for_indexed.hpp"
 #include "ck/utility/functional3.hpp"
 #include "ck/utility/functional4.hpp"
 #include "ck/utility/enable_if.hpp"
