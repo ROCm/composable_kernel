@@ -947,7 +947,7 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                 ( 96, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32,  96,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (128, 128) : [FmhaFwdTileSize( 16,  32,  64, 128,  32, 128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                               FmhaFwdTileSize( 32,  32, 128, 128,  32, 128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-                              FmhaFwdTileSize( 64, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 16,  -1,CppConstraint('get_num_blocks(64) <= num_cus')),
+                              FmhaFwdTileSize( 64, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 16,  -1, CppConstraint('get_num_blocks(64) <= num_cus')),
                               FmhaFwdTileSize(128,  64,  32, 128,  16, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                               FmhaFwdTileSize(128, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
               # (160, 160) : [FmhaFwdTileSize(128, 128 , 32, 160,  32, 160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
