@@ -512,8 +512,11 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
-        false,
-        false>;
+        false, // PermuteA
+        false, // PermuteB
+        false, // IsBPreshuffled
+        true   // ForceThreadTileTransfer
+        >;
 
     // block-to-e-tile map
     using Block2ETileMap = GridwiseGemm::Block2CTileMap;
@@ -782,8 +785,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
                 }
                 else
                 {
-                    printf("Invalid HasMainKBlockLoop and TailNum combination for V1!\n");
-                    return 0.0f;
+                    throw std::runtime_error(
+                        "Invalid HasMainKBlockLoop and TailNum combination for pipeline V1!\n");
                 }
             }
             else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
@@ -805,14 +808,13 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
                 }
                 else
                 {
-                    printf("Invalid HasMainKBlockLoop and TailNum combination for V3!\n");
-                    return 0.0f;
+                    throw std::runtime_error(
+                        "Invalid HasMainKBlockLoop and TailNum combination for pipeline V3!\n");
                 }
             }
             else
             {
-                printf("Invalid pipeline version!\n");
-                return 0.0f;
+                throw std::runtime_error("Invalid pipeline version! Only V1 and V3 supported\n");
             }
         }
 
