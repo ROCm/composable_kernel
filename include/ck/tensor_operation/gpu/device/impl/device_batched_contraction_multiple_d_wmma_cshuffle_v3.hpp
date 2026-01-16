@@ -54,19 +54,28 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     static_for<0, NumDTensor, 1>{}(
         [&](auto i) { p_ds_grid_batch(i) = karg.p_ds_grid_[i] + ds_batch_offset[i]; });
 
-    constexpr index_t LDS_size =
-        GridwiseOp::template GetSharedMemoryNumberOfByte<typename GridwiseOp::EpilogueCShuffle>();
+    using EpilogueType = typename std::conditional<GridwiseOp::IsBWaveTransferApplicable &&
+                                                       GridwiseOp::UseDirectStore,
+                                                   typename GridwiseOp::EpilogueDirectStore,
+                                                   typename GridwiseOp::EpilogueCShuffle>::type;
+
+    constexpr index_t LDS_size = GridwiseOp::template GetSharedMemoryNumberOfByte<EpilogueType>();
     __shared__ char p_shared[LDS_size];
 
-    auto epilogue_args = typename GridwiseOp::EpilogueCShuffle{};
+    const auto a_grid_desc_ak0_m_ak1 =
+        GridwiseOp::MakeAGridDescriptor_AK0_M_AK1(karg.a_grid_desc_m_k_);
+    const auto b_grid_desc_bk0_n_bk1 =
+        GridwiseOp::MakeBGridDescriptor_BK0_N_BK1(karg.b_grid_desc_n_k_);
+
+    auto epilogue_args = EpilogueType{};
     GridwiseOp::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set, TailNum>(
         p_as_grid_batch,
         p_bs_grid_batch,
         p_ds_grid_batch,
         karg.p_e_grid_ + e_batch_offset,
         p_shared,
-        karg.as_grid_desc_ak0_m_ak1_,
-        karg.bs_grid_desc_bk0_n_bk1_,
+        make_tuple(a_grid_desc_ak0_m_ak1),
+        make_tuple(b_grid_desc_bk0_n_bk1),
         karg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
         karg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
         karg.block_2_etile_map_,
@@ -194,8 +203,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
 
     // Assume: A[G0, G1, ..., M0, M1, M2, ..., K0, K1, K2, ...]
-    static auto MakeAsGridDescriptor_M_K(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
-                                         const std::vector<index_t>& a_gs_ms_ks_strides_vec)
+    static auto MakeAGridDescriptor_M_K(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
+                                        const std::vector<index_t>& a_gs_ms_ks_strides_vec)
     {
         assert(a_gs_ms_ks_lengths_vec.size() == NumDimG + NumDimM + NumDimK &&
                a_gs_ms_ks_strides_vec.size() == NumDimG + NumDimM + NumDimK);
@@ -230,7 +239,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
                 make_tuple(M, K),
                 make_tuple(a_ms_ks_strides[Number<NumDimM - 1>{}],
                            a_ms_ks_strides[Number<NumDimM + NumDimK - 1>{}]));
-            return make_tuple(matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw));
+            return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
         }
         else
         {
@@ -245,13 +254,13 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
                 make_tuple(mDimIds, kDimIds),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            return make_tuple(matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw));
+            return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
         }
     }
 
     // Assume: B[G0, G1, ..., N0, N1, N2, ..., K0, K1, K2, ...]
-    static auto MakeBsGridDescriptor_N_K(const std::vector<index_t>& b_gs_ns_ks_lengths_vec,
-                                         const std::vector<index_t>& b_gs_ns_ks_strides_vec)
+    static auto MakeBGridDescriptor_N_K(const std::vector<index_t>& b_gs_ns_ks_lengths_vec,
+                                        const std::vector<index_t>& b_gs_ns_ks_strides_vec)
     {
         assert(b_gs_ns_ks_lengths_vec.size() == NumDimG + NumDimN + NumDimK &&
                b_gs_ns_ks_strides_vec.size() == NumDimG + NumDimN + NumDimK);
@@ -286,7 +295,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
                 make_tuple(N, K),
                 make_tuple(b_ns_ks_strides[Number<NumDimN - 1>{}],
                            b_ns_ks_strides[Number<NumDimN + NumDimK - 1>{}]));
-            return make_tuple(matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw));
+            return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
         }
         else
         {
@@ -301,7 +310,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
                 make_tuple(nDimIds, kDimIds),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            return make_tuple(matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw));
+            return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
         }
     }
 
@@ -513,28 +522,21 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
         ComputeTypeA,
         ComputeTypeB,
         false, // PermuteA
-        false, // PermuteB
-        false, // IsBPreshuffled
-        true   // ForceThreadTileTransfer
+        false  // PermuteB
         >;
 
     // block-to-e-tile map
     using Block2ETileMap = GridwiseGemm::Block2CTileMap;
 
     // problem grid descriptors
-    using AsGridDesc_M_K = decltype(MakeAsGridDescriptor_M_K({}, {}));
-    using BsGridDesc_N_K = decltype(MakeBsGridDescriptor_N_K({}, {}));
+    using AGridDesc_M_K  = decltype(MakeAGridDescriptor_M_K({}, {}));
+    using BGridDesc_N_K  = decltype(MakeBGridDescriptor_N_K({}, {}));
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({{}}, {{}}))>;
     using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N({}, {}));
 
     using DsGridDesc_G_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_G_M_N({}, {}))>;
     using EGridDesc_G_M_N  = decltype(MakeEGridDescriptor_G_M_N({}, {}));
 
-    // desc for blockwise copy
-    using AsGridDesc_AK0_M_AK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeAsGridDescriptor_AK0_M_AK1(AsGridDesc_M_K{}))>;
-    using BsGridDesc_BK0_N_BK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeBsGridDescriptor_BK0_N_BK1(BsGridDesc_N_K{}))>;
     using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
         decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             DsGridDesc_M_N{}, 0, 0))>;
@@ -613,10 +615,10 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e_grid)},
               KBatch(1),
-              as_grid_desc_m_k_{
-                  DeviceOp::MakeAsGridDescriptor_M_K(a_gs_ms_ns_lengths, a_gs_ms_ks_strides)},
-              bs_grid_desc_n_k_{
-                  DeviceOp::MakeBsGridDescriptor_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
+              a_grid_desc_m_k_{
+                  DeviceOp::MakeAGridDescriptor_M_K(a_gs_ms_ns_lengths, a_gs_ms_ks_strides)},
+              b_grid_desc_n_k_{
+                  DeviceOp::MakeBGridDescriptor_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
               ds_grid_desc_m_n_{},
               e_grid_desc_m_n_{
                   DeviceOp::MakeEGridDescriptor_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides)},
@@ -624,10 +626,6 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
                   DeviceOp::MakeDsGridDescriptor_G_M_N(ds_gs_ms_ns_lengths, ds_gs_ms_ns_strides)},
               e_grid_desc_g_m_n_{
                   DeviceOp::MakeEGridDescriptor_G_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides)},
-              as_grid_desc_ak0_m_ak1_{
-                  GridwiseGemm::MakeAsGridDescriptor_AK0_M_AK1(as_grid_desc_m_k_)},
-              bs_grid_desc_bk0_n_bk1_{
-                  GridwiseGemm::MakeBsGridDescriptor_BK0_N_BK1(bs_grid_desc_n_k_)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
               a_element_op_{a_element_op},
@@ -657,7 +655,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
             G   = e_grid_desc_g_m_n_.GetLength(I0);
             M   = e_grid_desc_g_m_n_.GetLength(I1);
             N   = e_grid_desc_g_m_n_.GetLength(I2);
-            K   = as_grid_desc_m_k_.At(I0).GetLength(I1);
+            K   = a_grid_desc_m_k_.GetLength(I1);
             AK0 = GridwiseGemm::CalculateAK0Padded(K);
 
             index_t MBlock = GridwiseGemm::CalculateMBlock(M);
@@ -676,8 +674,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
 
         void Print() const
         {
-            std::cout << "A[M, K]: " << as_grid_desc_m_k_ << std::endl;
-            std::cout << "B[N, K]: " << bs_grid_desc_n_k_ << std::endl;
+            std::cout << "A[M, K]: " << a_grid_desc_m_k_ << std::endl;
+            std::cout << "B[N, K]: " << b_grid_desc_n_k_ << std::endl;
             static_for<0, NumDTensor, 1>{}(
                 [&](auto i) { std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i] << std::endl; });
             std::cout << "E[M, N]: " << e_grid_desc_m_n_ << std::endl;
@@ -695,8 +693,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
         index_t AK0;    // Also included for compatibility
 
         // tensor descriptors for problem definiton
-        AsGridDesc_M_K as_grid_desc_m_k_;
-        BsGridDesc_N_K bs_grid_desc_n_k_;
+        AGridDesc_M_K a_grid_desc_m_k_;
+        BGridDesc_N_K b_grid_desc_n_k_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
         EGridDesc_M_N e_grid_desc_m_n_;
 
@@ -704,9 +702,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
         EGridDesc_G_M_N e_grid_desc_g_m_n_;
 
         // tensor descriptors for block/thread-wise copy
-        // tensor descriptors for block/thread-wise copy
-        AsGridDesc_AK0_M_AK1 as_grid_desc_ak0_m_ak1_;
-        BsGridDesc_BK0_N_BK1 bs_grid_desc_bk0_n_bk1_;
+        // AK0_M_AK1/BK0_N_BK1 are generated in the kernel to match the transfer method used
         DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
         EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock_;
