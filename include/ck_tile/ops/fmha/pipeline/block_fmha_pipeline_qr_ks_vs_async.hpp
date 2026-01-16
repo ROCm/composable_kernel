@@ -414,10 +414,9 @@ struct BlockFmhaPipelineQRKSVSAsync
             float k_descale = 1.0f;
             if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
             {
-                const auto k_origin = k_dram_block_window.get_window_origin();
-                const auto row      = k_origin.at(number<0>{});
-                const index_t idx   = row / block_scale_size_kv;
-                k_descale           = k_descale_ptr[idx];
+                // K and V share the same seqlen_k position within a block
+                const index_t kv_idx = (kv_load_start + i_total_loops * kN0) / block_scale_size_kv;
+                k_descale            = k_descale_ptr[kv_idx];
             }
             // STAGE 1, QK gemm
             clear_tile(s_acc); // initialize C
@@ -777,10 +776,9 @@ struct BlockFmhaPipelineQRKSVSAsync
             float v_descale = 1.0f;
             if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
             {
-                const auto v_origin = v_dram_window.get_window_origin();
-                const auto col      = v_origin.at(number<1>{});
-                const index_t idx   = col / block_scale_size_kv;
-                v_descale           = v_descale_ptr[idx];
+                // K and V share the same seqlen_k position within a block
+                const index_t kv_idx = (kv_load_start + i_total_loops * kN0) / block_scale_size_kv;
+                v_descale            = v_descale_ptr[kv_idx];
             }
             // STAGE 3, KV gemm
             auto o_acc0 = decltype(o_acc){};
