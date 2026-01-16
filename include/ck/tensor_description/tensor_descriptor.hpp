@@ -49,27 +49,29 @@ struct TensorDescriptor
         return unique_sort_all_dim_ids::Size();
     }
 
+    // Helper to get length of a visible dimension from transforms
+    template <index_t I>
+    __host__ __device__ static constexpr auto
+    GetVisibleDimLengthFromTransforms(const Transforms& transforms)
+    {
+        constexpr auto result =
+            find_in_tuple_of_sequences<VisibleDimensionIds::At(Number<I>{})>(UpperDimensionIdss{});
+        static_assert(result.found, "wrong! not found matching transformation and upper-dimension");
+        return transforms[Number<result.itran>{}].GetUpperLengths()[Number<result.idim_up>{}];
+    }
+
+    // Compute element size using pack expansion instead of generate_tuple with lambda
+    template <index_t... Is>
+    __host__ __device__ static constexpr auto ComputeElementSizeImpl(const Transforms& transforms,
+                                                                     Sequence<Is...>)
+    {
+        return (GetVisibleDimLengthFromTransforms<Is>(transforms) * ...);
+    }
+
     __host__ __device__ static constexpr auto InitializeElementSize(const Transforms& transforms)
     {
-        const auto lengths = generate_tuple(
-            [&](auto idim_visible) {
-                constexpr auto tmp = GetTransformAndItsUpperDimension(idim_visible);
-
-                constexpr index_t itran   = tmp[Number<0>{}];
-                constexpr index_t idim_up = tmp[Number<1>{}];
-                constexpr bool found      = tmp[Number<2>{}];
-
-                static_assert(found == true,
-                              "wrong! not found matching transformation and upper-dimension");
-
-                const auto length =
-                    transforms[Number<itran>{}].GetUpperLengths()[Number<idim_up>{}];
-
-                return length;
-            },
-            Number<ndim_visible_>{});
-
-        return container_product(lengths);
+        return ComputeElementSizeImpl(
+            transforms, typename arithmetic_sequence_gen<0, ndim_visible_, 1>::type{});
     }
 
     template <index_t IDim>
