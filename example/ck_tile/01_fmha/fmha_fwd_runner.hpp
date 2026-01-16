@@ -1138,9 +1138,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
                     args.v_descale_ptr =
                         reinterpret_cast<const float*>(v_descale_buf.GetDeviceBuffer());
 
-                    args.blk_scale_seqstart_q_ptr =
+                    args.block_scale_seqstart_q_ptr =
                         (mode == mode_enum::group ? bseqstart_q_buf.GetDeviceBuffer() : nullptr);
-                    args.blk_scale_seqstart_k_ptr =
+                    args.block_scale_seqstart_k_ptr =
                         (mode == mode_enum::group ? bseqstart_k_buf.GetDeviceBuffer() : nullptr);
 
                     args.nhead_stride_q_descale = nhead_stride_q_descale;

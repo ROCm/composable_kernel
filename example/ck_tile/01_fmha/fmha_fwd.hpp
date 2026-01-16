@@ -230,8 +230,8 @@ struct fmha_fwd_args
                                            // array [batch + 1]. (Used with padding)
     const void* cu_seqlen_k_ptr = nullptr; // Cumulative logical (excluding padding) sequence length
                                            // array [batch + 1]. (Used with padding)
-    const void* blk_scale_seqstart_q_ptr;
-    const void* blk_scale_seqstart_k_ptr;
+    const void* block_scale_seqstart_q_ptr;
+    const void* block_scale_seqstart_k_ptr;
     const void* sink_ptr;
 
     ck_tile::index_t seqlen_q;
@@ -626,8 +626,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.seqstart_k_ptr,
                                              args.seqlen_q_ptr,
                                              args.seqlen_k_ptr,
-                                             args.blk_scale_seqstart_q_ptr,
-                                             args.blk_scale_seqstart_k_ptr,
+                                             args.block_scale_seqstart_q_ptr,
+                                             args.block_scale_seqstart_k_ptr,
                                              args.hdim_q,
                                              args.hdim_v,
                                              args.nhead_q,

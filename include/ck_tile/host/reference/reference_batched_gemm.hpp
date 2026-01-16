@@ -51,9 +51,9 @@ template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CDataType,
-          typename AElementOp   = ck_tile::identity,
-          typename BElementOp   = ck_tile::identity,
-          typename ACCElementOp = ck_tile::identity>
+          typename AElementOp   = ck_tile::idx_identity,
+          typename BElementOp   = ck_tile::idx_identity,
+          typename ACCElementOp = ck_tile::idx_identity>
 CK_TILE_HOST void reference_batched_quant_gemm(const HostTensor<ADataType>& a_b_m_k,
                                                const HostTensor<BDataType>& b_b_n_k,
                                                HostTensor<CDataType>& c_b_m_n,
