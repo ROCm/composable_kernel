@@ -3,24 +3,23 @@
 
 #pragma once
 
-#include "ck/utility/common_header.hpp"
+#include "ck/ck.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/flush_cache.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_gemm_wmma_cshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
+#include <optional>
+#include <type_traits>
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
 template <typename GridwiseGemm,
-          typename Argument,
           typename AsDataType,
           typename BsDataType,
-          typename DsDataType,
-          typename EDataType,
+          typename CDataType,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -33,9 +32,163 @@ template <typename GridwiseGemm,
           BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename ComputeTypeA,
           typename ComputeTypeB,
-          bool IsBScaled = false>
+          bool IsBScaled,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          ck::index_t BPackedSize = ck::index_t{1},
+          typename BScaleDataType = Tuple<>>
 struct DeviceBatchedGemm_Wmma_CShuffleV3_Common
 {
+    struct ComputePtrOffsetOfStridedBatch
+    {
+        template <bool BScaled = IsBScaled, typename = typename std::enable_if_t<!BScaled>>
+        ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
+                                       index_t BatchStrideB,
+                                       index_t BatchStrideC)
+            : BatchStrideA_(BatchStrideA), BatchStrideB_(BatchStrideB), BatchStrideC_(BatchStrideC)
+        {
+        }
+
+        template <bool BScaled = IsBScaled, typename = typename std::enable_if_t<BScaled>>
+        ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
+                                       index_t BatchStrideB,
+                                       index_t BatchStrideC,
+                                       index_t BatchStrideScaleB)
+            : BatchStrideA_(BatchStrideA),
+              BatchStrideB_(BatchStrideB),
+              BatchStrideC_(BatchStrideC),
+              BatchStrideScaleB_(BatchStrideScaleB)
+        {
+        }
+
+        __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideA_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
+        {
+            static_assert(BPackedSize != 0);
+            static_assert(IsBScaled || (!IsBScaled && BPackedSize == 1));
+            return g_idx * static_cast<long_index_t>(BatchStrideB_) / BPackedSize;
+        }
+
+        __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideC_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetScaleBPtrOffset(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(*BatchStrideScaleB_);
+        }
+
+        private:
+        index_t BatchStrideA_;
+        index_t BatchStrideB_;
+        index_t BatchStrideC_;
+        std::optional<index_t> BatchStrideScaleB_;
+    };
+
+    struct Argument : public GridwiseGemm::Argument
+    {
+        using ADataType = typename AsDataType::DataType;
+        using BDataType = typename BsDataType::DataType;
+        template <bool BScaled = IsBScaled, typename = typename std::enable_if_t<!BScaled>>
+        __host__ Argument(const ADataType* p_a_grid_,
+                          const BDataType* p_b_grid_,
+                          CDataType* p_c_grid_,
+                          index_t M_,
+                          index_t N_,
+                          index_t K_,
+                          index_t StrideA_,
+                          index_t StrideB_,
+                          index_t StrideC_,
+                          index_t BatchStrideA_,
+                          index_t BatchStrideB_,
+                          index_t BatchStrideC_,
+                          index_t Batch_,
+                          index_t k_batch_,
+                          AElementwiseOperation a_element_op_,
+                          BElementwiseOperation b_element_op_,
+                          CElementwiseOperation cde_element_op_,
+                          bool is_reduce_ = false)
+            : GridwiseGemm::Argument(std::array<const void*, 1>{p_a_grid_},
+                                     std::array<const void*, 1>{p_b_grid_},
+                                     std::array<const void*, 0>{}, // p_ds_grid_
+                                     p_c_grid_,
+                                     M_,
+                                     N_,
+                                     K_,
+                                     std::array<index_t, 1>{StrideA_},
+                                     std::array<index_t, 1>{StrideB_},
+                                     std::array<index_t, 0>{}, // StrideDs_
+                                     StrideC_,
+                                     k_batch_,
+                                     a_element_op_,
+                                     b_element_op_,
+                                     cde_element_op_,
+                                     is_reduce_),
+              Batch(Batch_),
+              compute_ptr_offset_of_batch{BatchStrideA_, BatchStrideB_, BatchStrideC_}
+        {
+            static_assert(std::is_same_v<BScaleDataType, Tuple<>>);
+        }
+
+        template <bool BScaled = IsBScaled, typename = typename std::enable_if_t<BScaled>>
+        __host__ Argument(const ADataType* p_a_grid_,
+                          const BDataType* p_b_grid_,
+                          CDataType* p_c_grid_,
+                          index_t M_,
+                          index_t N_,
+                          index_t K_,
+                          index_t StrideA_,
+                          index_t StrideB_,
+                          index_t StrideC_,
+                          index_t StrideScaleB_,
+                          index_t BatchStrideA_,
+                          index_t BatchStrideB_,
+                          index_t BatchStrideC_,
+                          index_t BatchStrideScaleB_,
+                          const BScaleDataType* p_b_scale_grid_,
+                          index_t Batch_,
+                          index_t k_batch_,
+                          AElementwiseOperation a_element_op_,
+                          BElementwiseOperation b_element_op_,
+                          CElementwiseOperation c_element_op_,
+                          bool is_reduce_ = false)
+            : GridwiseGemm::Argument(std::array<const void*, 1>{p_a_grid_},
+                                     std::array<const void*, 1>{p_b_grid_},
+                                     std::array<const void*, 0>{}, // p_ds_grid_
+                                     p_c_grid_,
+                                     M_,
+                                     N_,
+                                     K_,
+                                     std::array<index_t, 1>{StrideA_},
+                                     std::array<index_t, 1>{StrideB_},
+                                     std::array<index_t, 0>{}, // StrideDs_
+                                     StrideC_,
+                                     0, // StrideScaleA
+                                     StrideScaleB_,
+                                     nullptr,
+                                     p_b_scale_grid_,
+                                     k_batch_,
+                                     a_element_op_,
+                                     b_element_op_,
+                                     c_element_op_,
+                                     is_reduce_),
+              Batch(Batch_),
+              compute_ptr_offset_of_batch{
+                  BatchStrideA_, BatchStrideB_, BatchStrideC_, BatchStrideScaleB_}
+        {
+            static_assert(!std::is_same_v<BScaleDataType, Tuple<>>);
+        }
+
+        index_t Batch;
+        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
+    };
+
     /// @brief  Helper structure responsible for kernel invocation.
     ///
     /// @paragraph  The `Invoker` class is responsible for preparation and invocation of actual GPU
@@ -129,7 +282,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_Common
                             HIP_CHECK_ERROR(
                                 hipMemsetAsync(arg_.p_e_grid,
                                                0,
-                                               arg_.Batch * arg_.M * arg_.N * sizeof(EDataType),
+                                               arg_.Batch * arg_.M * arg_.N * sizeof(CDataType),
                                                stream_config.stream_id_));
                     };
 
@@ -155,7 +308,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_Common
                             HIP_CHECK_ERROR(
                                 hipMemsetAsync(arg.p_e_grid,
                                                0,
-                                               arg.Batch * arg.M * arg.N * sizeof(EDataType),
+                                               arg.Batch * arg.M * arg.N * sizeof(CDataType),
                                                stream_config.stream_id_));
                     };
 
@@ -275,8 +428,8 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_Common
             return false;
         }
 
-        if constexpr(std::is_same_v<EDataType, ck::half_t> ||
-                     std::is_same_v<EDataType, ck::bhalf_t>)
+        if constexpr(std::is_same_v<CDataType, ck::half_t> ||
+                     std::is_same_v<CDataType, ck::bhalf_t>)
         {
             if(arg.KBatch > 1 && ck::is_gfx11_supported())
             {

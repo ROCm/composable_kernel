@@ -185,45 +185,6 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
     static_assert(PermuteB == false,
                   "Permute B functionality not supported by DeviceBatchedGemm operations.\n");
 
-    struct ComputePtrOffsetOfStridedBatch
-    {
-        ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
-                                       index_t BatchStrideB,
-                                       index_t BatchStrideC,
-                                       index_t BatchStrideScaleB)
-            : BatchStrideA_(BatchStrideA),
-              BatchStrideB_(BatchStrideB),
-              BatchStrideC_(BatchStrideC),
-              BatchStrideScaleB_(BatchStrideScaleB)
-        {
-        }
-
-        __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideA_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideB_) / GridwiseGemm::BPackedSize;
-        }
-
-        __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideC_);
-        }
-        __host__ __device__ constexpr long_index_t GetScaleBPtrOffset(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideScaleB_);
-        }
-
-        private:
-        index_t BatchStrideA_;
-        index_t BatchStrideB_;
-        index_t BatchStrideC_;
-        index_t BatchStrideScaleB_;
-    };
-
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3_ab_scale<
         ALayout,
@@ -282,66 +243,10 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
         PermuteA,  // PermuteA not supported by DeviceBatchedGemm base class.
         PermuteB>; // PermuteB not supported by DeviceBatchedGemm base class.
 
-    // Argument
-    struct Argument : public GridwiseGemm::Argument
-    {
-        __host__ Argument(const ADataType* p_a_grid_,
-                          const BDataType* p_b_grid_,
-                          CDataType* p_c_grid_,
-                          index_t M_,
-                          index_t N_,
-                          index_t K_,
-                          index_t StrideA_,
-                          index_t StrideB_,
-                          index_t StrideC_,
-                          index_t StrideScaleB_,
-                          index_t BatchStrideA_,
-                          index_t BatchStrideB_,
-                          index_t BatchStrideC_,
-                          index_t BatchStrideScaleB_,
-                          const BScaleDataType* p_b_scale_grid_,
-                          index_t Batch_,
-                          index_t k_batch_,
-                          AElementwiseOperation a_element_op_,
-                          BElementwiseOperation b_element_op_,
-                          CElementwiseOperation c_element_op_,
-                          bool is_reduce_ = false)
-            : GridwiseGemm::Argument(std::array<const void*, 1>{p_a_grid_},
-                                     std::array<const void*, 1>{p_b_grid_},
-                                     std::array<const void*, 0>{}, // p_ds_grid_
-                                     p_c_grid_,
-                                     M_,
-                                     N_,
-                                     K_,
-                                     std::array<index_t, 1>{StrideA_},
-                                     std::array<index_t, 1>{StrideB_},
-                                     std::array<index_t, 0>{}, // StrideDs_
-                                     StrideC_,
-                                     0, // StrideScaleA
-                                     StrideScaleB_,
-                                     nullptr,
-                                     p_b_scale_grid_,
-                                     k_batch_,
-                                     a_element_op_,
-                                     b_element_op_,
-                                     c_element_op_,
-                                     is_reduce_),
-              Batch(Batch_),
-              compute_ptr_offset_of_batch{
-                  BatchStrideA_, BatchStrideB_, BatchStrideC_, BatchStrideScaleB_}
-        {
-        }
-
-        index_t Batch;
-        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
-    };
-
     using DeviceGemmCommon = DeviceBatchedGemm_Wmma_CShuffleV3_Common<
         GridwiseGemm,
-        Argument,
         Tuple<ADataType>,
         Tuple<BDataType>,
-        Tuple<>,
         CDataType,
         MPerBlock,
         NPerBlock,
@@ -355,7 +260,15 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
-        true>; // IsBScaled
+        true, // IsBScaled
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        GridwiseGemm::BPackedSize,
+        BScaleDataType>;
+
+    // Argument
+    using Argument = typename DeviceGemmCommon::Argument;
 
     // Invoker
     using Invoker = typename DeviceGemmCommon::Invoker;

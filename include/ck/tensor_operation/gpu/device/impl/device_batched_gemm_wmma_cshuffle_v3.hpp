@@ -178,36 +178,6 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
     static_assert(PermuteB == false,
                   "Permute B functionality not supported by DeviceBatchedGemm operations.\n");
 
-    struct ComputePtrOffsetOfStridedBatch
-    {
-        ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
-                                       index_t BatchStrideB,
-                                       index_t BatchStrideC)
-            : BatchStrideA_(BatchStrideA), BatchStrideB_(BatchStrideB), BatchStrideC_(BatchStrideC)
-        {
-        }
-
-        __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideA_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideB_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideC_);
-        }
-
-        private:
-        index_t BatchStrideA_;
-        index_t BatchStrideB_;
-        index_t BatchStrideC_;
-    };
-
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         ALayout,
@@ -261,57 +231,10 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
         false,  // PermuteA not supported by DeviceBatchedGemm base class.
         false>; // PermuteB not supported by DeviceBatchedGemm base class.
 
-    // Argument
-    struct Argument : public GridwiseGemm::Argument
-    {
-        __host__ Argument(const ADataType* p_a_grid_,
-                          const BDataType* p_b_grid_,
-                          CDataType* p_c_grid_,
-                          index_t M_,
-                          index_t N_,
-                          index_t K_,
-                          index_t StrideA_,
-                          index_t StrideB_,
-                          index_t StrideC_,
-                          index_t BatchStrideA_,
-                          index_t BatchStrideB_,
-                          index_t BatchStrideC_,
-                          index_t Batch_,
-                          index_t k_batch_,
-                          AElementwiseOperation a_element_op_,
-                          BElementwiseOperation b_element_op_,
-                          CElementwiseOperation cde_element_op_,
-                          bool is_reduce_ = false)
-            : GridwiseGemm::Argument(std::array<const void*, 1>{p_a_grid_},
-                                     std::array<const void*, 1>{p_b_grid_},
-                                     std::array<const void*, 0>{}, // p_ds_grid_
-                                     p_c_grid_,
-                                     M_,
-                                     N_,
-                                     K_,
-                                     std::array<index_t, 1>{StrideA_},
-                                     std::array<index_t, 1>{StrideB_},
-                                     std::array<index_t, 0>{}, // StrideDs_
-                                     StrideC_,
-                                     k_batch_,
-                                     a_element_op_,
-                                     b_element_op_,
-                                     cde_element_op_,
-                                     is_reduce_),
-              Batch(Batch_),
-              compute_ptr_offset_of_batch{BatchStrideA_, BatchStrideB_, BatchStrideC_}
-        {
-        }
-
-        index_t Batch;
-        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
-    };
     using DeviceGemmCommon = DeviceBatchedGemm_Wmma_CShuffleV3_Common<
         GridwiseGemm,
-        Argument,
         Tuple<ADataType>,
         Tuple<BDataType>,
-        Tuple<>,
         CDataType,
         MPerBlock,
         NPerBlock,
@@ -324,7 +247,14 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
-        ComputeTypeB>;
+        ComputeTypeB,
+        false, // IsBScaled
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation>;
+
+    // Argument
+    using Argument = typename DeviceGemmCommon::Argument;
 
     // Invoker
     using Invoker = typename DeviceGemmCommon::Invoker;
