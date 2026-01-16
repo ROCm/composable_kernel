@@ -218,36 +218,32 @@ struct sequence_merge<Seq>
     using type = Seq;
 };
 
-// generate sequence
+// generate sequence - optimized using __make_integer_seq to avoid recursive instantiation
+namespace detail {
+
+// Helper that applies functor F to indices and produces a Sequence
+// __make_integer_seq<sequence_gen_helper, index_t, N> produces sequence_gen_helper<index_t, 0, 1, ..., N-1>
+template <typename T, T... Is>
+struct sequence_gen_helper
+{
+    // Apply a functor F to all indices at once via pack expansion (O(1) depth)
+    template <typename F>
+    using apply = Sequence<F{}(Number<Is>{})...>;
+};
+
+} // namespace detail
+
 template <index_t NSize, typename F>
 struct sequence_gen
 {
-    template <index_t IBegin, index_t NRemain, typename G>
-    struct sequence_gen_impl
-    {
-        static constexpr index_t NRemainLeft  = NRemain / 2;
-        static constexpr index_t NRemainRight = NRemain - NRemainLeft;
-        static constexpr index_t IMiddle      = IBegin + NRemainLeft;
+    using type = typename __make_integer_seq<detail::sequence_gen_helper, index_t, NSize>::
+        template apply<F>;
+};
 
-        using type = typename sequence_merge<
-            typename sequence_gen_impl<IBegin, NRemainLeft, G>::type,
-            typename sequence_gen_impl<IMiddle, NRemainRight, G>::type>::type;
-    };
-
-    template <index_t I, typename G>
-    struct sequence_gen_impl<I, 1, G>
-    {
-        static constexpr index_t Is = G{}(Number<I>{});
-        using type                  = Sequence<Is>;
-    };
-
-    template <index_t I, typename G>
-    struct sequence_gen_impl<I, 0, G>
-    {
-        using type = Sequence<>;
-    };
-
-    using type = typename sequence_gen_impl<0, NSize, F>::type;
+template <typename F>
+struct sequence_gen<0, F>
+{
+    using type = Sequence<>;
 };
 
 // arithmetic sequence
@@ -283,16 +279,30 @@ struct arithmetic_sequence_gen<0, IEnd, 1>
     using type = typename __make_integer_seq<WrapSequence, index_t, IEnd>::type;
 };
 
-// uniform sequence
+// uniform sequence - optimized using __make_integer_seq
+namespace detail {
+
+template <typename T, T... Is>
+struct uniform_sequence_helper
+{
+    // Apply a constant value to all indices via pack expansion
+    template <index_t Value>
+    using apply = Sequence<((void)Is, Value)...>;
+};
+
+} // namespace detail
+
 template <index_t NSize, index_t I>
 struct uniform_sequence_gen
 {
-    struct F
-    {
-        __host__ __device__ constexpr index_t operator()(index_t) const { return I; }
-    };
+    using type = typename __make_integer_seq<detail::uniform_sequence_helper, index_t, NSize>::
+        template apply<I>;
+};
 
-    using type = typename sequence_gen<NSize, F>::type;
+template <index_t I>
+struct uniform_sequence_gen<0, I>
+{
+    using type = Sequence<>;
 };
 
 // reverse inclusive scan (with init) sequence
