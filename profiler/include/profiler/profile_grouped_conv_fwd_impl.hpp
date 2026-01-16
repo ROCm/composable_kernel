@@ -5,7 +5,6 @@
 
 #include <iomanip>
 #include <iostream>
-#include <optional>
 #include <typeinfo>
 
 #include "ck/ck.hpp"
@@ -40,16 +39,13 @@ template <ck::index_t NDimSpatial,
           typename BComputeType = AComputeType,
           typename IndexType    = ck::index_t,
           typename OutElementOp = ck::tensor_operation::element_wise::PassThrough>
-bool profile_grouped_conv_fwd_impl(
-    int do_verification,
-    int init_method,
-    bool do_log,
-    bool time_kernel,
-    const ck::utils::conv::ConvParam& conv_param,
-    const OutElementOp out_element_op                   = OutElementOp{},
-    index_t instance_index                              = -1,
-    std::optional<std::array<float, 2>> init_bounds_in  = std::nullopt,
-    std::optional<std::array<float, 2>> init_bounds_wei = std::nullopt)
+bool profile_grouped_conv_fwd_impl(int do_verification,
+                                   int init_method,
+                                   bool do_log,
+                                   bool time_kernel,
+                                   const ck::utils::conv::ConvParam& conv_param,
+                                   const OutElementOp out_element_op = OutElementOp{},
+                                   index_t instance_index            = -1)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -104,16 +100,6 @@ bool profile_grouped_conv_fwd_impl(
     DeviceMem wei_device_buf(sizeof(WeiDataType) * weight_size);
     DeviceMem out_device_buf(sizeof(OutDataType) * output_size);
 
-    // Initialization bounds for input and weight tensors
-    // Input: {-5, -4, ..., 3, 4} for integers, [0, 1) for floats.
-    const auto default_in =
-        (init_method == 1) ? std::array<float, 2>{-5.0f, 5.0f} : std::array<float, 2>{0.0f, 1.0f};
-    const auto [in_min, in_max] = init_bounds_in.value_or(default_in);
-    // Weight: {-5, -4, ..., 3, 4} for integers, [-0.5, 0.5) for floats.
-    const auto default_wei =
-        (init_method == 1) ? std::array<float, 2>{-5.0f, 5.0f} : std::array<float, 2>{-0.5f, 0.5f};
-    const auto [wei_min, wei_max] = init_bounds_wei.value_or(default_wei);
-
     // Generate data directly on GPU using DeviceMem methods
     switch(init_method)
     {
@@ -123,14 +109,14 @@ bool profile_grouped_conv_fwd_impl(
         wei_device_buf.SetZero();
         break;
     case 1:
-        // Discrete integer generation
-        in_device_buf.FillUniformRandInteger<InDataType>(in_min, in_max);
-        wei_device_buf.FillUniformRandInteger<WeiDataType>(wei_min, wei_max);
+        // Discrete integer generation: {-5, -4, -3, ..., 3, 4}
+        in_device_buf.FillUniformRandInteger<InDataType>(-5, 5);
+        wei_device_buf.FillUniformRandInteger<WeiDataType>(-5, 5);
         break;
     default:
         // Continuous float generation
-        in_device_buf.FillUniformRandFp<InDataType>(in_min, in_max);
-        wei_device_buf.FillUniformRandFp<WeiDataType>(wei_min, wei_max);
+        in_device_buf.FillUniformRandFp<InDataType>(0.0f, 1.0f);
+        wei_device_buf.FillUniformRandFp<WeiDataType>(-0.5f, 0.5f);
     }
 
     // Create host tensors (for verification if needed)

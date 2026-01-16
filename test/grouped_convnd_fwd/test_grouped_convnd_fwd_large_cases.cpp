@@ -7,7 +7,6 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "profiler/profile_grouped_conv_fwd_impl.hpp"
 
 template <typename Tuple>
@@ -40,14 +39,10 @@ class TestGroupedConvndFwd : public ::testing::Test
                                                                        DataType,
                                                                        IndexType>(
                                true,  // do_verification
-                               1,     // init_method: float value
+                               1,     // init_method: integer value
                                false, // do_log
                                false, // time_kernel
-                               param,
-                               ck::tensor_operation::element_wise::PassThrough{},
-                               -1,
-                               std::optional<std::array<float, 2>>{{0, 5}},
-                               std::optional<std::array<float, 2>>{{0, 5}});
+                               param);
         }
         EXPECT_TRUE(pass);
     }
