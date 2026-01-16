@@ -82,44 +82,61 @@ struct FindTransformResult
     static constexpr bool found      = Found;
 };
 
-namespace detail {
-
-// Helper to search through a tuple of sequences for a target value
-// Returns FindTransformResult with (transform_index, index_within_sequence, found)
-template <index_t Target, index_t TranIdx, typename FirstSeq, typename... RestSeqs>
-__host__ __device__ constexpr auto find_in_tuple_of_sequences_impl()
+// O(1) template depth implementation using pack expansion
+// Avoids O(N) recursive template instantiations
+template <index_t Target, typename... Seqs>
+struct FindInTupleOfSequencesCompute
 {
-    constexpr index_t idx = sequence_find_value<Target>(FirstSeq{});
-    if constexpr(idx >= 0)
+    private:
+    // Result struct for constexpr computation
+    struct ResultData
     {
-        return FindTransformResult<TranIdx, idx, true>{};
-    }
-    else if constexpr(sizeof...(RestSeqs) > 0)
-    {
-        return find_in_tuple_of_sequences_impl<Target, TranIdx + 1, RestSeqs...>();
-    }
-    else
-    {
-        return FindTransformResult<0, 0, false>{};
-    }
-}
+        index_t itran;
+        index_t idim_up;
+        bool found;
+    };
 
-} // namespace detail
+    // Compute result using constexpr function with array lookup
+    static constexpr ResultData compute()
+    {
+        if constexpr(sizeof...(Seqs) == 0)
+        {
+            return {0, 0, false};
+        }
+        else
+        {
+            // Pack expansion creates array - O(1) template depth
+            constexpr index_t indices[] = {sequence_find_value<Target>(Seqs{})...};
+
+            // Find first matching sequence
+            for(index_t i = 0; i < static_cast<index_t>(sizeof...(Seqs)); ++i)
+            {
+                if(indices[i] >= 0)
+                {
+                    return {i, indices[i], true};
+                }
+            }
+            return {0, 0, false};
+        }
+    }
+
+    static constexpr ResultData result_ = compute();
+
+    public:
+    static constexpr index_t itran   = result_.itran;
+    static constexpr index_t idim_up = result_.idim_up;
+    static constexpr bool found      = result_.found;
+
+    using type = FindTransformResult<itran, idim_up, found>;
+};
 
 // Find target value in a tuple of sequences
 // Returns FindTransformResult<itran, idim_up, found>
-// This replaces nested static_for loops with O(1) template depth
+// Uses O(1) template depth via pack expansion (no recursion)
 template <index_t Target, typename... Seqs>
 __host__ __device__ constexpr auto find_in_tuple_of_sequences(Tuple<Seqs...>)
 {
-    if constexpr(sizeof...(Seqs) == 0)
-    {
-        return FindTransformResult<0, 0, false>{};
-    }
-    else
-    {
-        return detail::find_in_tuple_of_sequences_impl<Target, 0, Seqs...>();
-    }
+    return typename FindInTupleOfSequencesCompute<Target, Seqs...>::type{};
 }
 
 } // namespace ck
