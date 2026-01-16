@@ -324,6 +324,26 @@ container_reverse_inclusive_scan(const Tuple<Xs...>& x, Reduce f, TData init)
     return y;
 }
 
+// Named functors for container_concat to reduce template instantiations
+// (lambdas create unique types per call site, functors are shared)
+struct make_tuple_functor
+{
+    template <typename... Ts>
+    __host__ __device__ constexpr auto operator()(Ts&&... xs) const
+    {
+        return make_tuple(ck::forward<Ts>(xs)...);
+    }
+};
+
+struct make_array_functor
+{
+    template <typename T, typename... Ts>
+    __host__ __device__ constexpr auto operator()(T&& x, Ts&&... xs) const
+    {
+        return make_array(ck::forward<T>(x), ck::forward<Ts>(xs)...);
+    }
+};
+
 template <typename X, typename... Ys>
 __host__ __device__ constexpr auto container_concat(const X& x, const Ys&... ys)
 {
@@ -333,15 +353,13 @@ __host__ __device__ constexpr auto container_concat(const X& x, const Ys&... ys)
 template <typename T, index_t NX, index_t NY>
 __host__ __device__ constexpr auto container_concat(const Array<T, NX>& ax, const Array<T, NY>& ay)
 {
-    return unpack2(
-        [&](auto&&... zs) { return make_array(ck::forward<decltype(zs)>(zs)...); }, ax, ay);
+    return unpack2(make_array_functor{}, ax, ay);
 }
 
 template <typename... X, typename... Y>
 __host__ __device__ constexpr auto container_concat(const Tuple<X...>& tx, const Tuple<Y...>& ty)
 {
-    return unpack2(
-        [&](auto&&... zs) { return make_tuple(ck::forward<decltype(zs)>(zs)...); }, tx, ty);
+    return unpack2(make_tuple_functor{}, tx, ty);
 }
 
 template <typename Container>
