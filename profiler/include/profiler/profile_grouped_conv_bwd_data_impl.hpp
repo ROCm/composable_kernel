@@ -62,7 +62,13 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     std::cout << "wei: " << wei_g_k_c_xs_desc << std::endl;
     std::cout << "in: " << in_g_n_c_wis_desc << std::endl;
 
-    // Get element space sizes
+    // Create host tensors
+    Tensor<OutDataType> out(out_g_n_k_wos_desc);
+    Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
+    Tensor<InDataType> in_host(in_g_n_c_wis_desc);
+    Tensor<InDataType> in_device(in_g_n_c_wis_desc);
+
+    // Get element space sizes for allocation
     const auto out_element_space_size = out_g_n_k_wos_desc.GetElementSpaceSize();
     const auto wei_element_space_size = wei_g_k_c_xs_desc.GetElementSpaceSize();
     const auto in_element_space_size  = in_g_n_c_wis_desc.GetElementSpaceSize();
@@ -72,48 +78,57 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_element_space_size);
     DeviceMem in_device_buf(sizeof(InDataType) * in_element_space_size);
 
-    // Generate data directly on GPU using DeviceMem methods
-    switch(init_method)
+    // Initialize tensors based on do_verification:
+    // - do_verification=2: GPU-side initialization
+    // - do_verification=0,1: CPU-side initialization
+    if(do_verification == 2)
     {
-    case 0:
-        // Zero initialization
-        out_device_buf.SetZero();
-        wei_device_buf.SetZero();
-        break;
-    case 1:
-        // Discrete integer values in range [-5, 5]
-        out_device_buf.FillUniformRandInteger<OutDataType>(-5, 5);
-        wei_device_buf.FillUniformRandInteger<WeiDataType>(-5, 5);
-        break;
-    case 2:
-        // Continuous float values
-        out_device_buf.FillUniformRandFp<OutDataType>(0.0f, 1.0f);
-        wei_device_buf.FillUniformRandFp<WeiDataType>(-0.5f, 0.5f);
-        break;
-    default:
-        // Constant value 1
-        out_device_buf.SetValue<OutDataType>(ck::type_convert<OutDataType>(1));
-        wei_device_buf.SetValue<WeiDataType>(ck::type_convert<WeiDataType>(1));
+        // GPU-side initialization for GPU verification workflow
+        switch(init_method)
+        {
+        case 0:
+            // Zero initialization
+            out_device_buf.SetZero();
+            wei_device_buf.SetZero();
+            break;
+        case 1:
+            // Discrete integer values in range [-5, 5]
+            out_device_buf.FillUniformRandInteger<OutDataType>(-5, 5);
+            wei_device_buf.FillUniformRandInteger<WeiDataType>(-5, 5);
+            break;
+        case 2:
+            // Continuous float values
+            out_device_buf.FillUniformRandFp<OutDataType>(0.0f, 1.0f);
+            wei_device_buf.FillUniformRandFp<WeiDataType>(-0.5f, 0.5f);
+            break;
+        default:
+            // Constant value 1
+            out_device_buf.SetValue<OutDataType>(ck::type_convert<OutDataType>(1));
+            wei_device_buf.SetValue<WeiDataType>(ck::type_convert<WeiDataType>(1));
+        }
     }
-
-    // Create host tensors (needed only for verification)
-    Tensor<OutDataType> out(out_g_n_k_wos_desc);
-    Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
-    Tensor<InDataType> in_host(in_g_n_c_wis_desc);
-    Tensor<InDataType> in_device(in_g_n_c_wis_desc);
-
-    // Copy GPU→CPU only if verification is enabled
-    if(do_verification == 1 || do_verification == 2)
+    else
     {
-        out_device_buf.FromDevice(out.mData.data());
-        wei_device_buf.FromDevice(wei.mData.data());
-    }
+        // CPU-side initialization for do_verification=0,1
+        switch(init_method)
+        {
+        case 0: break; // Tensors are already zero-initialized by default
+        case 1:
+            out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+            wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+            break;
+        case 2:
+            out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
+            wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+            break;
+        default:
+            out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+            wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+        }
 
-    // Copy to host only if CPU verification is needed
-    if(do_verification == 1)
-    {
-        out_device_buf.FromDevice(out.mData.data());
-        wei_device_buf.FromDevice(wei.mData.data());
+        // Copy initialized host data to device
+        out_device_buf.ToDevice(out.mData.data());
+        wei_device_buf.ToDevice(wei.mData.data());
     }
 
     // Allocate GPU reference buffer (used only if do_verification == 2)
