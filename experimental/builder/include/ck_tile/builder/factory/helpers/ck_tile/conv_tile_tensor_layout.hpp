@@ -9,10 +9,10 @@
 
 namespace ck_tile::builder::factory::internal {
 using ALayout = ck_tile::tensor_layout::convolution::NWGC;
-template <TensorLayout Layout>
+template <TensorLayout LAYOUT>
 struct LayoutToCKTile
 {
-    static_assert(sizeof(UnsupportedEnumValue<Layout>) == 0,
+    static_assert(sizeof(UnsupportedEnumValue<LAYOUT>) == 0,
                   "Unsupported layout conversion to CK.");
 };
 
@@ -152,49 +152,52 @@ struct EmptyAuxiliaryTileTensorLayout
     using type = ck_tile::tuple<>;
 };
 
-template <auto AuxiliaryTileTensorConfigsArray, size_t... Indices>
+template <auto AUXILIARY_TILE_TENSOR_CONFIGS_ARRAY, size_t... Indices>
 consteval auto GetAuxiliaryTileTensorLayoutTuple(std::index_sequence<Indices...>)
 {
     return ck_tile::tuple<
-        decltype(TensorLayoutToCKTile<AuxiliaryTileTensorConfigsArray[Indices].layout>())...>{};
+        decltype(TensorLayoutToCKTile<AUXILIARY_TILE_TENSOR_CONFIGS_ARRAY[Indices].layout>())...>{};
 }
 
-template <auto AuxiliaryTileTensorConfigsValue, size_t SPATIAL_DIM>
-    requires(ConvSpatialDim<SPATIAL_DIM>)
+template <auto AUXILIARY_TILE_TENSOR_CONFIGS_VALUE, size_t SPATIAL_DIM>
+    requires ConvSpatialDim<SPATIAL_DIM>
 struct AuxiliaryTileTensorLayouts
 {
-    static constexpr auto Size = AuxiliaryTileTensorConfigsValue.size();
-    using type = decltype(GetAuxiliaryTileTensorLayoutTuple<AuxiliaryTileTensorConfigsValue>(
+    static constexpr auto Size = AUXILIARY_TILE_TENSOR_CONFIGS_VALUE.size();
+    using type = decltype(GetAuxiliaryTileTensorLayoutTuple<AUXILIARY_TILE_TENSOR_CONFIGS_VALUE>(
         std::make_index_sequence<Size>{}));
 };
 
 // TODO: Currently only the ouput tensor can have auxiliary tensors (e.g., bias).
-template <auto Signature, size_t SPATIAL_DIM>
-    requires(HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
+template <auto SIGNATURE>
+    requires HasElementwiseOpWithAuxiliaryOperands<decltype(SIGNATURE.output)>
 consteval auto GetAuxiliaryTileTensorLayouts()
 {
-    return AuxiliaryTileTensorLayouts<Signature.output.operation.auxiliary_operand_configs,
-                                      SPATIAL_DIM>{};
+    return AuxiliaryTileTensorLayouts<SIGNATURE.output.operation.auxiliary_operand_configs,
+                                      SIGNATURE.spatial_dim>{};
 }
 
-template <auto Signature, size_t SPATIAL_DIM>
-    requires(!HasElementwiseOpWithAuxiliaryOperands<decltype(Signature.output)>)
+template <auto SIGNATURE>
+    requires(!HasElementwiseOpWithAuxiliaryOperands<decltype(SIGNATURE.output)>)
 consteval auto GetAuxiliaryTileTensorLayouts()
 {
     return EmptyAuxiliaryTileTensorLayout{};
 }
 
-template <auto Signature, size_t SPATIAL_DIM>
-    requires(ConvSpatialDim<SPATIAL_DIM> &&
-             ValidConvInputLayoutForSpatialDim<Signature.input.config.layout, SPATIAL_DIM> &&
-             ValidConvWeightLayoutForSpatialDim<Signature.weight.config.layout, SPATIAL_DIM> &&
-             ValidConvOutputLayoutForSpatialDim<Signature.output.config.layout, SPATIAL_DIM>)
+template <auto SIGNATURE>
+    requires ConvSpatialDim<SIGNATURE.spatial_dim> &&
+             ValidConvInputLayoutForSpatialDim<SIGNATURE.input.config.layout,
+                                               SIGNATURE.spatial_dim> &&
+             ValidConvWeightLayoutForSpatialDim<SIGNATURE.weight.config.layout,
+                                                SIGNATURE.spatial_dim> &&
+             ValidConvOutputLayoutForSpatialDim<SIGNATURE.output.config.layout,
+                                                SIGNATURE.spatial_dim>
 struct TileConvTensorLayouts
 {
-    using ALayout  = decltype(TensorLayoutToCKTile<Signature.input.config.layout>());
-    using BLayout  = decltype(TensorLayoutToCKTile<Signature.weight.config.layout>());
-    using ELayout  = decltype(TensorLayoutToCKTile<Signature.output.config.layout>());
-    using DsLayout = decltype(GetAuxiliaryTileTensorLayouts<Signature, SPATIAL_DIM>())::type;
+    using ALayout  = decltype(TensorLayoutToCKTile<SIGNATURE.input.config.layout>());
+    using BLayout  = decltype(TensorLayoutToCKTile<SIGNATURE.weight.config.layout>());
+    using ELayout  = decltype(TensorLayoutToCKTile<SIGNATURE.output.config.layout>());
+    using DsLayout = decltype(GetAuxiliaryTileTensorLayouts<SIGNATURE>())::type;
 };
 
 } // namespace ck_tile::builder::factory::internal
