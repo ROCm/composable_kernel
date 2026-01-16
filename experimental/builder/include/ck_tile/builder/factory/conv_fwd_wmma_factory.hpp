@@ -49,17 +49,18 @@ struct ConvFwdWmmaFactory
 
     // Check limits for the algorithm parameters.
     static_assert(ValidABlockTransfer<A_BLOCK_TRANSFER,
-                                      typename Types::ADataType,
+                                      typename Types::InDataType,
                                       BLOCK.block_size,
                                       BLOCK.per_block>);
     static_assert(ValidBBlockTransfer<B_BLOCK_TRANSFER,
-                                      typename Types::BDataType,
+                                      typename Types::WeiDataType,
                                       BLOCK.block_size,
                                       BLOCK.per_block>);
     static_assert(ValidCBlockTransfer<C_BLOCK_TRANSFER,
-                                      typename Types::EDataType,
+                                      typename Types::OutDataType,
                                       BLOCK.block_size,
                                       BLOCK.per_block>);
+    // TODO: verify Ds transfer as well
 
     // Layout validations (same as DeviceGroupedConvFwdMultipleD_Wmma_CShuffle)
     using enum TensorLayout;
@@ -97,11 +98,6 @@ struct ConvFwdWmmaFactory
                                 NWGK,
                                 NHWGK,
                                 NDHWGK>);
-
-    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>);
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Wmma_CShuffle<

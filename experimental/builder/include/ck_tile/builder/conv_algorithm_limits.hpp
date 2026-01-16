@@ -50,6 +50,44 @@ concept AccessOrderLimits4D = requires {
 
 namespace detail {
 
+// Helper to check if access order is a valid permutation
+template <auto Value>
+constexpr bool is_valid_permutation()
+{
+    constexpr auto size = Value.Size();
+
+    // Check all values are in range [0, size)
+    for(size_t i = 0; i < size; ++i)
+    {
+        if(Value[i] < 0 || Value[i] >= static_cast<decltype(Value[0])>(size))
+            return false;
+    }
+
+    // Check all values are unique (valid permutation)
+    for(size_t i = 0; i < size; ++i)
+    {
+        for(size_t j = i + 1; j < size; ++j)
+        {
+            if(Value[i] == Value[j])
+                return false;
+        }
+    }
+
+    return true;
+}
+
+} // namespace detail
+
+// Generic access order limits. Must be a valid permutation of {0, 1, ..., Dims-1}.
+// Works with both 3D and 4D (or any dimensionality) access orders.
+template <auto Value, size_t Dims>
+concept AccessOrderLimits = requires {
+    requires Value.Size() == Dims;
+    requires detail::is_valid_permutation<Value>();
+};
+
+namespace detail {
+
 // Helper trait to get compile-time size from ck::Array
 template <typename T>
 concept HasStaticSize = requires {
@@ -189,22 +227,30 @@ concept IsVectorSizeValid =
 // Composite concept for input block transfer validation (A)
 // Includes all validations: vector transfer limits, access order, cluster size,
 // vector size validity, and tile coverage
-template <auto A_BLOCK_TRANSFER, typename DataType, size_t BLOCK_SIZE, auto TILE_SIZE>
+template <auto A_BLOCK_TRANSFER,
+          typename DataType,
+          size_t BLOCK_SIZE,
+          auto TILE_SIZE,
+          size_t DIMS = 3>
 concept ValidABlockTransfer =
     InputVectorTransferLimits<A_BLOCK_TRANSFER> &&
-    AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order> &&
-    AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order> &&
+    AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order, DIMS> &&
+    AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order, DIMS> &&
     ValidBlockTransferClusterSize<A_BLOCK_TRANSFER, BLOCK_SIZE> &&
     IsVectorSizeValid<A_BLOCK_TRANSFER.src_scalar_per_vector, sizeof(DataType)> &&
     IsVectorSizeValid<A_BLOCK_TRANSFER.lds_dst_scalar_per_vector, sizeof(DataType)> &&
     ThreadsCoverATile<A_BLOCK_TRANSFER, TILE_SIZE>;
 
 // Composite concept for input block transfer validation (B)
-template <auto B_BLOCK_TRANSFER, typename DataType, size_t BLOCK_SIZE, auto TILE_SIZE>
+template <auto B_BLOCK_TRANSFER,
+          typename DataType,
+          size_t BLOCK_SIZE,
+          auto TILE_SIZE,
+          size_t DIMS = 3>
 concept ValidBBlockTransfer =
     InputVectorTransferLimits<B_BLOCK_TRANSFER> &&
-    AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order> &&
-    AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order> &&
+    AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order, DIMS> &&
+    AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order, DIMS> &&
     ValidBlockTransferClusterSize<B_BLOCK_TRANSFER, BLOCK_SIZE> &&
     IsVectorSizeValid<B_BLOCK_TRANSFER.src_scalar_per_vector, sizeof(DataType)> &&
     IsVectorSizeValid<B_BLOCK_TRANSFER.lds_dst_scalar_per_vector, sizeof(DataType)> &&
