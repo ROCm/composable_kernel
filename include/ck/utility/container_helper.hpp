@@ -189,6 +189,14 @@ __host__ __device__ constexpr auto container_reduce(const Container& x,
 }
 #endif
 
+// O(1) template depth alternative to container_reduce for computing products.
+// Uses fold expression via unpack instead of O(N) linear recursion.
+template <typename Container>
+__host__ __device__ constexpr auto container_product(const Container& x)
+{
+    return unpack([](auto... xs) { return (xs * ...); }, x);
+}
+
 template <typename TData, index_t NSize, typename Reduce>
 __host__ __device__ constexpr auto
 container_reverse_inclusive_scan(const Array<TData, NSize>& x, Reduce f, TData init)
