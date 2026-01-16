@@ -123,11 +123,11 @@ template <ck::index_t NDimSpatial,
           typename IndexType    = ck::index_t,
           bool ElementwiseGK    = false>
 bool profile_grouped_conv_fwd_bias_bnorm_clamp_impl(int do_verification,
-                                              int init_method,
-                                              bool do_log,
-                                              bool time_kernel,
-                                              const ck::utils::conv::ConvParam& conv_param,
-                                              int instance_index = -1)
+                                                    int init_method,
+                                                    bool do_log,
+                                                    bool time_kernel,
+                                                    const ck::utils::conv::ConvParam& conv_param,
+                                                    int instance_index = -1)
 {
     const float floor   = 0.f;
     const float ceil    = 2048.f;
@@ -348,19 +348,19 @@ bool profile_grouped_conv_fwd_bias_bnorm_clamp_impl(int do_verification,
             {
                 out_device_buf.FromDevice(device_output.mData.data());
 
-                 if(ck::is_gfx11_supported())
-                 {
-                    double rtol = 1e-1;
-                    double atol = 1e-1;
+                if(ck::is_gfx11_supported())
+                {
+                    double rtol            = 1e-1;
+                    double atol            = 1e-1;
                     const std::string& msg = "Error: Incorrect results!";
-                    
-                     pass = pass & ck::utils::check_err(device_output, host_output,msg,atol,rtol);
-                 }
-                 else
-                 {
 
-                pass = pass & ck::utils::check_err(device_output, host_output);
-                 }
+                    pass = pass & ck::utils::check_err(device_output, host_output, msg, atol, rtol);
+                }
+                else
+                {
+
+                    pass = pass & ck::utils::check_err(device_output, host_output);
+                }
 
                 if(do_log)
                 {

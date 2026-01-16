@@ -141,14 +141,14 @@ int grouped_conv_fwd_bias_bnorm_clamp(int argc, char* argv[])
         using BComputeType = decltype(b_compute_type);
 
         bool pass = ck::profiler::profile_grouped_conv_fwd_bias_bnorm_clamp_impl<NDimSpatial,
-                                                                           InLayout,
-                                                                           WeiLayout,
-                                                                           OutLayout,
-                                                                           InDataType,
-                                                                           WeiDataType,
-                                                                           OutDataType,
-                                                                           AComputeType,
-                                                                           BComputeType>(
+                                                                                 InLayout,
+                                                                                 WeiLayout,
+                                                                                 OutLayout,
+                                                                                 InDataType,
+                                                                                 WeiDataType,
+                                                                                 OutDataType,
+                                                                                 AComputeType,
+                                                                                 BComputeType>(
             do_verification, init_method, do_log, time_kernel, params);
 
         return pass ? 0 : 1;
