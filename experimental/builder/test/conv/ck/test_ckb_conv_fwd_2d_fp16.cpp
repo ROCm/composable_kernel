@@ -51,7 +51,7 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, Create)
                             "MNKPadding"});
 }
 
-TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
+TEST(Fwd2DFp16_CShufV3_GNHWC, Execution)
 {
     if(!ck_tile::get_device_name().starts_with("gfx9"))
     {

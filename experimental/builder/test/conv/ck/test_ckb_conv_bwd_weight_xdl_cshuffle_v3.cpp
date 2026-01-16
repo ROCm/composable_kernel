@@ -5,11 +5,17 @@
 #include "utils/ckb_conv_test_utils.hpp"
 #include "utils/conv_algorithm_type_utils.hpp"
 #include "ck_tile/host/device_prop.hpp"
+#include "ck_tile/builder/testing/conv/bwd_weight.hpp"
+#include "ck_tile/builder/testing/conv/bwd_weight_ck.hpp"
+#include "ck_tile/builder/testing/conv/reference.hpp"
+#include "testing_utils.hpp"
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
 namespace cku = ck_tile::builder::test_utils;
+
 using enum ck_tile::builder::TensorLayout;
+using ck_tile::test::MatchesReference;
 
 constexpr auto SIGNATURE = ckt::ConvSignature{.spatial_dim = 1,
                                               .direction   = ckb::ConvDirection::BACKWARD_WEIGHT,
@@ -30,6 +36,8 @@ constexpr auto ALGORITHM =
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;
 
+using Reference = ckb::ConvBuilder<SIGNATURE, ckt::ConvAlgorithm_Reference{}>::Instance;
+
 TEST(BwdWeight_1DBf16_CShuffle_V3, Create)
 {
     const auto expected_transfer_parameters = to_string(ALGORITHM);
@@ -40,4 +48,46 @@ TEST(BwdWeight_1DBf16_CShuffle_V3, Create)
                             "PassThrough,PassThrough,PassThrough",
                             "Intrawave",
                             "v2"});
+}
+
+TEST(BwdWeight_1DBf16_CShuffle_V3, Execution)
+{
+    if(!ck_tile::get_device_name().starts_with("gfx9"))
+    {
+        // Note: XDL kernel
+        GTEST_SKIP() << "unsupported architecture";
+    }
+
+    ckt::Args<SIGNATURE> args = {
+        .lengths =
+            {
+                .batch_size      = 16,
+                .groups          = 1,
+                .input_channels  = 32,
+                .output_channels = 48,
+                .image           = {.width = 64},
+                .filter          = {.width = 1},
+            },
+        .filter_strides     = {.width = 1},
+        .filter_dilation    = {.width = 1},
+        .input_left_pad     = {.width = 0},
+        .input_right_pad    = {.width = 0},
+        .a_elementwise_op   = {},
+        .b_elementwise_op   = {},
+        .cde_elementwise_op = {},
+    };
+
+    auto inputs    = ckt::alloc_inputs(args);
+    auto outputs   = ckt::alloc_outputs(args);
+    auto reference = ckt::alloc_outputs(args);
+
+    ckt::init_inputs(args, inputs.get());
+
+    auto conv = Instance{};
+    ckt::run(conv, args, inputs.get(), outputs.get());
+
+    auto ref_conv = Reference{};
+    ckt::run(ref_conv, args, inputs.get(), reference.get());
+
+    EXPECT_THAT(outputs.get(), MatchesReference(args, reference.get()));
 }
