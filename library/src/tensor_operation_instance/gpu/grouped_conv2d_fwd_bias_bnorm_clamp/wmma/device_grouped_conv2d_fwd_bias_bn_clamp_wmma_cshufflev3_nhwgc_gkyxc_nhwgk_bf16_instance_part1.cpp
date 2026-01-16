@@ -24,7 +24,7 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                                         BiasNormalizeInInferClamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances_part1<
+                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances_generic<
                                        2,
                                        NHWGC,
                                        GKYXC,
@@ -35,7 +35,7 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                        BiasNormalizeInInferClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances_part1<
+                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances_generic<
                                        2,
                                        NHWGC,
                                        GKYXC,
@@ -46,7 +46,7 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                        BiasNormalizeInInferClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances_part1<
+                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_instances_generic<
                                        2,
                                        NHWGC,
                                        GKYXC,
