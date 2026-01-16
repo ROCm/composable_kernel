@@ -11,6 +11,47 @@
 
 namespace ck_tile {
 
+namespace detail {
+template <class T>
+struct t
+{
+    using type = T;
+};
+
+// Helper method to automatically determine compute type
+// Selects the largest type of the two. If both of them are packed data types, defaults to fp8.
+template <typename ComputeDataType, typename ADataType, typename BDataType>
+struct compute_type
+{
+    static constexpr auto Resolve()
+    {
+        if constexpr(std::is_void_v<ComputeDataType>)
+        {
+            constexpr bool AIsLarger = sizeof(ADataType) >= sizeof(BDataType);
+            using LargestInputType   = std::conditional_t<AIsLarger, ADataType, BDataType>;
+            if constexpr(numeric_traits<LargestInputType>::PackedSize > 1)
+            {
+                return t<fp8_t>{};
+            }
+            else
+            {
+                return t<LargestInputType>{};
+            }
+        }
+        else
+        {
+            // If there's an explicitly defined compute type, use that
+            return t<ComputeDataType>{};
+        }
+    }
+
+    using type = typename decltype(Resolve())::type;
+};
+
+template <typename ComputeDataType, typename ADataType, typename BDataType>
+using compute_type_t = compute_type<ComputeDataType, ADataType, BDataType>::type;
+}; // namespace detail
+
 template <typename ADataType_,
           typename AQDataType_,
           typename BDataType_,
@@ -21,23 +62,27 @@ template <typename ADataType_,
           typename AQuantGroupSize_,
           typename BQuantGroupSize_,
           bool TransposeC_,
-          typename ComputeDataType_        = BDataType_,
+          typename ComputeDataType_        = void,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full>
-struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
-                                                                     BDataType_,
-                                                                     CDataType_,
-                                                                     BlockGemmShape_,
-                                                                     Traits_,
-                                                                     ComputeDataType_>
+struct GemmQuantPipelineProblemBase
+    : public GemmPipelineProblemBase<
+          ADataType_,
+          BDataType_,
+          CDataType_,
+          BlockGemmShape_,
+          Traits_,
+          detail::compute_type_t<ComputeDataType_, ADataType_, BDataType_>>
 {
-    using Base = GemmPipelineProblemBase<ADataType_,
-                                         BDataType_,
-                                         CDataType_,
-                                         BlockGemmShape_,
-                                         Traits_,
-                                         ComputeDataType_>;
+
+    using Base =
+        GemmPipelineProblemBase<ADataType_,
+                                BDataType_,
+                                CDataType_,
+                                BlockGemmShape_,
+                                Traits_,
+                                detail::compute_type_t<ComputeDataType_, ADataType_, BDataType_>>;
 
     using Traits = typename Base::Traits;
 

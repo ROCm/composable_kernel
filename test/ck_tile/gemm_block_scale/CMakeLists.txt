@@ -34,6 +34,11 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_abquant_base PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    add_gtest_executable(test_tile_gemm_quant_abquant_a4w4
+        test_gemm_quant_abquant_a4w4.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_a4w4 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
     add_gtest_executable(test_tile_gemm_quant_abquant_padding
         test_gemm_quant_abquant_padding.cpp
     )

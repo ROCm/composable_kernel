@@ -12,36 +12,6 @@
 
 namespace ck_tile {
 
-// Utility functions for dealing with packed data types
-namespace detail {
-template <typename DataType>
-struct is_packed_type
-{
-    static constexpr bool value = numeric_traits<DataType>::PackedSize > 1;
-};
-
-template <typename DataType>
-constexpr bool is_packed_type_v = is_packed_type<DataType>::value;
-
-template <typename DataType, typename FallbackType = fp8_t>
-struct compute_type
-{
-    using type = std::conditional_t<is_packed_type_v<DataType>, FallbackType, DataType>;
-};
-
-template <typename DataType, typename FallbackType = fp8_t>
-using compute_type_t = typename compute_type<DataType, FallbackType>::type;
-
-template <typename ThisType, typename OtherType, typename FallbackType = fp8_t>
-struct gemm_type
-{
-    using type = compute_type_t<ThisType, compute_type_t<OtherType, FallbackType>>;
-};
-
-template <typename ThisType, typename OtherType, typename FallbackType = fp8_t>
-using gemm_type_t = typename gemm_type<ThisType, OtherType, FallbackType>::type;
-} // namespace detail
-
 // A is block window on shared memory
 // AQ (scale tensor) is block distributed tensor.
 // BQ (scale tensor) is block distributed tensor.
@@ -166,10 +136,8 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
     using CDataType       = remove_cvref_t<typename Traits::CDataType>;
 
     // A/B DataType get converted from PkInt4/PkFp8 during loading
-    using OverrideADataType =
-        detail::gemm_type_t<typename Problem_::ADataType, typename Problem_::BDataType>;
-    using OverrideBDataType =
-        detail::gemm_type_t<typename Problem_::BDataType, typename Problem_::ADataType>;
+    using OverrideADataType = ComputeDataType;
+    using OverrideBDataType = ComputeDataType;
 
     using Base     = BlockGemmQuantBase;
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;

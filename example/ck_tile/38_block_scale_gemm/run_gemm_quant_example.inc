@@ -35,13 +35,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 {
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
-    using CandidateComputeDataType =
-        std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped ||
-                               QuantMode == ck_tile::QuantType::RowColQuant,
-                           typename TypeConfig::BDataType,
-                           typename TypeConfig::ADataType>;
-
-    using ComputeDataType = ck_tile::detail::compute_type_t<CandidateComputeDataType>;
+    // Use automatically determined compute type from
+    using ComputeDataType = void;
 
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
@@ -191,8 +186,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         }
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ComputeDataType,
-                                             ComputeDataType,
+            ck_tile::CShuffleEpilogueProblem<typename PipelineProblem::ComputeDataType,
+                                             typename PipelineProblem::ComputeDataType,
                                              ck_tile::tuple<>,
                                              typename TypeConfig::AccDataType,
                                              typename TypeConfig::CDataType,
