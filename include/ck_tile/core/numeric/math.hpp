@@ -41,7 +41,7 @@ struct scales
     CK_TILE_HOST_DEVICE constexpr auto operator*(OtherScale other) const
     {
         auto new_scale = lhs_ * other;
-        return scales<decltype(new_scale)>(new_scale);
+        return scales<std::decay_t<decltype(new_scale)>>(new_scale);
     }
 
     private:
