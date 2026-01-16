@@ -59,6 +59,28 @@ __host__ __device__ constexpr auto generate_identity_sequences(Number<N>)
     return generate_identity_sequences<N>();
 }
 
+// Optimized helper for common pattern: generate_tuple([&](auto) { return value; }, Number<N>{})
+// Creates Tuple<T, T, ..., T> (N copies) without lambda instantiation
+namespace detail {
+template <typename T, index_t... Is>
+__host__ __device__ constexpr auto make_uniform_tuple_impl(T&& value, Sequence<Is...>)
+{
+    return make_tuple(((void)Is, value)...);
+}
+} // namespace detail
+
+template <index_t N, typename T>
+__host__ __device__ constexpr auto make_uniform_tuple(T&& value)
+{
+    return detail::make_uniform_tuple_impl(static_cast<T&&>(value), make_index_sequence<N>{});
+}
+
+template <typename T, index_t N>
+__host__ __device__ constexpr auto make_uniform_tuple(T&& value, Number<N>)
+{
+    return make_uniform_tuple<N>(static_cast<T&&>(value));
+}
+
 // tx and ty are tuple of references, return type of will tuple of referennce (not rvalue)
 template <typename... X, typename... Y>
 __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>& tx,

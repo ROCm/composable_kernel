@@ -699,9 +699,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             if constexpr(isMultiA || isMultiB)
             {
                 const auto as_grid_desc_ak0_m_ak1 =
-                    generate_tuple([&](auto) { return a_grid_desc_m_k_; }, Number<NumATensor>{});
+                    make_uniform_tuple(a_grid_desc_m_k_, Number<NumATensor>{});
                 const auto bs_grid_desc_bk0_n_bk1 =
-                    generate_tuple([&](auto) { return b_grid_desc_n_k_; }, Number<NumBTensor>{});
+                    make_uniform_tuple(b_grid_desc_n_k_, Number<NumBTensor>{});
 
                 if(GridwiseGemm::CheckValidity(as_grid_desc_ak0_m_ak1,
                                                bs_grid_desc_bk0_n_bk1,
