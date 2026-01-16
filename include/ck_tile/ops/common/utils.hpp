@@ -24,6 +24,7 @@ template <> struct DataTypeTraits<pk_int4_t> { static constexpr const char * nam
 template <> struct DataTypeTraits<pk_fp4_t> { static constexpr const char * name = "pk_fp4"; };
 template <> struct DataTypeTraits<pk_fp6x16_t> { static constexpr const char * name = "pk_fp6x16"; };
 template <> struct DataTypeTraits<pk_fp4_raw_t> { static constexpr const char * name = "pk_fp4_raw"; };
+template <> struct DataTypeTraits<e8m0_t> { static constexpr const char * name = "e8m0"; };
 
 template <memory_operation_enum MemOp> struct memOpToStr;
 template <> struct memOpToStr<memory_operation_enum::set> { static constexpr const char * name = "set"; };

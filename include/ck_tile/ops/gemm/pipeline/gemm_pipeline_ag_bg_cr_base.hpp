@@ -21,7 +21,7 @@ struct GemmPipelineAgBgCrImplBase
     using ALayout     = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
     using BInDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
     using BDataType =
-        std::conditional_t<std::is_same_v<BInDataType, pk_fp4_raw_t>, ADataType, BInDataType>;
+        std::conditional_t<std::is_same_v<BInDataType, pk_fp4_t>, ADataType, BInDataType>;
     using BLayout = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
@@ -314,7 +314,7 @@ struct GemmPipelineAgBgCrImplBase
         auto b_copy_lds_window = make_tile_window(b_lds_block_view, b_lds_shape, {0, 0});
 
         using BLdsDataType =
-            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
+            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_t>,
                                typename Problem::ADataType,
                                typename Problem::BDataType>;
 

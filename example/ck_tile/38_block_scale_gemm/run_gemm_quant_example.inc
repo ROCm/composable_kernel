@@ -158,10 +158,9 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         using BQuantPipeline = std::conditional_t<
             GemmConfig::PreshuffleB,
             ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
-            std::conditional_t<
-                std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>,
-                ck_tile::MxFp4GemmPipelineAgBgCrCompV3<PipelineProblem>,
-                ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
+            std::conditional_t<std::is_same_v<typename TypeConfig::QDataType, ck_tile::e8m0_t>,
+                               ck_tile::MxFp4GemmPipelineAgBgCrCompV3<PipelineProblem>,
+                               ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
 
         using ABQuantPipeline =
             std::conditional_t<GemmConfig::DoubleSmemBuffer && GemmConfig::PreshuffleB,
@@ -240,8 +239,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ck_tile::HostTensor<typename TypeConfig::ADataType> a_m(ck_tile::host_tensor_descriptor(
                 args.M, args.K, args.stride_A, is_row_major(ALayout{})));
             ck_tile::HostTensor<typename TypeConfig::BDataType> b_n(ck_tile::host_tensor_descriptor(
-                std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t> ? args.K / 2
-                                                                                      : args.K,
+                std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_t> ? args.K / 2
+                                                                                  : args.K,
                 args.N,
                 args.stride_B,
                 is_row_major(BLayout{})));
@@ -476,11 +475,11 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     int rotating_count           = arg_parser.get_int("rotating_count");
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
-    stride_B = ck_tile::get_default_stride(
-        (std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>) ? (K / 2) : K,
-        N,
-        stride_B,
-        is_row_major(b_layout));
+    stride_B =
+        ck_tile::get_default_stride((std::is_same_v<BDataType, ck_tile::pk_fp4_t>) ? (K / 2) : K,
+                                    N,
+                                    stride_B,
+                                    is_row_major(b_layout));
     stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
 
     // Conditional stride calculation based on QuantMode
@@ -513,7 +512,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     ck_tile::HostTensor<ADataType> a_m_k(
         ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
     ck_tile::HostTensor<BDataType> b_k_n(ck_tile::host_tensor_descriptor(
-        (std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>) ? (K / 2) : K,
+        (std::is_same_v<BDataType, ck_tile::pk_fp4_t>) ? (K / 2) : K,
         N,
         stride_B,
         is_row_major(b_layout)));
@@ -831,7 +830,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         }
         else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
-            if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>)
+            if constexpr(std::is_same_v<BQDataType, ck_tile::e8m0_t>)
                 ck_tile::reference_mxfp4gemm_quant<ADataType,
                                                    BQDataType,
                                                    BDataType,
@@ -842,7 +841,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                     a_m_k, *bq_tensor_ptr, b_k_n, c_m_n_host_ref);
             else
                 ck_tile::reference_gemm_quant<ADataType,
-                                              AQDataType,
+                                              BQDataType,
                                               BDataType,
                                               AccDataType,
                                               CDataType,
@@ -942,7 +941,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
 
     if((QuantMode == ck_tile::QuantType::AQuantGrouped ||
         QuantMode == ck_tile::QuantType::RowColQuant ||
-        std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_raw_t>) &&
+        std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_t>) &&
        GemmConfig::PreshuffleB)
     {
         throw std::runtime_error(

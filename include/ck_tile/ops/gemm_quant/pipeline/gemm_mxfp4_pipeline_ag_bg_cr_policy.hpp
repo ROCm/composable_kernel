@@ -126,7 +126,7 @@ struct GemmMxFp4PipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPolicy
 
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<
             typename Problem::ADataType,
-            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
+            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_t>,
                                typename Problem::ADataType,
                                typename Problem::BDataType>,
             typename Problem::CDataType,

@@ -45,7 +45,7 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
                          const float max_accumulated_value)
 {
     using ComputeType = std::conditional_t<
-        std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>,
+        std::is_same_v<BDataType, ck_tile::pk_fp4_t>,
         ADataType,
         std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>>;
     // Calculate thresholds
