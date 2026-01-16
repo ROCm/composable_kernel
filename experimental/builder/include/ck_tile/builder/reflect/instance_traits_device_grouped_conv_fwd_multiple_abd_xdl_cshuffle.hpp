@@ -74,6 +74,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
 
 namespace ck_tile::reflect {
 
+/// @brief Tag type for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle device kernel
+struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_Tag
+{
+};
+
 // Specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 template <ck::index_t NDimSpatial,
           typename ALayout_,
@@ -175,6 +180,9 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
     LoopSched,
     NumGroupsToMerge>>
 {
+    /// @brief Tag type identifying this device kernel variant
+    using device_kernel_tag = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_Tag;
+
     // Spatial dimension
     static constexpr int kSpatialDim = NDimSpatial;
 

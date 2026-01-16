@@ -79,10 +79,8 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     static constexpr auto TailNum    = TailNum_;
 
     static_assert(BlockGemmShape::kM % AQuantGroupSize::kM == 0);
-    static_assert(BlockGemmShape::kN % AQuantGroupSize::kN == 0);
     static_assert(BlockGemmShape::kK % AQuantGroupSize::kK == 0);
     static_assert(BlockGemmShape::kM % BQuantGroupSize::kM == 0);
-    static_assert(BlockGemmShape::kN % BQuantGroupSize::kN == 0);
     static_assert(BlockGemmShape::kK % BQuantGroupSize::kK == 0);
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
