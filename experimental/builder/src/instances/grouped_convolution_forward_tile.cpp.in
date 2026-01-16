@@ -3,7 +3,7 @@
 #include "../instance_includes.inc"
 namespace ck_tile::builder::profiling {
 constexpr auto SIGNATURE = gen_signature;
-std::tuple<float, std::string> run_gen_instance_name(
+std::tuple<bool, float, std::string> run_gen_instance_name(
    const ckt::Args<SIGNATURE>& args,
    const ckt::Inputs<SIGNATURE>& inputs,
    const ckt::Outputs<SIGNATURE>& outputs,

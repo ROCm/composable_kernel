@@ -6,9 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "experimental/builder/test/utils/ckb_conv_tile_test_configs.hpp"
-#include "experimental/builder/test/utils/conv_algorithm_type_utils.hpp"
-#include "experimental/builder/include/ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
+#include "../../experimental/builder/include/ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
 #include "ck_tile/host/device_prop.hpp"
 #include "profiler/grouped_convolution_forward_tile_algs.hpp"
 
@@ -82,7 +80,6 @@ static void print_helper_msg()
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
-namespace cku = ck_tile::builder::test_utils;
 namespace ckp = ck_tile::builder::profiling;
 
 template <auto SIGNATURE>
@@ -157,19 +154,19 @@ int profile_grouped_conv_fwd_tile(int argc, char* argv[])
             if(data_type == ConvDataType::F32_F32_F32)
             {
                 constexpr auto SIGNATURE = ckp::SIGNATURE_NHWGC_FP32_FWD;
-                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
                                                 time_kernel);
             }
             else if(data_type == ConvDataType::F16_F16_F16)
             {
                 constexpr auto SIGNATURE = ckp::SIGNATURE_NHWGC_FP16_FWD;
-                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
                                                 time_kernel);
             }
             else if(data_type == ConvDataType::BF16_BF16_BF16)
             {
                 constexpr auto SIGNATURE = ckp::SIGNATURE_NHWGC_BF16_FWD;
-                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
                                                 time_kernel);
             }
         }
@@ -178,19 +175,19 @@ int profile_grouped_conv_fwd_tile(int argc, char* argv[])
             if(data_type == ConvDataType::F32_F32_F32)
             {
                 constexpr auto SIGNATURE = ckp::SIGNATURE_NDHWGC_FP32_FWD;
-                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
                                                 time_kernel);
             }
             else if(data_type == ConvDataType::F16_F16_F16)
             {
                 constexpr auto SIGNATURE = ckp::SIGNATURE_NDHWGC_FP16_FWD;
-                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
                                                 time_kernel);
             }
             else if(data_type == ConvDataType::BF16_BF16_BF16)
             {
                 constexpr auto SIGNATURE = ckp::SIGNATURE_NDHWGC_BF16_FWD;
-                return call_profiler<SIGNATURE>(ckt::parse_conv_args<SIGNATURE>(10, argv),
+                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
                                                 time_kernel);
             }
         }

@@ -181,14 +181,14 @@ struct Args<SIGNATURE>
     {
         const auto to_vector = [](const auto& extent) {
             if constexpr(SPATIAL_DIM == 1)
-                return std::vector<ck::index_t>{ck::index_t(extent.width)};
+                return std::vector<ck_tile::index_t>{ck::index_t(extent.width)};
             else if constexpr(SPATIAL_DIM == 2)
-                return std::vector<ck::index_t>{ck::index_t(extent.height),
-                                                ck::index_t(extent.width)};
+                return std::vector<ck_tile::index_t>{ck::index_t(extent.height),
+                                                     ck::index_t(extent.width)};
             else
-                return std::vector<ck::index_t>{ck::index_t(extent.depth),
-                                                ck::index_t(extent.height),
-                                                ck::index_t(extent.width)};
+                return std::vector<ck_tile::index_t>{ck::index_t(extent.depth),
+                                                     ck::index_t(extent.height),
+                                                     ck::index_t(extent.width)};
         };
 
         return ck_tile::conv::ConvParam(SPATIAL_DIM,

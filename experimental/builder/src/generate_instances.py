@@ -106,7 +106,7 @@ def generate_defs_inc(instances, problem_name, signature, direction, filter_patt
         for instance in instances:
             instance_name = problem_name + "_" + str(instance.id)
             f.write(
-                f"std::tuple<float, std::string> run_{instance_name}(\n"
+                f"std::tuple<bool, float, std::string> run_{instance_name}(\n"
                 f"   const ckt::Args<{signature}>& args,\n"
                 f"   const ckt::Inputs<{signature}>& inputs,\n"
                 f"   const ckt::Outputs<{signature}>& outputs,\n"

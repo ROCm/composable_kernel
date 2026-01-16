@@ -5,24 +5,25 @@
 
 #include <tuple>
 
-#include "experimental/builder/test/utils/ckb_conv_tile_test_configs.hpp"
-#include "experimental/builder/test/utils/conv_algorithm_type_utils.hpp"
+#include "../../experimental/builder/test/utils/conv_algorithm_type_utils.hpp"
 #include "grouped_convolution_signatures.hpp"
 
+#include "ck_tile/builder/testing/filter_extent.hpp"
 #include "ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
 #include "ck_tile/builder/testing/conv_fwd_reference.hpp"
+#include "ck_tile/builder/conv_builder.hpp"
 
 namespace ck_tile::builder::profiling {
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
 
-#include "experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp32.inc"
-#include "experimental/builder/src/grouped_convolution_forward_tile_nhwgc_bf16.inc"
-#include "experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp16.inc"
-#include "experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp32.inc"
-#include "experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_bf16.inc"
-#include "experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp16.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp32.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_bf16.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp16.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp32.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_bf16.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp16.inc"
 
 template <auto SIGNATURE>
 auto parse_conv_args(int arg_idx, char* const argv[])
@@ -77,15 +78,15 @@ auto parse_conv_args(int arg_idx, char* const argv[])
                 .groups          = G,
                 .input_channels  = C,
                 .output_channels = K,
-                .image  = filter_extent_from_vector<num_dim_spatial>(input_spatial_lengths),
-                .filter = filter_extent_from_vector<num_dim_spatial>(filter_spatial_lengths),
+                .image  = ckt::filter_extent_from_vector<num_dim_spatial>(input_spatial_lengths),
+                .filter = ckt::filter_extent_from_vector<num_dim_spatial>(filter_spatial_lengths),
             },
-        .filter_strides     = filter_extent_from_vector<num_dim_spatial>(conv_filter_strides),
-        .filter_dilation    = filter_extent_from_vector<num_dim_spatial>(conv_filter_dilations),
-        .input_left_pad     = filter_extent_from_vector<num_dim_spatial>(input_left_pads),
-        .input_right_pad    = filter_extent_from_vector<num_dim_spatial>(input_right_pads),
-        .a_elementwise_op   = {},
-        .b_elementwise_op   = {},
+        .filter_strides   = ckt::filter_extent_from_vector<num_dim_spatial>(conv_filter_strides),
+        .filter_dilation  = ckt::filter_extent_from_vector<num_dim_spatial>(conv_filter_dilations),
+        .input_left_pad   = ckt::filter_extent_from_vector<num_dim_spatial>(input_left_pads),
+        .input_right_pad  = ckt::filter_extent_from_vector<num_dim_spatial>(input_right_pads),
+        .a_elementwise_op = {},
+        .b_elementwise_op = {},
         .cde_elementwise_op = {},
     };
     return args;
@@ -105,6 +106,7 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
 {
     float best_avg_time = std::numeric_limits<float>::max();
     std::string best_op_name, op_name;
+    bool is_supported;
     float avg_time;
     bool valid = true;
 
@@ -115,8 +117,8 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
     ckt::run(ref_conv, args, inputs, reference.get());
 
     [[maybe_unused]] auto run_alg = [&](auto&& run_alg_func) {
-        std::tie(avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
-        if(avg_time > 0.f)
+        std::tie(is_supported, avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
+        if(is_supported)
         {
             const auto errors = ckt::validate(args, outputs, reference.get()).get_errors();
             for(const auto& error : errors)
@@ -134,27 +136,27 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
 
     if constexpr(SIGNATURE == SIGNATURE_NHWGC_FP16_FWD)
     {
-#include "experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp16_calls.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp16_calls.inc"
     }
     else if constexpr(SIGNATURE == SIGNATURE_NHWGC_BF16_FWD)
     {
-#include "experimental/builder/src/grouped_convolution_forward_tile_nhwgc_bf16_calls.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_bf16_calls.inc"
     }
     else if constexpr(SIGNATURE == SIGNATURE_NHWGC_FP32_FWD)
     {
-#include "experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp32_calls.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_nhwgc_fp32_calls.inc"
     }
     else if constexpr(SIGNATURE == SIGNATURE_NDHWGC_FP16_FWD)
     {
-#include "experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp16_calls.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp16_calls.inc"
     }
     else if constexpr(SIGNATURE == SIGNATURE_NDHWGC_BF16_FWD)
     {
-#include "experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_bf16_calls.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_bf16_calls.inc"
     }
     else if constexpr(SIGNATURE == SIGNATURE_NDHWGC_FP32_FWD)
     {
-#include "experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp32_calls.inc"
+#include "../../experimental/builder/src/grouped_convolution_forward_tile_ndhwgc_fp32_calls.inc"
     }
     else
     {

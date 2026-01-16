@@ -6,6 +6,8 @@
 #include "ck_tile/builder/testing/conv_fwd.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
+#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/grouped_convolution.hpp"
 #include <type_traits>
 #include <array>
 
@@ -46,17 +48,19 @@ concept CkTileConvInstance = detail::CkTileConvInstance<Conv, SIGNATURE>;
 /// @brief `run()` specialization for forward convolution and CK Tile.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @throws std::runtime_error if the arguments werent actually valid for the
+/// @throws std::runtime_error if the arguments weren't actually valid for the
 /// operation. This should be caught and reported by the testing framework.
+/// @return std::tuple<bool, float> - whether the problem is supported and
+///         kernel execution time (0.0f if s_conf time_kernel is false).
 ///
 /// @see run()
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
-float run(CkTileConvInstance<SIGNATURE> auto& conv,
-          const Args<SIGNATURE>& args,
-          const Inputs<SIGNATURE>& inputs,
-          const Outputs<SIGNATURE>& outputs,
-          const ck_tile::stream_config s_conf = {})
+std::tuple<bool, float> run(CkTileConvInstance<SIGNATURE> auto& conv,
+                            const Args<SIGNATURE>& args,
+                            const Inputs<SIGNATURE>& inputs,
+                            const Outputs<SIGNATURE>& outputs,
+                            const ck_tile::stream_config s_conf = {})
 {
     using Conv       = std::remove_reference_t<decltype(conv)>;
     const auto param = args.to_ck_tile_conv_param();
@@ -72,14 +76,16 @@ float run(CkTileConvInstance<SIGNATURE> auto& conv,
     if(!Conv::IsSupportedArgument(kargs))
     {
         std::cout << "Not supported!";
-        return 0.f;
+        return std::make_tuple(false, 0.f);
     }
 
     constexpr index_t minimum_occupancy =
         Conv::GemmPipeline::Scheduler == ck_tile::GemmPipelineScheduler::Intrawave ? 1 : 2;
 
-    return ck_tile::launch_kernel(
-        s_conf, ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs));
+    return std::make_tuple(
+        true,
+        ck_tile::launch_kernel(
+            s_conf, ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs)));
 }
 
 } // namespace ck_tile::builder::test
