@@ -186,8 +186,10 @@
 // This (ifndef) is a hack to use customized behavior for buffer load rather than using default
 // setting. Don't use this hack unless absolutely necessary!
 // FIXME: make the behavior of buffer load a configurable (template) parameter for each usage
+// FIX: Enable offset trick to prevent invalid loads from crashing on gfx906/MI50
+// Without this, invalid loads still execute and crash despite bounds checking
 #ifndef CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
-#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
+#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 1
 #endif
 #define CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK 1
 #define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK 1
