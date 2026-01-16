@@ -79,24 +79,11 @@ struct TensorDescriptor
 
         constexpr index_t idim_hidden = VisibleDimensionIds::At(idim_visible);
 
-        index_t itran_found   = 0;
-        index_t idim_up_found = 0;
-        bool found            = false;
+        // Use compile-time search helper instead of nested static_for with lambdas
+        // This eliminates ~918 applier::operator() instantiations
+        constexpr auto result = find_in_tuple_of_sequences<idim_hidden>(UpperDimensionIdss{});
 
-        static_for<0, ntransform_, 1>{}([&](auto itran) {
-            constexpr auto up_dim_ids = UpperDimensionIdss{}[itran];
-
-            static_for<0, up_dim_ids.Size(), 1>{}([&](auto idim_up) {
-                if constexpr(up_dim_ids[idim_up] == idim_hidden)
-                {
-                    itran_found   = itran;
-                    idim_up_found = idim_up;
-                    found         = true;
-                }
-            });
-        });
-
-        return make_tuple(itran_found, idim_up_found, found);
+        return make_tuple(result.itran, result.idim_up, result.found);
     }
 
     constexpr static index_t ntransform_   = GetNumOfTransform();
