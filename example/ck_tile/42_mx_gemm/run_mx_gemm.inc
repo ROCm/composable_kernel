@@ -154,17 +154,17 @@ int run_mx_gemm_example(int argc, char* argv[])
                                                 MXfp4_GemmConfig16,
                                                 true>(argc, argv, Row{}, Col{}, Row{});
         }
-        else if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
-        {
-            return run_mx_gemm_with_layouts<ck_tile::fp8_t,
-                                                ck_tile::fp8_t,
-                                                float,
-                                                MXfp8_GemmConfig16,
-                                                false>(argc, argv, Row{}, Col{}, Row{});
-        }
+        // else if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
+        // {
+        //     return run_mx_gemm_with_layouts<ck_tile::fp8_t,
+        //                                         ck_tile::fp8_t,
+        //                                         float,
+        //                                         MXfp8_GemmConfig16,
+        //                                         false>(argc, argv, Row{}, Col{}, Row{});
+        // }
         else
         {
-             throw std::runtime_error("Only fp4 and fp8 is supported currently!");
+             throw std::runtime_error("Only fp4 is supported currently!");
         }
     }
     else

@@ -43,7 +43,7 @@ struct MXGemmHostArgs : ck_tile::UniversalGemmHostArgs<1, 1, 0>
 struct MxGemmConfig
 {
     static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 512;
 
     static constexpr ck_tile::index_t M_Warp = 1;
@@ -74,7 +74,7 @@ struct MxGemmConfig
 struct MXfp4_GemmConfig16 : MxGemmConfig
 {
     static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 256;
 };
 

@@ -316,10 +316,10 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 number<BsLayout::size()>{});
             
             /// Check tile window traits for vector size
-            using ATileDstr = remove_cvref_t<decltype(Policy::template MakeADramTileDistribution<Problem>())>;
+            // using ATileDstr = remove_cvref_t<decltype(Policy::template MakeADramTileDistribution<Problem>())>;
             // static_assert(ATileDstr::LargestVec >= 16, "wrong! not implemented vector size");
             // static_assert(ATileDstr::X1 >= 16, "wrong! not implemented vector size");
-            using BTileDstr = remove_cvref_t<decltype(Policy::template MakeBDramTileDistribution<Problem>())>;
+            // using BTileDstr = remove_cvref_t<decltype(Policy::template MakeBDramTileDistribution<Problem>())>;
             // static_assert(BTileDstr::LargestVec >= 16, "wrong! not implemented vector size");
             // static_assert(BTileDstr::X1 >= 16, "wrong! not implemented vector size");
             using ATileType = remove_cvref_t<decltype(a_tile_windows[number<0>{}])>;

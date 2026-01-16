@@ -39,7 +39,15 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         // constexpr index_t vector_size_for_16_bytes = 16 / sizeof(ADataType);
         
         // return vector_size_for_16_bytes;
-        return 16;
+        static_assert(std::is_same_v<ADataType, pk_fp4_t>, "ADataType must be pk_fp4_t or pk_fp4_raw_t");
+        if constexpr(std::is_same_v<ADataType, pk_fp4_t> || std::is_same_v<ADataType, pk_fp4_raw_t>)
+        {
+            return 32;
+        }
+        else
+        {
+            return 16;
+        }
     }
 
     template <typename Problem, bool IsWave32Host = false>
@@ -55,7 +63,15 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         // constexpr index_t vector_size_for_16_bytes = 16 / sizeof(BDataType);
         
         // return vector_size_for_16_bytes;
-        return 16;
+        static_assert(std::is_same_v<BDataType, pk_fp4_t>, "BDataType must be pk_fp4_t or pk_fp4_raw_t");
+        if constexpr(std::is_same_v<BDataType, pk_fp4_t> || std::is_same_v<BDataType, pk_fp4_raw_t>)
+        {
+            return 32;
+        }
+        else
+        {
+            return 16;
+        }
     }
 
     // Override DRAM tile distributions to use the constrained vector sizes

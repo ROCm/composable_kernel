@@ -843,7 +843,7 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr index_t GetSmemSizeA()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
         using ADataType                 = remove_cvref_t<typename Problem::ADataType>;
         constexpr auto a_lds_block_desc = Derived::template MakeALdsBlockDescriptor<Problem>();
@@ -853,7 +853,7 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr index_t GetSmemSizeB()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
         using BDataType =
             std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
@@ -866,7 +866,7 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
