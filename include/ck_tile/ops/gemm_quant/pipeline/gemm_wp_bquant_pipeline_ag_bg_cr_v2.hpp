@@ -390,10 +390,6 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
 
         // MAIN LOOP
         index_t iCounter = (num_loop - 1) / loop_count;
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf("iCounter:%d \n\n ", iCounter);
-        }
         while(iCounter > 0)
         {
             __builtin_amdgcn_sched_barrier(0);

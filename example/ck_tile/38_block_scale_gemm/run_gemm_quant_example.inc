@@ -521,12 +521,13 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             }
             else
             {
-                ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
-                ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                ck_tile::FillUniformDistribution<BDataType>{-2.0f,
+                                                            3.0f /*, fill_seed(gen)*/}(b_k_n);
+                ck_tile::FillUniformDistribution<BQDataType>{1.0f, 1.0f /*, fill_seed(gen)*/}(
                     *bq_tensor_ptr);
             }
 
-            ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f, fill_seed(gen)}(a_m_k);
+            ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f /*, fill_seed(gen)*/}(a_m_k);
         }
         else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
         {
@@ -572,7 +573,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 {
                     for(int j = 0; j < BQN; j++)
                     {
-                        (*bq_tensor_ptr)(i, j) = value;
+                        (*bq_tensor_ptr)(i, j) = 1.0;
                         value += static_cast<BQDataType>(1.0f);
                     }
                 }

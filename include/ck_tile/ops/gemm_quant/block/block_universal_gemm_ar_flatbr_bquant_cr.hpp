@@ -240,18 +240,19 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                         auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
                         float scale_reg_f = cvt_scale_to_fp32(scale_reg);
 
-                        printf("get_block_id(): %d, get_warp_id(): %d, get_thread_id(): %d, nIter: "
-                               "%d, KPerBlockBQ: %d, "
-                               "kQScale: %d, scale_reg: %f, "
-                               "scale_reg_f: %f\n",
-                               get_block_id(),
-                               get_warp_id(),
-                               get_thread_id(),
-                               static_cast<int>(nIter),
-                               KPerBlockBQ,
-                               static_cast<int>(kQScale),
-                               scale_reg,
-                               scale_reg_f);
+                        // printf("get_block_id(): %d, get_warp_id(): %d, get_thread_id(): %d,
+                        // nIter: "
+                        //        "%d, KPerBlockBQ: %d, "
+                        //        "kQScale: %d, scale_reg: %f, "
+                        //        "scale_reg_f: %f\n",
+                        //        get_block_id(),
+                        //        get_warp_id(),
+                        //        get_thread_id(),
+                        //        static_cast<int>(nIter),
+                        //        KPerBlockBQ,
+                        //        static_cast<int>(kQScale),
+                        //        scale_reg,
+                        //        scale_reg_f);
 
                         static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
                             auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
@@ -263,14 +264,14 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                 });
             });
         });
-        // auto c_thread_buffer      = c_block_tensor.get_thread_buffer();
+        auto c_thread_buffer = c_block_tensor.get_thread_buffer();
         // printf("C Data:\n");
-        // for(index_t i = 0; i < c_thread_buffer.size(); ++i)
-        // {
-        //     auto value = c_thread_buffer.get(i);
-        //     auto float_value = type_convert<float>(value);
-        //     printf("  [%d] = %f\n", i, float_value);
-        // }
+        for(index_t i = 0; i < c_thread_buffer.size(); ++i)
+        {
+            auto value       = c_thread_buffer.get(i);
+            auto float_value = type_convert<float>(value);
+            printf("[%d] = %f\n", i, float_value);
+        }
     }
 };
 
