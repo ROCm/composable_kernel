@@ -40,11 +40,14 @@ class TestGroupedConvndBwdData : public ::testing::Test
                                                                                 DataType,
                                                                                 DataType>(
                                    true,  // do_verification
-                                   1,     // init_method: integer value
+                                   1,     // init_method: float value
                                    false, // do_log
                                    false, // time_kernel
                                    param,
-                                   split_k);
+                                   split_k,
+                                   -1,
+                                   std::optional<std::array<float, 2>>{{0, 5}},
+                                   std::optional<std::array<float, 2>>{{0, 5}});
             }
         }
         EXPECT_TRUE(pass);

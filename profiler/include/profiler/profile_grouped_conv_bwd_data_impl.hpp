@@ -33,13 +33,16 @@ template <ck::index_t NDimSpatial,
           typename WeiDataType,
           typename InDataType,
           typename ComputeDataType = InDataType>
-bool profile_grouped_conv_bwd_data_impl(int do_verification,
-                                        int init_method,
-                                        bool do_log,
-                                        bool time_kernel,
-                                        const ck::utils::conv::ConvParam& conv_param,
-                                        ck::index_t split_k    = 1,
-                                        index_t instance_index = -1)
+bool profile_grouped_conv_bwd_data_impl(
+    int do_verification,
+    int init_method,
+    bool do_log,
+    bool time_kernel,
+    const ck::utils::conv::ConvParam& conv_param,
+    ck::index_t split_k                                 = 1,
+    index_t instance_index                              = -1,
+    std::optional<std::array<float, 2>> init_bounds_out = std::nullopt,
+    std::optional<std::array<float, 2>> init_bounds_wei = std::nullopt)
 {
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -72,6 +75,16 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_element_space_size);
     DeviceMem in_device_buf(sizeof(InDataType) * in_element_space_size);
 
+    // Initialization bounds for output and weight tensors
+    // Output: {-5, -4, ..., 3, 4} for integers, [0, 1) for floats.
+    const auto default_out =
+        (init_method == 1) ? std::array<float, 2>{-5.0f, 5.0f} : std::array<float, 2>{0.0f, 1.0f};
+    const auto [out_min, out_max] = init_bounds_out.value_or(default_out);
+    // Weight: {-5, -4, ..., 3, 4} for integers, [-0.5, 0.5) for floats.
+    const auto default_wei =
+        (init_method == 1) ? std::array<float, 2>{-5.0f, 5.0f} : std::array<float, 2>{-0.5f, 0.5f};
+    const auto [wei_min, wei_max] = init_bounds_wei.value_or(default_wei);
+
     // Generate data directly on GPU using DeviceMem methods
     switch(init_method)
     {
@@ -82,13 +95,13 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
         break;
     case 1:
         // Discrete integer values in range [-5, 5]
-        out_device_buf.FillUniformRandInteger<OutDataType>(-5, 5);
-        wei_device_buf.FillUniformRandInteger<WeiDataType>(-5, 5);
+        out_device_buf.FillUniformRandInteger<OutDataType>(out_min, out_max);
+        wei_device_buf.FillUniformRandInteger<WeiDataType>(wei_min, wei_max);
         break;
     case 2:
         // Continuous float values
-        out_device_buf.FillUniformRandFp<OutDataType>(0.0f, 1.0f);
-        wei_device_buf.FillUniformRandFp<WeiDataType>(-0.5f, 0.5f);
+        out_device_buf.FillUniformRandFp<OutDataType>(out_min, out_max);
+        wei_device_buf.FillUniformRandFp<WeiDataType>(wei_min, wei_max);
         break;
     default:
         // Constant value 1
