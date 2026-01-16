@@ -6,7 +6,7 @@
 #include <concepts>
 
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
-#include <ck_tile/builder/reflect/conv_traits.hpp>
+#include <ck_tile/builder/reflect/instance_to_conv_traits.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp>
@@ -86,72 +86,72 @@ TEST_F(ConvTraitsTest, ConvFwdTraitsExtraction)
             ck::half_t,                                // BComputeDataType
             false>;                                    // DirectLoad
 
-    // Use ConvTraits to extract compile-time information
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    // Use ConvTraitsTmpl to extract compile-time information
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
     // Verify signature information
-    EXPECT_EQ(Traits::spatial_dim, 2);
-    EXPECT_EQ(Traits::direction, ConvDirection::FORWARD);
-    EXPECT_THAT(Traits::layout,
+    EXPECT_EQ(traits.spatial_dim, 2);
+    EXPECT_EQ(traits.direction, ConvDirection::FORWARD);
+    EXPECT_THAT(traits.layout,
                 ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
-    EXPECT_EQ(Traits::data_type, DataType::FP16);
-    EXPECT_EQ(Traits::input_element_op, ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::weight_element_op, ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::output_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(traits.data_type, DataType::FP16);
+    EXPECT_EQ(traits.input_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(traits.weight_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(traits.output_element_op, ElementwiseOperation::PASS_THROUGH);
 
     // Verify specializations
-    EXPECT_EQ(Traits::gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
-    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
+    EXPECT_EQ(traits.gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
+    EXPECT_EQ(traits.conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
 
     // Verify algorithm information
-    EXPECT_EQ(Traits::thread_block_size, 256);
+    EXPECT_EQ(traits.thread_block_size, 256);
 
     // Verify tile dimensions
-    EXPECT_EQ(Traits::tile_dims.m, 128);
-    EXPECT_EQ(Traits::tile_dims.n, 128);
-    EXPECT_EQ(Traits::tile_dims.k, 16);
+    EXPECT_EQ(traits.tile_dims.m, 128);
+    EXPECT_EQ(traits.tile_dims.n, 128);
+    EXPECT_EQ(traits.tile_dims.k, 16);
 
     // Verify A tile transfer info
-    EXPECT_EQ(Traits::a_tile_transfer.tile_dimensions.k0, 2);
-    EXPECT_EQ(Traits::a_tile_transfer.tile_dimensions.m_or_n, 128);
-    EXPECT_EQ(Traits::a_tile_transfer.tile_dimensions.k1, 8);
-    EXPECT_EQ(Traits::a_tile_transfer.transfer_params.k1, 8);
-    EXPECT_THAT(Traits::a_tile_transfer.transfer_params.thread_cluster_dims, ElementsAre(4, 64, 1));
-    EXPECT_THAT(Traits::a_tile_transfer.transfer_params.thread_cluster_order, ElementsAre(1, 0, 2));
-    EXPECT_THAT(Traits::a_tile_transfer.transfer_params.src_access_order, ElementsAre(1, 0, 2));
-    EXPECT_EQ(Traits::a_tile_transfer.transfer_params.src_vector_dim, 2);
-    EXPECT_EQ(Traits::a_tile_transfer.transfer_params.src_scalar_per_vector, 8);
-    EXPECT_EQ(Traits::a_tile_transfer.transfer_params.dst_scalar_per_vector_k1, 8);
-    EXPECT_TRUE(Traits::a_tile_transfer.transfer_params.lds_padding);
+    EXPECT_EQ(traits.a_tile_transfer.tile_dimensions.k0, 2);
+    EXPECT_EQ(traits.a_tile_transfer.tile_dimensions.m_or_n, 128);
+    EXPECT_EQ(traits.a_tile_transfer.tile_dimensions.k1, 8);
+    EXPECT_EQ(traits.a_tile_transfer.transfer_params.k1, 8);
+    EXPECT_THAT(traits.a_tile_transfer.transfer_params.thread_cluster_dims, ElementsAre(4, 64, 1));
+    EXPECT_THAT(traits.a_tile_transfer.transfer_params.thread_cluster_order, ElementsAre(1, 0, 2));
+    EXPECT_THAT(traits.a_tile_transfer.transfer_params.src_access_order, ElementsAre(1, 0, 2));
+    EXPECT_EQ(traits.a_tile_transfer.transfer_params.src_vector_dim, 2);
+    EXPECT_EQ(traits.a_tile_transfer.transfer_params.src_scalar_per_vector, 8);
+    EXPECT_EQ(traits.a_tile_transfer.transfer_params.dst_scalar_per_vector_k1, 8);
+    EXPECT_TRUE(traits.a_tile_transfer.transfer_params.lds_padding);
 
     // Verify B tile transfer info
-    EXPECT_EQ(Traits::b_tile_transfer.tile_dimensions.k0, 2);
-    EXPECT_EQ(Traits::b_tile_transfer.tile_dimensions.m_or_n, 128);
-    EXPECT_EQ(Traits::b_tile_transfer.tile_dimensions.k1, 8);
-    EXPECT_EQ(Traits::b_tile_transfer.transfer_params.k1, 8);
-    EXPECT_THAT(Traits::b_tile_transfer.transfer_params.thread_cluster_dims, ElementsAre(4, 64, 1));
-    EXPECT_THAT(Traits::b_tile_transfer.transfer_params.thread_cluster_order, ElementsAre(1, 0, 2));
-    EXPECT_THAT(Traits::b_tile_transfer.transfer_params.src_access_order, ElementsAre(1, 0, 2));
-    EXPECT_EQ(Traits::b_tile_transfer.transfer_params.src_vector_dim, 2);
-    EXPECT_EQ(Traits::b_tile_transfer.transfer_params.src_scalar_per_vector, 8);
-    EXPECT_EQ(Traits::b_tile_transfer.transfer_params.dst_scalar_per_vector_k1, 8);
-    EXPECT_TRUE(Traits::b_tile_transfer.transfer_params.lds_padding);
+    EXPECT_EQ(traits.b_tile_transfer.tile_dimensions.k0, 2);
+    EXPECT_EQ(traits.b_tile_transfer.tile_dimensions.m_or_n, 128);
+    EXPECT_EQ(traits.b_tile_transfer.tile_dimensions.k1, 8);
+    EXPECT_EQ(traits.b_tile_transfer.transfer_params.k1, 8);
+    EXPECT_THAT(traits.b_tile_transfer.transfer_params.thread_cluster_dims, ElementsAre(4, 64, 1));
+    EXPECT_THAT(traits.b_tile_transfer.transfer_params.thread_cluster_order, ElementsAre(1, 0, 2));
+    EXPECT_THAT(traits.b_tile_transfer.transfer_params.src_access_order, ElementsAre(1, 0, 2));
+    EXPECT_EQ(traits.b_tile_transfer.transfer_params.src_vector_dim, 2);
+    EXPECT_EQ(traits.b_tile_transfer.transfer_params.src_scalar_per_vector, 8);
+    EXPECT_EQ(traits.b_tile_transfer.transfer_params.dst_scalar_per_vector_k1, 8);
+    EXPECT_TRUE(traits.b_tile_transfer.transfer_params.lds_padding);
 
     // Verify warp GEMM params
-    EXPECT_EQ(Traits::warp_gemm.gemm_m, 32);
-    EXPECT_EQ(Traits::warp_gemm.gemm_n, 32);
-    EXPECT_EQ(Traits::warp_gemm.m_iter, 4);
-    EXPECT_EQ(Traits::warp_gemm.n_iter, 4);
+    EXPECT_EQ(traits.warp_gemm.gemm_m, 32);
+    EXPECT_EQ(traits.warp_gemm.gemm_n, 32);
+    EXPECT_EQ(traits.warp_gemm.m_iter, 4);
+    EXPECT_EQ(traits.warp_gemm.n_iter, 4);
 
     // Verify output tile transfer info
-    EXPECT_EQ(Traits::c_tile_transfer.shuffle_params.m_gemms_per_shuffle, 1);
-    EXPECT_EQ(Traits::c_tile_transfer.shuffle_params.n_gemms_per_shuffle, 1);
-    EXPECT_THAT(Traits::c_tile_transfer.thread_cluster_dims, ElementsAre(1, 32, 1, 8));
-    EXPECT_EQ(Traits::c_tile_transfer.scalar_per_vector, 8);
+    EXPECT_EQ(traits.c_tile_transfer.shuffle_params.m_gemms_per_shuffle, 1);
+    EXPECT_EQ(traits.c_tile_transfer.shuffle_params.n_gemms_per_shuffle, 1);
+    EXPECT_THAT(traits.c_tile_transfer.thread_cluster_dims, ElementsAre(1, 32, 1, 8));
+    EXPECT_EQ(traits.c_tile_transfer.scalar_per_vector, 8);
 
     // Verify pipeline configuration
-    EXPECT_EQ(Traits::pipeline_scheduler, PipelineScheduler::INTRAWAVE);
-    EXPECT_EQ(Traits::pipeline_version, PipelineVersion::V1);
+    EXPECT_EQ(traits.pipeline_scheduler, PipelineScheduler::INTRAWAVE);
+    EXPECT_EQ(traits.pipeline_version, PipelineVersion::V1);
 }
 
 // Test ConvTraits with DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
@@ -214,30 +214,30 @@ TEST_F(ConvTraitsTest, ConvFwdBaseTraitsExtraction)
             ck::LoopScheduler::Default, // LoopSched
             1>;                         // NumGroupsToMerge
 
-    // Use ConvTraits to extract compile-time information
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    // Use ConvTraitsTmpl to extract compile-time information
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
     // Verify signature information
-    EXPECT_EQ(Traits::spatial_dim, 2);
-    EXPECT_EQ(Traits::direction, ConvDirection::FORWARD);
-    EXPECT_THAT(Traits::layout,
+    EXPECT_EQ(traits.spatial_dim, 2);
+    EXPECT_EQ(traits.direction, ConvDirection::FORWARD);
+    EXPECT_THAT(traits.layout,
                 ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
-    EXPECT_EQ(Traits::data_type, DataType::FP16);
-    EXPECT_EQ(Traits::input_element_op, ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::weight_element_op, ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::output_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(traits.data_type, DataType::FP16);
+    EXPECT_EQ(traits.input_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(traits.weight_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(traits.output_element_op, ElementwiseOperation::PASS_THROUGH);
 
     // Verify specializations
-    EXPECT_EQ(Traits::gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
-    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
+    EXPECT_EQ(traits.gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
+    EXPECT_EQ(traits.conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
 
     // Verify algorithm information
-    EXPECT_EQ(Traits::thread_block_size, 256);
+    EXPECT_EQ(traits.thread_block_size, 256);
 
     // Verify tile dimensions
-    EXPECT_EQ(Traits::tile_dims.m, 128);
-    EXPECT_EQ(Traits::tile_dims.n, 128);
-    EXPECT_EQ(Traits::tile_dims.k, 16);
+    EXPECT_EQ(traits.tile_dims.m, 128);
+    EXPECT_EQ(traits.tile_dims.n, 128);
+    EXPECT_EQ(traits.tile_dims.k, 16);
 }
 // Test ConvTraits with DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 TEST_F(ConvTraitsTest, ConvFwdLargeTensorTraitsExtraction)
@@ -298,29 +298,29 @@ TEST_F(ConvTraitsTest, ConvFwdLargeTensorTraitsExtraction)
             ck::half_t,                  // BComputeDataType
             ck::LoopScheduler::Default>; // LoopSched
 
-    // Use ConvTraits to extract compile-time information
-    using Traits = ck_tile::reflect::conv::ConvTraits<DeviceInstance>;
+    // Use ConvTraitsTmpl to extract compile-time information
+    const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
 
     // Verify signature information
-    EXPECT_EQ(Traits::spatial_dim, 2);
-    EXPECT_EQ(Traits::direction, ConvDirection::FORWARD);
-    EXPECT_THAT(Traits::layout,
+    EXPECT_EQ(traits.spatial_dim, 2);
+    EXPECT_EQ(traits.direction, ConvDirection::FORWARD);
+    EXPECT_THAT(traits.layout,
                 ElementsAre(TensorLayout::GNHWC, TensorLayout::GKYXC, TensorLayout::GNHWK));
-    EXPECT_EQ(Traits::data_type, DataType::FP16);
-    EXPECT_EQ(Traits::input_element_op, ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::weight_element_op, ElementwiseOperation::PASS_THROUGH);
-    EXPECT_EQ(Traits::output_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(traits.data_type, DataType::FP16);
+    EXPECT_EQ(traits.input_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(traits.weight_element_op, ElementwiseOperation::PASS_THROUGH);
+    EXPECT_EQ(traits.output_element_op, ElementwiseOperation::PASS_THROUGH);
 
     // Verify specializations
-    EXPECT_EQ(Traits::gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
-    EXPECT_EQ(Traits::conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
+    EXPECT_EQ(traits.gemm_padding, ck_tile::builder::GemmPadding::DEFAULT);
+    EXPECT_EQ(traits.conv_specialization, ck_tile::builder::ConvSpecialization::DEFAULT);
 
     // Verify algorithm information
-    EXPECT_EQ(Traits::thread_block_size, 256);
+    EXPECT_EQ(traits.thread_block_size, 256);
 
     // Verify tile dimensions
-    EXPECT_EQ(Traits::tile_dims.m, 128);
-    EXPECT_EQ(Traits::tile_dims.n, 128);
-    EXPECT_EQ(Traits::tile_dims.k, 16);
+    EXPECT_EQ(traits.tile_dims.m, 128);
+    EXPECT_EQ(traits.tile_dims.n, 128);
+    EXPECT_EQ(traits.tile_dims.k, 16);
 }
 } // anonymous namespace

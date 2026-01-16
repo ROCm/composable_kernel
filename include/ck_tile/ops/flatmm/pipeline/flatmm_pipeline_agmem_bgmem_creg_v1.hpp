@@ -59,7 +59,7 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
             return TailHandler<DispatchHotloop, TailNumber::Odd>(run_func, has_hot_loop);
         else
         {
-            assert(("Wrong TailNumber!", false));
+            assert(false && "Wrong TailNumber!");
             return TailHandler<DispatchHotloop, TailNumber::Even>(run_func, has_hot_loop);
         }
     }

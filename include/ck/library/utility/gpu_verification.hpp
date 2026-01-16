@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <iomanip>
+#include <iostream>
+
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
 #include "ck/utility/type.hpp"
@@ -12,6 +15,46 @@
 
 namespace ck {
 namespace profiler {
+
+// Result struct for GPU verification with detailed error reporting
+// Provides backward compatibility via operator bool()
+struct GpuVerifyResult
+{
+    unsigned long long error_count; // Number of elements that exceeded tolerance
+    float max_error;                // Maximum error value observed
+    std::size_t total;              // Total number of elements compared
+    bool all_zero;                  // True if device result is all zeros (likely kernel issue)
+
+    // Implicit conversion to bool for backward compatibility
+    // Allows: if (gpu_verify(...)) { ... }
+    operator bool() const { return error_count == 0; }
+
+    // Calculate error percentage
+    float error_percentage() const
+    {
+        if(total == 0)
+            return 0.0f;
+        return static_cast<float>(error_count) / static_cast<float>(total) * 100.0f;
+    }
+
+    // Print error summary to stderr (matches check_err format)
+    void print_error_summary() const
+    {
+        if(error_count > 0)
+        {
+            if(all_zero)
+            {
+                std::cerr << "WARNING: Device result is all zeros - kernel may not have executed "
+                             "properly!"
+                          << std::endl;
+            }
+            std::cerr << "max err: " << max_error;
+            std::cerr << ", number of errors: " << error_count;
+            std::cerr << ", " << std::setprecision(2) << std::fixed << error_percentage()
+                      << "% wrong values" << std::endl;
+        }
+    }
+};
 
 // Compute relative tolerance for GPU verification
 // Matches the logic of ck::utils::get_relative_threshold but handles all types
@@ -63,16 +106,45 @@ inline float compute_relative_tolerance(const int number_of_accumulations = 1)
     }
 }
 
+// Device-side result structure for kernel output
+// Packed into a single struct to minimize device memory allocations
+struct GpuVerifyDeviceResult
+{
+    unsigned long long error_count; // Number of errors found
+    float max_error;                // Maximum error value
+    int all_zero;                   // 1 = device result is all zeros, 0 = has non-zero values
+};
+
 // GPU verification kernel - compares device result against reference using relative and absolute
-// tolerance Returns 1 in passed if all elements match within tolerance, 0 otherwise
+// tolerance. Tracks all errors (no early exit) to provide detailed error reporting.
+//
+// Uses LDS (shared memory) for block-level reduction to minimize atomic contention.
+// This reduces atomic operations from O(errors) to O(blocks), providing massive speedup
+// when there are many errors.
+//
+// Assumption: Block size is 256
 template <typename T>
 __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
                                   const T* __restrict__ reference_result,
                                   float rtol,
                                   float atol,
                                   long long size,
-                                  int* passed)
+                                  GpuVerifyDeviceResult* result)
 {
+    constexpr int block_size = 256;
+
+    // Shared memory for block-level reduction
+    __shared__ unsigned long long shared_error_count[block_size];
+    __shared__ float shared_max_error[block_size];
+    __shared__ int shared_has_error[block_size];
+    __shared__ int shared_has_nonzero[block_size];
+
+    // Thread-local accumulators (in registers)
+    unsigned long long local_error_count = 0;
+    float local_max_error                = 0.0f;
+    int local_has_error                  = 0;
+    int local_has_nonzero                = 0;
+
     // Grid-stride loop to handle any tensor size
     long long idx    = blockIdx.x * blockDim.x + threadIdx.x;
     long long stride = blockDim.x * gridDim.x;
@@ -83,35 +155,95 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
         float dev_val = type_convert<float>(device_result[i]);
         float ref_val = type_convert<float>(reference_result[i]);
 
+        // Check if device value is non-zero
+        if(dev_val != 0.0f)
+        {
+            local_has_nonzero = 1;
+        }
+
         // Compute absolute difference
         float abs_diff = fabsf(dev_val - ref_val);
 
         // Check tolerance (matches CPU check_err logic: err > atol + rtol * abs(ref))
         if(abs_diff > atol + rtol * fabsf(ref_val))
         {
-            atomicMin(passed, 0); // Mark as failed
-            return;               // Early exit on first failure
+            local_has_error = 1;
+            local_error_count++;
+            local_max_error = fmaxf(local_max_error, abs_diff);
+        }
+    }
+
+    // Store thread-local results to shared memory
+    shared_error_count[threadIdx.x] = local_error_count;
+    shared_max_error[threadIdx.x]   = local_max_error;
+    shared_has_error[threadIdx.x]   = local_has_error;
+    shared_has_nonzero[threadIdx.x] = local_has_nonzero;
+    __syncthreads();
+
+    // Block-level reduction: 256 -> 128 -> 64 -> 32
+    for(unsigned int s = block_size / 2; s >= 32; s >>= 1)
+    {
+        if(threadIdx.x < s)
+        {
+            shared_error_count[threadIdx.x] += shared_error_count[threadIdx.x + s];
+            shared_max_error[threadIdx.x] =
+                fmaxf(shared_max_error[threadIdx.x], shared_max_error[threadIdx.x + s]);
+            shared_has_error[threadIdx.x] |= shared_has_error[threadIdx.x + s];
+            shared_has_nonzero[threadIdx.x] |= shared_has_nonzero[threadIdx.x + s];
+        }
+        __syncthreads();
+    }
+
+    // Final reduction of remaining 32 elements in thread 0
+    if(threadIdx.x == 0)
+    {
+        for(int i = 1; i < 32; ++i)
+        {
+            shared_error_count[0] += shared_error_count[i];
+            shared_max_error[0] = fmaxf(shared_max_error[0], shared_max_error[i]);
+            shared_has_error[0] |= shared_has_error[i];
+            shared_has_nonzero[0] |= shared_has_nonzero[i];
+        }
+
+        // Single atomic update per block (reduces contention from O(errors) to O(blocks))
+        if(shared_has_error[0])
+        {
+            atomicAdd(&result->error_count, shared_error_count[0]);
+            atomicMax(&result->max_error, shared_max_error[0]);
+        }
+        // Update all_zero flag: if no nonzero values found, mark as all zero
+        if(!shared_has_nonzero[0])
+        {
+            atomicMin(&result->all_zero, 1);
+        }
+        else
+        {
+            atomicMin(&result->all_zero, 0);
         }
     }
 }
 
 // Host-side wrapper for GPU verification with explicit tolerances
-// Returns true if verification passed, false otherwise
+// Returns GpuVerifyResult with detailed error information
 template <typename T>
-bool gpu_verify(const void* device_result,
-                const void* reference_result,
-                float rtol,
-                float atol,
-                std::size_t size,
-                hipStream_t stream = nullptr)
+GpuVerifyResult gpu_verify(const void* device_result,
+                           const void* reference_result,
+                           float rtol,
+                           float atol,
+                           std::size_t size,
+                           hipStream_t stream = nullptr)
 {
     // Allocate result buffer on device
-    int* passed_dev;
-    hip_check_error(hipMalloc(&passed_dev, sizeof(int)));
+    GpuVerifyDeviceResult* result_dev;
+    hip_check_error(hipMalloc(&result_dev, sizeof(GpuVerifyDeviceResult)));
 
-    // Initialize to passed (1)
-    int passed_host = 1;
-    hip_check_error(hipMemcpy(passed_dev, &passed_host, sizeof(int), hipMemcpyHostToDevice));
+    // Initialize result struct
+    GpuVerifyDeviceResult result_host;
+    result_host.error_count = 0;    // No errors yet
+    result_host.max_error   = 0.0f; // No error observed
+    result_host.all_zero    = 1;    // Start assuming all zeros (will be cleared if nonzero found)
+    hip_check_error(
+        hipMemcpy(result_dev, &result_host, sizeof(GpuVerifyDeviceResult), hipMemcpyHostToDevice));
 
     // Launch kernel with grid-stride loop
     // Use 65535 as max grid size (hardware limit for grid dimension in x)
@@ -125,7 +257,7 @@ bool gpu_verify(const void* device_result,
                                                rtol,
                                                atol,
                                                static_cast<long long>(size),
-                                               passed_dev);
+                                               result_dev);
 
     hip_check_error(hipGetLastError());
 
@@ -133,12 +265,20 @@ bool gpu_verify(const void* device_result,
     hip_check_error(hipStreamSynchronize(stream));
 
     // Get result
-    hip_check_error(hipMemcpy(&passed_host, passed_dev, sizeof(int), hipMemcpyDeviceToHost));
+    hip_check_error(
+        hipMemcpy(&result_host, result_dev, sizeof(GpuVerifyDeviceResult), hipMemcpyDeviceToHost));
 
     // Free device memory
-    hip_check_error(hipFree(passed_dev));
+    hip_check_error(hipFree(result_dev));
 
-    return passed_host == 1;
+    // Build and return result struct
+    GpuVerifyResult result;
+    result.error_count = result_host.error_count;
+    result.max_error   = result_host.max_error;
+    result.total       = size;
+    result.all_zero    = (result_host.all_zero == 1);
+
+    return result;
 }
 
 // Forward declaration of gpu_reduce_max
@@ -147,15 +287,15 @@ float gpu_reduce_max(const void* device_buffer, std::size_t size, hipStream_t st
 
 // Host-side wrapper for GPU verification with automatic tolerance computation
 // Computes max value on GPU, then computes tolerances and verifies
-// Returns true if verification passed, false otherwise
+// Returns GpuVerifyResult with detailed error information
 template <typename OutDataType,
           typename ComputeDataType = OutDataType,
           typename AccDataType     = ComputeDataType>
-bool gpu_verify(const void* device_result,
-                const void* reference_result,
-                int number_of_accumulations,
-                std::size_t size,
-                hipStream_t stream = nullptr)
+GpuVerifyResult gpu_verify(const void* device_result,
+                           const void* reference_result,
+                           int number_of_accumulations,
+                           std::size_t size,
+                           hipStream_t stream = nullptr)
 {
     // Compute max absolute value on GPU (only 4 bytes transferred!)
     double max_abs_value =
@@ -187,24 +327,6 @@ bool gpu_verify(const void* device_result,
     return gpu_verify<OutDataType>(device_result, reference_result, rtol, atol, size, stream);
 }
 
-//
-// Helper function for atomic float max (using compare-and-swap)
-__device__ __forceinline__ float atomicMaxFloat(float* address, float val)
-{
-    int* address_as_int = reinterpret_cast<int*>(address);
-    int old             = *address_as_int;
-    int assumed;
-
-    do
-    {
-        assumed = old;
-        old =
-            atomicCAS(address_as_int, assumed, __float_as_int(fmaxf(val, __int_as_float(assumed))));
-    } while(assumed != old);
-
-    return __int_as_float(old);
-}
-
 // GPU reduction kernel for computing max(abs(data))
 // This is an internal kernel called only by gpu_reduce_max() wrapper.
 //
@@ -231,7 +353,7 @@ gpu_reduce_max_kernel(const T* __restrict__ data, long long size, float* __restr
     __syncthreads();
 
     // Block-level reduction: 256 -> 128 -> 64 -> 32
-    for(unsigned int s = block_size / 2; s > 32; s >>= 1)
+    for(unsigned int s = block_size / 2; s >= 32; s >>= 1)
     {
         if(threadIdx.x < s)
         {
@@ -240,26 +362,16 @@ gpu_reduce_max_kernel(const T* __restrict__ data, long long size, float* __restr
         __syncthreads();
     }
 
-    // Warp-level reduction: 32 -> 16 -> 8 -> 4 -> 2 -> 1
-    // No sync needed within a warp
-    if(threadIdx.x < 32)
-    {
-        volatile float* smem = shared_max;
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 32]);
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 16]);
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 8]);
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 4]);
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 2]);
-        smem[threadIdx.x]    = fmaxf(smem[threadIdx.x], smem[threadIdx.x + 1]);
-    }
-
-    // Two-phase reduction pattern minimizes atomic contention:
-    // 1. Each block reduces to shared memory (above)
-    // 2. Single thread per block updates global max (below)
-    // This limits atomic operations to O(grid_size) rather than O(total_threads)
+    // Final reduction of remaining 32 elements in thread 0
     if(threadIdx.x == 0)
     {
-        atomicMaxFloat(max_val, shared_max[0]);
+        for(int i = 1; i < 32; ++i)
+        {
+            shared_max[0] = fmaxf(shared_max[0], shared_max[i]);
+        }
+
+        // Single atomic update per block
+        atomicMax(max_val, shared_max[0]);
     }
 }
 
