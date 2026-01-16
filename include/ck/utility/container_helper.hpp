@@ -76,6 +76,25 @@ __host__ __device__ constexpr auto container_reorder_given_old2new(const Tuple<T
         old_tuple, typename sequence_map_inverse<decltype(old2new)>::type{});
 }
 
+template <typename T, index_t N, index_t... IRs>
+__host__ __device__ constexpr auto
+container_reorder_given_new2old(const StaticallyIndexedArray<T, N>& old_arr,
+                                Sequence<IRs...> /*new2old*/)
+{
+    static_assert(N == sizeof...(IRs), "wrong! size not consistent");
+    static_assert(is_valid_sequence_map<Sequence<IRs...>>{}, "wrong! invalid reorder map");
+    return make_statically_indexed_array<T>(old_arr[Number<IRs>{}]...);
+}
+
+template <typename T, index_t N, index_t... IRs>
+__host__ __device__ constexpr auto
+container_reorder_given_old2new(const StaticallyIndexedArray<T, N>& old_arr,
+                                Sequence<IRs...> old2new)
+{
+    return container_reorder_given_new2old(
+        old_arr, typename sequence_map_inverse<decltype(old2new)>::type{});
+}
+
 template <index_t... Is, index_t... IRs>
 __host__ __device__ constexpr auto container_reorder_given_new2old(Sequence<Is...> /* old_seq */,
                                                                    Sequence<IRs...> /*new2old*/)
@@ -359,6 +378,15 @@ __host__ __device__ constexpr auto get_container_subset(const Tuple<Ts...>& tup,
 }
 
 template <typename T, index_t N, index_t... Is>
+__host__ __device__ constexpr auto get_container_subset(const StaticallyIndexedArray<T, N>& arr,
+                                                        Sequence<Is...>)
+{
+    static_assert(N >= sizeof...(Is), "wrong! size");
+
+    return StaticallyIndexedArray<T, sizeof...(Is)>{arr[Number<Is>{}]...};
+}
+
+template <typename T, index_t N, index_t... Is>
 __host__ __device__ constexpr void
 set_container_subset(Array<T, N>& y, Sequence<Is...> picks, const Array<T, sizeof...(Is)>& x)
 {
@@ -372,6 +400,29 @@ __host__ __device__ constexpr void
 set_container_subset(Tuple<Ys...>& y, Sequence<Is...> picks, const Tuple<Xs...>& x)
 {
     static_assert(sizeof...(Ys) >= sizeof...(Is) && sizeof...(Is) == sizeof...(Xs), "wrong! size");
+
+    static_for<0, sizeof...(Is), 1>{}([&](auto i) { y(picks[i]) = x[i]; });
+}
+
+template <typename T, index_t N, index_t... Is>
+__host__ __device__ constexpr void
+set_container_subset(StaticallyIndexedArray<T, N>& y,
+                     Sequence<Is...> picks,
+                     const StaticallyIndexedArray<T, sizeof...(Is)>& x)
+{
+    static_assert(N >= sizeof...(Is), "wrong! size");
+
+    static_for<0, sizeof...(Is), 1>{}([&](auto i) { y(picks[i]) = x[i]; });
+}
+
+// Generic set_container_subset for StaticallyIndexedArray destination with any indexed source
+template <typename T, index_t N, index_t... Is, typename Src>
+    requires requires { Src::Size(); }
+__host__ __device__ constexpr void
+set_container_subset(StaticallyIndexedArray<T, N>& y, Sequence<Is...> picks, const Src& x)
+{
+    static_assert(N >= sizeof...(Is), "wrong! size");
+    static_assert(Src::Size() == sizeof...(Is), "wrong! size mismatch");
 
     static_for<0, sizeof...(Is), 1>{}([&](auto i) { y(picks[i]) = x[i]; });
 }
