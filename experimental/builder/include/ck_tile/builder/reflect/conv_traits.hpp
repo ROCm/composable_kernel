@@ -88,7 +88,7 @@ struct ConvTraits
     builder::ElementwiseOperation weight_element_op;
     builder::ElementwiseOperation output_element_op;
 
-    builder::GemmPadding gemm_padding;
+    std::optional<builder::GemmPadding> gemm_padding = std::nullopt;
     builder::ConvSpecialization conv_specialization;
 
     // --- Algorithm Information ---

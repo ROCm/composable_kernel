@@ -785,6 +785,15 @@ constexpr WarpGemmParams conv_traits_wmma_warp_gemm_params()
 }
 
 template <typename InstTraits>
+constexpr WarpGemmParams conv_traits_xdl_warp_gemm_params()
+{
+    return WarpGemmParams{.gemm_m = InstTraits::kMPerXDL,
+                          .gemm_n = InstTraits::kNPerXDL,
+                          .m_iter = InstTraits::kMXdlPerWave,
+                          .n_iter = InstTraits::kNXdlPerWave};
+}
+
+template <typename InstTraits>
 constexpr OutputTileTransferInfo conv_traits_wmma_c_tile_transfer()
 {
     return OutputTileTransferInfo{
@@ -795,6 +804,19 @@ constexpr OutputTileTransferInfo conv_traits_wmma_c_tile_transfer()
                                 InstTraits::kCDEThreadClusterLengths[2],
                                 InstTraits::kCDEThreadClusterLengths[3]},
         .scalar_per_vector   = InstTraits::kCDEBlockTransferScalarPerVector};
+}
+
+template <typename InstTraits>
+constexpr OutputTileTransferInfo conv_traits_xdl_c_tile_transfer()
+{
+    return OutputTileTransferInfo{
+        .shuffle_params      = {.m_gemms_per_shuffle = InstTraits::kCShuffleMXdlPerWavePerShuffle,
+                                .n_gemms_per_shuffle = InstTraits::kCShuffleNXdlPerWavePerShuffle},
+        .thread_cluster_dims = {InstTraits::kCThreadClusterLengths[0],
+                                InstTraits::kCThreadClusterLengths[1],
+                                InstTraits::kCThreadClusterLengths[2],
+                                InstTraits::kCThreadClusterLengths[3]},
+        .scalar_per_vector   = InstTraits::kCBlockTransferScalarPerVector};
 }
 
 } // namespace ck_tile::reflect::conv
