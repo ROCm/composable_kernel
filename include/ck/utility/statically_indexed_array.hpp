@@ -20,6 +20,7 @@ struct tuple_concat<Tuple<Xs...>, Tuple<Ys...>>
     using type = Tuple<Xs..., Ys...>;
 };
 
+// StaticallyIndexedArrayImpl uses binary split for O(log N) depth
 template <typename T, index_t N>
 struct StaticallyIndexedArrayImpl
 {
