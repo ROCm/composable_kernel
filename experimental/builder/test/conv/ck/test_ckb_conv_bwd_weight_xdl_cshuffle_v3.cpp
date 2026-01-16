@@ -15,9 +15,9 @@ constexpr auto SIGNATURE = ckt::ConvSignature{.spatial_dim = 1,
                                               .direction   = ckb::ConvDirection::BACKWARD_WEIGHT,
                                               .data_type   = ckb::DataType::BF16,
                                               .accumulation_data_type = ckb::DataType::FP32,
-                                              .input  = {.config = {.layout = NGCW}},
+                                              .input  = {.config = {.layout = GNWC}},
                                               .weight = {.config = {.layout = GKXC}},
-                                              .output = {.config = {.layout = NGKW}}};
+                                              .output = {.config = {.layout = GNWK}}};
 
 constexpr auto ALGORITHM =
     cku::ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3{}
@@ -36,7 +36,7 @@ TEST(BwdWeight_1DBf16_CShuffle_V3, Create)
     cku::run_test<Builder>({"DeviceGroupedConvBwdWeight_Xdl_CShuffleV3",
                             expected_transfer_parameters,
                             "Filter1x1Stride1Pad0",
-                            "NGCW,GKXC,NGKW",
+                            "GNWC,GKXC,GNWK",
                             "PassThrough,PassThrough,PassThrough",
                             "Intrawave",
                             "v2"});
