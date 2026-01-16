@@ -474,11 +474,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
     std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
-    size_t i_block_scale_q                = 0;
-    size_t i_block_scale_k                = 0;
-    std::vector<int32_t> bseqstart_q_host = {0};
-    std::vector<int32_t> bseqstart_k_host = {0};
-    auto max_seqlen_k                     = std::numeric_limits<int32_t>::min();
+    size_t i_block_scale_q                           = 0;
+    size_t i_block_scale_k                           = 0;
+    std::vector<int32_t> block_scale_seqstart_q_host = {0};
+    std::vector<int32_t> block_scale_seqstart_k_host = {0};
+    auto max_seqlen_k                                = std::numeric_limits<int32_t>::min();
     {
         for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
@@ -496,8 +496,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
             }
             i_block_scale_q += ck_tile::integer_divide_ceil(real_seqlen_q, block_scale_size_q_);
             i_block_scale_k += ck_tile::integer_divide_ceil(real_seqlen_k, block_scale_size_kv_);
-            bseqstart_q_host.push_back(i_block_scale_q);
-            bseqstart_k_host.push_back(i_block_scale_k);
+            block_scale_seqstart_q_host.push_back(i_block_scale_q);
+            block_scale_seqstart_k_host.push_back(i_block_scale_k);
 
             flop += nhead * (static_cast<std::size_t>(2) * mask.get_unmaskarea() * hdim_q +
                              static_cast<std::size_t>(2) * mask.get_unmaskarea() * hdim_v);
@@ -772,8 +772,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::DeviceMem q_descale_buf(q_descale_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_descale_buf(k_descale_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem v_descale_buf(v_descale_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem bseqstart_q_buf(bseqstart_q_host.size() * sizeof(int32_t));
-    ck_tile::DeviceMem bseqstart_k_buf(bseqstart_k_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem block_scale_seqstart_q_buf(block_scale_seqstart_q_host.size() *
+                                                  sizeof(int32_t));
+    ck_tile::DeviceMem block_scale_seqstart_k_buf(block_scale_seqstart_k_host.size() *
+                                                  sizeof(int32_t));
     ck_tile::DeviceMem lse_acc_buf(lse_acc_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem o_acc_buf(o_acc_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem lse_buf(lse_host.get_element_space_size_in_bytes());
@@ -819,8 +821,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
     q_descale_buf.ToDevice(q_descale_host.data());
     k_descale_buf.ToDevice(k_descale_host.data());
     v_descale_buf.ToDevice(v_descale_host.data());
-    bseqstart_q_buf.ToDevice(bseqstart_q_host.data());
-    bseqstart_k_buf.ToDevice(bseqstart_k_host.data());
+    block_scale_seqstart_q_buf.ToDevice(block_scale_seqstart_q_host.data());
+    block_scale_seqstart_k_buf.ToDevice(block_scale_seqstart_k_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     // Keep logical starts in seqstart_k; pass padded K via separate pointer
     seqstart_k.ToDevice(seqstart_k_host.data());
@@ -1139,9 +1141,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         reinterpret_cast<const float*>(v_descale_buf.GetDeviceBuffer());
 
                     args.block_scale_seqstart_q_ptr =
-                        (mode == mode_enum::group ? bseqstart_q_buf.GetDeviceBuffer() : nullptr);
+                        (mode == mode_enum::group ? block_scale_seqstart_q_buf.GetDeviceBuffer()
+                                                  : nullptr);
                     args.block_scale_seqstart_k_ptr =
-                        (mode == mode_enum::group ? bseqstart_k_buf.GetDeviceBuffer() : nullptr);
+                        (mode == mode_enum::group ? block_scale_seqstart_k_buf.GetDeviceBuffer()
+                                                  : nullptr);
 
                     args.nhead_stride_q_descale = nhead_stride_q_descale;
                     args.nhead_stride_k_descale = nhead_stride_k_descale;
@@ -1665,9 +1669,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
             if(qscale.type == quant_scale_enum::blockscale)
             {
                 const ck_tile::index_t q_offset =
-                    (mode == mode_enum::batch) ? 0 : bseqstart_q_host[wb];
+                    (mode == mode_enum::batch) ? 0 : block_scale_seqstart_q_host[wb];
                 const ck_tile::index_t k_offset =
-                    (mode == mode_enum::batch) ? 0 : bseqstart_k_host[wb];
+                    (mode == mode_enum::batch) ? 0 : block_scale_seqstart_k_host[wb];
                 ck_tile::reference_batched_quant_gemm<QDataType,
                                                       KDataType,
                                                       SaccDataType,
@@ -1898,7 +1902,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             if(qscale.type == quant_scale_enum::blockscale)
             {
                 const ck_tile::index_t v_offset =
-                    (mode == mode_enum::batch) ? 0 : bseqstart_k_host[wb];
+                    (mode == mode_enum::batch) ? 0 : block_scale_seqstart_k_host[wb];
                 ck_tile::
                     reference_batched_quant_gemm<PDataType, VDataType, OaccDataType, ODataType>(
                         p_host_ref,
