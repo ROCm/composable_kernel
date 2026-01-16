@@ -14,4 +14,6 @@ if(GPU_TARGETS MATCHES "gfx9")
   # Find cpp files and create lib for instances
   file(GLOB_RECURSE GROUPED_CONV_FWD_TILE "instances/*.cpp")
   add_instance_library(device_grouped_conv_fwd_tile_instances ${GROUPED_CONV_FWD_TILE})
+  target_include_directories(device_grouped_conv_fwd_tile_instances PRIVATE
+        "${PROJECT_SOURCE_DIR}/experimental/builder/test/utils")
 endif()
