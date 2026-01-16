@@ -17,10 +17,12 @@ struct SinkhornKnoppDefaultPolicy : public Reduce2dDefaultPolicy
                 tuple<
                     sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::ThreadTile_N>,
                     sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::ThreadTile_M>>,
-                tuple<sequence<1, 2>, sequence<1, 2>>,
-                tuple<sequence<1, 1>, sequence<2, 2>>,
-                sequence<1, 1, 2, 2>,
-                sequence<0, 3, 0, 3>>{});
+                tuple<sequence<2, 1>, sequence<2, 1>>,
+                tuple<sequence<1, 1>, sequence<2, 1>>, // WarpPerBlock_M, WarpPerBlock_N; ThreadPerWarp_M, ThreadPerWarp_N
+                // sequence<1, 1, 2, 2>,
+                // sequence<0, 3, 0, 3>>{}); // Repeat_N, ThreadTile_N, Repeat_M, ThreadTile_M
+                sequence<2, 2, 1, 1>,
+                sequence<0, 2, 0, 3>>{}); // Repeat_M, ThreadTile_M, Repeat_N, ThreadTile_N
     }
 };
 
