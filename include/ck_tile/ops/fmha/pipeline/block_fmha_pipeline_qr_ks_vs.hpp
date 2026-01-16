@@ -60,6 +60,10 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr auto QScaleEnum        = Problem::QScaleEnum;
     static constexpr bool kHasSink          = Problem::kHasSink;
 
+    // For BLOCKSCALE: shift value for exp2(x + shift) to scale P to [0, 2^shift]
+    static constexpr float OCP_FP8_SHIFT  = 8.0f;
+    static constexpr float FNUZ_FP8_SHIFT = 7.0f;
+
     static constexpr uint32_t DS_READ = 0x100; // Barrier for DS (data share) read
     static constexpr uint32_t MFMA    = 0x008; // Barrier for MFMA (matrix multiply-accumulate)
 
@@ -592,7 +596,21 @@ struct BlockFmhaPipelineQRKSVS
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                auto row_max = scale_s * get_validated_m(m[i_idx]);
+                // For BLOCKSCALE: precompute (m - shift) once per row
+                // Bias/Alibi/SoftCap: exp2(s - m + shift) = exp2(s - (m - shift))
+                // else: exp2(scale_s*s - scale_s*m + shift) = exp2(scale_s*s - (scale_s*m - shift))
+                auto validated_m = get_validated_m(m[i_idx]);
+                auto row_max     = scale_s * validated_m;
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+#if CK_TILE_USE_OCP_FP8
+                    validated_m -= OCP_FP8_SHIFT; // for Bias/Alibi/SoftCap
+                    row_max -= OCP_FP8_SHIFT;     // for else branch
+#else
+                    validated_m -= FNUZ_FP8_SHIFT;
+                    row_max -= FNUZ_FP8_SHIFT;
+#endif
+                }
 #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -600,13 +618,13 @@ struct BlockFmhaPipelineQRKSVS
                     if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                                  BiasEnum == BlockAttentionBiasEnum::ALIBI)
                     {
-                        p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        p_compute(i_j_idx) = exp2(s[i_j_idx] - validated_m);
                     }
                     else
                     {
                         if constexpr(kHasLogitsSoftCap)
                         {
-                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                            p_compute(i_j_idx) = exp2(s[i_j_idx] - validated_m);
                         }
                         else
                         {

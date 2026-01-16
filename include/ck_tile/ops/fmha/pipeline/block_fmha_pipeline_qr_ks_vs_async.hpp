@@ -65,6 +65,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr bool kHasDropout       = Problem::kHasDropout;
     static constexpr bool kHasSink          = Problem::kHasSink;
 
+    // For BLOCKSCALE: shift value for exp2(x + shift) to scale P to [0, 2^shift]
     static constexpr float OCP_FP8_SHIFT  = 8.0f;
     static constexpr float FNUZ_FP8_SHIFT = 7.0f;
 
@@ -657,9 +658,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                 // For BLOCKSCALE: precompute (m - shift) once per row
                 // Bias/Alibi/SoftCap: exp2(s - m + shift) = exp2(s - (m - shift))
                 // else: exp2(scale_s*s - scale_s*m + shift) = exp2(scale_s*s - (scale_s*m - shift))
-                auto validated_m_raw = get_validated_m(m[i_idx]);
-                auto validated_m     = validated_m_raw;
-                auto row_max         = scale_s * validated_m_raw;
+                auto validated_m = get_validated_m(m[i_idx]);
+                auto row_max     = scale_s * validated_m;
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
                 {
 #if CK_TILE_USE_OCP_FP8
