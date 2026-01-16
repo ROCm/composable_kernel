@@ -64,7 +64,7 @@ struct GemmAlgorithmInfo
     builder::PipelineVersion pipeline_version;
     builder::PipelineScheduler pipeline_scheduler;
     builder::ConvSpecialization conv_specialization;
-    builder::GemmPadding padding;
+    std::optional<builder::GemmPadding> padding;
 };
 
 /// @brief Provides human-readable descriptions of convolution kernel instances
@@ -121,7 +121,11 @@ class ConvDescription : public Description
                     algorithm_.tile_dims.n,
                     "×",
                     algorithm_.tile_dims.k);
-        f.writeLine(2, "Gemm padding: ", algorithm_.padding);
+        if(algorithm_.padding)
+            f.writeLine(
+                2, "Gemm padding: ", algorithm_.padding.value_or(builder::GemmPadding::DEFAULT));
+        else
+            f.writeLine(2, "Struct does not contain optional padding argument");
         f.writeLine(2, "Convolution specialization: ", algorithm_.conv_specialization);
         // Pipeline section
         f.writeLine(2, "Pipeline version: ", algorithm_.pipeline_version);
