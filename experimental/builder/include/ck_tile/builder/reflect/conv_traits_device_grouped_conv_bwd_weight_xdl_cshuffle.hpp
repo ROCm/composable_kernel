@@ -47,6 +47,9 @@ constexpr ConvTraits instance_to_conv_traits()
              .scalar_per_vector   = InstTraits::kCBlockTransferScalarPerVector_NWaveNPerXdl},
         .pipeline_version   = get_pipeline_version<InstTraits>(),
         .pipeline_scheduler = get_pipeline_scheduler<InstTraits>(),
+        .max_transpose_transfer_src_scalar_per_vector =
+            InstTraits::kMaxTransposeTransferSrcScalarPerVector,
+        .max_transpose_dst_scalar_per_vector = InstTraits::kMaxTransposeTransferDstScalarPerVector,
     };
 }
 
