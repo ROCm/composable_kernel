@@ -135,36 +135,36 @@ run_test() {
 }
 
 # 运行所有30个测试用例
-run_test 1   62  "DeepSeek-V2-Lite-Down"    2   512   2048  1408
-run_test 2   61  "DeepSeek-V2-Lite-GateUP"  2   512   2816  2048
-run_test 3   72  "DeepSeek-V2-Lite-Down"    4   512   2048  1408
-run_test 4   64  "DeepSeek-V2-Lite-Down"    2   1024  2048  1408
-run_test 5   162 "Mixtral-8x7B-Down"        1   512   4096  14336
-run_test 6   102 "Qwen3-30B-A3B-Down"       4   512   2048  2048
-run_test 7   71  "DeepSeek-V2-Lite-GateUP"  4   512   2816  2048
-run_test 8   172 "Mixtral-8x22B-Down"       1   512   6144  16384
-run_test 9   63  "DeepSeek-V2-Lite-GateUP"  2   1024  2816  2048
-run_test 10  92  "Grok-2-Down"              1   512   8192  16384
-run_test 11  101 "Qwen3-30B-A3B-GateUP"     4   512   4096  2048
-run_test 12  82  "DeepSeek-V2-Lite-Down"    8   512   2048  1408
-run_test 13  112 "Qwen3-30B-A3B-Down"       8   512   2048  2048
-run_test 14  74  "DeepSeek-V2-Lite-Down"    4   1024  2048  1408
-run_test 15  164 "Mixtral-8x7B-Down"        1   1024  4096  14336
-run_test 16  104 "Qwen3-30B-A3B-Down"       4   1024  2048  2048
-run_test 17  66  "DeepSeek-V2-Lite-Down"    2   2048  2048  1408
-run_test 18  32  "DeepSeek-V2-Down"         5   512   5120  1536
-run_test 19  132 "Qwen3-235B-A22B-Down"     4   512   4096  4096
-run_test 20  81  "DeepSeek-V2-Lite-GateUP"  8   512   2816  2048
-run_test 21  31  "DeepSeek-V2-GateUP"       5   512   3072  5120
-run_test 22  42  "DeepSeek-V2-Down"         10  512   5120  1536
-run_test 23  161 "Mixtral-8x7B-GateUP"      1   512   28672 4096
-run_test 24  73  "DeepSeek-V2-Lite-GateUP"  4   1024  2816  2048
-run_test 25  171 "Mixtral-8x22B-GateUP"     1   512   32768 6144
-run_test 26  174 "Mixtral-8x22B-Down"       1   1024  6144  16384
-run_test 27  84  "DeepSeek-V2-Lite-Down"    8   1024  2048  1408
-run_test 28  34  "DeepSeek-V2-Down"         5   1024  5120  1536
-run_test 29  65  "DeepSeek-V2-Lite-GateUP"  2   2048  2816  2048
-run_test 30  83  "DeepSeek-V2-Lite-GateUP"  8   1024  2816  2048
+run_test 1   62  "DeepSeek-V2-Lite-Down"    2   1024  2048  1408
+run_test 2   61  "DeepSeek-V2-Lite-GateUP"  2   1024  2816  2048
+run_test 3   72  "DeepSeek-V2-Lite-Down"    4   1024  2048  1408
+run_test 4   64  "DeepSeek-V2-Lite-Down"    2   2048  2048  1408
+run_test 5   162 "Mixtral-8x7B-Down"        1   1024  4096  14336
+run_test 6   102 "Qwen3-30B-A3B-Down"       4   1024  2048  2048
+run_test 7   71  "DeepSeek-V2-Lite-GateUP"  4   1024  2816  2048
+run_test 8   82  "DeepSeek-V2-Lite-Down"    8   1024  2048  1408
+run_test 9   32  "DeepSeek-V2-Down"         5   1024  5120  1536
+run_test 10  63  "DeepSeek-V2-Lite-GateUP"  2   2048  2816  2048
+run_test 11  74  "DeepSeek-V2-Lite-Down"    4   2048  2048  1408
+run_test 12  172 "Mixtral-8x22B-Down"       1   1024  6144  16384
+run_test 13  161 "Mixtral-8x7B-GateUP"      1   1024  28672 4096
+run_test 14  81  "DeepSeek-V2-Lite-GateUP"  8   1024  2816  2048
+run_test 15  66  "DeepSeek-V2-Lite-Down"    2   4096  2048  1408
+run_test 16  42  "DeepSeek-V2-Down"         10  1024  5120  1536
+run_test 17  101 "Qwen3-30B-A3B-GateUP"     4   1024  4096  2048
+run_test 18  73  "DeepSeek-V2-Lite-GateUP"  4   2048  2816  2048
+run_test 19  112 "Qwen3-30B-A3B-Down"       8   1024  2048  2048
+run_test 20  122 "Qwen3-30B-A3B-Down"       16  1024  2048  2048
+run_test 21  84  "DeepSeek-V2-Lite-Down"    8   2048  2048  1408
+run_test 22  52  "DeepSeek-V2-Down"         20  1024  5120  1536
+run_test 23  182 "MoE-1T-Down"              7   1024  8192  1920
+run_test 24  34  "DeepSeek-V2-Down"         5   2048  5120  1536
+run_test 25  76  "DeepSeek-V2-Lite-Down"    4   4096  2048  1408
+run_test 26  92  "Grok-2-Down"              1   1024  8192  16384
+run_test 27  65  "DeepSeek-V2-Lite-GateUP"  2   4096  2816  2048
+run_test 28  68  "DeepSeek-V2-Lite-Down"    2   8192  2048  1408
+run_test 29  80  "DeepSeek-V2-Lite-Down"    4   16384 2048  1408
+run_test 30  171 "Mixtral-8x22B-GateUP"     1   1024  32768 6144
 
 echo "========================================================================================================"
 echo "All tests completed!"

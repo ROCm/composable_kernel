@@ -282,9 +282,7 @@ int run_grouped_gemm_example_with_n_check(int argc, char* argv[])
     // Check N alignment for all groups
     bool all_n_mod_256 = true;
     bool all_n_mod_128 = true;
-    bool all_n_mod_64  = true;
 
-    
     if(Ns.size() == static_cast<size_t>(group_count))
     {
         for(const auto& n : Ns)
@@ -293,118 +291,12 @@ int run_grouped_gemm_example_with_n_check(int argc, char* argv[])
                 all_n_mod_256 = false;
             if(n % 128 != 0)
                 all_n_mod_128 = false;
-            if(n % 64 != 0)
-                all_n_mod_64 = false;
         }
     }
 
     if(data_type == "bf16")
     {
-        // Memory pipeline configs
-        if(config == "memory_interwave")
-        {
-            std::cout << "[Config] Memory Interwave 128x32" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigMemoryInterwave<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(config == "memory_intrawave")
-        {
-            std::cout << "[Config] Memory Intrawave 128x32" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigMemoryIntrawave<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(config == "mem_inter_128x128")
-        {
-            if(!all_n_mod_128)
-                throw std::runtime_error("N must be multiple of 128");
-            std::cout << "[Config] Memory Interwave 128x128" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigMemoryInterwave_128x128<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(config == "mem_intra_128x128")
-        {
-            if(!all_n_mod_128)
-                throw std::runtime_error("N must be multiple of 128");
-            std::cout << "[Config] Memory Intrawave 128x128" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigMemoryIntrawave_128x128<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(config == "mem_inter_256x128")
-        {
-            if(!all_n_mod_128)
-                throw std::runtime_error("N must be multiple of 128");
-            std::cout << "[Config] Memory Interwave 256x128" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigMemoryInterwave_256x128<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(config == "mem_inter_256x256")
-        {
-            if(!all_n_mod_256)
-                throw std::runtime_error("N must be multiple of 256");
-            std::cout << "[Config] Memory Interwave 256x256" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigMemoryInterwave_256x256<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        // 128x128 configs
-        else if(config == "v3_128x128_16_k1" || config == "128w16k1")
-        {
-            if(!all_n_mod_128)
-                throw std::runtime_error("N must be multiple of 128");
-            std::cout << "[Config] 128x128, warp=16, kBlockPerCu=1" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigComputeV3_128x128_16_k1<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(config == "v3_128x128_16_k2" || config == "128w16k2")
-        {
-            if(!all_n_mod_128)
-                throw std::runtime_error("N must be multiple of 128");
-            std::cout << "[Config] 128x128, warp=16, kBlockPerCu=2" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigComputeV3_128x128_16_k2<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        // 64x64 config
-        else if(config == "v3_64x64_16_k1" || config == "64w16k1")
-        {
-            if(!all_n_mod_64)
-                throw std::runtime_error("N must be multiple of 64");
-            std::cout << "[Config] 64x64, warp=16, kBlockPerCu=1" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigComputeV3_64x64_16_k1<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        // grad_B optimized configs
-        else if(config == "256x256_k2")
-        {
-            if(!all_n_mod_256)
-                throw std::runtime_error("N must be multiple of 256");
-            std::cout << "[Config] 256x256, kBlockPerCu=2" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigComputeV3_256x256_k2<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(config == "128x256")
-        {
-            if(!all_n_mod_256)
-                throw std::runtime_error("N must be multiple of 256");
-            std::cout << "[Config] 128x256" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigComputeV3_128x256<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(config == "256x128_k2")
-        {
-            if(!all_n_mod_128)
-                throw std::runtime_error("N must be multiple of 128");
-            std::cout << "[Config] 256x128, kBlockPerCu=2" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigComputeV3_256x128_k2<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(config == "128x256_k2")
-        {
-            if(!all_n_mod_256)
-                throw std::runtime_error("N must be multiple of 256");
-            std::cout << "[Config] 128x256, kBlockPerCu=2" << std::endl;
-            return run_gemm_example_prec_type<GemmConfigComputeV3_128x256_k2<ck_tile::bf16_t>, ck_tile::bf16_t>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(config == "compute_v3" || config == "")
+        if(config == "compute_v3" || config == "")
         {
             // Default: auto-select based on N alignment
             if(all_n_mod_256)
@@ -426,7 +318,7 @@ int run_grouped_gemm_example_with_n_check(int argc, char* argv[])
         }
         else
         {
-            throw std::runtime_error("Unknown config: " + config + ". Use: compute_v3, compute_v3_32x128, compute_v3_128x128, memory_interwave, memory_intrawave");
+            throw std::runtime_error("Unknown config: " + config + ". Use: compute_v3, compute_v3_32x128, compute_v3_128x128");
         }
     }
     else
