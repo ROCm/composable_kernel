@@ -100,8 +100,8 @@ concept ConvSignatureDescriptor = requires(T t) {
   - `FORWARD`: Standard forward convolution
   - `BACKWARD_DATA`: Gradient computation w.r.t. input
   - `BACKWARD_WEIGHT`: Gradient computation w.r.t. weights
-- **`data_type`**: Default data type for all tensors (FP32, FP16, BF16, FP8, I8, U8). (Optional, defaults to UNDEFINED_DATA_TYPE, may be overridden by tensors)
-- **`operation`**: Default Operation (Optional, defaults to PASS_THROUGH, may be overridden by tensors)
+- **`data_type`**: Default data type for all tensors (FP32, FP16, BF16, FP8, I8, U8). (Optional, defaults to UNDEFINED_DATA_TYPE which indicates the type should be inferred or specified per-tensor, may be overridden by individual tensors)
+- **`elementwise_operation`**: Default elementwise operation for all tensors (Optional, defaults to PASS_THROUGH, may be overridden by individual tensors via their `operation` field)
 - **`accumulation_data_type`**: Type used for internal accumulation
 
 #### 2. Tensor Level
@@ -133,6 +133,9 @@ concept TensorConfigDescriptor = requires(T t) {
 ```
 
 **Layout Types** (dimension-specific):
+- **Special Values**:
+  - `UNDEFINED_TENSOR_LAYOUT`: Placeholder value indicating layout is not yet specified or should be inferred
+
 - **1D Convolution**:
   - Input: `GNCW`, `GNWC`, `NWGC`, `NGCW`, `G_NW_C_strided`
   - Weight: `GKXC`, `GKCX`, `KXGC`, `G_K_X_C_strided`
@@ -147,6 +150,9 @@ concept TensorConfigDescriptor = requires(T t) {
   - Input: `GNCDHW`, `GNDHWC`, `NDHWGC`, `NGCDHW`, `G_NDHW_C_strided`
   - Weight: `GKZYXC`, `GKCZYX`, `KZYXGC`, `G_K_ZYX_C_strided`
   - Output: `GNKDHW`, `GNDHWK`, `NDHWGK`, `NGKDHW`, `G_NDHW_K_strided`
+
+- **Bias Tensors**:
+  - `GC`, `G_C_strided`, `G_K_strided`
 
 Where:
 - `G` = Groups
