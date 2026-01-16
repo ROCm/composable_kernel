@@ -158,7 +158,7 @@ BwdAlgorithm + SpecifiesWmma
 │    │
 │    └─── BwdWmmaAlgorithm
 │         │
-│         └─ Requirements: Base + SpecifiesNumPrefetchStages + SpecifiesGemmPipeline + SpecifiesGenericInstance
+│         └─ Requirements: Base + SpecifiesGemmPipeline + SpecifiesGenericInstance
 │
 └─── BwdWmmaV3AlgorithmBase (Based on BwdAlgorithmV3)
      │
@@ -168,7 +168,7 @@ BwdAlgorithm + SpecifiesWmma
      │
      ├─── BwdWmmaV3Algorithm
      │    │
-     │    └─ Requirements: Base + SpecifiesTransposeTransfer + SpecifiesGenericInstance
+     │    └─ Requirements: Base + SpecifiesTransposeTransfer
      │
      └─── BwdTwoStageWmmaV3Algorithm
           │

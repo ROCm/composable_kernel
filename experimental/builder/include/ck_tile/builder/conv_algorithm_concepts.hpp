@@ -261,11 +261,6 @@ concept SpecifiesGemmSpecialization = requires {
 };
 
 template <typename T>
-concept SpecifiesNumPrefetchStages = requires {
-    { T::num_gemm_k_prefetch_stages } -> SizeType;
-};
-
-template <typename T>
 concept SpecifiesNumGroupsToMerge = requires {
     { T::num_conv_groups_to_merge } -> SizeType;
 };
