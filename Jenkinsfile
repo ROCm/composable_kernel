@@ -1731,7 +1731,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        setup_args = """ -DGPU_TARGETS="gfx942" -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
+                        // SLES15 is a legacy platform with limited C++20 ecosystem support (older system libraries,
+                        // standard library implementation). While the ROCm compiler supports C++20, the experimental
+                        // CK Builder requires full C++20 feature support that does not be reliably available on SLES15.
+                        setup_args = """ -DGPU_TARGETS="gfx942" -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 -DCK_EXPERIMENTAL_BUILDER=OFF """
                         execute_args = " "
                     }
                     steps{
