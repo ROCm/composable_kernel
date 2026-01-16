@@ -17,25 +17,18 @@ namespace ck {
  * functions on GPU without worrying about scratch memory usage.
  */
 
-#if CK_WORKAROUND_SWDEV_275126
-template <typename Lengths, typename Strides, index_t I, typename AccOld>
-__host__ __device__ constexpr auto calculate_element_space_size_impl(const Lengths& lengths,
-                                                                     const Strides& strides,
-                                                                     Number<I> i,
-                                                                     AccOld acc_old)
+// O(1) template depth helper for element space size calculation using fold expression
+// Computes: 1 + sum((length[i] - 1) * stride[i]) for all i
+namespace detail {
+template <typename... Lengths, typename... Strides, index_t... Is>
+__host__ __device__ constexpr auto compute_element_space_size(const Tuple<Lengths...>& lengths,
+                                                              const Tuple<Strides...>& strides,
+                                                              Sequence<Is...>)
 {
-    auto acc_new = acc_old + (lengths[i] - Number<1>{}) * strides[i];
-
-    if constexpr(i.value < Lengths::Size() - 1)
-    {
-        return calculate_element_space_size_impl(lengths, strides, i + Number<1>{}, acc_new);
-    }
-    else
-    {
-        return acc_new;
-    }
+    return (LongNumber<1>{} + ... +
+            ((lengths[Number<Is>{}] - Number<1>{}) * strides[Number<Is>{}]));
 }
-#endif
+} // namespace detail
 
 // Lengths..., Strides... could be:
 //   1) index_t, which is known at run-time, or
@@ -60,27 +53,8 @@ __host__ __device__ constexpr auto make_naive_tensor_descriptor(const Tuple<Leng
 
     constexpr auto visible_dim_hidden_ids = typename arithmetic_sequence_gen<1, N + 1, 1>::type{};
 
-#if !CK_WORKAROUND_SWDEV_275126
-    // rocm-4.1 compiler would crash for recursive labmda
-    // recursive function for reduction
-    auto f = [&](auto fs, auto i, auto acc_old) {
-        auto acc_new = acc_old + (lengths[i] - Number<1>{}) * strides[i];
-
-        if constexpr(i.value < N - 1)
-        {
-            return fs(fs, i + Number<1>{}, acc_new);
-        }
-        else
-        {
-            return acc_new;
-        }
-    };
-
-    const auto element_space_size = f(f, Number<0>{}, LongNumber<1>{});
-#else
-    const auto element_space_size =
-        calculate_element_space_size_impl(lengths, strides, Number<0>{}, LongNumber<1>{});
-#endif
+    const auto element_space_size = detail::compute_element_space_size(
+        lengths, strides, typename arithmetic_sequence_gen<0, N, 1>::type{});
 
     return TensorDescriptor<remove_cv_t<decltype(transforms)>,
                             remove_cv_t<decltype(low_dim_hidden_idss)>,
