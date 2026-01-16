@@ -144,23 +144,32 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                 // Insert LDS read/write groups periodically based on ds_rep.
                 // The % pattern staggers READ and WRITE so they don't collapse
                 // into the same cycle in the model.
-                if constexpr(ds_rep > 0 && i_inst % ds_rep == 0)
+                if constexpr(ds_rep > 0)
                 {
-                    __builtin_amdgcn_sched_group_barrier(
-                        LLVMSchedGroupMask::DS_READ, 1, 0); // DS read
-                }
-                if constexpr(ds_rep > 0 && i_inst % ds_rep == 1)
-                {
-                    __builtin_amdgcn_sched_group_barrier(
-                        LLVMSchedGroupMask::DS_WRITE, 1, 0); // DS write
-                }
-
-                if constexpr(buffer_load_rep > 0 && i_inst % buffer_load_rep == 0)
-                {
-                    if constexpr(ds_write_inst > 0)
+                    if(i_inst % ds_rep == 0)
                     {
                         __builtin_amdgcn_sched_group_barrier(
-                            LLVMSchedGroupMask::VMEM_READ, 1, 0); // VMEM read
+                            LLVMSchedGroupMask::DS_READ, 1, 0); // DS read
+                    }
+                }
+                if constexpr(ds_rep > 0)
+                {
+                    if(i_inst % ds_rep == 1)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(
+                            LLVMSchedGroupMask::DS_WRITE, 1, 0); // DS write
+                    }
+                }
+
+                if constexpr(buffer_load_rep > 0)
+                {
+                    if(i_inst % buffer_load_rep == 0)
+                    {
+                        if constexpr(ds_write_inst > 0)
+                        {
+                            __builtin_amdgcn_sched_group_barrier(
+                                LLVMSchedGroupMask::VMEM_READ, 1, 0); // VMEM read
+                        }
                     }
                 }
                 // Always mark some VALU work in the loop to reflect auxiliary scalar
@@ -354,7 +363,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         if constexpr(PreshuffleQuant)
         {
             move_tile_window(bq_copy_dram_window,
-                             {((NPerBlockBQ < BlockGemmShape::BlockWarps::at(number<1>{}))
+                             {((NPerBlockBQ <= BlockGemmShape::BlockWarps::at(number<1>{}))
                                    ? ck_tile::integer_divide_ceil(n, QuantGroupSize::kN)
                                    : ck_tile::integer_least_multiple(n, kNPerBlock) /
                                          BlockGemmShape::WarpTile::at(number<1>{})),
@@ -431,7 +440,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             if constexpr(PreshuffleQuant)
             {
                 move_tile_window(bq_copy_dram_window,
-                                 {((NPerBlockBQ < BlockGemmShape::BlockWarps::at(number<1>{}))
+                                 {((NPerBlockBQ <= BlockGemmShape::BlockWarps::at(number<1>{}))
                                        ? ck_tile::integer_divide_ceil(n, QuantGroupSize::kN)
                                        : ck_tile::integer_least_multiple(n, kNPerBlock) /
                                              BlockGemmShape::WarpTile::at(number<1>{})),
@@ -468,7 +477,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             if constexpr(PreshuffleQuant)
             {
                 move_tile_window(bq_copy_dram_window,
-                                 {((NPerBlockBQ < BlockGemmShape::BlockWarps::at(number<1>{}))
+                                 {((NPerBlockBQ <= BlockGemmShape::BlockWarps::at(number<1>{}))
                                        ? ck_tile::integer_divide_ceil(n, QuantGroupSize::kN)
                                        : ck_tile::integer_least_multiple(n, kNPerBlock) /
                                              BlockGemmShape::WarpTile::at(number<1>{})),
