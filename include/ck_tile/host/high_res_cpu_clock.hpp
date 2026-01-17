@@ -8,27 +8,33 @@
 namespace ck_tile {
 
 // Time structure to hold nanoseconds since epoch or arbitrary start point
-typedef struct
+struct timepoint_t
 {
     int64_t nanoseconds;
-} timepoint_t;
+};
 
 // Platform-specific includes and implementation
 #if defined(_WIN32) || defined(_WIN64)
 // Windows
 #include <windows.h>
 
-static inline timepoint_t high_res_now(void)
+static inline timepoint_t high_res_now()
 {
-    LARGE_INTEGER frequency;
+    // Cache the performance counter frequency; it is constant for the system lifetime.
+    static LARGE_INTEGER frequency = []() {
+        LARGE_INTEGER f;
+        QueryPerformanceFrequency(&f);
+        return f;
+    }();
+
     LARGE_INTEGER counter;
     timepoint_t tp;
-
-    QueryPerformanceFrequency(&frequency);
     QueryPerformanceCounter(&counter);
 
-    // Convert to nanoseconds
-    tp.nanoseconds = static_cast<int64_t>((counter.QuadPart * 1000000000LL) / frequency.QuadPart);
+    // Convert to nanoseconds using floating-point to avoid 64-bit integer overflow
+    tp.nanoseconds =
+        static_cast<int64_t>((static_cast<long double>(counter.QuadPart) * 1000000000.0L) /
+                             static_cast<long double>(frequency.QuadPart));
 
     return tp;
 }
@@ -37,7 +43,7 @@ static inline timepoint_t high_res_now(void)
 // Linux/Unix/POSIX
 #include <time.h>
 
-static inline timepoint_t high_res_now(void)
+static inline timepoint_t high_res_now()
 {
     struct timespec ts;
     timepoint_t tp;
@@ -55,7 +61,7 @@ static inline timepoint_t high_res_now(void)
 // Fallback for other platforms
 #include <time.h>
 
-static inline timepoint_t high_res_now(void)
+static inline timepoint_t high_res_now()
 {
     timepoint_t tp;
     time_t t       = time(NULL);
