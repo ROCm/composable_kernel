@@ -148,10 +148,21 @@ class CKProfilerExecutor:
                     print(f"\n{Colors.RED}Error Output:{Colors.RESET}")
                     print(result.stderr)
             
+            # We want to take line that reads "Best configuration parameters:" and everything after that line from the stdout
+            stdout_best_config = ""
+            if result.stdout:
+                stdout_lines = result.stdout.splitlines()
+                capture = False
+                for line in stdout_lines:
+                    if "Best configuration parameters:" in line:
+                        capture = True
+                    if capture:
+                        stdout_best_config += line + "\n"
+
             return {
                 'success': success,
                 'returncode': result.returncode,
-                'stdout': result.stdout,
+                'stdout': stdout_best_config,
                 'stderr': result.stderr,
                 'elapsed_time': elapsed_time,
                 'command': cmd_str
@@ -265,7 +276,7 @@ class CKProfilerExecutor:
                 'elapsed_time': result.get('elapsed_time'),
                 'command': result.get('command'),
                 'error': result.get('error'),
-                'stdout': result.get('stdout', '')[:500] if result.get('stdout') else None  # Truncate long output
+                'stdout': result.get('stdout', '') if result.get('stdout') else None  # Truncate long output
             })
         
         with open(output_file, 'w') as f:
