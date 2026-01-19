@@ -8,6 +8,7 @@
 #include "sequence.hpp"
 #include <type_traits>
 #include <cassert>
+#include "type.hpp"
 
 namespace ck {
 
@@ -43,7 +44,11 @@ struct Array
     {
         static_assert(T::Size() == Size(), "wrong! size not the same");
 
-        static_for<0, Size(), 1>{}([&](auto i) { operator()(i) = a[i]; });
+#pragma unroll
+        for(int i = 0; i < NSize; i++)
+        {
+            mData[i] = a[i];
+        }
 
         return *this;
     }
