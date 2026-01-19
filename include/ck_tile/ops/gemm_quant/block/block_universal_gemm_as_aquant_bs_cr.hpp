@@ -405,7 +405,7 @@ struct AQuantBlockUniversalGemmAsBsCr
                 b_warp_tile_, b_lds_gemm_window);
         }
 
-        // C += A * B (quantization/scaling paths are intentionally commented for now)
+        // C += A * B with quantization support
         template <typename CBlockTensor,
                   typename AQBlockTensor,
                   typename ASmemBlockWindow,
@@ -413,7 +413,7 @@ struct AQuantBlockUniversalGemmAsBsCr
                   bool ALoadTranspose = false,
                   bool BLoadTranspose = false>
         CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                       [[maybe_unused]] AQBlockTensor& aq_block_tensor,
+                                       AQBlockTensor& aq_block_tensor,
                                        const ASmemBlockWindow& a_block_window,
                                        const BSmemBlockWindow& b_block_window,
                                        bool_constant<ALoadTranspose> a_load_tr = {},
@@ -422,48 +422,66 @@ struct AQuantBlockUniversalGemmAsBsCr
             static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
                           "The CDataType as defined in traits should be the same as corresponding "
                           "C block tensor data type!");
-            // constexpr auto warp_size = get_warp_size();
+            constexpr auto warp_size = get_warp_size();
 
-            static_for<0, KRepeat, 1>{}([&](auto kIter) {
-                if(get_thread_id() == 0 && get_block_id() == 0)
-                {
-                    printf("kIter: %d\n", kIter.value);
-                }
-                LocalPrefetch<kIter.value>(a_block_window, b_block_window, a_load_tr, b_load_tr);
-                __builtin_amdgcn_sched_barrier(0);
+            // Track which KRepeat chunk is currently loaded
+            index_t current_k_repeat_loaded = -1;
 
-                if constexpr(kIter.value != 0 || KRepeat == 1)
-                {
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-                }
+            // Restructured loop: M → N → QScale → KIterPerQScale
+            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                    // Iterate over quantization groups
+                    static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
+                        CWarpTensor c_warp_tensor;
 
-                static_for<0, KInnerLoopIter, 1>{}([&](auto kInnerIter) {
-                    static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                        AWarpTensor a_warp_tensor;
-                        a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, kInnerIter>{}, a_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+                        // Accumulate K iterations for this quantization group
+                        static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
+                            // Map quantization indices to global K iteration
+                            constexpr auto kIterGlobal =
+                                kQScale * Traits::KIterPerQScale + kIterInQScale;
 
-                        static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                            // Map to KRepeat chunk and KInnerLoopIter offset
+                            constexpr auto kRepeatIdx = kIterGlobal / KInnerLoopIter;
+                            constexpr auto kInnerIdx  = kIterGlobal % KInnerLoopIter;
+
+                            // Prefetch new chunk if needed
+                            if constexpr(kInnerIdx == 0)
+                            {
+                                if(current_k_repeat_loaded != kRepeatIdx)
+                                {
+                                    LocalPrefetch<kRepeatIdx>(
+                                        a_block_window, b_block_window, a_load_tr, b_load_tr);
+                                    __builtin_amdgcn_sched_barrier(0);
+
+                                    if constexpr(kRepeatIdx != 0 || KRepeat == 1)
+                                    {
+                                        __builtin_amdgcn_s_barrier();
+                                        __builtin_amdgcn_sched_barrier(0);
+                                    }
+
+                                    current_k_repeat_loaded = kRepeatIdx;
+                                }
+                            }
+
+                            // Load A warp tensor
+                            AWarpTensor a_warp_tensor;
+                            a_warp_tensor.get_thread_buffer() =
+                                a_warp_tile_.get_y_sliced_thread_data(
+                                    merge_sequences(sequence<mIter, kInnerIdx>{},
+                                                    a_warp_y_index_zeros),
+                                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+
+                            // Load B warp tensor
                             BWarpTensor b_warp_tensor;
                             b_warp_tensor.get_thread_buffer() =
                                 b_warp_tile_.get_y_sliced_thread_data(
-                                    merge_sequences(sequence<nIter, kInnerIter>{},
+                                    merge_sequences(sequence<nIter, kInnerIdx>{},
                                                     b_warp_y_index_zeros),
                                     merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
-                            CWarpTensor c_warp_tensor;
-                            c_warp_tensor.get_thread_buffer() =
-                                c_block_tensor.get_y_sliced_thread_data(
-                                    merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
-
-                            // Quantization accumulation path (AQPicker, qscale application) to be
-                            // re-enabled later.
-
-                            if constexpr(kIter.value == KRepeat - 1 &&
-                                         kInnerIter.value == KInnerLoopIter - 1 &&
+                            // Synchronization barrier at the end of last iteration
+                            if constexpr(kQScale == Traits::QScalesPerBlockRow - 1 &&
+                                         kIterInQScale == Traits::KIterPerQScale - 1 &&
                                          mIter.value == MIterPerWarp - 1 &&
                                          nIter.value == NIterPerWarp - 1)
                             {
@@ -472,24 +490,47 @@ struct AQuantBlockUniversalGemmAsBsCr
                                 __builtin_amdgcn_sched_barrier(0);
                             }
 
-                            WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                            // Accumulate: first iteration initializes, rest accumulate
+                            if constexpr(kIterInQScale == 0)
+                            {
+                                c_warp_tensor = WarpGemm{}(a_warp_tensor, b_warp_tensor);
+                            }
+                            else
+                            {
+                                WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                            }
 
-                            c_block_tensor.set_y_sliced_thread_data(
-                                merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                                merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                                c_warp_tensor.get_thread_buffer());
-
-                            if constexpr(kInnerIter.value == 0 && mIter.value == 0 &&
-                                         nIter.value == 0)
+                            // Set priority for scheduling
+                            if constexpr(kInnerIdx == 0 && mIter.value == 0 && nIter.value == 0)
                             {
                                 __builtin_amdgcn_sched_barrier(0);
                                 __builtin_amdgcn_s_setprio(1);
                                 __builtin_amdgcn_sched_barrier(0);
                             }
                         });
+
+                        // Apply quantization scale after accumulating all K iterations for this
+                        // group
+                        constexpr auto tbuf_offset =
+                            number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
+                                       merge_sequences(sequence<mIter, nIter>{},
+                                                       c_warp_y_index_zeros)) /
+                                   CBlockTensor::PackedSize>{};
+
+                        AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(
+                            aq_block_tensor);
+
+                        static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
+                            [&](auto c_row) {
+                                float scale_reg_f = aq_picker.template pick<c_row>();
+
+                                c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
+                                    (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
+                            });
                     });
                 });
 
+                // Reset scheduling priority after completing M iteration
                 __builtin_amdgcn_sched_barrier(0);
                 __builtin_amdgcn_s_setprio(0);
                 __builtin_amdgcn_sched_barrier(0);
