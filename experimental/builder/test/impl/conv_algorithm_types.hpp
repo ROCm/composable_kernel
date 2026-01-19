@@ -126,15 +126,15 @@ struct AccessOrder
 {
     std::array<size_t, ThreadSliceLength> order;
 };
-static_assert(AccessOrderDescriptor<AccessOrder<>>);
-static_assert(AccessOrderDescriptor<AccessOrder<4>>);
+static_assert(ThreadClusterOrderDescriptor<AccessOrder<>>);
+static_assert(ThreadClusterOrderDescriptor<AccessOrder<4>>);
 
 template <size_t ThreadSliceLength = 3>
 struct InputTransfer
 {
     BlockTransfer<ThreadSliceLength> block_transfer;
     LdsTransfer lds_transfer;
-    AccessOrder<ThreadSliceLength> block_transfer_access_order;
+    AccessOrder<ThreadSliceLength> thread_cluster_arrange_order;
     AccessOrder<ThreadSliceLength> src_access_order;
 };
 
