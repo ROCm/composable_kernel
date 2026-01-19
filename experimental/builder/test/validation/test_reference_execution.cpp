@@ -59,23 +59,19 @@ TEST(ReferenceExecution, Forward_2D_FP16)
     std::vector<ck_tile::long_index_t> right_pads{1, 1};
 
     RefKernel ref_kernel;
-    ref_kernel.Run(reinterpret_cast<const ck::half_t*>(in_dev.GetDeviceBuffer()),
-                   reinterpret_cast<const ck::half_t*>(wei_dev.GetDeviceBuffer()),
-                   reinterpret_cast<ck::half_t*>(out_dev.GetDeviceBuffer()),
-                   G,
-                   N,
-                   K,
-                   C,
-                   input_spatial,
-                   filter_spatial,
-                   strides,
-                   dilations,
-                   left_pads,
-                   right_pads);
-
-    // If we get here, Run() worked!
-    std::cout << "✓ Reference Forward kernel executed!" << std::endl;
-    EXPECT_TRUE(true);
+    EXPECT_NO_THROW(ref_kernel.Run(reinterpret_cast<const ck::half_t*>(in_dev.GetDeviceBuffer()),
+                                   reinterpret_cast<const ck::half_t*>(wei_dev.GetDeviceBuffer()),
+                                   reinterpret_cast<ck::half_t*>(out_dev.GetDeviceBuffer()),
+                                   G,
+                                   N,
+                                   K,
+                                   C,
+                                   input_spatial,
+                                   filter_spatial,
+                                   strides,
+                                   dilations,
+                                   left_pads,
+                                   right_pads));
 }
 
 TEST(ReferenceExecution, BackwardData_2D_FP16)
@@ -115,22 +111,20 @@ TEST(ReferenceExecution, BackwardData_2D_FP16)
     std::vector<ck_tile::long_index_t> right_pads{1, 1};
 
     RefKernel ref_kernel;
-    ref_kernel.Run(reinterpret_cast<ck::half_t*>(in_grad_dev.GetDeviceBuffer()),
-                   reinterpret_cast<const ck::half_t*>(wei_dev.GetDeviceBuffer()),
-                   reinterpret_cast<const ck::half_t*>(out_grad_dev.GetDeviceBuffer()),
-                   G,
-                   N,
-                   K,
-                   C,
-                   input_spatial,
-                   filter_spatial,
-                   strides,
-                   dilations,
-                   left_pads,
-                   right_pads);
-
-    std::cout << "✓ Reference Backward Data kernel executed!" << std::endl;
-    EXPECT_TRUE(true);
+    EXPECT_NO_THROW(
+        ref_kernel.Run(reinterpret_cast<ck::half_t*>(in_grad_dev.GetDeviceBuffer()),
+                       reinterpret_cast<const ck::half_t*>(wei_dev.GetDeviceBuffer()),
+                       reinterpret_cast<const ck::half_t*>(out_grad_dev.GetDeviceBuffer()),
+                       G,
+                       N,
+                       K,
+                       C,
+                       input_spatial,
+                       filter_spatial,
+                       strides,
+                       dilations,
+                       left_pads,
+                       right_pads));
 }
 
 TEST(ReferenceExecution, BackwardWeight_2D_FP16)
@@ -170,22 +164,20 @@ TEST(ReferenceExecution, BackwardWeight_2D_FP16)
     std::vector<ck_tile::long_index_t> right_pads{1, 1};
 
     RefKernel ref_kernel;
-    ref_kernel.Run(reinterpret_cast<const ck::half_t*>(in_dev.GetDeviceBuffer()),
-                   reinterpret_cast<ck::half_t*>(wei_grad_dev.GetDeviceBuffer()),
-                   reinterpret_cast<const ck::half_t*>(out_grad_dev.GetDeviceBuffer()),
-                   G,
-                   N,
-                   K,
-                   C,
-                   input_spatial,
-                   filter_spatial,
-                   strides,
-                   dilations,
-                   left_pads,
-                   right_pads);
-
-    std::cout << "✓ Reference Backward Weight kernel executed!" << std::endl;
-    EXPECT_TRUE(true);
+    EXPECT_NO_THROW(
+        ref_kernel.Run(reinterpret_cast<const ck::half_t*>(in_dev.GetDeviceBuffer()),
+                       reinterpret_cast<ck::half_t*>(wei_grad_dev.GetDeviceBuffer()),
+                       reinterpret_cast<const ck::half_t*>(out_grad_dev.GetDeviceBuffer()),
+                       G,
+                       N,
+                       K,
+                       C,
+                       input_spatial,
+                       filter_spatial,
+                       strides,
+                       dilations,
+                       left_pads,
+                       right_pads));
 }
 
 // Test Builder Reference vs Direct GPU Reference with RANDOM INPUT
@@ -241,7 +233,6 @@ TEST(ReferenceExecution, Forward_2D_FP16_Builder_vs_DirectGPUReference_Random)
 
     std::vector<ck_tile::long_index_t> input_spatial{H, W};
     std::vector<ck_tile::long_index_t> filter_spatial{3, 3};
-    std::vector<ck_tile::long_index_t> output_spatial{H, W};
     std::vector<ck_tile::long_index_t> strides{1, 1};
     std::vector<ck_tile::long_index_t> dilations{1, 1};
     std::vector<ck_tile::long_index_t> left_pads{1, 1};
@@ -296,17 +287,11 @@ TEST(ReferenceExecution, Forward_2D_FP16_Builder_vs_DirectGPUReference_Random)
     out_naive_dev.FromDevice(out_naive_result.data());
 
     // Compare - should be IDENTICAL (both call same kernel)
-    bool pass = ck::utils::check_err(out_builder_result,
+    EXPECT_TRUE(ck::utils::check_err(out_builder_result,
                                      out_naive_result,
                                      "Error: Builder Reference != Direct GPU Reference",
                                      1e-6,
-                                     1e-6); // Very tight tolerance!
-
-    std::cout << "✓ Builder Reference vs Direct GPU Reference (RANDOM INPUT)!" << std::endl;
-    std::cout << "  Result: " << (pass ? "IDENTICAL ✓" : "MISMATCH ✗") << std::endl;
-    std::cout << "  This validates Builder Reference Factory is correct!" << std::endl;
-
-    EXPECT_TRUE(pass);
+                                     1e-6)); // Very tight tolerance!
 }
 
 // Test Builder Reference vs Direct GPU Reference with RANDOM INPUT - Backward Data
@@ -359,7 +344,6 @@ TEST(ReferenceExecution, BackwardData_2D_FP16_Builder_vs_DirectGPUReference_Rand
 
     std::vector<ck_tile::long_index_t> input_spatial{H, W};
     std::vector<ck_tile::long_index_t> filter_spatial{3, 3};
-    std::vector<ck_tile::long_index_t> output_spatial{H, W};
     std::vector<ck_tile::long_index_t> strides{1, 1};
     std::vector<ck_tile::long_index_t> dilations{1, 1};
     std::vector<ck_tile::long_index_t> left_pads{1, 1};
@@ -413,16 +397,11 @@ TEST(ReferenceExecution, BackwardData_2D_FP16_Builder_vs_DirectGPUReference_Rand
     in_grad_builder_dev.FromDevice(in_grad_builder_result.data());
     in_grad_naive_dev.FromDevice(in_grad_naive_result.data());
 
-    bool pass = ck::utils::check_err(in_grad_builder_result,
+    EXPECT_TRUE(ck::utils::check_err(in_grad_builder_result,
                                      in_grad_naive_result,
                                      "Error: Builder Backward Data != Direct GPU Reference",
                                      1e-6,
-                                     1e-6);
-
-    std::cout << "✓ Builder Reference vs Direct GPU Reference (RANDOM INPUT - Backward Data)!"
-              << std::endl;
-    std::cout << "  Result: " << (pass ? "IDENTICAL ✓" : "MISMATCH ✗") << std::endl;
-    EXPECT_TRUE(pass);
+                                     1e-6));
 }
 
 // Test Builder Reference vs Direct GPU Reference with RANDOM INPUT - Backward Weight
@@ -475,7 +454,6 @@ TEST(ReferenceExecution, BackwardWeight_2D_FP16_Builder_vs_DirectGPUReference_Ra
 
     std::vector<ck_tile::long_index_t> input_spatial{H, W};
     std::vector<ck_tile::long_index_t> filter_spatial{3, 3};
-    std::vector<ck_tile::long_index_t> output_spatial{H, W};
     std::vector<ck_tile::long_index_t> strides{1, 1};
     std::vector<ck_tile::long_index_t> dilations{1, 1};
     std::vector<ck_tile::long_index_t> left_pads{1, 1};
@@ -529,16 +507,11 @@ TEST(ReferenceExecution, BackwardWeight_2D_FP16_Builder_vs_DirectGPUReference_Ra
     wei_grad_builder_dev.FromDevice(wei_grad_builder_result.data());
     wei_grad_naive_dev.FromDevice(wei_grad_naive_result.data());
 
-    bool pass = ck::utils::check_err(wei_grad_builder_result,
+    EXPECT_TRUE(ck::utils::check_err(wei_grad_builder_result,
                                      wei_grad_naive_result,
                                      "Error: Builder Backward Weight != Direct GPU Reference",
                                      1e-6,
-                                     1e-6);
-
-    std::cout << "✓ Builder Reference vs Direct GPU Reference (RANDOM INPUT - Backward Weight)!"
-              << std::endl;
-    std::cout << "  Result: " << (pass ? "IDENTICAL ✓" : "MISMATCH ✗") << std::endl;
-    EXPECT_TRUE(pass);
+                                     1e-6));
 }
 
 } // namespace
