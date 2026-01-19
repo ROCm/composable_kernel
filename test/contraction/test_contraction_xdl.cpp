@@ -125,11 +125,10 @@ using BilinearKernelTypes =
                      ALL_LAYOUT_COMBINATIONS(F16, ck::Tuple<F16>, F16, Bilinear),
                      ALL_LAYOUT_COMBINATIONS(BF16, ck::Tuple<BF16>, BF16, Bilinear)>;
 
-using ScaleKernelTypes =
-    ::testing::Types<ALL_LAYOUT_COMBINATIONS(F32, ck::Tuple<>, F32, Scale),
-                     ALL_LAYOUT_COMBINATIONS(F64, ck::Tuple<>, F64, Scale),
-                     ALL_LAYOUT_COMBINATIONS(F16, ck::Tuple<>, F16, Scale),
-                     ALL_LAYOUT_COMBINATIONS(BF16, ck::Tuple<>, BF16, Scale)>;
+using ScaleKernelTypes = ::testing::Types<ALL_LAYOUT_COMBINATIONS(F32, ck::Tuple<>, F32, Scale),
+                                          ALL_LAYOUT_COMBINATIONS(F64, ck::Tuple<>, F64, Scale),
+                                          ALL_LAYOUT_COMBINATIONS(F16, ck::Tuple<>, F16, Scale),
+                                          ALL_LAYOUT_COMBINATIONS(BF16, ck::Tuple<>, BF16, Scale)>;
 
 TYPED_TEST_SUITE(TestContractionBilinear, BilinearKernelTypes);
 TYPED_TEST_SUITE(TestContractionScale, ScaleKernelTypes);
