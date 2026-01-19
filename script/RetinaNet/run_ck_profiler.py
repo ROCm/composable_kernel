@@ -43,10 +43,10 @@ class CKProfilerExecutor:
         args = config['profiler_args']
         
         # Build argument list
-        cmd = [str(self.profiler_path / op_type)]
+        cmd = [str(self.profiler_path), op_type]
         
         # Add arguments based on operation type
-        if op_type == 'profile_grouped_conv_fwd':
+        if op_type == 'grouped_conv_fwd':
             # Forward convolution arguments
             cmd.extend([
                 str(args['data_type']),

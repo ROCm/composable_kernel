@@ -20,7 +20,7 @@ class Colors:
 # Configuration constants
 DATA_TYPE = 1           # FP16
 LAYOUT = 3              # NGCHW_GKCYX_NGKHW
-INDEX_TYPE = 0          # 32-bit (only for forward)
+INDEX_TYPE = 1          # 64-bit (only for forward)
 VERIFY = 0              # No verification
 INIT = 1                # Integer initialization
 LOG = 0                 # No log printing
@@ -97,7 +97,7 @@ class PyTorchToCKConverter:
                 dilation = [dilation] * num_dim_spatial
             
             return {
-                'operation_type': 'profile_grouped_conv_fwd',
+                'operation_type': 'grouped_conv_fwd',
                 'profiler_args': {
                     'data_type': DATA_TYPE,
                     'layout': LAYOUT,
@@ -176,7 +176,7 @@ class PyTorchToCKConverter:
             # Backward data (computing gradient w.r.t. input)
             if output_mask[0]:  # grad_input
                 results.append({
-                    'operation_type': 'profile_grouped_conv_bwd_data',
+                    'operation_type': 'grouped_conv_bwd_data',
                     'profiler_args': {
                         'data_type': DATA_TYPE,
                         'layout': LAYOUT,
@@ -207,7 +207,7 @@ class PyTorchToCKConverter:
             # Backward weight (computing gradient w.r.t. weight)
             if output_mask[1]:  # grad_weight
                 results.append({
-                    'operation_type': 'profile_grouped_conv_bwd_weight',
+                    'operation_type': 'grouped_conv_bwd_weight',
                     'profiler_args': {
                         'data_type': DATA_TYPE,
                         'layout': LAYOUT,
@@ -255,9 +255,9 @@ class PyTorchToCKConverter:
             results = self.extract_backward_conv_params(op)
             if results:
                 for result in results:
-                    if result['operation_type'] == 'profile_grouped_conv_bwd_data':
+                    if result['operation_type'] == 'grouped_conv_bwd_data':
                         self.stats['backward_data'] += 1
-                    elif result['operation_type'] == 'profile_grouped_conv_bwd_weight':
+                    elif result['operation_type'] == 'grouped_conv_bwd_weight':
                         self.stats['backward_weight'] += 1
                 return results
         else:
@@ -291,7 +291,7 @@ class PyTorchToCKConverter:
             if results:
                 self.converted_ops.extend(results)
                 for result in results:
-                    op_type = result['operation_type'].replace('profile_grouped_conv_', '')
+                    op_type = result['operation_type'].replace('grouped_conv_', '')
                     print(f"{Colors.GREEN}✓{Colors.RESET} [{i}/{len(pytorch_ops)}] Converted: {op_name} (rank {priority}) → {op_type}")
             else:
                 print(f"{Colors.YELLOW}⚠{Colors.RESET} [{i}/{len(pytorch_ops)}] Skipped: {op_name} (rank {priority})")
@@ -327,13 +327,13 @@ def main():
         description='Convert PyTorch convolution JSON to CK Profiler configuration JSON'
     )
     parser.add_argument(
-        'input',
+        '--input',
         nargs='?',
         default='build/test-data/conv_repros_ir.json',
         help='Input PyTorch JSON file (default: build/test-data/conv_repros_ir.json)'
     )
     parser.add_argument(
-        'output',
+        '--output',
         nargs='?',
         default='ck_profiler_configs.json',
         help='Output CK Profiler JSON file (default: ck_profiler_configs.json)'
