@@ -185,6 +185,54 @@ TEST(Sequence, ReorderGivenOld2New)
     EXPECT_TRUE((is_same<Result, Expected>::value));
 }
 
+// Test sequence_gen with custom functor
+TEST(SequenceGen, SequenceGenWithDoubleFunctor)
+{
+    struct DoubleFunctor
+    {
+        __host__ __device__ constexpr index_t operator()(index_t i) const { return i * 2; }
+    };
+    using Result   = typename sequence_gen<5, DoubleFunctor>::type;
+    using Expected = Sequence<0, 2, 4, 6, 8>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+TEST(SequenceGen, SequenceGenWithSquareFunctor)
+{
+    struct SquareFunctor
+    {
+        __host__ __device__ constexpr index_t operator()(index_t i) const { return i * i; }
+    };
+    using Result   = typename sequence_gen<5, SquareFunctor>::type;
+    using Expected = Sequence<0, 1, 4, 9, 16>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+TEST(SequenceGen, SequenceGenZeroSize)
+{
+    struct IdentityFunctor
+    {
+        __host__ __device__ constexpr index_t operator()(index_t i) const { return i; }
+    };
+    using Result   = typename sequence_gen<0, IdentityFunctor>::type;
+    using Expected = Sequence<>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+    // Also verify non-zero size works with identity
+    using Result5 = typename sequence_gen<5, IdentityFunctor>::type;
+    EXPECT_TRUE((is_same<Result5, Sequence<0, 1, 2, 3, 4>>::value));
+}
+
+TEST(SequenceGen, SequenceGenSingleElement)
+{
+    struct ConstantFunctor
+    {
+        __host__ __device__ constexpr index_t operator()(index_t) const { return 42; }
+    };
+    using Result   = typename sequence_gen<1, ConstantFunctor>::type;
+    using Expected = Sequence<42>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
 // Test arithmetic_sequence_gen
 TEST(SequenceGen, ArithmeticSequence)
 {

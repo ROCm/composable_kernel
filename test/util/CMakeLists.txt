@@ -5,3 +5,18 @@ add_gtest_executable(unit_sequence unit_sequence.cpp)
 if(result EQUAL 0)
   target_link_libraries(unit_sequence PRIVATE utility)
 endif()
+
+add_gtest_executable(unit_sequence_helper unit_sequence_helper.cpp)
+if(result EQUAL 0)
+  target_link_libraries(unit_sequence_helper PRIVATE utility)
+endif()
+
+add_gtest_executable(unit_container_helper unit_container_helper.cpp)
+if(result EQUAL 0)
+  target_link_libraries(unit_container_helper PRIVATE utility)
+endif()
+
+add_gtest_executable(unit_tensor_descriptor_helper unit_tensor_descriptor_helper.cpp)
+if(result EQUAL 0)
+  target_link_libraries(unit_tensor_descriptor_helper PRIVATE utility)
+endif()
