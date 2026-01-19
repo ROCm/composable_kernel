@@ -1,7 +1,6 @@
 .. _ck_tile_buffer_views:
 
 Buffer Views - Raw Memory Access
-================================
 
 Overview
 --------

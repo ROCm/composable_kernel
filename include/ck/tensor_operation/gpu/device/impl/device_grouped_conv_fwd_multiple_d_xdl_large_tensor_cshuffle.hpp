@@ -1282,7 +1282,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
     std::unique_ptr<ck_tile::reflect::Description> describe() const override
     {
         static_assert(
-            ck_tile::reflect::conv::HasConvTraits<DeviceOp>,
+            ck_tile::reflect::HasConvTraits<DeviceOp>,
             "ConvTraits specialization not found for this device operation. "
             "If you modified the template parameters of this class, ensure that "
             "the corresponding ConvTraits specialization in "
