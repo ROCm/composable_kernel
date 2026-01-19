@@ -4,10 +4,10 @@
 #include "ck_tile/builder/conv_builder.hpp"
 #include "ck_tile/builder/types.hpp"
 #include "impl/conv_algorithm_types.hpp"
-#include "ck_tile/ref/naive_grouped_conv_fwd_gpu.hpp"
-#include "ck_tile/ref/naive_grouped_conv_bwd_data_gpu.hpp"
-#include "ck_tile/ref/naive_grouped_conv_bwd_weight_gpu.hpp"
 #include "utils/ckb_conv_test_configs.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_weight_gpu.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data_gpu.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include <gtest/gtest.h>
@@ -265,20 +265,29 @@ TEST(ReferenceExecution, Forward_2D_FP16_Builder_vs_DirectGPUReference_Random)
                        right_pads);
 
     // Run 2: Direct GPU Reference (same kernel the Builder calls internally!)
-    ck_tile::naive_grouped_conv_fwd<2, ck::half_t, ck::half_t, ck::half_t>(
+    ck::ref::naive_conv_fwd<ck::tensor_layout::convolution::NHWGC,
+                            ck::tensor_layout::convolution::GKYXC,
+                            ck::tensor_layout::convolution::NHWGK,
+                            ck::half_t,
+                            ck::half_t,
+                            ck::half_t,
+                            ck::tensor_operation::element_wise::PassThrough,
+                            ck::tensor_operation::element_wise::PassThrough,
+                            ck::tensor_operation::element_wise::PassThrough>(
         reinterpret_cast<const ck::half_t*>(in_dev.GetDeviceBuffer()),
         reinterpret_cast<const ck::half_t*>(wei_dev.GetDeviceBuffer()),
         reinterpret_cast<ck::half_t*>(out_naive_dev.GetDeviceBuffer()),
-        G,
-        N,
-        K,
-        C,
-        input_spatial,
-        filter_spatial,
-        output_spatial,
-        strides,
-        dilations,
-        left_pads);
+        ck::utils::conv::ConvParam(2,
+                                   G,
+                                   N,
+                                   K,
+                                   C,
+                                   filter_spatial,
+                                   input_spatial,
+                                   strides,
+                                   dilations,
+                                   left_pads,
+                                   right_pads));
 
     // Copy results back
     std::vector<ck::half_t> out_builder_result(out_elements);
@@ -374,20 +383,29 @@ TEST(ReferenceExecution, BackwardData_2D_FP16_Builder_vs_DirectGPUReference_Rand
                        right_pads);
 
     // Run 2: Direct GPU Reference
-    ck_tile::naive_grouped_conv_bwd_data<2, ck::half_t, ck::half_t, ck::half_t>(
+    ck::ref::naive_conv_bwd_data<ck::tensor_layout::convolution::NHWGC,
+                                 ck::tensor_layout::convolution::GKYXC,
+                                 ck::tensor_layout::convolution::NHWGK,
+                                 ck::half_t,
+                                 ck::half_t,
+                                 ck::half_t,
+                                 ck::tensor_operation::element_wise::PassThrough,
+                                 ck::tensor_operation::element_wise::PassThrough,
+                                 ck::tensor_operation::element_wise::PassThrough>(
         reinterpret_cast<ck::half_t*>(in_grad_naive_dev.GetDeviceBuffer()),
         reinterpret_cast<const ck::half_t*>(wei_dev.GetDeviceBuffer()),
         reinterpret_cast<const ck::half_t*>(out_grad_dev.GetDeviceBuffer()),
-        G,
-        N,
-        K,
-        C,
-        input_spatial,
-        filter_spatial,
-        output_spatial,
-        strides,
-        dilations,
-        left_pads);
+        ck::utils::conv::ConvParam(2,
+                                   G,
+                                   N,
+                                   K,
+                                   C,
+                                   filter_spatial,
+                                   input_spatial,
+                                   strides,
+                                   dilations,
+                                   left_pads,
+                                   right_pads));
 
     // Compare
     std::vector<ck::half_t> in_grad_builder_result(in_grad_elements);
@@ -481,20 +499,29 @@ TEST(ReferenceExecution, BackwardWeight_2D_FP16_Builder_vs_DirectGPUReference_Ra
                        right_pads);
 
     // Run 2: Direct GPU Reference
-    ck_tile::naive_grouped_conv_bwd_weight<2, ck::half_t, ck::half_t, ck::half_t>(
+    ck::ref::naive_conv_bwd_weight<ck::tensor_layout::convolution::NHWGC,
+                                   ck::tensor_layout::convolution::GKYXC,
+                                   ck::tensor_layout::convolution::NHWGK,
+                                   ck::half_t,
+                                   ck::half_t,
+                                   ck::half_t,
+                                   ck::tensor_operation::element_wise::PassThrough,
+                                   ck::tensor_operation::element_wise::PassThrough,
+                                   ck::tensor_operation::element_wise::PassThrough>(
         reinterpret_cast<const ck::half_t*>(in_dev.GetDeviceBuffer()),
         reinterpret_cast<ck::half_t*>(wei_grad_naive_dev.GetDeviceBuffer()),
         reinterpret_cast<const ck::half_t*>(out_grad_dev.GetDeviceBuffer()),
-        G,
-        N,
-        K,
-        C,
-        input_spatial,
-        filter_spatial,
-        output_spatial,
-        strides,
-        dilations,
-        left_pads);
+        ck::utils::conv::ConvParam(2,
+                                   G,
+                                   N,
+                                   K,
+                                   C,
+                                   filter_spatial,
+                                   input_spatial,
+                                   strides,
+                                   dilations,
+                                   left_pads,
+                                   right_pads));
 
     // Compare
     std::vector<ck::half_t> wei_grad_builder_result(wei_grad_elements);
