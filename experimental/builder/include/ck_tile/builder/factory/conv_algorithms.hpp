@@ -11,7 +11,7 @@ namespace ck_tile::builder::factory {
 template <typename T, size_t ThreadClusterRank = 3>
 concept TileTransferParameters =
     SpecifiesBlockTransfer<T, ThreadClusterRank> && SpecifiesLdsTransfer<T> &&
-    SpecifiesThreadClusterAccessOrder<T> && SpecifiesSourceAccessOrder<T>;
+    SpecifiesThreadClusterArrangeOrder<T> && SpecifiesSourceAccessOrder<T>;
 
 template <typename T>
 concept SpecifiesTileTransferParameters3D = TileTransferParameters<T, 3>;
