@@ -169,6 +169,84 @@ __host__ __device__ constexpr auto make_uniform_tuple(T&& value)
 make_uniform_tuple<N>(some_value);
 ```
 
+#### sequence_map_inverse optimization
+
+The `sequence_map_inverse` template inverts a permutation sequence. The original implementation used O(N) recursive template instantiations.
+
+**Before** (O(N) recursive instantiation):
+
+```cpp
+template <index_t Target, typename Seq, index_t Pos>
+struct find_source_index_impl
+{
+    static constexpr index_t value =
+        (Seq::template At<Pos>() == Target) ? Pos : find_source_index_impl<Target, Seq, Pos+1>::value;
+};
+```
+
+**After** (O(1) using constexpr array lookup):
+
+```cpp
+namespace detail {
+template <index_t Target, index_t... Is>
+__host__ __device__ constexpr index_t find_source_index(Sequence<Is...>)
+{
+    constexpr index_t values[] = {Is...};
+    for(index_t i = 0; i < sizeof...(Is); ++i)
+        if(values[i] == Target) return i;
+    return 0;
+}
+
+template <typename SeqMap, index_t... Positions>
+__host__ __device__ constexpr auto invert_permutation_impl(Sequence<Positions...>)
+{
+    return Sequence<find_source_index<Positions>(SeqMap{})...>{};
+}
+} // namespace detail
+
+template <typename SeqMap>
+struct sequence_map_inverse
+{
+    using type = decltype(detail::invert_permutation_impl<SeqMap>(
+        typename arithmetic_sequence_gen<0, SeqMap::Size(), 1>::type{}));
+};
+```
+
+This reduced instantiations from 45 to 10 (78% reduction) and wall-clock time by 95%.
+
+#### calculate_element_space_size optimization
+
+Computing element space size for tensor descriptors can use a fold expression instead of recursive template instantiation.
+
+**Before** (recursive or loop-based approach):
+
+```cpp
+// Implicit recursion through generate_tuple and container_reduce
+const auto element_space_size = container_reduce(
+    generate_tuple([&](auto i) {
+        return (lengths[i] - I1) * strides[i];
+    }, Number<N>{}),
+    math::plus{}, LongNumber<1>{});
+```
+
+**After** (O(1) using fold expression):
+
+```cpp
+namespace detail {
+template <typename... Lengths, typename... Strides, index_t... Is>
+__host__ __device__ constexpr auto compute_element_space_size(
+    const Tuple<Lengths...>& lengths,
+    const Tuple<Strides...>& strides,
+    Sequence<Is...>)
+{
+    return (LongNumber<1>{} + ... +
+            ((lengths[Number<Is>{}] - Number<1>{}) * strides[Number<Is>{}]));
+}
+} // namespace detail
+```
+
+This reduced instantiations from 24 to 10 (58% reduction) and wall-clock time by 73%.
+
 ### 3. Use Constexpr Arrays Instead of Template Recursion
 
 Replace recursive template searches with constexpr functions using arrays.
@@ -227,6 +305,8 @@ The following PRs demonstrate these techniques applied to Composable Kernel:
 - **sequence_gen optimization**: Replaced O(N) recursion with `__make_integer_seq` intrinsic
 - **transform_tensor_descriptor**: Replaced lambdas with named functors (92% instantiation reduction)
 - **container_concat**: Replaced lambdas with named functors (50% instantiation reduction)
+- **sequence_map_inverse**: Replaced O(N) recursion with pack expansion (78% instantiation, 95% time reduction)
+- **calculate_element_space_size**: Replaced implicit recursion with fold expression (58% instantiation, 73% time reduction)
 - **find_in_tuple_of_sequences**: Replaced recursive search with pack expansion (50% reduction)
 - **sequence_merge**: Replaced O(log N) recursion with O(1) fold expression
 
