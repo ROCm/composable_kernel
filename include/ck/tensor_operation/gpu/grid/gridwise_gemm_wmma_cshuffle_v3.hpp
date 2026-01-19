@@ -177,7 +177,8 @@ template <typename ALayout,
           bool PermuteA,
           bool PermuteB,
           bool IsBPreShuffled          = false,
-          bool ForceThreadTileTransfer = false>
+          bool ForceThreadTileTransfer = false,
+          bool IsFusedKernel           = false>
 struct GridwiseGemm_wmma_cshuffle_v3
     : GridwiseGemm_wmma_cshuffle_v3_base<
           ALayout,
@@ -231,7 +232,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
           PermuteA,
           PermuteB,
           IsBPreShuffled,
-          ForceThreadTileTransfer>
+          ForceThreadTileTransfer,
+          IsFusedKernel>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
         ALayout,
@@ -285,7 +287,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
         PermuteA,
         PermuteB,
         IsBPreShuffled,
-        ForceThreadTileTransfer>;
+        ForceThreadTileTransfer,
+        IsFusedKernel>;
 
     using Base::I0;
     using Base::I1;
@@ -334,14 +337,14 @@ struct GridwiseGemm_wmma_cshuffle_v3
     struct Problem
     {
         __host__ Problem() = default;
-        __host__ Problem(index_t M_,
-                         index_t N_,
-                         index_t K_,
-                         std::array<index_t, NumATensor> StrideAs_,
-                         std::array<index_t, NumBTensor> StrideBs_,
-                         std::array<index_t, NumDTensor> StrideDs_,
-                         index_t StrideE_,
-                         index_t KBatch_)
+        __host__ __device__ Problem(index_t M_,
+                                    index_t N_,
+                                    index_t K_,
+                                    std::array<index_t, NumATensor> StrideAs_,
+                                    std::array<index_t, NumBTensor> StrideBs_,
+                                    std::array<index_t, NumDTensor> StrideDs_,
+                                    index_t StrideE_,
+                                    index_t KBatch_)
             : M{M_},
               N{N_},
               K{K_},
@@ -411,22 +414,22 @@ struct GridwiseGemm_wmma_cshuffle_v3
     struct Argument : public tensor_operation::device::BaseArgument, public Problem
     {
         __host__ Argument() = default;
-        __host__ Argument(std::array<const void*, NumATensor> p_as_grid_,
-                          std::array<const void*, NumBTensor> p_bs_grid_,
-                          std::array<const void*, NumDTensor> p_ds_grid_,
-                          EDataType* p_e_grid_,
-                          index_t M_,
-                          index_t N_,
-                          index_t K_,
-                          std::array<index_t, NumATensor> StrideAs_,
-                          std::array<index_t, NumBTensor> StrideBs_,
-                          std::array<index_t, NumDTensor> StrideDs_,
-                          index_t StrideE_,
-                          index_t k_batch_,
-                          AElementwiseOperation a_element_op_,
-                          BElementwiseOperation b_element_op_,
-                          CDEElementwiseOperation cde_element_op_,
-                          bool is_reduce_ = false)
+        __host__ __device__ Argument(std::array<const void*, NumATensor> p_as_grid_,
+                                     std::array<const void*, NumBTensor> p_bs_grid_,
+                                     std::array<const void*, NumDTensor> p_ds_grid_,
+                                     EDataType* p_e_grid_,
+                                     index_t M_,
+                                     index_t N_,
+                                     index_t K_,
+                                     std::array<index_t, NumATensor> StrideAs_,
+                                     std::array<index_t, NumBTensor> StrideBs_,
+                                     std::array<index_t, NumDTensor> StrideDs_,
+                                     index_t StrideE_,
+                                     index_t k_batch_,
+                                     AElementwiseOperation a_element_op_,
+                                     BElementwiseOperation b_element_op_,
+                                     CDEElementwiseOperation cde_element_op_,
+                                     bool is_reduce_ = false)
             : Problem{M_, N_, K_, StrideAs_, StrideBs_, StrideDs_, StrideE_, k_batch_},
               p_as_grid{},
               p_bs_grid{},
@@ -604,6 +607,67 @@ struct GridwiseGemm_wmma_cshuffle_v3
             MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 e_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            decltype(as_grid_desc_ak0_m_ak1),
+            decltype(bs_grid_desc_bk0_n_bk1),
+            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
+            decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+            Block2CTileMap,
+            EpilogueArgument,
+            BlockMapMBlockIndex,
+            BlockMapNBlockIndex>(p_as_grid,
+                                 p_bs_grid,
+                                 p_ds_grid,
+                                 p_e_grid,
+                                 p_shared,
+                                 as_grid_desc_ak0_m_ak1,
+                                 bs_grid_desc_bk0_n_bk1,
+                                 ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                 e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                 block_2_ctile_map,
+                                 a_element_op,
+                                 b_element_op,
+                                 cde_element_op,
+                                 epilogue_args,
+                                 A_k_id,
+                                 B_k_id);
+    }
+
+    // Overload to pass in custom As/Bs/Ds/E grid descriptors
+    // Used for contraction operations, where tensor transforms are non-trivial
+    template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              TailNumber TailNum,
+              typename AsGridDescriptor_AK0_M_AK1,
+              typename BsGridDescriptor_BK0_N_BK1,
+              typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename Block2CTileMap,
+              typename EpilogueArgument,
+              int BlockMapMBlockIndex = 0,
+              int BlockMapNBlockIndex = 1>
+    __device__ static void Run(AsGridPointer& p_as_grid,
+                               BsGridPointer& p_bs_grid,
+                               DsGridPointer& p_ds_grid,
+                               EDataType* p_e_grid,
+                               void* p_shared,
+                               const AsGridDescriptor_AK0_M_AK1 as_grid_desc_ak0_m_ak1,
+                               const BsGridDescriptor_BK0_N_BK1 bs_grid_desc_bk0_n_bk1,
+                               const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const Block2CTileMap& block_2_ctile_map,
+                               AElementwiseOperation a_element_op,
+                               BElementwiseOperation b_element_op,
+                               CDEElementwiseOperation cde_element_op,
+                               EpilogueArgument& epilogue_args,
+                               const index_t A_k_id = 0,
+                               const index_t B_k_id = 0)
+    {
+
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
@@ -770,9 +834,13 @@ struct GridwiseGemm_wmma_cshuffle_v3
                               B_k_id);
     }
 
-    __device__ static auto DefaultBlock2CTileMap(const Problem& problem)
+    __device__ __host__ static auto DefaultBlock2CTileMap(const Problem& problem)
     {
-        return Block2CTileMap{problem.M, problem.N, 4};
+        return DefaultBlock2CTileMap(problem.M, problem.N);
+    }
+    __device__ __host__ static auto DefaultBlock2CTileMap(const index_t M, const index_t N)
+    {
+        return Block2CTileMap{M, N, 4};
     }
 
     // Run method for convolution for bwd_data (grid descriptors are passed as arguments,

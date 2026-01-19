@@ -14,56 +14,6 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
 {
     using BasePolicy = UniversalGemmBasePolicy<UniversalWeightPreshufflePipelineAgBgCrPolicy>;
 
-    // 3d + padding
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
-    {
-        using namespace ck_tile;
-        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t kKPack     = GetSmemPackA<Problem>();
-        using ADataType              = remove_cvref_t<typename Problem::ADataType>;
-
-        constexpr auto DataTypeSize = sizeof(ADataType);
-        constexpr auto MLdsLayer =
-            (32 * 4 / kKPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / kKPerBlock / DataTypeSize);
-
-        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / kKPack * MLdsLayer>{},
-                       number<kMPerBlock / MLdsLayer>{},
-                       number<kKPack>{}),
-            make_tuple(number<kKPack>{}, number<kKPerBlock * MLdsLayer>{}, number<1>{}),
-            number<kKPack>{},
-            number<1>{});
-
-        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
-            a_lds_block_desc_0,
-            make_tuple(make_xor_transform(make_tuple(number<kMPerBlock / MLdsLayer>{},
-                                                     number<kKPerBlock / kKPack * MLdsLayer>{})),
-                       make_pass_through_transform(number<kKPack>{})),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}));
-
-        constexpr auto a_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
-            a_lds_block_desc_permuted,
-            make_tuple(make_unmerge_transform(
-                           make_tuple(number<MLdsLayer>{}, number<kKPerBlock / kKPack>{})),
-                       make_pass_through_transform(number<kMPerBlock / MLdsLayer>{}),
-                       make_pass_through_transform(number<kKPack>{})),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
-
-        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
-            a_lds_block_desc_xk0_mnldslayer_mn_xk1,
-            make_tuple(
-                make_merge_transform(
-                    make_tuple(number<kMPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
-                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
-            make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-        return a_lds_block_desc;
-    }
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
@@ -289,6 +239,12 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
                                            sequence<1, 2>,
                                            sequence<1, 3>>{});
         }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
+    {
+        return GetBlockWeightPreshuffle<Problem>();
     }
 
     template <typename Problem>

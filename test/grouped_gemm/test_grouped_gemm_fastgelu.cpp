@@ -1,12 +1,12 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include <tuple>
 #include <vector>
 
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+#include "ck/utility/tuple.hpp"
 #include "ck/utility/data_type.hpp"
 
 #include "gtest/gtest.h"
@@ -34,10 +34,10 @@ class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple, true>
 
 // clang-format off
 using KernelTypes = ::testing::Types<
-    std::tuple<     Row, Row, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Row, Col, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Col, Row, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
-    std::tuple<     Col, Col, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>
+    ck::Tuple<     Row, Row, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
+    ck::Tuple<     Row, Col, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
+    ck::Tuple<     Col, Row, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>,
+    ck::Tuple<     Col, Col, Row, F16, F16, F16, AElementOp, BElementOp, CDEElementOp>
 >;
 // clang-format on
 

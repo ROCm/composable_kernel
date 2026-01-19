@@ -1173,4 +1173,11 @@ enum LLVMSchedGroupMask : int32_t
     DS_WRITE   = 1 << 9,
     ALL        = (DS_WRITE << 1) - 1,
 };
+
+CK_TILE_HOST_DEVICE static constexpr auto get_max_mem_vec_inst_width()
+{
+    // Currently on all arch max memory vector instruction width is 16 bytes.
+    return 16;
+}
+
 } // namespace ck_tile

@@ -53,7 +53,7 @@ struct ConvSignature {
     ck_tile::builder::DataType data_type =
         ck_tile::builder::DataType::FP16;
     ck_tile::builder::ElementwiseOperation elementwise_operation =
-        ck_tile::builder::ElementwiseOperation::NONE;
+        ck_tile::builder::ElementwiseOperation::PASS_THROUGH;
 };
 
 // Double-check that out structure is well-defined according to the CK-Builder API.
@@ -66,7 +66,7 @@ constexpr auto SIGNATURE = ConvSignature{
     .direction = ck_tile::builder::ConvDirection::FORWARD,
     .layout = ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
     .data_type = ck_tile::builder::DataType::FP16,
-    .elementwise_operation = ck_tile::builder::ElementwiseOperation::NONE,
+    .elementwise_operation = ck_tile::builder::ElementwiseOperation::PASS_THROUGH,
 };
 ```
 
@@ -243,7 +243,7 @@ struct ConvSignature {
     ck_tile::builder::DataType data_type =
         ck_tile::builder::DataType::FP16;
     ck_tile::builder::ElementwiseOperation elementwise_operation =
-        ck_tile::builder::ElementwiseOperation::NONE;
+        ck_tile::builder::ElementwiseOperation::PASS_THROUGH;
 };
 static_assert(ck_tile::builder::ConvSignatureDescriptor<ConvSignature>);
 constexpr auto SIGNATURE = ConvSignature{
@@ -251,7 +251,7 @@ constexpr auto SIGNATURE = ConvSignature{
     .direction = ck_tile::builder::ConvDirection::FORWARD,
     .layout = ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
     .data_type = ck_tile::builder::DataType::FP16,
-    .elementwise_operation = ck_tile::builder::ElementwiseOperation::NONE,
+    .elementwise_operation = ck_tile::builder::ElementwiseOperation::PASS_THROUGH,
 };
 
 // Define the convolution algorithm

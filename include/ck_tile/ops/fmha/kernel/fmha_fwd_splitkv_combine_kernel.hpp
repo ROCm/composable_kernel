@@ -457,14 +457,15 @@ struct FmhaFwdSplitKVCombineKernel
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
             {
-                return FmhaPipeline{}(
-                    lse_acc_dram_window,
-                    o_acc_dram_window,
-                    lse_dram_window,
-                    identity{},                                          // lse_element_func
-                    composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
-                    kargs.num_splits,
-                    smem_ptr);
+                return FmhaPipeline{}(lse_acc_dram_window,
+                                      o_acc_dram_window,
+                                      lse_dram_window,
+                                      identity{}, // lse_element_func
+                                      make_composes(saturates<fp8_t>{},
+                                                    scales<remove_cvref_t<decltype(kargs.scale_o)>>{
+                                                        kargs.scale_o}), // o_acc_element_func
+                                      kargs.num_splits,
+                                      smem_ptr);
             }
             else
             {
