@@ -38,7 +38,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                                         bool do_log,
                                         bool time_kernel,
                                         const ck::utils::conv::ConvParam& conv_param,
-                                        ck::index_t split_k    = 1,
+                                        const std::string& split_k_str    = "1",
                                         index_t instance_index = -1)
 {
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -410,11 +410,10 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
 
-    std::vector<ck::index_t> split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
-
-    if(split_k > 0)
+    std::vector<ck::index_t> split_k_list = {-1, 1, 2, 4, 8, 16, 32, 64, 128};
+    if (split_k_str != "all")
     {
-        split_k_list = {split_k};
+        split_k_list = {std::stoi(split_k_str)};
     }
 
     for(auto& op_ptr : op_ptrs)
