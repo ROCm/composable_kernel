@@ -8,7 +8,6 @@ struct SinkhornKnoppArgs
 {
     void* out;
     const void* p_x;
-    const index_t n;
     int max_iterations;
 };
 
