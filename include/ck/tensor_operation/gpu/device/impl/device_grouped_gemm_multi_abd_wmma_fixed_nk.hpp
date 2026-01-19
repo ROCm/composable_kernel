@@ -32,8 +32,17 @@ namespace device {
 template <typename GridwiseGemm,
           typename GemmDesc,
           bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          typename Block2CTileMap,
+          InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+          typename AsLayout,
+          typename BsLayout,
+          typename DsLayout,
+          typename ELayout,
+          typename Block2ETileMap,
+          typename GroupedGemmBlock2ETileMap,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CDEElementwiseOperation,
+          GemmSpecialization GemmSpec,
           index_t MinimumOccupancy = 1,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
@@ -41,78 +50,124 @@ __global__ void
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     kernel_grouped_gemm_wmma_fixed_nk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                      const index_t group_count)
+                                      const index_t group_count,
+                                      const index_t grid_size_grp,
+                                      const AElementwiseOperation a_element_op,
+                                      const BElementwiseOperation b_element_op,
+                                      const CDEElementwiseOperation cde_element_op)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
-    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-        typename GridwiseGemm::EpilogueCShuffle>();
-    __shared__ char p_shared[LDS_size];
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    __shared__ char p_shared[GridwiseGemm::template GetSharedMemoryNumberOfByte<
+        typename GridwiseGemm::EpilogueCShuffle>()];
+
+    const index_t KBatch = 1;
 
     const index_t block_id = get_block_1d_id();
+
     const auto gemm_desc_ptr =
         reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
 
-    // Binary search lookup to find which group this block is part of
-    index_t left     = 0;
-    index_t right    = group_count;
-    index_t group_id = index_t((left + right) / 2);
-    while((!(block_id >= gemm_desc_ptr[group_id].block_start_ &&
-             block_id < gemm_desc_ptr[group_id].block_end_)) &&
-          left <= right)
-    {
-        if(block_id < gemm_desc_ptr[group_id].block_start_)
-        {
-            right = group_id;
-        }
-        else
-        {
-            left = group_id;
-        }
-        group_id = index_t((left + right) / 2);
-    }
+    const index_t group_id = block_id / grid_size_grp;
 
-    // NOTE: Local copy of the arg struct since SplitKBatchOffset verifies and modifies K index
-    // and thus needs a non-const reference. It's also not feasible to store this in global
-    // memory as different threads would be writing different K values to the same arg struct
-    auto karg = gemm_desc_ptr[group_id].karg_;
+    if(group_id >= group_count)
+        return;
 
+    auto karg = gemm_desc_ptr[group_id];
+
+    if(karg.M == 0 || karg.N == 0 || karg.K == 0)
+        return;
+
+    // using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
 #if defined(__gfx11__)
     // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
-    if constexpr(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
-                   (std::is_same_v<c_data_type, ck::half_t> ||
-                    std::is_same_v<c_data_type, ck::bhalf_t>)))
+    if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
+                   (std::is_same_v<typename GridwiseGemm::EDataType_, ck::half_t> ||
+                    std::is_same_v<typename GridwiseGemm::EDataType_, ck::bhalf_t>)))
+#endif
     {
-#endif
-        const auto& block_2_ctile_map = gemm_desc_ptr[group_id].block_2_ctile_map_;
 
-        // Tile index first dimension is the K batch
-        auto tile_index =
-            block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+        typename GridwiseGemm::Problem problem(karg.M,
+                                               karg.N,
+                                               karg.K,
+                                               karg.StrideAs,
+                                               karg.StrideBs,
+                                               karg.StrideDs,
+                                               karg.StrideE,
+                                               KBatch);
 
-        auto splitk_batch_offset =
-            typename GridwiseGemm::SplitKBatchOffset(karg, tile_index[Number<0>{}]);
-        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+        const auto e_grid_desc_m_n = GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
+            problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideE);
 
-        GridwiseGemm::template Run<HasMainKBlockLoop,
-                                   CGlobalMemoryDataOperation,
-                                   TailNum,
-                                   Block2CTileMap,
-                                   typename GridwiseGemm::EpilogueCShuffle,
-                                   1, // Block2CTileMap MBlock index
-                                   2  // Block2CTileMap NBlock index
-                                   >(static_cast<void*>(p_shared),
-                                     splitk_batch_offset,
-                                     karg,
-                                     block_2_ctile_map,
-                                     epilogue_args);
-#if defined(__gfx11__)
+        const index_t BlockStart = group_id * grid_size_grp;
+
+        const auto local_b2e_tile_map = Block2ETileMap{e_grid_desc_m_n, KBatch};
+
+        const auto local_grid_size = local_b2e_tile_map.CalculateGridSize(e_grid_desc_m_n);
+
+        constexpr auto NumATensor = GridwiseGemm::AsGridPointer::Size();
+        constexpr auto NumBTensor = GridwiseGemm::BsGridPointer::Size();
+        constexpr auto NumDTensor = GridwiseGemm::DsGridPointer::Size();
+
+        typename GridwiseGemm::AsGridPointer p_as_grid_;
+        typename GridwiseGemm::BsGridPointer p_bs_grid_;
+        typename GridwiseGemm::DsGridPointer p_ds_grid_;
+
+        static_for<0, NumATensor, 1>{}([&](auto i) {
+            using ADataType = remove_cvref_t<decltype(p_as_grid_(i))>;
+            p_as_grid_(i)   = static_cast<ADataType>(karg.p_as_grid[i]);
+        });
+
+        static_for<0, NumBTensor, 1>{}([&](auto i) {
+            using BDataType = remove_cvref_t<decltype(p_bs_grid_(i))>;
+            p_bs_grid_(i)   = static_cast<BDataType>(karg.p_bs_grid[i]);
+        });
+
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DDataType = remove_cvref_t<decltype(p_ds_grid_(i))>;
+            p_ds_grid_(i)   = static_cast<DDataType>(karg.p_ds_grid[i]);
+        });
+
+        index_t id_off   = 0;
+        index_t id_local = get_block_1d_id() - BlockStart;
+
+        while(id_local < local_grid_size)
+        {
+            const auto block_2_etile_map =
+                GroupedGemmBlock2ETileMap(local_b2e_tile_map, BlockStart, id_off);
+
+            auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+
+            GridwiseGemm::template Run<HasMainKBlockLoop,
+                                       EGlobalMemoryDataOperation,
+                                       TailNum,
+                                       decltype(block_2_etile_map),
+                                       decltype(epilogue_args),
+                                       1,
+                                       2>(
+                p_as_grid_,
+                p_bs_grid_,
+                p_ds_grid_,
+                static_cast<typename GridwiseGemm::EDataType_*>(karg.p_e_grid),
+                p_shared,
+                problem,
+                block_2_etile_map,
+                a_element_op,
+                b_element_op,
+                cde_element_op,
+                epilogue_args);
+
+            id_off += grid_size_grp;
+            id_local += grid_size_grp;
+        }
     }
-#endif
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
-#endif // end of if(defined(__gfx11__) || defined(__gfx12__))
+    ignore = grid_size_grp;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = cde_element_op;
+#endif
 }
 
 template <typename AsLayout,
@@ -160,10 +215,10 @@ template <typename AsLayout,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
-          typename ComputeTypeA                       = EDataType,    // ???
-          typename ComputeTypeB                       = ComputeTypeA, // ???
-          bool PermuteA                               = false,        // ???
-          bool PermuteB                               = false>        // ???
+          typename ComputeTypeA                       = EDataType,
+          typename ComputeTypeB                       = ComputeTypeA,
+          bool PermuteA                               = false,
+          bool PermuteB                               = false>
 struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
     : public DeviceGroupedGemmMultiABDFixedNK<AsLayout,
                                               BsLayout,
@@ -236,7 +291,8 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
+        typename uniform_sequence_gen<NumDTensor + 1,
+                                      CDEBlockTransferScalarPerVector_NPerBlock>::type,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
@@ -244,11 +300,6 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
         false,
         false>;
 
-    using CGridDesc_M_N =
-        remove_cvref_t<decltype(GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
-            1, 1, 1, 1, 1))>;
-
-    // Move OffsettedBlockToCTileMapMLoops and BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops to helper hpp?
     template <typename UnderlyingBlockToCTileMap>
     struct OffsettedBlockToCTileMapMLoops
     {
@@ -412,7 +463,8 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
         {
         }
     };
-    using GemmTransKernelArg = GemmTransKernelArgBase<KernelArgument>;
+    using GemmTransKernelArg =
+        GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>;
 
     static constexpr bool CalculateHasMainKBlockLoop(const KernelArgument& karg)
     {
@@ -467,7 +519,8 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
 
             if(!(group_count_ == ck::type_convert<ck::index_t>(p_As.size()) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_Bs.size()) &&
-                 ((NumDTensor == 0 && p_Ds.size() == 0) || group_count_ == ck::type_convert<ck::index_t>(p_Ds.size())) &&
+                 ((NumDTensor == 0 && p_Ds.size() == 0) ||
+                  group_count_ == ck::type_convert<ck::index_t>(p_Ds.size())) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_Es.size())))
             {
                 throw std::runtime_error("wrong! group_count_ != p_As/b/d/e.size");
@@ -475,21 +528,25 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
 
             gemm_desc_kernel_arg_.reserve(group_count_);
 
+            index_t group_id = 0;
+
+            sum_of_m              = gemm_descs[0].M_;
+            const index_t AverM   = math::integer_divide_ceil(sum_of_m, group_count_);
             const index_t fixed_N = gemm_descs[0].N_;
             const index_t fixed_K = gemm_descs[0].K_;
 
-            for(std::size_t i = 0; i < gemm_descs.size(); i++)
+            for(std::size_t g = 0; g < gemm_descs.size(); g++)
             {
-                const index_t M = gemm_descs[i].M_;
-                const index_t N = gemm_descs[i].N_;
-                const index_t K = gemm_descs[i].K_;
+                const index_t M = gemm_descs[g].M_;
+                const index_t N = gemm_descs[g].N_;
+                const index_t K = gemm_descs[g].K_;
 
-                if(N != fixed_N || K != fixed_K) // M?
+                if(M != sum_of_m || N != fixed_N || K != fixed_K)
                 {
-                    throw std::runtime_error("wrong! N or K are not fixed across GEMM groups");
+                    throw std::runtime_error("wrong! M/N/K is not identical");
                 }
 
-                a_mtx_mraw_kraw_.emplace_back(M, K);
+                a_mtx_mraw_kraw_.emplace_back(sum_of_m, K);
                 b_mtx_nraw_kraw_.emplace_back(N, K);
 
                 // pointer
@@ -497,100 +554,93 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
                 std::array<const void*, NumBTensor> p_bs_grid;
                 std::array<const void*, NumDTensor> p_ds_grid;
 
-                static_for<0, NumATensor, 1>{}([&](auto j) { p_as_grid[j] = nullptr; });
-                static_for<0, NumBTensor, 1>{}([&](auto j) { p_bs_grid[j] = nullptr; });
-                static_for<0, NumDTensor, 1>{}([&](auto j) { p_ds_grid[j] = nullptr; });
+                static_for<0, NumATensor, 1>{}([&](auto i) { p_as_grid[i] = nullptr; });
+                static_for<0, NumBTensor, 1>{}([&](auto i) { p_bs_grid[i] = nullptr; });
+                static_for<0, NumDTensor, 1>{}([&](auto i) { p_ds_grid[i] = nullptr; });
 
                 std::array<index_t, NumATensor> StrideAs;
                 std::array<index_t, NumBTensor> StrideBs;
                 std::array<index_t, NumDTensor> StrideDs;
 
-                const index_t StrideE = gemm_descs[i].stride_C_;
+                const index_t StrideE = gemm_descs[g].stride_C_;
 
-                if(gemm_descs[i].stride_As_.size() != NumATensor)
+                if(gemm_descs[g].stride_As_.size() != NumATensor)
                 {
                     throw std::runtime_error(
                         "wrong! gemm_descs[i].stride_As_.size() does not match NumATensor");
                 }
-                
-                static_for<0, NumATensor, 1>{}(
-                    [&](auto j) { StrideAs[j] = gemm_descs[i].stride_As_[j]; });
 
-                if(gemm_descs[i].stride_Bs_.size() != NumBTensor)
+                static_for<0, NumATensor, 1>{}(
+                    [&](auto j) { StrideAs[j] = gemm_descs[g].stride_As_[j]; });
+
+                if(gemm_descs[g].stride_Bs_.size() != NumBTensor)
                 {
                     throw std::runtime_error(
                         "wrong! gemm_descs[i].stride_Bs_.size() does not match NumBTensor");
                 }
 
                 static_for<0, NumBTensor, 1>{}(
-                    [&](auto j) { StrideBs[j] = gemm_descs[i].stride_Bs_[j]; });
-                
-                if(gemm_descs[i].stride_Ds_.size() != NumDTensor)
+                    [&](auto j) { StrideBs[j] = gemm_descs[g].stride_Bs_[j]; });
+
+                if(gemm_descs[g].stride_Ds_.size() != NumDTensor)
                 {
                     throw std::runtime_error(
                         "wrong! gemm_descs[i].stride_Ds_.size() does not match NumDTensor");
                 }
 
                 static_for<0, NumDTensor, 1>{}(
-                    [&](auto j) { StrideDs[j] = gemm_descs[i].stride_Ds_[j]; });
-
-                const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
-                const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
+                    [&](auto j) { StrideDs[j] = gemm_descs[g].stride_Ds_[j]; });
 
                 const auto e_grid_desc_m_n =
                     GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
-                        M, m_padded, N, n_padded, StrideE);
+                        AverM, AverM, N, N, StrideE);
 
                 // block-to-e-tile map
                 const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, k_batch_};
 
                 grid_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
 
+                if(group_id * grid_size_grp_ != grid_size_)
+                {
+                    throw std::runtime_error("wrong! grid_size_grp_ is not identical!");
+                }
+
+                const index_t block_start = grid_size_;
+
+                grid_size_ += grid_size_grp_;
+
                 if(!local_b2c_tile_map.CheckValidity(e_grid_desc_m_n))
                 {
                     throw std::runtime_error("wrong! block_2_etile_map validation failed");
                 }
 
-                const index_t block_start = grid_size_;
-                const index_t block_end   = grid_size_ + grid_size_grp_;
-
-                grid_size_ += grid_size_grp_;
-
                 auto grouped_block_2_ctile_map =
                     GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
 
-                auto karg = KernelArgument(p_as_grid,
-                                           p_bs_grid,
-                                           p_ds_grid,
-                                           type_convert<EDataType*>(p_Es[i]),
-                                           M,
-                                           N,
-                                           K,
-                                           StrideAs,
-                                           StrideBs,
-                                           StrideDs,
-                                           StrideE,
-                                           k_batch_,
-                                           a_element_op,
-                                           b_element_op,
-                                           c_element_op,
-                                           false);
+                auto karg = GemmTransKernelArg({p_as_grid,
+                                                p_bs_grid,
+                                                p_ds_grid,
+                                                type_convert<EDataType*>(p_Es[g]),
+                                                AverM,
+                                                N,
+                                                K,
+                                                StrideAs,
+                                                StrideBs,
+                                                StrideDs,
+                                                StrideE});
 
-                gemm_desc_kernel_arg_.emplace_back(
-                    std::move(karg), std::move(grouped_block_2_ctile_map), block_start, block_end);
+                gemm_desc_kernel_arg_.emplace_back(std::move(karg));
 
-                // group_id++;
+                group_id++;
             }
 
             const auto e_grid_desc_sum_m_n =
-                GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
-                    group_count_ * gemm_descs[0].M_,
-                    group_count_ * gemm_descs[0].M_,
-                    gemm_descs[0].N_,
-                    gemm_descs[0].N_,
-                    gemm_descs[0].stride_C_);
+                GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(sum_of_m,
+                                                                         sum_of_m,
+                                                                         gemm_descs[0].N_,
+                                                                         gemm_descs[0].N_,
+                                                                         gemm_descs[0].stride_C_);
             const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_sum_m_n, k_batch_};
-            grid_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_sum_m_n);
 
             barrier_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_sum_m_n);
         }
@@ -613,186 +663,96 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
         index_t grid_size_;
         index_t grid_size_grp_;
         index_t barrier_size_grp_;
-        index_t k_batch_;
+        index_t sum_of_m;
+
+        index_t k_batch_ = 1;
     };
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float RunImp(const Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{},
-                     hipStream_t cpy_stream            = nullptr,
-                     hipEvent_t cpy_event              = nullptr)
+        using Argument = DeviceOp::Argument;
+
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            using GemmTransKernelArg_ = GemmTransKernelArgBase<typename GridwiseGemm::Argument>;
-            static_assert(sizeof(GemmTransKernelArg_) == sizeof(GemmTransKernelArg));
+            bool has_main_k_block_loop = true;
 
-            bool all_have_kbatch_gt_one = arg.gemm_desc_kernel_arg_[0].karg_.KBatch > 1;
-            bool all_have_main_k0_block_loop =
-                CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[0].karg_);
+            // for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
+            // {
+            //     if(GridwiseGemm::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].karg_.K_)
+            //     !=
+            //        has_main_k_block_loop)
+            //     {
+            //         throw std::runtime_error("wrong! not all gemm has_main_k_block_loop");
+            //     }
+            // }
 
-            bool not_all_have_main_k0_block_loop_same = false;
-            bool not_all_have_kbatch_value_same       = false;
-
-            for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); ++i)
+            if(arg.grouped_gemm_kernel_args_dev == nullptr)
             {
-                const auto& karg = reinterpret_cast<const typename GridwiseGemm::Argument&>(
-                    arg.gemm_desc_kernel_arg_[i].karg_);
-
-                if(stream_config.log_level_ > 0)
-                {
-                    karg.Print();
-                }
-
-                auto kbatch = karg.KBatch;
-
-                if(!GridwiseGemm::CheckValidity(karg))
-                {
-                    std::ostringstream err;
-                    err << "Group id: " << i << " has invalid GridwiseGemm settings!" << __FILE__
-                        << ":" << __LINE__ << ", in function: " << __func__;
-                    throw std::runtime_error(err.str());
-                }
-
-                not_all_have_main_k0_block_loop_same |=
-                    all_have_main_k0_block_loop xor CalculateHasMainKBlockLoop(karg);
-                not_all_have_kbatch_value_same |= all_have_kbatch_gt_one xor (kbatch > 1);
-            }
-
-            if(not_all_have_main_k0_block_loop_same)
-            {
-                std::ostringstream err;
-                err << "Not all gemms have same value for main_k0_block_loop! in " << __FILE__
-                    << ":" << __LINE__ << ", in function: " << __func__;
-                // throw std::runtime_error(err.str());
-            }
-
-            if(not_all_have_kbatch_value_same)
-            {
-                std::ostringstream err;
-                err << "Not all gemms have same kbatch value (=1 or >1)! " << " in " << __FILE__
-                    << ":" << __LINE__ << ", in function: " << __func__;
-                throw std::runtime_error(err.str());
-            }
-
-            // If the user provides copy stream and copy event, we assume that they're also
-            // responsible for providing allocated host memory (eg. pinned) which
-            // would be used to copy kernel arguments to the device.
-            if(cpy_stream && cpy_event)
-            {
-                if(arg.gemm_kernel_host_args_ == nullptr)
-                {
-                    std::ostringstream err;
-                    err << "No memory has been allocated for gemm kernel host args "
-                        << "when providing the copy stream and copy event! In " << __FILE__ << ":"
-                        << __LINE__ << ", in function: " << __func__;
-                    throw std::runtime_error(err.str());
-                }
-                hip_check_error(hipMemcpyAsync(arg.p_workspace_,
-                                               arg.gemm_kernel_host_args_,
-                                               arg.group_count_ * sizeof(GemmTransKernelArg_),
-                                               hipMemcpyHostToDevice,
-                                               cpy_stream));
-
-                hip_check_error(hipEventRecord(cpy_event, cpy_stream));
-
-                hip_check_error(hipEventSynchronize(cpy_event));
-            }
-            else // In this case CK owns memory allocated on host.
-            {
-
-                hip_check_error(
-                    hipMemcpyAsync(arg.p_workspace_,
-                                   arg.gemm_desc_kernel_arg_.data(),
-                                   arg.gemm_desc_kernel_arg_.size() * sizeof(GemmTransKernelArg_),
-                                   hipMemcpyHostToDevice,
-                                   stream_config.stream_id_));
+                throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullpr");
             }
 
             float ave_time = 0;
 
-            const auto Run = [&](const auto& kernel) {
-                if(all_have_kbatch_gt_one)
-                {
-                    for(const auto& trans_arg : arg.gemm_desc_kernel_arg_)
-                    {
+            auto launch_kernel = [&](auto has_main_k_block_loop_, auto e_global_memory_operation_) {
+                const auto kernel = kernel_grouped_gemm_wmma_fixed_nk<GridwiseGemm,
+                                                                      GemmTransKernelArg,
+                                                                      has_main_k_block_loop_,
+                                                                      e_global_memory_operation_,
+                                                                      AsLayout,
+                                                                      BsLayout,
+                                                                      DsLayout,
+                                                                      ELayout,
+                                                                      Block2ETileMap,
+                                                                      GroupedGemmBlock2ETileMap,
+                                                                      AElementwiseOperation,
+                                                                      BElementwiseOperation,
+                                                                      CDEElementwiseOperation,
+                                                                      GemmSpec>;
 
-                        const auto& karg = trans_arg.karg_;
-                        hip_check_error(hipMemsetAsync(karg.p_e_grid,
-                                                       0,
-                                                       karg.M * karg.N * sizeof(EDataType),
-                                                       stream_config.stream_id_));
-                    }
-                }
-
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(arg.grid_size_),
-                                           dim3(BlockSize),
-                                           0,
-                                           cast_pointer_to_constant_address_space(arg.p_workspace_),
-                                           arg.gemm_desc_kernel_arg_.size());
+                return launch_and_time_kernel(
+                    stream_config,
+                    kernel,
+                    dim3(arg.grid_size_),
+                    dim3(BlockSize),
+                    0,
+                    cast_pointer_to_constant_address_space(arg.grouped_gemm_kernel_args_dev),
+                    arg.gemm_desc_kernel_arg_.size(),
+                    arg.grid_size_grp_,
+                    arg.a_element_op_,
+                    arg.b_element_op_,
+                    arg.c_element_op_);
             };
 
-            // NOTE: If at least one gemm problem has a main k0 block loop, we include it for all
-            if(all_have_main_k0_block_loop || not_all_have_main_k0_block_loop_same)
+            constexpr auto AtomicAdd = InMemoryDataOperationEnum::AtomicAdd;
+            constexpr auto Set       = InMemoryDataOperationEnum::Set;
+
+            if(arg.k_batch_ > 1)
             {
-                // Tail number always full
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
-                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                if(has_main_k_block_loop)
                 {
-                    if(all_have_kbatch_gt_one)
-                    {
-                        const auto kernel =
-                            kernel_grouped_gemm_wmma_fixed_nk<GridwiseGemm,
-                                                              GemmTransKernelArg_,
-                                                              true,
-                                                              InMemoryDataOperationEnum::AtomicAdd,
-                                                              GroupedGemmBlock2ETileMap>;
-
-                        Run(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel =
-                            kernel_grouped_gemm_wmma_fixed_nk<GridwiseGemm,
-                                                              GemmTransKernelArg_,
-                                                              true,
-                                                              InMemoryDataOperationEnum::Set,
-                                                              GroupedGemmBlock2ETileMap>;
-
-                        Run(kernel);
-                    }
+                    ave_time =
+                        launch_kernel(integral_constant<bool, true>{},
+                                      integral_constant<InMemoryDataOperationEnum, AtomicAdd>{});
+                }
+                else
+                {
+                    ave_time =
+                        launch_kernel(integral_constant<bool, false>{},
+                                      integral_constant<InMemoryDataOperationEnum, AtomicAdd>{});
                 }
             }
             else
             {
-                // Tail number always 1
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                if(has_main_k_block_loop)
                 {
-                    if(all_have_kbatch_gt_one)
-                    {
-                        const auto kernel =
-                            kernel_grouped_gemm_wmma_fixed_nk<GridwiseGemm,
-                                                              GemmTransKernelArg_,
-                                                              false,
-                                                              InMemoryDataOperationEnum::AtomicAdd,
-                                                              GroupedGemmBlock2ETileMap>;
-
-                        Run(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel =
-                            kernel_grouped_gemm_wmma_fixed_nk<GridwiseGemm,
-                                                              GemmTransKernelArg_,
-                                                              false,
-                                                              InMemoryDataOperationEnum::Set,
-                                                              GroupedGemmBlock2ETileMap>;
-
-                        Run(kernel);
-                    }
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<InMemoryDataOperationEnum, Set>{});
+                }
+                else
+                {
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<InMemoryDataOperationEnum, Set>{});
                 }
             }
 
@@ -809,6 +769,11 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
+        {
+            return false;
+        }
+
         if(ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) != arg.group_count_)
         {
             return false;
@@ -830,8 +795,19 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
                 const auto a_vector_dim = arg.a_mtx_mraw_kraw_[i].At(Number<a_raw_vector_dim>{});
                 const auto b_vector_dim = arg.b_mtx_nraw_kraw_[i].At(Number<b_raw_vector_dim>{});
 
-                supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
-                supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
+                bool isABlockTransferValid = (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
+                if(!isABlockTransferValid && ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    printf("Invalid block transfer for A block.\n");
+                }
+
+                bool isBBlockTransferValid = (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
+                if(!isBBlockTransferValid && ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    printf("Invalid block transfer for B block.\n");
+                }
+
+                supported &= isABlockTransferValid && isBBlockTransferValid;
             }
         }
 
@@ -946,6 +922,14 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
         return SetDeviceKernelArgs(*dynamic_cast<Argument*>(p_arg), kernel_args);
     }
 
+    size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
+    {
+        auto arg = *dynamic_cast<const Argument*>(p_arg);
+
+        return arg.group_count_ *
+               sizeof(GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>);
+    }
+
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
         auto p_arg_ = dynamic_cast<const Argument*>(p_arg);
@@ -958,21 +942,23 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
                                      "DeviceGroupedGemm_Wmma_CShuffleV3::Argument structure!");
     }
 
-    size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
+    void SetWorkSpacePointer(BaseArgument* p_arg,
+                             void* p_workspace,
+                             const StreamConfig& stream_config = StreamConfig{}) const override
     {
-        auto arg = *dynamic_cast<const Argument*>(p_arg);
+        auto p_arg_          = dynamic_cast<Argument*>(p_arg);
+        p_arg_->p_workspace_ = p_workspace;
 
-        return arg.group_count_ * sizeof(GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>);
+        hip_check_error(
+            hipMemsetAsync(p_workspace, 0, GetWorkSpaceSize(p_arg), stream_config.stream_id_));
     }
-
-    size_t GetHostKernelArgSize(const BaseArgument* p_arg) const { return GetWorkSpaceSize(p_arg); }
 
     static void SetKBatch(Argument& arg, index_t k_batch) { arg.UpdateKBatch(k_batch); }
 
     // polymorphic
-    void SetKBatch(BaseArgument* /*p_arg*/, index_t /*kbatch*/) const override
+    void SetKBatch(BaseArgument* p_arg, index_t k_batch) const override
     {
-        throw std::runtime_error("??? figure out later");
+        return SetKBatch(*dynamic_cast<Argument*>(p_arg), k_batch);
     }
 
     void SetHostKernelArgsPointer(BaseArgument* p_arg, void* p_host_kernel_args) const

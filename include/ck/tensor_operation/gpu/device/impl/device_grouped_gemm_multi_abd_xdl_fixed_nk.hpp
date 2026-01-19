@@ -688,6 +688,11 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_xdl_wmma_supported<ComputeType, ComputeType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
+
         // Split-K autodeduction is not supported
         if(arg.k_batch_ < 1)
         {
@@ -727,19 +732,6 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
-    }
-
-    static auto MakeArgument(std::vector<std::array<const void*, NumATensor>>& p_As,
-                             std::vector<std::array<const void*, NumBTensor>>& p_Bs,
-                             std::vector<std::array<const void*, NumDTensor>>& p_Ds,
-                             std::vector<void*>& p_Es,
-                             std::vector<GemmMultiABDDesc> gemm_descs,
-                             AElementwiseOperation a_element_op   = AElementwiseOperation{},
-                             BElementwiseOperation b_element_op   = BElementwiseOperation{},
-                             CDEElementwiseOperation c_element_op = CDEElementwiseOperation{})
-    {
-        return Argument{
-            p_As, p_Bs, p_Ds, p_Es, gemm_descs, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

@@ -400,7 +400,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), KBatch, Batch);
     }
 
-    __host__ __device__ static auto CalculateMPadded(index_t M)
+    __host__ __device__ __device__ static auto CalculateMPadded(index_t M)
     {
         return math::integer_least_multiple(M, MPerBlock);
     }

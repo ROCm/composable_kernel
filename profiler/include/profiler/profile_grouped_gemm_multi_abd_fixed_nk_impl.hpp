@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <array>
 #include <vector>
+#include <numeric>
 
 #include "ck/ck.hpp"
 #include "ck/utility/env.hpp"
@@ -80,7 +81,8 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
             }
         };
 
-    std::size_t group_count = Ms.size();
+    const std::size_t group_count = Ms.size();
+    const int sum_of_m            = std::accumulate(Ms.begin(), Ms.end(), 0);
 
     static constexpr index_t NumATensor = AsDataType::Size();
     static constexpr index_t NumBTensor = BsDataType::Size();
@@ -153,12 +155,9 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
     auto g_ds_m_n               = reserveVector<DsTensorTuple>(group_count);
     auto g_e_m_n_host_results   = reserveVector<Tensor<EDataType>>(group_count);
     auto g_e_m_n_device_results = reserveVector<Tensor<EDataType>>(group_count);
-    // int sum_of_m = 0;
 
     for(std::size_t g = 0; g < group_count; g++)
     {
-        // sum_of_m += Ms[g];
-
         auto& as_m_k = g_as_m_k.emplace_back(generateInputTupleA(g));
         auto& bs_k_n = g_bs_k_n.emplace_back(generateInputTupleB(g));
         auto& ds_m_n = g_ds_m_n.emplace_back(generateInputTupleD(g));
@@ -222,9 +221,9 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
         }
     }
 
-    const auto a_element_op = AElementOp{};
-    const auto b_element_op = BElementOp{};
-    const auto c_element_op = CDEElementOp{};
+    const auto a_element_op   = AElementOp{};
+    const auto b_element_op   = BElementOp{};
+    const auto cde_element_op = CDEElementOp{};
 
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
     std::vector<std::array<DeviceMemPtr, NumATensor>> g_as_device_buf(group_count);
@@ -256,9 +255,9 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
 
         static_for<0, NumATensor, 1>{}([&](auto i) {
             using ADataType  = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
-            as_device_buf[i] = std::make_unique<DeviceMem>(sizeof(ADataType) *
-                                                           as_m_k(i).mDesc.GetElementSpaceSize());
-            as_device_buf[i]->ToDevice(as_m_k[i].mData.data());
+            as_device_buf[i] = std::make_unique<DeviceMem>(sizeof(ADataType) * sum_of_m * Ks[g]);
+            as_device_buf[i]->ToDevice(as_m_k[i].mData.data(),
+                                       as_m_k[i].mDesc.GetElementSpaceSize() * sizeof(ADataType));
             as_device_view[i] = as_device_buf[i]->GetDeviceBuffer();
             as_stride[i]      = StrideAs[g];
         });
@@ -282,19 +281,18 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
 
         static_for<0, NumDTensor, 1>{}([&](auto i) {
             using DDataType  = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-            ds_device_buf[i] = std::make_unique<DeviceMem>(sizeof(DDataType) *
-                                                           ds_m_n(i).mDesc.GetElementSpaceSize());
-            ds_device_buf[i]->ToDevice(ds_m_n[i].mData.data());
+            ds_device_buf[i] = std::make_unique<DeviceMem>(sizeof(DDataType) * sum_of_m * Ns[g]);
+            ds_device_buf[i]->ToDevice(ds_m_n[i].mData.data(),
+                                       ds_m_n[i].mDesc.GetElementSpaceSize() * sizeof(DDataType));
             ds_device_view[i] = ds_device_buf[i]->GetDeviceBuffer();
             ds_stride[i]      = StrideDs[g];
         });
 
-        g_e_device_buf[g] = std::make_unique<DeviceMem>(
-            sizeof(EDataType) * g_e_m_n_host_results[g].mDesc.GetElementSpaceSize());
+        g_e_device_buf[g] = std::make_unique<DeviceMem>(sizeof(EDataType) * sum_of_m * Ns[g]);
         g_e_device_view[g] = g_e_device_buf[g]->GetDeviceBuffer();
 
         g_gemm_descs.push_back(tensor_operation::device::GemmMultiABDDesc{
-            Ms[g],
+            sum_of_m,
             Ns[g],
             Ks[g],
             std::vector<ck::index_t>(as_stride.begin(), as_stride.end()),
@@ -304,19 +302,19 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
 
         tensor_operation::device::
             GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>
-                tmp{as_device_view,
-                    bs_device_view,
-                    ds_device_view,
-                    g_e_device_view[g],
-                    Ms[g],
-                    Ns[g],
-                    Ks[g],
-                    as_stride,
-                    bs_stride,
-                    ds_stride,
-                    StrideE[g]};
+                kernelArg{as_device_view,
+                          bs_device_view,
+                          ds_device_view,
+                          g_e_device_view[g],
+                          Ms[g],
+                          Ns[g],
+                          Ks[g],
+                          as_stride,
+                          bs_stride,
+                          ds_stride,
+                          StrideE[g]};
 
-        grouped_gemm_kernel_args_host.push_back(std::move(tmp));
+        grouped_gemm_kernel_args_host.push_back(std::move(kernelArg));
     }
 
     using DeviceOp = tensor_operation::device::DeviceGroupedGemmMultiABDFixedNK<AsLayout,
@@ -380,7 +378,7 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
                                                       g_e_m_n_host_results[i],
                                                       a_element_op,
                                                       b_element_op,
-                                                      c_element_op);
+                                                      cde_element_op);
 
             ref_invoker.Run(ref_argument);
         }
@@ -389,31 +387,32 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
     // profile device GEMM instances
     for(auto& gemm_ptr : op_ptrs)
     {
-        auto argument_ptr = gemm_ptr->MakeArgumentPointer(g_as_device_view,
-                                                          g_bs_device_view,
-                                                          g_ds_device_view,
-                                                          g_e_device_view,
-                                                          g_gemm_descs,
-                                                          a_element_op,
-                                                          b_element_op,
-                                                          c_element_op);
+        auto argument_ptr = gemm_ptr->MakeArgumentPointer(
+            g_as_device_view, g_bs_device_view, g_ds_device_view, g_e_device_view, g_gemm_descs);
 
-        auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
+        if (!gemm_ptr->IsSupportedArgument(argument_ptr.get()))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Gemm incompatible with runtime set parameters. Skipping..." << std::endl;
+            }
 
-        DeviceMem gemm_desc_workspace(gemm_ptr->GetWorkSpaceSize(argument_ptr.get()));
+            continue;
+        }
 
-        DeviceMem grouped_gemm_kernel_args_dev(
-            gemm_ptr->GetDeviceKernelArgSize(argument_ptr.get()));
+        DeviceMem gemm_workspace_dev(gemm_ptr->GetWorkSpaceSize(argument_ptr.get()));
+        gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_workspace_dev.GetDeviceBuffer());
 
+        DeviceMem grouped_gemm_kernel_args_dev(gemm_ptr->GetDeviceKernelArgSize(argument_ptr.get()));
         hipGetErrorString(hipMemcpy(grouped_gemm_kernel_args_dev.GetDeviceBuffer(),
                                     grouped_gemm_kernel_args_host.data(),
                                     gemm_ptr->GetDeviceKernelArgSize(argument_ptr.get()),
                                     hipMemcpyHostToDevice));
 
-        gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
+        gemm_ptr->SetDeviceKernelArgs(argument_ptr.get(), grouped_gemm_kernel_args_dev.GetDeviceBuffer());
+        gemm_ptr->SetElementwiseOps(argument_ptr.get(), a_element_op, b_element_op, cde_element_op);
 
-        gemm_ptr->SetDeviceKernelArgs(argument_ptr.get(),
-                                      grouped_gemm_kernel_args_dev.GetDeviceBuffer());
+        auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
         std::string gemm_name = gemm_ptr->GetTypeString();
 
@@ -428,15 +427,17 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
                     g_e_device_buf[g]->SetZero();
                 }
 
-                invoker_ptr->Run(argument_ptr.get(),
-                                 StreamConfig{nullptr, false, 0, n_warmup, n_iter});
+                float ave_time = invoker_ptr->Run(
+                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
 
                 if(do_verification)
                 {
                     bool instance_pass = true;
                     for(std::size_t g = 0; g < group_count; g++)
                     {
-                        g_e_device_buf[g]->FromDevice(g_e_m_n_device_results[g].mData.data());
+                        g_e_device_buf[g]->FromDevice(
+                            g_e_m_n_device_results[g].mData.data(),
+                            g_e_m_n_device_results[g].mDesc.GetElementSize() * sizeof(EDataType));
 
                         instance_pass =
                             instance_pass && ck::utils::check_err(g_e_m_n_device_results[g],
@@ -446,7 +447,7 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
                         {
                             static_for<0, NumATensor, 1>{}([&](auto i) {
                                 LogRangeAsType<float>(
-                                    std::cout << "a[" << g << "] : ", g_as_m_k[g](i).mData, ",")
+                                    std::cout << "a[" << g << "]: ", g_as_m_k[g](i).mData, ",")
                                     << std::endl;
                             });
                             static_for<0, NumBTensor, 1>{}([&](auto i) {
@@ -460,10 +461,10 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
                                     << std::endl;
                             });
                             LogRangeAsType<float>(
-                                std::cout << "c_device: ", g_e_m_n_device_results[g].mData, ",")
+                                std::cout << "e_device: ", g_e_m_n_device_results[g].mData, ",")
                                 << std::endl;
                             LogRangeAsType<float>(
-                                std::cout << "c_host  : ", g_e_m_n_host_results[g].mData, ",")
+                                std::cout << "e_host  : ", g_e_m_n_host_results[g].mData, ",")
                                 << std::endl;
                         }
                     }
@@ -473,9 +474,6 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
 
                     pass = pass && instance_pass;
                 }
-
-                float ave_time = invoker_ptr->Run(
-                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
 
                 if(time_kernel)
                 {

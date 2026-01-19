@@ -224,13 +224,9 @@ TYPED_TEST_SUITE(TestGroupedGemmMultiABDFixedNK, KernelTypes);
 
 TYPED_TEST(TestGroupedGemmMultiABDFixedNK, TinyCases)
 {
-#ifdef CK_USE_XDL
-    const std::vector<int> Ms{2, 2};
-#else
-    const std::vector<int> Ms{2, 1};
-#endif
-    constexpr int N = 256;
-    constexpr int K = 128;
+    const std::vector<int> Ms{3, 4};
+    constexpr int N = 8;
+    constexpr int K = 64;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -240,11 +236,7 @@ TYPED_TEST(TestGroupedGemmMultiABDFixedNK, TinyCases)
 
 TYPED_TEST(TestGroupedGemmMultiABDFixedNK, SmallCases)
 {
-#ifdef CK_USE_XDL
-    const std::vector<int> Ms{3, 3, 3, 3, 3};
-#else
-    const std::vector<int> Ms{2, 1, 3, 4, 5};
-#endif
+    const std::vector<int> Ms{3, 5, 16, 7, 8};
     constexpr int N = 768;
     constexpr int K = 544;
 
@@ -256,11 +248,7 @@ TYPED_TEST(TestGroupedGemmMultiABDFixedNK, SmallCases)
 
 TYPED_TEST(TestGroupedGemmMultiABDFixedNK, MidCases)
 {
-#ifdef CK_USE_XDL
-    const std::vector<int> Ms{153, 153, 153, 153, 153, 153};
-#else
     const std::vector<int> Ms{167, 183, 177, 153, 139, 204};
-#endif
     constexpr int N = 768;
     constexpr int K = 544;
 
@@ -272,11 +260,7 @@ TYPED_TEST(TestGroupedGemmMultiABDFixedNK, MidCases)
 
 TYPED_TEST(TestGroupedGemmMultiABDFixedNK, Regular)
 {
-#ifdef CK_USE_XDL
-    const std::vector<int> Ms{128, 128, 128};
-#else
     const std::vector<int> Ms{64, 128, 256};
-#endif
     constexpr int N = 768;
     constexpr int K = 320;
 
