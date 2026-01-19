@@ -13,6 +13,9 @@
 
 namespace ck_tile {
 
+template <typename, index_t>
+struct array; // declare for later use (array->seq utility)
+
 template <index_t...>
 struct sequence;
 
@@ -332,29 +335,45 @@ struct uniform_sequence_gen
 };
 
 // reverse inclusive scan (with init) sequence
-template <typename, typename, index_t>
-struct sequence_reverse_inclusive_scan;
+namespace impl {
+template <typename Seq, typename Reduce, index_t Init>
+struct sequence_reverse_inclusive_scan_impl;
 
-template <index_t I, index_t... Is, typename Reduce, index_t Init>
-struct sequence_reverse_inclusive_scan<sequence<I, Is...>, Reduce, Init>
+template <index_t... Is, typename Reduce, index_t Init>
+struct sequence_reverse_inclusive_scan_impl<sequence<Is...>, Reduce, Init>
 {
-    using old_scan = typename sequence_reverse_inclusive_scan<sequence<Is...>, Reduce, Init>::type;
+    template <index_t... Indices>
+    static constexpr auto compute(sequence<Indices...>)
+    {
+        constexpr index_t size = sizeof...(Is);
+        if constexpr(size == 0)
+        {
+            return sequence<>{};
+        }
+        else
+        {
+            constexpr array<index_t, size> arr = []() {
+                array<index_t, size> values = {Is...};
+                array<index_t, size> result = {0};
+                result[size - 1]            = Reduce{}(values[size - 1], Init);
+                for(index_t i = size - 1; i > 0; --i)
+                {
+                    result[i - 1] = Reduce{}(values[i - 1], result[i]);
+                }
+                return result;
+            }();
+            return sequence<arr[Indices]...>{};
+        }
+    }
 
-    static constexpr index_t new_reduce = Reduce{}(I, old_scan{}.front());
-
-    using type = typename sequence_merge<sequence<new_reduce>, old_scan>::type;
+    using type = decltype(compute(make_index_sequence<sizeof...(Is)>{}));
 };
+} // namespace impl
 
-template <index_t I, typename Reduce, index_t Init>
-struct sequence_reverse_inclusive_scan<sequence<I>, Reduce, Init>
+template <typename Seq, typename Reduce, index_t Init>
+struct sequence_reverse_inclusive_scan
 {
-    using type = sequence<Reduce{}(I, Init)>;
-};
-
-template <typename Reduce, index_t Init>
-struct sequence_reverse_inclusive_scan<sequence<>, Reduce, Init>
-{
-    using type = sequence<>;
+    using type = typename impl::sequence_reverse_inclusive_scan_impl<Seq, Reduce, Init>::type;
 };
 
 // split sequence
@@ -1104,9 +1123,6 @@ struct sorted_sequence_histogram<h_idx, sequence<x>, sequence<r, rs...>>
     }
 };
 } // namespace detail
-
-template <typename, index_t>
-struct array; // declare for later use (array->seq utility)
 
 // SeqSortedSamples: <0, 2, 3, 5, 7>, SeqRange: <0, 3, 6, 9> -> SeqHistogram : <2, 2, 1>
 template <typename SeqSortedSamples, index_t r, index_t... rs>
