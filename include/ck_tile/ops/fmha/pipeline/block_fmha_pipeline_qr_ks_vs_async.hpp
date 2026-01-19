@@ -321,6 +321,8 @@ struct BlockFmhaPipelineQRKSVSAsync
         {
             if(num_total_loop <= 0)
             {
+                buffer_load_fence(0); // rocm-7.1.1, if whole tile is masked out, need to fence(0)
+                                      // otherwise will have compute error(maybe compiler bug?)
                 if constexpr(kStoreLSE)
                 {
                     auto lse =
