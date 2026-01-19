@@ -174,7 +174,8 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ADataType,
           typename LDSTypeB                           = BDataType,
-          bool NonTemporalLoadB                       = false>
+          bool NonTemporalLoadB                       = false,
+          bool ReduceTopK                             = false>
 struct GridwiseMoeGemmBlockScale
 {
     using AScaleType = float;
@@ -1223,7 +1224,7 @@ struct GridwiseMoeGemmBlockScale
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(BN0Shuffled, BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
-            IsInputGemm ? problem.NumTokens * problem.TopK : problem.NumTokens,
+            (IsInputGemm || !ReduceTopK) ? problem.NumTokens * problem.TopK : problem.NumTokens,
             problem.MPadded,
             problem.N * (IsInputGemm && IsSplitK ? 2 : 1),
             problem.NPadded * (IsInputGemm && IsSplitK ? 2 : 1),
@@ -1902,7 +1903,7 @@ struct GridwiseMoeGemmBlockScale
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     index_t token_offset      = fused_token & 0xffffff;
-                    if constexpr(IsInputGemm)
+                    if constexpr(IsInputGemm || !ReduceTopK)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
@@ -1990,7 +1991,7 @@ struct GridwiseMoeGemmBlockScale
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(BN0Shuffled, BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
-            IsInputGemm ? problem.NumTokens * problem.TopK : problem.NumTokens,
+            (IsInputGemm || !ReduceTopK) ? problem.NumTokens * problem.TopK : problem.NumTokens,
             problem.MPadded,
             problem.N * (IsInputGemm && IsSplitK ? 2 : 1),
             problem.NPadded * (IsInputGemm && IsSplitK ? 2 : 1),
@@ -2660,7 +2661,7 @@ struct GridwiseMoeGemmBlockScale
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     index_t token_offset      = fused_token & 0xffffff;
-                    if constexpr(IsInputGemm)
+                    if constexpr(IsInputGemm || !ReduceTopK)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }

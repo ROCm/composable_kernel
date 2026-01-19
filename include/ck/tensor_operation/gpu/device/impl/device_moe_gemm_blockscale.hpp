@@ -81,7 +81,8 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
           typename LDSTypeB                           = ComputeTypeB,
-          bool NonTemporalLoadB                       = false>
+          bool NonTemporalLoadB                       = false,
+          bool ReduceTopK                             = true>
 struct DeviceMoeGemmBlockScale
     : public DeviceGemmMultipleD_BlockScale_BPreshuffle<ALayout,
                                                         BLayout,
@@ -165,7 +166,8 @@ struct DeviceMoeGemmBlockScale
         ComputeTypeB,
         LDSTypeA,
         LDSTypeB,
-        NonTemporalLoadB>;
+        NonTemporalLoadB,
+        ReduceTopK>;
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
@@ -295,7 +297,7 @@ struct DeviceMoeGemmBlockScale
 
             constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
 
-            constexpr auto MemoryDataOp = (IsInputGemm && !IsSplitK)
+            constexpr auto MemoryDataOp = ((IsInputGemm && !IsSplitK) || !ReduceTopK)
                                               ? InMemoryDataOperationEnum::Set
                                               : InMemoryDataOperationEnum::AtomicAdd;
 
