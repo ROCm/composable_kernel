@@ -263,42 +263,14 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     if constexpr(Traits::NQPerBlock == 1)
                     {
-                        AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(aq_block_tensor);
                         constexpr auto tbuf_offset =
                             number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
                                     merge_sequences(sequence<mIter, nIter>{},
                                                     c_warp_y_index_zeros)) /
                                 CBlockTensor::PackedSize>{};
-#if 1
+
                         constexpr auto block_idx_m = tile_distributed_index<mIter>{};
                         constexpr auto block_idx_kq = tile_distributed_index<kQScale>{};
-
-
-#else
-
-
-                        index_t reg_offset = [&]() {
-                            if constexpr(QuantGroupSize::kN >= (NWarp * WG::kN))
-                            {
-                                return (nIter * NWarp * WG::kN) / QuantGroupSize::kN * KPerBlockBQ +
-                                    kQScale + (mIter * MWarp * WG::kM / QuantGroupSize::kM) * KPerBlockBQ;
-                                //CheckValues<nIter, NWarp, WG::kN, QuantGroupSize::kN, KPerBlockBQ, kQScale> check; //1, 4, 16, 128, 1, 0
-                                //return (nIter * KPerBlockBQ + kQScale) + (mIter / QuantGroupSize::kM) * 32;
-                            }
-                            else
-                            {
-                                return nIter * KPerBlockBQ + kQScale;
-                            }
-                        }();
-                        auto& scale_reg = q_block_tensor.get_thread_buffer()[reg_offset];
-                        float b_scale_reg_f =
-                            aq_picker.template cvt_scale_to_fp32<BQDataType>(scale_reg);
-#endif
-
-
-
-
-
 
                         static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
                             auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
