@@ -337,6 +337,7 @@ struct MultiReduce2d
     /// @note Requirements:
     ///       - y_continous_dim % ThreadTile_N == 0 (for proper thread distribution)
     ///       - input_strides[-1] == 1 (for contiguous memory access)
+    ///       - All reduce operations must have the same identity value
     template <typename InputStrides>
     CK_TILE_HOST static bool IsSupportedArgument(index_t y_continous_dim,
                                                  InputStrides input_strides)
@@ -360,6 +361,36 @@ struct MultiReduce2d
                     "Input tensor's last stride must be 1 to support correct vector access!");
             }
             return false;
+        }
+
+        // Check that all reduce operations have the same identity value
+        auto reduce_ops                  = typename Problem::ReduceOp{};
+        constexpr auto number_operations = reduce_ops.size();
+
+        if constexpr(number_operations > 1)
+        {
+            const auto first_identity =
+                reduce_ops.get(number<0>{}).template GetIdentityValue<XDataType>();
+            bool all_same = true;
+
+            static_for<1, number_operations, 1>{}([&](auto i) {
+                const auto current_identity =
+                    reduce_ops.get(i).template GetIdentityValue<XDataType>();
+                // Use memcmp for bitwise comparison to avoid floating-point comparison warning
+                if(__builtin_memcmp(&current_identity, &first_identity, sizeof(XDataType)) != 0)
+                {
+                    all_same = false;
+                }
+            });
+
+            if(!all_same)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("All reduce operations must have the same identity value!");
+                }
+                return false;
+            }
         }
 
         return true;

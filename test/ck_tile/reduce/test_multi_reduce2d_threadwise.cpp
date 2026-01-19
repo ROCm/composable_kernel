@@ -39,26 +39,20 @@ using TestConfig_F16_Add = std::tuple<ck_tile::half_t,
                                       Shape1_WarpTile,
                                       Shape1_ThreadTile>;
 
-using TestConfig_F16_Add_Max = std::tuple<
+using TestConfig_F16_Add_SumSquare = std::tuple<
     ck_tile::half_t,
     float,
     ck_tile::half_t,
-    ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Max, ck_tile::ReduceOp::Add>,
-    ck_tile::tuple<ck_tile::element_wise::PassThrough,
-                   ck_tile::element_wise::PassThrough,
-                   ck_tile::element_wise::UnarySquare>,
-    ck_tile::tuple<ck_tile::element_wise::PassThrough,
-                   ck_tile::element_wise::PassThrough,
-                   ck_tile::element_wise::UnaryDivide>,
-    ck_tile::tuple<ck_tile::element_wise::PassThrough,
-                   ck_tile::element_wise::PassThrough,
-                   ck_tile::element_wise::PassThrough>,
+    ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Add>,
+    ck_tile::tuple<ck_tile::element_wise::PassThrough, ck_tile::element_wise::UnarySquare>,
+    ck_tile::tuple<ck_tile::element_wise::PassThrough, ck_tile::element_wise::UnaryDivide>,
+    ck_tile::tuple<ck_tile::element_wise::PassThrough, ck_tile::element_wise::PassThrough>,
     Shape1_BlockWarps,
     Shape1_BlockTile,
     Shape1_WarpTile,
     Shape1_ThreadTile>;
 
-using TestTypes = ::testing::Types<TestConfig_F16_Add, TestConfig_F16_Add_Max>;
+using TestTypes = ::testing::Types<TestConfig_F16_Add, TestConfig_F16_Add_SumSquare>;
 
 TYPED_TEST_SUITE(TestCkTileMultiReduceThreadwise, TestTypes);
 
