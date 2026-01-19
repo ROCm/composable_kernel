@@ -276,6 +276,7 @@ struct AQuantBlockUniversalGemmAsBsCr
 
                     // for every column in AQ
                     static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
+                        // for every warp corresponding to a quantization scale
                         static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
                             constexpr auto kIter = kQScale * Traits::KIterPerQScale + kIterInQScale;
 
@@ -328,16 +329,11 @@ struct AQuantBlockUniversalGemmAsBsCr
     {
         static constexpr index_t KPerThread     = GemmTraits::KPerThread;
         static constexpr index_t NumMacClusters = GemmTraits::InterWaveSchedulingMacClusters;
-        // static constexpr index_t QuantGroupSizeK = GemmTraits::QuantGroupSize::kK;
 
-        // Match the base Interwave loop structure; quantization handling will be reintroduced
-        // later.
         static constexpr index_t KPerInnerLoop =
             ck_tile::max(KPerThread / NumMacClusters, WarpGemm::kKPerThread);
         static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
         static constexpr index_t KInnerLoopIter = KPerInnerLoop / WarpGemm::kKPerThread;
-
-        // static constexpr index_t KIterPerQScale = GemmTraits::KIterPerQScale;
 
         static constexpr auto ALdsTileDistr =
             make_static_tile_distribution(MakeABlockDistributionEncode());
