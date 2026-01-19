@@ -1258,7 +1258,7 @@ pipeline {
         booleanParam(
             name: "RUN_FULL_CONV_TILE_TESTS",
             defaultValue: false,
-            description: "Run AITER tests with latest CK develop branch (default: OFF)")
+            description: "Run CK Tile grouped convolution tests with latest CK develop branch (default: OFF)")
         string(
             name: 'aiter_branch',
             defaultValue: 'main',

@@ -14,7 +14,7 @@
 /// This file contains the implementation details for invoking/testing
 /// grouped convolution operations in CK Tile. The main item is the
 /// `run()` function, which is the main implementation used to invoke
-/// CK grouped forward convolution kernels.
+/// CK Tile grouped forward convolution kernels.
 
 namespace ck_tile::builder::test {
 
