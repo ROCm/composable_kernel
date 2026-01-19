@@ -5,8 +5,8 @@ namespace ck_tile {
 template <WarpPerBlock_M, WarpPerBlock_N, ThreadPerWarp_M, ThreadPerWarp_N, ThreadTile_M, ThreadTile_N, Repeat_M, Repeat_N>
 struct SinkHornKnoppShape
 {
-    static constexpr index_t WarpPerBlock_M = WarpPerBlock_M;
-    static constexpr index_t WarpPerBlock_N = WarpPerBlock_N;
+    static constexpr index_t Block_M = WarpPerBlock_M;
+    static constexpr index_t Block_N = WarpPerBlock_N;
     static constexpr index_t ThreadPerWarp_M = ThreadPerWarp_M;
     static constexpr index_t ThreadPerWarp_N = ThreadPerWarp_N;
     static constexpr index_t ThreadTile_M = ThreadTile_M;
