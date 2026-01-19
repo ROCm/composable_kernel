@@ -47,11 +47,6 @@ struct ext_vector<T_, N_, std::enable_if_t<!std::is_class_v<typename native_t<T_
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
 
-// struct int32x3_t
-// {
-//     int data[3];
-// };
-
 template <typename T_, index_t N_>
 struct ext_vector<T_, N_, std::enable_if_t<std::is_class_v<typename native_t<T_>::type>>>
 {

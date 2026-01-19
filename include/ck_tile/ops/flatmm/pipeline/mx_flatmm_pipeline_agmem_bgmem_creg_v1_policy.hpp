@@ -327,12 +327,15 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         auto&& byte_ptr = reinterpret_cast<const uint8_t*>(&(tensor_view_tmp.get_buffer_view()(0)));
         auto&& byte_tensor_view =
             make_tensor_view<address_space_enum::global>(byte_ptr, byte_tensor_desc);
-        auto&& origin_tmp       = window_tmp.get_window_origin();
-        constexpr index_t test2 = BPackedSize / sizeof(BDataType);
-        return make_tile_window(byte_tensor_view,
-                                make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp / test2>{}),
-                                {origin_tmp[0], origin_tmp[1] / test2},
-                                MakeMX_BFlatBytesDramTileDistribution());
+        auto&& origin_tmp = window_tmp.get_window_origin();
+        auto origin_n     = origin_tmp[0];
+        auto origin_k     = static_cast<int>(origin_tmp[1] * sizeof(BDataType) / BPackedSize);
+        return make_tile_window(
+            byte_tensor_view,
+            make_tuple(number<flatNPerWarp>{},
+                       number<flatKPerWarp * sizeof(BDataType) / BPackedSize>{}),
+            {origin_n, origin_k},
+            MakeMX_BFlatBytesDramTileDistribution());
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_DramTileDistribution()

@@ -303,8 +303,6 @@ struct buffer_view<address_space_enum::global,
 #else
         bool constexpr use_amd_buffer_addressing = false;
 #endif
-        // constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-        //         return thread_buffer<remove_cvref_t<T>,t_per_x>{};
         if constexpr(use_amd_buffer_addressing)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;

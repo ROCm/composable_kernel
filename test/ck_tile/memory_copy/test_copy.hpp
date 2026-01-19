@@ -51,7 +51,7 @@ struct TileCopyShape
                   "Inconsistent wave group size!");
 };
 
-template <typename XDataType_, typename BlockShape_, bool AsyncCopy_, int cpy_cfg_>
+template <typename XDataType_, typename BlockShape_, bool AsyncCopy_, int CpyCfg_>
 struct TileCopyProblem
 {
     using XDataType                 = remove_cvref_t<XDataType_>;
@@ -59,7 +59,7 @@ struct TileCopyProblem
     static constexpr bool AsyncCopy = AsyncCopy_;
     // 0: copy 1, 2, 4 bytes data type
     // 1: copy dwordx3 bytes data type
-    static constexpr int cpy_cfg = cpy_cfg_;
+    static constexpr int CpyCfg = CpyCfg_;
 };
 
 template <typename Problem_>
@@ -70,7 +70,7 @@ struct TileCopy
 
     static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
     static constexpr bool AsyncCopy     = Problem::AsyncCopy;
-    static constexpr int cpy_cfg        = Problem::cpy_cfg;
+    static constexpr int CpyCfg         = Problem::CpyCfg;
 
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeDRAMDistribution()
@@ -312,11 +312,11 @@ struct TileCopy
     CK_TILE_DEVICE void
     operator()(XDataType* p_x, XDataType* p_y, index_t M, index_t N, index_t warp_id) const
     {
-        if constexpr(cpy_cfg == 1)
+        if constexpr(CpyCfg == 1)
         {
             run_dwordx3_cpy(p_x, p_y, M, N, warp_id);
         }
-        else if constexpr(cpy_cfg == 0)
+        else if constexpr(CpyCfg == 0)
         {
             run_normal_cpy(p_x, p_y, M, N, warp_id);
         }

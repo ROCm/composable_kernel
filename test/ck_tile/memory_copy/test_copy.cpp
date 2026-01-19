@@ -52,8 +52,8 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         ck_tile::index_t n       = memcpy_params.n;
         ck_tile::index_t warp_id = memcpy_params.warp_id;
 
-        constexpr auto dword_bytes     = 4;
-        const ck_tile::index_t cpy_cfg = std::is_same_v<DataType, ck_tile::pk_fp6x16_t> ? 1 : 0;
+        constexpr auto dword_bytes    = 4;
+        const ck_tile::index_t CpyCfg = std::is_same_v<DataType, ck_tile::pk_fp6x16_t> ? 1 : 0;
 
         ck_tile::HostTensor<XDataType> x_host({m, n});
         ck_tile::HostTensor<YDataType> y_host_dev({m, n});
@@ -75,24 +75,24 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         using VectorList    = type_list<ck_tile::sequence<1, dword_bytes / sizeof(DataType)>,
                                         ck_tile::sequence<1, 24>>;
         using BlockWaves    = ck_tile::sequence<2, 1>;
-        using BlockTile     = type_at<cpy_cfg, BlockTileList>::type;
-        using WaveTile      = type_at<cpy_cfg, BlockTileList>::type;
-        using Vector        = type_at<cpy_cfg, VectorList>::type;
+        using BlockTile     = type_at<CpyCfg, BlockTileList>::type;
+        using WaveTile      = type_at<CpyCfg, BlockTileList>::type;
+        using Vector        = type_at<CpyCfg, VectorList>::type;
 
         ck_tile::index_t kGridSize =
             ck_tile::integer_divide_ceil(m, BlockTile::at(ck_tile::number<0>{}));
 
         using Shape   = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, Vector>;
-        using Problem = ck_tile::TileCopyProblem<DataType, Shape, AsyncCopy, cpy_cfg>;
+        using Problem = ck_tile::TileCopyProblem<DataType, Shape, AsyncCopy, CpyCfg>;
         using Kernel  = ck_tile::TileCopy<Problem>;
 
         constexpr ck_tile::index_t kBlockSize  = 128;
         constexpr ck_tile::index_t kBlockPerCu = 1;
         // when copy fp6x16 buffer, tread it as int8 buffer and recompute n-dim size.
         ck_tile::index_t cpy_n =
-            cpy_cfg == 1 ? n * sizeof(DataType) /
-                               (sizeof(int8_t) * ck_tile::numeric_traits<DataType>::PackedSize)
-                         : n;
+            CpyCfg == 1 ? n * sizeof(DataType) /
+                              (sizeof(int8_t) * ck_tile::numeric_traits<DataType>::PackedSize)
+                        : n;
 
         auto ms = launch_kernel(
             ck_tile::stream_config{nullptr, true},
