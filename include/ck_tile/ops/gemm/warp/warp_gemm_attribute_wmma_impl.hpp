@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,9 +22,10 @@ struct WmmaTraits;
 template <typename Traits>
 struct WarpGemmAttributeWmmaImpl
 {
-    using ADataType = typename Traits::ADataType;
-    using BDataType = typename Traits::BDataType;
-    using CDataType = typename Traits::CDataType;
+    using TraitsType = Traits;
+    using ADataType  = typename Traits::ADataType;
+    using BDataType  = typename Traits::BDataType;
+    using CDataType  = typename Traits::CDataType;
 
     using AVecType = typename Traits::AVecType;
     using BVecType = typename Traits::BVecType;

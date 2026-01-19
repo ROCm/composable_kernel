@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,15 +11,18 @@
 namespace ck_tile {
 
 // clang-format off
-template <typename T> struct typeToStr;
-template <> struct typeToStr<float> { static constexpr const char * name = "fp32"; };
-template <> struct typeToStr<fp16_t> { static constexpr const char * name = "fp16"; };
-template <> struct typeToStr<bf16_t> { static constexpr const char * name = "bf16"; };
-template <> struct typeToStr<fp8_t> { static constexpr const char * name = "fp8"; };
-template <> struct typeToStr<bf8_t> { static constexpr const char * name = "bf8"; };
-template <> struct typeToStr<int8_t> { static constexpr const char * name = "int8"; };
-template <> struct typeToStr<pk_int4_t> { static constexpr const char * name = "pk_int4"; };
-template <> struct typeToStr<pk_fp4_t> { static constexpr const char * name = "pk_fp4"; };
+template <typename T> struct DataTypeTraits;
+template <> struct DataTypeTraits<float> { static constexpr const char * name = "fp32"; };
+template <> struct DataTypeTraits<double> { static constexpr const char * name = "fp64"; };
+template <> struct DataTypeTraits<int32_t> { static constexpr const char * name = "int32"; };
+template <> struct DataTypeTraits<fp16_t> { static constexpr const char * name = "fp16"; };
+template <> struct DataTypeTraits<bf16_t> { static constexpr const char * name = "bf16"; };
+template <> struct DataTypeTraits<fp8_t> { static constexpr const char * name = "fp8"; };
+template <> struct DataTypeTraits<bf8_t> { static constexpr const char * name = "bf8"; };
+template <> struct DataTypeTraits<int8_t> { static constexpr const char * name = "int8"; };
+template <> struct DataTypeTraits<pk_int4_t> { static constexpr const char * name = "pk_int4"; };
+template <> struct DataTypeTraits<pk_fp4_t> { static constexpr const char * name = "pk_fp4"; };
+template <> struct DataTypeTraits<pk_fp4_raw_t> { static constexpr const char * name = "pk_fp4_raw"; };
 
 template <memory_operation_enum MemOp> struct memOpToStr;
 template <> struct memOpToStr<memory_operation_enum::set> { static constexpr const char * name = "set"; };
@@ -31,10 +34,10 @@ template <> struct memOpToStr<memory_operation_enum::add> { static constexpr con
 template <typename ADataType_, typename BDataType_>
 std::string gemm_prec_str()
 {
-    std::string base_str = std::string(typeToStr<ADataType_>::name);
+    std::string base_str = std::string(DataTypeTraits<ADataType_>::name);
     if(!std::is_same_v<ADataType_, BDataType_>)
     {
-        base_str += "_" + std::string(typeToStr<BDataType_>::name);
+        base_str += "_" + std::string(DataTypeTraits<BDataType_>::name);
     }
     return base_str;
 }

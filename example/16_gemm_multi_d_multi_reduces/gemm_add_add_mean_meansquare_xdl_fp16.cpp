@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -268,7 +268,7 @@ int main()
         pass &= ck::utils::check_err(r1_m, r1_m_host, "Error: Incorrect results d1", 1e-2, 1e-2);
     }
 
-    bool time_kernel = true;
+    bool time_kernel = false;
     if(time_kernel)
     {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});

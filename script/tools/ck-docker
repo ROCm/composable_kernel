@@ -1,0 +1,294 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Docker Tool - Build and test composable_kernel in Docker with ROCm support
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Docker Tool - Build and test composable_kernel in Docker
+
+Usage: ck-docker <command> [options]
+
+Commands:
+  start [name]                    Start Docker container
+  build [target] [--reconfigure]  Build target (optionally reconfigure CMake)
+  test <test> [options]           Run test
+  shell [name]                    Open shell in container
+  status [name]                   Check container status
+  stop [name]                     Stop and remove container
+
+Examples:
+  ck-docker start
+  ck-docker build test_amdgcn_mma
+  ck-docker build --reconfigure test_amdgcn_mma
+  ck-docker test test_amdgcn_mma --gtest_filter=*Fp16*
+  ck-docker shell
+
+Environment:
+  CK_CONTAINER_NAME - Override default container name (default: ck_<username>_<branch>)
+  CK_DOCKER_IMAGE   - Override Docker image (default: rocm/composable_kernel:ck_ub24.04_rocm7.0.1)
+  GPU_TARGET        - Override GPU target detection (e.g., gfx950, gfx942)
+EOF
+}
+
+# Start container
+cmd_start() {
+    local name="${1:-${CONTAINER_NAME}}"
+    local docker_image=$(get_docker_image)
+
+    # Check if container exists and is running
+    if container_exists "${name}"; then
+        if container_is_running "${name}"; then
+            echo "Container '${name}' is already running"
+            return 0
+        else
+            echo "Starting existing container '${name}'..."
+            docker start "${name}"
+            echo "Container started"
+            return 0
+        fi
+    fi
+
+    echo "Creating new Docker container '${name}'..."
+    docker run -d \
+        --name "${name}" \
+        --device=/dev/kfd --device=/dev/dri \
+        --security-opt seccomp=unconfined \
+        --group-add video \
+        -v "${PROJECT_ROOT}":/workspace \
+        -w /workspace \
+        "${docker_image}" \
+        tail -f /dev/null
+
+    echo "Container '${name}' started successfully"
+    docker exec "${name}" bash -c "echo 'Working directory:' && pwd"
+}
+
+# Build target
+cmd_build() {
+    local target=""
+    local name="${CONTAINER_NAME}"
+    local reconfigure=false
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --name)
+                name="$2"
+                shift 2
+                ;;
+            --reconfigure)
+                reconfigure=true
+                shift
+                ;;
+            *)
+                target="$1"
+                shift
+                ;;
+        esac
+    done
+
+    # Check if container is running
+    if ! container_is_running "${name}"; then
+        echo "Container '${name}' not running. Starting..."
+        cmd_start "${name}"
+    fi
+
+    # Reconfigure CMake if requested or if build.ninja doesn't exist
+    if [ "$reconfigure" = true ] || ! docker exec "${name}" test -f /workspace/build/build.ninja 2>/dev/null; then
+        echo "Detecting GPU target..."
+        local gpu_target=$(detect_gpu_target "${name}")
+
+        if [ "$reconfigure" = true ]; then
+            echo "Reconfiguring CMake from scratch for GPU target: ${gpu_target}"
+        else
+            echo "Configuring build with CMake for GPU target: ${gpu_target}"
+        fi
+
+        docker exec "${name}" bash -c "
+            cd /workspace || exit 1
+            rm -rf /workspace/build
+            mkdir /workspace/build
+            cd /workspace/build || exit 1
+            cmake .. -GNinja \
+                -DGPU_TARGETS=${gpu_target} \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+                -DBUILD_TESTING=ON 2>&1 | tail -30
+        "
+    fi
+
+    if [ -z "$target" ]; then
+        echo "Building all configured targets..."
+    else
+        echo "Building target: ${target}"
+    fi
+
+    docker exec "${name}" bash -c "
+        cd /workspace/build || exit 1
+        ninja ${target} 2>&1
+    "
+
+    echo "Build complete"
+}
+
+# Run test
+cmd_test() {
+    local test_name=""
+    local name="${CONTAINER_NAME}"
+    local -a test_options=()
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --name)
+                name="$2"
+                shift 2
+                ;;
+            --gtest_*|--help)
+                test_options+=("$1")
+                shift
+                ;;
+            *)
+                if [ -z "$test_name" ]; then
+                    test_name="$1"
+                else
+                    test_options+=("$1")
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [ -z "$test_name" ]; then
+        echo "Error: test_name required"
+        echo "Usage: ck-docker test <test_name> [--name container_name] [gtest_options]"
+        return 1
+    fi
+
+    # Check if container is running
+    if ! container_is_running "${name}"; then
+        echo "Error: Container '${name}' not running"
+        echo "Start it with: ck-docker start --name ${name}"
+        return 1
+    fi
+
+    if ! docker exec "${name}" test -f "/workspace/build/bin/${test_name}" 2>/dev/null; then
+        echo "Test executable not found. Building ${test_name}..."
+        cmd_build "${test_name}" --name "${name}"
+    fi
+
+    echo "Running: ${test_name} ${test_options[*]}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    # Build the command with proper quoting
+    local cmd="cd /workspace/build && ./bin/${test_name}"
+    for opt in "${test_options[@]}"; do
+        cmd="${cmd} $(printf '%q' "$opt")"
+    done
+    docker exec "${name}" bash -c "${cmd}"
+}
+
+# Shell
+cmd_shell() {
+    local name="${1:-${CONTAINER_NAME}}"
+
+    # Check if container is running
+    if ! container_is_running "${name}"; then
+        echo "Container '${name}' not running. Starting..."
+        cmd_start "${name}"
+    fi
+
+    echo "Opening shell in '${name}' (type 'exit' to leave)..."
+    docker exec -it "${name}" bash
+}
+
+# Status
+cmd_status() {
+    local name="${1:-}"
+    local docker_image=$(get_docker_image)
+
+    if [ -z "$name" ]; then
+        echo "Composable Kernel Docker Containers:"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        docker ps -a --filter "ancestor=${docker_image}" \
+            --format "table {{.Names}}\t{{.Status}}\t{{.CreatedAt}}" || echo "No containers found"
+    else
+        # Check container status
+        if container_is_running "${name}"; then
+            echo "Container '${name}' is RUNNING"
+            docker ps --filter "name=^${name}$" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+            echo ""
+            echo "GPU Information:"
+            docker exec "${name}" bash -c "rocm-smi --showproductname 2>/dev/null | head -10 || echo 'No GPU detected'"
+        elif container_exists "${name}"; then
+            echo "Container '${name}' exists but is STOPPED"
+            echo "Start with: ck-docker start ${name}"
+        else
+            echo "Container '${name}' does NOT exist"
+            echo "Create with: ck-docker start ${name}"
+        fi
+    fi
+}
+
+# Stop
+cmd_stop() {
+    local name="${1:-${CONTAINER_NAME}}"
+
+    # Check if container exists
+    if container_exists "${name}"; then
+        echo "Stopping and removing container '${name}'..."
+        docker stop "${name}" 2>/dev/null || true
+        docker rm "${name}" 2>/dev/null || true
+        echo "Container stopped and removed"
+    else
+        echo "Container '${name}' does not exist"
+    fi
+}
+
+# Main command dispatcher
+case "${1:-}" in
+    start)
+        shift
+        cmd_start "$@"
+        ;;
+    build)
+        shift
+        cmd_build "$@"
+        ;;
+    test)
+        shift
+        cmd_test "$@"
+        ;;
+    shell)
+        shift
+        cmd_shell "$@"
+        ;;
+    status)
+        shift
+        cmd_status "$@"
+        ;;
+    stop)
+        shift
+        cmd_stop "$@"
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        echo "Unknown command: ${1:-}"
+        echo ""
+        show_help
+        exit 1
+        ;;
+esac

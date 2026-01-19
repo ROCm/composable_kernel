@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -55,6 +55,7 @@ struct FmhaFwdPagedKVKernel
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
     static constexpr bool kSkipMinSeqlenQ   = FmhaPipeline::Problem::kSkipMinSeqlenQ;
     static constexpr bool kIsPagedKV        = FmhaPipeline::Problem::kIsPagedKV;
+    static constexpr bool kHasSink          = FmhaPipeline::kHasSink;
 
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
@@ -101,7 +102,7 @@ struct FmhaFwdPagedKVKernel
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) +
             (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) + (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
-            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" )  + (kSkipMinSeqlenQ ? "_skip" : "_nskip" )  + (kDoFp8StaticQuant ? "_squant" : "_nsquant" ) + (kIsPagedKV ? "_pagedkv" : "_npagedkv" );
+            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" )  + (kSkipMinSeqlenQ ? "_skip" : "_nskip" )  + (kDoFp8StaticQuant ? "_squant" : "_nsquant" ) + (kIsPagedKV ? "_pagedkv" : "_npagedkv" ) + (kHasSink ? "_sink" : "_nsink" );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -122,6 +123,7 @@ struct FmhaFwdPagedKVKernel
         const void* k_ptr;
         const void* v_ptr;
         void* o_ptr;
+        const void* sink_ptr;
 
         ck_tile::index_t seqlen_q;
         ck_tile::index_t seqlen_k;
@@ -189,7 +191,7 @@ struct FmhaFwdPagedKVKernel
     struct FmhaFwdMaskKargs
     {
         // ck_tile::index_t window_size_left, window_size_right;
-        ck_tile::index_t window_size_left, window_size_right;
+        ck_tile::index_t window_size_left, window_size_right, sink_size;
         ck_tile::GenericAttentionMaskEnum mask_type;
     };
 
@@ -326,12 +328,15 @@ struct FmhaFwdPagedKVKernel
                   ck_tile::index_t batch_stride_o,
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
-                  ck_tile::index_t mask_type)
+                  ck_tile::index_t sink_size,
+                  ck_tile::index_t mask_type,
+                  const void* sink_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
                      o_ptr,
+                     sink_ptr,
                      seqlen_q,
                      seqlen_k,
                      hdim_q,
@@ -379,6 +384,7 @@ struct FmhaFwdPagedKVKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
+            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
@@ -453,7 +459,9 @@ struct FmhaFwdPagedKVKernel
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type)
+              ck_tile::index_t sink_size,
+              ck_tile::index_t mask_type,
+              const void* sink_ptr = nullptr)
     {
         return MakeKargsImpl(q_ptr,
                              k_ptr,
@@ -495,7 +503,9 @@ struct FmhaFwdPagedKVKernel
                              batch_stride_o,
                              window_size_left,
                              window_size_right,
-                             mask_type);
+                             sink_size,
+                             mask_type,
+                             sink_ptr);
     }
 
     template <bool Cond = kIsGroupMode>
@@ -536,13 +546,16 @@ struct FmhaFwdPagedKVKernel
                   ck_tile::index_t batch_stride_v, // only used for paged-kvcache
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
+                  ck_tile::index_t sink_size,
                   ck_tile::index_t mask_type,
-                  ck_tile::index_t min_seqlen_q)
+                  ck_tile::index_t min_seqlen_q,
+                  const void* sink_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
                      o_ptr,
+                     sink_ptr,
                      -1, // seqlen will be updated by another pointer
                      -1, //
                      hdim_q,
@@ -590,6 +603,7 @@ struct FmhaFwdPagedKVKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
+            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
@@ -660,8 +674,10 @@ struct FmhaFwdPagedKVKernel
               ck_tile::index_t batch_stride_v, // only used for paged-kvcache
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
+              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
-              ck_tile::index_t min_seqlen_q)
+              ck_tile::index_t min_seqlen_q,
+              const void* sink_ptr = nullptr)
     {
         return MakeKargsImpl(q_ptr,
                              k_ptr,
@@ -699,8 +715,10 @@ struct FmhaFwdPagedKVKernel
                              batch_stride_v,
                              window_size_left,
                              window_size_right,
+                             sink_size,
                              mask_type,
-                             min_seqlen_q);
+                             min_seqlen_q,
+                             sink_ptr);
     }
 
     CK_TILE_HOST static void PrintParameters(const Kargs& kargs, int num_batches)
@@ -889,7 +907,6 @@ struct FmhaFwdPagedKVKernel
 
         // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
-
         const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * FmhaPipeline::kM0);
         const index_t i_n1 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN1);
 
@@ -900,6 +917,10 @@ struct FmhaFwdPagedKVKernel
         long_index_t batch_offset_lse  = 0;
         long_index_t batch_offset_o    = 0;
         index_t kv_l2p_offset          = 0;
+        const float sink_value =
+            kargs.sink_ptr != nullptr
+                ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                : -numeric<float>::infinity();
 
         if constexpr(kIsGroupMode)
         {
@@ -1257,6 +1278,7 @@ struct FmhaFwdPagedKVKernel
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                     kargs.window_size_left,
                     kargs.window_size_right,
+                    kargs.sink_size,
                     kargs.seqlen_q,
                     kargs.seqlen_k,
                     kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
@@ -1315,30 +1337,33 @@ struct FmhaFwdPagedKVKernel
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
             {
-                return FmhaPipeline{}(
-                    q_dram_window,
-                    identity{}, // q_element_func
-                    k_dram_window_lengths,
-                    k_page_block_navigator,
-                    identity{}, // k_element_func
-                    v_dram_window_lengths,
-                    v_page_block_navigator,
-                    identity{}, // v_element_func
-                    bias_dram_window,
-                    identity{}, // bias_element_func
-                    lse_dram_window,
-                    identity{},                                          // lse_element_func
-                    identity{},                                          // s_acc_element_func
-                    scales{kargs.scale_p},                               // p_compute_element_func
-                    composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
-                    mask,
-                    position_encoding,
-                    kargs.scale_s,
-                    variant,
-                    variant_params,
-                    block_indices,
-                    kv_l2p_offset,
-                    smem_ptr);
+                return FmhaPipeline{}(q_dram_window,
+                                      identity{}, // q_element_func
+                                      k_dram_window_lengths,
+                                      k_page_block_navigator,
+                                      identity{}, // k_element_func
+                                      v_dram_window_lengths,
+                                      v_page_block_navigator,
+                                      identity{}, // v_element_func
+                                      bias_dram_window,
+                                      identity{}, // bias_element_func
+                                      lse_dram_window,
+                                      identity{}, // lse_element_func
+                                      identity{}, // s_acc_element_func
+                                      scales<remove_cvref_t<decltype(kargs.scale_p)>>{
+                                          kargs.scale_p}, // p_compute_element_func
+                                      make_composes(saturates<fp8_t>{},
+                                                    scales<remove_cvref_t<decltype(kargs.scale_o)>>{
+                                                        kargs.scale_o}), // o_acc_element_func
+                                      mask,
+                                      position_encoding,
+                                      kargs.scale_s,
+                                      variant,
+                                      variant_params,
+                                      block_indices,
+                                      kv_l2p_offset,
+                                      smem_ptr,
+                                      sink_value);
             }
             else
             {
@@ -1356,7 +1381,8 @@ struct FmhaFwdPagedKVKernel
                                       variant_params,
                                       block_indices,
                                       kv_l2p_offset,
-                                      smem_ptr);
+                                      smem_ptr,
+                                      sink_value);
             }
         }();
 

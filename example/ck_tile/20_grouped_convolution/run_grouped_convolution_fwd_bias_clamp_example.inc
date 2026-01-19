@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 using BiasAndClamp = ck_tile::element_wise::
@@ -231,7 +230,11 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
     }
     else if(arg_parser.get_int("v") == 2)
     {
-        throw std::runtime_error("Unsupported gpu verification !!!");
+        // GPU verification for fused operation (Conv + Bias + Clamp) is complex
+        // For now, we only support GPU verification for basic convolution operations
+        // The bias+clamp fused variant can use CPU verification (-v=1) or no verification (-v=0)
+        throw std::runtime_error("GPU verification not yet supported for fused operations! Use "
+                                 "-v=1 for CPU verification.");
     }
 
     return pass;

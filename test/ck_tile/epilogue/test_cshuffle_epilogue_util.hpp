@@ -120,8 +120,8 @@ using SimpleCShuffleEpilogueProblem =
                             MPerXdl,
                             NPerXdl,
                             KPerXdl,
-                            false, // isCTransposed,
-                            memory_operation_enum::set>;
+                            false // isCTransposed
+                            >;
 
 template <typename Problem, index_t M, index_t N>
 auto run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
@@ -130,7 +130,7 @@ auto run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
 
     constexpr index_t kMPerBlock = Problem::kMPerBlock;
     constexpr index_t kNPerBlock = Problem::kNPerBlock;
-    constexpr index_t kBlockSize = Problem::kBlockSize;
+    index_t kBlockSize = ck_tile::is_wave32() ? Problem::kBlockSize / 2 : Problem::kBlockSize;
 
     std::cout << "Running CShuffleEpilogue test with M=" << M << ", N=" << N
               << ", MPerBlock=" << kMPerBlock << ", NPerBlock=" << kNPerBlock

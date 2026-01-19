@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -96,7 +96,7 @@ struct TopkSoftmaxWarpPerRowPipeline
                         w_(idx) = WeightType(1) / (WeightType(1) + exp(-w_(idx)));
                     }
                 };
-                tile_sweeper ts{w_, w_f};
+                tile_sweeper<decltype(w_), decltype(w_f)> ts{w_, w_f};
                 ts();
                 return w_;
 #endif

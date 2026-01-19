@@ -1,9 +1,10 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
@@ -33,6 +34,11 @@ struct Add
         float x_ = type_convert<float>(x);
 
         return type_convert<T>(y_ + x_);
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetAtomic()
+    {
+        return memory_operation_enum::atomic_add;
     }
 };
 

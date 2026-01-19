@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -345,7 +345,7 @@ struct BlockReduce2D
         constexpr auto row_y_unpacks = [&]() {
             constexpr auto row_y_lengths = typename decltype(spans[number<1>{}])::Impl{};
             constexpr auto row_y_size =
-                reduce_on_sequence(row_y_lengths, multiplies{}, number<1>{});
+                reduce_on_sequence(row_y_lengths, multiplies<>{}, number<1>{});
             constexpr auto row_y_packs = ReducePacksPerXDim{}.at(number<1>{});
 
             static_assert(row_y_size % row_y_packs == 0);

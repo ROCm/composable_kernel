@@ -273,7 +273,10 @@ struct DeviceGemmMultipleDLayernorm_Wmma_CShuffleV3
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        false,
+        false,
+        true>;
 
     // Welford 2nd part kernel
     template <typename DoPads, index_t MPerTile, index_t NPerTile>

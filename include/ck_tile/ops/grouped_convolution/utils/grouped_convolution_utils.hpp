@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,13 @@
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 namespace ck_tile {
+
+enum class GroupedConvDirection
+{
+    FORWARD,
+    BACKWARD_DATA,
+    BACKWARD_WEIGHT
+};
 
 /// @brief The Grouped Conv kernel host arguments.
 ///
@@ -63,7 +70,8 @@ template <index_t NDimSpatial_,
           index_t VectorSizeB_      = 1,
           index_t VectorSizeC_      = 1,
           index_t NumGroupsToMerge_ = 1,
-          bool EnableSplitImage_    = false>
+          bool EnableSplitImage_    = false,
+          bool ExplicitGemm_        = false>
 struct GroupedConvTraits
 {
     private:
@@ -89,8 +97,9 @@ struct GroupedConvTraits
         using ELayout = ck_tile::tensor_layout::gemm::RowMajor;
     };
     // Compile time parameters
-    static constexpr bool EnableSplitImage                        = EnableSplitImage_;
     static constexpr index_t NumGroupsToMerge                     = NumGroupsToMerge_;
+    static constexpr bool EnableSplitImage                        = EnableSplitImage_;
+    static constexpr bool ExplicitGemm                            = ExplicitGemm_;
     static constexpr index_t NDimSpatial                          = NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization = ConvSpecialization_;
     using InLayout                                                = InLayout_;
@@ -110,6 +119,36 @@ struct GroupedConvTraits
     using AsLayoutBwdWeight = ck_tile::tensor_layout::gemm::ColumnMajor;
     using BsLayoutBwdWeight = ck_tile::tensor_layout::gemm::RowMajor;
     using CLayoutBwdWeight  = ck_tile::tensor_layout::gemm::RowMajor;
+
+    template <GroupedConvDirection Direction>
+    struct GemmLayouts
+    {
+        static_assert(false, "Unsupported direction.");
+    };
+
+    template <>
+    struct GemmLayouts<GroupedConvDirection::FORWARD>
+    {
+        using AsLayout = AsLayoutFwd;
+        using BsLayout = BsLayoutFwd;
+        using CLayout  = CLayoutFwd;
+    };
+
+    template <>
+    struct GemmLayouts<GroupedConvDirection::BACKWARD_DATA>
+    {
+        using AsLayout = AsLayoutBwdData;
+        using BsLayout = BsLayoutBwdData;
+        using CLayout  = CLayoutBwdData;
+    };
+
+    template <>
+    struct GemmLayouts<GroupedConvDirection::BACKWARD_WEIGHT>
+    {
+        using AsLayout = AsLayoutBwdWeight;
+        using BsLayout = BsLayoutBwdWeight;
+        using CLayout  = CLayoutBwdWeight;
+    };
 
     template <ck_tile::index_t NumWaveGroups = 1>
     using GroupedConvImplicitGemmTraitsFwd =

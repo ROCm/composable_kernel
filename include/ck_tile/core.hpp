@@ -1,6 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
-
 #pragma once
 
 #include "ck_tile/core/algorithm/cluster_descriptor.hpp"
@@ -10,9 +9,26 @@
 #include "ck_tile/core/algorithm/static_encoding_pattern.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
+#include "ck_tile/core/arch/amd_buffer_coherence.hpp"
 #include "ck_tile/core/arch/amd_transpose_load_encoding.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
+#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
+#include "ck_tile/core/arch/mma/mfma/mfma.hpp"
+#include "ck_tile/core/arch/mma/mfma/mfma_gfx9.hpp"
+#include "ck_tile/core/arch/mma/mfma/mfma_selector.hpp"
+#include "ck_tile/core/arch/mma/mfma/mfma_traits.hpp"
+#include "ck_tile/core/arch/mma/mfma/mfma_transforms.hpp"
+#include "ck_tile/core/arch/mma/mma.hpp"
+#include "ck_tile/core/arch/mma/mma_selector.hpp"
+#include "ck_tile/core/arch/mma/mma_traits.hpp"
+#include "ck_tile/core/arch/mma/mma_transforms.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma_gfx11.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma_gfx12.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma_selector.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma_traits.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma_transforms.hpp"
 #include "ck_tile/core/arch/utility.hpp"
 #include "ck_tile/core/arch/workgroup_barrier.hpp"
 #include "ck_tile/core/config.hpp"

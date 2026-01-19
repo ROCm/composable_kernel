@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -43,20 +43,21 @@ template <bool kPadM_,
           bool UseStructuredSparsity_ = false,
           bool UsePersistentKernel_   = false,
           index_t NumWaveGroups_      = 1,
-          bool Preshuffle_            = false>
+          bool Preshuffle_            = false,
+          int VectorSize_             = 16>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM            = kPadM_;
     static constexpr bool kPadN            = kPadN_;
     static constexpr bool kPadK            = kPadK_;
-    static constexpr int _VectorSize       = 16;
+    static constexpr int _VectorSize       = VectorSize_;
     static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
 
-    using AsLayout = AsLayout_;
-    using BsLayout = BsLayout_;
-    using CLayout  = CLayout_;
+    using AsLayout                   = AsLayout_;
+    using BsLayout                   = BsLayout_;
+    using CLayout                    = CLayout_;
+    static constexpr bool TransposeC = TransposeC_;
 
-    static constexpr bool TransposeC            = TransposeC_;
     static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
     static constexpr index_t NumWaveGroups      = NumWaveGroups_;
