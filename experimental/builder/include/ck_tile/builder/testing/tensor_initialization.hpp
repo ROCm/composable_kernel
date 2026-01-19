@@ -19,15 +19,30 @@
 
 namespace ck_tile::builder::test {
 
-template <DataType DT>
-void init_tensor_buffer_uniform_int(const DeviceBuffer& buf,
-                                    const TensorDescriptor<DT>& descriptor,
-                                    int min_val,
-                                    int max_val)
+/// @brief Initialize tensor data with a uniform int distribution
+///
+/// This function initializes a tensor's device memory with random integer data,
+/// drawn from a uniform distribution. The initialization is done directly on the
+/// GPU. Note that the entire buffer is filled with the specified distribution
+/// regardless of whether the layout is packed.
+///
+/// @tparam DT The data type of the tensor memory to initialize
+/// @tparam RANK The rank (number of spatial dimensions) of the tensor.
+///
+/// @param buf The device memory to initialize
+/// @param descriptor A tensor descriptor describing the precise layout of the
+/// tensor memory.
+/// @param min_value The minimum value of the distribution (inclusive).
+/// @param max_value The maximum value of the distribution (exclusive).
+template <DataType DT, size_t RANK>
+void init_tensor_buffer_uniform_int(void* buf,
+                                    const TensorDescriptor<DT, RANK>& descriptor,
+                                    int min_value,
+                                    int max_value)
 {
     size_t size = descriptor.get_element_space_size_in_bytes();
 
-    if(max_val - min_val <= 1)
+    if(max_value - min_value <= 1)
     {
         throw std::runtime_error("Error while filling device tensor with random integer data: max "
                                  "value must be at least 2 greater than min value, otherwise "
@@ -38,19 +53,34 @@ void init_tensor_buffer_uniform_int(const DeviceBuffer& buf,
 
     // we might be asked to generate int values on fp data types that don't have the required
     // precision
-    if(static_cast<ck_type>(max_val - 1) == static_cast<ck_type>(min_val))
+    if(static_cast<ck_type>(max_value - 1) == static_cast<ck_type>(min_value))
     {
         throw std::runtime_error("Error while filling device tensor with random integer data: "
                                  "insufficient precision in specified range");
     }
     size_t packed_size = ck::packed_size_v<ck_type>;
     fill_tensor_uniform_rand_int_values<<<256, 256>>>(
-        static_cast<ck_type>(buf.get()), min_val, max_val, (size * packed_size) / sizeof(ck_type));
+        static_cast<ck_type>(buf), min_value, max_value, (size * packed_size) / sizeof(ck_type));
 }
 
-template <DataType DT>
-void init_tensor_buffer_uniform_fp(const DeviceBuffer& buf,
-                                   const TensorDescriptor<DT>& descriptor,
+/// @brief Initialize tensor data with a uniform float distribution
+///
+/// This function initializes a tensor's device memory with random floating data,
+/// drawn from a uniform distribution. The initialization is done directly on the
+/// GPU. Note that the entire buffer is filled with the specified distribution
+/// regardless of whether the layout is packed.
+///
+/// @tparam DT The data type of the tensor memory to initialize
+/// @tparam RANK The rank (number of spatial dimensions) of the tensor.
+///
+/// @param buf The device memory to initialize
+/// @param descriptor A tensor descriptor describing the precise layout of the
+/// tensor memory.
+/// @param min_value The minimum value of the distribution (inclusive).
+/// @param max_value The maximum value of the distribution (exclusive).
+template <DataType DT, size_t RANK>
+void init_tensor_buffer_uniform_fp(void* buf,
+                                   const TensorDescriptor<DT, RANK>& descriptor,
                                    float min_value,
                                    float max_value)
 {
@@ -59,15 +89,30 @@ void init_tensor_buffer_uniform_fp(const DeviceBuffer& buf,
     using ck_type = factory::internal::DataTypeToCK<DT>::type;
 
     size_t packed_size = ck::packed_size_v<ck_type>;
-    fill_tensor_uniform_rand_fp_values<<<256, 256>>>(reinterpret_cast<ck_type*>(buf.get()),
+    fill_tensor_uniform_rand_fp_values<<<256, 256>>>(reinterpret_cast<ck_type*>(buf),
                                                      min_value,
                                                      max_value,
                                                      (size * packed_size) / sizeof(ck_type));
 }
 
-template <DataType DT>
-void init_tensor_buffer_normal_fp(const DeviceBuffer& buf,
-                                  const TensorDescriptor<DT>& descriptor,
+/// @brief Initialize tensor data with a normal float distribution
+///
+/// This function initializes a tensor's device memory with random floating data,
+/// drawn from a normal distribution. The initialization is done directly on the
+/// GPU. Note that the entire buffer is filled with the specified distribution
+/// regardless of whether the layout is packed.
+///
+/// @tparam DT The data type of the tensor memory to initialize
+/// @tparam RANK The rank (number of spatial dimensions) of the tensor.
+///
+/// @param buf The device memory to initialize
+/// @param descriptor A tensor descriptor describing the precise layout of the
+/// tensor memory.
+/// @param sigma The standard deviation of the distribution.
+/// @param mean The mean of the distribution.
+template <DataType DT, size_t RANK>
+void init_tensor_buffer_normal_fp(void* buf,
+                                  const TensorDescriptor<DT, RANK>& descriptor,
                                   float sigma,
                                   float mean)
 {
@@ -76,7 +121,7 @@ void init_tensor_buffer_normal_fp(const DeviceBuffer& buf,
     using ck_type      = factory::internal::DataTypeToCK<DT>::type;
     size_t packed_size = ck::packed_size_v<ck_type>;
     fill_tensor_norm_rand_fp_values<<<256, 256>>>(
-        static_cast<ck_type*>(buf.get()), sigma, mean, (size * packed_size) / sizeof(ck_type));
+        static_cast<ck_type*>(buf), sigma, mean, (size * packed_size) / sizeof(ck_type));
 }
 
 } // namespace ck_tile::builder::test

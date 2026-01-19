@@ -80,33 +80,41 @@ add_ck_builder_test(test_ckb_conv_builder
     test_instance_traits_util.cpp
     unit_device_buffer.cpp
     unit_tensor_descriptor.cpp
+    unit_tensor_foreach.cpp
+    unit_error.cpp
+    unit_validation.cpp
+    unit_debug.cpp
+    unit_conv_fwd_testing.cpp
     unit_conv_elementwise_op.cpp
     unit_conv_tensor_layout.cpp
     unit_conv_tensor_type.cpp
     unit_conv_thread_block.cpp
     unit_conv_tuning_params.cpp)
-    
-    # Tests the inline diff utility used for comparing strings in tests assertions
-    add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
+target_link_libraries(test_ckb_conv_builder PRIVATE utility)
 
-    # GPU reference validation tests (in validation/ folder)
-    # 1. Reference kernel execution and InstanceTraits
-    add_ck_builder_test(test_ckb_reference_execution 
-        validation/test_reference_execution.cpp
-        validation/test_reference_instance_traits.cpp)
-    target_link_libraries(test_ckb_reference_execution PRIVATE utility)
-    
-    # Note: Optimized kernel validation tests will be added after merging dev branch
-    # with kernel Run() implementation from colleague's work
+# Tests the inline diff utility used for comparing strings in tests assertions
+add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
 
-    # Tests convolution trait selection and configuration
-    add_ck_builder_test(test_ckb_conv_traits
-        conv/ck/test_conv_traits.cpp)
-    
-    # Tests convolution problem description and parameter handling
-    add_ck_builder_test(test_ckb_conv_description
-        test_conv_description.cpp)
-    
+# GPU reference validation tests (in validation/ folder)
+# 1. Reference kernel execution and InstanceTraits
+add_ck_builder_test(test_ckb_reference_execution
+    validation/test_reference_execution.cpp
+    validation/test_reference_instance_traits.cpp)
+target_link_libraries(test_ckb_reference_execution PRIVATE utility)
+
+# Note: Optimized kernel validation tests will be added after merging dev branch
+# with kernel Run() implementation from colleague's work
+
+# Tests convolution trait selection and configuration
+add_ck_builder_test(test_ckb_conv_traits
+    conv/ck/test_conv_traits.cpp
+    conv/ck/unit_instance_to_conv_traits_features.cpp
+    conv/ck/unit_instance_to_conv_traits_instances.cpp)
+
+# Tests convolution problem description and parameter handling
+add_ck_builder_test(test_ckb_conv_description
+    test_conv_description.cpp)
+
 ################################################################################
 # REGRESSION TESTS - Integration Tests (With Kernel Compilation)
 ################################################################################
@@ -117,7 +125,7 @@ add_ck_builder_test(test_ckb_conv_builder
 # Verifies that GetInstanceString() methods and other functions produce valid kernel code.
 # Tests various convolution types:
 #   - Group convolution (v3, standard, large tensor, WMMA, DL variants)
-#   - Backward weight group convolution (XDL)
+#   - Backward weight group convolution (XDL standard, XDL v3, WMMA, DL, multiple D, two-stage variants)
 # Requires kernel compilation to validate the generated strings through the base class.
 
 set(INSTANCE_STRING_TESTS
@@ -160,9 +168,34 @@ add_ck_builder_test(test_ckb_build_fwd_instances
     conv/ck/test_ckb_conv_fwd_3d_fp16.cpp
     conv/ck/test_ckb_conv_fwd_3d_fp32.cpp
     conv/ck_tile/test_ckb_conv_fwd_2d_fp16_v3.cpp
-    conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
-    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp)
+    )
 target_link_libraries(test_ckb_build_fwd_instances PRIVATE utility)
+
+set(BWD_WEIGHT_TESTS
+    conv/ck/test_ckb_conv_bwd_weight_xdl_cshuffle.cpp
+    conv/ck/test_ckb_conv_bwd_weight_two_stage_xdl_cshuffle.cpp
+    conv/ck/test_ckb_conv_bwd_weight_multi_d_xdl_cshuffle.cpp
+    conv/ck/test_ckb_conv_bwd_weight_xdl_cshuffle_v3.cpp
+    conv/ck/test_ckb_conv_bwd_weight_dl.cpp
+    conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
+)
+
+if (CK_USE_WMMA)
+    list(APPEND BWD_WEIGHT_TESTS
+        conv/ck/test_ckb_conv_bwd_weight_wmma_cshuffle_v3.cpp
+        conv/ck/test_ckb_conv_bwd_weight_wmma_cshuffle.cpp
+        conv/ck/test_ckb_conv_bwd_weight_two_stage_wmma_cshuffle_v3.cpp
+        conv/ck/test_ckb_conv_bwd_weight_multi_d_wmma_cshuffle_v3.cpp
+    )
+endif()
+
+add_ck_builder_test(test_ckb_build_bwd_weight_instances ${BWD_WEIGHT_TESTS})
+target_link_libraries(test_ckb_build_bwd_weight_instances PRIVATE utility)
+
+add_ck_builder_test(test_ckb_build_bwd_data_instances
+    conv/ck_tile/test_ckb_conv_bwd_data_2d_fp16_v3.cpp
+    )
+target_link_libraries(test_ckb_build_bwd_data_instances PRIVATE utility)
 
 
 ################################################################################
@@ -217,6 +250,8 @@ endforeach()
 set(CKB_REGRESSION_TESTS
     test_ckb_instance_string
     test_ckb_build_fwd_instances
+    test_ckb_build_bwd_weight_instances
+    test_ckb_build_bwd_data_instances
     test_ckb_testing_utils
     # test_ckb_factory_grouped_convolution_forward_convscale
     # test_ckb_factory_grouped_convolution_forward_scaleadd_ab

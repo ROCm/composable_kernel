@@ -66,20 +66,24 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 auto& param = conv_params[i];
                 if(!skip_case(split_k))
                 {
-                    pass = pass && ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial{},
-                                                                                      InLayout,
-                                                                                      WeiLayout,
-                                                                                      OutLayout,
-                                                                                      InDataType,
-                                                                                      WeiDataType,
-                                                                                      OutDataType>(
-                                       2,     // do_verification
-                                       1,     // init_method: integer value
-                                       false, // do_log
-                                       false, // time_kernel
-                                       param,
-                                       std::to_string(split_k),
-                                       instance_index);
+                    const bool success =
+                        ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial{},
+                                                                           InLayout,
+                                                                           WeiLayout,
+                                                                           OutLayout,
+                                                                           InDataType,
+                                                                           WeiDataType,
+                                                                           OutDataType>(
+                            2,     // do_verification
+                            1,     // init_method: integer value
+                            false, // do_log
+                            false, // time_kernel
+                            param,
+                            std::to_string(split_k),
+                            instance_index);
+                    pass = pass && success;
+                    if(!success)
+                        std::cout << "Case " << param << " failed!" << std::endl;
                 }
             }
         }
@@ -186,11 +190,11 @@ TYPED_TEST(TestGroupedConvndBwdWeight3d, Test3D)
     this->conv_params.push_back(
         {3, 2, 32, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
-        {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 1, 32, {3, 3, 3}, {16, 16, 16}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 64, 3, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 1, 1, {3, 3, 3}, {18, 18, 18}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
         {3, 16, 16, 1, 1, {3, 3, 3}, {28, 28, 28}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->Run();

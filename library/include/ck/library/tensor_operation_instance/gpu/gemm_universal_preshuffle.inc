@@ -13,8 +13,7 @@ namespace instance {
 using GemmF8F8BF16InstanceVector = std::vector<std::unique_ptr<
     DeviceGemmV2BPreshuffle<Row, Col, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&;
 
-using GemmF8F8F16InstanceVector = std::vector<std::unique_ptr<
-    DeviceGemmV2BPreshuffle<Row, Col, Row, F8, F8, F16, PassThrough, PassThrough, PassThrough>>>&;
+#ifdef CK_USE_XDL
 
 void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma32x32_mn_instances(
     GemmF8F8BF16InstanceVector& instances);
@@ -61,7 +60,32 @@ void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma16x16_nk_mn_comp
     GemmF8F8BF16InstanceVector& instances);
 
 #endif
+
+#ifdef CK_USE_WMMA
+
+void add_device_gemm_universal_preshuffle_wmma_f8_f8_bf16_mk_wmma_mn_default_instances_p1(
+    GemmF8F8BF16InstanceVector& instances);
+
+void add_device_gemm_universal_preshuffle_wmma_f8_f8_bf16_mk_wmma_mn_default_instances_p2(
+    GemmF8F8BF16InstanceVector& instances);
+
+void add_device_gemm_universal_preshuffle_wmma_f8_f8_bf16_mk_wmma_mn_default_instances_p3(
+    GemmF8F8BF16InstanceVector& instances);
+
+void add_device_gemm_universal_preshuffle_wmma_f8_f8_bf16_mk_wmma_mn_default_instances_p4(
+    GemmF8F8BF16InstanceVector& instances);
+
+#endif
+
+#endif
+
 #if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
+
+using GemmF8F8F16InstanceVector = std::vector<std::unique_ptr<
+    DeviceGemmV2BPreshuffle<Row, Col, Row, F8, F8, F16, PassThrough, PassThrough, PassThrough>>>&;
+
+#ifdef CK_USE_XDL
+
 void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_default_instances_p1(
     GemmF8F8F16InstanceVector& instances);
 void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_default_instances_p2(
@@ -99,6 +123,25 @@ void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_
     GemmF8F8F16InstanceVector& instances);
 void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p6(
     GemmF8F8F16InstanceVector& instances);
+
+#endif
+
+#ifdef CK_USE_WMMA
+
+void add_device_gemm_universal_preshuffle_wmma_f8_f8_f16_mk_wmma_mn_default_instances_p1(
+    GemmF8F8F16InstanceVector& instances);
+
+void add_device_gemm_universal_preshuffle_wmma_f8_f8_f16_mk_wmma_mn_default_instances_p2(
+    GemmF8F8F16InstanceVector& instances);
+
+void add_device_gemm_universal_preshuffle_wmma_f8_f8_f16_mk_wmma_mn_default_instances_p3(
+    GemmF8F8F16InstanceVector& instances);
+
+void add_device_gemm_universal_preshuffle_wmma_f8_f8_f16_mk_wmma_mn_default_instances_p4(
+    GemmF8F8F16InstanceVector& instances);
+
+#endif
+
 #endif
 } // namespace instance
 } // namespace device

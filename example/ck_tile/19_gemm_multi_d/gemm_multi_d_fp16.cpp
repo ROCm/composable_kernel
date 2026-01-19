@@ -81,87 +81,45 @@ auto gemm_multi_d(const gemm_multi_d_kargs& args, const ck_tile::stream_config& 
 
     using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
         UniversalGemmProblem>;
-    const auto Run = [&](const auto memory_operation_) {
-        constexpr auto memory_operation = memory_operation_.value;
 
-        // Epilogue selection: set to true for chainer-based, false for standard
-        // CShuffleEpilogue
-        constexpr bool UseChainerEpilogue = true;
+    using GemmEpilogue = ck_tile::CShuffleEpilogue<
+        ck_tile::CShuffleEpilogueProblem<ADataType,
+                                         BDataType,
+                                         DsDataType,
+                                         AccDataType,
+                                         EDataType,
+                                         DsLayout,
+                                         CLayout,
+                                         CDEElementWise,
+                                         TilePartitioner::MPerBlock,
+                                         TilePartitioner::NPerBlock,
+                                         M_Warp,
+                                         N_Warp,
+                                         M_Warp_Tile,
+                                         N_Warp_Tile,
+                                         K_Warp_Tile,
+                                         UniversalGemmProblem::TransposeC>>;
 
-        using GemmEpilogue = std::conditional_t<
-            UseChainerEpilogue,
-            // Chainer-based epilogue
-            ck_tile::EpilogueChainer<ck_tile::CshuffleEpilogueSchedule<
-                ck_tile::CShuffleEpilogueChainProblem<ADataType,
-                                                      BDataType,
-                                                      DsDataType,
-                                                      AccDataType,
-                                                      EDataType,
-                                                      DsLayout,
-                                                      CLayout,
-                                                      CDEElementWise,
-                                                      TilePartitioner::MPerBlock,
-                                                      TilePartitioner::NPerBlock,
-                                                      M_Warp,
-                                                      N_Warp,
-                                                      M_Warp_Tile,
-                                                      N_Warp_Tile,
-                                                      K_Warp_Tile,
-                                                      UniversalGemmProblem::TransposeC,
-                                                      memory_operation>,
-                ck_tile::DefaultScheduleTag>>,
-            // Standard CShuffleEpilogue
-            ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 EDataType,
-                                                 DsLayout,
-                                                 CLayout,
-                                                 CDEElementWise,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 M_Warp,
-                                                 N_Warp,
-                                                 M_Warp_Tile,
-                                                 N_Warp_Tile,
-                                                 K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>>;
+    using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
+    auto kargs   = Kernel::MakeKernelArgs(args);
 
-        using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs   = Kernel::MakeKernelArgs(args);
+    const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+    const dim3 blocks = Kernel::BlockSize();
 
-        const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
-        const dim3 blocks = Kernel::BlockSize();
-
-        if(!Kernel::IsSupportedArgument(kargs))
-        {
-            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
-        }
-
-        if(s.log_level_ > 0)
-        {
-            std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", " << grids.y
-                      << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y
-                      << ", " << blocks.z << "}" << std::endl;
-        }
-
-        return ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-    };
-
-    if(args.k_batch == 1)
+    if(!Kernel::IsSupportedArgument(kargs))
     {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::set>{});
+        throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
     }
-    else
+
+    if(s.log_level_ > 0)
     {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::atomic_add>{});
+        std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", " << grids.y
+                  << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
+                  << blocks.z << "}" << std::endl;
     }
+
+    return ck_tile::launch_kernel(
+        s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 }
 
 #include "run_gemm_multi_d_fp16_example.inc"

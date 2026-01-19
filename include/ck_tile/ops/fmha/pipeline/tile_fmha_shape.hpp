@@ -42,9 +42,9 @@ struct TileFmhaShape
     using Gemm1WarpTile   = remove_cvref_t<Gemm1WarpTile_>;
 
     static constexpr index_t NumGemm0Warps =
-        reduce_on_sequence(Gemm0BlockWarps{}, multiplies{}, number<1>{});
+        reduce_on_sequence(Gemm0BlockWarps{}, multiplies<>{}, number<1>{});
     static constexpr index_t NumGemm1Warps =
-        reduce_on_sequence(Gemm1BlockWarps{}, multiplies{}, number<1>{});
+        reduce_on_sequence(Gemm1BlockWarps{}, multiplies<>{}, number<1>{});
     static_assert(NumGemm1Warps % NumGemm0Warps == 0);
 
     static constexpr index_t NumWarps = max(NumGemm0Warps, NumGemm1Warps);
@@ -95,10 +95,10 @@ struct TileFmhaBwdShape
     using Gemm4WarpTile   = remove_cvref_t<Gemm4WarpTile_>;
 
     static constexpr index_t NumWarps =
-        reduce_on_sequence(Gemm0BlockWarps{}, multiplies{}, number<1>{});
+        reduce_on_sequence(Gemm0BlockWarps{}, multiplies<>{}, number<1>{});
 
-    static_assert(NumWarps == reduce_on_sequence(Gemm1BlockWarps{}, multiplies{}, number<1>{}) &&
-                  NumWarps == reduce_on_sequence(Gemm4BlockWarps{}, multiplies{}, number<1>{}));
+    static_assert(NumWarps == reduce_on_sequence(Gemm1BlockWarps{}, multiplies<>{}, number<1>{}) &&
+                  NumWarps == reduce_on_sequence(Gemm4BlockWarps{}, multiplies<>{}, number<1>{}));
 
     static constexpr index_t kM0 = BlockTile::at(number<0>{}); // tile size along q seqlen
     static constexpr index_t kN0 = BlockTile::at(number<1>{}); // tile size along k seqlen

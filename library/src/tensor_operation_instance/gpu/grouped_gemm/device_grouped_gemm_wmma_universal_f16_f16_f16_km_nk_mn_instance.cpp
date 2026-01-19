@@ -20,9 +20,9 @@ void add_device_grouped_gemm_wmma_universal_f16_f16_f16_km_nk_mn_instances(
                                                   F16,
                                                   DsDataType,
                                                   F16,
-                                                  AElementOp,
-                                                  BElementOp,
-                                                  CDEElementOp>>>& instances)
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances)
 {
     add_device_grouped_gemm_wmma_universal_instances<
         F16,
