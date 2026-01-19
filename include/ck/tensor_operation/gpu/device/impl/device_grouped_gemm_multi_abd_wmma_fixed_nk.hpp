@@ -28,7 +28,6 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// Can be shared between multiple device implementations....
 template <typename GridwiseGemm,
           typename GemmDesc,
           bool HasMainKBlockLoop,
@@ -300,6 +299,9 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
         false,
         false>;
 
+    // TODO: Block to tile mappings could potentially moved out to avoid code duplications between
+    // different device implementations.
+
     template <typename UnderlyingBlockToCTileMap>
     struct OffsettedBlockToCTileMapMLoops
     {
@@ -444,25 +446,6 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
     static constexpr index_t DefaultKBatch = 1;
     using KernelArgument                   = typename GridwiseGemm::Argument;
 
-    template <typename KernelArgument_>
-    struct GemmTransKernelArgBase
-    {
-        KernelArgument_ karg_;
-        GroupedGemmBlock2ETileMap block_2_ctile_map_;
-        index_t block_start_, block_end_;
-
-        GemmTransKernelArgBase() = default;
-        GemmTransKernelArgBase(KernelArgument_&& karg,
-                               GroupedGemmBlock2ETileMap&& b2c_map,
-                               index_t block_start,
-                               index_t block_end)
-            : karg_{karg},
-              block_2_ctile_map_{b2c_map},
-              block_start_{block_start},
-              block_end_{block_end}
-        {
-        }
-    };
     using GemmTransKernelArg =
         GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>;
 
@@ -647,7 +630,6 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
 
         void UpdateKBatch(index_t) {}
 
-        //  private:
         index_t group_count_;
 
         AElementwiseOperation a_element_op_;
@@ -675,18 +657,6 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
 
         float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            bool has_main_k_block_loop = true;
-
-            // for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
-            // {
-            //     if(GridwiseGemm::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].karg_.K_)
-            //     !=
-            //        has_main_k_block_loop)
-            //     {
-            //         throw std::runtime_error("wrong! not all gemm has_main_k_block_loop");
-            //     }
-            // }
-
             if(arg.grouped_gemm_kernel_args_dev == nullptr)
             {
                 throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullpr");
@@ -694,10 +664,10 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_, auto e_global_memory_operation_) {
+            auto launch_kernel = [&](auto e_global_memory_operation_) {
                 const auto kernel = kernel_grouped_gemm_wmma_fixed_nk<GridwiseGemm,
                                                                       GemmTransKernelArg,
-                                                                      has_main_k_block_loop_,
+                                                                      true, // has_main_k_block_loop
                                                                       e_global_memory_operation_,
                                                                       AsLayout,
                                                                       BsLayout,
@@ -729,31 +699,11 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
 
             if(arg.k_batch_ > 1)
             {
-                if(has_main_k_block_loop)
-                {
-                    ave_time =
-                        launch_kernel(integral_constant<bool, true>{},
-                                      integral_constant<InMemoryDataOperationEnum, AtomicAdd>{});
-                }
-                else
-                {
-                    ave_time =
-                        launch_kernel(integral_constant<bool, false>{},
-                                      integral_constant<InMemoryDataOperationEnum, AtomicAdd>{});
-                }
+                ave_time = launch_kernel(integral_constant<InMemoryDataOperationEnum, AtomicAdd>{});
             }
             else
             {
-                if(has_main_k_block_loop)
-                {
-                    ave_time = launch_kernel(integral_constant<bool, true>{},
-                                             integral_constant<InMemoryDataOperationEnum, Set>{});
-                }
-                else
-                {
-                    ave_time = launch_kernel(integral_constant<bool, false>{},
-                                             integral_constant<InMemoryDataOperationEnum, Set>{});
-                }
+                ave_time = launch_kernel(integral_constant<InMemoryDataOperationEnum, Set>{});
             }
 
             return ave_time;
@@ -808,6 +758,14 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
                 }
 
                 supported &= isABlockTransferValid && isBBlockTransferValid;
+            }
+        }
+
+        for(index_t i = 0; i < arg.group_count_; i++)
+        {
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].K) != true)
+            {
+                supported = false;
             }
         }
 

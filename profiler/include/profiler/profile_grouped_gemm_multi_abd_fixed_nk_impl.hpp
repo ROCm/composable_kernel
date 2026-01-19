@@ -255,9 +255,8 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
 
         static_for<0, NumATensor, 1>{}([&](auto i) {
             using ADataType  = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
-            as_device_buf[i] = std::make_unique<DeviceMem>(sizeof(ADataType) * sum_of_m * Ks[g]);
-            as_device_buf[i]->ToDevice(as_m_k[i].mData.data(),
-                                       as_m_k[i].mDesc.GetElementSpaceSize() * sizeof(ADataType));
+            as_device_buf[i] = std::make_unique<DeviceMem>(sizeof(ADataType) * Ms[g] * Ks[g]);
+            as_device_buf[i]->ToDevice(as_m_k[i].mData.data());
             as_device_view[i] = as_device_buf[i]->GetDeviceBuffer();
             as_stride[i]      = StrideAs[g];
         });
@@ -268,8 +267,7 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
 
         static_for<0, NumBTensor, 1>{}([&](auto i) {
             using BDataType  = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
-            bs_device_buf[i] = std::make_unique<DeviceMem>(sizeof(BDataType) *
-                                                           bs_k_n(i).mDesc.GetElementSpaceSize());
+            bs_device_buf[i] = std::make_unique<DeviceMem>(sizeof(BDataType) * Ks[g] * Ns[g]);
             bs_device_buf[i]->ToDevice(bs_k_n[i].mData.data());
             bs_device_view[i] = bs_device_buf[i]->GetDeviceBuffer();
             bs_stride[i]      = StrideBs[g];
@@ -281,14 +279,13 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
 
         static_for<0, NumDTensor, 1>{}([&](auto i) {
             using DDataType  = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-            ds_device_buf[i] = std::make_unique<DeviceMem>(sizeof(DDataType) * sum_of_m * Ns[g]);
-            ds_device_buf[i]->ToDevice(ds_m_n[i].mData.data(),
-                                       ds_m_n[i].mDesc.GetElementSpaceSize() * sizeof(DDataType));
+            ds_device_buf[i] = std::make_unique<DeviceMem>(sizeof(DDataType) * Ms[g] * Ns[g]);
+            ds_device_buf[i]->ToDevice(ds_m_n[i].mData.data());
             ds_device_view[i] = ds_device_buf[i]->GetDeviceBuffer();
             ds_stride[i]      = StrideDs[g];
         });
 
-        g_e_device_buf[g] = std::make_unique<DeviceMem>(sizeof(EDataType) * sum_of_m * Ns[g]);
+        g_e_device_buf[g] = std::make_unique<DeviceMem>(sizeof(EDataType) * Ms[g] * Ns[g]);
         g_e_device_view[g] = g_e_device_buf[g]->GetDeviceBuffer();
 
         g_gemm_descs.push_back(tensor_operation::device::GemmMultiABDDesc{
