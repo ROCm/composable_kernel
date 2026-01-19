@@ -176,7 +176,7 @@ struct InstanceTraits<
     using WeiElementwiseOperation = WeiElementwiseOperation_;
     using OutElementwiseOperation = OutElementwiseOperation_;
 
-    static constexpr auto kConvBackwardWeightSpecialization = ConvBackwardWeightSpecialization;
+    static constexpr auto kConvBwdWeightSpecialization = ConvBackwardWeightSpecialization;
 
     static constexpr ck::index_t kBlockSize                 = BlockSize;
     static constexpr ck::index_t kMPerBlock                 = MPerBlock;
@@ -255,16 +255,16 @@ struct InstanceTraits<
                                                                        // OutElementwiseOperation
         oss << ","
             << detail::conv_bwd_weight_spec_name(
-                   kConvBackwardWeightSpecialization); // 12. ConvBackwardWeightSpecialization
-        oss << "," << kBlockSize;                      // 13. BlockSize
-        oss << "," << kMPerBlock;                      // 14. MPerBlock
-        oss << "," << kNPerBlock;                      // 15. NPerBlock
-        oss << "," << kKPerBlock;                      // 16. KPerBlock
-        oss << "," << kABK1;                           // 17. ABK1
-        oss << "," << kMPerWmma;                       // 18. MPerWmma
-        oss << "," << kNPerWmma;                       // 19. NPerWmma
-        oss << "," << kMRepeat;                        // 20. MRepeat
-        oss << "," << kNRepeat;                        // 21. NRepeat
+                   kConvBwdWeightSpecialization); // 12. ConvBackwardWeightSpecialization
+        oss << "," << kBlockSize;                 // 13. BlockSize
+        oss << "," << kMPerBlock;                 // 14. MPerBlock
+        oss << "," << kNPerBlock;                 // 15. NPerBlock
+        oss << "," << kKPerBlock;                 // 16. KPerBlock
+        oss << "," << kABK1;                      // 17. ABK1
+        oss << "," << kMPerWmma;                  // 18. MPerWmma
+        oss << "," << kNPerWmma;                  // 19. NPerWmma
+        oss << "," << kMRepeat;                   // 20. MRepeat
+        oss << "," << kNRepeat;                   // 21. NRepeat
         oss << "," << detail::sequence_name<ABlockTransferThreadClusterLengths_AK0_M_AK1>(); // 22.
         oss << "," << detail::sequence_name<ABlockTransferThreadClusterArrangeOrder>();      // 23.
         oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();                 // 24.
