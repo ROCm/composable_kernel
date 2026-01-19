@@ -246,10 +246,9 @@ struct MultiReduce2d
             auto x_compute = cast_tile<ComputeDataType>(x);
 
             static_for<0, number_operations, 1>{}([&](auto i) {
-                // Create a copy for this operation to avoid interference
                 auto x_temp = x_compute;
-                tile_elementwise_inout(elementwise_ops.get(i), x_temp, x_temp);
-                block_reduce2d(x_temp, y_compute_tuple[i], reduce_ops.get(i));
+                tile_elementwise_inout(elementwise_ops.get(number<i>{}), x_temp, x_temp);
+                block_reduce2d(x_temp, y_compute_tuple[i], reduce_ops.get(number<i>{}));
             });
 
             move_tile_window(x_window, {0, S::Block_N});
@@ -259,8 +258,9 @@ struct MultiReduce2d
         static_for<0, number_operations, 1>{}([&](auto i) {
             auto& y_compute = y_compute_tuple[i];
 
-            block_reduce2d_sync(y_compute, reduce_ops.get(i));
-            block_reduce2d_cross_warp_sync(y_compute, static_cast<void*>(smem), reduce_ops.get(i));
+            block_reduce2d_sync(y_compute, reduce_ops.get(number<i>{}));
+            block_reduce2d_cross_warp_sync(
+                y_compute, static_cast<void*>(smem), reduce_ops.get(number<i>{}));
 
             // Determine if this thread should perform the output operation
             // We want threads that handle the first elements in the N (reduction) dimension
@@ -274,7 +274,7 @@ struct MultiReduce2d
 
             if(is_first_n_thread)
             {
-                tile_elementwise_inout(accumulator_ops.get(i), y_compute, y_compute);
+                tile_elementwise_inout(accumulator_ops.get(number<i>{}), y_compute, y_compute);
                 const index_t output_offset =
                     (i * output_tensor_offset) +                     // operation offset
                     partitioner.GetOutputTileOffset(block_group_id); // tile offset
@@ -303,7 +303,7 @@ struct MultiReduce2d
 
                     auto y_tensor_view =
                         make_naive_tensor_view<address_space_enum::global,
-                                               interblock_reduce_ops.get(i).GetAtomic()>(
+                                               interblock_reduce_ops.get(number<i>{}).GetAtomic()>(
                             p_y_tuple + output_offset,
                             make_tuple(S::Block_M),
                             make_tuple(1),
