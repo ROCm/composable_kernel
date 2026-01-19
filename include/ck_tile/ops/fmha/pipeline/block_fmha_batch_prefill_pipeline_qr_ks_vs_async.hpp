@@ -508,32 +508,97 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
             randval_dram_block_window_tmp, seqlen_k_start);
 
-        auto v_dist                 = Policy::template MakeVDramTileDistribution<Problem>();
-        auto v_coord                = v_dist.calculate_index();
-        const auto VPageIndexDim    = I1;
-        using VDstrEncode           = typename decltype(v_dist)::DstrEncode;
-        constexpr index_t V_KRepeat = VDstrEncode::hs_lengthss_[I1][I3];
-        statically_indexed_array<index_t, V_KRepeat> v_offsets;
-        kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
-                                  decltype(v_coord),
-                                  VPageIndexDim,
-                                  kPageBlockSize,
-                                  0,
-                                  V_KRepeat,
-                                  1,
-                                  kKVMemoryLayout,
-                                  false,
-                                  kN0,
-                                  kVectorSize>(
-            page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+        auto v_dist       = Policy::template MakeVDramTileDistribution<Problem>();
+        auto v_coord      = v_dist.calculate_index();
+        using VDstrEncode = typename decltype(v_dist)::DstrEncode;
 
+        constexpr index_t V_Hs1Size      = VDstrEncode::hs_lengthss_[I1].size();
+        constexpr index_t V_KInnerRepeat = VDstrEncode::hs_lengthss_[I1].back();
+        constexpr index_t V_KMiddle      = [] {
+            if constexpr(V_Hs1Size == 3)
+                return VDstrEncode::hs_lengthss_[I1][I1];
+            else
+                return VDstrEncode::hs_lengthss_[I1][I0];
+        }();
+        constexpr index_t V_KOuterRepeat = [] {
+            if constexpr(V_Hs1Size == 3)
+                return VDstrEncode::hs_lengthss_[I1][I0];
+            else
+                return 1;
+        }();
+        constexpr index_t V_PageIdxRepeat = V_KInnerRepeat * V_KOuterRepeat;
+
+        constexpr auto VPageIndexYDims = []() {
+            constexpr index_t K1Minor = VDstrEncode::hs_lengthss_[I1].size() - 1;
+            constexpr index_t Y_K1    = VDstrEncode::detail::rhs_major_minor_to_ys_[2][K1Minor];
+
+            if constexpr(V_Hs1Size == 3)
+            {
+                constexpr index_t Y_K2 = VDstrEncode::detail::rhs_major_minor_to_ys_[2][I0];
+                return sequence<Y_K1, Y_K2>{};
+            }
+            else
+            {
+                return sequence<Y_K1>{};
+            }
+        }();
+
+        static_assert(decltype(VPageIndexYDims)::at(0) < VDstrEncode::NDimY,
+                      "V page-index Y dim must be valid");
+
+        statically_indexed_array<index_t, V_PageIdxRepeat> v_offsets;
+        auto update_v_offsets = [&](auto k_loop_start) {
+            constexpr index_t kLoopStart = decltype(k_loop_start)::value;
+            // For 3D K decomposition (K2, K0, K1), compute offsets for each K2 slice
+            // The global K offset for (k2, k1) is: kLoopStart + k2 * (K0 * K1) + k1
+            // We iterate K2 outer, K1 inner, and merge into 1D v_offsets array
+            if constexpr(V_KOuterRepeat > 1)
+            {
+                static_for<0, V_KOuterRepeat, 1>{}([&](auto k2) {
+                    statically_indexed_array<index_t, V_KInnerRepeat> v_offsets_k2;
+                    kv_offset_array_transform<statically_indexed_array<index_t, V_KInnerRepeat>,
+                                              decltype(v_coord),
+                                              I1,
+                                              kPageBlockSize,
+                                              kLoopStart + k2.value * V_KMiddle * V_KInnerRepeat,
+                                              V_KInnerRepeat,
+                                              1,
+                                              kKVMemoryLayout,
+                                              false,
+                                              kN0,
+                                              kVectorSize>(
+                        page_idx, stride_v, page_stride_v, v_coord, v_offsets_k2, current_seq_k);
+                    static_for<0, V_KInnerRepeat, 1>{}([&](auto k1) {
+                        constexpr auto idx = number<k1.value + k2.value * V_KInnerRepeat>{};
+                        v_offsets[idx]     = v_offsets_k2[k1];
+                    });
+                });
+            }
+            else
+            {
+                kv_offset_array_transform<statically_indexed_array<index_t, V_KInnerRepeat>,
+                                          decltype(v_coord),
+                                          I1,
+                                          kPageBlockSize,
+                                          kLoopStart,
+                                          V_KInnerRepeat,
+                                          1,
+                                          kKVMemoryLayout,
+                                          false,
+                                          kN0,
+                                          kVectorSize>(
+                    page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+            }
+        };
+        update_v_offsets(number<0>{});
         auto v_dram_window =
             make_tile_scatter_gather(v_dram_block_window_tmp.get_bottom_tensor_view(),
                                      v_dram_block_window_tmp.get_window_lengths(),
                                      {0, seqlen_k_start}, // TODO: hdim split?
                                      v_dist,
                                      v_offsets,
-                                     VPageIndexDim);
+                                     VPageIndexYDims,
+                                     number<1>{});
 
         // prefetch K tile
         async_load_tile_raw(
@@ -600,18 +665,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             __builtin_amdgcn_sched_barrier(1);
 
             auto v_buf = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
-            kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
-                                      decltype(v_coord),
-                                      VPageIndexDim,
-                                      kPageBlockSize,
-                                      kK1,
-                                      V_KRepeat,
-                                      1,
-                                      kKVMemoryLayout,
-                                      false,
-                                      kN0,
-                                      kVectorSize>(
-                page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+            update_v_offsets(number<kK1>{});
             v_dram_window.update_page_idx(v_offsets);
 
             const auto p = [&]() {
@@ -741,7 +795,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
                 __builtin_amdgcn_sched_barrier(0x7F);
                 // store & prefetch next v, after the max reduction
-                if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+                if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+                             kKVMemoryLayout ==
+                                 BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT)
                 {
                     auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                         Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
@@ -762,8 +818,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                         get_slice_tile(v_lds_window,
                                        sequence<(LdsSeq.at(number<k0_loops>{})) * kN1, 0>{},
                                        sequence<(LdsSeq.at(number<k0_loops>{}) + 1) * kN1, kK1>{});
-                    store_tile(v_lds_window_tmp,
-                               tile_elementwise_in(v_element_func, v_buf)); // store the prefetch
+                    const auto v_store_tile = tile_elementwise_in(v_element_func, v_buf);
+                    store_tile(v_lds_window_tmp, v_store_tile); // store the prefetch
                 }
 
                 if constexpr(k1_loops > 1)
@@ -774,18 +830,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                          kK1}); // will have scratch if move this right after load_tile(v_dram)...
                     v_buf = load_tile(
                         v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
-                    kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
-                                              decltype(v_coord),
-                                              VPageIndexDim,
-                                              kPageBlockSize,
-                                              2 * kK1,
-                                              V_KRepeat,
-                                              1,
-                                              kKVMemoryLayout,
-                                              false,
-                                              kN0,
-                                              kVectorSize>(
-                        page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+                    update_v_offsets(number<2 * kK1>{});
                     v_dram_window.update_page_idx(v_offsets);
                 }
                 __builtin_amdgcn_sched_barrier(0);
@@ -913,18 +958,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     {
                         v_buf = load_tile(
                             v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
-                        kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
-                                                  decltype(v_coord),
-                                                  VPageIndexDim,
-                                                  kPageBlockSize,
-                                                  (2 + i_k1.value) * kK1,
-                                                  V_KRepeat,
-                                                  1,
-                                                  kKVMemoryLayout,
-                                                  false,
-                                                  kN0,
-                                                  kVectorSize>(
-                            page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+                        update_v_offsets(number<(2 + i_k1.value) * kK1>{});
                         v_dram_window.update_page_idx(v_offsets);
                     }
                     block_sync_lds();
@@ -936,7 +970,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                sequence<(LdsSeq.at(number<k0_loops + i_k1>{})) * kN1, 0>{},
                                sequence<(LdsSeq.at(number<k0_loops + i_k1>{}) + 1) * kN1, kK1>{}));
 
-                    if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+                    if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+                                 kKVMemoryLayout ==
+                                     BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT)
                     {
                         auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                             Policy::template MakeShuffledVRegBlockDescriptor<Problem>());

@@ -34,9 +34,9 @@ template <typename BottomTensorView_,
           typename StaticTileDistribution_,
           typename StaticPageIndexArray_,
           typename StaticValidArray_,
-          index_t HsGatherDim = 0,
-          index_t NumCoord    = 1,
-          index_t YsGatherDim = 0>
+          index_t HsGatherDim   = 0,
+          index_t NumCoord      = 1,
+          typename YsGatherDims = sequence<0>>
 struct tile_scatter_gather
 {
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
@@ -76,6 +76,51 @@ struct tile_scatter_gather
 
     using BottomTensorCoord =
         decltype(make_tensor_coordinate(BottomTensorDesc{}, BottomTensorIndex{}));
+
+    CK_TILE_DEVICE static constexpr bool is_gather_dim(index_t i)
+    {
+        bool found = false;
+        static_for<0, YsGatherDims::size(), 1>{}([&](auto k) {
+            if(i == YsGatherDims::at(k))
+                found = true;
+        });
+        return found;
+    }
+
+    template <typename YsIndex>
+    CK_TILE_DEVICE static constexpr auto get_gather_index(const YsIndex& idx_ys_start)
+    {
+        // TODO: Consider making ys_lengths_ part of public API or adding accessor
+        static_assert(sizeof(TileDstr::DstrEncode::detail::ys_lengths_) > 0,
+                      "Relies on internal detail::ys_lengths_");
+
+        constexpr index_t num_gather_dims = YsGatherDims::size();
+
+        if constexpr(num_gather_dims == 1)
+        {
+            return idx_ys_start[number<YsGatherDims::at(0)>{}];
+        }
+        else
+        {
+            // Recursive lambda to compute index as a compile-time number
+            auto recurse = [&](auto self, auto i_constant) {
+                constexpr index_t i   = decltype(i_constant)::value;
+                constexpr index_t dim = YsGatherDims::at(i);
+                auto current_val      = idx_ys_start[number<dim>{}];
+
+                if constexpr(i + 1 < num_gather_dims)
+                {
+                    constexpr index_t len = TileDstr::DstrEncode::detail::ys_lengths_[dim];
+                    return current_val + self(self, number<i + 1>{}) * number<len>{};
+                }
+                else
+                {
+                    return current_val;
+                }
+            };
+            return recurse(recurse, number<0>{});
+        }
+    }
 
     struct load_store_traits
     {
@@ -375,7 +420,7 @@ struct tile_scatter_gather
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // read from bottom tensor
@@ -427,7 +472,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -485,7 +530,7 @@ struct tile_scatter_gather
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // merge page_offset into bottom_coord
@@ -513,7 +558,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -598,7 +643,7 @@ struct tile_scatter_gather
                 }();
 
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // read from bottom tensor
@@ -624,7 +669,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -718,7 +763,7 @@ struct tile_scatter_gather
                 }();
 
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 auto mixed_bottom_thread_coord = bottom_tensor_thread_coord;
@@ -748,7 +793,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -791,7 +836,7 @@ struct tile_scatter_gather
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<0>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // read from distributed tensor
@@ -837,7 +882,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -874,11 +919,11 @@ struct tile_scatter_gather
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<0>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // printf("idx_ys_start[0], idx_ys_start[1](%d, %d) \n",
-                // idx_ys_start[number<0>{}]+0, idx_ys_start[number<1>{}]+0);
+                // get_gather_index(idx_ys_start)+0, idx_ys_start[number<1>{}]+0);
 
                 // read from distributed tensor
                 // vector_type_t vec;
@@ -928,7 +973,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -1076,10 +1121,12 @@ struct tile_scatter_gather
 };
 
 // TODO: use strategy
+// Overload for sequence based gather dimensions
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
           typename StaticPageIndexArray_,
+          index_t... YsGatherDims,
           index_t HsGatherDim = 0,
           index_t NumCoord    = 1>
 CK_TILE_DEVICE constexpr auto
@@ -1088,6 +1135,7 @@ make_tile_scatter_gather(const TensorView_& tensor_view,
                          const multi_index<TensorView_::get_num_of_dimension()>& origin,
                          const StaticTileDistribution_& tile_distribution,
                          const StaticPageIndexArray_& page_idx, // perbytes
+                         sequence<YsGatherDims...>,
                          number<HsGatherDim> = {},
                          number<NumCoord>    = {})
 {
@@ -1097,7 +1145,37 @@ make_tile_scatter_gather(const TensorView_& tensor_view,
                                remove_cvref_t<StaticPageIndexArray_>,
                                std::nullptr_t,
                                HsGatherDim,
-                               NumCoord>{
+                               NumCoord,
+                               sequence<YsGatherDims...>>{
+        tensor_view, window_lengths, origin, tile_distribution, page_idx, nullptr};
+}
+
+// Legacy overload (compatible with original API)
+template <typename TensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          typename StaticPageIndexArray_,
+          index_t HsGatherDim = 0,
+          index_t NumCoord    = 1,
+          index_t YsGatherDim = 0>
+CK_TILE_DEVICE constexpr auto
+make_tile_scatter_gather(const TensorView_& tensor_view,
+                         const WindowLengths_& window_lengths,
+                         const multi_index<TensorView_::get_num_of_dimension()>& origin,
+                         const StaticTileDistribution_& tile_distribution,
+                         const StaticPageIndexArray_& page_idx, // perbytes
+                         number<HsGatherDim> = {},
+                         number<NumCoord>    = {},
+                         number<YsGatherDim> = {})
+{
+    return tile_scatter_gather<remove_cvref_t<TensorView_>,
+                               remove_cvref_t<WindowLengths_>,
+                               remove_cvref_t<StaticTileDistribution_>,
+                               remove_cvref_t<StaticPageIndexArray_>,
+                               std::nullptr_t,
+                               HsGatherDim,
+                               NumCoord,
+                               sequence<YsGatherDim>>{
         tensor_view, window_lengths, origin, tile_distribution, page_idx, nullptr};
 }
 
