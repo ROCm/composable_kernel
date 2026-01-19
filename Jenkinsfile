@@ -1318,21 +1318,15 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "(cd .. && git ls-files \'*.h\' \
-                                \'*.hpp\' \
-                                \'*.cpp\' \
-                                \'*.h.in\' \
-                                \'*.hpp.in\' \
-                                \'*.cpp.in\' \
-                                \'*.cl\' \
-                                | grep -v 'build/' \
-                                | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\') && \
+                        execute_cmd = """cd .. && \
+                                find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.cl' \\) \
+                                -not -path '*/build/*' -not -path '*/include/rapidjson/*' | \
+                                xargs -P 8 -I{} sh -c 'clang-format-18 -style=file {} | diff -u - {} || (echo "ERROR: {} needs formatting" && exit 1)' && \
                                 /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
                                 -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 \
                                 -D __gfx908__ -D __gfx90a__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
                                 -U __gfx803__ -U __gfx900__ -U __gfx906__ -U CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4 \
-                                --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"
+                                --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
@@ -1348,17 +1342,10 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "(cd .. && git ls-files \
-                                \'*.h\' \
-                                \'*.hpp\' \
-                                \'*.cpp\' \
-                                \'*.h.in\' \
-                                \'*.hpp.in\' \
-                                \'*.cpp.in\' \
-                                \'*.cl\' \
-                                | grep -v 'build/' \
-                                | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\')"
+                        execute_cmd = """cd .. && \
+                                find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.cl' \\) \
+                                -not -path '*/build/*' -not -path '*/include/rapidjson/*' | \
+                                xargs -P 8 -I{} sh -c 'clang-format-18 -style=file {} | diff -u - {} || (echo "ERROR: {} needs formatting" && exit 1)'"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
