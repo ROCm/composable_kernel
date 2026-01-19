@@ -50,6 +50,7 @@ constexpr ConvTraits instance_to_conv_traits()
         .max_transpose_transfer_src_scalar_per_vector =
             InstTraits::kTransposeTransferSrcScalarPerVector,
         .max_transpose_dst_scalar_per_vector = InstTraits::kTransposeTransferDstScalarPerVector,
+        .num_groups_to_merge                 = InstTraits::kNumGroupsToMerge,
     };
 }
 
