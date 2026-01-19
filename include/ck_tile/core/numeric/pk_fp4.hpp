@@ -156,6 +156,26 @@ struct pk_float4_e2m1_t
         bit_cast<fp16_t>(static_cast<uint16_t>(0xC400)), // -4
         bit_cast<fp16_t>(static_cast<uint16_t>(0xC600))  // -6
     };
+
+    // FP8 = E4M3. Finite and normal values should be bit-compatible between FNUZ and OCP
+    static constexpr fp8_t e2m1_to_fp8_table[16] = {
+        fp8_t(static_cast<uint8_t>(0x00)), //  0
+        fp8_t(static_cast<uint8_t>(0x30)), //  0.5
+        fp8_t(static_cast<uint8_t>(0x38)), //  1
+        fp8_t(static_cast<uint8_t>(0x3C)), //  1.5
+        fp8_t(static_cast<uint8_t>(0x40)), //  2
+        fp8_t(static_cast<uint8_t>(0x44)), //  3
+        fp8_t(static_cast<uint8_t>(0x48)), //  4
+        fp8_t(static_cast<uint8_t>(0x4C)), //  6
+        fp8_t(static_cast<uint8_t>(0x00)), // -0
+        fp8_t(static_cast<uint8_t>(0xB0)), // -0.5
+        fp8_t(static_cast<uint8_t>(0xB8)), // -1
+        fp8_t(static_cast<uint8_t>(0xBC)), // -1.5
+        fp8_t(static_cast<uint8_t>(0xC0)), // -2
+        fp8_t(static_cast<uint8_t>(0xC4)), // -3
+        fp8_t(static_cast<uint8_t>(0xC8)), // -4
+        fp8_t(static_cast<uint8_t>(0xCC))  // -6
+    };
 #endif
 };
 
@@ -419,7 +439,6 @@ CK_TILE_HOST_DEVICE constexpr fp16x2_t pk_fp4_t::to_fp16x2(float scale) const
                     type_convert<fp16_t>(convert_to_float<pk_fp4_t>(_unpack(number<1>{}), scale))};
 #endif
 }
-
 CK_TILE_HOST_DEVICE constexpr fp8_t pk_fp4_t::to_fp8(float scale) const
 {
 #if CK_TILE_FP4_CVT_DEVICE
@@ -444,7 +463,8 @@ CK_TILE_HOST_DEVICE constexpr float pk_fp4_t::to_float(float scale) const
 }
 CK_TILE_HOST_DEVICE constexpr fp32x2_t pk_fp4_t::to_fp32x2(float scale) const
 {
-    return fp32x2_t{e2m1_to_fp32_table[_unpack(number<0>{})] * scale, e2m1_to_fp32_table[_unpack(number<1>{}] * scale};
+    return fp32x2_t{e2m1_to_fp32_table[_unpack(number<0>{})] * scale,
+                    e2m1_to_fp32_table[_unpack(number<1>{})] * scale};
 }
 CK_TILE_HOST_DEVICE constexpr fp16_t pk_fp4_t::to_fp16(float scale) const
 {
@@ -456,6 +476,16 @@ CK_TILE_HOST_DEVICE constexpr fp16x2_t pk_fp4_t::to_fp16x2(float scale) const
         type_convert<fp16_t>(type_convert<float>(e2m1_to_fp16_table[_unpack(number<0>{})]) * scale),
         type_convert<fp16_t>(type_convert<float>(e2m1_to_fp16_table[_unpack(number<1>{})]) *
                              scale)};
+}
+CK_TILE_HOST_DEVICE constexpr fp8_t pk_fp4_t::to_fp8(float scale) const
+{
+    return type_convert<float>(e2m1_to_fp8_table[_unpack(number<0>{})]) * scale;
+}
+CK_TILE_HOST_DEVICE constexpr fp8x2_t pk_fp4_t::to_fp8x2(float scale) const
+{
+    return fp8x2_t{
+        type_convert<fp8_t>(type_convert<float>(e2m1_to_fp8_table[_unpack(number<0>{})]) * scale),
+        type_convert<fp8_t>(type_convert<float>(e2m1_to_fp8_table[_unpack(number<1>{})]) * scale)};
 }
 #endif
 
