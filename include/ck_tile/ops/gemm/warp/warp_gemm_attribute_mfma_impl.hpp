@@ -69,7 +69,7 @@ CK_TILE_DEVICE void convert_float_to_bf16_pairs(const thread_buffer<float, VecSi
                                                 thread_buffer<bf16_t, VecSize>& reg_bf16_small)
 {
     static_for<0, VecSize, 1>{}([&](auto k) {
-        reg_bf16_big(k) = type_convert<bf16_t>(reg_f32[k]);
+        reg_bf16_big(k)   = type_convert<bf16_t>(reg_f32[k]);
         reg_bf16_small(k) = type_convert<bf16_t>(reg_f32[k] - type_convert<float>(reg_bf16_big[k]));
     });
 }
@@ -386,9 +386,9 @@ struct WarpGemmAttributeMfmaImplF32F32F32M32N32K16Tf32Gfx950
         convert_float_to_bf16_pairs(b_f32, b_bf16_big, b_bf16_small);
 
         // Get bf16x8 vectors for MFMA
-        auto a_big = bit_cast<ext_vector_t<bf16_t, 8>>(a_bf16_big);
+        auto a_big   = bit_cast<ext_vector_t<bf16_t, 8>>(a_bf16_big);
         auto a_small = bit_cast<ext_vector_t<bf16_t, 8>>(a_bf16_small);
-        auto b_big = bit_cast<ext_vector_t<bf16_t, 8>>(b_bf16_big);
+        auto b_big   = bit_cast<ext_vector_t<bf16_t, 8>>(b_bf16_big);
         auto b_small = bit_cast<ext_vector_t<bf16_t, 8>>(b_bf16_small);
 
         // Run 3 bf16 MFMAs: small*big, big*small, big*big
@@ -461,9 +461,9 @@ struct WarpGemmAttributeMfmaImplF32F32F32M16N16K32Tf32Gfx950
         convert_float_to_bf16_pairs(b_f32, b_bf16_big, b_bf16_small);
 
         // Get bf16x8 vectors for MFMA
-        auto a_big = bit_cast<ext_vector_t<bf16_t, 8>>(a_bf16_big);
+        auto a_big   = bit_cast<ext_vector_t<bf16_t, 8>>(a_bf16_big);
         auto a_small = bit_cast<ext_vector_t<bf16_t, 8>>(a_bf16_small);
-        auto b_big = bit_cast<ext_vector_t<bf16_t, 8>>(b_bf16_big);
+        auto b_big   = bit_cast<ext_vector_t<bf16_t, 8>>(b_bf16_big);
         auto b_small = bit_cast<ext_vector_t<bf16_t, 8>>(b_bf16_small);
 
         // Run 3 bf16 MFMAs: small*big, big*small, big*big

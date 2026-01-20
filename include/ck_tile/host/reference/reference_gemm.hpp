@@ -492,12 +492,12 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
                 if(device_name == "gfx950")
                 {
                     // gfx950: use 3x bf16 emulation
-                    bf16_t v_a_bf16_big = ck_tile::type_convert<bf16_t>(v_a);
-                    bf16_t v_a_bf16_small =
-                        ck_tile::type_convert<bf16_t>(v_a - type_convert<AccDataType>(v_a_bf16_big));
-                    bf16_t v_b_bf16_big = ck_tile::type_convert<bf16_t>(v_b);
-                    bf16_t v_b_bf16_small =
-                        ck_tile::type_convert<bf16_t>(v_b - type_convert<AccDataType>(v_b_bf16_big));
+                    bf16_t v_a_bf16_big   = ck_tile::type_convert<bf16_t>(v_a);
+                    bf16_t v_a_bf16_small = ck_tile::type_convert<bf16_t>(
+                        v_a - type_convert<AccDataType>(v_a_bf16_big));
+                    bf16_t v_b_bf16_big   = ck_tile::type_convert<bf16_t>(v_b);
+                    bf16_t v_b_bf16_small = ck_tile::type_convert<bf16_t>(
+                        v_b - type_convert<AccDataType>(v_b_bf16_big));
 
                     v_acc += ck_tile::type_convert<AccDataType>(v_a_bf16_big) *
                                  ck_tile::type_convert<AccDataType>(v_b_bf16_small) +

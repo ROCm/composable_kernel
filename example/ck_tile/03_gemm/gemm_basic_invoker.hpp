@@ -26,7 +26,8 @@ struct BasicInvoker
         }
 
         constexpr bool is_fp32_input = std::is_same_v<ADataType, float>;
-        [[maybe_unused]] constexpr bool is_tf32_compute = std::is_same_v<ComputeDataType, ck_tile::tf32_t>;
+        [[maybe_unused]] constexpr bool is_tf32_compute =
+            std::is_same_v<ComputeDataType, ck_tile::tf32_t>;
 
         // This part comes from the Codegen
         constexpr ck_tile::index_t M_Tile = is_fp32_input ? 128 : 256;

@@ -433,7 +433,8 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                     ALayout,
                                     BLayout,
                                     CLayout,
-                                    ComputeDataType>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
+                                    ComputeDataType>(
+            d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
 
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_ref.data());
 
