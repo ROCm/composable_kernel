@@ -52,6 +52,7 @@ struct BasicInvoker
         constexpr ck_tile::index_t N_Warp_Tile = (is_fp32_input && !is_tf32_compute) ? 16 : 32;
         constexpr ck_tile::index_t K_Warp_Tile = 16;
 #else
+        // Fallback or other architectures
         constexpr ck_tile::index_t M_Warp = is_fp32_input ? 4 : 2;
         constexpr ck_tile::index_t N_Warp = is_fp32_input ? 4 : 2;
         constexpr ck_tile::index_t K_Warp = 1;

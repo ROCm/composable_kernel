@@ -38,9 +38,7 @@ template<> struct Dispatcher<float, float, float, 16, 16, 16,  true> { using Typ
 template<> struct Dispatcher<float, float, float, 16, 16, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaF32F32F32M16N16K16<EDouble>; };
 template<> struct Dispatcher<float, float, float, 16, 16, 16,  true, false, false, EDouble> { using Type = WarpGemmMfmaF32F32F32M16N16K16TransposedCDistribution<EDouble>; };
 // tf32
-// gfx942: uses native xf32 instructions (16x16x8, 32x32x4)
-// gfx950: uses 3x bf16 MFMA emulation (16x16x32, 32x32x16 native bf16 sizes)
-// gfx11/gfx12: tf32 not supported, dispatchers not defined
+// On gfx950: uses 3x bf16 MFMA emulation (no native xf32 support)
 #if defined(CK_GFX950_SUPPORT)
 // For tf32 on gfx950: epilogue uses float types but 32x32x16 tile
 template<> struct Dispatcher<float, float, float, 32, 32, 16, false> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<>; };
@@ -48,16 +46,6 @@ template<> struct Dispatcher<float, float, float, 32, 32, 16,  true> { using Typ
 template<> struct Dispatcher<float, float, float, 32, 32, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<EDouble>; };
 template<> struct Dispatcher<float, float, float, 32, 32, 16, false, false, false, EQuad> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<EQuad>; };
 // On gfx950, tf32 uses bf16 emulation
-template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<>; };
-template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32, 16, false> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<>; };
-template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<EDouble>; };
-template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<EDouble>; };
-template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false, false, false, EQuad> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<EQuad>; };
-template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32, 16, false, false, false, EQuad> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<EQuad>; };
-#else
-// gfx942: uses native xf32 instructions
-template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16,  8, false> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K8; };
-template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32,  4, false> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K4; };
 template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<>; };
 template<> struct Dispatcher<tf32_t, tf32_t, float, 32, 32, 16, false> { using Type = WarpGemmMfmaTf32Tf32F32M32N32K16<>; };
 template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaTf32Tf32F32M16N16K16<EDouble>; };

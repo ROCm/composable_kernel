@@ -9,7 +9,6 @@
 
 int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
-    arg_parser.print();
 
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");

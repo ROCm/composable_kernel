@@ -506,15 +506,9 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
                              ck_tile::type_convert<AccDataType>(v_a_bf16_big) *
                                  ck_tile::type_convert<AccDataType>(v_b_bf16_big);
                 }
-                else if(device_name == "gfx942" || device_name == "gfx940" || device_name == "gfx941")
-                {
-                    // gfx94x: use native tf32 (xf32)
-                    v_acc += ck_tile::type_convert<AccDataType>(ck_tile::type_convert<tf32_t>(v_a) *
-                                                                ck_tile::type_convert<tf32_t>(v_b));
-                }
                 else
                 {
-                    // gfx11/gfx12 and others: tf32 not supported, use fp32 fallback
+                    // Other architectures: tf32 not supported or handled via fp32 fallback
                     v_acc += v_a * v_b;
                 }
             }
@@ -848,9 +842,8 @@ __global__ void naive_gemm_kernel(ADataType* A,
                        ck_tile::type_convert<AccDataType>(v_a_bf16_big) *
                            ck_tile::type_convert<AccDataType>(v_b_bf16_big);
 #else
-                // gfx942 and others: use native tf32
-                acc += ck_tile::type_convert<AccDataType>(ck_tile::type_convert<tf32_t>(v_a) *
-                                                          ck_tile::type_convert<tf32_t>(v_b));
+                // Other architectures: use fp32 fallback
+                acc += v_a * v_b;
 #endif
             }
             else
@@ -989,9 +982,8 @@ __global__ void blockwise_gemm_kernel(ADataType* A,
                             ck_tile::type_convert<AccDataType>(v_a_bf16_big) *
                                 ck_tile::type_convert<AccDataType>(v_b_bf16_big);
 #else
-                // gfx942 and others: use native tf32
-                acc_temp += ck_tile::type_convert<AccDataType>(ck_tile::type_convert<tf32_t>(v_a) *
-                                                               ck_tile::type_convert<tf32_t>(v_b));
+                // Other architectures: use fp32 fallback
+                acc_temp += v_a * v_b;
 #endif
             }
             else
