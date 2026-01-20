@@ -63,23 +63,30 @@ template <index_t BlockSize_,
 static constexpr auto GetXdlPerWave2()
 {
     constexpr index_t Waves  = IsWave64 ? BlockSize_ / 64 : BlockSize_ / 32;
-    constexpr index_t MWaves = MPerBlock_ / (MXdlPerWave_ * MPerXDL_);
-    static_assert(MWaves > 0);
-
-    constexpr index_t NWaves = Waves / MWaves;
-    if constexpr(NWaves == 0)
+    if constexpr (MXdlPerWave_ == 0 || MPerXDL_ == 0)
     {
         return 0;
     }
-    else
+    else 
     {
-        if constexpr(NPerBlock_ % (NPerXDL_ * NWaves) == 0)
+        constexpr index_t MWaves = MPerBlock_ / (MXdlPerWave_ * MPerXDL_);
+        static_assert(MWaves > 0);
+
+        constexpr index_t NWaves = Waves / MWaves;
+        if constexpr(NWaves == 0)
         {
-            return NPerBlock_ / (NWaves * NPerXDL_);
+            return 0;
         }
         else
         {
-            return 0;
+            if constexpr(NPerBlock_ % (NPerXDL_ * NWaves) == 0)
+            {
+                return NPerBlock_ / (NWaves * NPerXDL_);
+            }
+            else
+            {
+                return 0;
+            }
         }
     }
 }
