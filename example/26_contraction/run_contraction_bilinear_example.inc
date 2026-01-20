@@ -235,13 +235,20 @@ int run_contraction_bilinear_example(int argc, char* argv[])
 
         if(ck::is_gfx11_supported())
         {
-            return ck::utils::check_err(e_ms_ns_device_result,
-                                        e_ms_ns_host_result,
-                                        "Error: Incorrect results!",
-                                        1e-4,
-                                        1e-4)
-                       ? 0
-                       : 1;
+            if constexpr(std::is_same_v<EDataType, F32>)
+            {
+                return ck::utils::check_err(e_ms_ns_device_result,
+                                            e_ms_ns_host_result,
+                                            "Error: Incorrect results!",
+                                            1e-4,
+                                            1e-4)
+                           ? 0
+                           : 1;
+            }
+            else
+            {
+                return ck::utils::check_err(e_ms_ns_device_result, e_ms_ns_host_result) ? 0 : 1;
+            }
         }
         else
         {
