@@ -88,6 +88,26 @@ class GemmKernelBuilder:
 
                 kernel_name += f"_{tile_str}"
 
+                # Validate tile config against the current pipeline
+                if not is_tile_config_valid(
+                    tile_config["tile_m"],
+                    tile_config["tile_n"],
+                    tile_config["tile_k"],
+                    tile_config["warp_m"],
+                    tile_config["warp_n"],
+                    tile_config["warp_k"],
+                    tile_config["warp_tile_m"],
+                    tile_config["warp_tile_n"],
+                    tile_config["warp_tile_k"],
+                    self.datatype,
+                    self.datatype,
+                    self.datatype,
+                    pipeline,
+                    self.layout,
+                    self.gpu_target,
+                ):
+                    continue
+
                 kernel_list.append(
                     {
                         "name": kernel_name,
@@ -163,9 +183,11 @@ class GemmKernelBuilder:
         # Generate all combinations
         default_pipeline = ""
         if self.kernel_name_prefix == "gemm_universal":
-            default_pipeline = "compv4"
+            pipelines = self.config.get("trait_config", {}).get("pipeline", {}).get("values", [])
+            default_pipeline = "compv3" if "compv3" in pipelines else "compv4"
         elif self.kernel_name_prefix == "gemm_multi_d":
-            default_pipeline = "compv4"
+            pipelines = self.config.get("trait_config", {}).get("pipeline", {}).get("values", [])
+            default_pipeline = "compv3" if "compv3" in pipelines else "compv4"
         elif self.kernel_name_prefix == "gemm_preshuffle":
             default_pipeline = "preshufflev2"
 
@@ -320,6 +342,26 @@ class GemmKernelBuilder:
             pad_k,
             persistent,
         ) = trait_combo
+
+        # Skip invalid tile/pipeline combinations (e.g., LDS size limits per pipeline)
+        if not is_tile_config_valid(
+            tile_config["tile_m"],
+            tile_config["tile_n"],
+            tile_config["tile_k"],
+            tile_config["warp_m"],
+            tile_config["warp_n"],
+            tile_config["warp_k"],
+            tile_config["warp_tile_m"],
+            tile_config["warp_tile_n"],
+            tile_config["warp_tile_k"],
+            self.datatype,
+            self.datatype,
+            self.datatype,
+            pipeline,
+            self.layout,
+            self.gpu_target,
+        ):
+            return None
 
         # Create kernel name with proper boolean capitalization
         kernel_name = f"{self.kernel_name_prefix}_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"

@@ -2,18 +2,18 @@
     "tile_config": {
         "tile_m": {
             "max": 256,
-            "min": 64,
+            "min": 128,
             "step": 64
         },
         "tile_n": {
             "max": 256,
-            "min": 64,
+            "min": 128,
             "step": 64
         },
         "tile_k": {
             "max": 256,
-            "min": 64,
-            "step": 64
+            "min": 32,
+            "step": 32
         },
         "warp_m": {
             "values": [
@@ -36,7 +36,6 @@
         },
         "warp_tile_m": {
             "values": [
-                4,
                 16,
                 32
             ]
@@ -62,20 +61,17 @@
         "pipeline": {
             "values": [
                 "compv3",
-                "compv4",
-                "mem"
+                "compv4"
             ]
         },
         "scheduler": {
             "values": [
-                "intrawave",
-                "interwave"
+                "intrawave"
             ]
         },
         "epilogue": {
             "values": [
-                "cshuffle",
-                "default"
+                "cshuffle"
             ]
         },
         "pad_m": {
@@ -95,7 +91,6 @@
         },
         "persistent": {
             "values": [
-                false,
                 true
             ]
         }

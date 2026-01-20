@@ -141,9 +141,10 @@ def _generate_single_kernel_individual(work_item):
     )
 
     try:
-        kernel_name, instance_code = builder._generate_kernel_instance(
-            tile_config, trait_combo
-        )
+        result = builder._generate_kernel_instance(tile_config, trait_combo)
+        if result is None:
+            return None
+        kernel_name, instance_code = result
 
         # Create simplified filename without the "gemm_universal_" prefix
         # Remove "gemm_universal_" from the beginning of kernel_name for the filename

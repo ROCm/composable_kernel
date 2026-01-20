@@ -249,7 +249,13 @@ class GemmBenchmark:
             with open(json_file, "r") as f:
                 content = f.read().strip()
 
-            # Parse the JSON directly since executables produce clean JSON
+            # Extract JSON payload if stdout includes extra logs
+            json_start = content.find("{")
+            json_end = content.rfind("}")
+            if json_start != -1 and json_end != -1 and json_end > json_start:
+                content = content[json_start : json_end + 1]
+
+            # Parse the JSON payload
             data = json.loads(content)
 
             # Return the complete JSON data as-is, just add some convenience fields
@@ -597,7 +603,14 @@ def main():
     parser.add_argument(
         "--split-k", nargs="+", type=int, default=[1], help="Split-K values to test"
     )
-    parser.add_argument("--verify", action="store_true", help="Enable verification")
+    parser.add_argument("--verify", action="store_true", help="Enable GPU verification (verify=2)")
+    parser.add_argument(
+        "--verify-level",
+        type=int,
+        choices=[0, 1, 2],
+        default=None,
+        help="Verification level: 0 none, 1 CPU, 2 GPU (overrides --verify)",
+    )
     parser.add_argument(
         "--csv", default="gemm_benchmark_results.csv", help="CSV output filename"
     )
@@ -650,10 +663,15 @@ def main():
     print("Starting GEMM kernel benchmark sweep...")
     start_time = time.time()
 
+    if args.verify_level is not None:
+        verify = args.verify_level
+    else:
+        verify = 2 if args.verify else 0
+
     best_kernels = benchmark.benchmark_sweep(
         problem_sizes=problem_sizes,
         split_k_values=args.split_k,
-        verify=args.verify,
+        verify=verify,
         warmup=args.warmup,
         repeat=args.repeat,
         flush_cache=args.flush_cache,

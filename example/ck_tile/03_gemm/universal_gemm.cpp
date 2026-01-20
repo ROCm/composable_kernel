@@ -23,22 +23,11 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
 
     if(data_type == "bf16")
     {
-        // Only support RC layout (A=Row, B=Column) to reduce compile time
-        if(a_layout != "R" || b_layout != "C")
-        {
-            throw std::runtime_error("Only RC layout (A=Row, B=Column) is supported!");
-        }
-        using Row = ck_tile::tensor_layout::gemm::RowMajor;
-        using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
-        // Directly call with fixed layout to avoid std::visit instantiating all combinations
-        return run_gemm_example_with_layouts<GemmConfig<ck_tile::bf16_t>,
-                                             Invoker,
-                                             ck_tile::bf16_t,
-                                             ck_tile::bf16_t,
-                                             ck_tile::bf16_t,
-                                             Row,
-                                             Col,
-                                             Row>(arg_parser, Row{}, Col{}, Row{});
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>,
+                                          Invoker,
+                                          ck_tile::bf16_t,
+                                          ck_tile::bf16_t,
+                                          ck_tile::bf16_t>(a_layout, b_layout, arg_parser);
     }
     else
     {
@@ -55,7 +44,8 @@ int main(int argc, char* argv[])
         return -1;
 
     try
-    {   run_gemm_example<GemmConfigComputeV4>(arg_parser);
+    {   run_gemm_example<GemmConfigComputeV3_1>(arg_parser);
+        run_gemm_example<GemmConfigComputeV4>(arg_parser);
         run_gemm_example<GemmConfigComputeAsync>(arg_parser);
         return 0;
     }
