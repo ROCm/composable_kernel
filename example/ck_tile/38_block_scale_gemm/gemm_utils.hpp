@@ -209,6 +209,8 @@ struct GemmConfigQuantPrefill : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile =
         ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
 template <typename PrecType>
