@@ -594,9 +594,7 @@ struct UniversalGemmBasePolicy
         using BLayout               = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
         using BInDataType           = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
 
-        using BDataType = std::conditional_t<std::is_same_v<BInDataType, pk_fp4_t> ||
-                                                 sizeof(typename Problem::BDataType) <
-                                                     sizeof(typename Problem::ADataType),
+        using BDataType = std::conditional_t<std::is_same_v<BInDataType, pk_fp4_t>,
                                              typename Problem::ADataType,
                                              typename Problem::BDataType>;
 
