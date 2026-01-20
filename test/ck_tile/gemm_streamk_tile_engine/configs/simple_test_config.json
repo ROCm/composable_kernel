@@ -28,7 +28,7 @@
     "pad_n": {"values": [false]},
     "pad_k": {"values": [false]},
     "persistent": {"values": [false, true]},
-    "reduction_strategy": {"values": ["reduction", "atomic", "tree"]}
+    "reduction_strategy": {"values": ["atomic"]}
   },
   "k_block_per_cu": 1,
   "permute_n": false
