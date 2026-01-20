@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # ONLY XDL_KERNELS
 set(DEVICE_CONTRACTION_SCALE_INSTANCES)
 
@@ -34,12 +37,22 @@ foreach(idx IN LISTS DIMS)
                                                     ${PREFIX}_xdl_c_shuffle_f64_f64_f64_compute_f32_mnn_instance.cpp)
 
     # FP16
+    list(APPEND DEVICE_CONTRACTION_SCALE_INSTANCES ${PREFIX}_xdl_c_shuffle_f16_f16_f16_kkn_instance.cpp
+                                                    ${PREFIX}_xdl_c_shuffle_f16_f16_f16_knn_instance.cpp
+                                                    ${PREFIX}_xdl_c_shuffle_f16_f16_f16_mkn_instance.cpp
+                                                    ${PREFIX}_xdl_c_shuffle_f16_f16_f16_mnn_instance.cpp)
+
     list(APPEND DEVICE_CONTRACTION_SCALE_INSTANCES ${PREFIX}_xdl_c_shuffle_f16_f16_f16_compute_f32_kkn_instance.cpp
                                                     ${PREFIX}_xdl_c_shuffle_f16_f16_f16_compute_f32_knn_instance.cpp
                                                     ${PREFIX}_xdl_c_shuffle_f16_f16_f16_compute_f32_mkn_instance.cpp
                                                     ${PREFIX}_xdl_c_shuffle_f16_f16_f16_compute_f32_mnn_instance.cpp)
 
     # BF16
+    list(APPEND DEVICE_CONTRACTION_SCALE_INSTANCES ${PREFIX}_xdl_c_shuffle_bf16_bf16_bf16_kkn_instance.cpp
+                                                    ${PREFIX}_xdl_c_shuffle_bf16_bf16_bf16_knn_instance.cpp
+                                                    ${PREFIX}_xdl_c_shuffle_bf16_bf16_bf16_mkn_instance.cpp
+                                                    ${PREFIX}_xdl_c_shuffle_bf16_bf16_bf16_mnn_instance.cpp)
+
     list(APPEND DEVICE_CONTRACTION_SCALE_INSTANCES ${PREFIX}_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_kkn_instance.cpp
                                                     ${PREFIX}_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_knn_instance.cpp
                                                     ${PREFIX}_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_mkn_instance.cpp

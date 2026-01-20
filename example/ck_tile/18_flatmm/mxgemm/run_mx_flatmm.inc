@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 template <typename PrecActType,
           typename PrecWeightType,
@@ -71,17 +71,17 @@ int run_mx_flatmm_with_layouts(int argc,
 
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_host);
-        ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
-        ck_tile::FillUniformDistribution<ScaleType>{-2.f, 2.f}(scale_a);
-        ck_tile::FillUniformDistribution<ScaleType>{-2.f, 2.f}(scale_b);
+        ck_tile::FillUniformDistribution<>{0.0f, 1.0f}(a_host);
+        ck_tile::FillUniformDistribution<>{-.5f, .5f}(b_origin_host);
+        ck_tile::FillUniformDistribution<>{-2.f, 2.f}(scale_a);
+        ck_tile::FillUniformDistribution<>{-2.f, 2.f}(scale_b);
     }
     else if(init_method == 1)
     {
-        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
-        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
-        ck_tile::FillUniformDistribution<ScaleType>{1.f, 1.f}(scale_a);
-        ck_tile::FillUniformDistribution<ScaleType>{1.f, 1.f}(scale_b);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(b_origin_host);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_a);
+        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_b);
     }
     else
     {
@@ -105,10 +105,12 @@ int run_mx_flatmm_with_layouts(int argc,
     scale_a_dev_buf.ToDevice(scale_a_shuffled.data());
     scale_b_dev_buf.ToDevice(scale_b_shuffled.data());
 
-    auto scale_a_dev_ptr = ck_tile::FlatmmScalePointer<ScaleGranularityM, ScaleGranularityK>{
-        static_cast<float*>(scale_a_dev_buf.GetDeviceBuffer()), M / ScaleGranularityM};
-    auto scale_b_dev_ptr = ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK>{
-        static_cast<float*>(scale_b_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
+    auto scale_a_dev_ptr =
+        ck_tile::FlatmmScalePointer<ScaleGranularityM, ScaleGranularityK, ScaleType>{
+            static_cast<ScaleType*>(scale_a_dev_buf.GetDeviceBuffer()), M / ScaleGranularityM};
+    auto scale_b_dev_ptr =
+        ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK, ScaleType>{
+            static_cast<ScaleType*>(scale_b_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
 
     invoke_mx_flatmm<FlatmmConfig,
                      ADataType,

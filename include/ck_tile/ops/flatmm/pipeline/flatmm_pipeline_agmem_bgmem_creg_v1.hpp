@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -24,6 +24,20 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
         return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
     }
 
+    CK_TILE_HOST static constexpr amd_buffer_coherence_enum
+    GetBMemNTType(index_t M, index_t N, index_t K)
+    {
+        ck_tile::ignore = N;
+        ck_tile::ignore = K;
+        if(M <= 416)
+        {
+#if defined(__gfx942__) || defined(__gfx950__)
+            return ck_tile::amd_buffer_coherence_enum::WAVE_NT1;
+#endif
+        }
+        return ck_tile::amd_buffer_coherence_enum::coherence_default;
+    }
+
     template <bool DispatchHotloop = false, TailNumber tail_num, typename RunFunction>
     CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func, bool has_hot_loop)
     {
@@ -45,8 +59,8 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
             return TailHandler<DispatchHotloop, TailNumber::Odd>(run_func, has_hot_loop);
         else
         {
-            assert(("Wrong TailNumber!", false));
-            return decltype(TailHandler<>(run_func, true, TailNumber::Even)){};
+            assert(false && "Wrong TailNumber!");
+            return TailHandler<DispatchHotloop, TailNumber::Even>(run_func, has_hot_loop);
         }
     }
 };

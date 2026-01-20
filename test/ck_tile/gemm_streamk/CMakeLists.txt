@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(EXAMPLE_GEMM_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)
     list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
@@ -13,13 +16,17 @@ list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS
 set(EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS ${EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS})
 
 # Currently test_ck_tile_streamk_smoke is only built on gfx9
-if(GPU_TARGETS MATCHES "gfx9")
+if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950")
 
     include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
  
     #TODO: support all arches
     #TODO: current c-shuffle only supports C layout as R
     add_gtest_executable(test_ck_tile_streamk_tile_partitioner test_streamk_tile_partitioner.cpp)
+    # TODO: Renable once transient bug for reduction is resolved.
+    # add_gtest_executable(test_ck_tile_streamk_reduction
+    #                     ${CMAKE_CURRENT_SOURCE_DIR}/smoke_tests/test_gemm_streamk_fp16_reduction.cpp
+    #                     test_gemm_streamk_util.cpp)
     add_gtest_executable(test_ck_tile_streamk_smoke 
                         ${CMAKE_CURRENT_SOURCE_DIR}/smoke_tests/test_gemm_streamk_fp16_persistent.cpp
                         ${CMAKE_CURRENT_SOURCE_DIR}/smoke_tests/test_gemm_streamk_bf16_persistent.cpp

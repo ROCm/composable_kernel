@@ -109,65 +109,145 @@ struct BlockwiseGemmWmmaops_pipeline_base
         }
     };
 
-    template <index_t ScaleSliceSizeN,
+    template <index_t ScaleSliceSizeMN,
+              index_t ScaleSliceStrideMN,
               index_t ScaleSliceSizeK,
-              index_t NWaves,
-              index_t ScaleBlockK,
               index_t NumberOfBuffers,
+              index_t RegSizePerWmma,
               typename GridDesc,
               typename ThreadCopy,
               typename GridBuffer,
               typename ThreadStaticBuffer,
-              typename BScaleThreadDesc>
-    struct BScale
+              typename ThreadDesc>
+    struct ABScale
     {
-        __device__ BScale(GridDesc b_scale_grid_desc_,
-                          ThreadCopy b_scale_thread_copy_,
-                          GridBuffer b_scale_grid_buf_)
-            : b_scale_thread_copy(b_scale_thread_copy_),
-              b_scale_grid_desc(b_scale_grid_desc_),
-              b_scale_grid_buf(b_scale_grid_buf_) {};
+        __device__ ABScale(GridDesc scale_grid_desc_,
+                           ThreadCopy scale_thread_copy_,
+                           GridBuffer scale_grid_buf_)
+            : scale_thread_copy(scale_thread_copy_),
+              scale_grid_desc(scale_grid_desc_),
+              scale_grid_buf(scale_grid_buf_) {};
 
-        static constexpr index_t num_scale_k_block = BScaleThreadDesc{}.GetLength(Number<1>{});
+        static constexpr index_t num_scale_k_block = ThreadDesc{}.GetLength(Number<1>{});
         static constexpr index_t num_scale_krepeat = KRepeat / num_scale_k_block;
 
-        static constexpr auto b_scale_thread_desc = BScaleThreadDesc{};
+        static constexpr index_t num_slice_mn      = ScaleSliceSizeMN;
+        static constexpr index_t num_slice_k       = ScaleSliceSizeK;
+        static constexpr index_t reg_size_per_wmma = RegSizePerWmma;
 
-        static constexpr auto b_scale_thread_copy_step =
-            make_tuple(make_multi_index(NWaves * NPerWmma, 0),
-                       make_multi_index(-NPerBlock, 0),
-                       make_multi_index(-NPerBlock, (KPerBlock + ScaleBlockK - 1) / ScaleBlockK));
+        static constexpr auto scale_thread_desc = ThreadDesc{};
+
+        static constexpr auto scale_thread_copy_step =
+            make_tuple(make_multi_index(ScaleSliceStrideMN, 0),
+                       make_multi_index(-ScaleSliceSizeMN / RegSizePerWmma * ScaleSliceStrideMN, 0),
+                       make_multi_index(-ScaleSliceSizeMN / RegSizePerWmma * ScaleSliceStrideMN,
+                                        ScaleSliceSizeK));
 
         template <index_t NBuffer>
         __device__ void GlobalLoad(bool cond)
         {
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
-                b_scale_thread_copy.Run(b_scale_grid_desc,
-                                        b_scale_grid_buf,
-                                        b_scale_thread_desc,
-                                        make_tuple(n0, Number<0>{}),
-                                        b_scale_thread_bufs(Number<NBuffer>{}));
+            static_for<0, ScaleSliceSizeMN / RegSizePerWmma, 1>{}([&](auto m0) {
+                scale_thread_copy.Run(scale_grid_desc,
+                                      scale_grid_buf,
+                                      scale_thread_desc,
+                                      make_tuple(m0 * Number<RegSizePerWmma>{}, Number<0>{}),
+                                      scale_thread_bufs(Number<NBuffer>{}));
 
-                b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
-                                                       b_scale_thread_copy_step.At(Number<0>{}));
+                scale_thread_copy.MoveSrcSliceWindow(scale_grid_desc,
+                                                     scale_thread_copy_step.At(Number<0>{}));
             });
 
             if(cond)
             {
-                b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
-                                                       b_scale_thread_copy_step.At(Number<2>{}));
+                scale_thread_copy.MoveSrcSliceWindow(scale_grid_desc,
+                                                     scale_thread_copy_step.At(Number<2>{}));
             }
             else
             {
-                b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
-                                                       b_scale_thread_copy_step.At(Number<1>{}));
+                scale_thread_copy.MoveSrcSliceWindow(scale_grid_desc,
+                                                     scale_thread_copy_step.At(Number<1>{}));
             }
         }
 
-        ThreadCopy b_scale_thread_copy;
-        GridDesc b_scale_grid_desc;
-        GridBuffer b_scale_grid_buf;
-        StaticallyIndexedArray<ThreadStaticBuffer, Number<NumberOfBuffers>{}> b_scale_thread_bufs;
+        ThreadCopy scale_thread_copy;
+        GridDesc scale_grid_desc;
+        GridBuffer scale_grid_buf;
+        StaticallyIndexedArray<ThreadStaticBuffer, Number<NumberOfBuffers>{}> scale_thread_bufs;
+    };
+
+    template <typename AScaleStruct, typename BScaleStruct>
+    struct CScale
+    {
+        __device__ CScale() {}
+
+        static constexpr auto reg_size_per_wmma =
+            ck::is_same_v<BScaleStruct, Empty> && ck::is_same_v<AScaleStruct, Empty>
+                ? 1
+                : wmma_gemm.GetRegSizePerWmma();
+        static constexpr auto c_scale_thread_desc = make_naive_tensor_descriptor_packed(make_tuple(
+            Number<ck::math::max(AScaleStruct::num_slice_k, BScaleStruct::num_slice_k)>{},
+            Number<AScaleStruct::num_slice_mn>{},
+            Number<BScaleStruct::num_slice_mn>{}));
+        using CScaleThreadDesc                    = decltype(c_scale_thread_desc);
+        static constexpr auto num_scale_k_block   = CScaleThreadDesc{}.GetLength(Number<0>{});
+        static constexpr auto num_scale_m_block   = CScaleThreadDesc{}.GetLength(Number<1>{});
+        static constexpr auto num_scale_n_block   = CScaleThreadDesc{}.GetLength(Number<2>{});
+        using ThreadStaticBuffer = decltype(make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
+            c_scale_thread_desc.GetElementSpaceSize()));
+
+        __device__ void Load(AScaleStruct& a_scale_struct, BScaleStruct& b_scale_struct)
+        {
+            using AScaleThreadDesc = decltype(AScaleStruct::scale_thread_desc);
+            using BScaleThreadDesc = decltype(BScaleStruct::scale_thread_desc);
+
+            static_for<0, num_scale_m_block, 1>{}([&](auto m0) {
+                static_for<0, num_scale_n_block, 1>{}([&](auto n0) {
+                    static_for<0, num_scale_k_block, 1>{}([&](auto k0) {
+                        constexpr index_t c_offset =
+                            CScaleThreadDesc{}.CalculateOffset(make_tuple(k0, m0, n0));
+                        constexpr index_t a_offset =
+                            AScaleThreadDesc{}.CalculateOffset(make_tuple(m0, k0));
+                        constexpr index_t b_offset =
+                            BScaleThreadDesc{}.CalculateOffset(make_tuple(n0, k0));
+
+                        c_scale_thread_bufs(I0)(Number<c_offset>{}) =
+                            a_scale_struct.scale_thread_bufs(I0)[Number<a_offset>{}] *
+                            b_scale_struct.scale_thread_bufs(I0)[Number<b_offset>{}];
+                    });
+                });
+            });
+        }
+
+        __device__ void Clear()
+        {
+            static_for<0, reg_size_per_wmma, 1>{}([&](auto t) {
+                c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
+                    .template AsType<AccDataType>()(Number<t>{}) = 0;
+            });
+        }
+
+        template <index_t k_index, index_t m_index, index_t n_index, typename CThreadBuf>
+        __device__ void UpdateCThreadBuf(CThreadBuf& c_thread_buf)
+        {
+            static_for<0, reg_size_per_wmma, 1>{}([&](auto t) {
+                constexpr index_t c_offset =
+                    c_thread_desc_.CalculateOffset(make_tuple(m_index, n_index, t));
+                constexpr index_t cscale_offset = CScaleThreadDesc{}.CalculateOffset(make_tuple(
+                    k_index,
+                    (m_index * num_scale_m_block / MRepeat) % num_scale_m_block +
+                        (Number<t / (reg_size_per_wmma / AScaleStruct::reg_size_per_wmma)>{}) %
+                            AScaleStruct::reg_size_per_wmma,
+                    (n_index * num_scale_n_block / NRepeat) % num_scale_n_block));
+                c_thread_buf(Number<c_offset>{}) +=
+                    c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
+                        .template AsType<AccDataType>()[Number<t>{}] *
+                    type_convert<AccDataType>(c_scale_thread_bufs(I0)[Number<cscale_offset>{}]);
+            });
+        }
+
+        StaticallyIndexedArray<ThreadStaticBuffer, Number<1>{}> c_scale_thread_bufs;
+        StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr, AccDataType, 1, reg_size_per_wmma, true>
+            c_thread_buf_per_scale;
     };
 
     __host__ __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }

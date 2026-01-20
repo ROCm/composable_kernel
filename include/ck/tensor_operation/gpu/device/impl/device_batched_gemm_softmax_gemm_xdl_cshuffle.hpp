@@ -211,9 +211,9 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
     using DeviceOp = DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle;
     static constexpr auto MXdlPerWave64 =
-        GetNXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, true>();
+        GetXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, true>();
     static constexpr auto MXdlPerWave32 =
-        GetNXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, false>();
+        GetXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, false>();
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -1059,7 +1059,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                       c_grid_desc_m_n)},
               has_main_k_block_loop{GridwiseGemm64::CalculateHasMainKBlockLoop(
                   a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2))},
-              c0_matrix_mask{c.GetLength(I1)},
+              c0_matrix_mask{b.GetLength(I0)},
               a_element_op{a_element_op_},
               b_element_op{b_element_op_},
               b1_element_op{b1_element_op_},

@@ -1,4 +1,4 @@
-// Copyright © Advanced Micro Devices, Inc. or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #ifdef CK_ENABLE_JSON_DUMP
@@ -160,23 +160,23 @@ void dump_gemm_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_batched_gemm_json_results(const std::string& json_filename,
-                                    const std::string& op_name,
-                                    int M,
-                                    int N,
-                                    int K,
-                                    int stride_A,
-                                    int stride_B,
-                                    int stride_C,
-                                    int batch_stride_A,
-                                    int batch_stride_B,
-                                    int batch_stride_C,
-                                    int batch_count,
-                                    bool pass,
-                                    float ave_time,
-                                    float tflops,
-                                    float gb_per_sec,
-                                    const std::string& kernel_name = "batched_gemm_basic")
+inline void dump_batched_gemm_json_results(const std::string& json_filename,
+                                           const std::string& op_name,
+                                           int M,
+                                           int N,
+                                           int K,
+                                           int stride_A,
+                                           int stride_B,
+                                           int stride_C,
+                                           int batch_stride_A,
+                                           int batch_stride_B,
+                                           int batch_stride_C,
+                                           int batch_count,
+                                           bool pass,
+                                           float ave_time,
+                                           float tflops,
+                                           float gb_per_sec,
+                                           const std::string& kernel_name = "batched_gemm_basic")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -218,20 +218,20 @@ void dump_grouped_gemm_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_flatmm_json_results(const std::string& json_filename,
-                              const std::string& datatype,
-                              int M,
-                              int N,
-                              int K,
-                              int stride_A,
-                              int stride_B,
-                              int stride_C,
-                              int kbatch,
-                              bool pass,
-                              float ave_time,
-                              float tflops,
-                              float gb_per_sec,
-                              const std::string& kernel_name = "flatmm_basic")
+inline void dump_flatmm_json_results(const std::string& json_filename,
+                                     const std::string& datatype,
+                                     int M,
+                                     int N,
+                                     int K,
+                                     int stride_A,
+                                     int stride_B,
+                                     int stride_C,
+                                     int kbatch,
+                                     bool pass,
+                                     float ave_time,
+                                     float tflops,
+                                     float gb_per_sec,
+                                     const std::string& kernel_name = "flatmm_basic")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -248,21 +248,22 @@ void dump_flatmm_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_gemm_multi_d_fp16_json_results(const std::string& json_filename,
-                                         const std::string& op_name,
-                                         int M,
-                                         int N,
-                                         int K,
-                                         int StrideA,
-                                         int StrideB,
-                                         int StrideD0,
-                                         int StrideD1,
-                                         int StrideE,
-                                         bool pass,
-                                         float ave_time,
-                                         float tflops,
-                                         float gb_per_sec,
-                                         const std::string& kernel_name = "gemm_multi_d_fp16")
+inline void
+dump_gemm_multi_d_fp16_json_results(const std::string& json_filename,
+                                    const std::string& op_name,
+                                    int M,
+                                    int N,
+                                    int K,
+                                    int StrideA,
+                                    int StrideB,
+                                    int StrideD0,
+                                    int StrideD1,
+                                    int StrideE,
+                                    bool pass,
+                                    float ave_time,
+                                    float tflops,
+                                    float gb_per_sec,
+                                    const std::string& kernel_name = "gemm_multi_d_fp16")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -280,14 +281,14 @@ void dump_gemm_multi_d_fp16_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_elementwise_json_results(const std::string& json_filename,
-                                   const std::string& prec,
-                                   int grid_size,
-                                   int block_size,
-                                   float ave_time,
-                                   float tflops,
-                                   float gb_per_sec,
-                                   const std::string& kernel_name = "elementwise")
+inline void dump_elementwise_json_results(const std::string& json_filename,
+                                          const std::string& prec,
+                                          int grid_size,
+                                          int block_size,
+                                          float ave_time,
+                                          float tflops,
+                                          float gb_per_sec,
+                                          const std::string& kernel_name = "elementwise")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -298,22 +299,22 @@ void dump_elementwise_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_layernorm2d_fwd_json_results(const std::string& json_filename,
-                                       const std::string& prec_i,
-                                       const std::string& prec_o,
-                                       const std::string& prec_sm,
-                                       const std::string& prec_sy,
-                                       int m,
-                                       int n,
-                                       int x_stride,
-                                       int xr_stride,
-                                       int y_stride,
-                                       int yr_stride,
-                                       bool pass,
-                                       float ave_time,
-                                       float tflops,
-                                       float gb_per_sec,
-                                       const std::string& kernel_name = "layernorm2d_fwd")
+inline void dump_layernorm2d_fwd_json_results(const std::string& json_filename,
+                                              const std::string& prec_i,
+                                              const std::string& prec_o,
+                                              const std::string& prec_sm,
+                                              const std::string& prec_sy,
+                                              int m,
+                                              int n,
+                                              int x_stride,
+                                              int xr_stride,
+                                              int y_stride,
+                                              int yr_stride,
+                                              bool pass,
+                                              float ave_time,
+                                              float tflops,
+                                              float gb_per_sec,
+                                              const std::string& kernel_name = "layernorm2d_fwd")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -357,13 +358,13 @@ void dump_reduce_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_permute_json_results(const std::string& json_filename,
-                               const std::string& data_type,
-                               bool pass,
-                               float ave_time,
-                               float tflop,
-                               float gb_per_sec,
-                               const std::string& kernel_name = "permute")
+inline void dump_permute_json_results(const std::string& json_filename,
+                                      const std::string& data_type,
+                                      bool pass,
+                                      float ave_time,
+                                      float tflop,
+                                      float gb_per_sec,
+                                      const std::string& kernel_name = "permute")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -373,19 +374,19 @@ void dump_permute_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_topk_softmax_json(const std::string& json_filename,
-                            const std::string& input_prec,
-                            const std::string& weight_prec,
-                            int tokens,
-                            int experts,
-                            int topk,
-                            int stride_input,
-                            int stride_output,
-                            float ave_time,
-                            float tflop,
-                            float gb_per_sec,
-                            bool pass,
-                            const std::string& kernel_name = "topk_softmax")
+inline void dump_topk_softmax_json(const std::string& json_filename,
+                                   const std::string& input_prec,
+                                   const std::string& weight_prec,
+                                   int tokens,
+                                   int experts,
+                                   int topk,
+                                   int stride_input,
+                                   int stride_output,
+                                   float ave_time,
+                                   float tflop,
+                                   float gb_per_sec,
+                                   bool pass,
+                                   const std::string& kernel_name = "topk_softmax")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -401,20 +402,20 @@ void dump_topk_softmax_json(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_rmsnorm2d_fwd_json(const std::string& json_filename,
-                             const std::string& prec_str,
-                             int m,
-                             int n,
-                             int x_stride,
-                             int xr_stride,
-                             int y_stride,
-                             int yr_stride,
-                             int use_model_sensitive_rmsnorm,
-                             float ave_time,
-                             float tflops,
-                             float gb_per_sec,
-                             bool pass,
-                             const std::string& kernel_name = "rmsnorm2d_fwd")
+inline void dump_rmsnorm2d_fwd_json(const std::string& json_filename,
+                                    const std::string& prec_str,
+                                    int m,
+                                    int n,
+                                    int x_stride,
+                                    int xr_stride,
+                                    int y_stride,
+                                    int yr_stride,
+                                    int use_model_sensitive_rmsnorm,
+                                    float ave_time,
+                                    float tflops,
+                                    float gb_per_sec,
+                                    bool pass,
+                                    const std::string& kernel_name = "rmsnorm2d_fwd")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -431,19 +432,19 @@ void dump_rmsnorm2d_fwd_json(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_add_rmsnorm2d_rdquant_fwd_json(
-    const std::string& json_filename,
-    const std::string& input_data_type,
-    const std::string& quantized_data_type,
-    int m,
-    int n,
-    int stride,
-    float epsilon,
-    float ave_time,
-    float tflops,
-    float gb_per_sec,
-    bool pass,
-    const std::string& kernel_name = "add_rmsnorm2d_rdquant_fwd")
+inline void
+dump_add_rmsnorm2d_rdquant_fwd_json(const std::string& json_filename,
+                                    const std::string& input_data_type,
+                                    const std::string& quantized_data_type,
+                                    int m,
+                                    int n,
+                                    int stride,
+                                    float epsilon,
+                                    float ave_time,
+                                    float tflops,
+                                    float gb_per_sec,
+                                    bool pass,
+                                    const std::string& kernel_name = "add_rmsnorm2d_rdquant_fwd")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -458,17 +459,17 @@ void dump_add_rmsnorm2d_rdquant_fwd_json(
     END_JSON_DUMP_FILE();
 }
 
-void dump_smoothquant_json(const std::string& json_filename,
-                           const std::string& prec_str,
-                           int m,
-                           int n,
-                           int x_stride,
-                           int y_stride,
-                           float ave_time,
-                           float tflops,
-                           float gb_per_sec,
-                           bool pass,
-                           const std::string& kernel_name = "smoothquant")
+inline void dump_smoothquant_json(const std::string& json_filename,
+                                  const std::string& prec_str,
+                                  int m,
+                                  int n,
+                                  int x_stride,
+                                  int y_stride,
+                                  float ave_time,
+                                  float tflops,
+                                  float gb_per_sec,
+                                  bool pass,
+                                  const std::string& kernel_name = "smoothquant")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -482,19 +483,19 @@ void dump_smoothquant_json(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_moe_sorting_json(const std::string& json_filename,
-                           const std::string& index_prec,
-                           const std::string& weight_prec,
-                           const std::string& workspace_size,
-                           int dispatch_policy,
-                           int tokens,
-                           int num_experts,
-                           int topk,
-                           float ave_time,
-                           float tflops,
-                           float gb_per_sec,
-                           bool pass,
-                           const std::string& kernel_name = "moe_sorting")
+inline void dump_moe_sorting_json(const std::string& json_filename,
+                                  const std::string& index_prec,
+                                  const std::string& weight_prec,
+                                  const std::string& workspace_size,
+                                  int dispatch_policy,
+                                  int tokens,
+                                  int num_experts,
+                                  int topk,
+                                  float ave_time,
+                                  float tflops,
+                                  float gb_per_sec,
+                                  bool pass,
+                                  const std::string& kernel_name = "moe_sorting")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -510,19 +511,19 @@ void dump_moe_sorting_json(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_batched_transpose_json(const std::string& json_filename,
-                                 int N,
-                                 int C,
-                                 int H,
-                                 int W,
-                                 const std::string& layout_in,
-                                 const std::string& layout_out,
-                                 const std::string& prec,
-                                 float ave_time,
-                                 float tflops,
-                                 float gb_per_sec,
-                                 bool pass,
-                                 const std::string& kernel_name = "batched_transpose")
+inline void dump_batched_transpose_json(const std::string& json_filename,
+                                        int N,
+                                        int C,
+                                        int H,
+                                        int W,
+                                        const std::string& layout_in,
+                                        const std::string& layout_out,
+                                        const std::string& prec,
+                                        float ave_time,
+                                        float tflops,
+                                        float gb_per_sec,
+                                        bool pass,
+                                        const std::string& kernel_name = "batched_transpose")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -538,19 +539,19 @@ void dump_batched_transpose_json(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_moe_smoothquant_json(const std::string& json_filename,
-                               const std::string& prec_i,
-                               const std::string& prec_o,
-                               int tokens,
-                               int hidden_size,
-                               int stride,
-                               int experts,
-                               int topk,
-                               bool pass,
-                               float ave_time,
-                               float tflops,
-                               float gb_per_sec,
-                               const std::string& kernel_name = "moe_smoothquant")
+inline void dump_moe_smoothquant_json(const std::string& json_filename,
+                                      const std::string& prec_i,
+                                      const std::string& prec_o,
+                                      int tokens,
+                                      int hidden_size,
+                                      int stride,
+                                      int experts,
+                                      int topk,
+                                      bool pass,
+                                      float ave_time,
+                                      float tflops,
+                                      float gb_per_sec,
+                                      const std::string& kernel_name = "moe_smoothquant")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -566,26 +567,26 @@ void dump_moe_smoothquant_json(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_fused_moe_json(const std::string& json_filename,
-                         const std::string& api_str,
-                         const std::string& prec_str,
-                         int tokens,
-                         bool is_local_token,
-                         int local_tokens,
-                         int experts,
-                         int topk,
-                         int hidden_size,
-                         int intermediate_size,
-                         int stride,
-                         int block_m,
-                         int activation,
-                         bool gate_only,
-                         bool fused_quant,
-                         bool pass,
-                         float ave_time,
-                         float tflops,
-                         float tb_per_sec,
-                         const std::string& kernel_name = "fused_moe")
+inline void dump_fused_moe_json(const std::string& json_filename,
+                                const std::string& api_str,
+                                const std::string& prec_str,
+                                int tokens,
+                                bool is_local_token,
+                                int local_tokens,
+                                int experts,
+                                int topk,
+                                int hidden_size,
+                                int intermediate_size,
+                                int stride,
+                                int block_m,
+                                int activation,
+                                bool gate_only,
+                                bool fused_quant,
+                                bool pass,
+                                float ave_time,
+                                float tflops,
+                                float tb_per_sec,
+                                const std::string& kernel_name = "fused_moe")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -610,29 +611,29 @@ void dump_fused_moe_json(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_fmha_fwd_json_results(const std::string& json_filename,
-                                const std::string& prec,
-                                const std::string& mode,
-                                const std::string& io_layout,
-                                int batch,
-                                int nhead,
-                                int nhead_k,
-                                int seqlen_qs,
-                                int seqlen_ks,
-                                int seqlen_kpads,
-                                int hdim_q,
-                                int hdim_v,
-                                float scale_s,
-                                float p_drop,
-                                bool lse,
-                                bool squant,
-                                const std::string& bias,
-                                const std::string& vlayout,
-                                bool pass,
-                                float ave_time,
-                                float tflops,
-                                float gb_per_sec,
-                                const std::string& kernel_name = "fmha_fwd")
+inline void dump_fmha_fwd_json_results(const std::string& json_filename,
+                                       const std::string& prec,
+                                       const std::string& mode,
+                                       const std::string& io_layout,
+                                       int batch,
+                                       int nhead,
+                                       int nhead_k,
+                                       int seqlen_qs,
+                                       int seqlen_ks,
+                                       int seqlen_kpads,
+                                       int hdim_q,
+                                       int hdim_v,
+                                       float scale_s,
+                                       float p_drop,
+                                       bool lse,
+                                       const std::string& qscale,
+                                       const std::string& bias,
+                                       const std::string& vlayout,
+                                       bool pass,
+                                       float ave_time,
+                                       float tflops,
+                                       float gb_per_sec,
+                                       const std::string& kernel_name = "fmha_fwd")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);
@@ -650,7 +651,7 @@ void dump_fmha_fwd_json_results(const std::string& json_filename,
     ADD_KEY_VALUE("scale_s", scale_s);
     ADD_KEY_VALUE("p_drop", p_drop);
     ADD_KEY_VALUE("lse", lse);
-    ADD_KEY_VALUE("squant", squant);
+    ADD_KEY_VALUE("qscale", qscale);
     ADD_KEY_VALUE("bias", bias);
     ADD_KEY_VALUE("vlayout", vlayout);
     ADD_KEY_VALUE("verification", pass ? "pass" : "fail");
@@ -658,33 +659,33 @@ void dump_fmha_fwd_json_results(const std::string& json_filename,
     END_JSON_DUMP_FILE();
 }
 
-void dump_fmha_bwd_json_results(const std::string& json_filename,
-                                const std::string& data_type,
-                                const std::string& mode,
-                                const std::string& i_perm,
-                                const std::string& o_perm,
-                                int batch,
-                                int nhead,
-                                int nhead_k,
-                                int seqlen_q,
-                                int seqlen_k,
-                                int hdim_q,
-                                int hdim_v,
-                                float scale,
-                                const std::string& bias,
-                                bool use_dbias,
-                                float p_drop,
-                                bool s_randval,
-                                bool deterministic,
-                                const std::string& mask,
-                                int mask_left,
-                                int mask_right,
-                                int workspace_size,
-                                bool pass,
-                                float ave_time,
-                                float tflops,
-                                float gb_per_sec,
-                                const std::string& kernel_name = "fmha_bwd")
+inline void dump_fmha_bwd_json_results(const std::string& json_filename,
+                                       const std::string& data_type,
+                                       const std::string& mode,
+                                       const std::string& i_perm,
+                                       const std::string& o_perm,
+                                       int batch,
+                                       int nhead,
+                                       int nhead_k,
+                                       int seqlen_q,
+                                       int seqlen_k,
+                                       int hdim_q,
+                                       int hdim_v,
+                                       float scale,
+                                       const std::string& bias,
+                                       bool use_dbias,
+                                       float p_drop,
+                                       bool s_randval,
+                                       bool deterministic,
+                                       const std::string& mask,
+                                       int mask_left,
+                                       int mask_right,
+                                       int workspace_size,
+                                       bool pass,
+                                       float ave_time,
+                                       float tflops,
+                                       float gb_per_sec,
+                                       const std::string& kernel_name = "fmha_bwd")
 {
     START_JSON_DUMP_FILE(json_filename);
     ADD_KEY_VALUE("name", kernel_name);

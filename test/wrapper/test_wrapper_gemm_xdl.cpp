@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <numeric>
 #include <cstdlib>
@@ -306,7 +306,7 @@ void PerformGemm(const ck::index_t M,
 
     const auto kernel =
         DeviceGemm<DataType, GemmTraits, scalar_per_vector, BlockShape, ThreadLayout, DoPadding>;
-    const float avg_time = launch_and_time_kernel(StreamConfig{nullptr, true},
+    const float avg_time = launch_and_time_kernel(StreamConfig{nullptr, false},
                                                   kernel,
                                                   dim3(grid_size_x, grid_size_y, 1),
                                                   dim3(ck::wrapper::size(thread_layout)),

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 namespace ck_tile {
@@ -10,6 +10,8 @@ struct WmmaTraitsBase;
 template <typename ADType, typename BDType, typename CDType>
 struct WmmaTraitsBase<gfx11_t, ADType, BDType, CDType>
 {
+    using ArchType = gfx11_t;
+
     using ADataType = ADType;
     using BDataType = BDType;
     using CDataType = CDType;
@@ -57,6 +59,8 @@ struct WmmaTraitsBase<gfx11_t, ADType, BDType, CDType>
 template <typename ADType, typename BDType, typename CDType>
 struct WmmaTraitsBase<gfx12_t, ADType, BDType, CDType>
 {
+    using ArchType = gfx12_t;
+
     using ADataType = ADType;
     using BDataType = BDType;
     using CDataType = CDType;

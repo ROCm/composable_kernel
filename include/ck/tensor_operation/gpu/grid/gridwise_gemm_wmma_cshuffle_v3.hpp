@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -176,7 +176,9 @@ template <typename ALayout,
           typename ComputeTypeB,
           bool PermuteA,
           bool PermuteB,
-          bool ForceThreadTileTransfer = false>
+          bool IsBPreShuffled          = false,
+          bool ForceThreadTileTransfer = false,
+          bool IsFusedKernel           = false>
 struct GridwiseGemm_wmma_cshuffle_v3
     : GridwiseGemm_wmma_cshuffle_v3_base<
           ALayout,
@@ -229,7 +231,9 @@ struct GridwiseGemm_wmma_cshuffle_v3
           ComputeTypeB,
           PermuteA,
           PermuteB,
-          ForceThreadTileTransfer>
+          IsBPreShuffled,
+          ForceThreadTileTransfer,
+          IsFusedKernel>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
         ALayout,
@@ -282,7 +286,9 @@ struct GridwiseGemm_wmma_cshuffle_v3
         ComputeTypeB,
         PermuteA,
         PermuteB,
-        ForceThreadTileTransfer>;
+        IsBPreShuffled,
+        ForceThreadTileTransfer,
+        IsFusedKernel>;
 
     using Base::I0;
     using Base::I1;
@@ -330,14 +336,15 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
     struct Problem
     {
-        __host__ Problem(index_t M_,
-                         index_t N_,
-                         index_t K_,
-                         std::array<index_t, NumATensor> StrideAs_,
-                         std::array<index_t, NumBTensor> StrideBs_,
-                         std::array<index_t, NumDTensor> StrideDs_,
-                         index_t StrideE_,
-                         index_t KBatch_)
+        __host__ Problem() = default;
+        __host__ __device__ Problem(index_t M_,
+                                    index_t N_,
+                                    index_t K_,
+                                    std::array<index_t, NumATensor> StrideAs_,
+                                    std::array<index_t, NumBTensor> StrideBs_,
+                                    std::array<index_t, NumDTensor> StrideDs_,
+                                    index_t StrideE_,
+                                    index_t KBatch_)
             : M{M_},
               N{N_},
               K{K_},
@@ -353,7 +360,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
               AK0{CalculateAK0Padded(K_, KBatch_)},
               BK0{CalculateBK0Padded(K_, KBatch_)},
               MBlock{CalculateMBlock(M_)},
-              NBlock{CalculateNBlock(N_)}
+              NBlock{CalculateNBlock(N_)},
+              Kt{K_}
         {
         }
 
@@ -399,27 +407,29 @@ struct GridwiseGemm_wmma_cshuffle_v3
         index_t BK0;
         index_t MBlock;
         index_t NBlock;
+        index_t Kt;
     };
 
     // Argument
     struct Argument : public tensor_operation::device::BaseArgument, public Problem
     {
-        __host__ Argument(std::array<const void*, NumATensor> p_as_grid_,
-                          std::array<const void*, NumBTensor> p_bs_grid_,
-                          std::array<const void*, NumDTensor> p_ds_grid_,
-                          EDataType* p_e_grid_,
-                          index_t M_,
-                          index_t N_,
-                          index_t K_,
-                          std::array<index_t, NumATensor> StrideAs_,
-                          std::array<index_t, NumBTensor> StrideBs_,
-                          std::array<index_t, NumDTensor> StrideDs_,
-                          index_t StrideE_,
-                          index_t k_batch_,
-                          AElementwiseOperation a_element_op_,
-                          BElementwiseOperation b_element_op_,
-                          CDEElementwiseOperation cde_element_op_,
-                          bool is_reduce_ = false)
+        __host__ Argument() = default;
+        __host__ __device__ Argument(std::array<const void*, NumATensor> p_as_grid_,
+                                     std::array<const void*, NumBTensor> p_bs_grid_,
+                                     std::array<const void*, NumDTensor> p_ds_grid_,
+                                     EDataType* p_e_grid_,
+                                     index_t M_,
+                                     index_t N_,
+                                     index_t K_,
+                                     std::array<index_t, NumATensor> StrideAs_,
+                                     std::array<index_t, NumBTensor> StrideBs_,
+                                     std::array<index_t, NumDTensor> StrideDs_,
+                                     index_t StrideE_,
+                                     index_t k_batch_,
+                                     AElementwiseOperation a_element_op_,
+                                     BElementwiseOperation b_element_op_,
+                                     CDEElementwiseOperation cde_element_op_,
+                                     bool is_reduce_ = false)
             : Problem{M_, N_, K_, StrideAs_, StrideBs_, StrideDs_, StrideE_, k_batch_},
               p_as_grid{},
               p_bs_grid{},
@@ -470,9 +480,9 @@ struct GridwiseGemm_wmma_cshuffle_v3
         DsGridPointer p_ds_grid;
         EDataType* p_e_grid;
 
-        const AElementwiseOperation a_element_op;
-        const BElementwiseOperation b_element_op;
-        const CDEElementwiseOperation cde_element_op;
+        AElementwiseOperation a_element_op;
+        BElementwiseOperation b_element_op;
+        CDEElementwiseOperation cde_element_op;
 
         // TODO: it can be used with SplitK+reduction but currently only used with SplitK+atomicAdd
         bool is_reduce;
@@ -499,23 +509,31 @@ struct GridwiseGemm_wmma_cshuffle_v3
                     [&](auto i) { a_k_split_offset[i] = k_id * karg.KRead * karg.StrideAs[i]; });
             }
 
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+            if constexpr(IsBPreShuffled)
             {
-                static_for<0, NumBTensor, 1>{}(
-                    [&](auto i) { b_k_split_offset[i] = k_id * karg.KRead * karg.StrideBs[i]; });
+                static_for<0, NumBTensor, 1>{}([&](auto i) { b_k_split_offset[i] = 0; });
             }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+            else
             {
-                if constexpr(!PermuteB)
+                if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
                 {
-                    static_for<0, NumBTensor, 1>{}(
-                        [&](auto i) { b_k_split_offset[i] = k_id * karg.KRead / BPackedSize; });
+                    static_for<0, NumBTensor, 1>{}([&](auto i) {
+                        b_k_split_offset[i] = k_id * karg.KRead * karg.StrideBs[i];
+                    });
                 }
-                else
+                else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
                 {
-                    const int k0_offset = karg.KRead * karg.N;
-                    static_for<0, NumBTensor, 1>{}(
-                        [&](auto i) { b_k_split_offset[i] = k_id * k0_offset / BPackedSize; });
+                    if constexpr(!PermuteB)
+                    {
+                        static_for<0, NumBTensor, 1>{}(
+                            [&](auto i) { b_k_split_offset[i] = k_id * karg.KRead / BPackedSize; });
+                    }
+                    else
+                    {
+                        const int k0_offset = karg.KRead * karg.N;
+                        static_for<0, NumBTensor, 1>{}(
+                            [&](auto i) { b_k_split_offset[i] = k_id * k0_offset / BPackedSize; });
+                    }
                 }
             }
 
@@ -555,22 +573,29 @@ struct GridwiseGemm_wmma_cshuffle_v3
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
               TailNumber TailNum,
-              typename EpilogueArgument>
+              typename Block2CTileMap,
+              typename EpilogueArgument,
+              int BlockMapMBlockIndex = 0,
+              int BlockMapNBlockIndex = 1>
     __device__ static void Run(AsGridPointer& p_as_grid,
                                BsGridPointer& p_bs_grid,
                                DsGridPointer& p_ds_grid,
                                EDataType* p_e_grid,
                                void* p_shared,
                                const Problem& problem,
+                               const Block2CTileMap& block_2_ctile_map,
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
                                CDEElementwiseOperation cde_element_op,
-                               EpilogueArgument& epilogue_args)
+                               EpilogueArgument& epilogue_args,
+                               const index_t A_k_id = 0,
+                               const index_t B_k_id = 0)
     {
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
+        const index_t K_b                 = IsBPreShuffled ? problem.Kt : problem.K;
         const auto bs_grid_desc_bk0_n_bk1 = MakeBsGridDescriptor_BK0_N_BK1(
-            problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideBs, problem.BK0);
+            K_b, problem.KPadded, problem.N, problem.NPadded, problem.StrideBs, problem.BK0);
         const auto ds_grid_desc_m_n = MakeDsGridDescriptor_M_N(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideDs);
         const auto e_grid_desc_m_n = Base::template MakeDEGridDescriptor_M_N<ELayout>(
@@ -582,8 +607,66 @@ struct GridwiseGemm_wmma_cshuffle_v3
             MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 e_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
-        // divide block work by [M, N]
-        const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N, 4};
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            decltype(as_grid_desc_ak0_m_ak1),
+            decltype(bs_grid_desc_bk0_n_bk1),
+            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
+            decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+            Block2CTileMap,
+            EpilogueArgument,
+            BlockMapMBlockIndex,
+            BlockMapNBlockIndex>(p_as_grid,
+                                 p_bs_grid,
+                                 p_ds_grid,
+                                 p_e_grid,
+                                 p_shared,
+                                 as_grid_desc_ak0_m_ak1,
+                                 bs_grid_desc_bk0_n_bk1,
+                                 ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                 e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                 block_2_ctile_map,
+                                 a_element_op,
+                                 b_element_op,
+                                 cde_element_op,
+                                 epilogue_args,
+                                 A_k_id,
+                                 B_k_id);
+    }
+
+    // Overload to pass in custom As/Bs/Ds/E grid descriptors
+    // Used for contraction operations, where tensor transforms are non-trivial
+    template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              TailNumber TailNum,
+              typename AsGridDescriptor_AK0_M_AK1,
+              typename BsGridDescriptor_BK0_N_BK1,
+              typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename Block2CTileMap,
+              typename EpilogueArgument,
+              int BlockMapMBlockIndex = 0,
+              int BlockMapNBlockIndex = 1>
+    __device__ static void Run(AsGridPointer& p_as_grid,
+                               BsGridPointer& p_bs_grid,
+                               DsGridPointer& p_ds_grid,
+                               EDataType* p_e_grid,
+                               void* p_shared,
+                               const AsGridDescriptor_AK0_M_AK1 as_grid_desc_ak0_m_ak1,
+                               const BsGridDescriptor_BK0_N_BK1 bs_grid_desc_bk0_n_bk1,
+                               const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const Block2CTileMap& block_2_ctile_map,
+                               AElementwiseOperation a_element_op,
+                               BElementwiseOperation b_element_op,
+                               CDEElementwiseOperation cde_element_op,
+                               EpilogueArgument& epilogue_args,
+                               const index_t A_k_id = 0,
+                               const index_t B_k_id = 0)
+    {
 
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
@@ -596,12 +679,15 @@ struct GridwiseGemm_wmma_cshuffle_v3
             return;
         }
 
-        const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
-        const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
+        const index_t block_m_id =
+            __builtin_amdgcn_readfirstlane(block_work_idx[Number<BlockMapMBlockIndex>{}]);
+        const index_t block_n_id =
+            __builtin_amdgcn_readfirstlane(block_work_idx[Number<BlockMapNBlockIndex>{}]);
 
         // BScale struct (Empty)
-        using BScale        = typename BlockwiseGemmPipe::Empty;
-        auto b_scale_struct = BScale{};
+        using Scale         = typename BlockwiseGemmPipe::Empty;
+        auto a_scale_struct = Scale{};
+        auto b_scale_struct = Scale{};
 
         const index_t num_k_block_per_scale = GetKBlockPerScale();
 
@@ -609,6 +695,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                            decltype(bs_grid_desc_bk0_n_bk1),
                            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
                            decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                           decltype(a_scale_struct),
                            decltype(b_scale_struct),
                            decltype(epilogue_args),
                            HasMainKBlockLoop,
@@ -628,8 +715,43 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                     block_m_id,
                                     block_n_id,
                                     num_k_block_per_scale,
+                                    a_scale_struct,
                                     b_scale_struct,
-                                    epilogue_args);
+                                    epilogue_args,
+                                    A_k_id,
+                                    B_k_id);
+    }
+
+    template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              TailNumber TailNum,
+              typename EpilogueArgument>
+    __device__ static void Run(AsGridPointer& p_as_grid,
+                               BsGridPointer& p_bs_grid,
+                               DsGridPointer& p_ds_grid,
+                               EDataType* p_e_grid,
+                               void* p_shared,
+                               const Problem& problem,
+                               AElementwiseOperation a_element_op,
+                               BElementwiseOperation b_element_op,
+                               CDEElementwiseOperation cde_element_op,
+                               EpilogueArgument& epilogue_args)
+    {
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            Block2CTileMap,
+            EpilogueArgument>(p_as_grid,
+                              p_bs_grid,
+                              p_ds_grid,
+                              p_e_grid,
+                              p_shared,
+                              problem,
+                              DefaultBlock2CTileMap(problem),
+                              a_element_op,
+                              b_element_op,
+                              cde_element_op,
+                              epilogue_args);
     }
 
     // Wrapper function to have __global__ function in common
@@ -637,11 +759,17 @@ struct GridwiseGemm_wmma_cshuffle_v3
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
               TailNumber TailNum,
-              typename EpilogueArgument>
+              typename Block2CTileMap,
+              typename EpilogueArgument,
+              int BlockMapMBlockIndex = 0,
+              int BlockMapNBlockIndex = 1>
     __device__ static void Run(void* p_shared,
                                const SplitKBatchOffset& splitk_batch_offset,
                                Argument& karg,
-                               EpilogueArgument& epilogue_args)
+                               const Block2CTileMap& block_2_ctile_map,
+                               EpilogueArgument& epilogue_args,
+                               const index_t A_k_id = 0,
+                               const index_t B_k_id = 0)
     {
         // shift A matrices pointer for splitk
         AsGridPointer p_as_grid_splitk;
@@ -659,17 +787,459 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                   splitk_batch_offset.b_k_split_offset[i];
         });
 
-        Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
-            p_as_grid_splitk,
-            p_bs_grid_splitk,
-            karg.p_ds_grid,
-            karg.p_e_grid + splitk_batch_offset.c_reduce_offset,
-            p_shared,
-            karg,
-            karg.a_element_op,
-            karg.b_element_op,
-            karg.cde_element_op,
-            epilogue_args);
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            Block2CTileMap,
+            EpilogueArgument,
+            BlockMapMBlockIndex,
+            BlockMapNBlockIndex>(p_as_grid_splitk,
+                                 p_bs_grid_splitk,
+                                 karg.p_ds_grid,
+                                 karg.p_e_grid + splitk_batch_offset.c_reduce_offset,
+                                 p_shared,
+                                 karg,
+                                 block_2_ctile_map,
+                                 karg.a_element_op,
+                                 karg.b_element_op,
+                                 karg.cde_element_op,
+                                 epilogue_args,
+                                 A_k_id,
+                                 B_k_id);
+    }
+
+    // Wrapper function to have __global__ function in common
+    // between gemm_universal, b_scale, ab_scale, etc.
+    template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              TailNumber TailNum,
+              typename EpilogueArgument>
+    __device__ static void Run(void* p_shared,
+                               const SplitKBatchOffset& splitk_batch_offset,
+                               Argument& karg,
+                               EpilogueArgument& epilogue_args,
+                               const index_t A_k_id = 0,
+                               const index_t B_k_id = 0)
+    {
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            Block2CTileMap,
+            EpilogueArgument>(p_shared,
+                              splitk_batch_offset,
+                              karg,
+                              DefaultBlock2CTileMap(karg),
+                              epilogue_args,
+                              A_k_id,
+                              B_k_id);
+    }
+
+    __device__ __host__ static auto DefaultBlock2CTileMap(const Problem& problem)
+    {
+        return DefaultBlock2CTileMap(problem.M, problem.N);
+    }
+    __device__ __host__ static auto DefaultBlock2CTileMap(const index_t M, const index_t N)
+    {
+        return Block2CTileMap{M, N, 4};
+    }
+
+    // Run method for convolution for bwd_data (grid descriptors are passed as arguments,
+    // not generated internally)
+    template <typename AGridDesc_AK0_M_K1,
+              typename BGridDesc_BK0_N_K1,
+              typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename Block2CTileMapExt,
+              typename ComputePtrOffsetOfBatch,
+              typename ComputePtrOffsetOfN,
+              bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              bool CTranspose,
+              TailNumber TailNum,
+              typename EpilogueArgument>
+    __device__ static void Run(void* p_shared,
+                               const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
+                               const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
+                               const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const Block2CTileMapExt& block_2_ctile_map,
+                               const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+                               const ComputePtrOffsetOfN compute_ptr_offset_of_n,
+                               const index_t num_k_per_block,
+                               Argument& karg,
+                               EpilogueArgument& epilogue_args)
+    {
+        const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
+        const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z / karg.KBatch);
+        const index_t k_idx =
+            __builtin_amdgcn_readfirstlane((blockIdx.z - n_idx * karg.KBatch) * num_k_per_block);
+
+        // offset base pointer for each work-group
+        const long_index_t a_batch_offset =
+            CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx))
+                       : amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
+        const long_index_t b_batch_offset =
+            CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx))
+                       : amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
+        const long_index_t e_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
+
+        const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+
+        const long_index_t a_n_offset =
+            CTranspose ? 0 : amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
+        const long_index_t b_n_offset =
+            CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx)) : 0;
+        const long_index_t e_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
+
+        AsGridPointer p_as_grid_;
+        static_for<0, NumATensor, 1>{}([&](auto i) {
+            using ADataType_ = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
+            p_as_grid_(i) =
+                static_cast<const ADataType_*>(karg.p_as_grid[i]) + a_batch_offset + a_n_offset;
+        });
+
+        BsGridPointer p_bs_grid_;
+        static_for<0, NumBTensor, 1>{}([&](auto i) {
+            using BDataType_ = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
+            p_bs_grid_(i) =
+                static_cast<const BDataType_*>(karg.p_bs_grid[i]) + b_batch_offset + b_n_offset;
+        });
+
+        DsGridPointer p_ds_grid_grp;
+        static_for<0, NumDTensor, 1>{}(
+            [&](auto i) { p_ds_grid_grp(i) = karg.p_ds_grid[i] + ds_batch_offset[i]; });
+
+        // Currently supporting one A and one B
+        const auto as_grid_desc_ak0_m_ak1 = generate_tuple(
+            [&](auto i) {
+                ignore = i;
+                return a_grid_desc_ak0_m_ak1;
+            },
+            Number<NumATensor>{});
+
+        const auto bs_grid_desc_bk0_n_bk1 = generate_tuple(
+            [&](auto i) {
+                ignore = i;
+                return b_grid_desc_bk0_n_bk1;
+            },
+            Number<NumBTensor>{});
+
+        const auto block_work_idx =
+            block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+
+        if(!block_2_ctile_map.ValidCTileIndex(
+               block_work_idx,
+               make_tuple(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
+                          e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
+        {
+            return;
+        }
+
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
+
+        // AScale struct (Empty)
+        using AScale        = typename BlockwiseGemmPipe::Empty;
+        auto a_scale_struct = AScale{};
+
+        // BScale struct (Empty)
+        using BScale        = typename BlockwiseGemmPipe::Empty;
+        auto b_scale_struct = BScale{};
+
+        const index_t num_k_block_per_scale = GetKBlockPerScale();
+
+        Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
+                           decltype(bs_grid_desc_bk0_n_bk1),
+                           decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
+                           decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                           decltype(a_scale_struct),
+                           decltype(b_scale_struct),
+                           decltype(epilogue_args),
+                           HasMainKBlockLoop,
+                           EGlobalMemoryDataOperation,
+                           TailNum>(p_as_grid_,
+                                    p_bs_grid_,
+                                    p_ds_grid_grp,
+                                    karg.p_e_grid + e_batch_offset + e_n_offset,
+                                    p_shared,
+                                    as_grid_desc_ak0_m_ak1,
+                                    bs_grid_desc_bk0_n_bk1,
+                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    karg.a_element_op,
+                                    karg.b_element_op,
+                                    karg.cde_element_op,
+                                    block_m_id,
+                                    block_n_id,
+                                    num_k_block_per_scale,
+                                    a_scale_struct,
+                                    b_scale_struct,
+                                    epilogue_args,
+                                    k_idx,
+                                    k_idx,
+                                    karg.KBatch);
+    }
+
+    // Run method for convolution (grid descriptors are passed as arguments,
+    // not generated internally)
+    template <typename AGridDesc_AK0_M_K1,
+              typename BGridDesc_BK0_N_K1,
+              typename CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename ComputePtrOffsetOfBatch,
+              index_t NumGroupsToMerge,
+              bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+              TailNumber TailNum,
+              typename EpilogueArgument>
+    __device__ static void Run(void* p_shared,
+                               const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
+                               const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
+                               const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+                               const index_t num_k_per_block,
+                               Argument& karg,
+                               EpilogueArgument& epilogue_args)
+    {
+        const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
+        const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
+
+        const long_index_t a_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
+        const long_index_t b_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
+        const long_index_t e_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
+
+        AsGridPointer p_as_grid_;
+        static_for<0, NumATensor, 1>{}([&](auto i) {
+            using ADataType_ = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
+            p_as_grid_(i)    = static_cast<const ADataType_*>(karg.p_as_grid[i]) + a_batch_offset;
+        });
+
+        BsGridPointer p_bs_grid_;
+        static_for<0, NumBTensor, 1>{}([&](auto i) {
+            using BDataType_ = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
+            p_bs_grid_(i)    = static_cast<const BDataType_*>(karg.p_bs_grid[i]) + b_batch_offset;
+        });
+
+        const auto ds_grid_desc_m_n =
+            MakeDsGridDescriptor_M_N(karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideDs);
+
+        const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
+            MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                ds_grid_desc_m_n, karg.MBlock, karg.NBlock);
+
+        const auto as_grid_desc_ak0_m_ak1 = generate_tuple(
+            [&](auto i) {
+                ignore = i;
+                return a_grid_desc_ak0_m_ak1;
+            },
+            Number<NumATensor>{});
+
+        const auto bs_grid_desc_bk0_n_bk1 = generate_tuple(
+            [&](auto i) {
+                ignore = i;
+                return b_grid_desc_bk0_n_bk1;
+            },
+            Number<NumBTensor>{});
+
+        // divide block work by [M, N]
+        const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};
+
+        const auto block_work_idx =
+            block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+
+        if(!block_2_ctile_map.ValidCTileIndex(
+               block_work_idx,
+               make_tuple(c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
+                          c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
+        {
+            return;
+        }
+
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
+
+        // Scale structs (Empty)
+        using Scale         = typename BlockwiseGemmPipe::Empty;
+        auto b_scale_struct = Scale{};
+        auto a_scale_struct = Scale{};
+
+        const index_t num_k_block_per_scale = GetKBlockPerScale();
+
+        Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
+                           decltype(bs_grid_desc_bk0_n_bk1),
+                           decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
+                           decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
+                           decltype(a_scale_struct),
+                           decltype(b_scale_struct),
+                           decltype(epilogue_args),
+                           HasMainKBlockLoop,
+                           CGlobalMemoryDataOperation,
+                           TailNum>(p_as_grid_,
+                                    p_bs_grid_,
+                                    karg.p_ds_grid,
+                                    karg.p_e_grid + e_batch_offset,
+                                    p_shared,
+                                    as_grid_desc_ak0_m_ak1,
+                                    bs_grid_desc_bk0_n_bk1,
+                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    karg.a_element_op,
+                                    karg.b_element_op,
+                                    karg.cde_element_op,
+                                    block_m_id,
+                                    block_n_id,
+                                    num_k_block_per_scale,
+                                    a_scale_struct,
+                                    b_scale_struct,
+                                    epilogue_args,
+                                    k_idx,
+                                    k_idx,
+                                    karg.KBatch);
+    }
+
+    // Run method for convolution fwd (grid descriptors are passed as arguments,
+    // not generated internally)
+    template <typename AGridDesc_AK0_M_K1,
+              typename BGridDesc_BK0_N_K1,
+              typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename ComputePtrOffsetOfBatch,
+              typename ComputePtrOffsetOfN,
+              bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              TailNumber TailNum,
+              typename EpilogueArgument>
+    __device__ static void Run(void* p_shared,
+                               const AGridDesc_AK0_M_K1& a_grid_desc_ak0_m_ak1,
+                               const BGridDesc_BK0_N_K1& b_grid_desc_bk0_n_bk1,
+                               const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const ComputePtrOffsetOfBatch& compute_ptr_offset_of_batch,
+                               const ComputePtrOffsetOfN& compute_ptr_offset_of_n,
+                               [[maybe_unused]] const index_t num_k_per_block,
+                               Argument& karg,
+                               EpilogueArgument& epilogue_args)
+    {
+        const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
+        const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z / karg.KBatch);
+        // offset base pointer for each work-group
+        const long_index_t a_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
+        const long_index_t b_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
+        const long_index_t e_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
+
+        const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+
+        const long_index_t a_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
+        const long_index_t b_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetBPtrOffset(n_idx));
+        const long_index_t e_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
+
+        const auto ds_n_offset = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
+
+        AsGridPointer p_as_grid_;
+        static_for<0, NumATensor, 1>{}([&](auto i) {
+            using ADataType_ = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
+            p_as_grid_(i) =
+                static_cast<const ADataType_*>(karg.p_as_grid[i]) + a_batch_offset + a_n_offset;
+        });
+
+        BsGridPointer p_bs_grid_;
+        static_for<0, NumBTensor, 1>{}([&](auto i) {
+            using BDataType_ = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
+            p_bs_grid_(i) =
+                static_cast<const BDataType_*>(karg.p_bs_grid[i]) + b_batch_offset + b_n_offset;
+        });
+
+        DsGridPointer p_ds_grid_grp;
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DDataType_ = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+            p_ds_grid_grp(i) = static_cast<const DDataType_*>(karg.p_ds_grid[i]) +
+                               ds_batch_offset[i] + ds_n_offset[i];
+        });
+
+        // Currently supporting one A and one B
+        const auto as_grid_desc_ak0_m_ak1 = generate_tuple(
+            [&](auto i) {
+                ignore = i;
+                return a_grid_desc_ak0_m_ak1;
+            },
+            Number<NumATensor>{});
+
+        const auto bs_grid_desc_bk0_n_bk1 = generate_tuple(
+            [&](auto i) {
+                ignore = i;
+                return b_grid_desc_bk0_n_bk1;
+            },
+            Number<NumBTensor>{});
+
+        // divide block work by [M, N]
+        const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};
+
+        const auto block_work_idx =
+            block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+
+        if(!block_2_ctile_map.ValidCTileIndex(
+               block_work_idx,
+               make_tuple(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
+                          e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
+        {
+            return;
+        }
+
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
+
+        // AScale struct (Empty)
+        using AScale        = typename BlockwiseGemmPipe::Empty;
+        auto a_scale_struct = AScale{};
+
+        // BScale struct (Empty)
+        using BScale        = typename BlockwiseGemmPipe::Empty;
+        auto b_scale_struct = BScale{};
+
+        const index_t num_k_block_per_scale = GetKBlockPerScale();
+
+        Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
+                           decltype(bs_grid_desc_bk0_n_bk1),
+                           decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
+                           decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                           decltype(a_scale_struct),
+                           decltype(b_scale_struct),
+                           decltype(epilogue_args),
+                           HasMainKBlockLoop,
+                           EGlobalMemoryDataOperation,
+                           TailNum>(p_as_grid_,
+                                    p_bs_grid_,
+                                    p_ds_grid_grp,
+                                    karg.p_e_grid + e_batch_offset + e_n_offset,
+                                    p_shared,
+                                    as_grid_desc_ak0_m_ak1,
+                                    bs_grid_desc_bk0_n_bk1,
+                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    karg.a_element_op,
+                                    karg.b_element_op,
+                                    karg.cde_element_op,
+                                    block_m_id,
+                                    block_n_id,
+                                    num_k_block_per_scale,
+                                    a_scale_struct,
+                                    b_scale_struct,
+                                    epilogue_args);
     }
 };
 

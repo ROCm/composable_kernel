@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1237,10 +1237,11 @@ constexpr auto reverse_slice_sequence(Seq,
 {
     static_assert(Seq::size() == Mask::size());
     static_assert(SliceSize != 0, "slice size zero is invalid");
-    static_assert(container_reduce(pick_sequence_elements_by_mask(Seq{}, Mask{}), multiplies{}, 1) %
-                          SliceSize ==
-                      0,
-                  "slice size can't evenly divide input sizes");
+    static_assert(
+        container_reduce(pick_sequence_elements_by_mask(Seq{}, Mask{}), multiplies<>{}, 1) %
+                SliceSize ==
+            0,
+        "slice size can't evenly divide input sizes");
     using sliced_type =
         impl::reverse_slice_sequence_impl<Seq,
                                           Mask,

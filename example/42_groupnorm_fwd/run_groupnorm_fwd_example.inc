@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,7 +12,7 @@ int run_groupnorm_fwd_example(int argc, char* argv[])
     ck::index_t C = 128;
 
     bool do_verification = true;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
     bool log_kernel      = true;
 
     if(argc == 1)

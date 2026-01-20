@@ -15,29 +15,31 @@ namespace ck_tile::builder {
 /* Descriptors for individual elements of the algorithm description */
 /********************************************************************/
 
+// Common concept for size-related fields
+template <typename T>
+concept SizeType = std::unsigned_integral<std::remove_cvref_t<T>>;
+
 // Concept for thread block dimensions for a GEMM problem.
 template <typename T>
 concept ThreadBlockDescriptor = requires(T t) {
-    { t.block_size } -> std::convertible_to<size_t>;
-    { t.tile_size.m } -> std::convertible_to<size_t>;
-    { t.tile_size.n } -> std::convertible_to<size_t>;
-    { t.tile_size.k } -> std::convertible_to<size_t>;
+    { t.block_size } -> SizeType;
+    { t.tile_size.m } -> SizeType;
+    { t.tile_size.n } -> SizeType;
+    { t.tile_size.k } -> SizeType;
 };
 
 // Concept for parameters that describe a gridwise XDL GEMM problem.
 template <typename T>
 concept GridwiseXdlGemmDescriptor = requires(T t) {
-    { t.ak1 } -> std::convertible_to<size_t>;
-    { t.bk1 } -> std::convertible_to<size_t>;
-    { t.m_per_xdl } -> std::convertible_to<size_t>;
-    { t.n_per_xdl } -> std::convertible_to<size_t>;
-    { t.m_xdl_per_wave } -> std::convertible_to<size_t>;
-    { t.n_xdl_per_wave } -> std::convertible_to<size_t>;
+    { t.m_per_xdl } -> SizeType;
+    { t.n_per_xdl } -> SizeType;
+    { t.m_xdl_per_wave } -> SizeType;
+    { t.n_xdl_per_wave } -> SizeType;
 };
 
 // Concept for parameter that describe block GEMM problem.
 template <typename T>
-concept BlockGemmDescriptor = requires(T t) {
+concept BlockGemmPipelineDescriptor = requires(T t) {
     { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
     { t.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
@@ -45,37 +47,48 @@ concept BlockGemmDescriptor = requires(T t) {
 // Concept for parameters that describe a gridwise WMMA GEMM problem.
 template <typename T>
 concept GridwiseWmmaGemmDescriptor = requires(T t) {
-    { t.k1 } -> std::convertible_to<size_t>;
-    { t.m_per_wmma } -> std::convertible_to<size_t>;
-    { t.n_per_wmma } -> std::convertible_to<size_t>;
-    { t.m_wmma_per_wave } -> std::convertible_to<size_t>;
-    { t.n_wmma_per_wave } -> std::convertible_to<size_t>;
-    { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
+    { t.k1 } -> SizeType;
+    { t.m_per_wmma } -> SizeType;
+    { t.n_per_wmma } -> SizeType;
+    { t.m_wmma_per_wave } -> SizeType;
+    { t.n_wmma_per_wave } -> SizeType;
 };
 
 // Concept for vectorized data transfer for convolution input tensors.
 template <typename T>
-concept BlockTransferDescriptor = requires(T t) {
-    { t.k0 } -> std::convertible_to<size_t>;
-    { t.m_n } -> std::convertible_to<size_t>;
-    { t.k1 } -> std::convertible_to<size_t>;
+concept BlockTransferDescriptor3D = requires(T t) {
+    { t.k0 } -> SizeType;
+    { t.m_n } -> SizeType;
+    { t.k1 } -> SizeType;
 };
+
+template <typename T>
+concept BlockTransferDescriptor4D = requires(T t) {
+    { t.k0 } -> SizeType;
+    { t.m_n } -> SizeType;
+    { t.k1 } -> SizeType;
+    { t.k_batch_size } -> SizeType;
+};
+
+template <typename T, size_t ThreadClusterRank>
+concept BlockTransferDescriptor = (ThreadClusterRank == 3 && BlockTransferDescriptor3D<T>) ||
+                                  (ThreadClusterRank == 4 && BlockTransferDescriptor4D<T>);
 
 // Concept for thread cluster dimensions for GEMM output tensor.
 template <typename T>
 concept ThreadClusterDescriptor = requires(T t) {
-    { t.m_block } -> std::convertible_to<size_t>;
-    { t.m_wave_per_xdl } -> std::convertible_to<size_t>;
-    { t.n_block } -> std::convertible_to<size_t>;
-    { t.n_wave_per_xdl } -> std::convertible_to<size_t>;
+    { t.m_block } -> SizeType;
+    { t.m_wave_per_xdl } -> SizeType;
+    { t.n_block } -> SizeType;
+    { t.n_wave_per_xdl } -> SizeType;
 };
 
 // Concept for the LDS transfer for the convolution input tensors.
 template <typename T>
 concept LdsTransferDescriptor = requires(T t) {
-    { t.src_vector_dim } -> std::convertible_to<size_t>;
-    { t.src_scalar_per_vector } -> std::convertible_to<size_t>;
-    { t.lds_dst_scalar_per_vector } -> std::convertible_to<size_t>;
+    { t.src_vector_dim } -> SizeType;
+    { t.src_scalar_per_vector } -> SizeType;
+    { t.lds_dst_scalar_per_vector } -> SizeType;
     { t.is_direct_load } -> std::convertible_to<bool>;
     { t.lds_padding } -> std::convertible_to<bool>;
 };
@@ -84,15 +97,58 @@ concept LdsTransferDescriptor = requires(T t) {
 // LDS).
 template <typename T>
 concept EpilogueDescriptor = requires(T t) {
-    { t.m_per_wave_per_shuffle } -> std::convertible_to<size_t>;
-    { t.n_per_wave_per_shuffle } -> std::convertible_to<size_t>;
-    { t.scalar_per_vector } -> std::convertible_to<size_t>;
+    { t.m_xdl_per_wave_per_shuffle } -> SizeType;
+    { t.n_per_wave_per_shuffle } -> SizeType;
+    { t.scalar_per_vector } -> SizeType;
 };
 
 // Concept for the thread cluster access order
 template <typename T>
-concept AccessOrderDescriptor = requires(T t) {
+concept ThreadClusterOrderDescriptor = requires(T t) {
     { t.order } -> std::convertible_to<std::array<size_t, 3>>;
+} || requires(T t) {
+    { t.order } -> std::convertible_to<std::array<size_t, 4>>;
+};
+
+// Concept for thread block dimensions for a GEMM problem for CK Tile (Block
+// size is deduced from block gemm structure).
+template <typename T>
+concept TileThreadBlockDescriptor = requires(T t) {
+    { t.tile_size.m } -> SizeType;
+    { t.tile_size.n } -> SizeType;
+    { t.tile_size.k } -> SizeType;
+};
+
+// Concept for thread block dimensions for a GEMM problem for CK Tile (Block
+// size is deduced from block gemm structure).
+template <typename T>
+concept TileTransferDescriptor = requires(T t) {
+    { t.a_scalar_per_vector } -> SizeType;
+    { t.b_scalar_per_vector } -> SizeType;
+    { t.c_scalar_per_vector } -> SizeType;
+};
+
+// Concept to check if struct specifies block GEMM (CK Tile).
+template <typename T>
+concept TileBlockGemmDescriptor = requires(T t) {
+    { t.warps.m } -> std::convertible_to<int>;
+    { t.warps.n } -> std::convertible_to<int>;
+    { t.warps.k } -> std::convertible_to<int>;
+    { t.warp_tile.m } -> std::convertible_to<int>;
+    { t.warp_tile.n } -> std::convertible_to<int>;
+    { t.warp_tile.k } -> std::convertible_to<int>;
+    { t.double_smem_buffer } -> std::convertible_to<bool>;
+    { t.num_wave_groups } -> std::convertible_to<int>;
+    { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
+    { t.scheduler } -> std::convertible_to<PipelineScheduler>;
+};
+
+// Concept to check if struct specifies optimizations (CK Tile).
+template <typename T>
+concept TileOptimizationsDescriptor = requires(T t) {
+    { t.num_groups_to_merge } -> std::convertible_to<int>;
+    { t.split_image } -> std::convertible_to<bool>;
+    { t.explicit_gemm } -> std::convertible_to<bool>;
 };
 
 // Base requirement for all ConvAlgorithm concepts, i.e., all conv algorithm concepts must meet this
@@ -110,24 +166,59 @@ concept SpecifiesThreadBlock = requires {
     { T::thread_block } -> ThreadBlockDescriptor;
 };
 
+// Concept to check if struct specifies thread block info (CK Tile).
+template <typename T>
+concept SpecifiesTileThreadBlock = requires {
+    { T::thread_block } -> TileThreadBlockDescriptor;
+};
+
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept SpecifiesGridwiseXdlGemm = requires {
-    { T::gridwise_gemm } -> GridwiseXdlGemmDescriptor;
+concept GridwiseFwdXdlGemmDescriptor = requires(T t) {
+    { t.ak1 } -> SizeType;
+    { t.bk1 } -> SizeType;
+    { t.xdl_params } -> GridwiseXdlGemmDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise XDL GEMM info.
+template <typename T>
+concept GridwiseBwdXdlGemmDescriptor = requires(T t) {
+    { t.k1 } -> SizeType;
+    { t.xdl_params } -> GridwiseXdlGemmDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise XDL GEMM info.
+template <typename T>
+concept SpecifiesGridwiseFwdXdlGemm = requires(T t) {
+    { t.gridwise_gemm } -> GridwiseFwdXdlGemmDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise XDL GEMM info.
+template <typename T>
+concept SpecifiesGridwiseBwdXdlGemm = requires(T t) {
+    { t.gridwise_gemm } -> GridwiseBwdXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise WMMA GEMM info.
 template <typename T>
-concept SpecifiesGridwiseWmmaGemm = requires {
-    { T::gridwise_gemm } -> GridwiseWmmaGemmDescriptor;
+concept SpecifiesGridwiseWmmaGemm = requires(T t) {
+    { t.gridwise_gemm } -> GridwiseWmmaGemmDescriptor;
 };
 
 // Concept to check if a struct specifies convolution input and output block transfer info.
-template <typename T>
+template <typename T, size_t ThreadClusterRank = 3>
 concept SpecifiesBlockTransfer = requires(T t) {
-    { T::transfer.a.block_transfer } -> BlockTransferDescriptor;
-    { T::transfer.b.block_transfer } -> BlockTransferDescriptor;
+    { T::transfer.a.block_transfer } -> BlockTransferDescriptor<ThreadClusterRank>;
+    { T::transfer.b.block_transfer } -> BlockTransferDescriptor<ThreadClusterRank>;
     { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
+};
+
+// Concept to check if a struct specifies convolution scalar per vector infor for A, B and C.
+template <typename T>
+concept SpecifiesTileTransfer = requires(T t) {
+    { T::transfer.a_scalar_per_vector } -> SizeType;
+    { T::transfer.b_scalar_per_vector } -> SizeType;
+    { T::transfer.c_scalar_per_vector } -> SizeType;
 };
 
 // Concept to check if a struct specifies LDS transfer info for tensors A, B, and C.
@@ -140,28 +231,65 @@ concept SpecifiesLdsTransfer = requires(T t) {
 
 // Concept to check if a struct specifies thread cluster access order info.
 template <typename T>
-concept SpecifiesThreadClusterAccessOrder = requires(T t) {
-    { T::transfer.a.block_transfer_access_order } -> AccessOrderDescriptor;
-    { T::transfer.b.block_transfer_access_order } -> AccessOrderDescriptor;
+concept SpecifiesThreadClusterArrangeOrder = requires(T t) {
+    { T::transfer.a.thread_cluster_arrange_order } -> ThreadClusterOrderDescriptor;
+    { T::transfer.b.thread_cluster_arrange_order } -> ThreadClusterOrderDescriptor;
 };
 
 // Concept to check if a struct specifies source access order info.
 template <typename T>
 concept SpecifiesSourceAccessOrder = requires(T t) {
-    { T::transfer.a.src_access_order } -> AccessOrderDescriptor;
-    { T::transfer.b.src_access_order } -> AccessOrderDescriptor;
+    { T::transfer.a.src_access_order } -> ThreadClusterOrderDescriptor;
+    { T::transfer.b.src_access_order } -> ThreadClusterOrderDescriptor;
 };
 
 // Concept to check if struct specifies block GEMM.
 template <typename T>
 concept SpecifiesBlockGemm = requires {
+    { T::block_gemm_pipeline } -> BlockGemmPipelineDescriptor;
+};
+
+template <typename T>
+concept SpecifiesGridwiseGemmPipeline = requires {
+    { T::pipeline_version } -> std::convertible_to<PipelineVersion>;
+};
+
+// Concept to check if struct specifies block GEMM (CK Tile).
+template <typename T>
+concept SpecifiesTileBlockGemm = requires {
+    { T::block_gemm.warps.m } -> std::convertible_to<int>;
+    { T::block_gemm.warps.n } -> std::convertible_to<int>;
+    { T::block_gemm.warps.k } -> std::convertible_to<int>;
+    { T::block_gemm.warp_tile.m } -> std::convertible_to<int>;
+    { T::block_gemm.warp_tile.n } -> std::convertible_to<int>;
+    { T::block_gemm.warp_tile.k } -> std::convertible_to<int>;
+    { T::block_gemm.double_smem_buffer } -> std::convertible_to<bool>;
+    { T::block_gemm.num_wave_groups } -> std::convertible_to<int>;
     { T::block_gemm.pipeline_version } -> std::convertible_to<PipelineVersion>;
     { T::block_gemm.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
+// Concept to check if struct specifies block GEMM (CK Tile).
 template <typename T>
-concept SpecifiesFwdConcSpecialization = requires {
-    { T::fwd_specialization } -> std::convertible_to<ConvFwdSpecialization>;
+concept SpecifiesTileOptimizations = requires {
+    { T::optimizations.num_groups_to_merge } -> std::convertible_to<int>;
+    { T::optimizations.split_image } -> std::convertible_to<bool>;
+    { T::optimizations.explicit_gemm } -> std::convertible_to<bool>;
+};
+
+template <typename T>
+concept SpecifiesTileConvSpecialization = requires {
+    { T::specialization } -> std::convertible_to<TileConvSpecialization>;
+};
+
+template <typename T>
+concept SpecifiesFwdConvSpecialization = requires {
+    { T::fwd_specialization } -> std::convertible_to<ConvSpecialization>;
+};
+
+template <typename T>
+concept SpecifiesBwdWeightConvSpecialization = requires {
+    { T::bwd_weight_specialization } -> std::convertible_to<ConvSpecialization>;
 };
 
 template <typename T>
@@ -171,12 +299,12 @@ concept SpecifiesGemmSpecialization = requires {
 
 template <typename T>
 concept SpecifiesNumPrefetchStages = requires {
-    { T::num_gemm_k_prefetch_stages } -> std::convertible_to<size_t>;
+    { T::num_gemm_k_prefetch_stages } -> SizeType;
 };
 
 template <typename T>
 concept SpecifiesNumGroupsToMerge = requires {
-    { T::num_groups_to_merge } -> std::convertible_to<size_t>;
+    { T::num_conv_groups_to_merge } -> SizeType;
 };
 
 template <typename T>
@@ -185,9 +313,56 @@ concept SpecifiesLoopScheduler = requires {
 };
 
 template <typename T>
+concept SpecifiesGenericInstance = !requires {
+    { T::specialization };
+};
+
+template <typename T>
+concept SpecifiesTransposeTransfer = requires {
+    { T::max_transpose_transfer_src_scalar_per_vector } -> SizeType;
+    { T::max_transpose_transfer_dst_scalar_per_vector } -> SizeType;
+};
+
+template <typename T>
+concept HasTransposeTransfer = requires {
+    { T::max_transpose_transfer_src_scalar_per_vector };
+    { T::max_transpose_transfer_dst_scalar_per_vector };
+};
+
+template <typename T>
+concept TransposeTransferWellDefinedIfProvided =
+    !HasTransposeTransfer<T> || SpecifiesTransposeTransfer<T>;
+
+template <typename T>
+concept SpecifiesGemmBatchOptions = requires {
+    { T::num_conv_groups_to_merge } -> SizeType;
+};
+
+/******************************************** */
+/* Algorithm specialization concepts          */
+/******************************************** */
+template <typename T>
 concept SpecifiesLargeTensorSupport = requires {
     { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
     requires T::specialization == ConvAlgorithmSpecialization::LARGE_TENSOR;
+};
+
+template <typename T>
+concept SpecifiesReferenceAlgorithm = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::REFERENCE;
+};
+
+template <typename T>
+concept SpecifiesTwoStageSupport = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::TWO_STAGE;
+};
+
+template <typename T>
+concept SpecifiesMultipleDSupport = requires {
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::MULTIPLE_D;
 };
 
 /******************************************** */
@@ -197,11 +372,11 @@ concept SpecifiesLargeTensorSupport = requires {
 // Concept for DL thread configuration
 template <typename T>
 concept DlThreadConfigDescriptor = requires(T t) {
-    { t.k0_per_block } -> std::convertible_to<size_t>;
-    { t.k1 } -> std::convertible_to<size_t>;
-    { t.m1_per_thread } -> std::convertible_to<size_t>;
-    { t.n1_per_thread } -> std::convertible_to<size_t>;
-    { t.k_per_thread } -> std::convertible_to<size_t>;
+    { t.k0_per_block } -> SizeType;
+    { t.k1 } -> SizeType;
+    { t.m1_per_thread } -> SizeType;
+    { t.n1_per_thread } -> SizeType;
+    { t.k_per_thread } -> SizeType;
 };
 
 // Concept for DL thread cluster
@@ -212,23 +387,29 @@ concept DlThreadClusterDescriptor = requires(T t) {
 };
 
 // Concept for DL block transfer
-template <typename T>
+template <typename T, size_t N>
 concept DlBlockTransferDescriptor = requires(T t) {
-    { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.src_access_order } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.src_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, 4>>;
-    { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, N>>;
+    { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, N>>;
+    { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, N>>;
+    { t.src_access_order } -> std::convertible_to<std::array<size_t, N>>;
+    { t.src_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, N>>;
+    { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, N>>;
+    { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, N>>;
 };
+
+template <typename T>
+concept DlBlockTransferDescriptor4D = DlBlockTransferDescriptor<T, 4>;
+
+template <typename T>
+concept DlBlockTransferDescriptor5D = DlBlockTransferDescriptor<T, 5>;
 
 // Concept for DL epilogue
 template <typename T>
 concept DlEpilogueDescriptor = requires(T t) {
     { t.src_dst_access_order } -> std::convertible_to<std::array<size_t, 6>>;
-    { t.src_dst_vector_dim } -> std::convertible_to<size_t>;
-    { t.dst_scalar_per_vector } -> std::convertible_to<size_t>;
+    { t.src_dst_vector_dim } -> SizeType;
+    { t.dst_scalar_per_vector } -> SizeType;
 };
 
 // Concept to check if algorithm specifies DL thread config
@@ -245,52 +426,21 @@ concept SpecifiesDlThreadCluster = requires {
 
 // Concept to check if algorithm specifies DL block transfer
 template <typename T>
-concept SpecifiesDlBlockTransfer = requires {
-    { T::transfer.a.block_transfer } -> DlBlockTransferDescriptor;
-    { T::transfer.b.block_transfer } -> DlBlockTransferDescriptor;
+concept SpecifiesDlFwdBlockTransfer = requires {
+    { T::transfer.a } -> DlBlockTransferDescriptor4D;
+    { T::transfer.b } -> DlBlockTransferDescriptor4D;
+};
+
+template <typename T>
+concept SpecifiesDlBwdBlockTransfer = requires {
+    { T::transfer.a } -> DlBlockTransferDescriptor5D;
+    { T::transfer.b } -> DlBlockTransferDescriptor5D;
 };
 
 // Concept to check if algorithm specifies DL C thread transfer
 template <typename T>
 concept SpecifiesDlEpilogue = requires {
-    { T::transfer.c.epilogue } -> DlEpilogueDescriptor;
+    { T::transfer.c } -> DlEpilogueDescriptor;
 };
-
-/******************************************** */
-/* Concepts for the different device ops */
-/******************************************** */
-
-template <typename T>
-concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
-    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T>;
-
-template <typename T>
-concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
-    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> &&
-    SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T>;
-
-template <typename T>
-concept DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
-    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
-
-template <typename T>
-concept DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesDlThreadConfig<T> && SpecifiesDlThreadCluster<T> &&
-    SpecifiesDlBlockTransfer<T> && SpecifiesDlEpilogue<T>;
-
-template <typename T>
-concept DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
-    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<decltype(T::base_algorithm)> &&
-    SpecifiesLargeTensorSupport<T>;
 
 } // namespace ck_tile::builder

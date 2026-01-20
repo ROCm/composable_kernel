@@ -1,17 +1,19 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <ck/ck.hpp>
-#include <ck/utility/reduction_operator.hpp>
-#include <ck_tile/builder/reflect/instance_traits.hpp>
-#include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
-#include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp>
-#include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp>
-#include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp>
-#include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp>
-#include <ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp>
+#include <gtest/gtest.h>
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck_tile/builder/reflect/instance_traits.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp"
+#include "ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp"
+#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
 
 namespace {
 
@@ -260,14 +262,14 @@ TEST(InstanceTraits, V3InstanceStringReturnsCorrectFormat)
                                ",2"             // ABlockTransferSrcVectorDim
                                ",8"             // ABlockTransferSrcScalarPerVector
                                ",8"             // ABlockTransferDstScalarPerVector_AK1
-                               ",1"             // ABlockLdsExtraM
+                               ",true"          // ABlockLdsExtraM
                                ",Seq(4,64,1)"   // BBlockTransferThreadClusterLengths
                                ",Seq(1,0,2)"    // BBlockTransferThreadClusterArrangeOrder
                                ",Seq(1,0,2)"    // BBlockTransferSrcAccessOrder
                                ",2"             // BBlockTransferSrcVectorDim
                                ",8"             // BBlockTransferSrcScalarPerVector
                                ",8"             // BBlockTransferDstScalarPerVector_BK1
-                               ",1"             // BBlockLdsExtraN
+                               ",true"          // BBlockLdsExtraN
                                ",1"             // CShuffleMXdlPerWavePerShuffle
                                ",1"             // CShuffleNXdlPerWavePerShuffle
                                ",Seq(1,32,1,8)" // CDEBlockTransferClusterLengths
@@ -375,14 +377,14 @@ TEST(InstanceTraits, BaseInstanceStringReturnsCorrectFormat)
                                ",2"             // ABlockTransferSrcVectorDim
                                ",8"             // ABlockTransferSrcScalarPerVector
                                ",8"             // ABlockTransferDstScalarPerVector_AK1
-                               ",1"             // ABlockLdsExtraM
+                               ",true"          // ABlockLdsExtraM
                                ",Seq(4,64,1)"   // BBlockTransferThreadClusterLengths
                                ",Seq(1,0,2)"    // BBlockTransferThreadClusterArrangeOrder
                                ",Seq(1,0,2)"    // BBlockTransferSrcAccessOrder
                                ",2"             // BBlockTransferSrcVectorDim
                                ",8"             // BBlockTransferSrcScalarPerVector
                                ",8"             // BBlockTransferDstScalarPerVector_BK1
-                               ",1"             // BBlockLdsExtraN
+                               ",true"          // BBlockLdsExtraN
                                ",1"             // CShuffleMXdlPerWavePerShuffle
                                ",1"             // CShuffleNXdlPerWavePerShuffle
                                ",Seq(1,32,1,8)" // CDEBlockTransferClusterLengths
@@ -490,14 +492,14 @@ TEST(InstanceTraits, LargeTensorInstanceStringReturnsCorrectFormat)
                                ",2"             // ABlockTransferSrcVectorDim
                                ",8"             // ABlockTransferSrcScalarPerVector
                                ",8"             // ABlockTransferDstScalarPerVector_AK1
-                               ",1"             // ABlockLdsExtraM
+                               ",true"          // ABlockLdsExtraM
                                ",Seq(4,64,1)"   // BBlockTransferThreadClusterLengths
                                ",Seq(1,0,2)"    // BBlockTransferThreadClusterArrangeOrder
                                ",Seq(1,0,2)"    // BBlockTransferSrcAccessOrder
                                ",2"             // BBlockTransferSrcVectorDim
                                ",8"             // BBlockTransferSrcScalarPerVector
                                ",8"             // BBlockTransferDstScalarPerVector_BK1
-                               ",1"             // BBlockLdsExtraN
+                               ",true"          // BBlockLdsExtraN
                                ",1"             // CShuffleMXdlPerWavePerShuffle
                                ",1"             // CShuffleNXdlPerWavePerShuffle
                                ",Seq(1,32,1,8)" // CDEBlockTransferClusterLengths
@@ -734,7 +736,8 @@ TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
                                    4 /*VectorSizeB*/,
                                    4 /*VectorSizeC*/,
                                    1 /*NumGroupsToMerge*/,
-                                   false /*EnableSplitImage*/>;
+                                   false /*EnableSplitImage*/,
+                                   false /*ExplicitGemm*/>;
 
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<128 /*M_Tile*/, 128 /*N_Tile*/, 32 /*K_Tile*/>,
@@ -766,8 +769,6 @@ TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
         GemmShape,
         GemmUniversalTraits,
         ck_tile::GemmPipelineScheduler::Intrawave /*scheduler*/,
-        true /*has_hot_loop_v*/,
-        ck_tile::TailNumber::Full /*tail_number_v*/,
         ck_tile::element_wise::PassThrough /*AElementwiseOperation*/,
         ck_tile::element_wise::PassThrough /*BElementwiseOperation*/,
         ck_tile::bf16_t /*OutDataType*/,
@@ -794,16 +795,14 @@ TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
                                          16 /*N_Warp_Tile*/,
                                          16 /*K_Warp_Tile*/,
                                          GroupedConvTraitsType::FixedGemmParams::TransposeC,
-                                         ck_tile::memory_operation_enum::set /*memory_operation*/,
                                          1 /*kNumWaveGroups*/,
                                          GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
                                          GroupedConvTraitsType::VectorSizeC>>;
 
-    using GroupedConvFwdKernel =
-        ck_tile::device::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
-                                                         TilePartitioner,
-                                                         GemmPipeline,
-                                                         ConvEpilogue>;
+    using GroupedConvFwdKernel = ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
+                                                                          TilePartitioner,
+                                                                          GemmPipeline,
+                                                                          ConvEpilogue>;
 
     std::string instance_str = ck_tile::reflect::instance_string<GroupedConvFwdKernel>();
 
@@ -819,6 +818,7 @@ TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
                                ",4"           // VectorSizeC
                                ",1"           // NumGroupsToMerge
                                ",0"           // EnableSplitImage
+                               ",0"           // ExplicitGemm
                                ",128"         // MPerBlock
                                ",128"         // NPerBlock
                                ",32"          // KPerBlock

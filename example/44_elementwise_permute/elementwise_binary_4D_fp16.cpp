@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <cstdlib>
@@ -53,7 +53,7 @@ using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceEle
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     std::vector<std::size_t> nchw = {16, 128, 32, 64};
 

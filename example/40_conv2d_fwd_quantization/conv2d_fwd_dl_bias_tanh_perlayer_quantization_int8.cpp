@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
@@ -84,7 +84,7 @@ using DeviceGroupedConvNDFwdInstance =
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     if(argc == 1)
     {

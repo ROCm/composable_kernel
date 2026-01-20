@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #include <random>
-
 #pragma once
 struct ProblemSize final
 {
@@ -28,7 +27,7 @@ struct ExecutionConfig final
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 };
 
 template <typename DataType>

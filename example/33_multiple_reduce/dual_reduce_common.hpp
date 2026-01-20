@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <cstdlib>
@@ -40,7 +40,7 @@ class SimpleAppArgs
 
     bool do_verification = true;
     int init_method      = 2;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     public:
     SimpleAppArgs()

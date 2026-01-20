@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gemm_reduce_xdl_common.hpp"
 
@@ -105,7 +105,7 @@ int main(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     // GEMM shape
     ck::index_t M = 1024;

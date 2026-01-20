@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) , Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstring>
 #include <iostream>
@@ -32,7 +32,7 @@ auto create_args(int argc, char* argv[])
         .insert("prec",
                 "fp8",
                 "Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, "
-                "or bf8i4")
+                "or bf8i4;  for ABQuant: fp8, bf8")
         .insert("warmup", "50", "Number of iterations before benchmarking the kernel")
         .insert("repeat", "1000", "Number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
@@ -41,8 +41,9 @@ auto create_args(int argc, char* argv[])
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("flush_cache", "true", "Flush cache before running the kernel")
         .insert("rotating_count", "1000", "Rotating count")
-        .insert("quant_mode", "bquant", "Choose aquant, bquant, tensor or rowcol")
+        .insert("quant_mode", "bquant", "Choose aquant, bquant, abquant, tensor or rowcol")
         .insert("preshuffleb", "false", "Enable preshuffle of tensor B")
+        .insert("preshufflequant", "false", "Enable preshuffle of quant tensor")
         .insert("group_size",
                 "1x1x128",
                 "Quantization group size as MxNxK, e.g., 1x1x128, 1x32x128, 1x64x128");
@@ -58,11 +59,31 @@ auto gen_lut_key(const ck_tile::ArgParser& arg_parser)
 
     std::vector<std::string> params = {data_type, quant_mode};
 
+    if(quant_mode == "aquant")
+    {
+        std::string preshufflequant =
+            arg_parser.get_bool("preshufflequant") ? "preshufflequant" : "non-preshufflequant";
+        params.push_back(preshufflequant);
+    }
     if(quant_mode == "bquant")
     {
         std::string preshuffleb =
             arg_parser.get_bool("preshuffleb") ? "preshuffleb" : "non-preshuffleb";
         params.push_back(preshuffleb);
+
+        std::string preshufflequant =
+            arg_parser.get_bool("preshufflequant") ? "preshufflequant" : "non-preshufflequant";
+        params.push_back(preshufflequant);
+    }
+    if(quant_mode == "abquant")
+    {
+        std::string preshuffleb =
+            arg_parser.get_bool("preshuffleb") ? "preshuffleb" : "non-preshuffleb";
+        params.push_back(preshuffleb);
+
+        std::string preshufflequant =
+            arg_parser.get_bool("preshufflequant") ? "preshufflequant" : "non-preshufflequant";
+        params.push_back(preshufflequant);
     }
     if(quant_mode != "rowcol" && quant_mode != "tensor")
     {
@@ -74,7 +95,11 @@ auto gen_lut_key(const ck_tile::ArgParser& arg_parser)
     return hash_multiple_strings(params);
 }
 
+void abquant_quantgrouped_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void aquant_quantgrouped_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void aquant_quantgrouped_preshufflequant_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_fp8_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
@@ -84,7 +109,31 @@ void bquant_quantgrouped_fp8i4_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_bf8i4_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
-void bquant_quantgrouped_preshuffleb_instance_factory(
+void bquant_quantgrouped_bf16fp4_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshuffleb_fp8_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshuffleb_bf8_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshuffleb_fp8i4_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshuffleb_bf8i4_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshufflequant_fp8_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshufflequant_bf8_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshufflequant_fp8i4_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshufflequant_bf8i4_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshuffleb_preshufflequant_fp8_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshuffleb_preshufflequant_bf8_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshuffleb_preshufflequant_fp8i4_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void bquant_quantgrouped_preshuffleb_preshufflequant_bf8i4_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void quant_rowcol_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
@@ -105,12 +154,26 @@ int main(int argc, char* argv[])
     ck_tile::hip_check_error(hipSetDevice(device_id));
 
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>> lut;
+    abquant_quantgrouped_instance_factory(lut);
     aquant_quantgrouped_instance_factory(lut);
+    aquant_quantgrouped_preshufflequant_instance_factory(lut);
     bquant_quantgrouped_fp8_instance_factory(lut);
     bquant_quantgrouped_bf8_instance_factory(lut);
     bquant_quantgrouped_fp8i4_instance_factory(lut);
     bquant_quantgrouped_bf8i4_instance_factory(lut);
-    bquant_quantgrouped_preshuffleb_instance_factory(lut);
+    bquant_quantgrouped_bf16fp4_instance_factory(lut);
+    bquant_quantgrouped_preshuffleb_fp8_instance_factory(lut);
+    bquant_quantgrouped_preshuffleb_bf8_instance_factory(lut);
+    bquant_quantgrouped_preshuffleb_fp8i4_instance_factory(lut);
+    bquant_quantgrouped_preshuffleb_bf8i4_instance_factory(lut);
+    bquant_quantgrouped_preshufflequant_fp8_instance_factory(lut);
+    bquant_quantgrouped_preshufflequant_bf8_instance_factory(lut);
+    bquant_quantgrouped_preshufflequant_fp8i4_instance_factory(lut);
+    bquant_quantgrouped_preshufflequant_bf8i4_instance_factory(lut);
+    bquant_quantgrouped_preshuffleb_preshufflequant_fp8_instance_factory(lut);
+    bquant_quantgrouped_preshuffleb_preshufflequant_bf8_instance_factory(lut);
+    bquant_quantgrouped_preshuffleb_preshufflequant_fp8i4_instance_factory(lut);
+    bquant_quantgrouped_preshuffleb_preshufflequant_bf8i4_instance_factory(lut);
     quant_rowcol_instance_factory(lut);
     quant_tensor_instance_factory(lut);
 
@@ -122,9 +185,9 @@ int main(int argc, char* argv[])
     }
     else
     {
-        std::cerr
-            << "Error: Combination of prec, quant_mode, preshuffleb, and group_size not supported."
-            << std::endl;
+        std::cerr << "Error: Combination of prec, quant_mode, preshuffleb, preshufflequant, and "
+                     "group_size not supported."
+                  << std::endl;
         return -1;
     }
 }
